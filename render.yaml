@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: polymarket-whales
+    runtime: python
+    buildCommand: pip install -r requirements.txt && python ingest_top_wallets.py
+    startCommand: gunicorn app:app
+    envVars:
+      - key: REFRESH_INTERVAL
+        value: 300
