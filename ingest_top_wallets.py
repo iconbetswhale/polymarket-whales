@@ -42,8 +42,14 @@ def fetch_tag(tag: str, limit: int = 100) -> list[dict]:
         if r.status_code != 200:
             print(f"  {tag}: HTTP {r.status_code}")
             return []
-        data = r.json()
-        traders = data if isinstance(data, list) else data.get("traders", data.get("data", []))
+        payload = r.json()
+        # Response: {"data": [...], "totalCount": N, ...}  or bare list
+        if isinstance(payload, list):
+            traders = payload
+        elif isinstance(payload, dict):
+            traders = payload.get("data") or payload.get("traders") or []
+        else:
+            traders = []
         print(f"  {tag}: {len(traders)} traders")
         return traders
     except Exception as e:
@@ -52,12 +58,23 @@ def fetch_tag(tag: str, limit: int = 100) -> list[dict]:
 
 
 def normalize(trader: dict, tag: str) -> dict:
-    addr = (trader.get("proxyWalletAddress") or trader.get("address") or "").lower()
-    label = trader.get("name") or trader.get("username") or trader.get("pseudonym") or ""
-    gain = float(trader.get("overall_gain") or trader.get("overallGain") or 0)
-    volume = float(trader.get("volume") or trader.get("totalVolume") or 0)
-    roi = float(trader.get("roi") or trader.get("overallRoi") or 0)
-    trades = int(trader.get("trades_count") or trader.get("tradesCount") or 0)
+    # PMA API fields: trader, trader_name, overall_gain, win_rate, total_positions, total_current_value
+    raw_addr = (
+        trader.get("trader") or
+        trader.get("proxyWalletAddress") or
+        trader.get("address") or ""
+    )
+    # Strip `-timestamp` suffixes sometimes appended by the API
+    addr = raw_addr.split("-")[0].lower() if raw_addr else ""
+    label = (
+        trader.get("trader_name") or
+        trader.get("name") or
+        trader.get("username") or ""
+    )
+    gain = float(trader.get("overall_gain") or 0)
+    volume = float(trader.get("total_current_value") or trader.get("volume") or 0)
+    roi = float(trader.get("win_rate") or trader.get("roi") or 0)
+    trades = int(trader.get("total_positions") or trader.get("trades_count") or 0)
     return {
         "address": addr,
         "label": label,
@@ -116,7 +133,8 @@ def main():
     print(f"\nSaved {len(wallets)} wallets to {out}")
     for w in wallets[:10]:
         gain_str = f"${w['overall_gain']:,.0f}"
-        print(f"  #{w['rank']:2d}  {w['label'] or w['address'][:10]}  {gain_str}  [{w['best_tag']}]")
+        display = w['label'] or w['address'][:12] + "…"
+        print(f"  #{w['rank']:2d}  {display:<20s}  {gain_str}  [{w['best_tag']}]")
 
 
 if __name__ == "__main__":
