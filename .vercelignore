@@ -6,6 +6,8 @@ tests/__pycache__/
 tests/
 *.pyc
 polymarket_tracker.db
+polymarket_tracker.db-journal
+*.db-journal
 *.sqlite
 *.sqlite3
 .git/
