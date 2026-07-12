@@ -99,6 +99,7 @@ class TrackerService:
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
+        self._refresh_lock = threading.Lock()
         self._started = False
         self._thread: threading.Thread | None = None
         self._cache = {
@@ -150,10 +151,42 @@ class TrackerService:
             self.refresh()
 
     def get_snapshot(self) -> dict[str, Any]:
+        self.refresh_if_stale()
         with self._lock:
             return json.loads(json.dumps(self._cache))
 
     def refresh(self) -> None:
+        with self._refresh_lock:
+            self._refresh_unlocked()
+
+    def refresh_if_stale(self) -> None:
+        if self.settings.dashboard_refresh <= 0 or not self._snapshot_is_stale():
+            return
+        if not self._refresh_lock.acquire(blocking=False):
+            return
+        try:
+            if self._snapshot_is_stale():
+                self._refresh_unlocked()
+        finally:
+            self._refresh_lock.release()
+
+    def _snapshot_is_stale(self) -> bool:
+        with self._lock:
+            status = self._cache.get("status", {})
+            timestamp = status.get("last_successful_refresh") or status.get("last_refresh_attempt")
+
+        if not timestamp:
+            return True
+
+        try:
+            parsed = datetime.fromisoformat(str(timestamp).replace("Z", "+00:00"))
+        except ValueError:
+            return True
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return (_utc_now() - parsed).total_seconds() >= self.settings.dashboard_refresh
+
+    def _refresh_unlocked(self) -> None:
         attempt_time = _iso_now()
         loader = load_wallets(self.settings.wallets_file)
         wallet_payload = self._build_wallet_payload(loader)

@@ -112,8 +112,8 @@ Example with a manual unit override:
 
 ## Environment Variables
 
-`DASHBOARD_REFRESH=120`
-Refresh cadence in seconds.
+`DASHBOARD_REFRESH=15`
+Backend wallet refresh cadence in seconds. The browser also polls the dashboard API every 15 seconds unless auto-refresh is paused.
 
 `DASHBOARD_PORT=5000`
 Local Flask port. In production, the app prefers Render's `PORT`.
