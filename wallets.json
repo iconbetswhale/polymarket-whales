@@ -1,8 +1,15 @@
 [
   {
-    "address": "REPLACE_WITH_WALLET_ADDRESS",
-    "label": "Trader 1",
-    "enabled": false,
+    "address": "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e",
+    "label": "0x4f2",
+    "enabled": true,
+    "base_unit": null,
+    "notes": ""
+  },
+  {
+    "address": "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705",
+    "label": "1winstreak1",
+    "enabled": true,
     "base_unit": null,
     "notes": ""
   }
