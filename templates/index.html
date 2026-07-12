@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-refresh-15-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-trades-console-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -212,14 +212,24 @@
 
     <div class="section-grid">
       <section class="dashboard-section" id="recent-trades" aria-labelledby="recent-trades-title">
-        <div class="section-heading">
+        <div class="section-heading trade-console-heading">
           <div>
-            <p class="eyebrow">ACTIVITY</p>
+            <p class="eyebrow">TRADERS</p>
             <h2 id="recent-trades-title">Recent Trades</h2>
           </div>
-          <p>Recent detected wallet events</p>
+          <div class="trade-tabs" aria-label="Trade views">
+            <span class="trade-tab active">Picks <strong id="trades-count-badge">0</strong></span>
+            <span class="trade-tab">Positions</span>
+            <span class="trade-tab">Orders</span>
+            <span class="trade-tab">Closed</span>
+          </div>
         </div>
-        <div class="activity-feed" id="trades-feed"></div>
+        <div class="trade-console">
+          <div class="trade-list-panel">
+            <div class="activity-feed trade-card-list" id="trades-feed" aria-label="Recent trade cards"></div>
+          </div>
+          <aside class="trade-detail-panel" id="trade-detail-panel" aria-live="polite" aria-label="Selected trade details"></aside>
+        </div>
         <div class="table-wrap compact visually-kept">
           <table id="trades-table">
             <thead>
@@ -359,6 +369,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-refresh-15-1"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-trades-console-1"></script>
 </body>
 </html>

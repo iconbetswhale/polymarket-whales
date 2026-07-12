@@ -7,6 +7,7 @@ const state = {
   status: null,
   loading: false,
   autoRefreshPaused: false,
+  selectedTradeKey: null,
 };
 
 const AUTO_REFRESH_MS = 15000;
@@ -344,8 +345,246 @@ function eventBadge(eventType) {
   return `<span class="event-badge ${cls}">${escapeHtml(label)}</span>`;
 }
 
+function tradeEventLabel(eventType) {
+  const labels = {
+    new_entry: "New Entry",
+    size_increase: "Increased",
+    size_decrease: "Decreased",
+    full_exit: "Exit",
+    price_change: "Price Change",
+    avg_price_change: "Avg Price",
+    current_value_change: "Value Change",
+    unrealized_pnl_change: "P&L Change",
+  };
+  return labels[eventType] || eventType || "Event";
+}
+
+function numberOrNull(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function formatCentsFromProbability(value) {
+  const numeric = numberOrNull(value);
+  if (numeric === null || numeric <= 0) return "n/a";
+  return `${(numeric * 100).toFixed(1)}c`;
+}
+
+function tradeKey(trade, index) {
+  return trade.event_hash || `${trade.wallet_address || "wallet"}::${trade.position_key || "position"}::${trade.detected_at || index}`;
+}
+
+function tradeSnapshot(trade) {
+  return trade.current || trade;
+}
+
+function unitEntryForTrade(trade) {
+  const address = String(trade.wallet_address || "").toLowerCase();
+  const label = String(trade.wallet_label || "").toLowerCase();
+  return state.unitAnalysis.find((entry) => (
+    String(entry.wallet_address || "").toLowerCase() === address ||
+    String(entry.wallet_label || "").toLowerCase() === label
+  ));
+}
+
+function tradeSizeUsd(trade) {
+  const snapshot = tradeSnapshot(trade);
+  return numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
+}
+
+function relativeBetSize(trade) {
+  const snapshot = tradeSnapshot(trade);
+  const directUnits = numberOrNull(snapshot.estimated_units);
+  const unitEntry = unitEntryForTrade(trade);
+  const baseUnit = numberOrNull(unitEntry?.estimated_base_unit);
+  const sizeUsd = tradeSizeUsd(trade);
+  const units = directUnits ?? (baseUnit && baseUnit > 0 ? sizeUsd / baseUnit : null);
+
+  if (units === null) {
+    return {
+      value: "n/a",
+      subtext: "Unit stats pending",
+    };
+  }
+
+  const decimals = Math.abs(units) >= 10 ? 1 : 2;
+  return {
+    value: `${units.toFixed(decimals)}u`,
+    subtext: baseUnit ? `${formatMoney(baseUnit)} unit` : "Estimated units",
+  };
+}
+
+function slippageForTrade(trade) {
+  const snapshot = tradeSnapshot(trade);
+  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price);
+  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
+
+  if (!averageEntry || !currentPrice) {
+    return {
+      value: "n/a",
+      className: "",
+      note: "Needs entry and current price",
+    };
+  }
+
+  const centsDelta = (currentPrice - averageEntry) * 100;
+  const className = centsDelta < 0 ? "good" : centsDelta > 0 ? "bad" : "flat";
+  const note = centsDelta < 0
+    ? "Better price than entry"
+    : centsDelta > 0
+      ? "Worse price than entry"
+      : "Same as entry";
+
+  return {
+    value: `${centsDelta >= 0 ? "+" : ""}${centsDelta.toFixed(1)}c`,
+    className,
+    note,
+  };
+}
+
+function tradePriceTrackStyle(trade) {
+  const snapshot = tradeSnapshot(trade);
+  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price) ?? 0;
+  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price) ?? 0;
+  const entryPct = Math.max(4, Math.min(96, averageEntry * 100));
+  const currentPct = Math.max(4, Math.min(96, currentPrice * 100));
+  return `--entry-pct: ${entryPct}%; --current-pct: ${currentPct}%;`;
+}
+
+function tradeMetric(label, value, subtext, cls = "") {
+  return `
+    <div class="trade-detail-metric ${cls}">
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value)}</strong>
+      ${subtext ? `<small>${escapeHtml(subtext)}</small>` : ""}
+    </div>
+  `;
+}
+
+function renderTradeCard(trade, index, selectedKey) {
+  const key = tradeKey(trade, index);
+  const snapshot = tradeSnapshot(trade);
+  const selected = key === selectedKey;
+  const relative = relativeBetSize(trade);
+  const slippage = slippageForTrade(trade);
+  const conviction = formatConviction(snapshot);
+  const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
+  const price = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
+
+  return `
+    <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
+      <div class="trade-card-rank">${escapeHtml(conviction === "n/a" ? String(index + 1).padStart(2, "0") : conviction)}</div>
+      <div class="trade-card-main">
+        <div class="trade-card-meta">
+          <span>${escapeHtml(formatShortDate(snapshot.resolution_time || trade.detected_at))}</span>
+          <span>${escapeHtml(relative.value)}</span>
+          <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
+          <span>Current: ${escapeHtml(formatCentsFromProbability(price))}</span>
+        </div>
+        <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
+        <div class="trade-card-subtitle">${escapeHtml(trade.wallet_label)} / ${escapeHtml(trade.category || "Market")} / ${escapeHtml(tradeEventLabel(trade.event_type))}</div>
+      </div>
+      <div class="trade-card-pick">
+        <span>${escapeHtml(trade.outcome || "Outcome")}</span>
+        <strong>${shares ? `${shares.toFixed(shares >= 100 ? 0 : 2)} shares` : formatMoney(tradeSizeUsd(trade))}</strong>
+        <small>${escapeHtml(formatCentsFromProbability(price))}</small>
+      </div>
+    </button>
+  `;
+}
+
+function renderTradeDetail(trade) {
+  if (!trade) {
+    return '<div class="empty-panel">Select a recent trade to inspect the play.</div>';
+  }
+
+  const snapshot = tradeSnapshot(trade);
+  const relative = relativeBetSize(trade);
+  const slippage = slippageForTrade(trade);
+  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price);
+  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
+  const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
+  const pnl = (numberOrNull(snapshot.unrealized_pnl) ?? numberOrNull(trade.unrealized_pnl) ?? 0) + (numberOrNull(trade.realized_pnl) ?? 0);
+  const sizeUsd = tradeSizeUsd(trade);
+  const profileUrl = snapshot.wallet_profile_url || trade.wallet_profile_url;
+  const marketUrl = snapshot.market_url || trade.market_url;
+
+  return `
+    <div class="trade-detail-header">
+      <div>
+        <p class="trade-detail-score">${escapeHtml(formatConviction(snapshot))}</p>
+        <h3 title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</h3>
+        <span>${escapeHtml(trade.category || "Market")} / ${escapeHtml(trade.league || "League")}</span>
+      </div>
+      ${eventBadge(trade.event_type)}
+    </div>
+
+    <div class="trade-detail-pick">
+      <div>
+        <span>Trader</span>
+        <strong>${escapeHtml(trade.wallet_label || "Tracked wallet")}</strong>
+      </div>
+      <div>
+        <span>Pick</span>
+        <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
+      </div>
+      <div>
+        <span>Bet Size</span>
+        <strong>${formatMoney(sizeUsd)}</strong>
+        ${shares ? `<small>${escapeHtml(shares.toFixed(shares >= 100 ? 0 : 2))} shares</small>` : ""}
+      </div>
+      <div>
+        <span>Current</span>
+        <strong>${escapeHtml(formatCentsFromProbability(currentPrice))}</strong>
+      </div>
+    </div>
+
+    <div class="trade-detail-metrics">
+      ${tradeMetric("Rel. Bet Size", relative.value, relative.subtext)}
+      ${tradeMetric("Bet Size", formatMoney(sizeUsd), "Position amount")}
+      ${tradeMetric("Slippage", slippage.value, slippage.note, `slippage ${slippage.className}`)}
+    </div>
+
+    <div class="trade-stats-grid">
+      ${tradeMetric("Trader", trade.wallet_label || "Tracked wallet", "Name shown in wallets.json")}
+      ${tradeMetric("Top Category", trade.category || "n/a", "Placeholder until stats are added")}
+      ${tradeMetric("Trader ROI", "Coming soon", "Add when you send stats")}
+      ${tradeMetric("Trades", "Coming soon", "Add when you send stats")}
+    </div>
+
+    <div class="price-card">
+      <div class="price-card-head">
+        <strong>Price</strong>
+        <span>Entry ${escapeHtml(formatCentsFromProbability(averageEntry))} / Current ${escapeHtml(formatCentsFromProbability(currentPrice))}</span>
+      </div>
+      <div class="price-track" style="${escapeHtml(tradePriceTrackStyle(trade))}">
+        <span class="entry-marker">Entry</span>
+        <span class="current-marker">Current</span>
+      </div>
+      <p>Negative slippage means the current price is below the trader's entry, so following now is cheaper. Positive slippage means the current price is higher than entry.</p>
+    </div>
+
+    <div class="trade-detail-footer">
+      <span>Detected ${escapeHtml(formatDate(trade.detected_at))}</span>
+      <span class="${valueClass(pnl)}">P&L ${formatMoney(pnl)}</span>
+      <span>Value ${formatMoney(numberOrNull(snapshot.current_value) ?? numberOrNull(trade.current_value) ?? 0)}</span>
+      ${marketUrl ? `<a href="${escapeHtml(marketUrl)}" target="_blank" rel="noreferrer">Open Market</a>` : ""}
+      ${profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">Trader Profile</a>` : ""}
+    </div>
+  `;
+}
+
 function renderTrades() {
   const trades = state.trades.slice(0, 100);
+  const tradeKeys = trades.map((trade, index) => tradeKey(trade, index));
+  if (!tradeKeys.includes(state.selectedTradeKey)) {
+    state.selectedTradeKey = tradeKeys[0] || null;
+  }
+
+  const selectedTrade = trades.find((trade, index) => tradeKey(trade, index) === state.selectedTradeKey);
+  const countBadge = document.getElementById("trades-count-badge");
+  if (countBadge) countBadge.textContent = trades.length;
+
   document.querySelector("#trades-table tbody").innerHTML = trades.length
     ? trades.map((trade) => `
       <tr>
@@ -361,17 +600,11 @@ function renderTrades() {
     : '<tr><td class="empty-row" colspan="7">No recent trades detected yet.</td></tr>';
 
   document.getElementById("trades-feed").innerHTML = trades.length
-    ? trades.map((trade) => `
-      <article class="activity-item">
-        <div>${eventBadge(trade.event_type)}</div>
-        <div>
-          <div class="activity-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
-          <div class="activity-meta">${escapeHtml(trade.wallet_label)} / ${escapeHtml(trade.outcome)} / ${formatMoney(trade.current_value)}</div>
-        </div>
-        <time class="activity-time">${escapeHtml(formatDate(trade.detected_at))}</time>
-      </article>
-    `).join("")
+    ? trades.map((trade, index) => renderTradeCard(trade, index, state.selectedTradeKey)).join("")
     : '<div class="empty-panel">No recent trades detected yet.</div>';
+
+  const detailPanel = document.getElementById("trade-detail-panel");
+  if (detailPanel) detailPanel.innerHTML = renderTradeDetail(selectedTrade);
 }
 
 function statusClass(status) {
@@ -628,6 +861,13 @@ function bindInteractions() {
       const expanded = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!expanded));
       if (target) target.hidden = expanded;
+    }
+
+    const tradeCard = event.target.closest(".trade-card");
+    if (tradeCard) {
+      state.selectedTradeKey = tradeCard.dataset.tradeKey;
+      renderTrades();
+      return;
     }
 
     const copyButton = event.target.closest(".copy-button");
