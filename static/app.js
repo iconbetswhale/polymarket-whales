@@ -8,6 +8,7 @@ const state = {
   loading: false,
   autoRefreshPaused: false,
   selectedTradeKey: null,
+  lastDashboardCheck: null,
 };
 
 const AUTO_REFRESH_MS = 15000;
@@ -742,11 +743,14 @@ function syncSelectors() {
 
 function renderStatusChrome(status) {
   const api = status.api_status || "idle";
-  const lastRefresh = formatDate(status.last_successful_refresh);
+  const lastCheck = formatDate(state.lastDashboardCheck);
+  const dataRefresh = formatDate(status.last_successful_refresh);
   document.getElementById("api-status").textContent = api;
   document.getElementById("hero-api-status").textContent = `API ${api}`;
-  document.getElementById("last-refresh").textContent = lastRefresh;
-  document.getElementById("hero-last-refresh").textContent = lastRefresh;
+  document.getElementById("last-refresh").textContent = lastCheck;
+  document.getElementById("hero-last-refresh").textContent = lastCheck;
+  document.getElementById("last-data-refresh").textContent = dataRefresh;
+  document.getElementById("hero-data-refresh").textContent = dataRefresh;
   document.getElementById("nav-enabled-wallets").textContent = status.enabled_wallet_count ?? 0;
   setStatusDots(api);
 }
@@ -785,6 +789,7 @@ async function loadDashboard() {
     state.unitAnalysis = unitAnalysis.data || [];
     state.consensus = consensus.data || [];
     state.status = status;
+    state.lastDashboardCheck = new Date().toISOString();
     renderAll();
   } finally {
     state.loading = false;

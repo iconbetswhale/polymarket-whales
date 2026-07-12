@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-trades-console-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-refresh-labels-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -28,7 +28,8 @@
     </div>
     <div class="nav-status" aria-label="Dashboard status">
       <span class="status-pill"><span class="status-dot" id="api-status-dot" aria-hidden="true"></span>API <strong id="api-status">Loading</strong></span>
-      <span class="status-pill">Refresh <strong id="last-refresh">Waiting</strong></span>
+      <span class="status-pill">Checked <strong id="last-refresh">Waiting</strong></span>
+      <span class="status-pill">Data <strong id="last-data-refresh">Waiting</strong></span>
       <span class="status-pill">Wallets <strong id="nav-enabled-wallets">0</strong></span>
     </div>
   </nav>
@@ -42,7 +43,8 @@
       </div>
       <div class="hero-actions" aria-label="Refresh status">
         <span class="hero-badge"><span class="status-dot" id="hero-api-dot" aria-hidden="true"></span><span id="hero-api-status">API Loading</span></span>
-        <span class="hero-badge">Last refresh <strong id="hero-last-refresh">Waiting</strong></span>
+        <span class="hero-badge">Checked <strong id="hero-last-refresh">Waiting</strong></span>
+        <span class="hero-badge">Data <strong id="hero-data-refresh">Waiting</strong></span>
         <a class="text-button subtle" href="#wallets">Wallet Setup</a>
         <button class="text-button subtle" id="pause-refresh-button" type="button" aria-pressed="false">Pause Auto</button>
         <button class="icon-button" id="refresh-button" type="button" aria-label="Refresh dashboard data" title="Refresh dashboard data">
@@ -369,6 +371,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-trades-console-1"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-refresh-labels-1"></script>
 </body>
 </html>
