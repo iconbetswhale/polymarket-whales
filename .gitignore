@@ -8,6 +8,7 @@ env/
 
 # Runtime data
 polymarket_tracker.db
+*.db-journal
 *.sqlite
 *.sqlite3
 top_wallets.json
