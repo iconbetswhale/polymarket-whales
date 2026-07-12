@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-redesign-2">
+</head>
+<body>
+  <a class="skip-link" href="#live-positions">Skip to live positions</a>
+
+  <nav class="app-nav" aria-label="Primary navigation">
+    <a class="brand-mark" href="#overview" aria-label="IconBets Polymarket Wallet Tracker home">
+      <span class="brand-icon" aria-hidden="true">IB</span>
+      <span>
+        <strong>IconBets</strong>
+        <small>Polymarket Wallet Tracker</small>
+      </span>
+    </a>
+    <div class="nav-links" aria-label="Dashboard sections">
+      <a href="#overview">Overview</a>
+      <a href="#live-positions">Live Positions</a>
+      <a href="#recent-trades">Recent Trades</a>
+      <a href="#wallets">Wallets</a>
+      <a href="#consensus">Consensus</a>
+      <a href="#unit-analysis">Unit Analysis</a>
+      <a href="#position-history">Position History</a>
+    </div>
+    <div class="nav-status" aria-label="Dashboard status">
+      <span class="status-pill"><span class="status-dot" id="api-status-dot" aria-hidden="true"></span>API <strong id="api-status">Loading</strong></span>
+      <span class="status-pill">Refresh <strong id="last-refresh">Waiting</strong></span>
+      <span class="status-pill">Wallets <strong id="nav-enabled-wallets">0</strong></span>
+    </div>
+  </nav>
+
+  <main class="page-shell">
+    <header class="hero" id="overview">
+      <div class="hero-copy">
+        <p class="eyebrow">PRIVATE WALLET INTELLIGENCE</p>
+        <h1>IconBets Polymarket Wallet Tracker</h1>
+        <p class="subhead">A focused command center for sports positions, wallet sizing, trade history, and same-side consensus.</p>
+      </div>
+      <div class="hero-actions" aria-label="Refresh status">
+        <span class="hero-badge"><span class="status-dot" id="hero-api-dot" aria-hidden="true"></span><span id="hero-api-status">API Loading</span></span>
+        <span class="hero-badge">Last refresh <strong id="hero-last-refresh">Waiting</strong></span>
+        <button class="icon-button" id="refresh-button" type="button" aria-label="Refresh dashboard data" title="Refresh dashboard data">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <section class="overview-grid" id="overview-grid" aria-label="Overview metrics"></section>
+
+    <section class="empty-state hidden" id="empty-state" aria-live="polite">
+      <div class="empty-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6H18a3 3 0 0 1 3 3v8.5A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-9Z"/><path d="M17 12h4v4h-4a2 2 0 0 1 0-4Z"/><path d="M6 6V5a2 2 0 0 1 2-2h7"/></svg>
+      </div>
+      <div>
+        <p class="eyebrow">NO ENABLED WALLETS</p>
+        <h2>No enabled wallets yet</h2>
+        <p>Add public Polymarket wallet addresses in <code class="code-chip">wallets.json</code>, enable them, then refresh the dashboard.</p>
+        <ol class="empty-steps">
+          <li>Add a public wallet address</li>
+          <li>Set <code>enabled</code> to <code>true</code></li>
+          <li>Refresh the dashboard</li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="filter-panel" aria-labelledby="filters-title">
+      <div class="section-heading compact-heading">
+        <div>
+          <p class="eyebrow">CONTROL SURFACE</p>
+          <h2 id="filters-title">Filters</h2>
+        </div>
+        <div class="filter-actions">
+          <span class="active-count" id="active-filter-count">0 active</span>
+          <button class="text-button" type="button" id="advanced-toggle" aria-expanded="false" aria-controls="advanced-filters">Advanced Filters</button>
+          <button class="text-button subtle" type="button" id="clear-filters">Clear Filters</button>
+        </div>
+      </div>
+
+      <div class="filters primary-filters">
+        <label>
+          <span>Search</span>
+          <input id="search-input" type="text" placeholder="Wallet label, market, outcome" autocomplete="off">
+        </label>
+        <label>
+          <span>Wallet</span>
+          <select id="wallet-filter"><option value="">All</option></select>
+        </label>
+        <label>
+          <span>Sport</span>
+          <select id="sport-filter"><option value="">All</option></select>
+        </label>
+        <label>
+          <span>League</span>
+          <select id="league-filter"><option value="">All</option></select>
+        </label>
+        <label>
+          <span>Event Type</span>
+          <select id="event-filter">
+            <option value="">All</option>
+            <option value="new_entry">New trades only</option>
+            <option value="size_increase">Position increases only</option>
+            <option value="size_decrease">Position decreases only</option>
+          </select>
+        </label>
+        <label>
+          <span>Consensus</span>
+          <select id="consensus-filter">
+            <option value="">All</option>
+            <option value="yes">Consensus only</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="filters advanced-filters" id="advanced-filters" hidden>
+        <label>
+          <span>Minimum Position</span>
+          <input id="min-position" type="number" min="0" step="25" placeholder="$0">
+        </label>
+        <label>
+          <span>Minimum Units</span>
+          <input id="min-units" type="number" min="0" step="0.25" placeholder="0u">
+        </label>
+        <label>
+          <span>Minimum Unrealized P&amp;L</span>
+          <input id="min-pnl" type="number" step="25" placeholder="$0">
+        </label>
+        <label>
+          <span>Resolution Date</span>
+          <input id="resolution-filter" type="date">
+        </label>
+      </div>
+    </section>
+
+    <section class="dashboard-section" id="live-positions" aria-labelledby="live-positions-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">TRADING TABLE</p>
+          <h2 id="live-positions-title">Live Positions</h2>
+        </div>
+        <p id="positions-count">0 positions</p>
+      </div>
+      <div class="table-wrap positions-wrap">
+        <table id="positions-table">
+          <thead>
+            <tr>
+              <th>Wallet</th>
+              <th>Sport</th>
+              <th>League</th>
+              <th>Market</th>
+              <th>Outcome</th>
+              <th>Position Size</th>
+              <th>Estimated Units</th>
+              <th>Avg Entry</th>
+              <th>Current</th>
+              <th>American Odds</th>
+              <th>Current Value</th>
+              <th>Unrealized P&amp;L</th>
+              <th>Unrealized %</th>
+              <th>Resolution</th>
+              <th>First Detected</th>
+              <th>Last Updated</th>
+              <th>Tracked Wallets Same Side</th>
+              <th>Position Conviction</th>
+              <th>Links</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="mobile-card-list" id="mobile-positions" aria-label="Mobile live positions"></div>
+    </section>
+
+    <div class="section-grid">
+      <section class="dashboard-section" id="recent-trades" aria-labelledby="recent-trades-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">ACTIVITY</p>
+            <h2 id="recent-trades-title">Recent Trades</h2>
+          </div>
+          <p>Recent detected wallet events</p>
+        </div>
+        <div class="activity-feed" id="trades-feed"></div>
+        <div class="table-wrap compact visually-kept">
+          <table id="trades-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Wallet</th>
+                <th>Type</th>
+                <th>Market</th>
+                <th>Outcome</th>
+                <th>Value</th>
+                <th>P&amp;L</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="dashboard-section" id="wallets" aria-labelledby="wallets-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">TRACKED WALLETS</p>
+            <h2 id="wallets-title">Wallets</h2>
+          </div>
+          <p>Manual file status and overrides</p>
+        </div>
+        <div class="wallet-card-grid" id="wallet-cards"></div>
+        <div class="table-wrap compact visually-kept">
+          <table id="wallets-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Address</th>
+                <th>Status</th>
+                <th>Base Unit</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="section-grid">
+      <section class="dashboard-section" id="unit-analysis" aria-labelledby="unit-analysis-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SIZING</p>
+            <h2 id="unit-analysis-title">Unit Size Analysis</h2>
+          </div>
+          <p>Recent sports sizing patterns</p>
+        </div>
+        <div class="table-wrap compact">
+          <table id="unit-table">
+            <thead>
+              <tr>
+                <th>Wallet</th>
+                <th>Estimated Base Unit</th>
+                <th>Confidence</th>
+                <th>Sample Size</th>
+                <th>Matched Samples</th>
+                <th>Source</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="dashboard-section" id="consensus" aria-labelledby="consensus-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SAME SIDE</p>
+            <h2 id="consensus-title">Wallet Consensus</h2>
+          </div>
+          <p>Markets held by multiple tracked wallets</p>
+        </div>
+        <div class="table-wrap compact">
+          <table id="consensus-table">
+            <thead>
+              <tr>
+                <th>Market</th>
+                <th>Outcome</th>
+                <th>Wallets</th>
+                <th>Combined Value</th>
+                <th>Combined Units</th>
+                <th>Largest Holder</th>
+                <th>Earliest Entry</th>
+                <th>Recent Increase</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+
+    <div class="section-grid">
+      <section class="dashboard-section" id="position-history" aria-labelledby="history-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">HISTORY</p>
+            <h2 id="history-title">Position History</h2>
+          </div>
+          <p>Persistent SQLite event log</p>
+        </div>
+        <div class="table-wrap compact">
+          <table id="history-table">
+            <thead>
+              <tr>
+                <th>Detected</th>
+                <th>Type</th>
+                <th>Wallet</th>
+                <th>Market</th>
+                <th>Outcome</th>
+                <th>Category</th>
+                <th>Current Value</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="dashboard-section" id="settings" aria-labelledby="settings-title">
+        <div class="section-heading">
+          <div>
+            <p class="eyebrow">SYSTEM</p>
+            <h2 id="settings-title">Settings</h2>
+          </div>
+          <p>Runtime status</p>
+        </div>
+        <dl class="settings-list" id="settings-list"></dl>
+      </section>
+    </div>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-redesign-2"></script>
+</body>
+</html>

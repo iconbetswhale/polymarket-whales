@@ -1,9 +1,24 @@
 services:
   - type: web
-    name: polymarket-whales
+    name: iconbets-polymarket-wallet-tracker
     runtime: python
-    buildCommand: pip install -r requirements.txt && python ingest_top_wallets.py
-    startCommand: gunicorn app:app
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 app:app
+    healthCheckPath: /health
+    disk:
+      name: tracker-data
+      mountPath: /var/data
+      sizeGB: 1
     envVars:
-      - key: REFRESH_INTERVAL
-        value: 300
+      - key: DASHBOARD_REFRESH
+        value: 120
+      - key: SPORTS_ONLY
+        value: true
+      - key: RESOLVE_HOURS
+        value: 168
+      - key: REQUEST_TIMEOUT
+        value: 15
+      - key: MAX_RETRIES
+        value: 3
+      - key: DATABASE_PATH
+        value: /var/data/polymarket_tracker.db
