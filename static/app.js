@@ -6,6 +6,7 @@ const state = {
   consensus: [],
   status: null,
   loading: false,
+  autoRefreshPaused: false,
 };
 
 const AUTO_REFRESH_MS = 15000;
@@ -566,6 +567,19 @@ function clearFilters() {
   renderPositions();
 }
 
+function updatePauseButton() {
+  const button = document.getElementById("pause-refresh-button");
+  button.setAttribute("aria-pressed", String(state.autoRefreshPaused));
+  button.classList.toggle("paused", state.autoRefreshPaused);
+  button.textContent = state.autoRefreshPaused ? "Resume Auto" : "Pause Auto";
+  button.title = state.autoRefreshPaused ? "Resume automatic refresh" : "Pause automatic refresh";
+}
+
+function toggleAutoRefresh() {
+  state.autoRefreshPaused = !state.autoRefreshPaused;
+  updatePauseButton();
+}
+
 function applyQuickFilter(action) {
   clearFilters();
 
@@ -601,6 +615,7 @@ function bindInteractions() {
 
   document.getElementById("clear-filters").addEventListener("click", clearFilters);
   document.getElementById("refresh-button").addEventListener("click", loadDashboard);
+  document.getElementById("pause-refresh-button").addEventListener("click", toggleAutoRefresh);
 
   document.querySelectorAll(".quick-filter").forEach((button) => {
     button.addEventListener("click", () => applyQuickFilter(button.dataset.quickFilter));
@@ -635,6 +650,11 @@ function bindInteractions() {
 
 document.addEventListener("DOMContentLoaded", async () => {
   bindInteractions();
+  updatePauseButton();
   await loadDashboard();
-  setInterval(loadDashboard, AUTO_REFRESH_MS);
+  setInterval(() => {
+    if (!state.autoRefreshPaused) {
+      loadDashboard();
+    }
+  }, AUTO_REFRESH_MS);
 });

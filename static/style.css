@@ -324,6 +324,12 @@ h2 {
   color: var(--text-soft);
 }
 
+.text-button.paused {
+  border-color: rgba(243, 201, 105, 0.38);
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
 .icon-button:hover,
 .text-button:hover {
   border-color: rgba(48, 216, 121, 0.55);
