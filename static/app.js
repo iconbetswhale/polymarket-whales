@@ -8,6 +8,8 @@ const state = {
   loading: false,
 };
 
+const AUTO_REFRESH_MS = 15000;
+
 const filterIds = [
   "search-input",
   "wallet-filter",
@@ -634,5 +636,5 @@ function bindInteractions() {
 document.addEventListener("DOMContentLoaded", async () => {
   bindInteractions();
   await loadDashboard();
-  setInterval(loadDashboard, 120000);
+  setInterval(loadDashboard, AUTO_REFRESH_MS);
 });
