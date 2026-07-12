@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-redesign-2">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-usability-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -43,6 +43,7 @@
       <div class="hero-actions" aria-label="Refresh status">
         <span class="hero-badge"><span class="status-dot" id="hero-api-dot" aria-hidden="true"></span><span id="hero-api-status">API Loading</span></span>
         <span class="hero-badge">Last refresh <strong id="hero-last-refresh">Waiting</strong></span>
+        <a class="text-button subtle" href="#wallets">Wallet Setup</a>
         <button class="icon-button" id="refresh-button" type="button" aria-label="Refresh dashboard data" title="Refresh dashboard data">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-14.9 4M4 12A8 8 0 0 1 18.9 8M19 4v4h-4M5 20v-4h4"/></svg>
         </button>
@@ -67,6 +68,33 @@
       </div>
     </section>
 
+    <section class="setup-guide" id="setup-guide" aria-labelledby="setup-guide-title">
+      <div class="section-heading compact-heading">
+        <div>
+          <p class="eyebrow">BEFORE THE FIRST REFRESH</p>
+          <h2 id="setup-guide-title">Wallet Setup Checklist</h2>
+        </div>
+        <a class="text-button subtle" href="#wallets">Check wallet status</a>
+      </div>
+      <div class="setup-grid">
+        <article class="setup-card">
+          <span class="setup-step">01</span>
+          <h3>Collect public addresses only</h3>
+          <p>Use public Polymarket wallet addresses that start with <code>0x</code>. Never add seed phrases, private keys, logins, or trading access.</p>
+        </article>
+        <article class="setup-card">
+          <span class="setup-step">02</span>
+          <h3>Add them to wallets.json</h3>
+          <p>Each valid wallet will be normalized to lowercase, checked for duplicates, and enabled for tracking.</p>
+        </article>
+        <article class="setup-card">
+          <span class="setup-step">03</span>
+          <h3>Refresh and scan results</h3>
+          <p>The dashboard will split wallets with open positions from wallets with no open positions after the refresh.</p>
+        </article>
+      </div>
+    </section>
+
     <section class="filter-panel" aria-labelledby="filters-title">
       <div class="section-heading compact-heading">
         <div>
@@ -78,6 +106,13 @@
           <button class="text-button" type="button" id="advanced-toggle" aria-expanded="false" aria-controls="advanced-filters">Advanced Filters</button>
           <button class="text-button subtle" type="button" id="clear-filters">Clear Filters</button>
         </div>
+      </div>
+
+      <div class="quick-filter-row" aria-label="Quick position filters">
+        <button class="quick-filter" type="button" data-quick-filter="clear">All Positions</button>
+        <button class="quick-filter" type="button" data-quick-filter="consensus">Consensus Only</button>
+        <button class="quick-filter" type="button" data-quick-filter="large">Large $1k+</button>
+        <button class="quick-filter" type="button" data-quick-filter="profitable">Profitable</button>
       </div>
 
       <div class="filters primary-filters">
@@ -323,6 +358,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-redesign-2"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-usability-1"></script>
 </body>
 </html>

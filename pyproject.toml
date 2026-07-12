@@ -1,0 +1,13 @@
+[project]
+name = "iconbets-polymarket-wallet-tracker"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+  "flask",
+  "requests",
+  "gunicorn",
+  "python-dotenv",
+]
+
+[tool.vercel]
+entrypoint = "app:app"

@@ -13,6 +13,7 @@ from typing import Any
 from classification import classify_market, is_sports_category
 from config import Settings
 from database import TrackerDatabase
+from discord_notifier import DiscordNotifier
 from polymarket_client import PolymarketClient
 from scoring import hours_until_resolution, score_position
 from unit_analysis import amount_to_units, estimate_unit_size
@@ -89,11 +90,13 @@ class TrackerService:
         settings: Settings,
         client: PolymarketClient | None = None,
         database: TrackerDatabase | None = None,
+        notifier: DiscordNotifier | None = None,
         auto_start: bool = True,
     ) -> None:
         self.settings = settings
         self.client = client or PolymarketClient(settings.request_timeout, settings.max_retries)
         self.database = database or TrackerDatabase(settings.database_path)
+        self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self._lock = threading.Lock()
         self._started = False
         self._thread: threading.Thread | None = None
@@ -404,6 +407,7 @@ class TrackerService:
             for position in closed_positions
         }
         output: list[dict] = []
+        is_initial_wallet_scan = not previous_rows
 
         for key, row in current_by_key.items():
             previous = previous_rows.get(key)
@@ -411,11 +415,11 @@ class TrackerService:
                 row["first_detected_at"] = previous.get("first_detected_at") or now
                 row["last_changed_at"] = previous.get("last_changed_at") or now
                 for event in self._detect_changes(previous, row, now):
-                    self.database.insert_event(event)
-                    row["last_changed_at"] = event["detected_at"]
+                    if self._record_event(event):
+                        row["last_changed_at"] = event["detected_at"]
             else:
                 event = self._build_event("new_entry", None, row, now, {"message": "First detected open position"})
-                self.database.insert_event(event)
+                self._record_event(event, initial_scan=is_initial_wallet_scan)
 
             row["last_seen_at"] = now
             self.database.save_open_position(row)
@@ -435,10 +439,19 @@ class TrackerService:
                 closed_snapshot["current_price"] = round(_safe_float(closed_match.get("curPrice")), 4)
                 closed_snapshot["current_price_cents"] = round(_safe_float(closed_match.get("curPrice")) * 100, 2)
             event = self._build_event("full_exit", previous, closed_snapshot, now, {"closed_position_found": bool(closed_match)})
-            self.database.insert_event(event)
+            self._record_event(event)
             self.database.close_position(closed_snapshot)
 
         return output
+
+    def _record_event(self, event: dict, initial_scan: bool = False) -> bool:
+        inserted = self.database.insert_event(event)
+        if not inserted:
+            return False
+        if initial_scan and not self.settings.discord_notify_on_initial_scan:
+            return True
+        self.notifier.notify(event)
+        return True
 
     def _detect_changes(self, previous: dict, current: dict, timestamp: str) -> list[dict]:
         events: list[dict] = []

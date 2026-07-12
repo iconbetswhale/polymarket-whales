@@ -159,6 +159,16 @@ function activeFilterCount() {
 function updateActiveFilterCount() {
   const count = activeFilterCount();
   document.getElementById("active-filter-count").textContent = `${count} active`;
+  document.querySelectorAll(".quick-filter").forEach((button) => {
+    const action = button.dataset.quickFilter;
+    const isActive = (
+      (action === "clear" && count === 0) ||
+      (action === "consensus" && document.getElementById("consensus-filter").value === "yes") ||
+      (action === "large" && document.getElementById("min-position").value === "1000") ||
+      (action === "profitable" && document.getElementById("min-pnl").value === "1")
+    );
+    button.classList.toggle("active", isActive);
+  });
 }
 
 function filteredPositions() {
@@ -485,6 +495,7 @@ function renderSettings() {
 function toggleEmptyState() {
   const noEnabledWallets = (state.status?.enabled_wallet_count || 0) === 0;
   document.getElementById("empty-state").classList.toggle("hidden", !noEnabledWallets);
+  document.getElementById("setup-guide").classList.toggle("hidden", !noEnabledWallets);
 }
 
 function syncSelectors() {
@@ -553,6 +564,24 @@ function clearFilters() {
   renderPositions();
 }
 
+function applyQuickFilter(action) {
+  clearFilters();
+
+  if (action === "consensus") {
+    document.getElementById("consensus-filter").value = "yes";
+  }
+
+  if (action === "large") {
+    document.getElementById("min-position").value = "1000";
+  }
+
+  if (action === "profitable") {
+    document.getElementById("min-pnl").value = "1";
+  }
+
+  renderPositions();
+}
+
 function bindInteractions() {
   filterIds.forEach((id) => {
     const element = document.getElementById(id);
@@ -570,6 +599,10 @@ function bindInteractions() {
 
   document.getElementById("clear-filters").addEventListener("click", clearFilters);
   document.getElementById("refresh-button").addEventListener("click", loadDashboard);
+
+  document.querySelectorAll(".quick-filter").forEach((button) => {
+    button.addEventListener("click", () => applyQuickFilter(button.dataset.quickFilter));
+  });
 
   document.addEventListener("click", async (event) => {
     const toggle = event.target.closest(".row-toggle");

@@ -1,0 +1,12 @@
+.env
+.env.local
+.pytest_cache/
+__pycache__/
+tests/__pycache__/
+tests/
+*.pyc
+polymarket_tracker.db
+*.sqlite
+*.sqlite3
+.git/
+render.yaml

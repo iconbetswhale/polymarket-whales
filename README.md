@@ -145,6 +145,18 @@ Retry count for rate limits, timeouts, and transient failures.
 `ADMIN_PASSWORD=`
 Reserved only if you later add authenticated wallet editing. The current app does not expose write endpoints.
 
+`DISCORD_WEBHOOK_URL=`
+Optional Discord channel webhook for wallet play alerts. Keep this secret out of Git history.
+
+`DISCORD_ALERT_TYPES=new_entry,size_increase,full_exit`
+Comma-separated event types to send to Discord. Price-change events are intentionally excluded by default to avoid noisy alerts.
+
+`DISCORD_MIN_POSITION_USD=0`
+Minimum position size required before an event sends a Discord alert.
+
+`DISCORD_NOTIFY_ON_INITIAL_SCAN=false`
+When false, the first scan after adding a wallet records existing open positions without sending Discord alerts. This helps prevent old positions from spamming the channel.
+
 ## Run Locally
 
 Development server:

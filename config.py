@@ -30,6 +30,20 @@ def _get_optional_int(name: str) -> int | None:
     return int(value)
 
 
+def _get_float(name: str, default: float) -> float:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return float(value)
+
+
+def _get_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
 @dataclass(frozen=True)
 class Settings:
     dashboard_refresh: int
@@ -43,6 +57,10 @@ class Settings:
     request_timeout: int
     max_retries: int
     admin_password: str | None
+    discord_webhook_url: str | None = None
+    discord_alert_types: tuple[str, ...] = ("new_entry", "size_increase", "full_exit")
+    discord_min_position_usd: float = 0.0
+    discord_notify_on_initial_scan: bool = False
 
 
 def get_settings() -> Settings:
@@ -59,4 +77,8 @@ def get_settings() -> Settings:
         request_timeout=_get_int("REQUEST_TIMEOUT", 15),
         max_retries=_get_int("MAX_RETRIES", 3),
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
+        discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
+        discord_alert_types=_get_csv("DISCORD_ALERT_TYPES", ("new_entry", "size_increase", "full_exit")),
+        discord_min_position_usd=_get_float("DISCORD_MIN_POSITION_USD", 0.0),
+        discord_notify_on_initial_scan=_get_bool("DISCORD_NOTIFY_ON_INITIAL_SCAN", False),
     )

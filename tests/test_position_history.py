@@ -25,6 +25,15 @@ class StubClient:
         return None
 
 
+class StubNotifier:
+    def __init__(self):
+        self.events = []
+
+    def notify(self, event: dict):
+        self.events.append(event)
+        return True
+
+
 def _settings(tmp_path) -> Settings:
     wallets_file = tmp_path / "wallets.json"
     wallets_file.write_text(
@@ -132,3 +141,22 @@ def test_duplicate_event_prevention(tmp_path):
     service.refresh()
     events = database.get_recent_events()
     assert len([event for event in events if event["event_type"] == "new_entry"]) == 1
+
+
+def test_discord_notifications_skip_initial_scan_but_send_later_changes(tmp_path):
+    settings = _settings(tmp_path)
+    database = TrackerDatabase(settings.database_path)
+    notifier = StubNotifier()
+    first_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]})
+    service = TrackerService(settings, client=first_client, database=database, notifier=notifier, auto_start=False)
+
+    service.refresh()
+    assert notifier.events == []
+
+    second_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position(size=1300, current_value=1450, avg=0.52, cur=0.6)]})
+    service.client = second_client
+    service.refresh()
+
+    notified_types = [event["event_type"] for event in notifier.events]
+    assert "size_increase" in notified_types
+    assert "new_entry" not in notified_types

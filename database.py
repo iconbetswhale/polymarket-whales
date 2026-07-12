@@ -181,9 +181,9 @@ class TrackerDatabase:
                 ),
             )
 
-    def insert_event(self, event: dict) -> None:
+    def insert_event(self, event: dict) -> bool:
         with self.connection() as conn:
-            conn.execute(
+            cursor = conn.execute(
                 """
                 INSERT OR IGNORE INTO position_events (
                     wallet_address,
@@ -212,6 +212,7 @@ class TrackerDatabase:
                     json.dumps(event),
                 ),
             )
+            return cursor.rowcount > 0
 
     def get_recent_events(self, limit: int = 200) -> list[dict]:
         with self.connection() as conn:
