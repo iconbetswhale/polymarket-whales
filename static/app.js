@@ -57,6 +57,13 @@ function formatShortDate(value) {
   return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
+function formatClock(value) {
+  if (!value) return "n/a";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
+}
+
 function formatConviction(position) {
   if (position.position_conviction_status === "neutral") {
     return "Neutral";
@@ -371,6 +378,12 @@ function formatCentsFromProbability(value) {
   return `${(numeric * 100).toFixed(1)}c`;
 }
 
+function formatShares(value) {
+  const numeric = numberOrNull(value);
+  if (numeric === null) return "n/a";
+  return `${numeric.toFixed(numeric >= 100 ? 0 : 2)} shares`;
+}
+
 function tradeKey(trade, index) {
   return trade.event_hash || `${trade.wallet_address || "wallet"}::${trade.position_key || "position"}::${trade.detected_at || index}`;
 }
@@ -452,10 +465,10 @@ function tradePriceTrackStyle(trade) {
   return `--entry-pct: ${entryPct}%; --current-pct: ${currentPct}%;`;
 }
 
-function tradeMetric(label, value, subtext, cls = "") {
+function tradeMetric(label, value, subtext, cls = "", iconText = "") {
   return `
     <div class="trade-detail-metric ${cls}">
-      <span>${escapeHtml(label)}</span>
+      <span>${iconText ? `<b aria-hidden="true">${escapeHtml(iconText)}</b>` : ""}${escapeHtml(label)}</span>
       <strong>${escapeHtml(value)}</strong>
       ${subtext ? `<small>${escapeHtml(subtext)}</small>` : ""}
     </div>
@@ -468,28 +481,28 @@ function renderTradeCard(trade, index, selectedKey) {
   const selected = key === selectedKey;
   const relative = relativeBetSize(trade);
   const slippage = slippageForTrade(trade);
-  const conviction = formatConviction(snapshot);
   const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
   const price = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
 
   return `
     <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
-      <div class="trade-card-rank">${escapeHtml(conviction === "n/a" ? String(index + 1).padStart(2, "0") : conviction)}</div>
+      <div class="trade-card-rank">${escapeHtml(String(index + 1).padStart(2, "0"))}</div>
       <div class="trade-card-main">
         <div class="trade-card-meta">
           <span>${escapeHtml(formatShortDate(snapshot.resolution_time || trade.detected_at))}</span>
           <span>${escapeHtml(relative.value)}</span>
           <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
-          <span>Current: ${escapeHtml(formatCentsFromProbability(price))}</span>
         </div>
         <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
         <div class="trade-card-subtitle">${escapeHtml(trade.wallet_label)} / ${escapeHtml(trade.category || "Market")} / ${escapeHtml(tradeEventLabel(trade.event_type))}</div>
       </div>
       <div class="trade-card-pick">
-        <span>${escapeHtml(trade.outcome || "Outcome")}</span>
-        <strong>${shares ? `${shares.toFixed(shares >= 100 ? 0 : 2)} shares` : formatMoney(tradeSizeUsd(trade))}</strong>
+        <span>Pick</span>
+        <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
+        <em>${escapeHtml(formatShares(shares))}</em>
         <small>${escapeHtml(formatCentsFromProbability(price))}</small>
       </div>
+      <span class="trade-card-arrow" aria-hidden="true">&gt;</span>
     </button>
   `;
 }
@@ -507,15 +520,16 @@ function renderTradeDetail(trade) {
   const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
   const pnl = (numberOrNull(snapshot.unrealized_pnl) ?? numberOrNull(trade.unrealized_pnl) ?? 0) + (numberOrNull(trade.realized_pnl) ?? 0);
   const sizeUsd = tradeSizeUsd(trade);
+  const status = String(snapshot.status || trade.status || "open");
   const profileUrl = snapshot.wallet_profile_url || trade.wallet_profile_url;
   const marketUrl = snapshot.market_url || trade.market_url;
 
   return `
     <div class="trade-detail-header">
+      <div class="trade-detail-score">${escapeHtml(formatConviction(snapshot))}</div>
       <div>
-        <p class="trade-detail-score">${escapeHtml(formatConviction(snapshot))}</p>
         <h3 title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</h3>
-        <span>${escapeHtml(trade.category || "Market")} / ${escapeHtml(trade.league || "League")}</span>
+        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")}</span>
       </div>
       ${eventBadge(trade.event_type)}
     </div>
@@ -532,11 +546,11 @@ function renderTradeDetail(trade) {
       <div>
         <span>Bet Size</span>
         <strong>${formatMoney(sizeUsd)}</strong>
-        ${shares ? `<small>${escapeHtml(shares.toFixed(shares >= 100 ? 0 : 2))} shares</small>` : ""}
+        ${shares ? `<small>${escapeHtml(formatShares(shares))}</small>` : ""}
       </div>
       <div>
         <span>Current</span>
-        <strong>${escapeHtml(formatCentsFromProbability(currentPrice))}</strong>
+        <strong>${escapeHtml(formatCentsFromProbability(currentPrice))}<i aria-hidden="true"></i></strong>
       </div>
     </div>
 
@@ -544,21 +558,31 @@ function renderTradeDetail(trade) {
       ${tradeMetric("Rel. Bet Size", relative.value, relative.subtext)}
       ${tradeMetric("Bet Size", formatMoney(sizeUsd), "Position amount")}
       ${tradeMetric("Slippage", slippage.value, slippage.note, `slippage ${slippage.className}`)}
+      ${tradeMetric("Price At Entry", formatCentsFromProbability(averageEntry), "Average fill price")}
     </div>
 
     <div class="trade-stats-grid">
-      ${tradeMetric("Trader", trade.wallet_label || "Tracked wallet", "Name shown in wallets.json")}
-      ${tradeMetric("Top Category", trade.category || "n/a", "Placeholder until stats are added")}
-      ${tradeMetric("Trader ROI", "Coming soon", "Add when you send stats")}
-      ${tradeMetric("Trades", "Coming soon", "Add when you send stats")}
+      ${tradeMetric("Top Category", trade.category || "n/a", "Placeholder until stats are added", "", "TC")}
+      ${tradeMetric("Trader ROI", "Coming soon", "Add when you send stats", "", "ROI")}
+      ${tradeMetric("Trades", "Coming soon", "Add when you send stats", "", "TR")}
+      ${tradeMetric("Win Rate", "Coming soon", "Add when you send stats", "", "WR")}
     </div>
 
     <div class="price-card">
       <div class="price-card-head">
-        <strong>Price</strong>
-        <span>Entry ${escapeHtml(formatCentsFromProbability(averageEntry))} / Current ${escapeHtml(formatCentsFromProbability(currentPrice))}</span>
+        <strong>Price &amp; Slippage</strong>
+        <span class="price-legend">
+          <em class="entry-line"></em> Entry Price <b>${escapeHtml(formatCentsFromProbability(averageEntry))}</b>
+          <em class="current-line"></em> Current Price <b>${escapeHtml(formatCentsFromProbability(currentPrice))}</b>
+          <em class="slip-line"></em> Slippage <b class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</b>
+        </span>
       </div>
       <div class="price-track" style="${escapeHtml(tradePriceTrackStyle(trade))}">
+        <span class="axis-label axis-60">60c</span>
+        <span class="axis-label axis-45">45c</span>
+        <span class="axis-label axis-30">30c</span>
+        <span class="axis-label axis-15">15c</span>
+        <span class="axis-label axis-0">0c</span>
         <span class="entry-marker">Entry</span>
         <span class="current-marker">Current</span>
       </div>
@@ -566,11 +590,13 @@ function renderTradeDetail(trade) {
     </div>
 
     <div class="trade-detail-footer">
-      <span>Detected ${escapeHtml(formatDate(trade.detected_at))}</span>
-      <span class="${valueClass(pnl)}">P&L ${formatMoney(pnl)}</span>
-      <span>Value ${formatMoney(numberOrNull(snapshot.current_value) ?? numberOrNull(trade.current_value) ?? 0)}</span>
-      ${marketUrl ? `<a href="${escapeHtml(marketUrl)}" target="_blank" rel="noreferrer">Open Market</a>` : ""}
-      ${profileUrl ? `<a href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">Trader Profile</a>` : ""}
+      <div><span>Detected</span><strong>${escapeHtml(formatDate(trade.detected_at))}</strong></div>
+      <div><span>P&amp;L</span><strong class="${valueClass(pnl)}">${formatMoney(pnl)}</strong></div>
+      <div><span>Value</span><strong>${formatMoney(numberOrNull(snapshot.current_value) ?? numberOrNull(trade.current_value) ?? 0)}</strong></div>
+      <div><span>Status</span><strong class="status-open">${escapeHtml(status)}</strong></div>
+      ${marketUrl ? `<a class="trade-action" href="${escapeHtml(marketUrl)}" target="_blank" rel="noreferrer">Open Market</a>` : ""}
+      ${profileUrl ? `<a class="trade-action profile" href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">Trader Profile</a>` : ""}
+      <button class="trade-action overflow" type="button" aria-label="More actions">...</button>
     </div>
   `;
 }
@@ -745,13 +771,17 @@ function renderStatusChrome(status) {
   const api = status.api_status || "idle";
   const lastCheck = formatDate(state.lastDashboardCheck);
   const dataRefresh = formatDate(status.last_successful_refresh);
-  document.getElementById("api-status").textContent = api;
-  document.getElementById("hero-api-status").textContent = `API ${api}`;
-  document.getElementById("last-refresh").textContent = lastCheck;
-  document.getElementById("hero-last-refresh").textContent = lastCheck;
-  document.getElementById("last-data-refresh").textContent = dataRefresh;
-  document.getElementById("hero-data-refresh").textContent = dataRefresh;
-  document.getElementById("nav-enabled-wallets").textContent = status.enabled_wallet_count ?? 0;
+  const setText = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value;
+  };
+  setText("api-status", api);
+  setText("hero-api-status", `API ${api}`);
+  setText("last-refresh", lastCheck);
+  setText("hero-last-refresh", lastCheck);
+  setText("last-data-refresh", dataRefresh);
+  setText("hero-data-refresh", dataRefresh);
+  setText("nav-enabled-wallets", status.enabled_wallet_count ?? 0);
   setStatusDots(api);
 }
 

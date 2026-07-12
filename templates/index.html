@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-refresh-labels-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-terminal-trades-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -28,13 +28,49 @@
     </div>
     <div class="nav-status" aria-label="Dashboard status">
       <span class="status-pill"><span class="status-dot" id="api-status-dot" aria-hidden="true"></span>API <strong id="api-status">Loading</strong></span>
-      <span class="status-pill">Checked <strong id="last-refresh">Waiting</strong></span>
-      <span class="status-pill">Data <strong id="last-data-refresh">Waiting</strong></span>
-      <span class="status-pill">Wallets <strong id="nav-enabled-wallets">0</strong></span>
+      <span class="status-pill refresh-pill">Refreshed <strong id="last-refresh">Waiting</strong></span>
+      <span class="status-pill wallet-pill">Wallets <strong id="nav-enabled-wallets">0</strong><span aria-hidden="true">&gt;</span></span>
     </div>
   </nav>
 
   <main class="page-shell">
+    <section class="dashboard-section" id="recent-trades" aria-labelledby="recent-trades-title">
+      <div class="section-heading trade-console-heading">
+        <div>
+          <p class="eyebrow">TRADERS</p>
+          <h2 id="recent-trades-title">Recent Trades</h2>
+        </div>
+        <div class="trade-tabs" aria-label="Trade views">
+          <span class="trade-tab active">Picks <strong id="trades-count-badge">0</strong></span>
+          <span class="trade-tab">Positions</span>
+          <span class="trade-tab">Orders</span>
+          <span class="trade-tab">Closed</span>
+        </div>
+      </div>
+      <div class="trade-console">
+        <div class="trade-list-panel">
+          <div class="activity-feed trade-card-list" id="trades-feed" aria-label="Recent trade cards"></div>
+        </div>
+        <aside class="trade-detail-panel" id="trade-detail-panel" aria-live="polite" aria-label="Selected trade details"></aside>
+      </div>
+      <div class="table-wrap compact visually-kept">
+        <table id="trades-table">
+          <thead>
+            <tr>
+              <th>Time</th>
+              <th>Wallet</th>
+              <th>Type</th>
+              <th>Market</th>
+              <th>Outcome</th>
+              <th>Value</th>
+              <th>P&amp;L</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </section>
+
     <header class="hero" id="overview">
       <div class="hero-copy">
         <p class="eyebrow">PRIVATE WALLET INTELLIGENCE</p>
@@ -213,43 +249,6 @@
     </section>
 
     <div class="section-grid">
-      <section class="dashboard-section" id="recent-trades" aria-labelledby="recent-trades-title">
-        <div class="section-heading trade-console-heading">
-          <div>
-            <p class="eyebrow">TRADERS</p>
-            <h2 id="recent-trades-title">Recent Trades</h2>
-          </div>
-          <div class="trade-tabs" aria-label="Trade views">
-            <span class="trade-tab active">Picks <strong id="trades-count-badge">0</strong></span>
-            <span class="trade-tab">Positions</span>
-            <span class="trade-tab">Orders</span>
-            <span class="trade-tab">Closed</span>
-          </div>
-        </div>
-        <div class="trade-console">
-          <div class="trade-list-panel">
-            <div class="activity-feed trade-card-list" id="trades-feed" aria-label="Recent trade cards"></div>
-          </div>
-          <aside class="trade-detail-panel" id="trade-detail-panel" aria-live="polite" aria-label="Selected trade details"></aside>
-        </div>
-        <div class="table-wrap compact visually-kept">
-          <table id="trades-table">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Wallet</th>
-                <th>Type</th>
-                <th>Market</th>
-                <th>Outcome</th>
-                <th>Value</th>
-                <th>P&amp;L</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
       <section class="dashboard-section" id="wallets" aria-labelledby="wallets-title">
         <div class="section-heading">
           <div>
@@ -371,6 +370,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-refresh-labels-1"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-terminal-trades-1"></script>
 </body>
 </html>
