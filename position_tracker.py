@@ -98,6 +98,7 @@ class TrackerService:
         self.database = database or TrackerDatabase(settings.database_path)
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self._lock = threading.Lock()
+        self._start_lock = threading.Lock()
         self._started = False
         self._thread: threading.Thread | None = None
         self._cache = {
@@ -130,17 +131,18 @@ class TrackerService:
         }
 
     def start(self) -> None:
-        with self._lock:
+        with self._start_lock:
             if self._started:
                 return
+
+            self.refresh()
             self._started = True
 
-        self.refresh()
-        if self.settings.dashboard_refresh <= 0:
-            return
+            if self.settings.dashboard_refresh <= 0:
+                return
 
-        self._thread = threading.Thread(target=self._refresh_loop, name="tracker-refresh", daemon=True)
-        self._thread.start()
+            self._thread = threading.Thread(target=self._refresh_loop, name="tracker-refresh", daemon=True)
+            self._thread.start()
 
     def _refresh_loop(self) -> None:
         while True:
