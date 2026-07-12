@@ -1,0 +1,9 @@
+[
+  {
+    "address": "REPLACE_WITH_WALLET_ADDRESS",
+    "label": "Trader 1",
+    "enabled": false,
+    "base_unit": null,
+    "notes": ""
+  }
+]
