@@ -157,6 +157,9 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     html = app_client.get("/bet-tracker").get_data(as_text=True)
 
     assert 'id="tracker-job-state"' in html
+    assert 'id="tracker-bankroll-edit"' in html
+    assert 'id="tracker-bankroll-dialog"' in html
+    assert 'id="tracker-bankroll-form"' in html
     assert 'id="tracker-reconcile"' in html
     assert 'id="tracker-pause-job"' in html
     assert 'id="tracker-rejection-body"' in html
@@ -164,6 +167,38 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert 'id="tracker-admin-password"' in html
     assert "/static/app.js?v=local" in html
     assert "/static/style.css?v=local" in html
+
+
+def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
+    app_client.set_cookie("iconbets_user", "bankroll-user")
+    trade_settings = app_client.get("/api/user-settings").get_json()["data"]
+
+    response = app_client.put(
+        "/api/bet-tracker/settings",
+        json={"tracker_bankroll": 25000},
+    )
+
+    assert response.status_code == 200
+    tracker_settings = response.get_json()["data"]
+    assert tracker_settings["tracker_bankroll"] == 25000
+    assert tracker_settings["starting_bankroll"] == trade_settings["starting_bankroll"]
+
+    tracker_payload = app_client.get("/api/bet-tracker").get_json()
+    assert tracker_payload["summary"]["starting_bankroll"] == 25000
+    assert (
+        app_client.get("/api/user-settings").get_json()["data"]["starting_bankroll"]
+        == trade_settings["starting_bankroll"]
+    )
+
+
+def test_tracker_bankroll_api_rejects_non_positive_values(app_client):
+    response = app_client.put(
+        "/api/bet-tracker/settings",
+        json={"tracker_bankroll": 0},
+    )
+
+    assert response.status_code == 400
+    assert "greater than zero" in response.get_json()["error"]
 
 
 def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):

@@ -31,6 +31,24 @@ class FakeConnection:
         return self.fake_cursor
 
 
+class ReturningResult:
+    def __init__(self, row) -> None:
+        self.row = row
+
+    def fetchone(self):
+        return self.row
+
+
+class ReturningConnection(FakeConnection):
+    def __init__(self, row) -> None:
+        super().__init__()
+        self.row = row
+
+    def execute(self, query, values=()):
+        self.queries.append((query, values))
+        return ReturningResult(self.row)
+
+
 def _store_with_connection(connection: FakeConnection) -> PostgresUserStore:
     store = object.__new__(PostgresUserStore)
 
@@ -65,3 +83,45 @@ def test_postgres_rejection_replacement_uses_cursor_batch():
 
     assert len(connection.fake_cursor.batches) == 1
     assert connection.fake_cursor.batches[0][1][0][0] == "user-1"
+
+
+def test_postgres_tracker_bankroll_update_preserves_trade_bankroll():
+    connection = ReturningConnection(
+        {
+            "user_id": "user-1",
+            "starting_bankroll": 10000,
+            "tracker_bankroll": 25000,
+            "unit_percentage": 0.01,
+            "updated_at": "2026-07-13T12:00:00+00:00",
+        }
+    )
+    store = _store_with_connection(connection)
+
+    settings = store.update_tracker_bankroll("user-1", 25000)
+
+    query, values = connection.queries[0]
+    assert "SET tracker_bankroll = %s" in query
+    assert values[0] == 25000
+    assert settings["starting_bankroll"] == 10000
+    assert settings["tracker_bankroll"] == 25000
+
+
+def test_postgres_trade_bankroll_update_preserves_tracker_bankroll():
+    connection = ReturningConnection(
+        {
+            "user_id": "user-1",
+            "starting_bankroll": 15000,
+            "tracker_bankroll": 25000,
+            "unit_percentage": 0.01,
+            "updated_at": "2026-07-13T12:00:00+00:00",
+        }
+    )
+    store = _store_with_connection(connection)
+
+    settings = store.update_user_settings("user-1", 15000, 0.01)
+
+    query, _values = connection.queries[0]
+    conflict_update = query.split("ON CONFLICT", 1)[1]
+    assert "tracker_bankroll = EXCLUDED.tracker_bankroll" not in conflict_update
+    assert settings["starting_bankroll"] == 15000
+    assert settings["tracker_bankroll"] == 25000

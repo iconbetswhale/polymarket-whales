@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span><span class="status-label stale" id="tracker-job-state">Tracking: Stale</span></div></div><div class="tracker-header-actions"><div class="bankroll-inline">Starting bankroll <strong id="tracker-starting-bankroll">$0.00</strong><a href="/trades">Update</a></div><button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button></div></header>
+<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span><span class="status-label stale" id="tracker-job-state">Tracking: Stale</span></div></div><div class="tracker-header-actions"><div class="bankroll-inline">Tracker bankroll <strong id="tracker-starting-bankroll">$0.00</strong><button class="bankroll-edit" id="tracker-bankroll-edit" type="button">Edit</button></div><button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button></div></header>
 <section class="panel tracker-diagnostics" id="tracker-diagnostics" hidden>
   <div class="panel-header"><div><p class="eyebrow">AUTOMATIC TRACKING</p><h2>Model Tracker diagnostics</h2></div><div class="tracker-diagnostic-actions"><button class="button ghost compact" id="tracker-pause-job" type="button">Pause tracking</button><button class="button primary compact" id="tracker-reconcile" type="button"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Reconcile Today</button></div></div>
   <div class="tracker-diagnostic-grid" id="tracker-diagnostic-grid"></div>
@@ -18,6 +18,19 @@
   <select id="tracker-result" aria-label="Result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option></select>
 </section>
 <section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Bankroll</th></tr></thead><tbody id="tracker-body"></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
+<dialog class="tracker-dialog" id="tracker-bankroll-dialog" aria-labelledby="tracker-bankroll-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="tracker-bankroll-close" type="button" aria-label="Close Bet Tracker bankroll settings"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">BANKROLL REPLAY</p>
+    <h2 id="tracker-bankroll-title">Set Bet Tracker bankroll</h2>
+    <p class="tracker-dialog-note">This amount rescales the Bet Tracker's simulated stakes, profit, and bankroll history. It does not change your Trades to Play bankroll or recommendation sizing.</p>
+    <form id="tracker-bankroll-form">
+      <label class="tracker-dialog-field">Tracker bankroll<input id="tracker-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+      <p class="tracker-admin-error" id="tracker-bankroll-error" role="alert" aria-live="polite"></p>
+      <div class="tracker-dialog-actions"><button class="button ghost" id="tracker-bankroll-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Update replay</button></div>
+    </form>
+  </div>
+</dialog>
 <dialog class="tracker-dialog" id="tracker-admin-dialog" aria-labelledby="tracker-admin-title">
   <div class="tracker-dialog-shell">
     <button class="icon-button tracker-dialog-close" id="tracker-admin-close" type="button" aria-label="Close administrator sign in"><i class="ph ph-x" aria-hidden="true"></i></button>

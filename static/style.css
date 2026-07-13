@@ -388,6 +388,21 @@ h2 {
   color: var(--cyan);
 }
 
+.bankroll-edit {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--cyan);
+  cursor: pointer;
+  font: inherit;
+}
+
+.bankroll-edit:hover,
+.bankroll-edit:focus-visible {
+  color: var(--text);
+  text-decoration: underline;
+}
+
 .tracker-header-actions,
 .tracker-diagnostic-actions {
   display: flex;
@@ -410,7 +425,8 @@ h2 {
   border-top: 1px solid var(--border-soft);
 }
 
-.tracker-admin-password {
+.tracker-admin-password,
+.tracker-dialog-field {
   display: grid;
   gap: 7px;
   color: var(--muted-strong);
@@ -418,7 +434,8 @@ h2 {
   font-weight: 600;
 }
 
-.tracker-admin-password input {
+.tracker-admin-password input,
+.tracker-dialog-field input {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid var(--border);
@@ -429,7 +446,8 @@ h2 {
   font-family: var(--font-mono);
 }
 
-.tracker-admin-password input:focus {
+.tracker-admin-password input:focus,
+.tracker-dialog-field input:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 3px rgba(37, 190, 224, 0.1);
 }
@@ -3797,11 +3815,12 @@ tbody tr:hover {
 @media (max-width: 680px) {
   .tracker-header-actions {
     width: 100%;
+    flex-wrap: wrap;
     justify-content: space-between;
   }
 
   .tracker-header-actions .bankroll-inline {
-    display: none;
+    display: flex;
   }
 
   .tracker-diagnostics .panel-header,

@@ -721,12 +721,28 @@ def create_app(start_background: bool = True) -> Flask:
         )
         return jsonify({"data": current})
 
+    @app.route("/api/bet-tracker/settings", methods=["GET", "PUT"])
+    def api_bet_tracker_settings():
+        current = user_settings()
+        if request.method == "PUT":
+            payload = request.get_json(silent=True) or {}
+            bankroll = _safe_float(payload.get("tracker_bankroll"), -1)
+            if bankroll <= 0:
+                return jsonify(
+                    {"error": "Bet Tracker bankroll must be greater than zero."}
+                ), 400
+            current = tracker.database.update_tracker_bankroll(
+                g.iconbets_user_id,
+                bankroll,
+            )
+        return jsonify({"data": current})
+
     @app.route("/api/bet-tracker")
     def api_bet_tracker():
         current_settings = user_settings()
         replay = replay_tracker(
             tracker.database.get_tracker_records(g.iconbets_user_id),
-            _safe_float(current_settings["starting_bankroll"]),
+            _safe_float(current_settings["tracker_bankroll"]),
         )
         rows = replay["rows"]
         query = request.args.get("q", "").strip().lower()

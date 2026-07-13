@@ -8,6 +8,7 @@ const appState = {
   graphRange: "month",
   personalTradeId: null,
   trackerDiagnostics: null,
+  trackerBankroll: null,
 };
 
 function escapeHtml(value) {
@@ -1220,6 +1221,53 @@ function closeTrackerAdminDialog() {
   else dialog.removeAttribute("open");
 }
 
+function openTrackerBankrollDialog() {
+  const dialog = document.getElementById("tracker-bankroll-dialog");
+  const input = document.getElementById("tracker-bankroll-input");
+  if (!dialog || !input) return;
+  document.getElementById("tracker-bankroll-error").textContent = "";
+  input.value = number(appState.trackerBankroll)?.toFixed(2) || "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  input.focus();
+  input.select();
+}
+
+function closeTrackerBankrollDialog() {
+  const dialog = document.getElementById("tracker-bankroll-dialog");
+  if (!dialog) return;
+  document.getElementById("tracker-bankroll-form").reset();
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function saveTrackerBankroll(event) {
+  event.preventDefault();
+  const form = document.getElementById("tracker-bankroll-form");
+  const submit = form.querySelector('button[type="submit"]');
+  const error = document.getElementById("tracker-bankroll-error");
+  const trackerBankroll = number(document.getElementById("tracker-bankroll-input").value);
+  if (trackerBankroll === null || trackerBankroll <= 0) {
+    error.textContent = "Enter a bankroll greater than zero.";
+    return;
+  }
+  submit.disabled = true;
+  error.textContent = "";
+  try {
+    await fetchJson("/api/bet-tracker/settings", {
+      method: "PUT",
+      body: JSON.stringify({ tracker_bankroll: trackerBankroll }),
+    });
+    closeTrackerBankrollDialog();
+    await loadTracker();
+    showToast("Bet Tracker bankroll updated. Trades to Play is unchanged.", "success");
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
 async function loadTrackerDiagnostics(showLogin = false) {
   const response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
   if (response.status === 403 && showLogin) {
@@ -1248,6 +1296,7 @@ async function loadTracker() {
   try {
     const payload = await fetchJson(`/api/bet-tracker?${params.toString()}`);
     const summary = payload.summary || {};
+    appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
     document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
     document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
     renderTrackerState(payload.tracking || {});
@@ -1282,6 +1331,13 @@ function bindTracker() {
     loadTracker();
   }));
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
+  document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);
+  document.getElementById("tracker-bankroll-form")?.addEventListener("submit", saveTrackerBankroll);
+  document.getElementById("tracker-bankroll-close")?.addEventListener("click", closeTrackerBankrollDialog);
+  document.getElementById("tracker-bankroll-dismiss")?.addEventListener("click", closeTrackerBankrollDialog);
+  document.getElementById("tracker-bankroll-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeTrackerBankrollDialog();
+  });
   document.getElementById("tracker-admin-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const error = document.getElementById("tracker-admin-error");

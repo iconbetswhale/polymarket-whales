@@ -45,6 +45,7 @@ class PostgresUserStore:
             CREATE TABLE IF NOT EXISTS user_settings (
                 user_id TEXT PRIMARY KEY,
                 starting_bankroll DOUBLE PRECISION NOT NULL,
+                tracker_bankroll DOUBLE PRECISION NOT NULL,
                 unit_percentage DOUBLE PRECISION NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -166,7 +167,19 @@ class PostgresUserStore:
         with self.connection() as conn:
             for statement in statements:
                 conn.execute(statement)
-
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS tracker_bankroll DOUBLE PRECISION
+                """
+            )
+            conn.execute(
+                """
+                UPDATE user_settings
+                SET tracker_bankroll = starting_bankroll
+                WHERE tracker_bankroll IS NULL
+                """
+            )
             invalid_rows: list[tuple[str, str]] = []
             rows = conn.execute(
                 "SELECT user_id, dedupe_key, snapshot_json FROM bet_tracker"
@@ -196,16 +209,24 @@ class PostgresUserStore:
             conn.execute(
                 """
                 INSERT INTO user_settings (
-                    user_id, starting_bankroll, unit_percentage, updated_at
+                    user_id, starting_bankroll, tracker_bankroll,
+                    unit_percentage, updated_at
                 )
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (user_id) DO NOTHING
                 """,
-                (user_id, default_bankroll, unit_percentage, now),
+                (
+                    user_id,
+                    default_bankroll,
+                    default_bankroll,
+                    unit_percentage,
+                    now,
+                ),
             )
             row = conn.execute(
                 """
-                SELECT user_id, starting_bankroll, unit_percentage, updated_at
+                SELECT user_id, starting_bankroll, tracker_bankroll,
+                       unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = %s
                 """,
@@ -221,24 +242,50 @@ class PostgresUserStore:
             row = conn.execute(
                 """
                 INSERT INTO user_settings (
-                    user_id, starting_bankroll, unit_percentage, updated_at
+                    user_id, starting_bankroll, tracker_bankroll,
+                    unit_percentage, updated_at
                 )
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s)
                 ON CONFLICT (user_id) DO UPDATE SET
                     starting_bankroll = EXCLUDED.starting_bankroll,
                     unit_percentage = EXCLUDED.unit_percentage,
                     updated_at = EXCLUDED.updated_at
-                RETURNING user_id, starting_bankroll, unit_percentage, updated_at
+                RETURNING user_id, starting_bankroll, tracker_bankroll,
+                          unit_percentage, updated_at
                 """,
-                (user_id, starting_bankroll, unit_percentage, now),
+                (
+                    user_id,
+                    starting_bankroll,
+                    starting_bankroll,
+                    unit_percentage,
+                    now,
+                ),
             ).fetchone()
+        return dict(row)
+
+    def update_tracker_bankroll(self, user_id: str, tracker_bankroll: float) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE user_settings
+                SET tracker_bankroll = %s, updated_at = %s
+                WHERE user_id = %s
+                RETURNING user_id, starting_bankroll, tracker_bankroll,
+                          unit_percentage, updated_at
+                """,
+                (tracker_bankroll, now, user_id),
+            ).fetchone()
+        if row is None:
+            raise LookupError(f"User settings not found for {user_id}")
         return dict(row)
 
     def list_user_settings(self) -> list[dict]:
         with self.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT user_id, starting_bankroll, unit_percentage, updated_at
+                SELECT user_id, starting_bankroll, tracker_bankroll,
+                       unit_percentage, updated_at
                 FROM user_settings
                 """
             ).fetchall()

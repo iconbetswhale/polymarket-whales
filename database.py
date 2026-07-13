@@ -84,6 +84,7 @@ class TrackerDatabase:
                 CREATE TABLE IF NOT EXISTS user_settings (
                     user_id TEXT PRIMARY KEY,
                     starting_bankroll REAL NOT NULL,
+                    tracker_bankroll REAL NOT NULL,
                     unit_percentage REAL NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -187,6 +188,21 @@ class TrackerDatabase:
                         canonical_outcome_id,
                         status
                     );
+                """
+            )
+            settings_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(user_settings)")
+            }
+            if "tracker_bankroll" not in settings_columns:
+                conn.execute(
+                    "ALTER TABLE user_settings ADD COLUMN tracker_bankroll REAL"
+                )
+            conn.execute(
+                """
+                UPDATE user_settings
+                SET tracker_bankroll = starting_bankroll
+                WHERE tracker_bankroll IS NULL
                 """
             )
             invalid_rows = []
@@ -479,14 +495,24 @@ class TrackerDatabase:
         with self.connection() as conn:
             conn.execute(
                 """
-                INSERT OR IGNORE INTO user_settings (user_id, starting_bankroll, unit_percentage, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT OR IGNORE INTO user_settings (
+                    user_id, starting_bankroll, tracker_bankroll,
+                    unit_percentage, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?)
                 """,
-                (user_id, default_bankroll, unit_percentage, now),
+                (
+                    user_id,
+                    default_bankroll,
+                    default_bankroll,
+                    unit_percentage,
+                    now,
+                ),
             )
             row = conn.execute(
                 """
-                SELECT user_id, starting_bankroll, unit_percentage, updated_at
+                SELECT user_id, starting_bankroll, tracker_bankroll,
+                       unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = ?
                 """,
@@ -505,25 +531,64 @@ class TrackerDatabase:
         with self.connection() as conn:
             conn.execute(
                 """
-                INSERT INTO user_settings (user_id, starting_bankroll, unit_percentage, updated_at)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO user_settings (
+                    user_id, starting_bankroll, tracker_bankroll,
+                    unit_percentage, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?)
                 ON CONFLICT(user_id) DO UPDATE SET
                     starting_bankroll = excluded.starting_bankroll,
                     unit_percentage = excluded.unit_percentage,
                     updated_at = excluded.updated_at
                 """,
-                (user_id, starting_bankroll, unit_percentage, now),
+                (
+                    user_id,
+                    starting_bankroll,
+                    starting_bankroll,
+                    unit_percentage,
+                    now,
+                ),
             )
         return self.get_or_create_user_settings(
             user_id, starting_bankroll, unit_percentage
         )
+
+    def update_tracker_bankroll(self, user_id: str, tracker_bankroll: float) -> dict:
+        if self.user_store:
+            return self.user_store.update_tracker_bankroll(user_id, tracker_bankroll)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE user_settings
+                SET tracker_bankroll = ?, updated_at = ?
+                WHERE user_id = ?
+                """,
+                (tracker_bankroll, now, user_id),
+            )
+            row = conn.execute(
+                """
+                SELECT user_id, starting_bankroll, tracker_bankroll,
+                       unit_percentage, updated_at
+                FROM user_settings
+                WHERE user_id = ?
+                """,
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            raise LookupError(f"User settings not found for {user_id}")
+        return dict(row)
 
     def list_user_settings(self) -> list[dict]:
         if self.user_store:
             return self.user_store.list_user_settings()
         with self.connection() as conn:
             rows = conn.execute(
-                "SELECT user_id, starting_bankroll, unit_percentage, updated_at FROM user_settings"
+                """
+                SELECT user_id, starting_bankroll, tracker_bankroll,
+                       unit_percentage, updated_at
+                FROM user_settings
+                """
             ).fetchall()
         return [dict(row) for row in rows]
 
