@@ -12,5 +12,40 @@
     "enabled": true,
     "base_unit": 3000,
     "notes": ""
+  },
+  {
+    "address": "0x03e8a544e97eeff5753bc1e90d46e5ef22af1697",
+    "label": "Weflyhigh",
+    "enabled": true,
+    "base_unit": null,
+    "notes": "Unit size pending automatic estimation from real tracked position history."
+  },
+  {
+    "address": "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960",
+    "label": "sportmaster777",
+    "enabled": true,
+    "base_unit": null,
+    "notes": "Unit size pending automatic estimation from real tracked position history."
+  },
+  {
+    "address": "0x3dfb153c197d4c19d3b31c1ecd2c7b6860eeabaf",
+    "label": "Wordylittleneck",
+    "enabled": true,
+    "base_unit": null,
+    "notes": "Unit size pending automatic estimation from real tracked position history."
+  },
+  {
+    "address": "0xf1528f12e645462c344799b62b1b421a6a4c64aa",
+    "label": "phonesculptor",
+    "enabled": true,
+    "base_unit": null,
+    "notes": "Unit size pending automatic estimation from real tracked position history."
+  },
+  {
+    "address": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
+    "label": "Surfandturf",
+    "enabled": true,
+    "base_unit": null,
+    "notes": "Unit size pending automatic estimation from real tracked position history."
   }
 ]

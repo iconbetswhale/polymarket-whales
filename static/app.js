@@ -959,6 +959,8 @@ function renderTrades() {
 function statusClass(status) {
   if (status === "invalid") return "pill invalid";
   if (status === "disabled") return "pill disabled";
+  if (status === "failed" || status === "stale") return "pill invalid";
+  if (status === "ready") return "pill enabled";
   if (status === "enabled") return "pill enabled";
   return "pill";
 }
@@ -967,11 +969,17 @@ function renderWallets() {
   document.querySelector("#wallets-table tbody").innerHTML = state.wallets.length
     ? state.wallets.map((wallet) => {
       const baseUnit = wallet.base_unit ? formatMoney(wallet.base_unit) : "n/a";
+      const syncStatus = wallet.sync_status || "pending";
       return `
         <tr>
           <td>${escapeHtml(wallet.label)}</td>
           <td>${escapeHtml(wallet.address || "n/a")}</td>
-          <td><span class="${statusClass(wallet.status)}">${escapeHtml(wallet.status)}</span>${wallet.message ? `<br><span class="status-label">${escapeHtml(wallet.message)}</span>` : ""}</td>
+          <td>
+            <span class="${statusClass(wallet.status)}">${escapeHtml(wallet.status)}</span>
+            <span class="${statusClass(syncStatus)}">${escapeHtml(syncStatus)}</span>
+            ${wallet.message ? `<br><span class="status-label">${escapeHtml(wallet.message)}</span>` : ""}
+            <br><span class="status-label">${escapeHtml(wallet.open_position_count ?? 0)} open / ${escapeHtml(wallet.closed_position_count ?? 0)} historical</span>
+          </td>
           <td>${escapeHtml(baseUnit)}</td>
           <td>${escapeHtml(wallet.notes || "")}</td>
         </tr>
@@ -983,6 +991,7 @@ function renderWallets() {
     ? state.wallets.map((wallet) => {
       const address = wallet.address || "n/a";
       const baseUnit = wallet.base_unit ? formatMoney(wallet.base_unit) : "n/a";
+      const syncStatus = wallet.sync_status || "pending";
       return `
         <article class="wallet-card ${wallet.status === "invalid" ? "invalid" : ""}">
           <div>
@@ -1001,7 +1010,9 @@ function renderWallets() {
           </div>
           <div>
             <span class="${statusClass(wallet.status)}">${escapeHtml(wallet.status)}</span>
+            <span class="${statusClass(syncStatus)}">${escapeHtml(syncStatus)}</span>
             <span class="cell-sub">Base unit ${escapeHtml(baseUnit)}</span>
+            <span class="cell-sub">${escapeHtml(wallet.open_position_count ?? 0)} open / ${escapeHtml(wallet.closed_position_count ?? 0)} historical</span>
           </div>
         </article>
       `;

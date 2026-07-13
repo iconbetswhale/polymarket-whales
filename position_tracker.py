@@ -249,9 +249,14 @@ class TrackerService:
         status["api_errors"] = api_errors
         status["api_status"] = "ok" if not api_errors else ("degraded" if open_positions else "error")
 
+        wallet_position_batches = [
+            positions
+            for positions in list(open_positions.values()) + list(closed_positions.values())
+            if positions
+        ]
         unique_event_slugs = [
             position.get("eventSlug")
-            for positions in list(open_positions.values()) + list(closed_positions.values())
+            for positions in wallet_position_batches
             for position in positions
             if position.get("eventSlug")
         ]
@@ -261,7 +266,6 @@ class TrackerService:
         for wallet in loader.enabled_wallets:
             wallet_open = open_positions.get(wallet.address)
             if wallet_open is None:
-                current_rows.extend(self.database.get_open_positions_for_wallet(wallet.address).values())
                 continue
 
             previous_rows = self.database.get_open_positions_for_wallet(wallet.address)
@@ -283,10 +287,10 @@ class TrackerService:
         }
         positions = self._enrich_positions(current_rows, trades, unit_map, consensus_map)
         trades_to_play = build_trades_to_play(positions, trades, unit_map, tracked_wallet_count=len(loader.enabled_wallets))
-        overview = self._build_overview(positions, trades, consensus, status)
-
         success_time = _iso_now()
         status["last_successful_refresh"] = success_time
+        overview = self._build_overview(positions, trades, consensus, status)
+        self._apply_wallet_sync_status(wallet_payload, loader.enabled_wallets, open_positions, closed_positions, positions, success_time)
         status["position_count"] = len(positions)
         status["recent_trade_count"] = len([trade for trade in trades if self._within_hours(trade["detected_at"], 24)])
         status["overview"] = overview
@@ -324,6 +328,10 @@ class TrackerService:
                         "base_unit": wallet.base_unit,
                         "notes": wallet.notes,
                         "status": "enabled" if wallet.enabled else "disabled",
+                        "sync_status": "pending" if wallet.enabled else "disabled",
+                        "open_position_count": 0,
+                        "closed_position_count": 0,
+                        "last_synced_at": None,
                         "short_address": shorten_wallet(wallet.address),
                         "profile_url": f"https://polymarket.com/profile/{wallet.address}",
                     }
@@ -338,6 +346,10 @@ class TrackerService:
                         "base_unit": raw_entry.get("base_unit"),
                         "notes": raw_entry.get("notes") or "",
                         "status": "invalid",
+                        "sync_status": "failed",
+                        "open_position_count": 0,
+                        "closed_position_count": 0,
+                        "last_synced_at": None,
                         "short_address": None,
                         "profile_url": None,
                         "message": next(
@@ -351,6 +363,41 @@ class TrackerService:
                     }
                 )
         return payload
+
+    def _apply_wallet_sync_status(
+        self,
+        wallet_payload: list[dict],
+        enabled_wallets: list[WalletEntry],
+        open_positions: dict[str, list[dict] | None],
+        closed_positions: dict[str, list[dict]],
+        normalized_positions: list[dict],
+        timestamp: str,
+    ) -> None:
+        enabled_addresses = {wallet.address for wallet in enabled_wallets}
+        normalized_counts: dict[str, int] = {}
+        for position in normalized_positions:
+            normalized_counts[position["wallet_address"]] = normalized_counts.get(position["wallet_address"], 0) + 1
+
+        for wallet in wallet_payload:
+            address = str(wallet.get("address") or "").lower()
+            if wallet.get("status") == "invalid":
+                wallet["sync_status"] = "failed"
+                continue
+            if address not in enabled_addresses:
+                wallet["sync_status"] = "disabled"
+                continue
+            if open_positions.get(address) is None:
+                has_cached_positions = bool(self.database.get_open_positions_for_wallet(address))
+                wallet["sync_status"] = "stale" if has_cached_positions else "failed"
+                wallet["message"] = "Current-position sync failed; wallet excluded from Trades to Play until a successful refresh."
+                wallet["open_position_count"] = 0
+                wallet["closed_position_count"] = len(closed_positions.get(address, []))
+                wallet["last_synced_at"] = None
+                continue
+            wallet["sync_status"] = "ready"
+            wallet["open_position_count"] = normalized_counts.get(address, 0)
+            wallet["closed_position_count"] = len(closed_positions.get(address, []))
+            wallet["last_synced_at"] = timestamp
 
     def _fetch_wallet_data(self, wallets: list[WalletEntry]) -> dict[str, Any]:
         open_positions: dict[str, list[dict] | None] = {}
