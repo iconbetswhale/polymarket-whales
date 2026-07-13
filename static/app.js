@@ -595,6 +595,47 @@ function tradeMetric(label, value, subtext, cls = "", iconText = "") {
   `;
 }
 
+const traderStats = {
+  "1winstreak1": {
+    topCategory: "MLB",
+    categoryRank: "#4",
+    categoryRoi: "+183.94%",
+    categoryWinRate: "61.2%",
+    totalTrades: "12,899",
+    categoryGainsLosses: "+$1.8M / -$816.7K",
+  },
+  "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705": {
+    topCategory: "MLB",
+    categoryRank: "#4",
+    categoryRoi: "+183.94%",
+    categoryWinRate: "61.2%",
+    totalTrades: "12,899",
+    categoryGainsLosses: "+$1.8M / -$816.7K",
+  },
+  "0x4f2": {
+    topCategory: "Baseball",
+    categoryRank: "#7",
+    categoryRoi: "+103.48%",
+    categoryWinRate: "55.5%",
+    totalTrades: "7,225",
+    categoryGainsLosses: "+$3.1M / -$2.4M",
+  },
+  "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e": {
+    topCategory: "Baseball",
+    categoryRank: "#7",
+    categoryRoi: "+103.48%",
+    categoryWinRate: "55.5%",
+    totalTrades: "7,225",
+    categoryGainsLosses: "+$3.1M / -$2.4M",
+  },
+};
+
+function traderStatsForTrade(trade) {
+  const label = String(trade.wallet_label || "").toLowerCase();
+  const address = String(trade.wallet_address || "").toLowerCase();
+  return traderStats[label] || traderStats[address] || null;
+}
+
 function renderTradeCard(trade, index, selectedKey) {
   const key = tradeKey(trade, index);
   const snapshot = tradeSnapshot(trade);
@@ -643,6 +684,15 @@ function renderTradeDetail(trade) {
   const status = String(snapshot.status || trade.status || "open");
   const profileUrl = snapshot.wallet_profile_url || trade.wallet_profile_url;
   const marketUrl = snapshot.market_url || trade.market_url;
+  const stats = traderStatsForTrade(trade);
+  const topCategory = stats?.topCategory || trade.category || "n/a";
+  const categoryRoi = stats?.categoryRoi || "Coming soon";
+  const totalTrades = stats?.totalTrades || "Coming soon";
+  const categoryWinRate = stats?.categoryWinRate || "Coming soon";
+  const categoryRank = stats?.categoryRank ? `Rank ${stats.categoryRank}` : "Placeholder until stats are added";
+  const categoryRoiSubtext = stats ? `${topCategory} ROI from profile screenshot` : "Add when you send stats";
+  const tradesSubtext = stats ? "Total Polymarket wallet positions" : "Add when you send stats";
+  const winRateSubtext = stats?.categoryGainsLosses || "Add when you send stats";
 
   return `
     <div class="trade-detail-header">
@@ -682,10 +732,10 @@ function renderTradeDetail(trade) {
     </div>
 
     <div class="trade-stats-grid">
-      ${tradeMetric("Top Category", trade.category || "n/a", "Placeholder until stats are added", "", "TC")}
-      ${tradeMetric("Trader ROI", "Coming soon", "Add when you send stats", "", "ROI")}
-      ${tradeMetric("Trades", "Coming soon", "Add when you send stats", "", "TR")}
-      ${tradeMetric("Win Rate", "Coming soon", "Add when you send stats", "", "WR")}
+      ${tradeMetric("Top Category", topCategory, categoryRank, "", "TC")}
+      ${tradeMetric("Category ROI", categoryRoi, categoryRoiSubtext, "positive", "ROI")}
+      ${tradeMetric("Trades", totalTrades, tradesSubtext, "", "TR")}
+      ${tradeMetric("Win Rate", categoryWinRate, winRateSubtext, "positive", "WR")}
     </div>
 
     <div class="price-card">
