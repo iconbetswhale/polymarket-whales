@@ -599,7 +599,6 @@ const traderStats = {
   "1winstreak1": {
     topCategory: "MLB",
     categoryRank: "#4",
-    categoryRoi: "+183.94%",
     categoryWinRate: "61.2%",
     totalTrades: "12,899",
     categoryGainsLosses: "+$1.8M / -$816.7K",
@@ -607,7 +606,6 @@ const traderStats = {
   "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705": {
     topCategory: "MLB",
     categoryRank: "#4",
-    categoryRoi: "+183.94%",
     categoryWinRate: "61.2%",
     totalTrades: "12,899",
     categoryGainsLosses: "+$1.8M / -$816.7K",
@@ -615,7 +613,6 @@ const traderStats = {
   "0x4f2": {
     topCategory: "Baseball",
     categoryRank: "#7",
-    categoryRoi: "+103.48%",
     categoryWinRate: "55.5%",
     totalTrades: "7,225",
     categoryGainsLosses: "+$3.1M / -$2.4M",
@@ -623,7 +620,6 @@ const traderStats = {
   "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e": {
     topCategory: "Baseball",
     categoryRank: "#7",
-    categoryRoi: "+103.48%",
     categoryWinRate: "55.5%",
     totalTrades: "7,225",
     categoryGainsLosses: "+$3.1M / -$2.4M",
@@ -686,13 +682,13 @@ function renderTradeDetail(trade) {
   const marketUrl = snapshot.market_url || trade.market_url;
   const stats = traderStatsForTrade(trade);
   const topCategory = stats?.topCategory || trade.category || "n/a";
-  const categoryRoi = stats?.categoryRoi || "Coming soon";
   const totalTrades = stats?.totalTrades || "Coming soon";
   const categoryWinRate = stats?.categoryWinRate || "Coming soon";
+  const categoryGainsLosses = stats?.categoryGainsLosses || "Coming soon";
   const categoryRank = stats?.categoryRank ? `Rank ${stats.categoryRank}` : "Placeholder until stats are added";
-  const categoryRoiSubtext = stats ? `${topCategory} ROI from profile screenshot` : "Add when you send stats";
+  const categoryHitRateSubtext = stats ? `${topCategory} hitrate from profile screenshot` : "Add when you send stats";
   const tradesSubtext = stats ? "Total Polymarket wallet positions" : "Add when you send stats";
-  const winRateSubtext = stats?.categoryGainsLosses || "Add when you send stats";
+  const gainsLossesSubtext = stats ? `${topCategory} category gains/losses` : "Add when you send stats";
 
   return `
     <div class="trade-detail-header">
@@ -733,9 +729,9 @@ function renderTradeDetail(trade) {
 
     <div class="trade-stats-grid">
       ${tradeMetric("Top Category", topCategory, categoryRank, "", "TC")}
-      ${tradeMetric("Category ROI", categoryRoi, categoryRoiSubtext, "positive", "ROI")}
+      ${tradeMetric("Category Hitrate", categoryWinRate, categoryHitRateSubtext, "positive", "HR")}
       ${tradeMetric("Trades", totalTrades, tradesSubtext, "", "TR")}
-      ${tradeMetric("Win Rate", categoryWinRate, winRateSubtext, "positive", "WR")}
+      ${tradeMetric("Gains/Losses", categoryGainsLosses, gainsLossesSubtext, "", "GL")}
     </div>
 
     <div class="price-card">
