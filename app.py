@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 
 from flask import Flask, jsonify, render_template, request
@@ -24,6 +25,9 @@ def create_app(start_background: bool = True) -> Flask:
     @app.before_request
     def ensure_tracker_started():
         if not start_background or app.extensions.get("tracker_starting") or tracker._started:
+            return
+        if os.getenv("VERCEL"):
+            tracker.start()
             return
 
         def start_tracker() -> None:
