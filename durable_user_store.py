@@ -72,6 +72,27 @@ class PostgresUserStore:
                 ON bet_tracker(status, updated_at DESC)
             """,
             """
+            CREATE TABLE IF NOT EXISTS tracking_job_state (
+                key TEXT PRIMARY KEY,
+                value_json TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS tracking_rejections (
+                user_id TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL,
+                rejection_reason TEXT NOT NULL,
+                last_evaluated_at TEXT NOT NULL,
+                evaluation_json TEXT NOT NULL,
+                PRIMARY KEY (user_id, dedupe_key)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_tracking_rejections_user_evaluated
+                ON tracking_rejections(user_id, last_evaluated_at DESC)
+            """,
+            """
             CREATE TABLE IF NOT EXISTS hidden_trades (
                 id BIGSERIAL PRIMARY KEY,
                 user_id TEXT NOT NULL,
@@ -267,6 +288,77 @@ class PostgresUserStore:
                 (user_id,),
             ).fetchall()
         return [self._tracker_row(row) for row in rows]
+
+    def get_tracker_record(self, user_id: str, dedupe_key: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT dedupe_key, snapshot_id, status, result, settled_at,
+                       created_at, updated_at, snapshot_json
+                FROM bet_tracker
+                WHERE user_id = %s AND dedupe_key = %s
+                """,
+                (user_id, dedupe_key),
+            ).fetchone()
+        return self._tracker_row(row) if row else None
+
+    def set_tracking_job_state(self, state: dict) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tracking_job_state (key, value_json, updated_at)
+                VALUES ('model_tracker', %s, %s)
+                ON CONFLICT (key) DO UPDATE SET
+                    value_json = EXCLUDED.value_json,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (json.dumps(state), now),
+            )
+
+    def get_tracking_job_state(self) -> dict:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT value_json FROM tracking_job_state WHERE key = 'model_tracker'"
+            ).fetchone()
+        return json.loads(row["value_json"]) if row else {}
+
+    def replace_tracking_rejections(self, user_id: str, rows: list[dict]) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "DELETE FROM tracking_rejections WHERE user_id = %s", (user_id,)
+            )
+            conn.executemany(
+                """
+                INSERT INTO tracking_rejections (
+                    user_id, dedupe_key, rejection_reason,
+                    last_evaluated_at, evaluation_json
+                ) VALUES (%s, %s, %s, %s, %s)
+                """,
+                [
+                    (
+                        user_id,
+                        row["recommendation_idempotency_key"],
+                        row["rejection_reason"],
+                        row["last_evaluated_at"],
+                        json.dumps(row),
+                    )
+                    for row in rows
+                ],
+            )
+
+    def get_tracking_rejections(self, user_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT evaluation_json
+                FROM tracking_rejections
+                WHERE user_id = %s
+                ORDER BY last_evaluated_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [json.loads(row["evaluation_json"]) for row in rows]
 
     def get_active_tracker_records(self) -> list[dict]:
         with self.connection() as conn:

@@ -32,7 +32,10 @@ def _json_list(value: Any) -> list[Any]:
 
 
 def recommendation_snapshot(
-    play: dict[str, Any], recommendation: dict[str, Any], bankroll: float
+    play: dict[str, Any],
+    recommendation: dict[str, Any],
+    bankroll: float,
+    now: datetime | None = None,
 ) -> dict[str, Any]:
     validation = play.get("validation_ids") or {}
     event_id = str(validation.get("event_id") or play.get("event_slug") or "")
@@ -49,7 +52,7 @@ def recommendation_snapshot(
     version = str(recommendation.get("recommendation_version") or "v1")
     dedupe_key = "::".join([event_id, market_id, str(line or ""), outcome_id, version])
     snapshot_id = hashlib.sha256(dedupe_key.encode("utf-8")).hexdigest()
-    timestamp = datetime.now(timezone.utc).isoformat()
+    timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
     return {
         "snapshot_id": snapshot_id,
         "dedupe_key": dedupe_key,

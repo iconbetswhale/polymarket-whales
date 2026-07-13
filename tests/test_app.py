@@ -79,6 +79,17 @@ def _positive_recommendation(*_args, **_kwargs) -> dict:
     }
 
 
+def _positive_evaluation(play: dict, *_args, **_kwargs) -> dict:
+    return {
+        "play": play,
+        "recommendation": _positive_recommendation(),
+        "model_tracker_eligible": False,
+        "model_tracker_rejection_reason": "NOT_TODAY",
+        "recommendation_snapshot_id": "snapshot-id",
+        "recommendation_idempotency_key": "dedupe-key",
+    }
+
+
 def test_health_endpoint(app_client):
     response = app_client.get("/health")
     assert response.status_code == 200
@@ -140,6 +151,42 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/status").status_code == 200
     assert app_client.get("/api/user-settings").status_code == 200
     assert app_client.get("/api/bet-tracker").status_code == 200
+
+
+def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
+    html = app_client.get("/bet-tracker").get_data(as_text=True)
+
+    assert 'id="tracker-job-state"' in html
+    assert 'id="tracker-reconcile"' in html
+    assert 'id="tracker-pause-job"' in html
+    assert 'id="tracker-rejection-body"' in html
+
+
+def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    app_client.set_cookie("iconbets_user", "render-user")
+    assert app_client.get("/api/bet-tracker").get_json()["pagination"]["total"] == 0
+    snapshot = {
+        "snapshot_id": "render-snapshot",
+        "dedupe_key": "event::market::::outcome::v2",
+        "recommendation_version": "v2",
+        "recommendation_timestamp": datetime.now(timezone.utc).isoformat(),
+        "event_title": "Spain vs France",
+        "market_title": "To Advance",
+        "recommended_side": "Spain",
+        "event_start_time": (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat(),
+        "effective_entry_price": 0.4,
+        "final_recommended_fraction": 0.005,
+        "original_displayed_amount": 50,
+        "original_recommended_units": 0.5,
+        "estimated_win_probability": 0.42,
+        "sharps_count": 1,
+    }
+    assert service.database.insert_tracker_snapshot("render-user", snapshot) is True
+
+    payload = app_client.get("/api/bet-tracker").get_json()
+    assert payload["pagination"]["total"] == 1
+    assert payload["data"][0]["status"] == "scheduled"
 
 
 def test_dedicated_pages_are_real_routes(app_client):
@@ -256,7 +303,7 @@ def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):
             },
         },
     ]
-    monkeypatch.setattr(app_module, "build_recommendation", _positive_recommendation)
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
     monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
     calls = 0
     original = service.database.get_personal_bet_fills
@@ -280,7 +327,7 @@ def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch)
 
     service = app_client.application.extensions["tracker_service"]
     service._cache["trades_to_play"] = [_actionable_trade()]
-    monkeypatch.setattr(app_module, "build_recommendation", _positive_recommendation)
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
     monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
     app_client.set_cookie("iconbets_user", "user-1")
 
@@ -316,7 +363,7 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
 
     service = app_client.application.extensions["tracker_service"]
     service._cache["trades_to_play"] = [_actionable_trade()]
-    monkeypatch.setattr(app_module, "build_recommendation", _positive_recommendation)
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
     monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
     app_client.set_cookie("iconbets_user", "personal-user")
     purchase = {
@@ -362,7 +409,7 @@ def test_opposing_personal_fill_requires_explicit_confirmation(app_client, monke
         },
     }
     service._cache["trades_to_play"] = [recommended, opposing]
-    monkeypatch.setattr(app_module, "build_recommendation", _positive_recommendation)
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
     monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
     app_client.set_cookie("iconbets_user", "conflict-user")
     payload = {"entry_price": 0.4, "shares": 100, "fees": 0}

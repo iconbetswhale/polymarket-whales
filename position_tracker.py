@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -13,15 +14,21 @@ from typing import Any
 from urllib.parse import quote
 
 from classification import classify_market, is_sports_category
-from bet_sizing import SizingConfig, build_recommendation
-from bet_tracker import recommendation_snapshot, tracker_status_from_event
+from bet_sizing import SizingConfig
+from bet_tracker import tracker_status_from_event
 from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
 from market_lifecycle import classify_lifecycle
 from polymarket_client import PolymarketClient
+from recommendation_service import (
+    DUPLICATE_RECOMMENDATION,
+    NOT_TODAY,
+    SYNC_INCOMPLETE,
+    evaluate_trade_recommendation,
+)
 from scoring import hours_until_resolution, score_position
-from trade_scoring import build_trades_to_play, filter_trades_to_play
+from trade_scoring import build_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
 from wallet_loader import WalletEntry, load_wallets
 
@@ -269,7 +276,7 @@ class TrackerService:
             self.refresh()
             self._started = True
 
-            if self.settings.dashboard_refresh <= 0:
+            if self.settings.dashboard_refresh <= 0 or os.getenv("VERCEL"):
                 return
 
             self._thread = threading.Thread(
@@ -344,6 +351,7 @@ class TrackerService:
             status["app_status"] = "degraded"
 
         if not loader.enabled_wallets:
+            self.reconcile_all_user_trackers([])
             snapshot = {
                 "positions": [],
                 "trades": self.database.get_recent_events(),
@@ -476,7 +484,7 @@ class TrackerService:
             unit_map,
             tracked_wallet_count=synced_wallet_count,
         )
-        self._sync_all_user_trackers(trades_to_play)
+        self.reconcile_all_user_trackers(trades_to_play)
         self._update_tracker_statuses(events)
         success_time = _iso_now()
         status["last_successful_refresh"] = success_time
@@ -526,33 +534,274 @@ class TrackerService:
         bankroll: float,
         plays: list[dict] | None = None,
     ) -> int:
+        return self.reconcile_user_tracker(user_id, bankroll, plays)["inserted"]
+
+    def evaluate_recommendation(
+        self,
+        play: dict,
+        bankroll: float,
+        now: datetime | None = None,
+    ) -> dict:
+        return evaluate_trade_recommendation(
+            play, bankroll, self.sizing_config, now=now
+        )
+
+    @staticmethod
+    def _rejection_row(evaluation: dict, evaluated_at: str) -> dict:
+        play = evaluation.get("play") or {}
+        recommendation = evaluation.get("recommendation") or {}
+        return {
+            "event": play.get("event_title"),
+            "market": play.get("market_title"),
+            "selection": play.get("outcome"),
+            "event_time": play.get("event_date_et"),
+            "entry_price": recommendation.get("current_user_entry_price"),
+            "recommended_fraction": recommendation.get(
+                "final_recommended_fraction"
+            ),
+            "recommended_amount": recommendation.get("recommended_amount"),
+            "rejection_reason": evaluation.get(
+                "model_tracker_rejection_reason"
+            ),
+            "recommendation_snapshot_id": evaluation.get(
+                "recommendation_snapshot_id"
+            ),
+            "recommendation_idempotency_key": evaluation.get(
+                "recommendation_idempotency_key"
+            ),
+            "last_evaluated_at": evaluated_at,
+        }
+
+    def reconcile_user_tracker(
+        self,
+        user_id: str,
+        bankroll: float,
+        plays: list[dict] | None = None,
+        now: datetime | None = None,
+    ) -> dict:
         if plays is None:
             with self._lock:
                 plays = json.loads(json.dumps(self._cache.get("trades_to_play", [])))
-        today = filter_trades_to_play(plays, date_range="today")
-        inserted = 0
-        for play in today:
-            recommendation = build_recommendation(play, bankroll, self.sizing_config)
-            if not recommendation.get("available"):
-                continue
-            if _safe_float(recommendation.get("final_recommended_fraction")) <= 0:
-                continue
-            if _safe_float(recommendation.get("recommended_amount")) < 0.01:
-                continue
-            snapshot = recommendation_snapshot(play, recommendation, bankroll)
-            if self.database.insert_tracker_snapshot(
-                user_id, snapshot, status="scheduled"
-            ):
-                inserted += 1
-        return inserted
+        run_now = now or _utc_now()
+        evaluated_at = run_now.astimezone(timezone.utc).isoformat()
+        result = {
+            "user_id": user_id,
+            "evaluated": 0,
+            "eligible": 0,
+            "existing": 0,
+            "inserted": 0,
+            "rejected": 0,
+            "errors": 0,
+            "accepted": [],
+            "rejections": [],
+            "error_details": [],
+        }
+        for play in plays:
+            try:
+                evaluation = self.evaluate_recommendation(play, bankroll, run_now)
+                reason = evaluation.get("model_tracker_rejection_reason")
+                if reason == NOT_TODAY:
+                    continue
+                result["evaluated"] += 1
+                if not evaluation.get("model_tracker_eligible"):
+                    result["rejected"] += 1
+                    LOGGER.info(
+                        "Model Tracker rejected user=%s key=%s reason=%s",
+                        user_id,
+                        evaluation.get("recommendation_idempotency_key"),
+                        reason,
+                    )
+                    result["rejections"].append(
+                        self._rejection_row(evaluation, evaluated_at)
+                    )
+                    continue
 
-    def _sync_all_user_trackers(self, plays: list[dict]) -> None:
-        for settings in self.database.list_user_settings():
-            self.track_recommendations_for_user(
-                settings["user_id"],
-                _safe_float(settings.get("starting_bankroll")),
-                plays,
-            )
+                result["eligible"] += 1
+                dedupe_key = evaluation["recommendation_idempotency_key"]
+                existing = self.database.get_tracker_record(user_id, dedupe_key)
+                if existing:
+                    result["existing"] += 1
+                    LOGGER.info(
+                        "Model Tracker duplicate user=%s key=%s snapshot_id=%s",
+                        user_id,
+                        dedupe_key,
+                        existing["snapshot_id"],
+                    )
+                    result["accepted"].append(
+                        {
+                            "recommendation_idempotency_key": dedupe_key,
+                            "snapshot_id": existing["snapshot_id"],
+                            "insert_result": DUPLICATE_RECOMMENDATION,
+                        }
+                    )
+                    continue
+
+                snapshot = evaluation["snapshot"]
+                if self.database.insert_tracker_snapshot(
+                    user_id, snapshot, status="scheduled"
+                ):
+                    result["inserted"] += 1
+                    LOGGER.info(
+                        "Model Tracker inserted user=%s key=%s snapshot_id=%s",
+                        user_id,
+                        dedupe_key,
+                        snapshot["snapshot_id"],
+                    )
+                    result["accepted"].append(
+                        {
+                            "recommendation_idempotency_key": dedupe_key,
+                            "snapshot_id": snapshot["snapshot_id"],
+                            "insert_result": "INSERTED",
+                        }
+                    )
+                    continue
+
+                existing = self.database.get_tracker_record(user_id, dedupe_key)
+                if existing:
+                    result["existing"] += 1
+                    LOGGER.info(
+                        "Model Tracker duplicate after insert race user=%s key=%s snapshot_id=%s",
+                        user_id,
+                        dedupe_key,
+                        existing["snapshot_id"],
+                    )
+                    result["accepted"].append(
+                        {
+                            "recommendation_idempotency_key": dedupe_key,
+                            "snapshot_id": existing["snapshot_id"],
+                            "insert_result": DUPLICATE_RECOMMENDATION,
+                        }
+                    )
+                else:
+                    raise RuntimeError("Tracker insert returned no record")
+            except Exception as exc:
+                LOGGER.exception(
+                    "Model Tracker reconciliation failed for user=%s trade=%s",
+                    user_id,
+                    play.get("id") or play.get("event_title"),
+                )
+                result["errors"] += 1
+                result["error_details"].append(
+                    {
+                        "trade_id": play.get("id"),
+                        "event": play.get("event_title"),
+                        "reason": SYNC_INCOMPLETE,
+                        "error": str(exc),
+                    }
+                )
+        self.database.replace_tracking_rejections(user_id, result["rejections"])
+        return result
+
+    def reconcile_all_user_trackers(
+        self,
+        plays: list[dict] | None = None,
+        now: datetime | None = None,
+        force: bool = False,
+    ) -> dict:
+        prior = self.database.get_tracking_job_state()
+        attempted = (now or _utc_now()).astimezone(timezone.utc)
+        if prior.get("paused") and not force:
+            return {**prior, "status": "paused"}
+        state = {
+            "status": "running",
+            "paused": bool(prior.get("paused", False)),
+            "last_attempted_run": attempted.isoformat(),
+            "last_successful_run": prior.get("last_successful_run"),
+            "recommendations_evaluated": 0,
+            "eligible_recommendations": 0,
+            "records_inserted": 0,
+            "records_skipped_duplicates": 0,
+            "records_rejected": 0,
+            "errors": 0,
+            "error_details": [],
+            "user_configurations": 0,
+            "interval_seconds": self.settings.tracker_job_interval_seconds,
+        }
+        try:
+            if plays is None:
+                with self._lock:
+                    plays = json.loads(
+                        json.dumps(self._cache.get("trades_to_play", []))
+                    )
+            users = self.database.list_user_settings()
+            state["user_configurations"] = len(users)
+            for user in users:
+                try:
+                    user_result = self.reconcile_user_tracker(
+                        user["user_id"],
+                        _safe_float(user.get("starting_bankroll")),
+                        plays,
+                        attempted,
+                    )
+                except Exception as exc:
+                    LOGGER.exception(
+                        "Model Tracker reconciliation failed for user=%s",
+                        user.get("user_id"),
+                    )
+                    state["errors"] += 1
+                    state["error_details"].append(
+                        {"user_id": user.get("user_id"), "error": str(exc)}
+                    )
+                    continue
+                state["recommendations_evaluated"] += user_result["evaluated"]
+                state["eligible_recommendations"] += user_result["eligible"]
+                state["records_inserted"] += user_result["inserted"]
+                state["records_skipped_duplicates"] += user_result["existing"]
+                state["records_rejected"] += user_result["rejected"]
+                state["errors"] += user_result["errors"]
+                state["error_details"].extend(user_result["error_details"])
+            state["last_successful_run"] = attempted.isoformat()
+            state["status"] = "failed" if state["errors"] else "running"
+        except Exception as exc:
+            LOGGER.exception("Model Tracker job failed")
+            state["status"] = "failed"
+            state["errors"] += 1
+            state["error_details"].append({"error": str(exc)})
+        state["next_scheduled_run"] = (
+            attempted + timedelta(seconds=self.settings.tracker_job_interval_seconds)
+        ).isoformat()
+        self.database.set_tracking_job_state(state)
+        return state
+
+    def set_tracking_paused(self, paused: bool) -> dict:
+        state = self.database.get_tracking_job_state()
+        state["paused"] = bool(paused)
+        state["status"] = "paused" if paused else "stale"
+        state["next_scheduled_run"] = None if paused else (
+            _utc_now() + timedelta(seconds=self.settings.tracker_job_interval_seconds)
+        ).isoformat()
+        self.database.set_tracking_job_state(state)
+        return state
+
+    def tracking_diagnostics(self, user_id: str) -> dict:
+        state = self.database.get_tracking_job_state()
+        last_success = state.get("last_successful_run")
+        if not state:
+            status = "stale"
+        elif state.get("paused"):
+            status = "paused"
+        elif state.get("status") == "failed":
+            status = "failed"
+        elif not last_success:
+            status = "stale"
+        else:
+            try:
+                success_time = datetime.fromisoformat(
+                    str(last_success).replace("Z", "+00:00")
+                )
+                stale_after = max(self.settings.tracker_job_interval_seconds * 3, 600)
+                status = (
+                    "stale"
+                    if (_utc_now() - success_time).total_seconds() > stale_after
+                    else "running"
+                )
+            except ValueError:
+                status = "stale"
+        return {
+            **state,
+            "status": status,
+            "rejections": self.database.get_tracking_rejections(user_id),
+        }
 
     def _update_tracker_statuses(self, events: dict[str, dict]) -> None:
         records = self.database.get_active_tracker_records()

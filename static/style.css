@@ -388,6 +388,28 @@ h2 {
   color: var(--cyan);
 }
 
+.tracker-header-actions,
+.tracker-diagnostic-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.tracker-diagnostics {
+  margin-bottom: 18px;
+}
+
+.tracker-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 18px 18px;
+}
+
+.diagnostic-rejections {
+  border-top: 1px solid var(--border-soft);
+}
+
 .button,
 .icon-button {
   display: inline-flex;
@@ -3742,6 +3764,26 @@ tbody tr:hover {
 }
 
 @media (max-width: 680px) {
+  .tracker-header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .tracker-header-actions .bankroll-inline {
+    display: none;
+  }
+
+  .tracker-diagnostics .panel-header,
+  .tracker-diagnostic-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .tracker-diagnostic-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+
   .hidden-trades-button {
     flex: 1 1 auto;
   }

@@ -1,0 +1,28 @@
+name: Reconcile Model Tracker
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iconbets-model-tracker
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reconcile current Today recommendations
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          curl --fail-with-body --retry 2 --retry-delay 10 \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{"force":false}' \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/model-tracker/reconcile

@@ -106,6 +106,24 @@ class TrackerDatabase:
                 CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                     ON bet_tracker(status, updated_at DESC);
 
+                CREATE TABLE IF NOT EXISTS tracking_job_state (
+                    key TEXT PRIMARY KEY,
+                    value_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE TABLE IF NOT EXISTS tracking_rejections (
+                    user_id TEXT NOT NULL,
+                    dedupe_key TEXT NOT NULL,
+                    rejection_reason TEXT NOT NULL,
+                    last_evaluated_at TEXT NOT NULL,
+                    evaluation_json TEXT NOT NULL,
+                    PRIMARY KEY (user_id, dedupe_key)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_tracking_rejections_user_evaluated
+                    ON tracking_rejections(user_id, last_evaluated_at DESC);
+
                 CREATE TABLE IF NOT EXISTS hidden_trades (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     user_id TEXT NOT NULL,
@@ -567,6 +585,100 @@ class TrackerDatabase:
             }
             for row in rows
         ]
+
+    def get_tracker_record(self, user_id: str, dedupe_key: str) -> dict | None:
+        if self.user_store:
+            return self.user_store.get_tracker_record(user_id, dedupe_key)
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT dedupe_key, snapshot_id, status, result, settled_at,
+                       created_at, updated_at, snapshot_json
+                FROM bet_tracker
+                WHERE user_id = ? AND dedupe_key = ?
+                """,
+                (user_id, dedupe_key),
+            ).fetchone()
+        if row is None:
+            return None
+        return {
+            "dedupe_key": row["dedupe_key"],
+            "snapshot_id": row["snapshot_id"],
+            "status": row["status"],
+            "result": row["result"],
+            "settled_at": row["settled_at"],
+            "created_at": row["created_at"],
+            "updated_at": row["updated_at"],
+            "snapshot": json.loads(row["snapshot_json"]),
+        }
+
+    def set_tracking_job_state(self, state: dict) -> None:
+        if self.user_store:
+            self.user_store.set_tracking_job_state(state)
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO tracking_job_state (key, value_json, updated_at)
+                VALUES ('model_tracker', ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value_json = excluded.value_json,
+                    updated_at = excluded.updated_at
+                """,
+                (json.dumps(state), now),
+            )
+
+    def get_tracking_job_state(self) -> dict:
+        if self.user_store:
+            return self.user_store.get_tracking_job_state()
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT value_json FROM tracking_job_state WHERE key = 'model_tracker'"
+            ).fetchone()
+        return json.loads(row["value_json"]) if row else {}
+
+    def replace_tracking_rejections(self, user_id: str, rows: list[dict]) -> None:
+        if self.user_store:
+            self.user_store.replace_tracking_rejections(user_id, rows)
+            return
+        with self.connection() as conn:
+            conn.execute(
+                "DELETE FROM tracking_rejections WHERE user_id = ?", (user_id,)
+            )
+            conn.executemany(
+                """
+                INSERT INTO tracking_rejections (
+                    user_id, dedupe_key, rejection_reason,
+                    last_evaluated_at, evaluation_json
+                ) VALUES (?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        user_id,
+                        row["recommendation_idempotency_key"],
+                        row["rejection_reason"],
+                        row["last_evaluated_at"],
+                        json.dumps(row),
+                    )
+                    for row in rows
+                ],
+            )
+
+    def get_tracking_rejections(self, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_tracking_rejections(user_id)
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT evaluation_json
+                FROM tracking_rejections
+                WHERE user_id = ?
+                ORDER BY last_evaluated_at DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [json.loads(row["evaluation_json"]) for row in rows]
 
     def get_active_tracker_records(self) -> list[dict]:
         if self.user_store:

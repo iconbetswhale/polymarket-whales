@@ -7,6 +7,7 @@ const appState = {
   pageNumber: 1,
   graphRange: "month",
   personalTradeId: null,
+  trackerDiagnostics: null,
 };
 
 function escapeHtml(value) {
@@ -1162,6 +1163,62 @@ function drawTrackerChart(graph) {
   drawLineChart(document.getElementById("tracker-chart"), points, { format: (value) => formatCompactMoney(value) });
 }
 
+function renderTrackerState(tracking = {}) {
+  const badge = document.getElementById("tracker-job-state");
+  if (!badge) return;
+  const state = tracking.status || "stale";
+  const labels = { running: "Tracking: Active", paused: "Tracking: Paused", failed: "Tracking: Failed", stale: "Tracking: Stale" };
+  badge.textContent = labels[state] || "Tracking: Stale";
+  badge.className = `status-label ${state === "running" ? "ready" : state}`;
+}
+
+function renderTrackerDiagnostics(diagnostics = {}) {
+  appState.trackerDiagnostics = diagnostics;
+  renderTrackerState(diagnostics);
+  const panel = document.getElementById("tracker-diagnostics");
+  if (!panel) return;
+  panel.hidden = false;
+  document.getElementById("tracker-diagnostic-grid").innerHTML = [
+    metricCard("Last successful run", formatDateTime(diagnostics.last_successful_run, "Never"), "Most recent completed backend job", "ph-check-circle"),
+    metricCard("Evaluated", String(diagnostics.recommendations_evaluated || 0), "Today recommendations checked", "ph-magnifying-glass"),
+    metricCard("Inserted", String(diagnostics.records_inserted || 0), "New immutable snapshots", "ph-database"),
+    metricCard("Duplicates", String(diagnostics.records_skipped_duplicates || 0), "Existing canonical records", "ph-copy"),
+    metricCard("Rejected", String(diagnostics.records_rejected || 0), "Explicit eligibility failures", "ph-funnel-x"),
+    metricCard("Errors", String(diagnostics.errors || 0), `Next run ${formatDateTime(diagnostics.next_scheduled_run, "Paused")}`, "ph-warning-circle"),
+  ].join("");
+  const pause = document.getElementById("tracker-pause-job");
+  pause.textContent = diagnostics.paused ? "Resume tracking" : "Pause tracking";
+  const body = document.getElementById("tracker-rejection-body");
+  const rejections = diagnostics.rejections || [];
+  body.innerHTML = rejections.length ? rejections.map((row) => `
+    <tr>
+      <td><strong>${escapeHtml(row.event || "Unknown event")}</strong><small>${escapeHtml(row.market || "Unknown market")}</small></td>
+      <td>${escapeHtml(row.selection || "Unavailable")}</td>
+      <td>${escapeHtml(formatDateTime(row.event_time))}</td>
+      <td class="mono">${formatCents(row.entry_price)}</td>
+      <td class="mono">${formatPercent(row.recommended_fraction, 3)}</td>
+      <td class="mono">${formatMoney(row.recommended_amount)}</td>
+      <td><span class="status-label failed">${escapeHtml(row.rejection_reason)}</span></td>
+      <td>${escapeHtml(formatDateTime(row.last_evaluated_at))}</td>
+    </tr>`).join("") : `<tr><td colspan="8">${emptyState("No rejected Today recommendations", "The latest backend run did not reject any Today candidates for this bankroll.")}</td></tr>`;
+}
+
+async function loadTrackerDiagnostics(promptForLogin = false) {
+  let response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
+  if (response.status === 403 && promptForLogin) {
+    const password = window.prompt("Administrator password");
+    if (!password) return;
+    await fetchJson("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) });
+    response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
+  }
+  if (!response.ok) {
+    if (promptForLogin) showToast("Administrator access is required", "error");
+    return;
+  }
+  const payload = await response.json();
+  renderTrackerDiagnostics(payload.data || {});
+}
+
 async function loadTracker() {
   const params = new URLSearchParams({
     q: document.getElementById("tracker-search").value,
@@ -1178,6 +1235,7 @@ async function loadTracker() {
     const summary = payload.summary || {};
     document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
     document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
+    renderTrackerState(payload.tracking || {});
     document.getElementById("tracker-metrics").innerHTML = [
       metricCard("Current Bankroll", formatMoney(summary.current_bankroll), "Replayed from frozen stake percentages", "ph-vault"),
       metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled bets only", "ph-chart-line"),
@@ -1193,6 +1251,7 @@ async function loadTracker() {
     const pagination = document.getElementById("tracker-pagination");
     pagination.innerHTML = paginationMarkup(payload.pagination);
     pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadTracker(); }));
+    if (!document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
   } catch (error) {
     body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
   }
@@ -1207,6 +1266,31 @@ function bindTracker() {
     appState.graphRange = button.dataset.range;
     loadTracker();
   }));
+  document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
+  document.getElementById("tracker-reconcile")?.addEventListener("click", async () => {
+    const button = document.getElementById("tracker-reconcile");
+    button.disabled = true;
+    try {
+      const payload = await fetchJson("/api/admin/model-tracker/reconcile", { method: "POST", body: JSON.stringify({ force: true }) });
+      showToast(`Reconciled: ${payload.data.records_inserted || 0} inserted, ${payload.data.records_skipped_duplicates || 0} existing`, "success");
+      await Promise.all([loadTracker(), loadTrackerDiagnostics()]);
+    } catch (error) {
+      showToast(error.message, "error");
+    } finally {
+      button.disabled = false;
+    }
+  });
+  document.getElementById("tracker-pause-job")?.addEventListener("click", async () => {
+    try {
+      const paused = !Boolean(appState.trackerDiagnostics?.paused);
+      const payload = await fetchJson("/api/admin/model-tracker/pause", { method: "POST", body: JSON.stringify({ paused }) });
+      renderTrackerDiagnostics({ ...appState.trackerDiagnostics, ...payload.data });
+      showToast(paused ? "Automatic tracking paused" : "Automatic tracking resumed", "success");
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+  });
+  loadTrackerDiagnostics();
   loadTracker();
 }
 
@@ -1224,9 +1308,9 @@ function bindNavigation() {
       control.setAttribute("aria-pressed", String(appState.paused));
       control.querySelector("i").className = appState.paused ? "ph ph-play" : "ph ph-pause";
       control.querySelector("span").textContent = appState.paused
-        ? (mobile ? "Resume refresh" : "Resume")
-        : (mobile ? "Pause refresh" : "Pause");
-      control.title = appState.paused ? "Resume automatic 15-second refresh" : "Pause automatic 15-second refresh";
+        ? "Page refresh: Paused"
+        : "Page refresh: Active";
+      control.title = appState.paused ? "Resume automatic 15-second page refresh" : "Pause automatic 15-second page refresh";
     });
     renderPause();
     pauseControls.forEach((control) => control.addEventListener("click", () => {

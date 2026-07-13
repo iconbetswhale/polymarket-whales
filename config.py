@@ -71,6 +71,8 @@ class Settings:
     discord_min_position_usd: float = 0.0
     discord_notify_on_initial_scan: bool = False
     durable_database_url: str | None = None
+    tracker_job_secret: str | None = None
+    tracker_job_interval_seconds: int = 300
 
 
 def get_settings() -> Settings:
@@ -103,4 +105,6 @@ def get_settings() -> Settings:
             or os.getenv("DATABASE_URL")
             or None
         ),
+        tracker_job_secret=os.getenv("TRACKER_JOB_SECRET") or None,
+        tracker_job_interval_seconds=_get_int("TRACKER_JOB_INTERVAL_SECONDS", 300),
     )

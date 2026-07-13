@@ -28,12 +28,12 @@
       <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}>Wallets</a>
       <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}>Position History</a>
       <a href="/bet-tracker" {% if page == 'bet-tracker' %}aria-current="page"{% endif %}>Bet Tracker</a>
-      <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Pause refresh</span></button>
+      <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
     </div>
     <div class="nav-status" aria-label="System status">
       <span class="status-chip"><span class="status-dot" id="global-api-dot"></span>API <strong id="global-api-status">Loading</strong></span>
       <span class="status-chip"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><strong id="global-last-refresh">Waiting</strong></span>
-      <button class="status-chip pause-chip" id="global-pause-refresh" type="button" data-refresh-toggle aria-pressed="false" title="Pause automatic 15-second refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Pause</span></button>
+      <button class="status-chip pause-chip" id="global-pause-refresh" type="button" data-refresh-toggle aria-pressed="false" title="Pause automatic 15-second page refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
       <a class="status-chip wallet-link" href="/wallets">Wallets <strong id="global-wallet-count">0</strong></a>
     </div>
   </nav>

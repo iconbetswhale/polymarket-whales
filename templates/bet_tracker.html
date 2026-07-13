@@ -1,6 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span></div></div><div class="bankroll-inline">Starting bankroll <strong id="tracker-starting-bankroll">$0.00</strong><a href="/trades">Update</a></div></header>
+<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span><span class="status-label stale" id="tracker-job-state">Tracking: Stale</span></div></div><div class="tracker-header-actions"><div class="bankroll-inline">Starting bankroll <strong id="tracker-starting-bankroll">$0.00</strong><a href="/trades">Update</a></div><button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button></div></header>
+<section class="panel tracker-diagnostics" id="tracker-diagnostics" hidden>
+  <div class="panel-header"><div><p class="eyebrow">AUTOMATIC TRACKING</p><h2>Model Tracker diagnostics</h2></div><div class="tracker-diagnostic-actions"><button class="button ghost compact" id="tracker-pause-job" type="button">Pause tracking</button><button class="button primary compact" id="tracker-reconcile" type="button"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Reconcile Today</button></div></div>
+  <div class="tracker-diagnostic-grid" id="tracker-diagnostic-grid"></div>
+  <div class="diagnostic-rejections"><div class="panel-header"><div><p class="eyebrow">REJECTION LOG</p><h2>Today recommendations not tracked</h2></div></div><div class="responsive-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Event time</th><th>Entry</th><th>Fraction</th><th>Amount</th><th>Reason</th><th>Evaluated</th></tr></thead><tbody id="tracker-rejection-body"></tbody></table></div></div>
+</section>
 <section class="metric-grid tracker-metrics" id="tracker-metrics"></section>
 <section class="panel chart-panel">
   <div class="panel-header"><div><p class="eyebrow">BANKROLL REPLAY</p><h2>Simulated bankroll</h2></div><div class="segmented" id="graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>

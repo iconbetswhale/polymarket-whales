@@ -5,12 +5,13 @@ import logging
 import os
 import secrets
 import threading
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
-from bet_sizing import build_recommendation
 from bet_tracker import replay_tracker
 from config import get_settings
 from personal_tracker import (
@@ -30,6 +31,7 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
+ADMIN_COOKIE = "iconbets_tracker_admin"
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
 
 
@@ -122,6 +124,8 @@ def create_app(start_background: bool = True) -> Flask:
         g.iconbets_new_user = not bool(user_id)
         g.iconbets_user_id = user_id or secrets.token_urlsafe(24)
 
+        if request.endpoint == "api_model_tracker_reconcile":
+            return
         if (
             not start_background
             or app.extensions.get("tracker_starting")
@@ -164,7 +168,8 @@ def create_app(start_background: bool = True) -> Flask:
         )
 
     def public_trade(play: dict, bankroll: float) -> dict:
-        recommendation = build_recommendation(play, bankroll, tracker.sizing_config)
+        evaluation = tracker.evaluate_recommendation(play, bankroll)
+        recommendation = evaluation["recommendation"]
         payload = json.loads(json.dumps(play))
         orderbook = payload.pop("orderbook", {}) or {}
         payload["orderbook_summary"] = {
@@ -181,8 +186,43 @@ def create_app(start_background: bool = True) -> Flask:
             "timestamp": orderbook.get("timestamp"),
         }
         payload["recommendation"] = recommendation
+        payload["modelTrackerEligible"] = evaluation["model_tracker_eligible"]
+        payload["modelTrackerRejectionReason"] = evaluation[
+            "model_tracker_rejection_reason"
+        ]
+        payload["recommendationSnapshotId"] = evaluation[
+            "recommendation_snapshot_id"
+        ]
+        payload["recommendationIdempotencyKey"] = evaluation[
+            "recommendation_idempotency_key"
+        ]
         payload["card"] = _trade_card_view(payload, recommendation)
         return payload
+
+    def admin_cookie_value() -> str:
+        password = settings.admin_password or ""
+        return hmac.new(
+            password.encode("utf-8"),
+            b"iconbets-model-tracker-admin",
+            hashlib.sha256,
+        ).hexdigest()
+
+    def is_admin() -> bool:
+        if not settings.admin_password:
+            return False
+        supplied = request.cookies.get(ADMIN_COOKIE, "")
+        return bool(supplied) and hmac.compare_digest(supplied, admin_cookie_value())
+
+    def has_job_authorization() -> bool:
+        if is_admin():
+            return True
+        configured = settings.tracker_job_secret or ""
+        supplied = request.headers.get("Authorization", "")
+        if supplied.lower().startswith("bearer "):
+            supplied = supplied[7:].strip()
+        return bool(configured and supplied) and hmac.compare_digest(
+            supplied, configured
+        )
 
     def find_trade(snapshot: dict, trade_id: str) -> dict | None:
         return next(
@@ -433,9 +473,6 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Unsupported date range"}), 400
         current_settings = user_settings()
         bankroll = _safe_float(current_settings["starting_bankroll"])
-        tracker.track_recommendations_for_user(
-            g.iconbets_user_id, bankroll, snapshot.get("trades_to_play", [])
-        )
         page = max(request.args.get("page", 1, type=int) or 1, 1)
         per_page = min(max(request.args.get("per_page", 100, type=int) or 100, 1), 100)
         show_hidden = request.args.get("show_hidden", "").strip().lower() in {
@@ -770,6 +807,13 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "graph": graph,
                 "bankroll": current_settings,
+                "tracking": {
+                    key: value
+                    for key, value in tracker.tracking_diagnostics(
+                        g.iconbets_user_id
+                    ).items()
+                    if key != "rejections"
+                },
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
@@ -779,6 +823,52 @@ def create_app(start_background: bool = True) -> Flask:
                 },
             }
         )
+
+    @app.route("/api/admin/login", methods=["POST"])
+    def api_admin_login():
+        if not settings.admin_password:
+            return jsonify({"error": "Administrator access is not configured."}), 404
+        supplied = str((request.get_json(silent=True) or {}).get("password") or "")
+        if not hmac.compare_digest(supplied, settings.admin_password):
+            return jsonify({"error": "Invalid administrator password."}), 403
+        response = jsonify({"authenticated": True})
+        response.set_cookie(
+            ADMIN_COOKIE,
+            admin_cookie_value(),
+            max_age=60 * 60 * 12,
+            httponly=True,
+            secure=request.is_secure,
+            samesite="Strict",
+        )
+        return response
+
+    @app.route("/api/admin/model-tracker/diagnostics")
+    def api_model_tracker_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify({"data": tracker.tracking_diagnostics(g.iconbets_user_id)})
+
+    @app.route("/api/admin/model-tracker/pause", methods=["POST"])
+    def api_model_tracker_pause():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        paused = bool((request.get_json(silent=True) or {}).get("paused"))
+        return jsonify({"data": tracker.set_tracking_paused(paused)})
+
+    @app.route("/api/admin/model-tracker/reconcile", methods=["POST"])
+    def api_model_tracker_reconcile():
+        if not has_job_authorization():
+            return jsonify({"error": "Model Tracker job authorization required."}), 401
+        force = bool((request.get_json(silent=True) or {}).get("force"))
+        state = tracker.database.get_tracking_job_state()
+        if state.get("paused") and not force:
+            return jsonify({"data": {**state, "status": "paused"}})
+        tracker.refresh()
+        if state.get("paused") and force:
+            result = tracker.reconcile_all_user_trackers(force=True)
+        else:
+            result = tracker.database.get_tracking_job_state()
+        return jsonify({"data": result})
 
     @app.route("/api/price-history")
     def api_price_history():
