@@ -70,6 +70,7 @@ class Settings:
     discord_alert_types: tuple[str, ...] = ("new_entry", "size_increase", "full_exit")
     discord_min_position_usd: float = 0.0
     discord_notify_on_initial_scan: bool = False
+    durable_database_url: str | None = None
 
 
 def get_settings() -> Settings:
@@ -95,5 +96,11 @@ def get_settings() -> Settings:
         discord_min_position_usd=_get_float("DISCORD_MIN_POSITION_USD", 0.0),
         discord_notify_on_initial_scan=_get_bool(
             "DISCORD_NOTIFY_ON_INITIAL_SCAN", False
+        ),
+        durable_database_url=(
+            os.getenv("DURABLE_DATABASE_URL")
+            or os.getenv("POSTGRES_URL")
+            or os.getenv("DATABASE_URL")
+            or None
         ),
     )

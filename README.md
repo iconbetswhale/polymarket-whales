@@ -39,7 +39,8 @@ The dashboard now tracks:
 - `bet_sizing.py`: evidence score, executable-entry simulation, Half Kelly, and risk caps
 - `bet_tracker.py`: immutable snapshots, settlement status, and bankroll replay
 - `classification.py`: sports and non-sports market classification
-- `database.py`: SQLite persistence for tracked positions and position events
+- `database.py`: SQLite market cache with durable user-store routing
+- `durable_user_store.py`: PostgreSQL persistence for bankrolls, Model Tracker records, hidden trades, and personal fills
 - `position_tracker.py`: refresh orchestration, event detection, consensus building, and API payload generation
 - `unit_analysis.py`: betting-unit estimation and manual overrides
 - `scoring.py`: position conviction scoring
@@ -131,6 +132,10 @@ Manual wallet file path.
 
 `DATABASE_PATH=polymarket_tracker.db`
 SQLite database path.
+
+`DURABLE_DATABASE_URL=`
+Optional PostgreSQL connection string for user-owned state. This is required on
+serverless production hosts; `POSTGRES_URL` and `DATABASE_URL` are also detected.
 
 `SPORTS_ONLY=true`
 Default sports-only mode.
@@ -326,7 +331,9 @@ Changing bankroll replays the stored recommended percentage against the original
 
 ## Database Behavior
 
-The app creates `polymarket_tracker.db` automatically on first start.
+The app creates `polymarket_tracker.db` automatically on first start. When a
+durable PostgreSQL URL is configured, wallet-position cache data remains in
+SQLite while all user-owned state is written to PostgreSQL.
 
 SQLite tables include:
 
@@ -359,9 +366,14 @@ Repeated refreshes without meaningful changes do not create duplicate events.
 
 ## Vercel Deployment
 
-`vercel.json` rewrites every frontend route to the Flask function, so direct route visits and browser refreshes work. The current deployment can run the application, but Vercel's function filesystem is ephemeral. Local SQLite data is not guaranteed to survive a cold start or redeploy.
+`vercel.json` rewrites every frontend route to the Flask function, so direct route visits and browser refreshes work. Vercel's function filesystem is ephemeral,
+so production must set `DURABLE_DATABASE_URL`, `POSTGRES_URL`, or `DATABASE_URL`.
+The SQLite market cache can be rebuilt after a cold start, while Bet Tracker
+history and other user-owned records remain in PostgreSQL.
 
-For durable hosted Bet Tracker history, point the persistence layer at a managed database such as Postgres before treating production records as permanent. Render's persistent disk configuration below supports durable SQLite as an alternative.
+The `/health` response reports `user_data_persistent: true` and a healthy
+`durable_user_store` when production persistence is correctly configured.
+Render's persistent disk configuration below remains a durable SQLite alternative.
 
 ## Render Deployment
 

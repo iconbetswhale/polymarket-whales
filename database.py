@@ -7,11 +7,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from durable_user_store import PostgresUserStore
+
 
 class TrackerDatabase:
-    def __init__(self, path: Path) -> None:
+    def __init__(self, path: Path, durable_database_url: str | None = None) -> None:
         self.path = path
+        self.user_store: PostgresUserStore | None = None
         self.initialize()
+        if durable_database_url:
+            self.user_store = PostgresUserStore(durable_database_url)
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -448,6 +453,10 @@ class TrackerDatabase:
     def get_or_create_user_settings(
         self, user_id: str, default_bankroll: float, unit_percentage: float
     ) -> dict:
+        if self.user_store:
+            return self.user_store.get_or_create_user_settings(
+                user_id, default_bankroll, unit_percentage
+            )
         now = datetime.now(timezone.utc).isoformat()
         with self.connection() as conn:
             conn.execute(
@@ -470,6 +479,10 @@ class TrackerDatabase:
     def update_user_settings(
         self, user_id: str, starting_bankroll: float, unit_percentage: float
     ) -> dict:
+        if self.user_store:
+            return self.user_store.update_user_settings(
+                user_id, starting_bankroll, unit_percentage
+            )
         now = datetime.now(timezone.utc).isoformat()
         with self.connection() as conn:
             conn.execute(
@@ -488,6 +501,8 @@ class TrackerDatabase:
         )
 
     def list_user_settings(self) -> list[dict]:
+        if self.user_store:
+            return self.user_store.list_user_settings()
         with self.connection() as conn:
             rows = conn.execute(
                 "SELECT user_id, starting_bankroll, unit_percentage, updated_at FROM user_settings"
@@ -497,6 +512,8 @@ class TrackerDatabase:
     def insert_tracker_snapshot(
         self, user_id: str, snapshot: dict, status: str = "scheduled"
     ) -> bool:
+        if self.user_store:
+            return self.user_store.insert_tracker_snapshot(user_id, snapshot, status)
         fraction = float(snapshot.get("final_recommended_fraction") or 0)
         amount = snapshot.get("original_displayed_amount")
         if fraction <= 1e-12 or (amount is not None and float(amount) < 0.01):
@@ -524,6 +541,8 @@ class TrackerDatabase:
             return cursor.rowcount > 0
 
     def get_tracker_records(self, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_tracker_records(user_id)
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -550,6 +569,8 @@ class TrackerDatabase:
         ]
 
     def get_active_tracker_records(self) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_active_tracker_records()
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -576,6 +597,11 @@ class TrackerDatabase:
         result: str | None,
         settled_at: str | None,
     ) -> None:
+        if self.user_store:
+            self.user_store.update_tracker_status(
+                user_id, dedupe_key, status, result, settled_at
+            )
+            return
         with self.connection() as conn:
             conn.execute(
                 """
@@ -594,6 +620,8 @@ class TrackerDatabase:
             )
 
     def hide_trade(self, user_id: str, trade: dict) -> dict:
+        if self.user_store:
+            return self.user_store.hide_trade(user_id, trade)
         now = datetime.now(timezone.utc).isoformat()
         values = (
             user_id,
@@ -642,6 +670,8 @@ class TrackerDatabase:
         return dict(row)
 
     def get_hidden_trades(self, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_hidden_trades(user_id)
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -654,6 +684,8 @@ class TrackerDatabase:
         return [dict(row) for row in rows]
 
     def restore_hidden_trade(self, user_id: str, hidden_id: int) -> bool:
+        if self.user_store:
+            return self.user_store.restore_hidden_trade(user_id, hidden_id)
         with self.connection() as conn:
             cursor = conn.execute(
                 "DELETE FROM hidden_trades WHERE user_id = ? AND id = ?",
@@ -662,6 +694,8 @@ class TrackerDatabase:
             return cursor.rowcount > 0
 
     def restore_all_hidden_trades(self, user_id: str) -> int:
+        if self.user_store:
+            return self.user_store.restore_all_hidden_trades(user_id)
         with self.connection() as conn:
             cursor = conn.execute(
                 "DELETE FROM hidden_trades WHERE user_id = ?", (user_id,)
@@ -671,6 +705,8 @@ class TrackerDatabase:
     def insert_personal_bet_fill(
         self, user_id: str, fill: dict, status: str = "scheduled"
     ) -> dict:
+        if self.user_store:
+            return self.user_store.insert_personal_bet_fill(user_id, fill, status)
         now = datetime.now(timezone.utc).isoformat()
         with self.connection() as conn:
             conn.execute(
@@ -721,6 +757,10 @@ class TrackerDatabase:
     def get_personal_bet_fills(
         self, user_id: str, *, active_only: bool = False
     ) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_personal_bet_fills(
+                user_id, active_only=active_only
+            )
         where = (
             "AND status IN ('scheduled', 'live', 'unresolved')" if active_only else ""
         )
@@ -736,6 +776,8 @@ class TrackerDatabase:
         return [dict(row) for row in rows]
 
     def get_all_active_personal_bet_fills(self) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_all_active_personal_bet_fills()
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -747,6 +789,8 @@ class TrackerDatabase:
         return [dict(row) for row in rows]
 
     def cancel_personal_bet_fill(self, user_id: str, fill_id: str) -> bool:
+        if self.user_store:
+            return self.user_store.cancel_personal_bet_fill(user_id, fill_id)
         now = datetime.now(timezone.utc).isoformat()
         with self.connection() as conn:
             cursor = conn.execute(
@@ -768,6 +812,11 @@ class TrackerDatabase:
         result: str | None,
         settled_at: str | None,
     ) -> None:
+        if self.user_store:
+            self.user_store.update_personal_bet_status(
+                fill_id, status, result, settled_at
+            )
+            return
         with self.connection() as conn:
             conn.execute(
                 """
@@ -784,9 +833,16 @@ class TrackerDatabase:
                 ),
             )
 
-    def health(self) -> dict[str, str | bool]:
-        return {
+    def health(self) -> dict[str, object]:
+        payload: dict[str, object] = {
             "database_exists": self.path.exists(),
             "database_path": str(self.path),
             "status": "ok" if self.path.exists() else "initializing",
+            "user_data_persistent": bool(self.user_store),
         }
+        if self.user_store:
+            durable_health = self.user_store.health()
+            payload["durable_user_store"] = durable_health
+            if durable_health.get("status") != "ok":
+                payload["status"] = "degraded"
+        return payload

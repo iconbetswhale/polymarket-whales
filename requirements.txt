@@ -3,3 +3,4 @@ requests
 gunicorn
 python-dotenv
 pytest
+psycopg[binary]>=3.2,<4

@@ -4,6 +4,7 @@ import copy
 
 import pytest
 
+import database as database_module
 from bet_tracker import recommendation_snapshot, replay_tracker
 from database import TrackerDatabase
 
@@ -41,6 +42,47 @@ def test_tracker_rejects_near_zero_recommendation(tmp_path):
 
     assert database.insert_tracker_snapshot("user-1", snapshot) is False
     assert database.get_tracker_records("user-1") == []
+
+
+def test_durable_store_receives_user_owned_tracker_data(tmp_path, monkeypatch):
+    class FakeDurableStore:
+        def __init__(self, database_url):
+            self.database_url = database_url
+            self.records = []
+
+        def insert_tracker_snapshot(self, user_id, snapshot, status):
+            self.records.append((user_id, copy.deepcopy(snapshot), status))
+            return True
+
+        def get_tracker_records(self, user_id):
+            return [
+                {
+                    "dedupe_key": snapshot["dedupe_key"],
+                    "snapshot_id": snapshot["snapshot_id"],
+                    "status": status,
+                    "result": None,
+                    "settled_at": None,
+                    "created_at": snapshot["recommendation_timestamp"],
+                    "updated_at": snapshot["recommendation_timestamp"],
+                    "snapshot": snapshot,
+                }
+                for owner, snapshot, status in self.records
+                if owner == user_id
+            ]
+
+        def health(self):
+            return {"backend": "postgresql", "persistent": True, "status": "ok"}
+
+    monkeypatch.setattr(database_module, "PostgresUserStore", FakeDurableStore)
+    database = TrackerDatabase(
+        tmp_path / "tracker.db", "postgresql://durable.example/iconbets"
+    )
+
+    assert database.insert_tracker_snapshot("user-1", _snapshot()) is True
+    assert database.get_tracker_records("user-1")[0]["snapshot_id"] == "snapshot-1"
+    health = database.health()
+    assert health["user_data_persistent"] is True
+    assert health["durable_user_store"]["status"] == "ok"
 
 
 def test_replay_uses_frozen_percentage_and_effective_entry():

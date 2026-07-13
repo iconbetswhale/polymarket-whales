@@ -221,7 +221,9 @@ class TrackerService:
         self.client = client or PolymarketClient(
             settings.request_timeout, settings.max_retries
         )
-        self.database = database or TrackerDatabase(settings.database_path)
+        self.database = database or TrackerDatabase(
+            settings.database_path, settings.durable_database_url
+        )
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self._lock = threading.Lock()
