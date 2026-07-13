@@ -321,6 +321,21 @@ def _relative_units(
     return amount / baseline if baseline > 0 else None
 
 
+def _minimum_units(position: dict[str, Any]) -> float:
+    configured = position.get("minimum_position_units")
+    if configured is None:
+        return MIN_PLAYABLE_UNITS
+    return max(_safe_float(configured, MIN_PLAYABLE_UNITS), MIN_PLAYABLE_UNITS)
+
+
+def _actionable_units(position: dict[str, Any]) -> float:
+    minimum = _minimum_units(position)
+    configured = position.get("actionable_position_units")
+    if configured is None:
+        return minimum
+    return max(_safe_float(configured, minimum), minimum)
+
+
 def _sample_size(
     position: dict[str, Any], events_by_wallet: dict[str, list[dict[str, Any]]]
 ) -> int:
@@ -373,9 +388,18 @@ def _is_playable_size(
     units = _relative_units(position, unit_map, events_by_wallet)
     return (
         units is not None
-        and units > MIN_PLAYABLE_UNITS
+        and units > _minimum_units(position)
         and _safe_float(position.get("position_size_usd")) > 0
     )
+
+
+def _is_actionable_wallet_position(
+    position: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
+    units = _relative_units(position, unit_map, events_by_wallet)
+    return units is not None and units >= _actionable_units(position)
 
 
 def _format_event_time(value: Any) -> dict[str, str | None]:
@@ -563,6 +587,8 @@ def build_trades_to_play(
             continue
         if not _is_playable_size(position, unit_map, events_by_wallet):
             continue
+        if not _is_actionable_wallet_position(position, unit_map, events_by_wallet):
+            continue
         side = canonical_side(position)
         market_sides.setdefault(side.market_key, {}).setdefault(
             side.side_key, []
@@ -704,6 +730,18 @@ def build_trades_to_play(
                     "average_entry_price": position.get("average_entry_price"),
                     "current_price": position.get("current_price"),
                     "shares": position.get("shares") or position.get("token_units"),
+                    "minimum_position_units": position.get("minimum_position_units"),
+                    "actionable_position_units": position.get(
+                        "actionable_position_units"
+                    ),
+                    "signal_tier": position.get("signal_tier"),
+                    "top_category": position.get("configured_top_category")
+                    or position.get("top_category"),
+                    "bettor_type": position.get("wallet_bettor_type"),
+                    "selectivity": position.get("wallet_selectivity"),
+                    "selectivity_score": position.get("wallet_selectivity_score"),
+                    "hold_tendency": position.get("wallet_hold_tendency"),
+                    "copyability": position.get("wallet_copyability"),
                     "last_changed_at": position.get("last_changed_at"),
                     "wallet_profile_url": position.get("wallet_profile_url"),
                     "category_metrics": position.get("category_metrics"),
@@ -771,6 +809,16 @@ def build_trades_to_play(
                 "wallet_label": primary.get("wallet_label"),
                 "amount": _safe_float(primary.get("position_size_usd")),
                 "relative_units": _relative_units(primary, unit_map, events_by_wallet),
+                "minimum_position_units": primary.get("minimum_position_units"),
+                "actionable_position_units": primary.get("actionable_position_units"),
+                "signal_tier": primary.get("signal_tier"),
+                "top_category": primary.get("configured_top_category")
+                or primary.get("top_category"),
+                "bettor_type": primary.get("wallet_bettor_type"),
+                "selectivity": primary.get("wallet_selectivity"),
+                "selectivity_score": primary.get("wallet_selectivity_score"),
+                "hold_tendency": primary.get("wallet_hold_tendency"),
+                "copyability": primary.get("wallet_copyability"),
                 "wallet_profile_url": primary.get("wallet_profile_url"),
                 "sample_size": sample_size,
                 "adjusted_hit_rate": round(adjusted_hit_rate, 4),

@@ -13,6 +13,14 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 from bet_sizing import build_recommendation
 from bet_tracker import replay_tracker
 from config import get_settings
+from personal_tracker import (
+    canonical_trade_identity,
+    has_complete_identity,
+    hidden_trade_snapshot,
+    identity_key,
+    personal_exposure_for_trade,
+    personal_fill_snapshot,
+)
 from position_tracker import TrackerService
 from trade_scoring import filter_trades_to_play
 
@@ -51,6 +59,52 @@ def _parse_datetime(value: str | None) -> datetime | None:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=EASTERN)
     return parsed.astimezone(timezone.utc)
+
+
+def _format_event_start(value: str | None, now: datetime | None = None) -> str:
+    parsed = _parse_datetime(value)
+    if parsed is None:
+        return "Time unavailable"
+
+    eastern = parsed.astimezone(EASTERN)
+    reference = now or datetime.now(timezone.utc)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=timezone.utc)
+    reference_eastern = reference.astimezone(EASTERN)
+    day_offset = (eastern.date() - reference_eastern.date()).days
+    hour = eastern.strftime("%I").lstrip("0") or "0"
+    time_text = f"{hour}:{eastern.strftime('%M %p')}"
+
+    if day_offset == 0:
+        return f"Today, {time_text}"
+    if day_offset == 1:
+        return f"Tomorrow, {time_text}"
+    if eastern.year == reference_eastern.year:
+        return f"{eastern.strftime('%b')} {eastern.day}, {time_text}"
+    return f"{eastern.strftime('%b')} {eastern.day}, {eastern.year} \u00b7 {time_text}"
+
+
+def _trade_card_view(
+    play: dict, recommendation: dict, now: datetime | None = None
+) -> dict:
+    primary = play.get("primary_trader") or {}
+    evidence = play.get("evidence_inputs") or {}
+    hit_rate = evidence.get("adjusted_category_hit_rate")
+    sharp_entry = recommendation.get("sharp_average_entry_price")
+    if sharp_entry is None:
+        sharp_entry = play.get("average_entry_price")
+
+    return {
+        "event_time": _format_event_start(play.get("event_date_et"), now),
+        "trader_bet_amount": primary.get("amount"),
+        "trader_average_entry_price": sharp_entry,
+        "relative_bet_size": primary.get("relative_units"),
+        "category_hit_rate": None if hit_rate is None else _safe_float(hit_rate),
+        "recommended_shares": recommendation.get("recommended_shares"),
+        "recommended_amount": recommendation.get("recommended_amount"),
+        "recommended_units": recommendation.get("recommended_units"),
+        "current_actionable_price": recommendation.get("current_user_entry_price"),
+    }
 
 
 def create_app(start_background: bool = True) -> Flask:
@@ -127,7 +181,41 @@ def create_app(start_background: bool = True) -> Flask:
             "timestamp": orderbook.get("timestamp"),
         }
         payload["recommendation"] = recommendation
+        payload["card"] = _trade_card_view(payload, recommendation)
         return payload
+
+    def find_trade(snapshot: dict, trade_id: str) -> dict | None:
+        return next(
+            (
+                trade
+                for trade in snapshot.get("trades_to_play", [])
+                if str(trade.get("id") or "") == trade_id
+            ),
+            None,
+        )
+
+    def hidden_records_by_key(user_id: str) -> tuple[list[dict], dict[tuple, dict]]:
+        records = tracker.database.get_hidden_trades(user_id)
+        return records, {identity_key(record): record for record in records}
+
+    def decorate_personal_state(
+        trade: dict,
+        active_personal_fills: list[dict],
+        hidden_by_key: dict[tuple, dict],
+    ) -> dict:
+        hidden = hidden_by_key.get(identity_key(canonical_trade_identity(trade)))
+        exposure = personal_exposure_for_trade(trade, active_personal_fills)
+        trade["isHidden"] = bool(hidden)
+        trade["hiddenRecordId"] = hidden.get("id") if hidden else None
+        trade["personalExposureType"] = exposure["type"]
+        trade["personalEntryCount"] = exposure["personalEntryCount"]
+        trade["hasExactPersonalPosition"] = exposure["hasExactPersonalPosition"]
+        trade["hasOpposingPersonalPosition"] = exposure["hasOpposingPersonalPosition"]
+        trade["hasSameEventDifferentMarketPosition"] = exposure[
+            "hasSameEventDifferentMarketPosition"
+        ]
+        trade["personalExposureSummary"] = exposure
+        return trade
 
     @app.route("/")
     def index():
@@ -350,6 +438,15 @@ def create_app(start_background: bool = True) -> Flask:
         )
         page = max(request.args.get("page", 1, type=int) or 1, 1)
         per_page = min(max(request.args.get("per_page", 100, type=int) or 100, 1), 100)
+        show_hidden = request.args.get("show_hidden", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        hidden_records, hidden_by_key = hidden_records_by_key(g.iconbets_user_id)
+        active_personal_fills = tracker.database.get_personal_bet_fills(
+            g.iconbets_user_id, active_only=True
+        )
         filtered = filter_trades_to_play(
             snapshot.get("trades_to_play", []),
             search=request.args.get("q", ""),
@@ -362,23 +459,184 @@ def create_app(start_background: bool = True) -> Flask:
             league=request.args.get("league", ""),
             wallet=request.args.get("wallet", ""),
         )
-        sized = [public_trade(play, bankroll) for play in filtered]
+        sized = [
+            decorate_personal_state(
+                public_trade(play, bankroll), active_personal_fills, hidden_by_key
+            )
+            for play in filtered
+        ]
         actionable = [trade for trade in sized if _has_positive_recommendation(trade)]
+        visible = (
+            actionable
+            if show_hidden
+            else [trade for trade in actionable if not trade["isHidden"]]
+        )
         start = (page - 1) * per_page
         return jsonify(
             {
-                "data": actionable[start : start + per_page],
+                "data": visible[start : start + per_page],
                 "bankroll": current_settings,
+                "hiddenCount": len(hidden_records),
+                "showHidden": show_hidden,
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
-                    "total": len(actionable),
-                    "has_next": start + per_page < len(actionable),
+                    "total": len(visible),
+                    "has_next": start + per_page < len(visible),
                     "has_prev": page > 1,
                 },
                 "status": snapshot["status"],
             }
         )
+
+    @app.route("/api/hidden-trades", methods=["GET", "POST", "DELETE"])
+    def api_hidden_trades():
+        if request.method == "DELETE":
+            restored = tracker.database.restore_all_hidden_trades(g.iconbets_user_id)
+            return jsonify({"restored": restored})
+
+        snapshot = tracker.get_snapshot()
+        current_settings = user_settings()
+        bankroll = _safe_float(current_settings["starting_bankroll"])
+        if request.method == "POST":
+            payload = request.get_json(silent=True) or {}
+            trade = find_trade(snapshot, str(payload.get("trade_id") or ""))
+            if not trade:
+                return jsonify({"error": "Trade is no longer available."}), 404
+            hidden = hidden_trade_snapshot(trade)
+            if not has_complete_identity(hidden):
+                return jsonify({"error": "Trade is missing a canonical identity."}), 409
+            record = tracker.database.hide_trade(g.iconbets_user_id, hidden)
+            public_record = {
+                key: value for key, value in record.items() if key != "user_id"
+            }
+            return jsonify({"data": public_record}), 201
+
+        records = tracker.database.get_hidden_trades(g.iconbets_user_id)
+        actionable_keys = {
+            identity_key(canonical_trade_identity(trade))
+            for trade in (
+                public_trade(play, bankroll)
+                for play in snapshot.get("trades_to_play", [])
+            )
+            if _has_positive_recommendation(trade)
+        }
+        rows = [
+            {
+                **{key: value for key, value in record.items() if key != "user_id"},
+                "active": identity_key(record) in actionable_keys,
+                "status": (
+                    "Eligible to restore"
+                    if identity_key(record) in actionable_keys
+                    else "No longer active"
+                ),
+            }
+            for record in records
+        ]
+        return jsonify({"data": rows, "total": len(rows)})
+
+    @app.route("/api/hidden-trades/<int:hidden_id>", methods=["DELETE"])
+    def api_restore_hidden_trade(hidden_id: int):
+        if not tracker.database.restore_hidden_trade(g.iconbets_user_id, hidden_id):
+            return jsonify({"error": "Hidden trade was not found."}), 404
+        return jsonify({"restored": True})
+
+    @app.route("/api/personal-exposure")
+    def api_personal_exposure():
+        snapshot = tracker.get_snapshot()
+        trade = find_trade(snapshot, request.args.get("trade_id", ""))
+        if not trade:
+            return jsonify({"error": "Trade is no longer available."}), 404
+        active_fills = tracker.database.get_personal_bet_fills(
+            g.iconbets_user_id, active_only=True
+        )
+        return jsonify(
+            {
+                "data": personal_exposure_for_trade(
+                    trade, active_fills, include_entries=True
+                )
+            }
+        )
+
+    @app.route("/api/personal-bets", methods=["POST"])
+    def api_personal_bets():
+        payload = request.get_json(silent=True) or {}
+        snapshot = tracker.get_snapshot()
+        trade = find_trade(snapshot, str(payload.get("trade_id") or ""))
+        if not trade:
+            return jsonify({"error": "Trade is no longer available."}), 404
+
+        current_settings = user_settings()
+        public = public_trade(trade, _safe_float(current_settings["starting_bankroll"]))
+        if not _has_positive_recommendation(public):
+            return jsonify({"error": "Trade is no longer actionable."}), 409
+        identity = canonical_trade_identity(public)
+        if not has_complete_identity(identity):
+            return jsonify({"error": "Trade is missing a canonical identity."}), 409
+
+        active_fills = tracker.database.get_personal_bet_fills(
+            g.iconbets_user_id, active_only=True
+        )
+        exposure = personal_exposure_for_trade(public, active_fills)
+        if exposure["hasOpposingPersonalPosition"] and not bool(
+            payload.get("confirm_conflict")
+        ):
+            return jsonify(
+                {
+                    "error": (
+                        "You already hold the opposing outcome in this market. "
+                        "Confirm opposing exposure before saving."
+                    ),
+                    "confirmationRequired": "conflict",
+                    "personalExposureSummary": exposure,
+                }
+            ), 409
+        if exposure["hasExactPersonalPosition"] and not bool(
+            payload.get("confirm_duplicate")
+        ):
+            return jsonify(
+                {
+                    "error": (
+                        "You already have a personal position on this exact "
+                        "selection. Confirm another purchase before saving."
+                    ),
+                    "confirmationRequired": "duplicate",
+                    "personalExposureSummary": exposure,
+                }
+            ), 409
+
+        entry_price = _safe_float(payload.get("entry_price"), -1)
+        shares = _safe_float(payload.get("shares"), -1)
+        fees = _safe_float(payload.get("fees"), 0)
+        if not 0 < entry_price < 1:
+            return jsonify({"error": "Entry price must be between 0 and 1."}), 400
+        if shares <= 0:
+            return jsonify({"error": "Shares must be greater than zero."}), 400
+        if fees < 0:
+            return jsonify({"error": "Fees cannot be negative."}), 400
+
+        fill = personal_fill_snapshot(
+            public,
+            fill_id=secrets.token_urlsafe(18),
+            entry_price=entry_price,
+            shares=shares,
+            fees=fees,
+        )
+        stored = tracker.database.insert_personal_bet_fill(
+            g.iconbets_user_id, fill, status="scheduled"
+        )
+        updated_fills = [*active_fills, stored]
+        updated_exposure = personal_exposure_for_trade(public, updated_fills)
+        public_fill = {key: value for key, value in stored.items() if key != "user_id"}
+        return jsonify(
+            {"data": public_fill, "personalExposureSummary": updated_exposure}
+        ), 201
+
+    @app.route("/api/personal-bets/<fill_id>", methods=["DELETE"])
+    def api_delete_personal_bet(fill_id: str):
+        if not tracker.database.cancel_personal_bet_fill(g.iconbets_user_id, fill_id):
+            return jsonify({"error": "Personal fill was not found."}), 404
+        return jsonify({"canceled": True})
 
     @app.route("/api/history")
     def api_history():

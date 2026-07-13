@@ -2,7 +2,7 @@
 {% block content %}
 <header class="workspace-header">
   <div><p class="eyebrow">PREDICTION TRADERS</p><div class="title-line"><h1>Trades to Play</h1><span class="result-badge" id="trade-result-count">0 results</span></div></div>
-  <div class="freshness"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span></div>
+  <div class="freshness"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span><small class="timezone-chip">Event times ET</small></div>
 </header>
 <section class="toolbar trade-toolbar" aria-label="Trade filters">
   <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search event, team, market, trader" autocomplete="off"></label>
@@ -11,6 +11,7 @@
   <label><span class="sr-only">Minimum confidence</span><select id="trade-confidence"><option value="0">Any Score</option><option value="60">60+ Score</option><option value="70">70+ Score</option><option value="80">80+ Score</option><option value="90">90+ Score</option></select></label>
   <label><span class="sr-only">Sport</span><select id="trade-sport"><option value="">All Sports</option></select></label>
   <button class="button ghost" id="more-filters-button" type="button" aria-expanded="false" aria-controls="more-filters"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i>More Filters</button>
+  <button class="button ghost hidden-trades-button" id="hidden-trades-button" type="button"><i class="ph ph-eye-slash" aria-hidden="true"></i>Hidden Trades<span id="hidden-trades-count">0</span></button>
   <button class="icon-button" id="trade-refresh-button" type="button" aria-label="Refresh live trade data" title="Refresh live trade data"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
 </section>
 <section class="more-filters" id="more-filters" hidden>
@@ -18,6 +19,7 @@
   <label>Wallet<select id="trade-wallet"><option value="">All wallets</option></select></label>
   <label class="custom-time">Custom start<input id="custom-start" type="datetime-local"></label>
   <label class="custom-time">Custom end<input id="custom-end" type="datetime-local"></label>
+  <label class="show-hidden-control"><input id="show-hidden-trades" type="checkbox"><span>Show hidden</span></label>
   <button class="button ghost" id="clear-trade-filters" type="button">Reset filters</button>
 </section>
 <section class="bankroll-strip" aria-label="Bankroll settings">
@@ -29,4 +31,40 @@
   <div class="trade-list-panel" aria-label="Trades to Play results"><div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div></div>
   <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite"><div class="empty-detail"><i class="ph ph-cursor-click" aria-hidden="true"></i><h2>Select a trade</h2><p>Choose a verified opportunity to inspect its price, Sharp evidence, and bankroll calculation.</p></div></aside>
 </section>
+<dialog class="tracker-dialog" id="personal-tracker-dialog" aria-labelledby="personal-tracker-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="personal-tracker-close" type="button" aria-label="Close Personal Tracker"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">PERSONAL TRACKER</p>
+    <h2 id="personal-tracker-title">Track a personal purchase</h2>
+    <div class="tracker-dialog-summary" id="personal-tracker-summary"></div>
+    <div class="personal-exposure-notice" id="personal-tracker-exposure" hidden></div>
+    <form id="personal-tracker-form">
+      <div class="personal-purchase-fields">
+        <label>Entry price <span class="input-with-suffix"><input id="personal-entry-price" type="number" min="0.1" max="99.9" step="0.1" inputmode="decimal" required><span>cents</span></span></label>
+        <label>Shares <input id="personal-shares" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+        <label>Fees <span class="input-with-suffix money"><span>$</span><input id="personal-fees" type="number" min="0" step="0.01" inputmode="decimal" value="0"></span></label>
+      </div>
+      <div class="personal-purchase-total" id="personal-purchase-total"><span>Position Cost</span><strong>$0.00</strong><small>Total paid $0.00</small></div>
+      <label class="conflict-confirmation" id="personal-conflict-confirmation" hidden><input id="personal-conflict-check" type="checkbox"><span><strong>Confirm opposing exposure</strong>You already hold the opposing outcome. This purchase will create a hedge or conflict.</span></label>
+      <p class="tracker-dialog-note">This records a confirmed personal fill only. It does not place an order on Polymarket or change Model Tracker history.</p>
+      <div class="tracker-dialog-actions">
+        <button class="button ghost" id="personal-tracker-dismiss" type="button">Cancel</button>
+        <button class="button primary" id="personal-tracker-submit" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Track purchase</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+<dialog class="tracker-dialog hidden-trades-dialog" id="hidden-trades-dialog" aria-labelledby="hidden-trades-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="hidden-trades-close" type="button" aria-label="Close Hidden Trades"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">USER PREFERENCES</p>
+    <h2 id="hidden-trades-title">Hidden Trades</h2>
+    <p class="tracker-dialog-note">These exact event, market, line, and outcome combinations are hidden only from your Trades to Play feed.</p>
+    <div class="hidden-trades-list" id="hidden-trades-list"></div>
+    <div class="tracker-dialog-actions">
+      <button class="button ghost" id="hidden-trades-dismiss" type="button">Close</button>
+      <button class="button danger-ghost" id="restore-all-hidden" type="button"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Restore All</button>
+    </div>
+  </div>
+</dialog>
 {% endblock %}

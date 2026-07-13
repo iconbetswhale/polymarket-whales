@@ -15,6 +15,7 @@ REQUESTED_WALLETS = {
     "Wordylittleneck": "0x3dfb153c197d4c19d3b31c1ecd2c7b6860eeabaf",
     "phonesculptor": "0xf1528f12e645462c344799b62b1b421a6a4c64aa",
     "Surfandturf": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
+    "Bagwell306": "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
 }
 
 
@@ -85,6 +86,13 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert len({wallet.address for wallet in result.valid_wallets}) == len(
         result.valid_wallets
     )
+
+    bagwell = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Bagwell306"
+    )
+    assert bagwell.base_unit == 2500
+    assert bagwell.top_category == "Tennis"
+    assert bagwell.actionable_position_units == 0.5
 
 
 def test_case_insensitive_duplicate_request_is_rejected(tmp_path):

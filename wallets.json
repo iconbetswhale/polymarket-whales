@@ -47,5 +47,22 @@
     "enabled": true,
     "base_unit": null,
     "notes": "Unit size pending automatic estimation from real tracked position history."
+  },
+  {
+    "address": "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
+    "label": "Bagwell306",
+    "enabled": true,
+    "base_unit": 2500,
+    "notes": "Manual unit size override. Units are based on exact remaining dollars invested, not share count.",
+    "top_category": "Tennis",
+    "bettor_type": "Automated systematic directional bettor",
+    "selectivity": "Low",
+    "selectivity_score": 2,
+    "hold_tendency": "High",
+    "copyability": "Medium",
+    "execution_style": "Fragmented entries and repeated fills",
+    "general_strategy": "Broad, model-driven, multi-sport directional betting",
+    "minimum_position_units": 0.2,
+    "actionable_position_units": 0.5
   }
 ]

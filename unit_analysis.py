@@ -32,7 +32,7 @@ def round_to_display_unit(value: float) -> float:
 def amount_to_units(amount: float, base_unit: float | None) -> float | None:
     if not base_unit or base_unit <= 0:
         return None
-    return round((amount / base_unit) * 4) / 4
+    return amount / base_unit
 
 
 def estimate_unit_size(

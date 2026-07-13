@@ -100,6 +100,70 @@ class TrackerDatabase:
                     ON bet_tracker(user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                     ON bet_tracker(status, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS hidden_trades (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    canonical_event_id TEXT NOT NULL,
+                    canonical_market_id TEXT NOT NULL,
+                    market_line TEXT NOT NULL DEFAULT '',
+                    canonical_outcome_id TEXT NOT NULL,
+                    event_title TEXT,
+                    market_title TEXT,
+                    selection TEXT,
+                    event_start_time TEXT,
+                    hidden_at TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE (
+                        user_id,
+                        canonical_event_id,
+                        canonical_market_id,
+                        market_line,
+                        canonical_outcome_id
+                    )
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_hidden_trades_user_hidden
+                    ON hidden_trades(user_id, hidden_at DESC);
+
+                CREATE TABLE IF NOT EXISTS personal_bet_fills (
+                    fill_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    canonical_event_id TEXT NOT NULL,
+                    canonical_event_slug TEXT,
+                    canonical_market_id TEXT NOT NULL,
+                    canonical_market_slug TEXT,
+                    market_line TEXT NOT NULL DEFAULT '',
+                    canonical_outcome_id TEXT NOT NULL,
+                    event_title TEXT,
+                    market_title TEXT,
+                    selection TEXT,
+                    event_start_time TEXT,
+                    market_url TEXT,
+                    entry_price REAL NOT NULL,
+                    shares REAL NOT NULL,
+                    position_cost REAL NOT NULL,
+                    fees REAL NOT NULL DEFAULT 0,
+                    total_paid REAL NOT NULL,
+                    status TEXT NOT NULL,
+                    result TEXT,
+                    settled_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_personal_fills_user_event
+                    ON personal_bet_fills(user_id, canonical_event_id, status);
+                CREATE INDEX IF NOT EXISTS idx_personal_fills_user_market
+                    ON personal_bet_fills(
+                        user_id,
+                        canonical_event_id,
+                        canonical_market_id,
+                        market_line,
+                        canonical_outcome_id,
+                        status
+                    );
                 """
             )
             invalid_rows = []
@@ -526,6 +590,197 @@ class TrackerDatabase:
                     datetime.now(timezone.utc).isoformat(),
                     user_id,
                     dedupe_key,
+                ),
+            )
+
+    def hide_trade(self, user_id: str, trade: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        values = (
+            user_id,
+            trade["canonical_event_id"],
+            trade["canonical_market_id"],
+            trade.get("market_line") or "",
+            trade["canonical_outcome_id"],
+            trade.get("event_title"),
+            trade.get("market_title"),
+            trade.get("selection"),
+            trade.get("event_start_time"),
+            now,
+            now,
+            now,
+        )
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO hidden_trades (
+                    user_id, canonical_event_id, canonical_market_id,
+                    market_line, canonical_outcome_id, event_title, market_title,
+                    selection, event_start_time, hidden_at, created_at, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (
+                    user_id, canonical_event_id, canonical_market_id,
+                    market_line, canonical_outcome_id
+                ) DO UPDATE SET
+                    event_title = excluded.event_title,
+                    market_title = excluded.market_title,
+                    selection = excluded.selection,
+                    event_start_time = excluded.event_start_time,
+                    updated_at = excluded.updated_at
+                """,
+                values,
+            )
+            row = conn.execute(
+                """
+                SELECT * FROM hidden_trades
+                WHERE user_id = ? AND canonical_event_id = ?
+                  AND canonical_market_id = ? AND market_line = ?
+                  AND canonical_outcome_id = ?
+                """,
+                values[:5],
+            ).fetchone()
+        return dict(row)
+
+    def get_hidden_trades(self, user_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM hidden_trades
+                WHERE user_id = ?
+                ORDER BY hidden_at DESC, id DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def restore_hidden_trade(self, user_id: str, hidden_id: int) -> bool:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM hidden_trades WHERE user_id = ? AND id = ?",
+                (user_id, hidden_id),
+            )
+            return cursor.rowcount > 0
+
+    def restore_all_hidden_trades(self, user_id: str) -> int:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                "DELETE FROM hidden_trades WHERE user_id = ?", (user_id,)
+            )
+            return cursor.rowcount
+
+    def insert_personal_bet_fill(
+        self, user_id: str, fill: dict, status: str = "scheduled"
+    ) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO personal_bet_fills (
+                    fill_id, user_id, canonical_event_id, canonical_event_slug,
+                    canonical_market_id, canonical_market_slug, market_line,
+                    canonical_outcome_id, event_title, market_title, selection,
+                    event_start_time, market_url, entry_price, shares,
+                    position_cost, fees, total_paid, status, result, settled_at,
+                    created_at, updated_at
+                )
+                VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    NULL, NULL, ?, ?
+                )
+                """,
+                (
+                    fill["fill_id"],
+                    user_id,
+                    fill["canonical_event_id"],
+                    fill.get("canonical_event_slug"),
+                    fill["canonical_market_id"],
+                    fill.get("canonical_market_slug"),
+                    fill.get("market_line") or "",
+                    fill["canonical_outcome_id"],
+                    fill.get("event_title"),
+                    fill.get("market_title"),
+                    fill.get("selection"),
+                    fill.get("event_start_time"),
+                    fill.get("market_url"),
+                    fill["entry_price"],
+                    fill["shares"],
+                    fill["position_cost"],
+                    fill.get("fees") or 0,
+                    fill["total_paid"],
+                    status,
+                    now,
+                    now,
+                ),
+            )
+            row = conn.execute(
+                "SELECT * FROM personal_bet_fills WHERE fill_id = ? AND user_id = ?",
+                (fill["fill_id"], user_id),
+            ).fetchone()
+        return dict(row)
+
+    def get_personal_bet_fills(
+        self, user_id: str, *, active_only: bool = False
+    ) -> list[dict]:
+        where = (
+            "AND status IN ('scheduled', 'live', 'unresolved')" if active_only else ""
+        )
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM personal_bet_fills
+                WHERE user_id = ? {where}
+                ORDER BY created_at ASC, fill_id ASC
+                """,
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_all_active_personal_bet_fills(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM personal_bet_fills
+                WHERE status IN ('scheduled', 'live', 'unresolved')
+                ORDER BY created_at ASC
+                """
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def cancel_personal_bet_fill(self, user_id: str, fill_id: str) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE personal_bet_fills
+                SET status = 'canceled', result = 'Canceled', settled_at = ?,
+                    updated_at = ?
+                WHERE user_id = ? AND fill_id = ?
+                  AND status IN ('scheduled', 'live', 'unresolved')
+                """,
+                (now, now, user_id, fill_id),
+            )
+            return cursor.rowcount > 0
+
+    def update_personal_bet_status(
+        self,
+        fill_id: str,
+        status: str,
+        result: str | None,
+        settled_at: str | None,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE personal_bet_fills
+                SET status = ?, result = ?, settled_at = ?, updated_at = ?
+                WHERE fill_id = ?
+                """,
+                (
+                    status,
+                    result,
+                    settled_at,
+                    datetime.now(timezone.utc).isoformat(),
+                    fill_id,
                 ),
             )
 

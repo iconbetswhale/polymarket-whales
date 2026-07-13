@@ -6,6 +6,7 @@ const appState = {
   trades: [],
   pageNumber: 1,
   graphRange: "month",
+  personalTradeId: null,
 };
 
 function escapeHtml(value) {
@@ -60,6 +61,55 @@ function formatCents(value) {
 function formatUnits(value) {
   const parsed = number(value);
   return parsed === null ? "n/a" : `${parsed.toFixed(2)}u`;
+}
+
+function formatOptionalMoney(value, compact = false) {
+  return number(value) === null ? "N/A" : compact ? formatCompactMoney(value) : formatMoney(value);
+}
+
+function formatOptionalCents(value) {
+  return number(value) === null ? "N/A" : formatCents(value);
+}
+
+function formatRelativeSize(value) {
+  const parsed = number(value);
+  return parsed === null ? "N/A" : `${parsed.toFixed(1)}x`;
+}
+
+function formatShares(value) {
+  const parsed = number(value);
+  if (parsed === null) return "N/A";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: parsed >= 100 ? 0 : 1,
+  }).format(parsed);
+}
+
+function humanizeMarketType(value) {
+  if (!value) return "Market";
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function sportIcon(category) {
+  const icons = {
+    baseball: "ph-baseball",
+    basketball: "ph-basketball",
+    football: "ph-football",
+    hockey: "ph-hockey",
+    soccer: "ph-soccer-ball",
+    tennis: "ph-tennis-ball",
+  };
+  return icons[String(category || "").toLowerCase()] || "ph-trophy";
+}
+
+function tradeMetricChip(icon, value, tooltip, tone = "") {
+  return `<span class="trade-metric-chip ${tone}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}: ${escapeHtml(value)}"><i class="ph ${icon}" aria-hidden="true"></i><strong>${escapeHtml(value)}</strong></span>`;
+}
+
+function walletMeta(label, value) {
+  if (!value && value !== 0) return "";
+  return `<span><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`;
 }
 
 function formatDateTime(value, fallback = "Unavailable") {
@@ -161,7 +211,9 @@ function recommendationLabel(recommendation) {
 
 function confidenceClass(score) {
   const value = Number(score || 0);
-  if (value >= 80) return "elite";
+  if (value >= 100) return "premium";
+  if (value >= 90) return "elite";
+  if (value >= 80) return "high";
   if (value >= 70) return "strong";
   return "watch";
 }
@@ -213,6 +265,7 @@ function tradeFiltersFromUrl() {
     wallet: params.get("wallet") || "",
     custom_start: params.get("custom_start") || "",
     custom_end: params.get("custom_end") || "",
+    show_hidden: params.get("show_hidden") === "true",
   };
 }
 
@@ -227,10 +280,13 @@ function applyTradeFiltersToControls(filters) {
     "trade-wallet": "wallet",
     "custom-start": "custom_start",
     "custom-end": "custom_end",
+    "show-hidden-trades": "show_hidden",
   };
   Object.entries(mapping).forEach(([id, key]) => {
     const element = document.getElementById(id);
-    if (element) element.value = filters[key];
+    if (!element) return;
+    if (element.type === "checkbox") element.checked = Boolean(filters[key]);
+    else element.value = filters[key];
   });
   document.querySelectorAll(".custom-time").forEach((field) => {
     field.hidden = filters.date_range !== "custom";
@@ -257,6 +313,7 @@ function readTradeControls() {
     wallet: document.getElementById("trade-wallet").value,
     custom_start: document.getElementById("custom-start").value,
     custom_end: document.getElementById("custom-end").value,
+    show_hidden: document.getElementById("show-hidden-trades").checked,
   };
 }
 
@@ -272,38 +329,267 @@ function updateTradeUrl(filters) {
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
 }
 
+function personalExposureWarning(trade) {
+  const exposure = trade.personalExposureSummary || {};
+  if (!exposure.type || exposure.type === "none") return "";
+  const aggregate = exposure.aggregate || {};
+  const red = exposure.type === "exact" || exposure.type === "opposing";
+  const icon = red ? "ph-warning" : "ph-warning-circle";
+  const tone = red ? "danger" : "caution";
+  const details = [
+    aggregate.entryCount ? `${aggregate.entryCount} personal ${aggregate.entryCount === 1 ? "entry" : "entries"}` : null,
+    number(aggregate.averageEntry) !== null ? `Average entry ${formatCents(aggregate.averageEntry)}` : null,
+    number(aggregate.totalShares) !== null && aggregate.totalShares > 0 ? `${formatShares(aggregate.totalShares)} shares` : null,
+    number(aggregate.totalPositionCost) !== null && aggregate.totalPositionCost > 0 ? `${formatMoney(aggregate.totalPositionCost)} position cost` : null,
+    aggregate.latestTrackedAt ? `Tracked ${formatDateTime(aggregate.latestTrackedAt)}` : null,
+  ].filter(Boolean);
+  return `
+    <button class="personal-warning ${tone}" type="button" data-testid="personal-exposure-warning" aria-expanded="false" aria-label="${escapeHtml(exposure.title)}">
+      <i class="ph ${icon}" aria-hidden="true"></i>
+      <span class="exposure-tooltip" role="tooltip"><strong>${escapeHtml(exposure.title)}</strong><span>${escapeHtml(exposure.message)}</span>${details.length ? `<small>${escapeHtml(details.join(" | "))}</small>` : ""}</span>
+    </button>
+  `;
+}
+
 function tradeCard(trade) {
   const recommendation = trade.recommendation || {};
+  const card = trade.card || {};
   const selected = trade.id === appState.selectedTradeId;
-  const slippage = number(recommendation.price_movement);
-  const slippageClass = slippage === null ? "" : slippage <= 0 ? "positive" : "negative";
-  const slippageText = slippage === null ? "n/a" : `${slippage > 0 ? "+" : ""}${(slippage * 100).toFixed(1)}¢`;
   const primary = trade.primary_trader || {};
+  const betAmount = card.trader_bet_amount ?? primary.amount;
+  const traderEntry = card.trader_average_entry_price ?? recommendation.sharp_average_entry_price;
+  const relativeSize = card.relative_bet_size ?? primary.relative_units;
+  const categoryHitRate = card.category_hit_rate;
+  const currentPrice = card.current_actionable_price ?? recommendation.current_user_entry_price;
+  const recommendedAmount = card.recommended_amount ?? recommendation.recommended_amount;
+  const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
+  const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
+  const eventTime = card.event_time || "Time unavailable";
+  const sharpLabel = `${trade.agreeing_wallet_count} Sharp${trade.agreeing_wallet_count === 1 ? "" : "s"}`;
+  const amountTooltip = number(betAmount) === null
+    ? "Trader active exposure unavailable"
+    : `Trader active exposure: ${formatMoney(betAmount)}`;
+  const relativeTooltip = number(relativeSize) === null
+    ? "Relative bet size unavailable"
+    : `${formatRelativeSize(relativeSize)} the trader's normal position size`;
+  const hitRateText = number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 2);
   return `
-    <article class="trade-card ${selected ? "selected" : ""}" role="button" tabindex="0" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}">
-      <span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Score</small></span>
-      <span class="trade-card-main">
-        <span class="trade-chip-row">
-          <span><i class="ph ph-calendar-blank" aria-hidden="true"></i>${escapeHtml(trade.event_time_et || "Verified time unavailable")}</span>
-          <span>${formatCompactMoney(primary.amount)}</span>
-          <span>${formatUnits(primary.relative_units)}</span>
-          <span class="${slippageClass}">${slippageText}</span>
+    <article class="trade-card ${selected ? "selected" : ""} ${trade.isHidden ? "hidden-trade" : ""}" role="button" tabindex="0" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
+      <span class="trade-identity">
+        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
+        <span class="trade-event-copy">
+          <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</span>
+          <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
+          <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))} · ${escapeHtml(trade.market_title || "Market")}</span>
         </span>
-        <span class="trade-kicker">${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")} · ${escapeHtml(trade.sports_market_type || "Position")}</span>
-        <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
-        <span class="trade-subline">${escapeHtml(primary.wallet_label || "Tracked Sharp")} · ${trade.agreeing_wallet_count} Sharp${trade.agreeing_wallet_count === 1 ? "" : "s"} · ${formatCompactMoney(trade.combined_exposure_exact)} exposure</span>
+      </span>
+      <span class="trade-decision">
+        <span class="trade-metrics-row">
+          ${tradeMetricChip("ph-calendar-blank", eventTime, "Scheduled event start in Eastern Time", "time")}
+          ${tradeMetricChip("ph-coins", formatOptionalMoney(betAmount, true), amountTooltip)}
+          ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Trader average entry")}
+          ${tradeMetricChip("ph-arrow-up-right", formatRelativeSize(relativeSize), relativeTooltip)}
+          ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
+        </span>
         <span class="trade-selection">
-          <span><small>Pick</small><strong>${escapeHtml(trade.outcome)}</strong></span>
-          <span><small>Recommended</small><strong>${escapeHtml(recommendationLabel(recommendation))}</strong></span>
-          <a class="price-pill polymarket-price-link" href="${escapeHtml(trade.market_url || "#")}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on Polymarket at ${escapeHtml(formatCents(recommendation.current_user_entry_price))}">
+          <span class="trade-pick"><small>Pick · ${escapeHtml(sharpLabel)}</small><strong>${escapeHtml(trade.outcome)}</strong></span>
+          <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em></span>
+          <a class="polymarket-price-link" href="${escapeHtml(trade.market_url || "#")}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on Polymarket at ${escapeHtml(formatOptionalCents(currentPrice))}">
             <img src="https://polymarket.com/icons/favicon-32x32.png" alt="" aria-hidden="true" width="18" height="18">
-            <strong>${formatCents(recommendation.current_user_entry_price)}</strong>
+            <span><small>Polymarket</small><strong>${formatOptionalCents(currentPrice)}</strong></span>
           </a>
+          <span class="trade-card-actions">
+            ${trade.isHidden
+              ? `<button class="trade-restore-action" type="button" data-testid="restore-trade-action" data-hidden-id="${escapeHtml(trade.hiddenRecordId)}" title="Restore this trade" aria-label="Restore this trade to Trades to Play"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
+              : `<button class="trade-hide-action" type="button" data-testid="hide-trade-action" data-trade-id="${escapeHtml(trade.id)}" title="Hide this trade" aria-label="Hide this trade from Trades to Play"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>`}
+            <button class="tracker-quick-action" type="button" data-testid="personal-tracker-action" data-trade-id="${escapeHtml(trade.id)}" title="Open Personal Tracker" aria-label="Open Personal Tracker for ${escapeHtml(trade.outcome)}"><i class="ph ph-plus" aria-hidden="true"></i></button>
+          </span>
         </span>
       </span>
       <i class="ph ph-caret-right trade-caret" aria-hidden="true"></i>
     </article>
   `;
+}
+
+function openPersonalTracker(trade) {
+  const dialog = document.getElementById("personal-tracker-dialog");
+  const summary = document.getElementById("personal-tracker-summary");
+  if (!dialog || !summary) return;
+  appState.personalTradeId = trade.id;
+  const recommendation = trade.recommendation || {};
+  const card = trade.card || {};
+  const currentEntry = card.current_actionable_price ?? recommendation.current_user_entry_price;
+  const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
+  summary.innerHTML = `
+    <div><span>Event</span><strong>${escapeHtml(trade.event_title || trade.market_title)}</strong></div>
+    <div><span>Selection</span><strong>${escapeHtml(trade.outcome)}</strong></div>
+    <div><span>Recommendation</span><strong>${escapeHtml(formatOptionalMoney(card.recommended_amount ?? recommendation.recommended_amount))}</strong></div>
+    <div><span>Current entry</span><strong>${escapeHtml(formatOptionalCents(currentEntry))}</strong></div>
+  `;
+  document.getElementById("personal-entry-price").value = number(currentEntry) === null ? "" : (Number(currentEntry) * 100).toFixed(1);
+  document.getElementById("personal-shares").value = number(recommendedShares) === null ? "" : Number(recommendedShares).toFixed(2);
+  document.getElementById("personal-fees").value = "0";
+  document.getElementById("personal-conflict-check").checked = false;
+  updatePersonalPurchaseTotal();
+  renderPurchaseExposureNotice(trade.personalExposureSummary || {});
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function renderPurchaseExposureNotice(exposure) {
+  const notice = document.getElementById("personal-tracker-exposure");
+  const conflict = document.getElementById("personal-conflict-confirmation");
+  const conflictCheck = document.getElementById("personal-conflict-check");
+  const submit = document.getElementById("personal-tracker-submit");
+  if (!notice || !conflict || !submit) return;
+  const aggregate = exposure.aggregate || {};
+  conflict.hidden = exposure.type !== "opposing";
+  conflictCheck.required = exposure.type === "opposing";
+  if (!exposure.type || exposure.type === "none") {
+    notice.hidden = true;
+    notice.innerHTML = "";
+    submit.innerHTML = '<i class="ph ph-check" aria-hidden="true"></i>Track purchase';
+    return;
+  }
+  const tone = exposure.type === "same_event" ? "caution" : "danger";
+  const icon = exposure.type === "same_event" ? "ph-warning-circle" : "ph-warning";
+  const existing = aggregate.entryCount
+    ? `${aggregate.entryCount} ${aggregate.entryCount === 1 ? "fill" : "fills"} | ${formatShares(aggregate.totalShares)} shares | ${formatMoney(aggregate.totalPositionCost)} position cost | ${formatCents(aggregate.averageEntry)} average entry | ${formatMoney(aggregate.totalFees)} fees`
+    : "";
+  notice.className = `personal-exposure-notice ${tone}`;
+  notice.hidden = false;
+  notice.innerHTML = `<i class="ph ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(exposure.type === "opposing" ? "Conflicting personal position" : exposure.title)}</strong>${escapeHtml(exposure.message)}${existing ? `<small>${escapeHtml(existing)}</small>` : ""}</span>`;
+  submit.innerHTML = exposure.type === "opposing"
+    ? '<i class="ph ph-warning" aria-hidden="true"></i>Add opposing purchase'
+    : exposure.type === "exact"
+      ? '<i class="ph ph-plus" aria-hidden="true"></i>Add another purchase'
+      : '<i class="ph ph-check" aria-hidden="true"></i>Track purchase';
+}
+
+function updatePersonalPurchaseTotal() {
+  const entryCents = number(document.getElementById("personal-entry-price")?.value) || 0;
+  const shares = number(document.getElementById("personal-shares")?.value) || 0;
+  const fees = number(document.getElementById("personal-fees")?.value) || 0;
+  const cost = (entryCents / 100) * shares;
+  const total = cost + fees;
+  const container = document.getElementById("personal-purchase-total");
+  if (container) container.innerHTML = `<span>Position Cost</span><strong>${formatMoney(cost)}</strong><small>Total paid ${formatMoney(total)}</small>`;
+}
+
+async function savePersonalPurchase(event) {
+  event.preventDefault();
+  const trade = appState.trades.find((item) => item.id === appState.personalTradeId);
+  if (!trade) return;
+  const exposure = trade.personalExposureSummary || {};
+  const submit = document.getElementById("personal-tracker-submit");
+  submit.disabled = true;
+  try {
+    await fetchJson("/api/personal-bets", {
+      method: "POST",
+      body: JSON.stringify({
+        trade_id: trade.id,
+        entry_price: Number(document.getElementById("personal-entry-price").value) / 100,
+        shares: Number(document.getElementById("personal-shares").value),
+        fees: Number(document.getElementById("personal-fees").value || 0),
+        confirm_duplicate: Boolean(exposure.hasExactPersonalPosition),
+        confirm_conflict: document.getElementById("personal-conflict-check").checked,
+      }),
+    });
+    closePersonalTracker();
+    showToast("Personal purchase tracked", "success");
+    await loadTrades();
+  } catch (error) {
+    showToast(error.message, "error");
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+function closePersonalTracker() {
+  const dialog = document.getElementById("personal-tracker-dialog");
+  if (!dialog) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+  appState.personalTradeId = null;
+}
+
+async function hideTrade(tradeId) {
+  try {
+    await fetchJson("/api/hidden-trades", {
+      method: "POST",
+      body: JSON.stringify({ trade_id: tradeId }),
+    });
+    showToast("Trade hidden from your feed", "success");
+    await loadTrades();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+async function restoreHiddenTrade(hiddenId, reopenManager = false) {
+  try {
+    await fetchJson(`/api/hidden-trades/${encodeURIComponent(hiddenId)}`, { method: "DELETE" });
+    showToast("Trade restored", "success");
+    await loadTrades();
+    if (reopenManager) await loadHiddenTrades();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function hiddenTradeRow(record) {
+  return `
+    <article class="hidden-trade-row">
+      <span><strong>${escapeHtml(record.event_title || record.market_title || "Trade")}</strong><small>${escapeHtml(record.market_title || "Market")} | ${escapeHtml(record.selection || "Selection")}</small></span>
+      <span class="hidden-trade-meta"><small>${escapeHtml(record.status)}</small><time>${escapeHtml(formatDateTime(record.hidden_at))}</time></span>
+      <button class="button compact ${record.active ? "primary" : "ghost"}" type="button" data-restore-hidden-id="${escapeHtml(record.id)}"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Restore</button>
+    </article>
+  `;
+}
+
+async function loadHiddenTrades() {
+  const list = document.getElementById("hidden-trades-list");
+  if (!list) return;
+  list.innerHTML = '<div class="chart-loading">Loading hidden trades...</div>';
+  try {
+    const payload = await fetchJson("/api/hidden-trades");
+    const rows = payload.data || [];
+    list.innerHTML = rows.length
+      ? rows.map(hiddenTradeRow).join("")
+      : emptyState("No hidden trades", "Use the eye-off action on any trade card to hide that exact market and selection.");
+    list.querySelectorAll("[data-restore-hidden-id]").forEach((button) => {
+      button.addEventListener("click", () => restoreHiddenTrade(button.dataset.restoreHiddenId, true));
+    });
+    document.getElementById("restore-all-hidden").disabled = rows.length === 0;
+  } catch (error) {
+    list.innerHTML = errorState(error.message);
+  }
+}
+
+async function openHiddenTrades() {
+  const dialog = document.getElementById("hidden-trades-dialog");
+  if (!dialog) return;
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  await loadHiddenTrades();
+}
+
+function closeHiddenTrades() {
+  const dialog = document.getElementById("hidden-trades-dialog");
+  if (!dialog) return;
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function restoreAllHiddenTrades() {
+  try {
+    await fetchJson("/api/hidden-trades", { method: "DELETE" });
+    showToast("All hidden trades restored", "success");
+    closeHiddenTrades();
+    await loadTrades();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 function detailMetric(label, value, copy, tone = "") {
@@ -372,6 +658,10 @@ function renderTradeDetail(trade) {
       ${detailMetric("Half Kelly", formatPercent(recommendation.half_kelly_fraction), "Before risk caps")}
       ${detailMetric("Final Stake", formatPercent(recommendation.final_recommended_fraction, 2), "Percentage frozen in tracker", recommendation.final_recommended_fraction > 0 ? "positive" : "")}
     </div>
+    <section class="detail-section personal-exposure-section">
+      <div class="section-label"><span>Personal Exposure</span><small>Confirmed Personal Tracker fills only</small></div>
+      <div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div>
+    </section>
     ${whySizing(recommendation, trade)}
     <section class="detail-section">
       <div class="section-label"><span>Price history</span><small>Polymarket CLOB · real outcome token</small></div>
@@ -387,6 +677,60 @@ function renderTradeDetail(trade) {
     </div>
   `;
   loadPriceHistory(trade.clob_token_id, recommendation.current_user_entry_price);
+  loadPersonalExposureDetails(trade.id);
+}
+
+function personalExposureGroup(title, group, tone = "") {
+  const entries = group?.entries || [];
+  if (!entries.length) {
+    return `<section class="personal-exposure-group"><h3>${escapeHtml(title)}</h3><p>No active personal positions.</p></section>`;
+  }
+  const aggregate = group.aggregate || {};
+  return `
+    <section class="personal-exposure-group ${tone}">
+      <h3>${escapeHtml(title)}</h3>
+      <div class="personal-exposure-aggregate"><strong>${formatShares(aggregate.totalShares)} shares</strong><span>${formatMoney(aggregate.totalPositionCost)} cost</span><span>${formatCents(aggregate.averageEntry)} average</span><span>${formatMoney(aggregate.totalFees)} fees</span></div>
+      <div class="personal-fill-list">${entries.map((entry) => `
+        <div class="personal-fill-row">
+          <span><strong>${escapeHtml(entry.selection || "Selection")}</strong><small>${escapeHtml(entry.marketTitle || "Market")} | ${escapeHtml(formatDateTime(entry.trackedAt))}</small></span>
+          <span><strong>${formatShares(entry.shares)} shares</strong><small>${formatCents(entry.entryPrice)} | ${formatMoney(entry.totalPaid)} paid</small></span>
+          <button class="personal-fill-remove" type="button" data-fill-id="${escapeHtml(entry.fillId)}" aria-label="Remove this personal fill" title="Remove this personal fill"><i class="ph ph-trash" aria-hidden="true"></i></button>
+        </div>
+      `).join("")}</div>
+    </section>
+  `;
+}
+
+async function loadPersonalExposureDetails(tradeId) {
+  const container = document.getElementById("personal-exposure-detail");
+  if (!container) return;
+  try {
+    const payload = await fetchJson(`/api/personal-exposure?trade_id=${encodeURIComponent(tradeId)}`);
+    const groups = payload.data?.groups || {};
+    const hasEntries = [groups.exact, groups.opposing, groups.other].some((group) => group?.entries?.length);
+    container.innerHTML = hasEntries
+      ? [
+          personalExposureGroup("Exact Selection", groups.exact, "exact"),
+          personalExposureGroup("Opposing Selection", groups.opposing, "opposing"),
+          personalExposureGroup("Other Markets on This Event", groups.other, "other"),
+        ].join("")
+      : '<p class="personal-exposure-empty"><i class="ph ph-shield-check" aria-hidden="true"></i>No active personal exposure is connected to this trade.</p>';
+    container.querySelectorAll("[data-fill-id]").forEach((button) => {
+      button.addEventListener("click", () => removePersonalFill(button.dataset.fillId));
+    });
+  } catch (error) {
+    container.innerHTML = `<p class="personal-exposure-empty">${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function removePersonalFill(fillId) {
+  try {
+    await fetchJson(`/api/personal-bets/${encodeURIComponent(fillId)}`, { method: "DELETE" });
+    showToast("Personal fill removed from active exposure", "success");
+    await loadTrades();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 function drawLineChart(container, points, options = {}) {
@@ -479,11 +823,12 @@ async function loadTrades() {
   const list = document.getElementById("trade-list");
   const filters = readTradeControls();
   updateTradeUrl(filters);
-  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== ""));
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== "" && value !== false));
   try {
     const payload = await fetchJson(`/api/trades-to-play?${query.toString()}`);
     appState.trades = payload.data || [];
     updateGlobalStatus(payload.status);
+    document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
     document.getElementById("trade-result-count").textContent = `${payload.pagination.total} result${payload.pagination.total === 1 ? "" : "s"}`;
     document.getElementById("trade-freshness").textContent = `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
     const currentSport = document.getElementById("trade-sport").value;
@@ -507,13 +852,40 @@ async function loadTrades() {
     list.innerHTML = appState.trades.map(tradeCard).join("");
     list.querySelectorAll(".trade-card").forEach((card) => {
       card.addEventListener("click", (event) => {
-        if (event.target.closest("a")) return;
+        if (event.target.closest("a, button")) return;
         selectTrade(card.dataset.tradeId, true);
       });
       card.addEventListener("keydown", (event) => {
-        if (event.target.closest("a") || !["Enter", " "].includes(event.key)) return;
+        if (event.target.closest("a, button") || !["Enter", " "].includes(event.key)) return;
         event.preventDefault();
         selectTrade(card.dataset.tradeId, true);
+      });
+    });
+    list.querySelectorAll(".tracker-quick-action").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const trade = appState.trades.find((item) => item.id === button.dataset.tradeId);
+        if (trade) openPersonalTracker(trade);
+      });
+    });
+    list.querySelectorAll(".trade-hide-action").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        hideTrade(button.dataset.tradeId);
+      });
+    });
+    list.querySelectorAll(".trade-restore-action").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        restoreHiddenTrade(button.dataset.hiddenId);
+      });
+    });
+    list.querySelectorAll(".personal-warning").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const expanded = button.getAttribute("aria-expanded") === "true";
+        list.querySelectorAll(".personal-warning").forEach((warning) => warning.setAttribute("aria-expanded", "false"));
+        button.setAttribute("aria-expanded", String(!expanded));
       });
     });
     selectTrade(appState.selectedTradeId);
@@ -551,7 +923,7 @@ function bindTrades() {
   applyTradeFiltersToControls(initial);
   const reload = debounce(loadTrades, 280);
   ["trade-search"].forEach((id) => document.getElementById(id).addEventListener("input", reload));
-  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "custom-start", "custom-end"].forEach((id) => {
+  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "custom-start", "custom-end", "show-hidden-trades"].forEach((id) => {
     document.getElementById(id).addEventListener("change", () => {
       if (id === "trade-date-range") {
         const custom = document.getElementById(id).value === "custom";
@@ -566,11 +938,27 @@ function bindTrades() {
     setMoreFiltersExpanded(panel.hidden);
   });
   document.getElementById("clear-trade-filters").addEventListener("click", () => {
-    applyTradeFiltersToControls({ q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", custom_start: "", custom_end: "" });
+    applyTradeFiltersToControls({ q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", custom_start: "", custom_end: "", show_hidden: false });
     loadTrades();
   });
   document.getElementById("save-bankroll").addEventListener("click", saveBankroll);
   document.getElementById("bankroll-input").addEventListener("keydown", (event) => { if (event.key === "Enter") saveBankroll(); });
+  document.getElementById("personal-tracker-close")?.addEventListener("click", closePersonalTracker);
+  document.getElementById("personal-tracker-dismiss")?.addEventListener("click", closePersonalTracker);
+  document.getElementById("personal-tracker-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closePersonalTracker();
+  });
+  document.getElementById("personal-tracker-form")?.addEventListener("submit", savePersonalPurchase);
+  ["personal-entry-price", "personal-shares", "personal-fees"].forEach((id) => {
+    document.getElementById(id)?.addEventListener("input", updatePersonalPurchaseTotal);
+  });
+  document.getElementById("hidden-trades-button")?.addEventListener("click", openHiddenTrades);
+  document.getElementById("hidden-trades-close")?.addEventListener("click", closeHiddenTrades);
+  document.getElementById("hidden-trades-dismiss")?.addEventListener("click", closeHiddenTrades);
+  document.getElementById("restore-all-hidden")?.addEventListener("click", restoreAllHiddenTrades);
+  document.getElementById("hidden-trades-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeHiddenTrades();
+  });
   document.getElementById("trade-refresh-button").addEventListener("click", async () => {
     const button = document.getElementById("trade-refresh-button");
     button.classList.add("spinning");
@@ -659,8 +1047,15 @@ function walletCard(wallet) {
   return `
     <article class="wallet-card">
       <div class="wallet-card-head"><span class="wallet-avatar"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><h2>${escapeHtml(wallet.label)}</h2><span class="status-label ${escapeHtml(sync)}">${escapeHtml(sync)}</span></div></div>
-      <button class="address-copy" type="button" data-copy-address="${escapeHtml(wallet.address)}"><span>${escapeHtml(wallet.address)}</span><i class="ph ph-copy" aria-hidden="true"></i></button>
+      <button class="address-copy" type="button" data-copy-address="${escapeHtml(wallet.address)}"><span>${escapeHtml(wallet.display_address || wallet.address)}</span><i class="ph ph-copy" aria-hidden="true"></i></button>
       <div class="wallet-stats"><div><span>Open positions</span><strong>${wallet.open_position_count ?? 0}</strong></div><div><span>History events</span><strong>${wallet.historical_position_count ?? 0}</strong></div><div><span>Base unit</span><strong>${wallet.base_unit ? formatMoney(wallet.base_unit) : "Estimating"}</strong></div></div>
+      <div class="wallet-sync wallet-meta">${[
+        walletMeta("Top category", wallet.top_category),
+        walletMeta("Type", wallet.bettor_type),
+        walletMeta("Selectivity", wallet.selectivity),
+        walletMeta("Hold", wallet.hold_tendency),
+        walletMeta("Copyability", wallet.copyability),
+      ].join("")}</div>
       <div class="wallet-sync"><span>Last successful sync</span><strong>${formatDateTime(wallet.last_synced_at, "Not available")}</strong></div>
       ${wallet.message ? `<p class="wallet-warning">${escapeHtml(wallet.message)}</p>` : ""}
       <a class="button ghost" href="${escapeHtml(wallet.profile_url || "#")}" target="_blank" rel="noopener noreferrer">View on Polymarket <i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>

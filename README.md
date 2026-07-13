@@ -335,6 +335,14 @@ SQLite tables include:
 - `refresh_state`: last refresh metadata
 - `user_settings`: anonymous per-browser bankroll settings
 - `bet_tracker`: immutable recommendation snapshots and settlement state
+- `hidden_trades`: exact user-scoped event/market/line/outcome preferences
+- `personal_bet_fills`: separate confirmed Personal Tracker fills and settlement state
+
+Hidden trades are keyed by the current browser user plus canonical event ID,
+market ID, normalized market line, and outcome token ID. Personal Tracker fills
+use the same identity but remain separate rows so repeat purchases preserve their
+individual entry price, shares, fees, and timestamp. Model Tracker snapshots in
+`bet_tracker` never create personal-exposure warnings.
 
 Events are only added when there is a meaningful change, such as:
 

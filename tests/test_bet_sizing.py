@@ -80,6 +80,10 @@ def test_realistic_one_sharp_evidence_produces_bounded_positive_size():
     assert 0 < recommendation["evidence_adjustment"] <= 0.02
     assert recommendation["estimated_win_probability"] > 0.469
     assert recommendation["recommended_amount"] > 0
+    assert recommendation["recommended_shares"] == pytest.approx(
+        recommendation["recommended_amount"]
+        / recommendation["current_user_entry_price"]
+    )
 
 
 def test_half_kelly_and_three_sharp_cap_are_applied():
@@ -125,4 +129,5 @@ def test_bet_below_clob_minimum_is_not_recommended():
     assert recommendation["half_kelly_fraction"] > 0
     assert recommendation["final_recommended_fraction"] == 0
     assert recommendation["recommended_amount"] == 0
+    assert recommendation["recommended_shares"] == 0
     assert recommendation["minimum_executable_amount"] == pytest.approx(4.70)

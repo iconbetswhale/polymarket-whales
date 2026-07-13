@@ -12,10 +12,21 @@ WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 @dataclass(frozen=True)
 class WalletEntry:
     address: str
+    display_address: str
     label: str
     enabled: bool
     base_unit: float | None
     notes: str
+    top_category: str | None
+    bettor_type: str | None
+    selectivity: str | None
+    selectivity_score: float | None
+    hold_tendency: str | None
+    copyability: str | None
+    execution_style: str | None
+    general_strategy: str | None
+    minimum_position_units: float | None
+    actionable_position_units: float | None
 
 
 @dataclass(frozen=True)
@@ -61,6 +72,21 @@ def _parse_base_unit(value: Any) -> float | None:
     parsed = float(value)
     if parsed <= 0:
         raise ValueError("base_unit must be greater than zero when provided")
+    return parsed
+
+
+def _parse_optional_text(value: Any) -> str | None:
+    if value in ("", None):
+        return None
+    return str(value).strip() or None
+
+
+def _parse_optional_positive_float(value: Any, field: str) -> float | None:
+    if value in ("", None):
+        return None
+    parsed = float(value)
+    if parsed <= 0:
+        raise ValueError(f"{field} must be greater than zero when provided")
     return parsed
 
 
@@ -112,16 +138,76 @@ def load_wallets(path: Path) -> WalletLoadResult:
             invalid_entries.append(WalletError(index=index, field="base_unit", value=base_unit_value, message=str(exc)))
             continue
 
+        minimum_position_units_value = item.get("minimum_position_units")
+        try:
+            minimum_position_units = _parse_optional_positive_float(
+                minimum_position_units_value, "minimum_position_units"
+            )
+        except (TypeError, ValueError) as exc:
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="minimum_position_units",
+                    value=minimum_position_units_value,
+                    message=str(exc),
+                )
+            )
+            continue
+
+        actionable_position_units_value = item.get("actionable_position_units")
+        try:
+            actionable_position_units = _parse_optional_positive_float(
+                actionable_position_units_value, "actionable_position_units"
+            )
+        except (TypeError, ValueError) as exc:
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="actionable_position_units",
+                    value=actionable_position_units_value,
+                    message=str(exc),
+                )
+            )
+            continue
+
+        if (
+            minimum_position_units is not None
+            and actionable_position_units is not None
+            and actionable_position_units < minimum_position_units
+        ):
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="actionable_position_units",
+                    value=actionable_position_units_value,
+                    message="actionable_position_units must be greater than or equal to minimum_position_units",
+                )
+            )
+            continue
+
         label = str(item.get("label") or f"Wallet {index + 1}").strip()
         notes = str(item.get("notes") or "")
         enabled = bool(item.get("enabled", True))
         wallets.append(
             WalletEntry(
                 address=address,
+                display_address=str(address_value).strip() or address,
                 label=label,
                 enabled=enabled,
                 base_unit=base_unit,
                 notes=notes,
+                top_category=_parse_optional_text(item.get("top_category")),
+                bettor_type=_parse_optional_text(item.get("bettor_type")),
+                selectivity=_parse_optional_text(item.get("selectivity")),
+                selectivity_score=_parse_optional_positive_float(
+                    item.get("selectivity_score"), "selectivity_score"
+                ),
+                hold_tendency=_parse_optional_text(item.get("hold_tendency")),
+                copyability=_parse_optional_text(item.get("copyability")),
+                execution_style=_parse_optional_text(item.get("execution_style")),
+                general_strategy=_parse_optional_text(item.get("general_strategy")),
+                minimum_position_units=minimum_position_units,
+                actionable_position_units=actionable_position_units,
             )
         )
 

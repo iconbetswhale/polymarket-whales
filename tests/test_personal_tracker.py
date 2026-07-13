@@ -1,0 +1,170 @@
+from __future__ import annotations
+
+from database import TrackerDatabase
+from personal_tracker import (
+    canonical_trade_identity,
+    identity_key,
+    personal_exposure_for_trade,
+    personal_fill_snapshot,
+)
+
+
+def _trade(
+    *,
+    event_id: str = "event-1",
+    market_id: str = "market-1",
+    outcome_id: str = "outcome-a",
+    line: float | None = 2.5,
+    selection: str = "Spain",
+) -> dict:
+    return {
+        "id": f"{market_id}::{outcome_id}",
+        "event_slug": event_id,
+        "event_title": "Spain vs France",
+        "market_title": "To Advance",
+        "market_line": line,
+        "outcome": selection,
+        "clob_token_id": outcome_id,
+        "event_date_et": "2026-07-14T15:00:00-04:00",
+        "market_url": "https://polymarket.com/event/example",
+        "validation_ids": {
+            "event_id": event_id,
+            "condition_id": market_id,
+            "outcome_token_id": outcome_id,
+            "event_slug": event_id,
+            "market_slug": market_id,
+        },
+    }
+
+
+def _fill(
+    trade: dict,
+    fill_id: str,
+    *,
+    entry_price: float = 0.4,
+    shares: float = 100,
+    fees: float = 1,
+    status: str = "scheduled",
+    user_id: str = "user-1",
+) -> dict:
+    fill = personal_fill_snapshot(
+        trade,
+        fill_id=fill_id,
+        entry_price=entry_price,
+        shares=shares,
+        fees=fees,
+    )
+    return {
+        **fill,
+        "user_id": user_id,
+        "status": status,
+        "created_at": f"2026-07-13T12:0{fill_id[-1]}:00+00:00",
+    }
+
+
+def test_canonical_identity_includes_event_market_line_and_outcome():
+    trade = _trade(line=2.50)
+
+    assert canonical_trade_identity(trade) == {
+        "canonical_event_id": "event-1",
+        "canonical_market_id": "market-1",
+        "market_line": "2.5",
+        "canonical_outcome_id": "outcome-a",
+    }
+
+
+def test_exposure_priority_is_opposing_then_exact_then_same_event():
+    recommended = _trade()
+    exact = _fill(recommended, "fill-1")
+    opposing = _fill(_trade(outcome_id="outcome-b", selection="France"), "fill-2")
+    other_market = _fill(
+        _trade(market_id="market-total", outcome_id="under", selection="Under"),
+        "fill-3",
+    )
+
+    exposure = personal_exposure_for_trade(recommended, [exact, opposing, other_market])
+
+    assert exposure["type"] == "opposing"
+    assert exposure["hasOpposingPersonalPosition"] is True
+    assert exposure["hasExactPersonalPosition"] is True
+    assert exposure["hasSameEventDifferentMarketPosition"] is True
+    assert exposure["personalEntryCount"] == 1
+
+
+def test_same_team_text_on_another_event_does_not_trigger_warning():
+    recommended = _trade(event_id="event-current")
+    historical = _fill(_trade(event_id="event-old", market_id="market-1"), "fill-1")
+
+    exposure = personal_exposure_for_trade(recommended, [historical])
+
+    assert exposure["type"] == "none"
+
+
+def test_multiple_exact_fills_remain_separate_and_aggregate_vwap():
+    trade = _trade()
+    first = _fill(trade, "fill-1", entry_price=0.4, shares=100, fees=1)
+    second = _fill(trade, "fill-2", entry_price=0.6, shares=50, fees=2)
+
+    exposure = personal_exposure_for_trade(trade, [first, second], include_entries=True)
+
+    aggregate = exposure["groups"]["exact"]["aggregate"]
+    assert exposure["type"] == "exact"
+    assert len(exposure["groups"]["exact"]["entries"]) == 2
+    assert aggregate["totalShares"] == 150
+    assert aggregate["totalPositionCost"] == 70
+    assert aggregate["averageEntry"] == 70 / 150
+    assert aggregate["totalFees"] == 3
+
+
+def test_hidden_trade_is_unique_exact_and_user_scoped(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    trade = _trade()
+    hidden = {
+        **canonical_trade_identity(trade),
+        "event_title": trade["event_title"],
+        "market_title": trade["market_title"],
+        "selection": trade["outcome"],
+        "event_start_time": trade["event_date_et"],
+    }
+
+    first = database.hide_trade("user-1", hidden)
+    duplicate = database.hide_trade("user-1", hidden)
+    database.hide_trade("user-2", hidden)
+
+    assert first["id"] == duplicate["id"]
+    assert len(database.get_hidden_trades("user-1")) == 1
+    assert len(database.get_hidden_trades("user-2")) == 1
+    assert database.restore_hidden_trade("user-2", first["id"]) is False
+    assert len(database.get_hidden_trades("user-1")) == 1
+    assert database.restore_hidden_trade("user-1", first["id"]) is True
+
+
+def test_hiding_one_outcome_does_not_hide_another_market_identity(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    first = canonical_trade_identity(_trade(market_id="market-advance"))
+    other = canonical_trade_identity(
+        _trade(market_id="market-moneyline", outcome_id="outcome-moneyline")
+    )
+
+    database.hide_trade("user-1", first)
+    hidden_keys = {
+        identity_key(record) for record in database.get_hidden_trades("user-1")
+    }
+
+    assert identity_key(first) in hidden_keys
+    assert identity_key(other) not in hidden_keys
+
+
+def test_personal_fills_are_user_scoped_and_canceled_fills_are_inactive(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    trade = _trade()
+    first = database.insert_personal_bet_fill("user-1", _fill(trade, "fill-1"))
+    database.insert_personal_bet_fill("user-2", _fill(trade, "fill-2"))
+
+    assert len(database.get_personal_bet_fills("user-1", active_only=True)) == 1
+    assert len(database.get_personal_bet_fills("user-2", active_only=True)) == 1
+    assert database.cancel_personal_bet_fill("user-2", first["fill_id"]) is False
+    assert len(database.get_personal_bet_fills("user-1", active_only=True)) == 1
+    assert database.cancel_personal_bet_fill("user-1", first["fill_id"]) is True
+    assert database.get_personal_bet_fills("user-1", active_only=True) == []
+    assert database.get_personal_bet_fills("user-1")[0]["status"] == "canceled"

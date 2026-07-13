@@ -335,6 +335,9 @@ def build_recommendation(
         "risk_cap_applied": min(sharp_cap, config.global_risk_cap),
         "final_recommended_fraction": final_fraction,
         "recommended_amount": final_amount,
+        "recommended_shares": (fill or {}).get("shares", 0.0)
+        if final_fraction > 0
+        else 0.0,
         "recommended_units": units,
         "sharp_average_entry_price": _safe_float(play.get("average_entry_price")),
         "price_movement": price_movement,

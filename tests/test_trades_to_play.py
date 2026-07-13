@@ -475,3 +475,89 @@ def test_duplicate_and_inactive_wallets_do_not_create_unanimity():
     assert len(plays) == 1
     assert plays[0]["agreeing_wallet_count"] == 2
     assert 70 <= plays[0]["confidence_score"] <= 79
+
+
+def test_wallet_specific_actionable_threshold_gates_small_bagwell_positions():
+    bagwell = _position(
+        "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
+        "Bagwell306",
+        amount=1249.99,
+        condition_id="0xbagwell-small",
+        minimum_position_units=0.2,
+        actionable_position_units=0.5,
+    )
+    qualifying = _position(
+        "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
+        "Bagwell306",
+        amount=1250,
+        condition_id="0xbagwell-qualifying",
+        minimum_position_units=0.2,
+        actionable_position_units=0.5,
+    )
+    plays = build_trades_to_play(
+        [bagwell, qualifying],
+        unit_map={
+            "0x9c76cdb43fb46454da005fbc82047a64a18ec926": {
+                "estimated_base_unit": 2500
+            }
+        },
+        now=_now(),
+    )
+
+    assert {play["canonical_market_key"] for play in plays} == {"0xbagwell-qualifying"}
+    assert plays[0]["primary_trader"]["relative_units"] == 0.5
+
+
+def test_units_are_based_on_dollars_not_share_count():
+    same_shares_low_price = _position(
+        "0xa",
+        "Bagwell306",
+        amount=2425,
+        shares=5000,
+        condition_id="0xshares-low",
+    )
+    same_shares_high_price = _position(
+        "0xb",
+        "Bagwell306",
+        amount=3895,
+        shares=5000,
+        condition_id="0xshares-high",
+    )
+    plays = build_trades_to_play(
+        [same_shares_low_price, same_shares_high_price],
+        unit_map={
+            "0xa": {"estimated_base_unit": 2500},
+            "0xb": {"estimated_base_unit": 2500},
+        },
+        now=_now(),
+    )
+    units_by_market = {
+        play["canonical_market_key"]: play["primary_trader"]["relative_units"]
+        for play in plays
+    }
+
+    assert units_by_market["0xshares-low"] == 0.97
+    assert units_by_market["0xshares-high"] == 1.558
+    assert units_by_market["0xshares-low"] != units_by_market["0xshares-high"]
+
+
+def test_failed_wallets_do_not_count_toward_unanimous_consensus():
+    positions = [
+        _position("0xa", "A", amount=500),
+        _position("0xb", "B", amount=600),
+    ]
+    plays = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb"),
+        tracked_wallet_count=2,
+        now=_now(),
+    )
+    assert plays[0]["confidence_score"] == 100
+
+    not_ready_plays = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb"),
+        tracked_wallet_count=3,
+        now=_now(),
+    )
+    assert not_ready_plays[0]["confidence_score"] < 100

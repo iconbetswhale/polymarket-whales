@@ -43,6 +43,26 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return default
 
 
+def _wallet_signal_tier(
+    units: float | None, minimum_units: float | None, actionable_units: float | None
+) -> str | None:
+    if units is None:
+        return None
+    minimum = minimum_units if minimum_units is not None else 0.2
+    actionable = actionable_units if actionable_units is not None else minimum
+    if units <= minimum:
+        return "below-minimum"
+    if units < actionable:
+        return "building"
+    if units < 1.0:
+        return "qualifying"
+    if units < 1.5:
+        return "standard"
+    if units <= 2.0:
+        return "strong"
+    return "unusually-large"
+
+
 def polymarket_market_url(event_slug: Any, market_slug: Any = None) -> str:
     event_value = str(event_slug or "").strip()
     market_value = str(market_slug or "").strip()
@@ -443,11 +463,16 @@ class TrackerService:
         positions = self._enrich_positions(
             current_rows, trades, unit_map, consensus_map
         )
+        synced_wallet_count = sum(
+            1
+            for wallet in loader.enabled_wallets
+            if open_positions.get(wallet.address) is not None
+        )
         trades_to_play = build_trades_to_play(
             positions,
             trades,
             unit_map,
-            tracked_wallet_count=len(loader.enabled_wallets),
+            tracked_wallet_count=synced_wallet_count,
         )
         self._sync_all_user_trackers(trades_to_play)
         self._update_tracker_statuses(events)
@@ -529,7 +554,9 @@ class TrackerService:
 
     def _update_tracker_statuses(self, events: dict[str, dict]) -> None:
         records = self.database.get_active_tracker_records()
+        personal_fills = self.database.get_all_active_personal_bet_fills()
         slugs = [record["snapshot"].get("canonical_event_slug") for record in records]
+        slugs.extend(fill.get("canonical_event_slug") for fill in personal_fills)
         missing_slugs = [slug for slug in slugs if slug and slug not in events]
         if missing_slugs:
             events = {**events, **self.client.get_events(missing_slugs)}
@@ -552,6 +579,28 @@ class TrackerService:
                 update.get("result"),
                 update.get("settled_at"),
             )
+        for fill in personal_fills:
+            event = events.get(fill.get("canonical_event_slug"))
+            if not event:
+                continue
+            snapshot = {
+                "canonical_market_id": fill.get("canonical_market_id"),
+                "recommended_side": fill.get("selection"),
+                "event_start_time": fill.get("event_start_time"),
+            }
+            update = tracker_status_from_event(snapshot, event)
+            if (
+                update["status"] == fill.get("status")
+                and not update.get("result")
+                and not update.get("settled_at")
+            ):
+                continue
+            self.database.update_personal_bet_status(
+                fill["fill_id"],
+                update["status"],
+                update.get("result"),
+                update.get("settled_at"),
+            )
 
     def _build_wallet_payload(self, loader) -> list[dict]:
         payload: list[dict] = []
@@ -564,10 +613,21 @@ class TrackerService:
                     {
                         "index": index,
                         "address": wallet.address,
+                        "display_address": wallet.display_address,
                         "label": wallet.label,
                         "enabled": wallet.enabled,
                         "base_unit": wallet.base_unit,
                         "notes": wallet.notes,
+                        "top_category": wallet.top_category,
+                        "bettor_type": wallet.bettor_type,
+                        "selectivity": wallet.selectivity,
+                        "selectivity_score": wallet.selectivity_score,
+                        "hold_tendency": wallet.hold_tendency,
+                        "copyability": wallet.copyability,
+                        "execution_style": wallet.execution_style,
+                        "general_strategy": wallet.general_strategy,
+                        "minimum_position_units": wallet.minimum_position_units,
+                        "actionable_position_units": wallet.actionable_position_units,
                         "status": "enabled" if wallet.enabled else "disabled",
                         "sync_status": "pending" if wallet.enabled else "disabled",
                         "open_position_count": 0,
@@ -583,10 +643,25 @@ class TrackerService:
                     {
                         "index": index,
                         "address": raw_entry.get("address"),
+                        "display_address": raw_entry.get("address"),
                         "label": raw_entry.get("label") or f"Trader {index + 1}",
                         "enabled": bool(raw_entry.get("enabled", True)),
                         "base_unit": raw_entry.get("base_unit"),
                         "notes": raw_entry.get("notes") or "",
+                        "top_category": raw_entry.get("top_category"),
+                        "bettor_type": raw_entry.get("bettor_type"),
+                        "selectivity": raw_entry.get("selectivity"),
+                        "selectivity_score": raw_entry.get("selectivity_score"),
+                        "hold_tendency": raw_entry.get("hold_tendency"),
+                        "copyability": raw_entry.get("copyability"),
+                        "execution_style": raw_entry.get("execution_style"),
+                        "general_strategy": raw_entry.get("general_strategy"),
+                        "minimum_position_units": raw_entry.get(
+                            "minimum_position_units"
+                        ),
+                        "actionable_position_units": raw_entry.get(
+                            "actionable_position_units"
+                        ),
                         "status": "invalid",
                         "sync_status": "failed",
                         "open_position_count": 0,
@@ -825,8 +900,20 @@ class TrackerService:
                 "wallet_address": wallet.address,
                 "wallet_label": wallet.label,
                 "wallet_display_name": profile_name,
+                "wallet_display_address": wallet.display_address,
                 "wallet_short_address": shorten_wallet(wallet.address),
                 "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
+                "wallet_base_unit": wallet.base_unit,
+                "wallet_top_category": wallet.top_category,
+                "wallet_bettor_type": wallet.bettor_type,
+                "wallet_selectivity": wallet.selectivity,
+                "wallet_selectivity_score": wallet.selectivity_score,
+                "wallet_hold_tendency": wallet.hold_tendency,
+                "wallet_copyability": wallet.copyability,
+                "wallet_execution_style": wallet.execution_style,
+                "wallet_general_strategy": wallet.general_strategy,
+                "minimum_position_units": wallet.minimum_position_units,
+                "actionable_position_units": wallet.actionable_position_units,
                 "position_key": position_key(position),
                 "condition_id": position.get("conditionId"),
                 "event_slug": position.get("eventSlug"),
@@ -870,6 +957,7 @@ class TrackerService:
                 "taker_base_fee": market.get("takerBaseFee"),
                 "category_metrics": category_metric,
                 "top_category": wallet_category_metrics.get("top_category"),
+                "configured_top_category": wallet.top_category,
                 "first_detected_at": _iso_now(),
                 "last_seen_at": _iso_now(),
                 "last_changed_at": _iso_now(),
@@ -1233,7 +1321,23 @@ class TrackerService:
             estimate = estimate_unit_size(
                 wallet.address, wallet.label, samples, wallet.base_unit
             )
-            results.append(asdict(estimate))
+            result = asdict(estimate)
+            result.update(
+                {
+                    "display_address": wallet.display_address,
+                    "top_category": wallet.top_category,
+                    "bettor_type": wallet.bettor_type,
+                    "selectivity": wallet.selectivity,
+                    "selectivity_score": wallet.selectivity_score,
+                    "hold_tendency": wallet.hold_tendency,
+                    "copyability": wallet.copyability,
+                    "execution_style": wallet.execution_style,
+                    "general_strategy": wallet.general_strategy,
+                    "minimum_position_units": wallet.minimum_position_units,
+                    "actionable_position_units": wallet.actionable_position_units,
+                }
+            )
+            results.append(result)
 
         results.sort(key=lambda item: item["wallet_label"].lower())
         return results
@@ -1361,6 +1465,12 @@ class TrackerService:
                 "estimated_base_unit_label"
             )
             position["estimated_units"] = estimated_units
+            position["position_units"] = estimated_units
+            minimum_units = position.get("minimum_position_units")
+            actionable_units = position.get("actionable_position_units")
+            position["signal_tier"] = _wallet_signal_tier(
+                estimated_units, minimum_units, actionable_units
+            )
             position["wallet_total_visible_value"] = round(
                 visible_totals.get(position["wallet_address"], 0.0), 2
             )
