@@ -10,7 +10,7 @@
     "address": "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705",
     "label": "1winstreak1",
     "enabled": true,
-    "base_unit": null,
+    "base_unit": 3000,
     "notes": ""
   }
 ]
