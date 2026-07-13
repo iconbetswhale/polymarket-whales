@@ -12,3 +12,8 @@ polymarket_tracker.db-journal
 *.sqlite3
 .git/
 render.yaml
+.codex-app.*.log
+design-qa*.png
+design-qa.md
+personal-controls*.png
+redesign-*.png

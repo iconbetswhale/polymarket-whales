@@ -30,3 +30,10 @@ Thumbs.db
 .idea/
 .vercel
 .env*
+
+# Local design QA artifacts
+.codex-app.*.log
+design-qa*.png
+design-qa.md
+personal-controls*.png
+redesign-*.png
