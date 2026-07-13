@@ -32,6 +32,15 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _has_positive_recommendation(trade: dict) -> bool:
+    recommendation = trade.get("recommendation") or {}
+    return (
+        recommendation.get("available") is True
+        and _safe_float(recommendation.get("final_recommended_fraction")) > 0
+        and _safe_float(recommendation.get("recommended_amount")) > 0
+    )
+
+
 def _parse_datetime(value: str | None) -> datetime | None:
     if not value:
         return None
@@ -353,19 +362,18 @@ def create_app(start_background: bool = True) -> Flask:
             league=request.args.get("league", ""),
             wallet=request.args.get("wallet", ""),
         )
+        sized = [public_trade(play, bankroll) for play in filtered]
+        actionable = [trade for trade in sized if _has_positive_recommendation(trade)]
         start = (page - 1) * per_page
         return jsonify(
             {
-                "data": [
-                    public_trade(play, bankroll)
-                    for play in filtered[start : start + per_page]
-                ],
+                "data": actionable[start : start + per_page],
                 "bankroll": current_settings,
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
-                    "total": len(filtered),
-                    "has_next": start + per_page < len(filtered),
+                    "total": len(actionable),
+                    "has_next": start + per_page < len(actionable),
                     "has_prev": page > 1,
                 },
                 "status": snapshot["status"],

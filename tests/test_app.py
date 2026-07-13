@@ -5,6 +5,7 @@ import json
 from config import Settings
 from database import TrackerDatabase
 from position_tracker import TrackerService
+from app import _has_positive_recommendation
 
 
 class CountingClient:
@@ -112,3 +113,31 @@ def test_trade_date_presets_reject_removed_modes(app_client):
         assert (
             app_client.get(f"/api/trades-to-play?date_range={mode}").status_code == 400
         )
+
+
+def test_only_positive_executable_recommendations_are_actionable():
+    positive = {
+        "recommendation": {
+            "available": True,
+            "final_recommended_fraction": 0.001,
+            "recommended_amount": 10,
+        }
+    }
+    zero_stake = {
+        "recommendation": {
+            "available": True,
+            "final_recommended_fraction": 0,
+            "recommended_amount": 0,
+        }
+    }
+    unavailable = {
+        "recommendation": {
+            "available": False,
+            "final_recommended_fraction": 0.001,
+            "recommended_amount": 10,
+        }
+    }
+
+    assert _has_positive_recommendation(positive) is True
+    assert _has_positive_recommendation(zero_stake) is False
+    assert _has_positive_recommendation(unavailable) is False
