@@ -227,6 +227,30 @@ class TrackerDatabase:
             ).fetchall()
         return [json.loads(row["event_json"]) for row in rows]
 
+    def get_events_page(self, page: int = 1, per_page: int = 50) -> dict:
+        page = max(1, int(page or 1))
+        per_page = max(1, min(100, int(per_page or 50)))
+        offset = (page - 1) * per_page
+        with self.connection() as conn:
+            total = conn.execute("SELECT COUNT(*) AS count FROM position_events").fetchone()["count"]
+            rows = conn.execute(
+                """
+                SELECT event_json
+                FROM position_events
+                ORDER BY detected_at DESC, id DESC
+                LIMIT ? OFFSET ?
+                """,
+                (per_page, offset),
+            ).fetchall()
+        return {
+            "data": [json.loads(row["event_json"]) for row in rows],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "has_next": offset + per_page < total,
+            "has_prev": page > 1,
+        }
+
     def get_events_for_wallet(self, wallet_address: str, limit: int = 200) -> list[dict]:
         with self.connection() as conn:
             rows = conn.execute(

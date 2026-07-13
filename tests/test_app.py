@@ -76,6 +76,9 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/positions").status_code == 200
     assert app_client.get("/api/wallets").status_code == 200
     assert app_client.get("/api/trades").status_code == 200
+    assert app_client.get("/api/trades-to-play").status_code == 200
+    assert app_client.get("/api/history?page=1&per_page=25").status_code == 200
     assert app_client.get("/api/consensus").status_code == 200
     assert app_client.get("/api/unit-analysis").status_code == 200
     assert app_client.get("/api/status").status_code == 200
+    assert app_client.get("/history").status_code == 200

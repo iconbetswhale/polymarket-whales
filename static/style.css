@@ -3065,6 +3065,100 @@ tbody tr:hover {
   color: #f6faf9;
 }
 
+.score-rank {
+  display: grid;
+  place-items: center;
+  line-height: 1;
+}
+
+.score-rank span {
+  display: block;
+  font-size: 34px;
+}
+
+.score-rank small {
+  display: block;
+  margin-top: 8px;
+  color: #98a9b0;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.sharps-badge {
+  border-color: rgba(215, 255, 114, 0.55) !important;
+  background:
+    linear-gradient(180deg, rgba(215, 255, 114, 0.2), rgba(97, 255, 111, 0.08)) !important;
+  color: var(--lux-gold) !important;
+  box-shadow: 0 0 22px rgba(215, 255, 114, 0.12);
+}
+
+.score-breakdown,
+.supporter-breakdown {
+  margin: 12px 0;
+  border: 1px solid rgba(121, 155, 171, 0.18);
+  border-radius: 14px;
+  background: rgba(4, 16, 22, 0.58);
+  padding: 12px 14px;
+}
+
+.score-breakdown summary,
+.supporter-breakdown summary {
+  cursor: pointer;
+  color: #f5fbf8;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.score-breakdown-grid,
+.supporter-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.score-breakdown-grid div,
+.supporter-list div {
+  border: 1px solid rgba(121, 155, 171, 0.14);
+  border-radius: 10px;
+  background: rgba(7, 24, 32, 0.72);
+  padding: 10px;
+}
+
+.score-breakdown-grid span,
+.supporter-list span {
+  display: block;
+  color: #91a3a9;
+  font-size: 12px;
+}
+
+.score-breakdown-grid strong,
+.supporter-list strong {
+  display: block;
+  margin-top: 4px;
+  color: #f6faf9;
+  font-family: "JetBrains Mono", monospace;
+}
+
+.history-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.history-pagination span {
+  color: #9aabb2;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 12px;
+}
+
 @media (max-width: 1500px) {
   .trade-detail-panel {
     position: static;

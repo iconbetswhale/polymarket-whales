@@ -16,6 +16,7 @@ from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
 from polymarket_client import PolymarketClient
 from scoring import hours_until_resolution, score_position
+from trade_scoring import build_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
 from wallet_loader import WalletEntry, load_wallets
 
@@ -105,6 +106,7 @@ class TrackerService:
         self._cache = {
             "positions": [],
             "trades": [],
+            "trades_to_play": [],
             "consensus": [],
             "unit_analysis": [],
             "wallets": [],
@@ -207,6 +209,7 @@ class TrackerService:
             snapshot = {
                 "positions": [],
                 "trades": self.database.get_recent_events(),
+                "trades_to_play": [],
                 "consensus": [],
                 "unit_analysis": [],
                 "wallets": wallet_payload,
@@ -262,6 +265,7 @@ class TrackerService:
             for entry in consensus
         }
         positions = self._enrich_positions(current_rows, trades, unit_map, consensus_map)
+        trades_to_play = build_trades_to_play(positions, trades, unit_map)
         overview = self._build_overview(positions, trades, consensus, status)
 
         success_time = _iso_now()
@@ -280,6 +284,7 @@ class TrackerService:
             self._cache = {
                 "positions": positions,
                 "trades": trades,
+                "trades_to_play": trades_to_play,
                 "consensus": consensus,
                 "unit_analysis": unit_analysis,
                 "wallets": wallet_payload,

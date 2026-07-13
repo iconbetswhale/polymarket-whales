@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 
-from flask import Flask, jsonify, render_template
+from flask import Flask, jsonify, render_template, request
 
 from config import get_settings
 from position_tracker import TrackerService
@@ -26,6 +26,10 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/")
     def index():
         return render_template("index.html", title="IconBets Polymarket Wallet Tracker")
+
+    @app.route("/history")
+    def history():
+        return render_template("history.html", title="IconBets Position History")
 
     @app.route("/health")
     def health():
@@ -64,6 +68,17 @@ def create_app(start_background: bool = True) -> Flask:
     def api_trades():
         snapshot = tracker.get_snapshot()
         return jsonify({"data": snapshot["trades"], "status": snapshot["status"]})
+
+    @app.route("/api/trades-to-play")
+    def api_trades_to_play():
+        snapshot = tracker.get_snapshot()
+        return jsonify({"data": snapshot.get("trades_to_play", []), "status": snapshot["status"]})
+
+    @app.route("/api/history")
+    def api_history():
+        page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", 50, type=int)
+        return jsonify(tracker.database.get_events_page(page=page, per_page=per_page))
 
     @app.route("/api/consensus")
     def api_consensus():

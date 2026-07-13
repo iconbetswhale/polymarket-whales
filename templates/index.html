@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-luxury-terminal-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260713-trades-to-play-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -20,11 +20,10 @@
     <div class="nav-links" aria-label="Dashboard sections">
       <a href="#overview">Overview</a>
       <a href="#live-positions">Live Positions</a>
-      <a href="#recent-trades">Recent Trades</a>
+      <a href="#recent-trades">Trades to Play</a>
       <a href="#wallets">Wallets</a>
-      <a href="#consensus">Consensus</a>
       <a href="#unit-analysis">Unit Analysis</a>
-      <a href="#position-history">Position History</a>
+      <a href="/history">Position History</a>
     </div>
     <div class="nav-status" aria-label="Dashboard status">
       <span class="status-pill"><span class="status-dot" id="api-status-dot" aria-hidden="true"></span>API <strong id="api-status">Loading</strong></span>
@@ -38,13 +37,13 @@
       <div class="section-heading trade-console-heading">
         <div>
           <p class="eyebrow">TRADERS</p>
-          <h2 id="recent-trades-title">Recent Trades</h2>
+          <h2 id="recent-trades-title">Trades to Play</h2>
         </div>
         <div class="trade-tabs" aria-label="Trade views">
-          <span class="trade-tab active">Picks <strong id="trades-count-badge">0</strong></span>
-          <span class="trade-tab">Positions</span>
-          <span class="trade-tab">Orders</span>
-          <span class="trade-tab">Closed</span>
+          <span class="trade-tab active">Plays <strong id="trades-count-badge">0</strong></span>
+          <span class="trade-tab">No Conflicts</span>
+          <span class="trade-tab">Scored</span>
+          <span class="trade-tab">Pregame</span>
         </div>
       </div>
       <div class="trade-range-bar" aria-label="Position date range filter">
@@ -67,6 +66,7 @@
           <input id="custom-end-date" type="date">
         </label>
         <a class="text-button subtle" href="#filters-title">More Filters</a>
+        <a class="text-button subtle" href="/history">Position History</a>
       </div>
       <div class="trade-console">
         <div class="trade-list-panel">
@@ -322,61 +322,6 @@
         </div>
       </section>
 
-      <section class="dashboard-section" id="consensus" aria-labelledby="consensus-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">SAME SIDE</p>
-            <h2 id="consensus-title">Wallet Consensus</h2>
-          </div>
-          <p>Markets held by multiple tracked wallets</p>
-        </div>
-        <div class="table-wrap compact">
-          <table id="consensus-table">
-            <thead>
-              <tr>
-                <th>Market</th>
-                <th>Outcome</th>
-                <th>Wallets</th>
-                <th>Combined Value</th>
-                <th>Combined Units</th>
-                <th>Largest Holder</th>
-                <th>Earliest Entry</th>
-                <th>Recent Increase</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-    </div>
-
-    <div class="section-grid">
-      <section class="dashboard-section" id="position-history" aria-labelledby="history-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">HISTORY</p>
-            <h2 id="history-title">Position History</h2>
-          </div>
-          <p>Persistent SQLite event log</p>
-        </div>
-        <div class="table-wrap compact">
-          <table id="history-table">
-            <thead>
-              <tr>
-                <th>Detected</th>
-                <th>Type</th>
-                <th>Wallet</th>
-                <th>Market</th>
-                <th>Outcome</th>
-                <th>Category</th>
-                <th>Current Value</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
-
       <section class="dashboard-section" id="settings" aria-labelledby="settings-title">
         <div class="section-heading">
           <div>
@@ -390,6 +335,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-luxury-terminal-1"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260713-trades-to-play-1"></script>
 </body>
 </html>

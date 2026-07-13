@@ -66,6 +66,20 @@ function formatClock(value) {
   return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
 }
 
+function timeAgo(value) {
+  if (!value) return "n/a";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "n/a";
+  const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000));
+  if (seconds < 60) return "just now";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 48) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
 function formatConviction(position) {
   if (position.position_conviction_status === "neutral") {
     return "Neutral";
@@ -129,14 +143,10 @@ function setStatusDots(status) {
 function renderOverview() {
   const overview = state.status?.overview || {};
   const cards = [
+    ["Trades to Play", state.trades.length, "trades"],
     ["Enabled Wallets", overview.enabled_wallets ?? 0, "wallets"],
     ["Open Sports Positions", overview.open_sports_positions ?? 0, "positions"],
     ["Current Position Value", formatMoney(overview.total_current_position_value ?? 0), "value"],
-    ["Unrealized P&L", formatMoney(overview.total_unrealized_pnl ?? 0), "pnl", valueClass(overview.total_unrealized_pnl)],
-    ["New Trades (24h)", overview.new_trades_last_24h ?? 0, "trades"],
-    ["Exits (24h)", overview.exits_last_24h ?? 0, "exits"],
-    ["Consensus Markets", overview.markets_with_consensus ?? 0, "consensus"],
-    ["API Status", overview.api_status ?? "idle", "status", String(overview.api_status).toLowerCase() === "ok" ? "status-ok" : ""],
   ];
 
   document.getElementById("overview-grid").innerHTML = cards
@@ -255,7 +265,7 @@ function activeDateRange() {
 
 function resolutionDateForItem(item) {
   const snapshot = tradeSnapshot(item);
-  const value = snapshot.resolution_time || item.resolution_time || item.endDate || "";
+  const value = snapshot.resolution_time || item.resolution_time || item.event_date_et || item.endDate || "";
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
@@ -304,24 +314,20 @@ function filteredTrades() {
   const wallet = document.getElementById("wallet-filter").value;
   const sport = document.getElementById("sport-filter").value;
   const league = document.getElementById("league-filter").value;
-  const eventFilter = document.getElementById("event-filter").value;
   const dateRange = activeDateRange();
-  const trackedAddresses = new Set(state.wallets.map((entry) => String(entry.address || "").toLowerCase()).filter(Boolean));
-  const trackedLabels = new Set(state.wallets.map((entry) => String(entry.label || "").toLowerCase()).filter(Boolean));
 
   return state.trades.filter((trade) => {
-    const snapshot = tradeSnapshot(trade);
-    const haystack = `${trade.wallet_label} ${trade.market_title} ${trade.outcome}`.toLowerCase();
-    const tradeAddress = String(trade.wallet_address || "").toLowerCase();
-    const tradeLabel = String(trade.wallet_label || "").toLowerCase();
-    if (trackedAddresses.size && tradeAddress && !trackedAddresses.has(tradeAddress)) return false;
-    if (!tradeAddress && trackedLabels.size && !trackedLabels.has(tradeLabel)) return false;
+    const supporterText = (trade.supporting_wallets || []).map((entry) => entry.wallet_label).join(" ");
+    const primaryLabel = trade.primary_trader?.wallet_label || "";
+    const haystack = `${primaryLabel} ${supporterText} ${trade.market_title} ${trade.outcome}`.toLowerCase();
     if (search && !haystack.includes(search)) return false;
-    if (wallet && trade.wallet_label !== wallet) return false;
+    if (wallet && !(trade.supporting_wallets || []).some((entry) => entry.wallet_label === wallet)) return false;
     if (sport && trade.category !== sport) return false;
     if (league && trade.league !== league) return false;
-    if (eventFilter && trade.event_type !== eventFilter) return false;
-    if (!itemMatchesDateRange(snapshot, dateRange)) return false;
+    if (document.getElementById("consensus-filter").value === "yes" && Number(trade.agreeing_wallet_count || 0) < 2) return false;
+    if (Number(trade.total_amount_bet || 0) < Number(document.getElementById("min-position").value || 0)) return false;
+    if (Number(trade.strongest_relative_units || 0) < Number(document.getElementById("min-units").value || 0)) return false;
+    if (!itemMatchesDateRange(trade, dateRange)) return false;
     return true;
   });
 }
@@ -505,7 +511,7 @@ function formatShares(value) {
 }
 
 function tradeKey(trade, index) {
-  return trade.event_hash || `${trade.wallet_address || "wallet"}::${trade.position_key || "position"}::${trade.detected_at || index}`;
+  return trade.id || trade.event_hash || `${trade.wallet_address || "wallet"}::${trade.position_key || "position"}::${trade.detected_at || index}`;
 }
 
 function tradeSnapshot(trade) {
@@ -513,8 +519,8 @@ function tradeSnapshot(trade) {
 }
 
 function unitEntryForTrade(trade) {
-  const address = String(trade.wallet_address || "").toLowerCase();
-  const label = String(trade.wallet_label || "").toLowerCase();
+  const address = String(trade.primary_trader?.wallet_address || trade.wallet_address || "").toLowerCase();
+  const label = String(trade.primary_trader?.wallet_label || trade.wallet_label || "").toLowerCase();
   return state.unitAnalysis.find((entry) => (
     String(entry.wallet_address || "").toLowerCase() === address ||
     String(entry.wallet_label || "").toLowerCase() === label
@@ -523,10 +529,17 @@ function unitEntryForTrade(trade) {
 
 function tradeSizeUsd(trade) {
   const snapshot = tradeSnapshot(trade);
-  return numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
+  return numberOrNull(trade.total_amount_bet) ?? numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
 }
 
 function relativeBetSize(trade) {
+  if (numberOrNull(trade.strongest_relative_units) !== null) {
+    const units = numberOrNull(trade.strongest_relative_units);
+    return {
+      value: `${units.toFixed(units >= 10 ? 1 : 2)}u`,
+      subtext: "Strongest agreeing wallet",
+    };
+  }
   const snapshot = tradeSnapshot(trade);
   const directUnits = numberOrNull(snapshot.estimated_units);
   const unitEntry = unitEntryForTrade(trade);
@@ -595,6 +608,15 @@ function tradeMetric(label, value, subtext, cls = "", iconText = "") {
   `;
 }
 
+function scoreLine(label, value, maxValue) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value ?? 0)}/${escapeHtml(maxValue ?? 0)}</strong>
+    </div>
+  `;
+}
+
 const traderStats = {
   "1winstreak1": {
     topCategory: "MLB",
@@ -634,29 +656,29 @@ function traderStatsForTrade(trade) {
 
 function renderTradeCard(trade, index, selectedKey) {
   const key = tradeKey(trade, index);
-  const snapshot = tradeSnapshot(trade);
   const selected = key === selectedKey;
   const relative = relativeBetSize(trade);
   const slippage = slippageForTrade(trade);
-  const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
-  const price = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
+  const price = numberOrNull(trade.current_price);
+  const badge = trade.sharps_badge ? `<span class="sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : "";
 
   return `
     <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
-      <div class="trade-card-rank">${escapeHtml(String(index + 1).padStart(2, "0"))}</div>
+      <div class="trade-card-rank score-rank"><span>${escapeHtml(trade.confidence_score ?? 0)}</span><small>Score</small></div>
       <div class="trade-card-main">
         <div class="trade-card-meta">
-          <span>${escapeHtml(formatShortDate(snapshot.resolution_time || trade.detected_at))}</span>
+          ${badge}
+          <span>${escapeHtml(trade.event_time_et || "Time TBA")}</span>
           <span>${escapeHtml(relative.value)}</span>
           <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
         </div>
         <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
-        <div class="trade-card-subtitle">${escapeHtml(trade.wallet_label)} / ${escapeHtml(trade.category || "Market")} / ${escapeHtml(tradeEventLabel(trade.event_type))}</div>
+        <div class="trade-card-subtitle">${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} leads / ${escapeHtml(trade.agreeing_wallet_count || 1)} wallet${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"} / Entered ${escapeHtml(timeAgo(trade.entered_at))}</div>
       </div>
       <div class="trade-card-pick">
         <span>Pick</span>
         <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
-        <em>${escapeHtml(formatShares(shares))}</em>
+        <em>${escapeHtml(formatMoney(trade.total_amount_bet || 0))} total</em>
         <small>${escapeHtml(formatCentsFromProbability(price))}</small>
       </div>
       <span class="trade-card-arrow" aria-hidden="true">&gt;</span>
@@ -666,53 +688,43 @@ function renderTradeCard(trade, index, selectedKey) {
 
 function renderTradeDetail(trade) {
   if (!trade) {
-    return '<div class="empty-panel">Select a recent trade to inspect the play.</div>';
+    return '<div class="empty-panel">No actionable trades to play match the current filters.</div>';
   }
 
-  const snapshot = tradeSnapshot(trade);
   const relative = relativeBetSize(trade);
   const slippage = slippageForTrade(trade);
-  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price);
-  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
-  const shares = numberOrNull(snapshot.shares) ?? numberOrNull(snapshot.token_units);
-  const pnl = (numberOrNull(snapshot.unrealized_pnl) ?? numberOrNull(trade.unrealized_pnl) ?? 0) + (numberOrNull(trade.realized_pnl) ?? 0);
+  const averageEntry = numberOrNull(trade.average_entry_price);
+  const currentPrice = numberOrNull(trade.current_price);
   const sizeUsd = tradeSizeUsd(trade);
-  const status = String(snapshot.status || trade.status || "open");
-  const profileUrl = snapshot.wallet_profile_url || trade.wallet_profile_url;
-  const marketUrl = snapshot.market_url || trade.market_url;
-  const stats = traderStatsForTrade(trade);
-  const topCategory = stats?.topCategory || trade.category || "n/a";
-  const totalTrades = stats?.totalTrades || "Coming soon";
-  const categoryWinRate = stats?.categoryWinRate || "Coming soon";
-  const categoryGainsLosses = stats?.categoryGainsLosses || "Coming soon";
-  const categoryRank = stats?.categoryRank ? `Rank ${stats.categoryRank}` : "Placeholder until stats are added";
-  const categoryHitRateSubtext = stats ? `${topCategory} hitrate from profile screenshot` : "Add when you send stats";
-  const tradesSubtext = stats ? "Total Polymarket wallet positions" : "Add when you send stats";
-  const gainsLossesSubtext = stats ? `${topCategory} category gains/losses` : "Add when you send stats";
+  const profileUrl = trade.primary_trader?.wallet_profile_url;
+  const marketUrl = trade.market_url;
+  const breakdown = trade.score_breakdown || {};
+  const weights = trade.score_weights || {};
+  const supporters = trade.supporting_wallets || [];
 
   return `
     <div class="trade-detail-header">
-      <div class="trade-detail-score">${escapeHtml(formatConviction(snapshot))}</div>
+      <div class="trade-detail-score">${escapeHtml(trade.confidence_score ?? 0)}</div>
       <div>
         <h3 title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</h3>
-        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")}</span>
+        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")} <b aria-hidden="true">/</b> ${escapeHtml(trade.event_time_et || "Time TBA")}</span>
       </div>
-      ${eventBadge(trade.event_type)}
+      ${trade.sharps_badge ? `<span class="event-badge new-entry sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : `<span class="event-badge new-entry">Actionable</span>`}
     </div>
 
     <div class="trade-detail-pick">
       <div>
-        <span>Trader</span>
-        <strong>${escapeHtml(trade.wallet_label || "Tracked wallet")}</strong>
+        <span>Primary Trader</span>
+        <strong>${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")}</strong>
       </div>
       <div>
         <span>Pick</span>
         <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
       </div>
       <div>
-        <span>Bet Size</span>
+        <span>Combined Bet Size</span>
         <strong>${formatMoney(sizeUsd)}</strong>
-        ${shares ? `<small>${escapeHtml(formatShares(shares))}</small>` : ""}
+        <small>${escapeHtml(trade.agreeing_wallet_count || 1)} agreeing wallet${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"}</small>
       </div>
       <div>
         <span>Current</span>
@@ -722,17 +734,42 @@ function renderTradeDetail(trade) {
 
     <div class="trade-detail-metrics">
       ${tradeMetric("Rel. Bet Size", relative.value, relative.subtext)}
-      ${tradeMetric("Bet Size", formatMoney(sizeUsd), "Position amount")}
+      ${tradeMetric("Combined Amount", formatMoney(sizeUsd), "All agreeing wallets")}
       ${tradeMetric("Slippage", slippage.value, slippage.note, `slippage ${slippage.className}`)}
       ${tradeMetric("Price At Entry", formatCentsFromProbability(averageEntry), "Average fill price")}
     </div>
 
     <div class="trade-stats-grid">
-      ${tradeMetric("Top Category", topCategory, categoryRank, "", "TC")}
-      ${tradeMetric("Category Hitrate", categoryWinRate, categoryHitRateSubtext, "positive", "HR")}
-      ${tradeMetric("Trades", totalTrades, tradesSubtext, "", "TR")}
-      ${tradeMetric("Gains/Losses", categoryGainsLosses, gainsLossesSubtext, "", "GL")}
+      ${tradeMetric("Sharps", trade.sharps_badge || `${trade.agreeing_wallet_count || 1} Wallet`, "Consensus integrated", "positive", "S")}
+      ${tradeMetric("Trader History", trade.primary_trader?.sample_size || "n/a", "Primary trader sample", "", "TR")}
+      ${tradeMetric("Adj. Hitrate", `${((trade.primary_trader?.adjusted_hit_rate || 0) * 100).toFixed(1)}%`, "Shrunk by sample size", "positive", "HR")}
+      ${tradeMetric("Entered", timeAgo(trade.entered_at), "Tracked entry time", "", "ET")}
     </div>
+
+    <details class="score-breakdown">
+      <summary>Why this score?</summary>
+      <div class="score-breakdown-grid">
+        ${scoreLine("Sharps consensus", breakdown.sharps_consensus, weights.sharps)}
+        ${scoreLine("Combined amount", breakdown.combined_amount, weights.combined_amount)}
+        ${scoreLine("Relative size", breakdown.relative_size, weights.relative_size)}
+        ${scoreLine("Trader history", breakdown.trader_history, weights.trader_sample)}
+        ${scoreLine("Adjusted hit rate", breakdown.adjusted_hit_rate, weights.hit_rate)}
+        ${scoreLine("Slippage", breakdown.slippage, weights.slippage)}
+        ${scoreLine("Total", trade.confidence_score, 100)}
+      </div>
+    </details>
+
+    <details class="supporter-breakdown">
+      <summary>Agreeing wallets</summary>
+      <div class="supporter-list">
+        ${supporters.map((supporter) => `
+          <div>
+            <strong>${escapeHtml(supporter.wallet_label)}</strong>
+            <span>${formatMoney(supporter.amount)} / ${escapeHtml(supporter.relative_units)}u</span>
+          </div>
+        `).join("")}
+      </div>
+    </details>
 
     <div class="price-card">
       <div class="price-card-head">
@@ -756,10 +793,10 @@ function renderTradeDetail(trade) {
     </div>
 
     <div class="trade-detail-footer">
-      <div><span>Detected</span><strong>${escapeHtml(formatDate(trade.detected_at))}</strong></div>
-      <div><span>P&amp;L</span><strong class="${valueClass(pnl)}">${formatMoney(pnl)}</strong></div>
-      <div><span>Value</span><strong>${formatMoney(numberOrNull(snapshot.current_value) ?? numberOrNull(trade.current_value) ?? 0)}</strong></div>
-      <div><span>Status</span><strong class="status-open">${escapeHtml(status)}</strong></div>
+      <div><span>Game Time</span><strong>${escapeHtml(trade.event_time_et || "Time TBA")}</strong></div>
+      <div><span>Total Bet</span><strong>${formatMoney(sizeUsd)}</strong></div>
+      <div><span>Wallets</span><strong>${escapeHtml(trade.agreeing_wallet_count || 1)}</strong></div>
+      <div><span>Status</span><strong class="status-open">Pregame</strong></div>
       ${marketUrl ? `<a class="trade-action" href="${escapeHtml(marketUrl)}" target="_blank" rel="noreferrer">Open Market</a>` : ""}
       ${profileUrl ? `<a class="trade-action profile" href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">Trader Profile</a>` : ""}
       <button class="trade-action overflow" type="button" aria-label="More actions">...</button>
@@ -778,19 +815,22 @@ function renderTrades() {
   const countBadge = document.getElementById("trades-count-badge");
   if (countBadge) countBadge.textContent = trades.length;
 
-  document.querySelector("#trades-table tbody").innerHTML = trades.length
-    ? trades.map((trade) => `
-      <tr>
-        <td>${escapeHtml(formatDate(trade.detected_at))}</td>
-        <td>${escapeHtml(trade.wallet_label)}</td>
-        <td>${eventBadge(trade.event_type)}</td>
-        <td class="market-cell"><span class="market-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</span></td>
-        <td>${escapeHtml(trade.outcome)}</td>
-        <td>${formatMoney(trade.current_value)}</td>
-        <td class="${valueClass((trade.unrealized_pnl || 0) + (trade.realized_pnl || 0))}">${formatMoney((trade.unrealized_pnl || 0) + (trade.realized_pnl || 0))}</td>
-      </tr>
-    `).join("")
-    : '<tr><td class="empty-row" colspan="7">No recent trades match the current filters.</td></tr>';
+  const tableBody = document.querySelector("#trades-table tbody");
+  if (tableBody) {
+    tableBody.innerHTML = trades.length
+      ? trades.map((trade) => `
+        <tr>
+          <td>${escapeHtml(trade.event_time_et || "n/a")}</td>
+          <td>${escapeHtml(trade.primary_trader?.wallet_label || "n/a")}</td>
+          <td>${escapeHtml(trade.sharps_badge || "Actionable")}</td>
+          <td class="market-cell"><span class="market-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</span></td>
+          <td>${escapeHtml(trade.outcome)}</td>
+          <td>${formatMoney(trade.total_amount_bet)}</td>
+          <td>${escapeHtml(trade.confidence_score)}</td>
+        </tr>
+      `).join("")
+      : '<tr><td class="empty-row" colspan="7">No trades to play match the current filters.</td></tr>';
+  }
 
   document.getElementById("trades-feed").innerHTML = trades.length
     ? trades.map((trade, index) => renderTradeCard(trade, index, state.selectedTradeKey)).join("")
@@ -869,40 +909,6 @@ function renderUnitAnalysis() {
     : '<tr><td class="empty-row" colspan="7">Insufficient wallet data for unit-size analysis.</td></tr>';
 }
 
-function renderConsensus() {
-  document.querySelector("#consensus-table tbody").innerHTML = state.consensus.length
-    ? state.consensus.map((entry) => `
-      <tr>
-        <td class="market-cell"><a class="market-title" href="${escapeHtml(entry.market_url)}" target="_blank" rel="noreferrer" title="${escapeHtml(entry.market_title)}">${escapeHtml(entry.market_title)}</a></td>
-        <td><span class="outcome-badge">${escapeHtml(entry.outcome)}</span></td>
-        <td>${escapeHtml(entry.wallet_count)}<span class="cell-sub">${escapeHtml(entry.wallet_names.join(", "))}</span></td>
-        <td>${formatMoney(entry.combined_position_value)}</td>
-        <td>${escapeHtml(entry.combined_estimated_units)}</td>
-        <td>${escapeHtml(entry.largest_holder)}</td>
-        <td>${escapeHtml(formatDate(entry.earliest_entry_time))}</td>
-        <td>${escapeHtml(formatDate(entry.most_recent_increase))}</td>
-      </tr>
-    `).join("")
-    : '<tr><td class="empty-row" colspan="8">No same-side consensus positions detected.</td></tr>';
-}
-
-function renderHistory() {
-  const rows = state.trades.slice(0, 150);
-  document.querySelector("#history-table tbody").innerHTML = rows.length
-    ? rows.map((trade) => `
-      <tr>
-        <td>${escapeHtml(formatDate(trade.detected_at))}</td>
-        <td>${eventBadge(trade.event_type)}</td>
-        <td>${escapeHtml(trade.wallet_label)}</td>
-        <td class="market-cell"><span class="market-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</span></td>
-        <td>${escapeHtml(trade.outcome)}</td>
-        <td>${escapeHtml(trade.category)}</td>
-        <td>${formatMoney(trade.current_value)}</td>
-      </tr>
-    `).join("")
-    : '<tr><td class="empty-row" colspan="7">No position history recorded yet.</td></tr>';
-}
-
 function renderSettings() {
   const status = state.status || {};
   const settings = [
@@ -958,8 +964,6 @@ function renderAll() {
   renderFilteredViews();
   renderWallets();
   renderUnitAnalysis();
-  renderConsensus();
-  renderHistory();
   renderSettings();
   toggleEmptyState();
 }
@@ -969,12 +973,11 @@ async function loadDashboard() {
   state.loading = true;
   document.body.classList.add("loading");
   try {
-    const [positions, trades, wallets, unitAnalysis, consensus, status] = await Promise.all([
+    const [positions, trades, wallets, unitAnalysis, status] = await Promise.all([
       fetchJson("/api/positions"),
-      fetchJson("/api/trades"),
+      fetchJson("/api/trades-to-play"),
       fetchJson("/api/wallets"),
       fetchJson("/api/unit-analysis"),
-      fetchJson("/api/consensus"),
       fetchJson("/api/status"),
     ]);
 
@@ -982,7 +985,7 @@ async function loadDashboard() {
     state.trades = trades.data || [];
     state.wallets = wallets.data || [];
     state.unitAnalysis = unitAnalysis.data || [];
-    state.consensus = consensus.data || [];
+    state.consensus = [];
     state.status = status;
     state.lastDashboardCheck = new Date().toISOString();
     renderAll();
