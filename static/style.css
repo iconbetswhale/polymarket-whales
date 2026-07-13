@@ -1784,6 +1784,51 @@ body::before {
   display: none;
 }
 
+.trade-range-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px;
+  border: 1px solid rgba(94, 135, 154, 0.18);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(8, 24, 33, 0.82), rgba(4, 13, 18, 0.84));
+}
+
+.trade-range-bar label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 190px;
+  color: #8c9da6;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trade-range-bar select,
+.trade-range-bar input {
+  min-height: 42px;
+  border-color: rgba(94, 135, 154, 0.28);
+  border-radius: 9px;
+  background: rgba(4, 14, 20, 0.9);
+  color: var(--terminal-text);
+}
+
+.trade-range-bar .text-button {
+  min-height: 42px;
+}
+
+.custom-date-field {
+  display: none !important;
+}
+
+.custom-date-field.active {
+  display: flex !important;
+}
+
 .trade-console {
   grid-template-columns: minmax(520px, 0.74fr) minmax(720px, 1.03fr);
   gap: 26px;

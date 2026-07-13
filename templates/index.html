@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-terminal-trades-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260712-date-range-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -46,6 +46,27 @@
           <span class="trade-tab">Orders</span>
           <span class="trade-tab">Closed</span>
         </div>
+      </div>
+      <div class="trade-range-bar" aria-label="Position date range filter">
+        <label>
+          <span>Date Range</span>
+          <select id="date-range-filter">
+            <option value="">All dates</option>
+            <option value="today">Today</option>
+            <option value="next24">Next 24 hours</option>
+            <option value="next7">Next 7 days</option>
+            <option value="custom">Custom</option>
+          </select>
+        </label>
+        <label class="custom-date-field">
+          <span>Custom Start</span>
+          <input id="custom-start-date" type="date">
+        </label>
+        <label class="custom-date-field">
+          <span>Custom End</span>
+          <input id="custom-end-date" type="date">
+        </label>
+        <a class="text-button subtle" href="#filters-title">More Filters</a>
       </div>
       <div class="trade-console">
         <div class="trade-list-panel">
@@ -149,6 +170,9 @@
 
       <div class="quick-filter-row" aria-label="Quick position filters">
         <button class="quick-filter" type="button" data-quick-filter="clear">All Positions</button>
+        <button class="quick-filter" type="button" data-quick-filter="today">Today</button>
+        <button class="quick-filter" type="button" data-quick-filter="next24">Next 24 Hours</button>
+        <button class="quick-filter" type="button" data-quick-filter="next7">Next 7 Days</button>
         <button class="quick-filter" type="button" data-quick-filter="consensus">Consensus Only</button>
         <button class="quick-filter" type="button" data-quick-filter="large">Large $1k+</button>
         <button class="quick-filter" type="button" data-quick-filter="profitable">Profitable</button>
@@ -201,10 +225,6 @@
         <label>
           <span>Minimum Unrealized P&amp;L</span>
           <input id="min-pnl" type="number" step="25" placeholder="$0">
-        </label>
-        <label>
-          <span>Resolution Date</span>
-          <input id="resolution-filter" type="date">
         </label>
       </div>
     </section>
@@ -370,6 +390,6 @@
     </div>
   </main>
 
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-terminal-trades-1"></script>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260712-date-range-1"></script>
 </body>
 </html>

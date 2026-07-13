@@ -21,7 +21,9 @@ const filterIds = [
   "min-position",
   "min-units",
   "min-pnl",
-  "resolution-filter",
+  "date-range-filter",
+  "custom-start-date",
+  "custom-end-date",
   "event-filter",
   "consensus-filter",
 ];
@@ -162,8 +164,12 @@ function recentTradeMapByPosition() {
 }
 
 function activeFilterCount() {
+  const dateRangeMode = document.getElementById("date-range-filter").value;
   return filterIds.reduce((count, id) => {
     const element = document.getElementById(id);
+    if ((id === "custom-start-date" || id === "custom-end-date") && dateRangeMode !== "custom") {
+      return count;
+    }
     return count + (element && element.value ? 1 : 0);
   }, 0);
 }
@@ -171,16 +177,97 @@ function activeFilterCount() {
 function updateActiveFilterCount() {
   const count = activeFilterCount();
   document.getElementById("active-filter-count").textContent = `${count} active`;
+  const dateRange = document.getElementById("date-range-filter").value;
   document.querySelectorAll(".quick-filter").forEach((button) => {
     const action = button.dataset.quickFilter;
     const isActive = (
       (action === "clear" && count === 0) ||
+      (action === "today" && dateRange === "today") ||
+      (action === "next24" && dateRange === "next24") ||
+      (action === "next7" && dateRange === "next7") ||
       (action === "consensus" && document.getElementById("consensus-filter").value === "yes") ||
       (action === "large" && document.getElementById("min-position").value === "1000") ||
       (action === "profitable" && document.getElementById("min-pnl").value === "1")
     );
     button.classList.toggle("active", isActive);
   });
+}
+
+function startOfLocalDay(date) {
+  const copy = new Date(date);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+}
+
+function addDays(date, days) {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+}
+
+function dateInputToLocalDate(value, endOfDay = false) {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(parsed.getTime())) return null;
+  if (endOfDay) parsed.setHours(23, 59, 59, 999);
+  return parsed;
+}
+
+function activeDateRange() {
+  const mode = document.getElementById("date-range-filter").value;
+  if (!mode) return null;
+
+  const now = new Date();
+  if (mode === "today") {
+    return {
+      start: startOfLocalDay(now),
+      end: addDays(startOfLocalDay(now), 1),
+      label: "today",
+    };
+  }
+
+  if (mode === "next24") {
+    return {
+      start: now,
+      end: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      label: "next 24 hours",
+    };
+  }
+
+  if (mode === "next7") {
+    return {
+      start: now,
+      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
+      label: "next 7 days",
+    };
+  }
+
+  if (mode === "custom") {
+    return {
+      start: dateInputToLocalDate(document.getElementById("custom-start-date").value),
+      end: dateInputToLocalDate(document.getElementById("custom-end-date").value, true),
+      label: "custom range",
+    };
+  }
+
+  return null;
+}
+
+function resolutionDateForItem(item) {
+  const snapshot = tradeSnapshot(item);
+  const value = snapshot.resolution_time || item.resolution_time || item.endDate || "";
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function itemMatchesDateRange(item, range = activeDateRange()) {
+  if (!range) return true;
+  const resolution = resolutionDateForItem(item);
+  if (!resolution) return false;
+  if (range.start && resolution < range.start) return false;
+  if (range.end && resolution > range.end) return false;
+  return true;
 }
 
 function filteredPositions() {
@@ -191,7 +278,7 @@ function filteredPositions() {
   const minPosition = Number(document.getElementById("min-position").value || 0);
   const minUnits = Number(document.getElementById("min-units").value || 0);
   const minPnl = Number(document.getElementById("min-pnl").value || 0);
-  const resolutionDate = document.getElementById("resolution-filter").value;
+  const dateRange = activeDateRange();
   const eventFilter = document.getElementById("event-filter").value;
   const consensusOnly = document.getElementById("consensus-filter").value === "yes";
   const tradeMap = recentTradeMapByPosition();
@@ -205,9 +292,36 @@ function filteredPositions() {
     if (Number(position.position_size_usd || 0) < minPosition) return false;
     if (Number(position.estimated_units || 0) < minUnits) return false;
     if (Number(position.unrealized_pnl || 0) < minPnl) return false;
-    if (resolutionDate && String(position.resolution_time || "").slice(0, 10) > resolutionDate) return false;
+    if (!itemMatchesDateRange(position, dateRange)) return false;
     if (consensusOnly && Number(position.tracked_wallets_same_side || 0) < 2) return false;
     if (eventFilter && tradeMap.get(`${position.wallet_address}::${position.position_key}`) !== eventFilter) return false;
+    return true;
+  });
+}
+
+function filteredTrades() {
+  const search = document.getElementById("search-input").value.trim().toLowerCase();
+  const wallet = document.getElementById("wallet-filter").value;
+  const sport = document.getElementById("sport-filter").value;
+  const league = document.getElementById("league-filter").value;
+  const eventFilter = document.getElementById("event-filter").value;
+  const dateRange = activeDateRange();
+  const trackedAddresses = new Set(state.wallets.map((entry) => String(entry.address || "").toLowerCase()).filter(Boolean));
+  const trackedLabels = new Set(state.wallets.map((entry) => String(entry.label || "").toLowerCase()).filter(Boolean));
+
+  return state.trades.filter((trade) => {
+    const snapshot = tradeSnapshot(trade);
+    const haystack = `${trade.wallet_label} ${trade.market_title} ${trade.outcome}`.toLowerCase();
+    const tradeAddress = String(trade.wallet_address || "").toLowerCase();
+    const tradeLabel = String(trade.wallet_label || "").toLowerCase();
+    if (trackedAddresses.size && tradeAddress && !trackedAddresses.has(tradeAddress)) return false;
+    if (!tradeAddress && trackedLabels.size && !trackedLabels.has(tradeLabel)) return false;
+    if (search && !haystack.includes(search)) return false;
+    if (wallet && trade.wallet_label !== wallet) return false;
+    if (sport && trade.category !== sport) return false;
+    if (league && trade.league !== league) return false;
+    if (eventFilter && trade.event_type !== eventFilter) return false;
+    if (!itemMatchesDateRange(snapshot, dateRange)) return false;
     return true;
   });
 }
@@ -351,6 +465,12 @@ function eventBadge(eventType) {
   };
   const [label, cls] = labels[eventType] || [eventType || "Event", "price-change"];
   return `<span class="event-badge ${cls}">${escapeHtml(label)}</span>`;
+}
+
+function renderFilteredViews() {
+  renderPositions();
+  renderTrades();
+  updateCustomDateFields();
 }
 
 function tradeEventLabel(eventType) {
@@ -602,7 +722,7 @@ function renderTradeDetail(trade) {
 }
 
 function renderTrades() {
-  const trades = state.trades.slice(0, 100);
+  const trades = filteredTrades().slice(0, 100);
   const tradeKeys = trades.map((trade, index) => tradeKey(trade, index));
   if (!tradeKeys.includes(state.selectedTradeKey)) {
     state.selectedTradeKey = tradeKeys[0] || null;
@@ -624,11 +744,11 @@ function renderTrades() {
         <td class="${valueClass((trade.unrealized_pnl || 0) + (trade.realized_pnl || 0))}">${formatMoney((trade.unrealized_pnl || 0) + (trade.realized_pnl || 0))}</td>
       </tr>
     `).join("")
-    : '<tr><td class="empty-row" colspan="7">No recent trades detected yet.</td></tr>';
+    : '<tr><td class="empty-row" colspan="7">No recent trades match the current filters.</td></tr>';
 
   document.getElementById("trades-feed").innerHTML = trades.length
     ? trades.map((trade, index) => renderTradeCard(trade, index, state.selectedTradeKey)).join("")
-    : '<div class="empty-panel">No recent trades detected yet.</div>';
+    : '<div class="empty-panel">No recent trades match the current filters.</div>';
 
   const detailPanel = document.getElementById("trade-detail-panel");
   if (detailPanel) detailPanel.innerHTML = renderTradeDetail(selectedTrade);
@@ -789,8 +909,7 @@ function renderAll() {
   renderStatusChrome(state.status || {});
   syncSelectors();
   renderOverview();
-  renderPositions();
-  renderTrades();
+  renderFilteredViews();
   renderWallets();
   renderUnitAnalysis();
   renderConsensus();
@@ -832,7 +951,14 @@ function clearFilters() {
     const element = document.getElementById(id);
     if (element) element.value = "";
   });
-  renderPositions();
+  renderFilteredViews();
+}
+
+function updateCustomDateFields() {
+  const isCustom = document.getElementById("date-range-filter").value === "custom";
+  document.querySelectorAll(".custom-date-field").forEach((field) => {
+    field.classList.toggle("active", isCustom);
+  });
 }
 
 function updatePauseButton() {
@@ -855,6 +981,10 @@ function applyQuickFilter(action) {
     document.getElementById("consensus-filter").value = "yes";
   }
 
+  if (action === "today" || action === "next24" || action === "next7") {
+    document.getElementById("date-range-filter").value = action;
+  }
+
   if (action === "large") {
     document.getElementById("min-position").value = "1000";
   }
@@ -863,14 +993,14 @@ function applyQuickFilter(action) {
     document.getElementById("min-pnl").value = "1";
   }
 
-  renderPositions();
+  renderFilteredViews();
 }
 
 function bindInteractions() {
   filterIds.forEach((id) => {
     const element = document.getElementById(id);
-    element.addEventListener("input", renderPositions);
-    element.addEventListener("change", renderPositions);
+    element.addEventListener("input", renderFilteredViews);
+    element.addEventListener("change", renderFilteredViews);
   });
 
   document.getElementById("advanced-toggle").addEventListener("click", (event) => {
