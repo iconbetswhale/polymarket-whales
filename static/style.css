@@ -410,6 +410,37 @@ h2 {
   border-top: 1px solid var(--border-soft);
 }
 
+.tracker-admin-password {
+  display: grid;
+  gap: 7px;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.tracker-admin-password input {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  outline: none;
+  background: rgba(4, 12, 16, 0.84);
+  color: var(--text);
+  font-family: var(--font-mono);
+}
+
+.tracker-admin-password input:focus {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 3px rgba(37, 190, 224, 0.1);
+}
+
+.tracker-admin-error {
+  min-height: 18px;
+  margin: 8px 0;
+  color: var(--red);
+  font-size: 11px;
+}
+
 .button,
 .icon-button {
   display: inline-flex;

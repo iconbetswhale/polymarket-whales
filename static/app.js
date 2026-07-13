@@ -1203,16 +1203,31 @@ function renderTrackerDiagnostics(diagnostics = {}) {
     </tr>`).join("") : `<tr><td colspan="8">${emptyState("No rejected Today recommendations", "The latest backend run did not reject any Today candidates for this bankroll.")}</td></tr>`;
 }
 
-async function loadTrackerDiagnostics(promptForLogin = false) {
-  let response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
-  if (response.status === 403 && promptForLogin) {
-    const password = window.prompt("Administrator password");
-    if (!password) return;
-    await fetchJson("/api/admin/login", { method: "POST", body: JSON.stringify({ password }) });
-    response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
+function openTrackerAdminDialog() {
+  const dialog = document.getElementById("tracker-admin-dialog");
+  if (!dialog) return;
+  document.getElementById("tracker-admin-error").textContent = "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  document.getElementById("tracker-admin-password").focus();
+}
+
+function closeTrackerAdminDialog() {
+  const dialog = document.getElementById("tracker-admin-dialog");
+  if (!dialog) return;
+  document.getElementById("tracker-admin-form").reset();
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function loadTrackerDiagnostics(showLogin = false) {
+  const response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
+  if (response.status === 403 && showLogin) {
+    openTrackerAdminDialog();
+    return;
   }
   if (!response.ok) {
-    if (promptForLogin) showToast("Administrator access is required", "error");
+    if (showLogin) showToast("Administrator access is required", "error");
     return;
   }
   const payload = await response.json();
@@ -1267,6 +1282,22 @@ function bindTracker() {
     loadTracker();
   }));
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
+  document.getElementById("tracker-admin-form")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const error = document.getElementById("tracker-admin-error");
+    try {
+      await fetchJson("/api/admin/login", { method: "POST", body: JSON.stringify({ password: document.getElementById("tracker-admin-password").value }) });
+      closeTrackerAdminDialog();
+      await loadTrackerDiagnostics();
+    } catch (requestError) {
+      error.textContent = requestError.message;
+    }
+  });
+  document.getElementById("tracker-admin-close")?.addEventListener("click", closeTrackerAdminDialog);
+  document.getElementById("tracker-admin-dismiss")?.addEventListener("click", closeTrackerAdminDialog);
+  document.getElementById("tracker-admin-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeTrackerAdminDialog();
+  });
   document.getElementById("tracker-reconcile")?.addEventListener("click", async () => {
     const button = document.getElementById("tracker-reconcile");
     button.disabled = true;

@@ -160,6 +160,8 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert 'id="tracker-reconcile"' in html
     assert 'id="tracker-pause-job"' in html
     assert 'id="tracker-rejection-body"' in html
+    assert 'id="tracker-admin-form"' in html
+    assert 'id="tracker-admin-password"' in html
     assert "/static/app.js?v=local" in html
     assert "/static/style.css?v=local" in html
 

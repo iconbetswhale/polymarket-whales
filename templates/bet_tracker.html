@@ -18,4 +18,17 @@
   <select id="tracker-result" aria-label="Result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option></select>
 </section>
 <section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Bankroll</th></tr></thead><tbody id="tracker-body"></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
+<dialog class="tracker-dialog" id="tracker-admin-dialog" aria-labelledby="tracker-admin-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="tracker-admin-close" type="button" aria-label="Close administrator sign in"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">RESTRICTED ACCESS</p>
+    <h2 id="tracker-admin-title">Administrator sign in</h2>
+    <p class="tracker-dialog-note">Authenticate to reconcile Today recommendations, inspect rejection reasons, or pause the backend worker.</p>
+    <form id="tracker-admin-form">
+      <label class="tracker-admin-password">Administrator password<input id="tracker-admin-password" type="password" autocomplete="current-password" required></label>
+      <p class="tracker-admin-error" id="tracker-admin-error" role="alert" aria-live="polite"></p>
+      <div class="tracker-dialog-actions"><button class="button ghost" id="tracker-admin-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-lock-key-open" aria-hidden="true"></i>Open diagnostics</button></div>
+    </form>
+  </div>
+</dialog>
 {% endblock %}
