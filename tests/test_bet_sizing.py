@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import pytest
 
-from bet_sizing import build_recommendation, volume_weighted_entry
+from bet_sizing import (
+    build_recommendation,
+    calculate_evidence_score,
+    volume_weighted_entry,
+)
 
 
 def _play(*, entry=0.5, sharps=3, tracked=7, evidence=1.0):
@@ -48,6 +52,36 @@ def test_weak_evidence_produces_zero_kelly_and_no_forced_bet():
     assert recommendation["recommended_amount"] == 0
 
 
+def test_one_verified_sharp_is_neutral_before_other_real_evidence():
+    play = _play(sharps=1, tracked=7, evidence=0.5)
+
+    evidence = calculate_evidence_score(play)
+    recommendation = build_recommendation(play, 10000)
+
+    assert evidence["components"]["sharps_consensus"] == pytest.approx(0.5)
+    assert evidence["score"] == pytest.approx(0.5)
+    assert recommendation["evidence_adjustment"] == 0
+
+
+def test_realistic_one_sharp_evidence_produces_bounded_positive_size():
+    play = _play(entry=0.469, sharps=1, tracked=7)
+    play["evidence_inputs"] = {
+        "combined_amount": 0.754529,
+        "relative_size": 0.398361,
+        "top_category": None,
+        "adjusted_category_hit_rate": 0.518868,
+        "category_sample_size": 0.313018,
+    }
+
+    recommendation = build_recommendation(play, 10000)
+
+    assert recommendation["recommendation_version"] == "v2"
+    assert recommendation["evidence_score"] > 0.5
+    assert 0 < recommendation["evidence_adjustment"] <= 0.02
+    assert recommendation["estimated_win_probability"] > 0.469
+    assert recommendation["recommended_amount"] > 0
+
+
 def test_half_kelly_and_three_sharp_cap_are_applied():
     recommendation = build_recommendation(
         _play(entry=0.5, sharps=3, evidence=1.0), 10000
@@ -83,7 +117,7 @@ def test_missing_orderbook_never_creates_fake_recommendation():
 
 
 def test_bet_below_clob_minimum_is_not_recommended():
-    play = _play(entry=0.94, sharps=1, evidence=0.741)
+    play = _play(entry=0.94, sharps=1, evidence=0.501)
     play["orderbook"]["min_order_size"] = "5"
 
     recommendation = build_recommendation(play, 10000)

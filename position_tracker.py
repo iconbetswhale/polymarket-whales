@@ -10,6 +10,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 from classification import classify_market, is_sports_category
 from bet_sizing import SizingConfig, build_recommendation
@@ -40,6 +41,18 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value or default)
     except (TypeError, ValueError):
         return default
+
+
+def polymarket_market_url(event_slug: Any, market_slug: Any = None) -> str:
+    event_value = str(event_slug or "").strip()
+    market_value = str(market_slug or "").strip()
+    if not event_value and not market_value:
+        return ""
+    event_value = event_value or market_value
+    url = f"https://polymarket.com/event/{quote(event_value, safe='-')}"
+    if market_value and market_value != event_value:
+        url += f"/{quote(market_value, safe='-')}"
+    return url
 
 
 def american_odds_from_probability(price: float | None) -> str:
@@ -720,7 +733,9 @@ class TrackerService:
                     ),
                 )[0]
             for category, metric in categories.items():
-                metric["is_top_category"] = category == top_category
+                metric["is_top_category"] = (
+                    None if top_category is None else category == top_category
+                )
             output[wallet_address.lower()] = {
                 "top_category": top_category,
                 "categories": categories,
@@ -788,10 +803,9 @@ class TrackerService:
                 if cash_pnl
                 else current_value - remaining_entry_value
             )
-            market_url = (
-                f"https://polymarket.com/event/{position.get('eventSlug')}"
-                if position.get("eventSlug")
-                else ""
+            market_url = polymarket_market_url(
+                position.get("eventSlug"),
+                position.get("slug") or market.get("slug"),
             )
             resolution_time, event_time_source = event_start_time(
                 position, event, market

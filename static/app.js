@@ -156,7 +156,7 @@ function metricCard(label, value, detail, icon) {
 function recommendationLabel(recommendation) {
   if (!recommendation?.available) return "Sizing unavailable";
   if (!(number(recommendation.final_recommended_fraction) > 0)) return "No bet at current entry";
-  return `${formatMoney(recommendation.recommended_amount)} · ${formatUnits(recommendation.recommended_units)}`;
+  return `${formatMoney(recommendation.recommended_amount)} · ${formatUnits(recommendation.recommended_units)} · ${formatPercent(recommendation.final_recommended_fraction, 2)}`;
 }
 
 function confidenceClass(score) {
@@ -280,7 +280,7 @@ function tradeCard(trade) {
   const slippageText = slippage === null ? "n/a" : `${slippage > 0 ? "+" : ""}${(slippage * 100).toFixed(1)}¢`;
   const primary = trade.primary_trader || {};
   return `
-    <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}">
+    <article class="trade-card ${selected ? "selected" : ""}" role="button" tabindex="0" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}">
       <span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Score</small></span>
       <span class="trade-card-main">
         <span class="trade-chip-row">
@@ -295,11 +295,14 @@ function tradeCard(trade) {
         <span class="trade-selection">
           <span><small>Pick</small><strong>${escapeHtml(trade.outcome)}</strong></span>
           <span><small>Recommended</small><strong>${escapeHtml(recommendationLabel(recommendation))}</strong></span>
-          <span class="price-pill"><small>Current</small><strong>${formatCents(recommendation.current_user_entry_price)}</strong></span>
+          <a class="price-pill polymarket-price-link" href="${escapeHtml(trade.market_url || "#")}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on Polymarket at ${escapeHtml(formatCents(recommendation.current_user_entry_price))}">
+            <img src="https://polymarket.com/icons/favicon-32x32.png" alt="" aria-hidden="true" width="18" height="18">
+            <strong>${formatCents(recommendation.current_user_entry_price)}</strong>
+          </a>
         </span>
       </span>
       <i class="ph ph-caret-right trade-caret" aria-hidden="true"></i>
-    </button>
+    </article>
   `;
 }
 
@@ -322,7 +325,7 @@ function whySizing(recommendation, trade) {
     ["Full Kelly", formatPercent(recommendation.full_kelly_fraction)],
     ["Half Kelly", formatPercent(recommendation.half_kelly_fraction)],
     ["Sharp Risk Cap", formatPercent(recommendation.sharp_risk_cap)],
-    ["Final Recommendation", formatPercent(recommendation.final_recommended_fraction)],
+    ["Final Recommendation", formatPercent(recommendation.final_recommended_fraction, 2)],
     ["Bankroll", formatMoney(recommendation.bankroll)],
     ["Recommended Bet", formatMoney(recommendation.recommended_amount)],
     ["Recommended Units", formatUnits(recommendation.recommended_units)],
@@ -367,7 +370,7 @@ function renderTradeDetail(trade) {
       ${detailMetric("Baseline Probability", formatPercent(recommendation.baseline_probability), "Exact current user entry")}
       ${detailMetric("Estimated Win", formatPercent(recommendation.estimated_win_probability), "After bounded Sharp evidence")}
       ${detailMetric("Half Kelly", formatPercent(recommendation.half_kelly_fraction), "Before risk caps")}
-      ${detailMetric("Final Stake", formatPercent(recommendation.final_recommended_fraction), "Percentage frozen in tracker", recommendation.final_recommended_fraction > 0 ? "positive" : "")}
+      ${detailMetric("Final Stake", formatPercent(recommendation.final_recommended_fraction, 2), "Percentage frozen in tracker", recommendation.final_recommended_fraction > 0 ? "positive" : "")}
     </div>
     ${whySizing(recommendation, trade)}
     <section class="detail-section">
@@ -502,7 +505,17 @@ async function loadTrades() {
       appState.selectedTradeId = appState.trades.some((trade) => trade.id === selectedParam) ? selectedParam : appState.trades[0].id;
     }
     list.innerHTML = appState.trades.map(tradeCard).join("");
-    list.querySelectorAll(".trade-card").forEach((card) => card.addEventListener("click", () => selectTrade(card.dataset.tradeId, true)));
+    list.querySelectorAll(".trade-card").forEach((card) => {
+      card.addEventListener("click", (event) => {
+        if (event.target.closest("a")) return;
+        selectTrade(card.dataset.tradeId, true);
+      });
+      card.addEventListener("keydown", (event) => {
+        if (event.target.closest("a") || !["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        selectTrade(card.dataset.tradeId, true);
+      });
+    });
     selectTrade(appState.selectedTradeId);
     if (payload.bankroll) {
       document.getElementById("bankroll-input").value = Number(payload.bankroll.starting_bankroll).toFixed(0);

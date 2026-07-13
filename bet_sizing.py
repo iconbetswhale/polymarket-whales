@@ -15,7 +15,10 @@ class SizingConfig:
     top_category_weight: float = 0.08
     category_hit_rate_weight: float = 0.08
     category_sample_weight: float = 0.04
-    recommendation_version: str = "v1"
+    consensus_count_target: int = 4
+    consensus_count_weight: float = 0.60
+    consensus_percentage_weight: float = 0.40
+    recommendation_version: str = "v2"
 
 
 DEFAULT_SIZING_CONFIG = SizingConfig()
@@ -68,9 +71,21 @@ def calculate_evidence_score(
     inputs = play.get("evidence_inputs") or {}
     sharps = max(1, int(play.get("agreeing_wallet_count") or 1))
     tracked = max(sharps, int(play.get("tracked_wallet_count") or sharps))
-    count_score = clamp(sharps / 4.0, 0.0, 1.0)
-    percentage_score = clamp(sharps / tracked, 0.0, 1.0)
-    consensus = (count_score * 0.60) + (percentage_score * 0.40)
+    additional_sharps = max(0, sharps - 1)
+    count_target = max(2, int(config.consensus_count_target))
+    count_strength = clamp(additional_sharps / (count_target - 1), 0.0, 1.0)
+    percentage_strength = clamp(additional_sharps / max(1, tracked - 1), 0.0, 1.0)
+    unanimous = sharps == tracked
+    consensus = (
+        1.0
+        if unanimous
+        else 0.5
+        + 0.5
+        * (
+            count_strength * config.consensus_count_weight
+            + percentage_strength * config.consensus_percentage_weight
+        )
+    )
 
     components = {
         "sharps_consensus": consensus,
@@ -95,7 +110,15 @@ def calculate_evidence_score(
         "score": clamp(score, 0.0, 1.0),
         "components": components,
         "weights": weights,
-        "formula": "sum(component * configured_weight)",
+        "consensus_details": {
+            "agreeing_sharps": sharps,
+            "tracked_wallets": tracked,
+            "count_strength": count_strength,
+            "percentage_strength": percentage_strength,
+            "component": consensus,
+            "unanimous": unanimous,
+        },
+        "formula": "sum(component * configured_weight); one verified Sharp is neutral, additional agreement increases the consensus component",
     }
 
 
@@ -297,6 +320,7 @@ def build_recommendation(
         "evidence_score": evidence["score"],
         "evidence_components": evidence["components"],
         "evidence_weights": evidence["weights"],
+        "consensus_details": evidence["consensus_details"],
         "evidence_strength": evidence_strength,
         "evidence_adjustment": evidence_adjustment,
         "maximum_adjustment": adjustment_cap,

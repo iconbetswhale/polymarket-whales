@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from market_lifecycle import classify_lifecycle
-from position_tracker import TrackerService
+from position_tracker import TrackerService, polymarket_market_url
 
 
 NOW = datetime(2026, 7, 13, 12, 0, tzinfo=timezone.utc)
@@ -114,3 +114,33 @@ def test_completed_positions_are_not_counted_as_active():
         )
         is False
     )
+
+
+def test_polymarket_link_targets_the_exact_child_market():
+    assert polymarket_market_url("event-slug", "market-slug") == (
+        "https://polymarket.com/event/event-slug/market-slug"
+    )
+    assert polymarket_market_url("single-market", "single-market") == (
+        "https://polymarket.com/event/single-market"
+    )
+
+
+def test_unproven_top_category_remains_missing_instead_of_negative():
+    service = object.__new__(TrackerService)
+    metrics = service._build_category_metrics(
+        {
+            "0xwallet": [
+                {
+                    "eventSlug": "sample-event",
+                    "title": "Sample sports market",
+                    "curPrice": 1,
+                    "realizedPnl": 25,
+                }
+            ]
+        },
+        {},
+    )
+
+    category = next(iter(metrics["0xwallet"]["categories"].values()))
+    assert metrics["0xwallet"]["top_category"] is None
+    assert category["is_top_category"] is None
