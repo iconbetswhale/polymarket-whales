@@ -8,13 +8,12 @@ from statistics import median
 from typing import Any
 from zoneinfo import ZoneInfo
 
-CONFIDENCE_WEIGHTS = {
-    "sharps": 35,
-    "combined_amount": 25,
-    "relative_size": 18,
-    "trader_sample": 10,
-    "hit_rate": 8,
-    "slippage": 4,
+SECONDARY_SCORE_WEIGHTS = {
+    "combined_amount": 0.35,
+    "relative_size": 0.30,
+    "trader_history": 0.20,
+    "adjusted_hit_rate": 0.10,
+    "slippage": 0.05,
 }
 
 
@@ -111,16 +110,142 @@ def _percentile(values: list[float], percentile: float) -> float:
     return ordered[lower] + (ordered[upper] - ordered[lower]) * (index - lower)
 
 
-def _curve(value: float, denominator: float, weight: int) -> float:
+def _curve(value: float, denominator: float, weight: float = 1.0) -> float:
     if denominator <= 0:
         return 0.0
     return max(0.0, min(1.0, value / denominator)) * weight
 
 
-def _log_score(value: float, benchmark: float, weight: int) -> float:
+def _log_score(value: float, benchmark: float, weight: float = 1.0) -> float:
     if value <= 0 or benchmark <= 0:
         return 0.0
     return max(0.0, min(1.0, math.log1p(value) / math.log1p(benchmark))) * weight
+
+
+def _slippage_quality(slippage: float) -> float:
+    if slippage <= 0:
+        return 1.0
+    return max(0.0, min(1.0, 1 - slippage / 0.15))
+
+
+def _consensus_band(wallet_count: int, tracked_wallet_count: int | None) -> dict[str, Any]:
+    if tracked_wallet_count and wallet_count == tracked_wallet_count:
+        return {
+            "name": "Complete tracked-wallet agreement",
+            "start": 100,
+            "end": 100,
+            "floor": 100,
+            "is_unanimous": True,
+            "description": "Every enabled tracked wallet has an active position on this exact side.",
+        }
+    if wallet_count <= 1:
+        return {
+            "name": "1 Sharp",
+            "start": 50,
+            "end": 69,
+            "floor": 50,
+            "is_unanimous": False,
+            "description": "1 Sharp qualified for the 50-69 range.",
+        }
+    if wallet_count == 2:
+        return {
+            "name": "2 Sharps",
+            "start": 70,
+            "end": 79,
+            "floor": 70,
+            "is_unanimous": False,
+            "description": "2 Sharps qualified for the 70-79 range.",
+        }
+
+    consensus_bonus = 0
+    if tracked_wallet_count and tracked_wallet_count > 3:
+        raw_progress = max(0.0, min(1.0, (wallet_count - 3) / (tracked_wallet_count - 3)))
+        pct_progress = max(0.0, min(1.0, wallet_count / tracked_wallet_count))
+        consensus_bonus = round((raw_progress * 0.6 + pct_progress * 0.4) * 8)
+    floor = min(94, 80 + consensus_bonus)
+    return {
+        "name": "3+ Sharps",
+        "start": 80,
+        "end": 99,
+        "floor": floor,
+        "is_unanimous": False,
+        "description": f"{wallet_count} Sharps qualified for the 80-99 range.",
+    }
+
+
+def _weighted_hit_rate(group: list[dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]) -> float:
+    total_samples = 0
+    weighted_rate = 0.0
+    for position in group:
+        sample = _sample_size(position, events_by_wallet)
+        rate = _adjusted_hit_rate(position, sample)
+        total_samples += sample
+        weighted_rate += rate * sample
+    return weighted_rate / total_samples if total_samples > 0 else 0.5
+
+
+def _confidence_score(
+    *,
+    wallet_count: int,
+    tracked_wallet_count: int | None,
+    total_amount: float,
+    amount_benchmark: float,
+    primary_units: float,
+    strongest_units: float,
+    average_units: float,
+    sample_size: int,
+    adjusted_hit_rate: float,
+    group_hit_rate: float,
+    slippage: float,
+) -> tuple[int, dict[str, Any]]:
+    band = _consensus_band(wallet_count, tracked_wallet_count)
+    if band["is_unanimous"]:
+        return 100, {
+            "architecture": "consensus_first",
+            "consensus_band": band["name"],
+            "band_start": 100,
+            "band_end": 100,
+            "consensus_floor": 100,
+            "available_secondary_points": 0,
+            "secondary_points": 0,
+            "secondary_quality": 1.0,
+            "combined_amount": 1.0,
+            "relative_size": 1.0,
+            "trader_history": 1.0,
+            "adjusted_hit_rate": 1.0,
+            "slippage": 1.0,
+            "explanation": "Complete tracked-wallet agreement. Every enabled tracked wallet has an active position on this exact side.",
+        }
+
+    conviction_units = (primary_units * 0.40) + (min(strongest_units, 10) * 0.35) + (min(average_units, 10) * 0.25)
+    hit_rate_quality = _curve(max(((adjusted_hit_rate * 0.7) + (group_hit_rate * 0.3)) - 0.5, 0), 0.15)
+    components = {
+        "combined_amount": _log_score(total_amount, amount_benchmark),
+        "relative_size": _log_score(conviction_units, 5),
+        "trader_history": _log_score(sample_size, 1000),
+        "adjusted_hit_rate": hit_rate_quality,
+        "slippage": _slippage_quality(slippage),
+    }
+    secondary_quality = sum(components[key] * SECONDARY_SCORE_WEIGHTS[key] for key in SECONDARY_SCORE_WEIGHTS)
+    available_points = max(0, band["end"] - band["floor"])
+    secondary_points = round(secondary_quality * available_points)
+    score = min(band["end"], band["floor"] + secondary_points)
+    return score, {
+        "architecture": "consensus_first",
+        "consensus_band": band["name"],
+        "band_start": band["start"],
+        "band_end": band["end"],
+        "consensus_floor": band["floor"],
+        "available_secondary_points": available_points,
+        "secondary_points": secondary_points,
+        "secondary_quality": round(secondary_quality, 4),
+        "combined_amount": round(components["combined_amount"], 4),
+        "relative_size": round(components["relative_size"], 4),
+        "trader_history": round(components["trader_history"], 4),
+        "adjusted_hit_rate": round(components["adjusted_hit_rate"], 4),
+        "slippage": round(components["slippage"], 4),
+        "explanation": f"{band['description']} Secondary metrics placed it at {score} within that consensus range.",
+    }
 
 
 def _trader_stat(position: dict[str, Any], field: str) -> Any:
@@ -326,6 +451,7 @@ def build_trades_to_play(
     trades: list[dict[str, Any]] | None = None,
     unit_map: dict[str, dict[str, Any]] | None = None,
     now: datetime | None = None,
+    tracked_wallet_count: int | None = None,
 ) -> list[dict[str, Any]]:
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -361,26 +487,26 @@ def build_trades_to_play(
         total_amount = sum(_safe_float(position.get("position_size_usd")) for position in group)
         primary = _primary_position(group, unit_map, events_by_wallet)
         strongest_units = max((_relative_units(position, unit_map, events_by_wallet) or 0) for position in group)
+        primary_units = _relative_units(primary, unit_map, events_by_wallet) or 0
+        average_units = sum((_relative_units(position, unit_map, events_by_wallet) or 0) for position in group) / len(group)
         sample_size = _sample_size(primary, events_by_wallet)
         adjusted_hit_rate = _adjusted_hit_rate(primary, sample_size)
+        group_hit_rate = _weighted_hit_rate(group, events_by_wallet)
         slippage = _slippage(primary)
 
-        sharps_points = (1 - math.exp(-max(wallet_count - 1, 0) / 1.35)) / (1 - math.exp(-4 / 1.35)) * CONFIDENCE_WEIGHTS["sharps"]
-        amount_points = _log_score(total_amount, amount_benchmark, CONFIDENCE_WEIGHTS["combined_amount"])
-        relative_points = _log_score(strongest_units, 5, CONFIDENCE_WEIGHTS["relative_size"])
-        sample_points = _log_score(sample_size, 1000, CONFIDENCE_WEIGHTS["trader_sample"])
-        hit_points = _curve(max(adjusted_hit_rate - 0.5, 0), 0.15, CONFIDENCE_WEIGHTS["hit_rate"])
-        slippage_points = max(0.0, min(1.0, 1 - max(slippage, 0) / 0.15)) * CONFIDENCE_WEIGHTS["slippage"]
-
-        breakdown = {
-            "sharps_consensus": round(sharps_points, 1),
-            "combined_amount": round(amount_points, 1),
-            "relative_size": round(relative_points, 1),
-            "trader_history": round(sample_points, 1),
-            "adjusted_hit_rate": round(hit_points, 1),
-            "slippage": round(slippage_points, 1),
-        }
-        confidence = round(sum(breakdown.values()))
+        confidence, breakdown = _confidence_score(
+            wallet_count=wallet_count,
+            tracked_wallet_count=tracked_wallet_count,
+            total_amount=total_amount,
+            amount_benchmark=amount_benchmark,
+            primary_units=primary_units,
+            strongest_units=strongest_units,
+            average_units=average_units,
+            sample_size=sample_size,
+            adjusted_hit_rate=adjusted_hit_rate,
+            group_hit_rate=group_hit_rate,
+            slippage=slippage,
+        )
         canonical = canonical_side(primary)
         event_time = _format_event_time(primary.get("resolution_time"))
         supporters = sorted(
@@ -416,9 +542,10 @@ def build_trades_to_play(
                     "event_time_source": primary.get("event_time_source") or "unknown",
                     "wallet_addresses": sorted(unique_wallets),
                 },
-                "confidence_score": max(0, min(100, confidence)),
+                "confidence_score": confidence,
                 "score_breakdown": breakdown,
-                "score_weights": CONFIDENCE_WEIGHTS,
+                "score_weights": SECONDARY_SCORE_WEIGHTS,
+                "tracked_wallet_count": tracked_wallet_count,
                 "sharps_badge": sharps_badge(wallet_count),
                 "agreeing_wallet_count": wallet_count,
                 "market_title": primary.get("market_title"),

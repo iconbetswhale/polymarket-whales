@@ -703,6 +703,24 @@ function scoreLine(label, value, maxValue) {
   `;
 }
 
+function scoreTextLine(label, value) {
+  return `
+    <div>
+      <span>${escapeHtml(label)}</span>
+      <strong>${escapeHtml(value ?? "n/a")}</strong>
+    </div>
+  `;
+}
+
+function qualityLabel(value) {
+  const numeric = numberOrNull(value);
+  if (numeric === null) return "n/a";
+  if (numeric >= 0.8) return "strong";
+  if (numeric >= 0.55) return "above avg";
+  if (numeric >= 0.3) return "average";
+  return "light";
+}
+
 const traderStats = {
   "1winstreak1": {
     topCategory: "MLB",
@@ -842,14 +860,17 @@ function renderTradeDetail(trade) {
     <details class="score-breakdown">
       <summary>Why this score?</summary>
       <div class="score-breakdown-grid">
-        ${scoreLine("Sharps consensus", breakdown.sharps_consensus, weights.sharps)}
-        ${scoreLine("Combined amount", breakdown.combined_amount, weights.combined_amount)}
-        ${scoreLine("Relative size", breakdown.relative_size, weights.relative_size)}
-        ${scoreLine("Trader history", breakdown.trader_history, weights.trader_sample)}
-        ${scoreLine("Adjusted hit rate", breakdown.adjusted_hit_rate, weights.hit_rate)}
-        ${scoreLine("Slippage", breakdown.slippage, weights.slippage)}
-        ${scoreLine("Total", trade.confidence_score, 100)}
+        ${scoreTextLine("Consensus band", `${breakdown.consensus_band || "n/a"} / ${breakdown.band_start ?? "?"}-${breakdown.band_end ?? "?"}`)}
+        ${scoreTextLine("Consensus floor", breakdown.consensus_floor)}
+        ${scoreTextLine("Secondary points", `${breakdown.secondary_points ?? 0}/${breakdown.available_secondary_points ?? 0}`)}
+        ${scoreTextLine("Combined amount", `${qualityLabel(breakdown.combined_amount)} / ${Math.round((weights.combined_amount || 0) * 100)}% weight`)}
+        ${scoreTextLine("Relative size", `${qualityLabel(breakdown.relative_size)} / ${Math.round((weights.relative_size || 0) * 100)}% weight`)}
+        ${scoreTextLine("Trader history", `${qualityLabel(breakdown.trader_history)} / ${Math.round((weights.trader_history || 0) * 100)}% weight`)}
+        ${scoreTextLine("Adjusted hit rate", `${qualityLabel(breakdown.adjusted_hit_rate)} / ${Math.round((weights.adjusted_hit_rate || 0) * 100)}% weight`)}
+        ${scoreTextLine("Slippage", `${qualityLabel(breakdown.slippage)} / ${Math.round((weights.slippage || 0) * 100)}% weight`)}
+        ${scoreLine("Final score", trade.confidence_score, 100)}
       </div>
+      <p>${escapeHtml(breakdown.explanation || "Consensus selected the score band first; secondary metrics placed the trade inside that range.")}</p>
     </details>
 
     <details class="supporter-breakdown">

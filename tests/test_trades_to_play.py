@@ -102,8 +102,8 @@ def test_confidence_score_breakdown_and_sorting():
     plays = build_trades_to_play(positions, unit_map={"0xb": {"estimated_base_unit": 500}, "0xc": {"estimated_base_unit": 500}}, now=_now())
 
     assert plays[0]["canonical_market_key"] == "0xbig"
-    assert 0 <= plays[0]["confidence_score"] <= 100
-    assert "sharps_consensus" in plays[0]["score_breakdown"]
+    assert 50 <= plays[0]["confidence_score"] <= 100
+    assert plays[0]["score_breakdown"]["architecture"] == "consensus_first"
     assert plays[0]["confidence_score"] >= plays[-1]["confidence_score"]
 
 
@@ -241,3 +241,81 @@ def test_rescheduled_event_uses_updated_start_time():
 
     assert tomorrow == []
     assert custom == plays
+
+
+def test_one_sharp_score_stays_in_one_sharp_band_even_with_strong_metrics():
+    position = _position("0xa", "A", amount=100000, current=0.4, avg=0.4)
+    plays = build_trades_to_play([position], unit_map=_unit_map("0xa", base=1000), tracked_wallet_count=5, now=_now())
+
+    assert len(plays) == 1
+    assert 50 <= plays[0]["confidence_score"] <= 69
+    assert plays[0]["score_breakdown"]["band_start"] == 50
+    assert plays[0]["score_breakdown"]["band_end"] == 69
+
+
+def test_two_sharp_score_stays_in_two_sharp_band_even_with_strong_metrics():
+    positions = [
+        _position("0xa", "A", amount=100000, current=0.4, avg=0.4),
+        _position("0xb", "B", amount=90000, current=0.4, avg=0.4),
+    ]
+    plays = build_trades_to_play(positions, unit_map=_unit_map("0xa", "0xb", base=1000), tracked_wallet_count=5, now=_now())
+
+    assert len(plays) == 1
+    assert 70 <= plays[0]["confidence_score"] <= 79
+    assert plays[0]["score_breakdown"]["band_start"] == 70
+    assert plays[0]["score_breakdown"]["band_end"] == 79
+
+
+def test_three_or_more_sharps_start_at_eighty():
+    positions = [
+        _position("0xa", "A", amount=201),
+        _position("0xb", "B", amount=202),
+        _position("0xc", "C", amount=203),
+    ]
+    plays = build_trades_to_play(positions, unit_map=_unit_map("0xa", "0xb", "0xc"), tracked_wallet_count=5, now=_now())
+
+    assert len(plays) == 1
+    assert 80 <= plays[0]["confidence_score"] <= 99
+    assert plays[0]["score_breakdown"]["band_start"] == 80
+    assert plays[0]["score_breakdown"]["band_end"] == 99
+
+
+def test_every_enabled_wallet_agreeing_scores_exactly_one_hundred():
+    positions = [
+        _position("0xa", "A", amount=500),
+        _position("0xb", "B", amount=600),
+        _position("0xc", "C", amount=700),
+    ]
+    plays = build_trades_to_play(positions, unit_map=_unit_map("0xa", "0xb", "0xc"), tracked_wallet_count=3, now=_now())
+
+    assert len(plays) == 1
+    assert plays[0]["confidence_score"] == 100
+    assert plays[0]["score_breakdown"]["consensus_band"] == "Complete tracked-wallet agreement"
+
+
+def test_missing_wallet_prevents_one_hundred_and_opposing_wallet_excludes_trade():
+    non_unanimous = [
+        _position("0xa", "A", amount=500),
+        _position("0xb", "B", amount=600),
+    ]
+    plays = build_trades_to_play(non_unanimous, unit_map=_unit_map("0xa", "0xb"), tracked_wallet_count=3, now=_now())
+    assert len(plays) == 1
+    assert plays[0]["confidence_score"] < 100
+
+    opposing = non_unanimous + [_position("0xc", "C", outcome="Red Sox", amount=700)]
+    assert build_trades_to_play(opposing, unit_map=_unit_map("0xa", "0xb", "0xc"), tracked_wallet_count=3, now=_now()) == []
+
+
+def test_duplicate_and_inactive_wallets_do_not_create_unanimity():
+    positions = [
+        _position("0xa", "A", amount=500, last_changed_at="2026-07-13T00:10:00+00:00"),
+        _position("0xa", "A", amount=600, last_changed_at="2026-07-13T00:20:00+00:00"),
+        _position("0xb", "B", amount=700),
+        _position("0xc", "C", amount=0),
+        _position("0xd", "D", status="closed"),
+    ]
+    plays = build_trades_to_play(positions, unit_map=_unit_map("0xa", "0xb", "0xc", "0xd"), tracked_wallet_count=3, now=_now())
+
+    assert len(plays) == 1
+    assert plays[0]["agreeing_wallet_count"] == 2
+    assert 70 <= plays[0]["confidence_score"] <= 79

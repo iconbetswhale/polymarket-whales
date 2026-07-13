@@ -282,7 +282,7 @@ class TrackerService:
             for entry in consensus
         }
         positions = self._enrich_positions(current_rows, trades, unit_map, consensus_map)
-        trades_to_play = build_trades_to_play(positions, trades, unit_map)
+        trades_to_play = build_trades_to_play(positions, trades, unit_map, tracked_wallet_count=len(loader.enabled_wallets))
         overview = self._build_overview(positions, trades, consensus, status)
 
         success_time = _iso_now()
