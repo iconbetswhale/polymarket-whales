@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+import threading
 
 from flask import Flask, jsonify, render_template, request
 
 from config import get_settings
 from position_tracker import TrackerService
+from trade_scoring import filter_trades_to_play
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -16,12 +18,22 @@ def create_app(start_background: bool = True) -> Flask:
 
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
+    app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
 
     @app.before_request
     def ensure_tracker_started():
-        if start_background:
-            tracker.start()
+        if not start_background or app.extensions.get("tracker_starting") or tracker._started:
+            return
+
+        def start_tracker() -> None:
+            try:
+                tracker.start()
+            finally:
+                app.extensions["tracker_starting"] = False
+
+        app.extensions["tracker_starting"] = True
+        threading.Thread(target=start_tracker, name="tracker-startup", daemon=True).start()
 
     @app.route("/")
     def index():
@@ -72,7 +84,35 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/trades-to-play")
     def api_trades_to_play():
         snapshot = tracker.get_snapshot()
-        return jsonify({"data": snapshot.get("trades_to_play", []), "status": snapshot["status"]})
+        page = max(request.args.get("page", 1, type=int) or 1, 1)
+        per_page = min(max(request.args.get("per_page", 100, type=int) or 100, 1), 100)
+        filtered = filter_trades_to_play(
+            snapshot.get("trades_to_play", []),
+            search=request.args.get("q", ""),
+            min_sharps=max(request.args.get("min_sharps", 0, type=int) or 0, 0),
+            date_range=request.args.get("date_range", ""),
+            custom_start=request.args.get("custom_start"),
+            custom_end=request.args.get("custom_end"),
+            min_confidence=max(request.args.get("min_confidence", 0, type=int) or 0, 0),
+            sport=request.args.get("sport", ""),
+            league=request.args.get("league", ""),
+            wallet=request.args.get("wallet", ""),
+        )
+        start = (page - 1) * per_page
+        end = start + per_page
+        return jsonify(
+            {
+                "data": filtered[start:end],
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": len(filtered),
+                    "has_next": end < len(filtered),
+                    "has_prev": page > 1,
+                },
+                "status": snapshot["status"],
+            }
+        )
 
     @app.route("/api/history")
     def api_history():
@@ -97,6 +137,5 @@ app = create_app(start_background=True)
 
 
 if __name__ == "__main__":
-    app.extensions["tracker_service"].start()
     settings = get_settings()
     app.run(host="0.0.0.0", port=settings.dashboard_port, debug=False)

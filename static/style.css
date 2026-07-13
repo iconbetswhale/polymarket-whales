@@ -1819,6 +1819,14 @@ body::before {
   color: var(--terminal-text);
 }
 
+.supporter-list small {
+  display: block;
+  margin-top: 3px;
+  color: #81919b;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
 .trade-range-bar .text-button {
   min-height: 42px;
 }

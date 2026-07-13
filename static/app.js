@@ -9,9 +9,11 @@ const state = {
   autoRefreshPaused: false,
   selectedTradeKey: null,
   lastDashboardCheck: null,
+  tradePagination: null,
 };
 
 const AUTO_REFRESH_MS = 15000;
+let tradeSearchTimer = null;
 
 const filterIds = [
   "search-input",
@@ -24,6 +26,10 @@ const filterIds = [
   "date-range-filter",
   "custom-start-date",
   "custom-end-date",
+  "sharps-filter",
+  "sharps-filter-advanced",
+  "min-confidence",
+  "min-confidence-advanced",
   "event-filter",
   "consensus-filter",
 ];
@@ -44,6 +50,12 @@ function formatMoney(value) {
 
 function formatPercent(value) {
   return `${Number(value || 0).toFixed(2)}%`;
+}
+
+function formatUnitsValue(value) {
+  const numeric = numberOrNull(value);
+  if (numeric === null) return "n/a";
+  return `${numeric.toFixed(numeric >= 10 ? 2 : 3)}u`;
 }
 
 function formatDate(value) {
@@ -175,7 +187,8 @@ function recentTradeMapByPosition() {
 
 function activeFilterCount() {
   const dateRangeMode = document.getElementById("date-range-filter").value;
-  return filterIds.reduce((count, id) => {
+  const countedIds = filterIds.filter((id) => !["sharps-filter-advanced", "min-confidence-advanced"].includes(id));
+  return countedIds.reduce((count, id) => {
     const element = document.getElementById(id);
     if ((id === "custom-start-date" || id === "custom-end-date") && dateRangeMode !== "custom") {
       return count;
@@ -193,8 +206,9 @@ function updateActiveFilterCount() {
     const isActive = (
       (action === "clear" && count === 0) ||
       (action === "today" && dateRange === "today") ||
+      (action === "tomorrow" && dateRange === "tomorrow") ||
       (action === "next24" && dateRange === "next24") ||
-      (action === "next7" && dateRange === "next7") ||
+      (action === "next48" && dateRange === "next48") ||
       (action === "consensus" && document.getElementById("consensus-filter").value === "yes") ||
       (action === "large" && document.getElementById("min-position").value === "1000") ||
       (action === "profitable" && document.getElementById("min-pnl").value === "1")
@@ -236,6 +250,15 @@ function activeDateRange() {
     };
   }
 
+  if (mode === "tomorrow") {
+    const tomorrow = addDays(startOfLocalDay(now), 1);
+    return {
+      start: tomorrow,
+      end: addDays(tomorrow, 1),
+      label: "tomorrow",
+    };
+  }
+
   if (mode === "next24") {
     return {
       start: now,
@@ -244,11 +267,22 @@ function activeDateRange() {
     };
   }
 
-  if (mode === "next7") {
+  if (mode === "next48") {
     return {
       start: now,
-      end: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000),
-      label: "next 7 days",
+      end: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      label: "next 48 hours",
+    };
+  }
+
+  if (mode === "week") {
+    const end = startOfLocalDay(now);
+    end.setDate(end.getDate() + (7 - end.getDay()));
+    end.setHours(23, 59, 59, 999);
+    return {
+      start: now,
+      end,
+      label: "this week",
     };
   }
 
@@ -310,26 +344,7 @@ function filteredPositions() {
 }
 
 function filteredTrades() {
-  const search = document.getElementById("search-input").value.trim().toLowerCase();
-  const wallet = document.getElementById("wallet-filter").value;
-  const sport = document.getElementById("sport-filter").value;
-  const league = document.getElementById("league-filter").value;
-  const dateRange = activeDateRange();
-
-  return state.trades.filter((trade) => {
-    const supporterText = (trade.supporting_wallets || []).map((entry) => entry.wallet_label).join(" ");
-    const primaryLabel = trade.primary_trader?.wallet_label || "";
-    const haystack = `${primaryLabel} ${supporterText} ${trade.market_title} ${trade.outcome}`.toLowerCase();
-    if (search && !haystack.includes(search)) return false;
-    if (wallet && !(trade.supporting_wallets || []).some((entry) => entry.wallet_label === wallet)) return false;
-    if (sport && trade.category !== sport) return false;
-    if (league && trade.league !== league) return false;
-    if (document.getElementById("consensus-filter").value === "yes" && Number(trade.agreeing_wallet_count || 0) < 2) return false;
-    if (Number(trade.total_amount_bet || 0) < Number(document.getElementById("min-position").value || 0)) return false;
-    if (Number(trade.strongest_relative_units || 0) < Number(document.getElementById("min-units").value || 0)) return false;
-    if (!itemMatchesDateRange(trade, dateRange)) return false;
-    return true;
-  });
+  return state.trades;
 }
 
 function convictionTitle(position) {
@@ -479,6 +494,66 @@ function renderFilteredViews() {
   updateCustomDateFields();
 }
 
+function pairedFilterValue(primaryId, secondaryId) {
+  return document.getElementById(primaryId)?.value || document.getElementById(secondaryId)?.value || "";
+}
+
+function syncPairedFilters(sourceId) {
+  const pairs = [
+    ["sharps-filter", "sharps-filter-advanced"],
+    ["min-confidence", "min-confidence-advanced"],
+  ];
+  pairs.forEach(([a, b]) => {
+    if (sourceId !== a && sourceId !== b) return;
+    const source = document.getElementById(sourceId);
+    const target = document.getElementById(sourceId === a ? b : a);
+    if (source && target) target.value = source.value;
+  });
+}
+
+function tradeFilterQuery() {
+  const params = new URLSearchParams();
+  const search = document.getElementById("search-input")?.value.trim();
+  const minSharps = pairedFilterValue("sharps-filter", "sharps-filter-advanced");
+  const minConfidence = pairedFilterValue("min-confidence", "min-confidence-advanced");
+  const mappings = [
+    ["q", search],
+    ["wallet", document.getElementById("wallet-filter")?.value],
+    ["sport", document.getElementById("sport-filter")?.value],
+    ["league", document.getElementById("league-filter")?.value],
+    ["date_range", document.getElementById("date-range-filter")?.value],
+    ["custom_start", document.getElementById("custom-start-date")?.value],
+    ["custom_end", document.getElementById("custom-end-date")?.value],
+    ["min_sharps", minSharps],
+    ["min_confidence", minConfidence],
+    ["per_page", "100"],
+  ];
+  mappings.forEach(([key, value]) => {
+    if (value) params.set(key, value);
+  });
+  if (document.getElementById("consensus-filter")?.value === "yes" && !params.get("min_sharps")) {
+    params.set("min_sharps", "2");
+  }
+  return params.toString();
+}
+
+async function loadTradesToPlay() {
+  const query = tradeFilterQuery();
+  const response = await fetchJson(`/api/trades-to-play${query ? `?${query}` : ""}`);
+  state.trades = response.data || [];
+  state.tradePagination = response.pagination || null;
+  if (response.status) state.status = response.status;
+  renderOverview();
+  renderTrades();
+}
+
+function scheduleTradeRefresh(delay = 250) {
+  window.clearTimeout(tradeSearchTimer);
+  tradeSearchTimer = window.setTimeout(() => {
+    loadTradesToPlay().catch(() => renderTrades());
+  }, delay);
+}
+
 function tradeEventLabel(eventType) {
   const labels = {
     new_entry: "New Entry",
@@ -529,14 +604,25 @@ function unitEntryForTrade(trade) {
 
 function tradeSizeUsd(trade) {
   const snapshot = tradeSnapshot(trade);
-  return numberOrNull(trade.total_amount_bet) ?? numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
+  return numberOrNull(trade.combined_exposure_exact) ?? numberOrNull(trade.total_amount_bet) ?? numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
+}
+
+function primaryTradeSizeUsd(trade) {
+  return numberOrNull(trade.primary_trader?.amount) ?? numberOrNull(trade.position_size_usd) ?? tradeSizeUsd(trade);
 }
 
 function relativeBetSize(trade) {
+  const primaryUnits = numberOrNull(trade.primary_trader?.relative_units);
+  if (primaryUnits !== null) {
+    return {
+      value: formatUnitsValue(primaryUnits),
+      subtext: "Primary sharp unit size",
+    };
+  }
   if (numberOrNull(trade.strongest_relative_units) !== null) {
     const units = numberOrNull(trade.strongest_relative_units);
     return {
-      value: `${units.toFixed(units >= 10 ? 1 : 2)}u`,
+      value: formatUnitsValue(units),
       subtext: "Strongest agreeing wallet",
     };
   }
@@ -661,6 +747,9 @@ function renderTradeCard(trade, index, selectedKey) {
   const slippage = slippageForTrade(trade);
   const price = numberOrNull(trade.current_price);
   const badge = trade.sharps_badge ? `<span class="sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : "";
+  const primaryAmount = primaryTradeSizeUsd(trade);
+  const combinedAmount = tradeSizeUsd(trade);
+  const primaryUnits = formatUnitsValue(trade.primary_trader?.relative_units);
 
   return `
     <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
@@ -673,12 +762,12 @@ function renderTradeCard(trade, index, selectedKey) {
           <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
         </div>
         <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
-        <div class="trade-card-subtitle">${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} leads / ${escapeHtml(trade.agreeing_wallet_count || 1)} wallet${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"} / Entered ${escapeHtml(timeAgo(trade.entered_at))}</div>
+        <div class="trade-card-subtitle">${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} leads / Primary ${escapeHtml(formatMoney(primaryAmount))} / ${escapeHtml(primaryUnits)} / Entered ${escapeHtml(timeAgo(trade.entered_at))}</div>
       </div>
       <div class="trade-card-pick">
         <span>Pick</span>
         <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
-        <em>${escapeHtml(formatMoney(trade.total_amount_bet || 0))} total</em>
+        <em>${escapeHtml(trade.agreeing_wallet_count || 1)} sharp${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"} / ${escapeHtml(formatMoney(combinedAmount))} combined</em>
         <small>${escapeHtml(formatCentsFromProbability(price))}</small>
       </div>
       <span class="trade-card-arrow" aria-hidden="true">&gt;</span>
@@ -696,6 +785,8 @@ function renderTradeDetail(trade) {
   const averageEntry = numberOrNull(trade.average_entry_price);
   const currentPrice = numberOrNull(trade.current_price);
   const sizeUsd = tradeSizeUsd(trade);
+  const primaryUsd = primaryTradeSizeUsd(trade);
+  const primaryUnits = formatUnitsValue(trade.primary_trader?.relative_units);
   const profileUrl = trade.primary_trader?.wallet_profile_url;
   const marketUrl = trade.market_url;
   const breakdown = trade.score_breakdown || {};
@@ -716,13 +807,14 @@ function renderTradeDetail(trade) {
       <div>
         <span>Primary Trader</span>
         <strong>${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")}</strong>
+        <small>${escapeHtml(formatMoney(primaryUsd))} / ${escapeHtml(primaryUnits)}</small>
       </div>
       <div>
         <span>Pick</span>
         <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
       </div>
       <div>
-        <span>Combined Bet Size</span>
+        <span>Combined Exposure</span>
         <strong>${formatMoney(sizeUsd)}</strong>
         <small>${escapeHtml(trade.agreeing_wallet_count || 1)} agreeing wallet${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"}</small>
       </div>
@@ -734,7 +826,8 @@ function renderTradeDetail(trade) {
 
     <div class="trade-detail-metrics">
       ${tradeMetric("Rel. Bet Size", relative.value, relative.subtext)}
-      ${tradeMetric("Combined Amount", formatMoney(sizeUsd), "All agreeing wallets")}
+      ${tradeMetric("Primary Sharp", formatMoney(primaryUsd), `${trade.primary_trader?.wallet_label || "Tracked wallet"} exact active amount`)}
+      ${tradeMetric("Combined Exposure", formatMoney(sizeUsd), "Sum of displayed agreeing wallets")}
       ${tradeMetric("Slippage", slippage.value, slippage.note, `slippage ${slippage.className}`)}
       ${tradeMetric("Price At Entry", formatCentsFromProbability(averageEntry), "Average fill price")}
     </div>
@@ -765,7 +858,8 @@ function renderTradeDetail(trade) {
         ${supporters.map((supporter) => `
           <div>
             <strong>${escapeHtml(supporter.wallet_label)}</strong>
-            <span>${formatMoney(supporter.amount)} / ${escapeHtml(supporter.relative_units)}u</span>
+            <span>${formatMoney(supporter.amount)} / ${escapeHtml(formatUnitsValue(supporter.relative_units))}</span>
+            <small>Entry ${escapeHtml(formatCentsFromProbability(supporter.average_entry_price))} / Current ${escapeHtml(formatCentsFromProbability(supporter.current_price))} / Shares ${escapeHtml(formatShares(supporter.shares))} / Updated ${escapeHtml(formatDate(supporter.last_changed_at))}</small>
           </div>
         `).join("")}
       </div>
@@ -813,7 +907,8 @@ function renderTrades() {
 
   const selectedTrade = trades.find((trade, index) => tradeKey(trade, index) === state.selectedTradeKey);
   const countBadge = document.getElementById("trades-count-badge");
-  if (countBadge) countBadge.textContent = trades.length;
+  const totalMatches = state.tradePagination?.total ?? trades.length;
+  if (countBadge) countBadge.textContent = totalMatches;
 
   const tableBody = document.querySelector("#trades-table tbody");
   if (tableBody) {
@@ -825,7 +920,7 @@ function renderTrades() {
           <td>${escapeHtml(trade.sharps_badge || "Actionable")}</td>
           <td class="market-cell"><span class="market-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</span></td>
           <td>${escapeHtml(trade.outcome)}</td>
-          <td>${formatMoney(trade.total_amount_bet)}</td>
+          <td>${formatMoney(trade.combined_exposure_exact ?? trade.total_amount_bet)}</td>
           <td>${escapeHtml(trade.confidence_score)}</td>
         </tr>
       `).join("")
@@ -934,9 +1029,10 @@ function toggleEmptyState() {
 }
 
 function syncSelectors() {
-  syncFilter("wallet-filter", [...new Set(state.positions.map((position) => position.wallet_label))].sort());
-  syncFilter("sport-filter", [...new Set(state.positions.map((position) => position.category))].sort());
-  syncFilter("league-filter", [...new Set(state.positions.map((position) => position.league))].sort());
+  const tradeWallets = state.trades.flatMap((trade) => (trade.supporting_wallets || []).map((entry) => entry.wallet_label).filter(Boolean));
+  syncFilter("wallet-filter", [...new Set(state.positions.map((position) => position.wallet_label).concat(tradeWallets).filter(Boolean))].sort());
+  syncFilter("sport-filter", [...new Set(state.positions.map((position) => position.category).concat(state.trades.map((trade) => trade.category)).filter(Boolean))].sort());
+  syncFilter("league-filter", [...new Set(state.positions.map((position) => position.league).concat(state.trades.map((trade) => trade.league)).filter(Boolean))].sort());
 }
 
 function renderStatusChrome(status) {
@@ -973,9 +1069,10 @@ async function loadDashboard() {
   state.loading = true;
   document.body.classList.add("loading");
   try {
+    const tradeQuery = tradeFilterQuery();
     const [positions, trades, wallets, unitAnalysis, status] = await Promise.all([
       fetchJson("/api/positions"),
-      fetchJson("/api/trades-to-play"),
+      fetchJson(`/api/trades-to-play${tradeQuery ? `?${tradeQuery}` : ""}`),
       fetchJson("/api/wallets"),
       fetchJson("/api/unit-analysis"),
       fetchJson("/api/status"),
@@ -983,6 +1080,7 @@ async function loadDashboard() {
 
     state.positions = positions.data || [];
     state.trades = trades.data || [];
+    state.tradePagination = trades.pagination || null;
     state.wallets = wallets.data || [];
     state.unitAnalysis = unitAnalysis.data || [];
     state.consensus = [];
@@ -1000,7 +1098,9 @@ function clearFilters() {
     const element = document.getElementById(id);
     if (element) element.value = "";
   });
+  state.selectedTradeKey = null;
   renderFilteredViews();
+  scheduleTradeRefresh(0);
 }
 
 function updateCustomDateFields() {
@@ -1030,7 +1130,7 @@ function applyQuickFilter(action) {
     document.getElementById("consensus-filter").value = "yes";
   }
 
-  if (action === "today" || action === "next24" || action === "next7") {
+  if (action === "today" || action === "tomorrow" || action === "next24" || action === "next48" || action === "week") {
     document.getElementById("date-range-filter").value = action;
   }
 
@@ -1043,13 +1143,20 @@ function applyQuickFilter(action) {
   }
 
   renderFilteredViews();
+  scheduleTradeRefresh(0);
 }
 
 function bindInteractions() {
   filterIds.forEach((id) => {
     const element = document.getElementById(id);
-    element.addEventListener("input", renderFilteredViews);
-    element.addEventListener("change", renderFilteredViews);
+    if (!element) return;
+    const handler = () => {
+      syncPairedFilters(id);
+      renderFilteredViews();
+      scheduleTradeRefresh(id === "search-input" ? 300 : 0);
+    };
+    element.addEventListener("input", handler);
+    element.addEventListener("change", handler);
   });
 
   document.getElementById("advanced-toggle").addEventListener("click", (event) => {

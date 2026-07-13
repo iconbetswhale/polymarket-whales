@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{ title }}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260713-trades-to-play-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260713-integrity-filters-1">
 </head>
 <body>
   <a class="skip-link" href="#live-positions">Skip to live positions</a>
@@ -50,12 +50,29 @@
         <label>
           <span>Date Range</span>
           <select id="date-range-filter">
-            <option value="">All dates</option>
+            <option value="">All Upcoming</option>
             <option value="today">Today</option>
-            <option value="next24">Next 24 hours</option>
-            <option value="next7">Next 7 days</option>
-            <option value="custom">Custom</option>
+            <option value="tomorrow">Tomorrow</option>
+            <option value="next24">Next 24 Hours</option>
+            <option value="next48">Next 48 Hours</option>
+            <option value="week">This Week</option>
+            <option value="custom">Custom Date Range</option>
           </select>
+        </label>
+        <label>
+          <span>Sharps</span>
+          <select id="sharps-filter">
+            <option value="">All Trades</option>
+            <option value="1">1 Sharp</option>
+            <option value="2">2+ Sharps</option>
+            <option value="3">3+ Sharps</option>
+            <option value="4">4+ Sharps</option>
+            <option value="5">5+ Sharps</option>
+          </select>
+        </label>
+        <label>
+          <span>Min Confidence</span>
+          <input id="min-confidence" type="number" min="0" max="100" step="1" placeholder="0">
         </label>
         <label class="custom-date-field">
           <span>Custom Start</span>
@@ -172,7 +189,8 @@
         <button class="quick-filter" type="button" data-quick-filter="clear">All Positions</button>
         <button class="quick-filter" type="button" data-quick-filter="today">Today</button>
         <button class="quick-filter" type="button" data-quick-filter="next24">Next 24 Hours</button>
-        <button class="quick-filter" type="button" data-quick-filter="next7">Next 7 Days</button>
+        <button class="quick-filter" type="button" data-quick-filter="tomorrow">Tomorrow</button>
+        <button class="quick-filter" type="button" data-quick-filter="next48">Next 48 Hours</button>
         <button class="quick-filter" type="button" data-quick-filter="consensus">Consensus Only</button>
         <button class="quick-filter" type="button" data-quick-filter="large">Large $1k+</button>
         <button class="quick-filter" type="button" data-quick-filter="profitable">Profitable</button>
@@ -211,6 +229,17 @@
             <option value="yes">Consensus only</option>
           </select>
         </label>
+        <label>
+          <span>Sharps</span>
+          <select id="sharps-filter-advanced">
+            <option value="">All Trades</option>
+            <option value="1">1 Sharp</option>
+            <option value="2">2+ Sharps</option>
+            <option value="3">3+ Sharps</option>
+            <option value="4">4+ Sharps</option>
+            <option value="5">5+ Sharps</option>
+          </select>
+        </label>
       </div>
 
       <div class="filters advanced-filters" id="advanced-filters" hidden>
@@ -225,6 +254,10 @@
         <label>
           <span>Minimum Unrealized P&amp;L</span>
           <input id="min-pnl" type="number" step="25" placeholder="$0">
+        </label>
+        <label>
+          <span>Minimum Confidence</span>
+          <input id="min-confidence-advanced" type="number" min="0" max="100" step="1" placeholder="0">
         </label>
       </div>
     </section>

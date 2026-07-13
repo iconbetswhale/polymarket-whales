@@ -85,6 +85,21 @@ def position_key(payload: dict) -> str:
     return f"{payload.get('conditionId') or payload.get('condition_id') or payload.get('slug')}::{payload.get('outcome')}"
 
 
+def event_start_time(position: dict, event: dict | None) -> tuple[str, str]:
+    event = event or {}
+    event_fields = ("startDate", "startTime", "scheduledStartTime", "gameStartTime", "start_date", "start_time")
+    position_fields = ("startDate", "startTime", "scheduledStartTime", "gameStartTime", "start_date", "start_time")
+    for field in event_fields:
+        if event.get(field):
+            return str(event[field]), f"event.{field}"
+    for field in position_fields:
+        if position.get(field):
+            return str(position[field]), f"position.{field}"
+    if position.get("endDate"):
+        return str(position["endDate"]), "position.endDate"
+    return "", "missing"
+
+
 class TrackerService:
     def __init__(
         self,
@@ -162,6 +177,8 @@ class TrackerService:
             self._refresh_unlocked()
 
     def refresh_if_stale(self) -> None:
+        if not self._started:
+            return
         if self.settings.dashboard_refresh <= 0 or not self._snapshot_is_stale():
             return
         if not self._refresh_lock.acquire(blocking=False):
@@ -376,13 +393,14 @@ class TrackerService:
 
             size = _safe_float(position.get("size"))
             avg_price = _safe_float(position.get("avgPrice"))
-            initial_value = _safe_float(position.get("initialValue") or position.get("totalBought") or size * avg_price)
+            remaining_entry_value = size * avg_price
+            initial_value = _safe_float(position.get("initialValue") or position.get("totalBought") or remaining_entry_value)
             current_value = _safe_float(position.get("currentValue") or size * probability)
             realized_pnl = _safe_float(position.get("realizedPnl"))
             cash_pnl = _safe_float(position.get("cashPnl"))
-            unrealized_pnl = cash_pnl - realized_pnl if cash_pnl else max(current_value - initial_value, 0.0 if current_value >= initial_value else current_value - initial_value)
+            unrealized_pnl = cash_pnl - realized_pnl if cash_pnl else current_value - remaining_entry_value
             market_url = f"https://polymarket.com/event/{position.get('eventSlug')}" if position.get("eventSlug") else ""
-            resolution_time = str(position.get("endDate") or "")
+            resolution_time, event_time_source = event_start_time(position, event)
             profile = self.client.get_public_profile(wallet.address)
             profile_name = (profile or {}).get("name") or (profile or {}).get("pseudonym") or wallet.label
 
@@ -406,6 +424,7 @@ class TrackerService:
                     "league": classification.league,
                     "is_sports": classification.is_sports,
                     "resolution_time": resolution_time,
+                    "event_time_source": event_time_source,
                     "first_detected_at": _iso_now(),
                     "last_seen_at": _iso_now(),
                     "last_changed_at": _iso_now(),
@@ -417,7 +436,8 @@ class TrackerService:
                     "average_entry_odds": american_odds_from_probability(avg_price),
                     "current_odds": american_odds_from_probability(probability),
                     "american_odds_value": american_odds_value_from_probability(probability),
-                    "position_size_usd": round(initial_value, 2),
+                    "position_size_usd": round(remaining_entry_value, 2),
+                    "reported_initial_value": round(initial_value, 2),
                     "current_value": round(current_value, 2),
                     "unrealized_pnl": round(unrealized_pnl, 2),
                     "realized_pnl": round(realized_pnl, 2),
@@ -496,15 +516,38 @@ class TrackerService:
     def _detect_changes(self, previous: dict, current: dict, timestamp: str) -> list[dict]:
         events: list[dict] = []
         size_delta = round(float(current["position_size_usd"]) - float(previous.get("position_size_usd") or 0), 2)
+        reported_size_delta = round(
+            float(current.get("reported_initial_value") or current["position_size_usd"])
+            - float(previous.get("reported_initial_value") or previous.get("position_size_usd") or 0),
+            2,
+        )
         current_value_delta = round(float(current["current_value"]) - float(previous.get("current_value") or 0), 2)
         unrealized_delta = round(float(current["unrealized_pnl"]) - float(previous.get("unrealized_pnl") or 0), 2)
         avg_price_delta = round(float(current["average_entry_price"]) - float(previous.get("average_entry_price") or 0), 4)
         current_price_delta = round(float(current["current_price"]) - float(previous.get("current_price") or 0), 4)
 
-        if size_delta >= max(10.0, (previous.get("position_size_usd") or 0) * 0.05):
-            events.append(self._build_event("size_increase", previous, current, timestamp, {"delta_usd": size_delta}))
-        elif size_delta <= -max(10.0, (previous.get("position_size_usd") or 0) * 0.05):
-            events.append(self._build_event("size_decrease", previous, current, timestamp, {"delta_usd": size_delta}))
+        size_threshold = max(10.0, (previous.get("position_size_usd") or 0) * 0.05)
+        reported_size_threshold = max(10.0, (previous.get("reported_initial_value") or previous.get("position_size_usd") or 0) * 0.05)
+        if size_delta >= size_threshold or reported_size_delta >= reported_size_threshold:
+            events.append(
+                self._build_event(
+                    "size_increase",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta_usd": reported_size_delta if reported_size_delta >= reported_size_threshold else size_delta, "active_delta_usd": size_delta},
+                )
+            )
+        elif size_delta <= -size_threshold or reported_size_delta <= -reported_size_threshold:
+            events.append(
+                self._build_event(
+                    "size_decrease",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta_usd": reported_size_delta if reported_size_delta <= -reported_size_threshold else size_delta, "active_delta_usd": size_delta},
+                )
+            )
 
         if abs(avg_price_delta) >= 0.01:
             events.append(self._build_event("avg_price_change", previous, current, timestamp, {"delta": avg_price_delta}))
