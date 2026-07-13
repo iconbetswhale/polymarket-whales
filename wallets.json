@@ -12,12 +12,5 @@
     "enabled": true,
     "base_unit": null,
     "notes": ""
-  },
-  {
-    "address": "0x73afc8160c17830c0c7281a7bf570c871455b880",
-    "label": "0xb0E",
-    "enabled": true,
-    "base_unit": null,
-    "notes": ""
   }
 ]
