@@ -117,6 +117,9 @@ def create_app(start_background: bool = True) -> Flask:
     app.extensions["tracker_service"] = tracker
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
+    app.jinja_env.globals["asset_version"] = (
+        os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("ASSET_VERSION") or "local"
+    )
 
     @app.before_request
     def prepare_request():

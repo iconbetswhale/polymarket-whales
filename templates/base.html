@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=League+Spartan:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260713-dashboard-redesign-1">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
 </head>
 <body data-page="{{ page }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -41,6 +41,6 @@
     {% block content %}{% endblock %}
   </main>
   <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
-  <script src="{{ url_for('static', filename='app.js') }}?v=20260713-dashboard-redesign-1"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version) }}"></script>
 </body>
 </html>
