@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">IN-PROGRESS MARKETS</p><div class="title-line"><h1>Live Positions</h1><span class="result-badge" id="position-result-count">0 positions</span></div></div></header>
+<section class="toolbar">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="position-search" type="search" placeholder="Search wallet, event, market"></label>
+  <select id="position-wallet" aria-label="Wallet"><option value="">All wallets</option></select>
+  <select id="position-sport" aria-label="Sport"><option value="">All sports</option></select>
+  <select id="position-league" aria-label="League"><option value="">All leagues</option></select>
+  <select id="position-market" aria-label="Market"><option value="">All markets</option></select>
+  <select id="position-sort" aria-label="Sort positions"><option value="value-desc">Highest value</option><option value="value-asc">Lowest value</option><option value="start-asc">Start time</option><option value="wallet-asc">Wallet</option></select>
+</section>
+<section class="panel table-panel"><div class="responsive-table"><table><thead><tr><th>Wallet</th><th>Event / Market</th><th>Selection</th><th>Entry</th><th>Current</th><th>Position</th><th>Value</th><th>P&amp;L</th><th>Status</th></tr></thead><tbody id="positions-body"></tbody></table></div><div class="card-results" id="positions-cards"></div><div class="pagination" id="positions-pagination"></div></section>
+{% endblock %}

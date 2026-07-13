@@ -65,7 +65,12 @@ def test_app_starts_with_no_enabled_wallets(tmp_path):
         admin_password=None,
     )
     client = CountingClient()
-    service = TrackerService(settings, client=client, database=TrackerDatabase(settings.database_path), auto_start=False)
+    service = TrackerService(
+        settings,
+        client=client,
+        database=TrackerDatabase(settings.database_path),
+        auto_start=False,
+    )
     service.refresh()
     snapshot = service.get_snapshot()
     assert snapshot["status"]["enabled_wallet_count"] == 0
@@ -79,6 +84,31 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/trades-to-play").status_code == 200
     assert app_client.get("/api/history?page=1&per_page=25").status_code == 200
     assert app_client.get("/api/consensus").status_code == 200
-    assert app_client.get("/api/unit-analysis").status_code == 200
+    assert app_client.get("/api/unit-analysis").status_code == 404
     assert app_client.get("/api/status").status_code == 200
-    assert app_client.get("/history").status_code == 200
+    assert app_client.get("/api/user-settings").status_code == 200
+    assert app_client.get("/api/bet-tracker").status_code == 200
+
+
+def test_dedicated_pages_are_real_routes(app_client):
+    for route in (
+        "/overview",
+        "/trades",
+        "/live-positions",
+        "/wallets",
+        "/position-history",
+        "/bet-tracker",
+    ):
+        response = app_client.get(route)
+        assert response.status_code == 200
+        assert response.request.path == route
+
+    assert app_client.get("/").status_code == 302
+    assert app_client.get("/history").status_code == 301
+
+
+def test_trade_date_presets_reject_removed_modes(app_client):
+    for mode in ("tomorrow", "next48", "week", "all"):
+        assert (
+            app_client.get(f"/api/trades-to-play?date_range={mode}").status_code == 400
+        )

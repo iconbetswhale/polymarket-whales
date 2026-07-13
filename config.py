@@ -64,6 +64,8 @@ class Settings:
     request_timeout: int
     max_retries: int
     admin_password: str | None
+    default_bankroll: float = 10000.0
+    unit_percentage: float = 0.01
     discord_webhook_url: str | None = None
     discord_alert_types: tuple[str, ...] = ("new_entry", "size_increase", "full_exit")
     discord_min_position_usd: float = 0.0
@@ -84,8 +86,14 @@ def get_settings() -> Settings:
         request_timeout=_get_int("REQUEST_TIMEOUT", 15),
         max_retries=_get_int("MAX_RETRIES", 3),
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
+        default_bankroll=_get_float("DEFAULT_BANKROLL", 10000.0),
+        unit_percentage=_get_float("UNIT_PERCENTAGE", 0.01),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
-        discord_alert_types=_get_csv("DISCORD_ALERT_TYPES", ("new_entry", "size_increase", "full_exit")),
+        discord_alert_types=_get_csv(
+            "DISCORD_ALERT_TYPES", ("new_entry", "size_increase", "full_exit")
+        ),
         discord_min_position_usd=_get_float("DISCORD_MIN_POSITION_USD", 0.0),
-        discord_notify_on_initial_scan=_get_bool("DISCORD_NOTIFY_ON_INITIAL_SCAN", False),
+        discord_notify_on_initial_scan=_get_bool(
+            "DISCORD_NOTIFY_ON_INITIAL_SCAN", False
+        ),
     )

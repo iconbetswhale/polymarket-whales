@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">AUDIT TRAIL</p><div class="title-line"><h1>Position History</h1><span class="result-badge" id="history-result-count">0 events</span></div></div></header>
+<section class="toolbar history-toolbar">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="history-search" type="search" placeholder="Search team, event, market, trader"></label>
+  <select id="history-wallet" aria-label="Wallet"><option value="">All wallets</option></select>
+  <select id="history-sport" aria-label="Sport"><option value="">All sports</option></select>
+  <select id="history-league" aria-label="League"><option value="">All leagues</option></select>
+  <select id="history-event-type" aria-label="Event type"><option value="">All changes</option><option value="new_entry">New entry</option><option value="size_increase">Size increase</option><option value="size_decrease">Size decrease</option><option value="full_exit">Full exit</option></select>
+  <input id="history-start" type="date" aria-label="History start date">
+  <input id="history-end" type="date" aria-label="History end date">
+  <select id="history-sort" aria-label="Sort history"><option value="desc">Newest first</option><option value="asc">Oldest first</option></select>
+</section>
+<section class="panel table-panel"><div class="responsive-table"><table><thead><tr><th>Detected</th><th>Change</th><th>Wallet</th><th>Event / Market</th><th>Selection</th><th>League</th><th>Position Value</th></tr></thead><tbody id="history-body"></tbody></table></div><div class="pagination" id="history-pagination"></div></section>
+{% endblock %}

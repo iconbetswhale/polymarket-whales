@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">TRACKED INTELLIGENCE</p><div class="title-line"><h1>Wallets</h1><span class="result-badge" id="wallet-result-count">0 wallets</span></div></div></header>
+<section class="toolbar">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="wallet-search" type="search" placeholder="Search name or public address"></label>
+  <select id="wallet-status" aria-label="Wallet sync status"><option value="">All statuses</option><option value="ready">Ready</option><option value="stale">Stale</option><option value="failed">Failed</option><option value="disabled">Disabled</option></select>
+  <select id="wallet-sort" aria-label="Sort wallets"><option value="label-asc">Name</option><option value="positions-desc">Open positions</option><option value="sync-desc">Recent sync</option></select>
+</section>
+<section class="wallet-grid" id="wallet-grid"><div class="skeleton-card"></div></section>
+{% endblock %}

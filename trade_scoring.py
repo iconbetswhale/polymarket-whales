@@ -19,9 +19,15 @@ SECONDARY_SCORE_WEIGHTS = {
 
 TRADER_STATS = {
     "1winstreak1": {"total_trades": 12899, "hit_rate": 0.612},
-    "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705": {"total_trades": 12899, "hit_rate": 0.612},
+    "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705": {
+        "total_trades": 12899,
+        "hit_rate": 0.612,
+    },
     "0x4f2": {"total_trades": 7225, "hit_rate": 0.555},
-    "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e": {"total_trades": 7225, "hit_rate": 0.555},
+    "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e": {
+        "total_trades": 7225,
+        "hit_rate": 0.555,
+    },
 }
 
 EASTERN = ZoneInfo("America/New_York")
@@ -85,16 +91,30 @@ def canonical_side(position: dict[str, Any]) -> CanonicalSide:
         market_key = "::".join(
             [
                 _normalize_text(position.get("event_slug") or position.get("event_id")),
-                _normalize_text(position.get("market_slug") or position.get("market_title")),
+                _normalize_text(
+                    position.get("market_slug") or position.get("market_title")
+                ),
             ]
         )
-    return CanonicalSide(market_key=market_key, side_key=_normalize_text(position.get("outcome")))
+    return CanonicalSide(
+        market_key=market_key, side_key=_normalize_text(position.get("outcome"))
+    )
 
 
 def sharps_badge(wallet_count: int) -> str | None:
     if wallet_count < 2:
         return None
-    names = {2: "Two", 3: "Three", 4: "Four", 5: "Five", 6: "Six", 7: "Seven", 8: "Eight", 9: "Nine", 10: "Ten"}
+    names = {
+        2: "Two",
+        3: "Three",
+        4: "Four",
+        5: "Five",
+        6: "Six",
+        7: "Seven",
+        8: "Eight",
+        9: "Nine",
+        10: "Ten",
+    }
     return f"{names.get(wallet_count, str(wallet_count))} Sharps"
 
 
@@ -128,7 +148,9 @@ def _slippage_quality(slippage: float) -> float:
     return max(0.0, min(1.0, 1 - slippage / 0.15))
 
 
-def _consensus_band(wallet_count: int, tracked_wallet_count: int | None) -> dict[str, Any]:
+def _consensus_band(
+    wallet_count: int, tracked_wallet_count: int | None
+) -> dict[str, Any]:
     if tracked_wallet_count and wallet_count == tracked_wallet_count:
         return {
             "name": "Complete tracked-wallet agreement",
@@ -159,7 +181,9 @@ def _consensus_band(wallet_count: int, tracked_wallet_count: int | None) -> dict
 
     consensus_bonus = 0
     if tracked_wallet_count and tracked_wallet_count > 3:
-        raw_progress = max(0.0, min(1.0, (wallet_count - 3) / (tracked_wallet_count - 3)))
+        raw_progress = max(
+            0.0, min(1.0, (wallet_count - 3) / (tracked_wallet_count - 3))
+        )
         pct_progress = max(0.0, min(1.0, wallet_count / tracked_wallet_count))
         consensus_bonus = round((raw_progress * 0.6 + pct_progress * 0.4) * 8)
     floor = min(94, 80 + consensus_bonus)
@@ -173,7 +197,9 @@ def _consensus_band(wallet_count: int, tracked_wallet_count: int | None) -> dict
     }
 
 
-def _weighted_hit_rate(group: list[dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]) -> float:
+def _weighted_hit_rate(
+    group: list[dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]
+) -> float:
     total_samples = 0
     weighted_rate = 0.0
     for position in group:
@@ -217,8 +243,14 @@ def _confidence_score(
             "explanation": "Complete tracked-wallet agreement. Every enabled tracked wallet has an active position on this exact side.",
         }
 
-    conviction_units = (primary_units * 0.40) + (min(strongest_units, 10) * 0.35) + (min(average_units, 10) * 0.25)
-    hit_rate_quality = _curve(max(((adjusted_hit_rate * 0.7) + (group_hit_rate * 0.3)) - 0.5, 0), 0.15)
+    conviction_units = (
+        (primary_units * 0.40)
+        + (min(strongest_units, 10) * 0.35)
+        + (min(average_units, 10) * 0.25)
+    )
+    hit_rate_quality = _curve(
+        max(((adjusted_hit_rate * 0.7) + (group_hit_rate * 0.3)) - 0.5, 0), 0.15
+    )
     components = {
         "combined_amount": _log_score(total_amount, amount_benchmark),
         "relative_size": _log_score(conviction_units, 5),
@@ -226,7 +258,10 @@ def _confidence_score(
         "adjusted_hit_rate": hit_rate_quality,
         "slippage": _slippage_quality(slippage),
     }
-    secondary_quality = sum(components[key] * SECONDARY_SCORE_WEIGHTS[key] for key in SECONDARY_SCORE_WEIGHTS)
+    secondary_quality = sum(
+        components[key] * SECONDARY_SCORE_WEIGHTS[key]
+        for key in SECONDARY_SCORE_WEIGHTS
+    )
     available_points = max(0, band["end"] - band["floor"])
     secondary_points = round(secondary_quality * available_points)
     score = min(band["end"], band["floor"] + secondary_points)
@@ -254,10 +289,16 @@ def _trader_stat(position: dict[str, Any], field: str) -> Any:
     return (TRADER_STATS.get(label) or TRADER_STATS.get(address) or {}).get(field)
 
 
-def _historical_samples(position: dict[str, Any], events_by_wallet: dict[str, list[dict[str, Any]]]) -> list[float]:
+def _historical_samples(
+    position: dict[str, Any], events_by_wallet: dict[str, list[dict[str, Any]]]
+) -> list[float]:
     samples = []
-    for event in events_by_wallet.get(str(position.get("wallet_address") or "").lower(), []):
-        amount = abs(_safe_float(event.get("position_size_usd") or event.get("delta_usd")))
+    for event in events_by_wallet.get(
+        str(position.get("wallet_address") or "").lower(), []
+    ):
+        amount = abs(
+            _safe_float(event.get("position_size_usd") or event.get("delta_usd"))
+        )
         if amount > 0:
             samples.append(amount)
     return samples
@@ -270,7 +311,9 @@ def _relative_units(
 ) -> float | None:
     amount = _safe_float(position.get("position_size_usd"))
     wallet = str(position.get("wallet_address") or "").lower()
-    base_unit = unit_map.get(wallet, {}).get("estimated_base_unit") or position.get("estimated_base_unit")
+    base_unit = unit_map.get(wallet, {}).get("estimated_base_unit") or position.get(
+        "estimated_base_unit"
+    )
     if base_unit and _safe_float(base_unit) > 0:
         return amount / _safe_float(base_unit)
     samples = _historical_samples(position, events_by_wallet)
@@ -278,11 +321,15 @@ def _relative_units(
     return amount / baseline if baseline > 0 else None
 
 
-def _sample_size(position: dict[str, Any], events_by_wallet: dict[str, list[dict[str, Any]]]) -> int:
+def _sample_size(
+    position: dict[str, Any], events_by_wallet: dict[str, list[dict[str, Any]]]
+) -> int:
     manual = _trader_stat(position, "total_trades")
     if manual:
         return int(manual)
-    return len(events_by_wallet.get(str(position.get("wallet_address") or "").lower(), []))
+    return len(
+        events_by_wallet.get(str(position.get("wallet_address") or "").lower(), [])
+    )
 
 
 def _adjusted_hit_rate(position: dict[str, Any], sample_size: int) -> float:
@@ -296,19 +343,39 @@ def _adjusted_hit_rate(position: dict[str, Any], sample_size: int) -> float:
 
 
 def _slippage(position: dict[str, Any]) -> float:
-    return _safe_float(position.get("current_price")) - _safe_float(position.get("average_entry_price"))
+    current = position.get("executable_ask_price")
+    if current is None:
+        current = position.get("current_price")
+    return _safe_float(current) - _safe_float(position.get("average_entry_price"))
 
 
 def _is_actionable(position: dict[str, Any], now: datetime) -> bool:
     if str(position.get("status") or "open").lower() != "open":
         return False
+    if (
+        position.get("lifecycle_status")
+        and position.get("lifecycle_status") != "upcoming"
+    ):
+        return False
+    if "market_open" in position and position.get("market_open") is not True:
+        return False
+    if position.get("clob_token_id") and not position.get("executable_ask_price"):
+        return False
     event_time = _safe_datetime(position.get("resolution_time"))
     return bool(event_time and event_time > now)
 
 
-def _is_playable_size(position: dict[str, Any], unit_map: dict[str, dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]) -> bool:
+def _is_playable_size(
+    position: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
     units = _relative_units(position, unit_map, events_by_wallet)
-    return units is not None and units > MIN_PLAYABLE_UNITS and _safe_float(position.get("position_size_usd")) > 0
+    return (
+        units is not None
+        and units > MIN_PLAYABLE_UNITS
+        and _safe_float(position.get("position_size_usd")) > 0
+    )
 
 
 def _format_event_time(value: Any) -> dict[str, str | None]:
@@ -327,7 +394,11 @@ def _format_event_time(value: Any) -> dict[str, str | None]:
     }
 
 
-def _primary_position(group: list[dict[str, Any]], unit_map: dict[str, dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]) -> dict[str, Any]:
+def _primary_position(
+    group: list[dict[str, Any]],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> dict[str, Any]:
     return max(
         group,
         key=lambda position: (
@@ -345,9 +416,15 @@ def _collapse_unique_wallets(group: list[dict[str, Any]]) -> list[dict[str, Any]
         if not existing:
             by_wallet[wallet] = position
             continue
-        existing_time = str(existing.get("last_changed_at") or existing.get("first_detected_at") or "")
-        position_time = str(position.get("last_changed_at") or position.get("first_detected_at") or "")
-        if position_time > existing_time or _safe_float(position.get("position_size_usd")) > _safe_float(existing.get("position_size_usd")):
+        existing_time = str(
+            existing.get("last_changed_at") or existing.get("first_detected_at") or ""
+        )
+        position_time = str(
+            position.get("last_changed_at") or position.get("first_detected_at") or ""
+        )
+        if position_time > existing_time or _safe_float(
+            position.get("position_size_usd")
+        ) > _safe_float(existing.get("position_size_usd")):
             by_wallet[wallet] = position
     return list(by_wallet.values())
 
@@ -372,30 +449,35 @@ def _search_blob(play: dict[str, Any]) -> str:
     return " ".join(sorted(tokens))
 
 
-def _date_window(mode: str, now: datetime, start: str | None = None, end: str | None = None) -> tuple[datetime | None, datetime | None]:
+def _date_window(
+    mode: str, now: datetime, start: str | None = None, end: str | None = None
+) -> tuple[datetime | None, datetime | None]:
     now_et = now.astimezone(EASTERN)
     if mode == "today":
         day = now_et.date()
-        return datetime.combine(day, time.min, EASTERN), datetime.combine(day, time.max, EASTERN)
-    if mode == "tomorrow":
-        day = now_et.date() + timedelta(days=1)
-        return datetime.combine(day, time.min, EASTERN), datetime.combine(day, time.max, EASTERN)
+        return datetime.combine(day, time.min, EASTERN), datetime.combine(
+            day, time.max, EASTERN
+        )
     if mode == "next24":
         return now_et, now_et + timedelta(hours=24)
-    if mode == "next48":
-        return now_et, now_et + timedelta(hours=48)
-    if mode == "week":
-        days_until_sunday = 6 - now_et.weekday()
-        end_day = now_et.date() + timedelta(days=days_until_sunday)
-        return now_et, datetime.combine(end_day, time.max, EASTERN)
+    if mode == "next7":
+        return now_et, now_et + timedelta(days=7)
     if mode == "custom":
         try:
-            start_dt = datetime.combine(datetime.fromisoformat(start).date(), time.min, EASTERN) if start else None
-            end_dt = datetime.combine(datetime.fromisoformat(end).date(), time.max, EASTERN) if end else None
+            start_dt = datetime.fromisoformat(start) if start else None
+            end_dt = datetime.fromisoformat(end) if end else None
         except ValueError:
             return None, None
+        if start_dt and start and "T" not in start and " " not in start:
+            start_dt = datetime.combine(start_dt.date(), time.min)
+        if end_dt and end and "T" not in end and " " not in end:
+            end_dt = datetime.combine(end_dt.date(), time.max)
+        if start_dt and start_dt.tzinfo is None:
+            start_dt = start_dt.replace(tzinfo=EASTERN)
+        if end_dt and end_dt.tzinfo is None:
+            end_dt = end_dt.replace(tzinfo=EASTERN)
         return start_dt, end_dt
-    if mode in {"all", ""}:
+    if mode == "":
         return None, None
     return None, None
 
@@ -414,6 +496,8 @@ def filter_trades_to_play(
     wallet: str = "",
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
+    if date_range not in {"", "today", "next24", "next7", "custom"}:
+        return []
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
         now = now.replace(tzinfo=timezone.utc)
@@ -431,13 +515,18 @@ def filter_trades_to_play(
         if league and str(play.get("league") or "") != league:
             continue
         if wallet and not any(
-            supporter.get("wallet_label") == wallet or str(supporter.get("wallet_address") or "").lower() == wallet.lower()
+            supporter.get("wallet_label") == wallet
+            or str(supporter.get("wallet_address") or "").lower() == wallet.lower()
             for supporter in play.get("supporting_wallets", [])
         ):
             continue
-        if query_tokens and not query_tokens.intersection(set(str(play.get("search_blob") or "").split())):
+        if query_tokens and not query_tokens.intersection(
+            set(str(play.get("search_blob") or "").split())
+        ):
             continue
         event_time = _safe_datetime(play.get("event_date_et"))
+        if not event_time or event_time <= now:
+            continue
         if (start or end) and not event_time:
             continue
         if event_time:
@@ -464,7 +553,9 @@ def build_trades_to_play(
     trades = trades or []
     events_by_wallet: dict[str, list[dict[str, Any]]] = {}
     for event in trades:
-        events_by_wallet.setdefault(str(event.get("wallet_address") or "").lower(), []).append(event)
+        events_by_wallet.setdefault(
+            str(event.get("wallet_address") or "").lower(), []
+        ).append(event)
 
     market_sides: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for position in positions:
@@ -473,26 +564,61 @@ def build_trades_to_play(
         if not _is_playable_size(position, unit_map, events_by_wallet):
             continue
         side = canonical_side(position)
-        market_sides.setdefault(side.market_key, {}).setdefault(side.side_key, []).append(position)
+        market_sides.setdefault(side.market_key, {}).setdefault(
+            side.side_key, []
+        ).append(position)
 
     playable_groups: list[list[dict[str, Any]]] = []
     for sides in market_sides.values():
         # If tracked wallets hold opposing sides of the same market, no side is playable.
         if len(sides) == 1:
-            playable_groups.extend(_collapse_unique_wallets(group) for group in sides.values())
+            playable_groups.extend(
+                _collapse_unique_wallets(group) for group in sides.values()
+            )
 
-    group_amounts = [sum(_safe_float(position.get("position_size_usd")) for position in group) for group in playable_groups]
-    amount_benchmark = max(_percentile(group_amounts, 0.9), median(group_amounts) if group_amounts else 0, 1.0)
+    group_amounts = [
+        sum(_safe_float(position.get("position_size_usd")) for position in group)
+        for group in playable_groups
+    ]
+    historical_amounts = [
+        abs(_safe_float(event.get("position_size_usd") or event.get("delta_usd")))
+        for event in trades
+        if abs(_safe_float(event.get("position_size_usd") or event.get("delta_usd")))
+        > 0
+    ]
+    benchmark_samples = group_amounts + historical_amounts
+    amount_benchmark = max(
+        _percentile(benchmark_samples, 0.9),
+        median(benchmark_samples) if benchmark_samples else 0,
+        1.0,
+    )
 
     output: list[dict[str, Any]] = []
     for group in playable_groups:
-        unique_wallets = {str(position.get("wallet_address") or "").lower() for position in group if position.get("wallet_address")}
+        unique_wallets = {
+            str(position.get("wallet_address") or "").lower()
+            for position in group
+            if position.get("wallet_address")
+        }
         wallet_count = len(unique_wallets)
-        total_amount = sum(_safe_float(position.get("position_size_usd")) for position in group)
+        total_amount = sum(
+            _safe_float(position.get("position_size_usd")) for position in group
+        )
         primary = _primary_position(group, unit_map, events_by_wallet)
-        strongest_units = max((_relative_units(position, unit_map, events_by_wallet) or 0) for position in group)
+        strongest_units = max(
+            (_relative_units(position, unit_map, events_by_wallet) or 0)
+            for position in group
+        )
         primary_units = _relative_units(primary, unit_map, events_by_wallet) or 0
-        average_units = sum((_relative_units(position, unit_map, events_by_wallet) or 0) for position in group) / len(group)
+        average_units = sum(
+            (_relative_units(position, unit_map, events_by_wallet) or 0)
+            for position in group
+        ) / len(group)
+        conviction_units = (
+            (primary_units * 0.40)
+            + (min(strongest_units, 10) * 0.35)
+            + (min(average_units, 10) * 0.25)
+        )
         sample_size = _sample_size(primary, events_by_wallet)
         adjusted_hit_rate = _adjusted_hit_rate(primary, sample_size)
         group_hit_rate = _weighted_hit_rate(group, events_by_wallet)
@@ -513,77 +639,167 @@ def build_trades_to_play(
         )
         canonical = canonical_side(primary)
         event_time = _format_event_time(primary.get("resolution_time"))
+        total_shares = sum(
+            _safe_float(position.get("shares") or position.get("token_units"))
+            for position in group
+        )
+        sharp_average_entry = (
+            total_amount / total_shares
+            if total_shares > 0
+            else _safe_float(primary.get("average_entry_price"))
+        )
+        category_metrics = [
+            position.get("category_metrics")
+            for position in group
+            if position.get("category_metrics")
+        ]
+        category_sample_total = sum(
+            int(metric.get("sample_size") or 0) for metric in category_metrics
+        )
+        category_hit_rate = None
+        if category_sample_total > 0:
+            category_hit_rate = (
+                sum(
+                    _safe_float(metric.get("adjusted_hit_rate"), 0.5)
+                    * int(metric.get("sample_size") or 0)
+                    for metric in category_metrics
+                )
+                / category_sample_total
+            )
+        top_category_score = (
+            sum(
+                1.0 if metric.get("is_top_category") else 0.0
+                for metric in category_metrics
+            )
+            / len(category_metrics)
+            if category_metrics
+            else None
+        )
+        evidence_inputs = {
+            "combined_amount": _log_score(total_amount, amount_benchmark),
+            "relative_size": _log_score(conviction_units, 5),
+            "top_category": top_category_score,
+            "adjusted_category_hit_rate": category_hit_rate,
+            "category_sample_size": _log_score(category_sample_total, 500)
+            if category_sample_total
+            else None,
+            "relative_size_details": {
+                "primary_units": primary_units,
+                "strongest_units": strongest_units,
+                "average_units": average_units,
+                "conviction_units": conviction_units,
+            },
+            "category_details": category_metrics,
+            "amount_benchmark_p90": amount_benchmark,
+        }
         supporters = sorted(
             [
                 {
                     "wallet_address": position.get("wallet_address"),
                     "wallet_label": position.get("wallet_label"),
                     "amount": _safe_float(position.get("position_size_usd")),
-                    "relative_units": _relative_units(position, unit_map, events_by_wallet),
+                    "relative_units": _relative_units(
+                        position, unit_map, events_by_wallet
+                    ),
                     "average_entry_price": position.get("average_entry_price"),
                     "current_price": position.get("current_price"),
                     "shares": position.get("shares") or position.get("token_units"),
                     "last_changed_at": position.get("last_changed_at"),
                     "wallet_profile_url": position.get("wallet_profile_url"),
+                    "category_metrics": position.get("category_metrics"),
                     "source": "active_position_snapshot",
                 }
                 for position in group
             ],
-            key=lambda item: (-item["amount"], -(item["relative_units"] or 0), str(item["wallet_label"]).lower()),
+            key=lambda item: (
+                -item["amount"],
+                -(item["relative_units"] or 0),
+                str(item["wallet_label"]).lower(),
+            ),
         )
 
         play = {
-                "id": f"{canonical.market_key}::{canonical.side_key}",
-                "canonical_market_key": canonical.market_key,
-                "canonical_side_key": canonical.side_key,
-                "source": "active_position_snapshot",
-                "validation_ids": {
-                    "event_id": primary.get("event_id"),
-                    "event_slug": primary.get("event_slug"),
-                    "condition_id": primary.get("condition_id"),
-                    "market_slug": primary.get("market_slug"),
-                    "outcome": primary.get("outcome"),
-                    "event_time_source": primary.get("event_time_source") or "unknown",
-                    "wallet_addresses": sorted(unique_wallets),
-                },
-                "confidence_score": confidence,
-                "score_breakdown": breakdown,
-                "score_weights": SECONDARY_SCORE_WEIGHTS,
-                "tracked_wallet_count": tracked_wallet_count,
-                "sharps_badge": sharps_badge(wallet_count),
-                "agreeing_wallet_count": wallet_count,
-                "market_title": primary.get("market_title"),
-                "event_title": primary.get("event_title") or primary.get("market_title"),
-                "outcome": primary.get("outcome"),
-                "category": primary.get("category"),
-                "league": primary.get("league"),
+            "id": f"{canonical.market_key}::{canonical.side_key}",
+            "canonical_market_key": canonical.market_key,
+            "canonical_side_key": canonical.side_key,
+            "source": "active_position_snapshot",
+            "validation_ids": {
+                "event_id": primary.get("event_id"),
                 "event_slug": primary.get("event_slug"),
+                "condition_id": primary.get("condition_id"),
+                "market_slug": primary.get("market_slug"),
+                "outcome": primary.get("outcome"),
+                "outcome_token_id": primary.get("clob_token_id"),
                 "event_time_source": primary.get("event_time_source") or "unknown",
-                "market_url": primary.get("market_url"),
-                "current_price": primary.get("current_price"),
-                "average_entry_price": round(sum(_safe_float(position.get("average_entry_price")) for position in group) / len(group), 4),
-                "slippage": round(slippage, 4),
-                "total_amount_bet": round(total_amount, 6),
-                "combined_exposure_exact": total_amount,
-                "strongest_relative_units": strongest_units,
-                "primary_trader": {
-                    "wallet_address": primary.get("wallet_address"),
-                    "wallet_label": primary.get("wallet_label"),
-                    "amount": _safe_float(primary.get("position_size_usd")),
-                    "relative_units": _relative_units(primary, unit_map, events_by_wallet),
-                    "wallet_profile_url": primary.get("wallet_profile_url"),
-                    "sample_size": sample_size,
-                    "adjusted_hit_rate": round(adjusted_hit_rate, 4),
-                    "source": "active_position_snapshot",
-                },
-                "supporting_wallets": supporters,
-                "first_detected_at": min(position.get("first_detected_at") or "" for position in group),
-                "last_changed_at": max(position.get("last_changed_at") or position.get("first_detected_at") or "" for position in group),
-                "entered_at": max(position.get("first_detected_at") or "" for position in group),
-                **event_time,
-            }
+                "wallet_addresses": sorted(unique_wallets),
+            },
+            "confidence_score": confidence,
+            "score_breakdown": breakdown,
+            "score_weights": SECONDARY_SCORE_WEIGHTS,
+            "tracked_wallet_count": tracked_wallet_count,
+            "sharps_badge": sharps_badge(wallet_count),
+            "agreeing_wallet_count": wallet_count,
+            "market_title": primary.get("market_title"),
+            "event_title": primary.get("event_title") or primary.get("market_title"),
+            "outcome": primary.get("outcome"),
+            "category": primary.get("category"),
+            "league": primary.get("league"),
+            "event_slug": primary.get("event_slug"),
+            "event_time_source": primary.get("event_time_source") or "unknown",
+            "market_url": primary.get("market_url"),
+            "current_price": primary.get("executable_ask_price")
+            or primary.get("current_price"),
+            "snapshot_current_price": primary.get("current_price"),
+            "current_price_source": primary.get("executable_price_source")
+            or "active_position_snapshot",
+            "clob_token_id": primary.get("clob_token_id"),
+            "orderbook": primary.get("orderbook") or {},
+            "orderbook_timestamp": primary.get("orderbook_timestamp"),
+            "market_line": primary.get("market_line"),
+            "sports_market_type": primary.get("sports_market_type"),
+            "market_open": primary.get("market_open"),
+            "lifecycle_status": primary.get("lifecycle_status"),
+            "lifecycle_reason": primary.get("lifecycle_reason"),
+            "average_entry_price": round(sharp_average_entry, 6),
+            "slippage": round(slippage, 4),
+            "total_amount_bet": round(total_amount, 6),
+            "combined_exposure_exact": total_amount,
+            "strongest_relative_units": strongest_units,
+            "evidence_inputs": evidence_inputs,
+            "primary_trader": {
+                "wallet_address": primary.get("wallet_address"),
+                "wallet_label": primary.get("wallet_label"),
+                "amount": _safe_float(primary.get("position_size_usd")),
+                "relative_units": _relative_units(primary, unit_map, events_by_wallet),
+                "wallet_profile_url": primary.get("wallet_profile_url"),
+                "sample_size": sample_size,
+                "adjusted_hit_rate": round(adjusted_hit_rate, 4),
+                "source": "active_position_snapshot",
+            },
+            "supporting_wallets": supporters,
+            "first_detected_at": min(
+                position.get("first_detected_at") or "" for position in group
+            ),
+            "last_changed_at": max(
+                position.get("last_changed_at")
+                or position.get("first_detected_at")
+                or ""
+                for position in group
+            ),
+            "entered_at": max(
+                position.get("first_detected_at") or "" for position in group
+            ),
+            **event_time,
+        }
         play["search_blob"] = _search_blob(play)
         output.append(play)
 
-    output.sort(key=lambda item: (-item["confidence_score"], -item["agreeing_wallet_count"], -item["total_amount_bet"], item["market_title"] or ""))
+    output.sort(
+        key=lambda item: (
+            -item["confidence_score"],
+            -item["agreeing_wallet_count"],
+            -item["total_amount_bet"],
+            item["market_title"] or "",
+        )
+    )
     return output

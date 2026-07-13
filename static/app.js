@@ -1,1276 +1,857 @@
-const state = {
-  positions: [],
-  trades: [],
-  wallets: [],
-  unitAnalysis: [],
-  consensus: [],
-  status: null,
-  loading: false,
-  autoRefreshPaused: false,
-  selectedTradeKey: null,
-  lastDashboardCheck: null,
-  tradePagination: null,
-};
-
+const page = document.body.dataset.page;
 const AUTO_REFRESH_MS = 15000;
-let tradeSearchTimer = null;
-
-const filterIds = [
-  "search-input",
-  "wallet-filter",
-  "sport-filter",
-  "league-filter",
-  "min-position",
-  "min-units",
-  "min-pnl",
-  "date-range-filter",
-  "custom-start-date",
-  "custom-end-date",
-  "sharps-filter",
-  "sharps-filter-advanced",
-  "min-confidence",
-  "min-confidence-advanced",
-  "event-filter",
-  "consensus-filter",
-];
+const appState = {
+  paused: localStorage.getItem("iconbets-refresh-paused") === "true",
+  selectedTradeId: null,
+  trades: [],
+  pageNumber: 1,
+  graphRange: "month",
+};
 
 function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;",
-  }[char]));
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
 }
 
-function formatMoney(value) {
-  return Number(value || 0).toLocaleString("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 2 });
+function number(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
-function formatPercent(value) {
-  return `${Number(value || 0).toFixed(2)}%`;
+function formatMoney(value, digits = 2) {
+  const parsed = number(value);
+  if (parsed === null) return "Unavailable";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(parsed);
 }
 
-function formatUnitsValue(value) {
-  const numeric = numberOrNull(value);
-  if (numeric === null) return "n/a";
-  return `${numeric.toFixed(numeric >= 10 ? 2 : 3)}u`;
+function formatCompactMoney(value) {
+  const parsed = number(value);
+  if (parsed === null) return "Unavailable";
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    notation: Math.abs(parsed) >= 1000 ? "compact" : "standard",
+    maximumFractionDigits: 1,
+  }).format(parsed);
 }
 
-function formatDate(value) {
-  if (!value) return "n/a";
+function formatPercent(value, digits = 1) {
+  const parsed = number(value);
+  return parsed === null ? "Unavailable" : `${(parsed * 100).toFixed(digits)}%`;
+}
+
+function formatCents(value) {
+  const parsed = number(value);
+  if (parsed === null || parsed <= 0 || parsed >= 1) return "Unavailable";
+  const cents = parsed * 100;
+  return `${Number.isInteger(cents) ? cents.toFixed(0) : cents.toFixed(1)}¢`;
+}
+
+function formatUnits(value) {
+  const parsed = number(value);
+  return parsed === null ? "n/a" : `${parsed.toFixed(2)}u`;
+}
+
+function formatDateTime(value, fallback = "Unavailable") {
+  if (!value) return fallback;
   const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  if (Number.isNaN(parsed.getTime())) return fallback;
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "America/New_York",
+    timeZoneName: "short",
+  }).format(parsed);
 }
 
-function formatShortDate(value) {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
-}
-
-function formatClock(value) {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return value;
-  return parsed.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" });
-}
-
-function timeAgo(value) {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "n/a";
-  const seconds = Math.max(0, Math.round((Date.now() - parsed.getTime()) / 1000));
-  if (seconds < 60) return "just now";
-  const minutes = Math.round(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 48) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return `${days}d ago`;
-}
-
-function formatConviction(position) {
-  if (position.position_conviction_status === "neutral") {
-    return "Neutral";
-  }
-  return String(position.position_conviction ?? "n/a");
-}
-
-function valueClass(value) {
-  const numeric = Number(value || 0);
-  if (numeric > 0) return "positive";
-  if (numeric < 0) return "negative";
-  return "";
-}
-
-function initials(label) {
-  const words = String(label || "W").trim().split(/\s+/).filter(Boolean);
-  return words.slice(0, 2).map((word) => word[0]).join("").toUpperCase() || "W";
-}
-
-function icon(name) {
-  const icons = {
-    wallets: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8.5A2.5 2.5 0 0 1 5.5 6H18a3 3 0 0 1 3 3v8.5A2.5 2.5 0 0 1 18.5 20h-13A2.5 2.5 0 0 1 3 17.5v-9Z"/><path d="M17 12h4v4h-4a2 2 0 0 1 0-4Z"/></svg>',
-    positions: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 19V5"/><path d="M4 19h16"/><path d="m7 15 4-4 3 3 5-7"/></svg>',
-    value: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7H14a3.5 3.5 0 0 1 0 7H6"/></svg>',
-    pnl: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 17 9 11l4 4 8-8"/><path d="M14 7h7v7"/></svg>',
-    trades: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7h14l-4-4"/><path d="M17 17H3l4 4"/></svg>',
-    exits: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>',
-    consensus: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
-    status: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>',
+function debounce(callback, delay = 250) {
+  let timer;
+  return (...args) => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(() => callback(...args), delay);
   };
-  return icons[name] || icons.status;
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
-  }
-  return response.json();
-}
-
-function syncFilter(selectId, values) {
-  const select = document.getElementById(selectId);
-  const current = select.value;
-  const options = ['<option value="">All</option>'].concat(values.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`));
-  select.innerHTML = options.join("");
-  if (values.includes(current)) {
-    select.value = current;
-  }
-}
-
-function setStatusDots(status) {
-  const normalized = String(status || "idle").toLowerCase();
-  ["api-status-dot", "hero-api-dot"].forEach((id) => {
-    const dot = document.getElementById(id);
-    if (!dot) return;
-    dot.className = `status-dot ${normalized}`;
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, {
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
   });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  return payload;
 }
 
-function renderOverview() {
-  const overview = state.status?.overview || {};
-  const cards = [
-    ["Trades to Play", state.trades.length, "trades"],
-    ["Enabled Wallets", overview.enabled_wallets ?? 0, "wallets"],
-    ["Open Sports Positions", overview.open_sports_positions ?? 0, "positions"],
-    ["Current Position Value", formatMoney(overview.total_current_position_value ?? 0), "value"],
-  ];
+function showToast(message, tone = "neutral") {
+  const toast = document.getElementById("app-toast");
+  if (!toast) return;
+  toast.textContent = message;
+  toast.dataset.tone = tone;
+  toast.classList.add("visible");
+  window.clearTimeout(showToast.timer);
+  showToast.timer = window.setTimeout(() => toast.classList.remove("visible"), 3200);
+}
 
-  document.getElementById("overview-grid").innerHTML = cards
-    .map(([label, value, iconName, cls]) => `
-      <article class="metric-card">
-        <div class="metric-head">
-          <span class="metric-label">${escapeHtml(label)}</span>
-          <span class="metric-icon">${icon(iconName)}</span>
-        </div>
-        <strong class="metric-value ${cls || ""}">${escapeHtml(value)}</strong>
-      </article>
-    `)
+function emptyState(title, copy) {
+  return `<div class="empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p></div>`;
+}
+
+function errorState(message) {
+  return `<div class="empty-state error-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><h2>Could not load this view</h2><p>${escapeHtml(message)}</p></div>`;
+}
+
+function setOptions(select, values, label) {
+  if (!select) return;
+  const selected = select.value;
+  const unique = [...new Set(values.filter(Boolean).map(String))].sort((a, b) => a.localeCompare(b));
+  select.innerHTML = `<option value="">${escapeHtml(label)}</option>` + unique
+    .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
     .join("");
+  select.value = unique.includes(selected) ? selected : "";
 }
 
-function recentTradeMapByPosition() {
-  const map = new Map();
-  state.trades.forEach((trade) => {
-    const key = `${trade.wallet_address}::${trade.position_key}`;
-    if (!map.has(key)) {
-      map.set(key, trade.event_type);
-    }
-  });
-  return map;
+function updateGlobalStatus(status = {}) {
+  const api = document.getElementById("global-api-status");
+  const dot = document.getElementById("global-api-dot");
+  const refresh = document.getElementById("global-last-refresh");
+  const wallets = document.getElementById("global-wallet-count");
+  if (api) api.textContent = status.api_status || "Unknown";
+  if (dot) dot.dataset.status = status.api_status || "unknown";
+  if (refresh) refresh.textContent = formatDateTime(status.last_successful_refresh, "Waiting");
+  if (wallets) wallets.textContent = status.enabled_wallet_count ?? 0;
 }
 
-function activeFilterCount() {
-  const dateRangeMode = document.getElementById("date-range-filter").value;
-  const countedIds = filterIds.filter((id) => !["sharps-filter-advanced", "min-confidence-advanced"].includes(id));
-  return countedIds.reduce((count, id) => {
-    const element = document.getElementById(id);
-    if ((id === "custom-start-date" || id === "custom-end-date") && dateRangeMode !== "custom") {
-      return count;
-    }
-    return count + (element && element.value ? 1 : 0);
-  }, 0);
-}
-
-function updateActiveFilterCount() {
-  const count = activeFilterCount();
-  document.getElementById("active-filter-count").textContent = `${count} active`;
-  const dateRange = document.getElementById("date-range-filter").value;
-  document.querySelectorAll(".quick-filter").forEach((button) => {
-    const action = button.dataset.quickFilter;
-    const isActive = (
-      (action === "clear" && count === 0) ||
-      (action === "today" && dateRange === "today") ||
-      (action === "tomorrow" && dateRange === "tomorrow") ||
-      (action === "next24" && dateRange === "next24") ||
-      (action === "next48" && dateRange === "next48") ||
-      (action === "consensus" && document.getElementById("consensus-filter").value === "yes") ||
-      (action === "large" && document.getElementById("min-position").value === "1000") ||
-      (action === "profitable" && document.getElementById("min-pnl").value === "1")
-    );
-    button.classList.toggle("active", isActive);
-  });
-}
-
-function startOfLocalDay(date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
-}
-
-function addDays(date, days) {
-  const copy = new Date(date);
-  copy.setDate(copy.getDate() + days);
-  return copy;
-}
-
-function dateInputToLocalDate(value, endOfDay = false) {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  if (Number.isNaN(parsed.getTime())) return null;
-  if (endOfDay) parsed.setHours(23, 59, 59, 999);
-  return parsed;
-}
-
-function activeDateRange() {
-  const mode = document.getElementById("date-range-filter").value;
-  if (!mode) return null;
-
-  const now = new Date();
-  if (mode === "today") {
-    return {
-      start: startOfLocalDay(now),
-      end: addDays(startOfLocalDay(now), 1),
-      label: "today",
-    };
+async function loadGlobalStatus() {
+  try {
+    updateGlobalStatus(await fetchJson("/api/status"));
+  } catch (error) {
+    updateGlobalStatus({ api_status: "error" });
   }
-
-  if (mode === "tomorrow") {
-    const tomorrow = addDays(startOfLocalDay(now), 1);
-    return {
-      start: tomorrow,
-      end: addDays(tomorrow, 1),
-      label: "tomorrow",
-    };
-  }
-
-  if (mode === "next24") {
-    return {
-      start: now,
-      end: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-      label: "next 24 hours",
-    };
-  }
-
-  if (mode === "next48") {
-    return {
-      start: now,
-      end: new Date(now.getTime() + 48 * 60 * 60 * 1000),
-      label: "next 48 hours",
-    };
-  }
-
-  if (mode === "week") {
-    const end = startOfLocalDay(now);
-    end.setDate(end.getDate() + (7 - end.getDay()));
-    end.setHours(23, 59, 59, 999);
-    return {
-      start: now,
-      end,
-      label: "this week",
-    };
-  }
-
-  if (mode === "custom") {
-    return {
-      start: dateInputToLocalDate(document.getElementById("custom-start-date").value),
-      end: dateInputToLocalDate(document.getElementById("custom-end-date").value, true),
-      label: "custom range",
-    };
-  }
-
-  return null;
 }
 
-function resolutionDateForItem(item) {
-  const snapshot = tradeSnapshot(item);
-  const value = snapshot.resolution_time || item.resolution_time || item.event_date_et || item.endDate || "";
-  if (!value) return null;
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function itemMatchesDateRange(item, range = activeDateRange()) {
-  if (!range) return true;
-  const resolution = resolutionDateForItem(item);
-  if (!resolution) return false;
-  if (range.start && resolution < range.start) return false;
-  if (range.end && resolution > range.end) return false;
-  return true;
-}
-
-function filteredPositions() {
-  const search = document.getElementById("search-input").value.trim().toLowerCase();
-  const wallet = document.getElementById("wallet-filter").value;
-  const sport = document.getElementById("sport-filter").value;
-  const league = document.getElementById("league-filter").value;
-  const minPosition = Number(document.getElementById("min-position").value || 0);
-  const minUnits = Number(document.getElementById("min-units").value || 0);
-  const minPnl = Number(document.getElementById("min-pnl").value || 0);
-  const dateRange = activeDateRange();
-  const eventFilter = document.getElementById("event-filter").value;
-  const consensusOnly = document.getElementById("consensus-filter").value === "yes";
-  const tradeMap = recentTradeMapByPosition();
-
-  return state.positions.filter((position) => {
-    const haystack = `${position.wallet_label} ${position.market_title} ${position.outcome}`.toLowerCase();
-    if (search && !haystack.includes(search)) return false;
-    if (wallet && position.wallet_label !== wallet) return false;
-    if (sport && position.category !== sport) return false;
-    if (league && position.league !== league) return false;
-    if (Number(position.position_size_usd || 0) < minPosition) return false;
-    if (Number(position.estimated_units || 0) < minUnits) return false;
-    if (Number(position.unrealized_pnl || 0) < minPnl) return false;
-    if (!itemMatchesDateRange(position, dateRange)) return false;
-    if (consensusOnly && Number(position.tracked_wallets_same_side || 0) < 2) return false;
-    if (eventFilter && tradeMap.get(`${position.wallet_address}::${position.position_key}`) !== eventFilter) return false;
-    return true;
-  });
-}
-
-function filteredTrades() {
-  return state.trades;
-}
-
-function convictionTitle(position) {
-  const breakdown = position.position_conviction_breakdown || {};
-  if (position.position_conviction_status === "neutral") {
-    return breakdown.reason || "Not enough verified data";
-  }
-  return [
-    `Size ${breakdown.size_component || 0}`,
-    `Portfolio ${breakdown.portfolio_component || 0}`,
-    `Consensus ${breakdown.consensus_component || 0}`,
-    `Increases ${breakdown.increase_component || 0}`,
-    `Price ${breakdown.price_component || 0}`,
-    `Time ${breakdown.time_component || 0}`,
-    `Sport focus ${breakdown.sport_focus_component || 0}`,
-  ].join(", ");
-}
-
-function detailsGrid(position) {
-  const pnlPct = position.position_size_usd ? ((position.unrealized_pnl / position.position_size_usd) * 100) : 0;
-  const rows = [
-    ["Wallet address", position.wallet_short_address || position.wallet_address],
-    ["Average entry odds", position.average_entry_odds],
-    ["American odds", position.current_odds],
-    ["Unrealized %", formatPercent(pnlPct)],
-    ["First detected", formatDate(position.first_detected_at)],
-    ["Last updated", formatDate(position.last_seen_at)],
-    ["Tracked wallets same side", position.tracked_wallets_same_side],
-    ["Position conviction", formatConviction(position)],
-  ];
-  return rows.map(([label, value]) => `<div class="detail-item"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("");
-}
-
-function renderPositions() {
-  const positions = filteredPositions();
-  const tbody = document.querySelector("#positions-table tbody");
-  const mobile = document.getElementById("mobile-positions");
-  document.getElementById("positions-count").textContent = `${positions.length} positions`;
-  updateActiveFilterCount();
-
-  if (!positions.length) {
-    tbody.innerHTML = '<tr><td class="empty-row" colspan="19">No live positions match the current filters.</td></tr>';
-    mobile.innerHTML = '<div class="empty-panel">No live positions match the current filters.</div>';
-    return;
-  }
-
-  tbody.innerHTML = positions
-    .map((position, index) => {
-      const pnlClass = valueClass(position.unrealized_pnl);
-      const pnlPct = position.position_size_usd ? ((position.unrealized_pnl / position.position_size_usd) * 100) : 0;
-      const detailsId = `position-details-${index}`;
-      return `
-        <tr>
-          <td>
-            <div class="wallet-cell">
-              <span class="avatar">${escapeHtml(initials(position.wallet_label))}</span>
-              <span>
-                <span class="wallet-name">${escapeHtml(position.wallet_label)}</span>
-                <span class="wallet-address">${escapeHtml(position.wallet_short_address)}</span>
-              </span>
-            </div>
-          </td>
-          <td><span class="pill sport-pill">${escapeHtml(position.category)}</span></td>
-          <td><span class="pill">${escapeHtml(position.league)}</span></td>
-          <td class="market-cell"><span class="market-title" tabindex="0" title="${escapeHtml(position.market_title)}">${escapeHtml(position.market_title)}</span></td>
-          <td><span class="outcome-badge">${escapeHtml(position.outcome)}</span></td>
-          <td>${formatMoney(position.position_size_usd)}</td>
-          <td>${escapeHtml(position.estimated_units ?? "n/a")}<span class="cell-sub">${escapeHtml(position.estimated_base_unit_label || "")}</span></td>
-          <td>${Number(position.average_entry_price_cents || 0).toFixed(1)}c</td>
-          <td>${Number(position.current_price_cents || 0).toFixed(1)}c</td>
-          <td>${escapeHtml(position.current_odds)}</td>
-          <td>${formatMoney(position.current_value)}</td>
-          <td class="${pnlClass}">${formatMoney(position.unrealized_pnl)}</td>
-          <td class="${pnlClass}">${formatPercent(pnlPct)}</td>
-          <td>${escapeHtml(formatShortDate(position.resolution_time))}</td>
-          <td>${escapeHtml(formatDate(position.first_detected_at))}</td>
-          <td>${escapeHtml(formatDate(position.last_seen_at))}</td>
-          <td>${escapeHtml(position.tracked_wallets_same_side)}</td>
-          <td title="${escapeHtml(convictionTitle(position))}">
-            <button class="text-button subtle row-toggle" type="button" aria-expanded="false" aria-controls="${detailsId}" data-target="${detailsId}">
-              ${escapeHtml(formatConviction(position))}
-            </button>
-          </td>
-          <td>
-            <a href="${escapeHtml(position.market_url)}" target="_blank" rel="noreferrer">Market</a><br>
-            <a href="${escapeHtml(position.wallet_profile_url)}" target="_blank" rel="noreferrer">Profile</a>
-          </td>
-        </tr>
-        <tr class="row-details" id="${detailsId}" hidden>
-          <td colspan="19"><div class="details-grid">${detailsGrid(position)}</div></td>
-        </tr>
-      `;
-    })
-    .join("");
-
-  mobile.innerHTML = positions
-    .map((position) => {
-      const pnlClass = valueClass(position.unrealized_pnl);
-      return `
-        <details class="position-card">
-          <summary>
-            <span>
-              <span class="wallet-cell">
-                <span class="avatar">${escapeHtml(initials(position.wallet_label))}</span>
-                <span>
-                  <span class="wallet-name">${escapeHtml(position.wallet_label)}</span>
-                  <span class="wallet-address">${escapeHtml(position.category)} / ${escapeHtml(position.league)}</span>
-                </span>
-              </span>
-              <span class="market-title" title="${escapeHtml(position.market_title)}">${escapeHtml(position.market_title)}</span>
-            </span>
-            <span class="outcome-badge">${escapeHtml(position.outcome)}</span>
-          </summary>
-          <div class="mobile-card-metrics">
-            <div class="card-metric"><span>Position size</span><strong>${formatMoney(position.position_size_usd)}</strong></div>
-            <div class="card-metric"><span>Estimated units</span><strong>${escapeHtml(position.estimated_units ?? "n/a")}</strong></div>
-            <div class="card-metric"><span>Current value</span><strong>${formatMoney(position.current_value)}</strong></div>
-            <div class="card-metric"><span>Unrealized P&L</span><strong class="${pnlClass}">${formatMoney(position.unrealized_pnl)}</strong></div>
-            <div class="card-metric"><span>Current odds</span><strong>${escapeHtml(position.current_odds)}</strong></div>
-            <div class="card-metric"><span>Resolution</span><strong>${escapeHtml(formatShortDate(position.resolution_time))}</strong></div>
-          </div>
-          <div class="card-detail-grid">${detailsGrid(position)}</div>
-        </details>
-      `;
-    })
-    .join("");
-}
-
-function eventBadge(eventType) {
-  const labels = {
-    new_entry: ["New Entry", "new-entry"],
-    size_increase: ["Increased", "increased"],
-    size_decrease: ["Decreased", "decreased"],
-    full_exit: ["Exit", "exit"],
-    price_change: ["Price Change", "price-change"],
-    avg_price_change: ["Avg Price", "price-change"],
-    current_value_change: ["Value Change", "price-change"],
-    unrealized_pnl_change: ["P&L Change", "price-change"],
-  };
-  const [label, cls] = labels[eventType] || [eventType || "Event", "price-change"];
-  return `<span class="event-badge ${cls}">${escapeHtml(label)}</span>`;
-}
-
-function renderFilteredViews() {
-  renderPositions();
-  renderTrades();
-  updateCustomDateFields();
-}
-
-function pairedFilterValue(primaryId, secondaryId) {
-  return document.getElementById(primaryId)?.value || document.getElementById(secondaryId)?.value || "";
-}
-
-function syncPairedFilters(sourceId) {
-  const pairs = [
-    ["sharps-filter", "sharps-filter-advanced"],
-    ["min-confidence", "min-confidence-advanced"],
-  ];
-  pairs.forEach(([a, b]) => {
-    if (sourceId !== a && sourceId !== b) return;
-    const source = document.getElementById(sourceId);
-    const target = document.getElementById(sourceId === a ? b : a);
-    if (source && target) target.value = source.value;
-  });
-}
-
-function tradeFilterQuery() {
-  const params = new URLSearchParams();
-  const search = document.getElementById("search-input")?.value.trim();
-  const minSharps = pairedFilterValue("sharps-filter", "sharps-filter-advanced");
-  const minConfidence = pairedFilterValue("min-confidence", "min-confidence-advanced");
-  const mappings = [
-    ["q", search],
-    ["wallet", document.getElementById("wallet-filter")?.value],
-    ["sport", document.getElementById("sport-filter")?.value],
-    ["league", document.getElementById("league-filter")?.value],
-    ["date_range", document.getElementById("date-range-filter")?.value],
-    ["custom_start", document.getElementById("custom-start-date")?.value],
-    ["custom_end", document.getElementById("custom-end-date")?.value],
-    ["min_sharps", minSharps],
-    ["min_confidence", minConfidence],
-    ["per_page", "100"],
-  ];
-  mappings.forEach(([key, value]) => {
-    if (value) params.set(key, value);
-  });
-  if (document.getElementById("consensus-filter")?.value === "yes" && !params.get("min_sharps")) {
-    params.set("min_sharps", "2");
-  }
-  return params.toString();
-}
-
-async function loadTradesToPlay() {
-  const query = tradeFilterQuery();
-  const response = await fetchJson(`/api/trades-to-play${query ? `?${query}` : ""}`);
-  state.trades = response.data || [];
-  state.tradePagination = response.pagination || null;
-  if (response.status) state.status = response.status;
-  renderOverview();
-  renderTrades();
-}
-
-function scheduleTradeRefresh(delay = 250) {
-  window.clearTimeout(tradeSearchTimer);
-  tradeSearchTimer = window.setTimeout(() => {
-    loadTradesToPlay().catch(() => renderTrades());
-  }, delay);
-}
-
-function tradeEventLabel(eventType) {
-  const labels = {
-    new_entry: "New Entry",
-    size_increase: "Increased",
-    size_decrease: "Decreased",
-    full_exit: "Exit",
-    price_change: "Price Change",
-    avg_price_change: "Avg Price",
-    current_value_change: "Value Change",
-    unrealized_pnl_change: "P&L Change",
-  };
-  return labels[eventType] || eventType || "Event";
-}
-
-function numberOrNull(value) {
-  const numeric = Number(value);
-  return Number.isFinite(numeric) ? numeric : null;
-}
-
-function formatCentsFromProbability(value) {
-  const numeric = numberOrNull(value);
-  if (numeric === null || numeric <= 0) return "n/a";
-  return `${(numeric * 100).toFixed(1)}c`;
-}
-
-function formatTakePriceFromProbability(value) {
-  const numeric = numberOrNull(value);
-  if (numeric === null || numeric <= 0 || numeric > 1) return "Unavailable";
-  const cents = numeric * 100;
-  const formatted = Math.abs(cents - Math.round(cents)) < 0.05 ? String(Math.round(cents)) : cents.toFixed(1);
-  return `${formatted}\u00a2`;
-}
-
-function formatShares(value) {
-  const numeric = numberOrNull(value);
-  if (numeric === null) return "n/a";
-  return `${numeric.toFixed(numeric >= 100 ? 0 : 2)} shares`;
-}
-
-function tradeKey(trade, index) {
-  return trade.id || trade.event_hash || `${trade.wallet_address || "wallet"}::${trade.position_key || "position"}::${trade.detected_at || index}`;
-}
-
-function tradeSnapshot(trade) {
-  return trade.current || trade;
-}
-
-function unitEntryForTrade(trade) {
-  const address = String(trade.primary_trader?.wallet_address || trade.wallet_address || "").toLowerCase();
-  const label = String(trade.primary_trader?.wallet_label || trade.wallet_label || "").toLowerCase();
-  return state.unitAnalysis.find((entry) => (
-    String(entry.wallet_address || "").toLowerCase() === address ||
-    String(entry.wallet_label || "").toLowerCase() === label
-  ));
-}
-
-function tradeSizeUsd(trade) {
-  const snapshot = tradeSnapshot(trade);
-  return numberOrNull(trade.combined_exposure_exact) ?? numberOrNull(trade.total_amount_bet) ?? numberOrNull(snapshot.position_size_usd) ?? numberOrNull(trade.position_size_usd) ?? 0;
-}
-
-function primaryTradeSizeUsd(trade) {
-  return numberOrNull(trade.primary_trader?.amount) ?? numberOrNull(trade.position_size_usd) ?? tradeSizeUsd(trade);
-}
-
-function relativeBetSize(trade) {
-  const primaryUnits = numberOrNull(trade.primary_trader?.relative_units);
-  if (primaryUnits !== null) {
-    return {
-      value: formatUnitsValue(primaryUnits),
-      subtext: "Primary sharp unit size",
-    };
-  }
-  if (numberOrNull(trade.strongest_relative_units) !== null) {
-    const units = numberOrNull(trade.strongest_relative_units);
-    return {
-      value: formatUnitsValue(units),
-      subtext: "Strongest agreeing wallet",
-    };
-  }
-  const snapshot = tradeSnapshot(trade);
-  const directUnits = numberOrNull(snapshot.estimated_units);
-  const unitEntry = unitEntryForTrade(trade);
-  const baseUnit = numberOrNull(unitEntry?.estimated_base_unit);
-  const sizeUsd = tradeSizeUsd(trade);
-  const units = directUnits ?? (baseUnit && baseUnit > 0 ? sizeUsd / baseUnit : null);
-
-  if (units === null) {
-    return {
-      value: "n/a",
-      subtext: "Unit stats pending",
-    };
-  }
-
-  const decimals = Math.abs(units) >= 10 ? 1 : 2;
-  return {
-    value: `${units.toFixed(decimals)}u`,
-    subtext: baseUnit ? `${formatMoney(baseUnit)} unit` : "Estimated units",
-  };
-}
-
-function slippageForTrade(trade) {
-  const snapshot = tradeSnapshot(trade);
-  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price);
-  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price);
-
-  if (!averageEntry || !currentPrice) {
-    return {
-      value: "n/a",
-      className: "",
-      note: "Needs entry and current price",
-    };
-  }
-
-  const centsDelta = (currentPrice - averageEntry) * 100;
-  const className = centsDelta < 0 ? "good" : centsDelta > 0 ? "bad" : "flat";
-  const note = centsDelta < 0
-    ? "Better price than entry"
-    : centsDelta > 0
-      ? "Worse price than entry"
-      : "Same as entry";
-
-  return {
-    value: `${centsDelta >= 0 ? "+" : ""}${centsDelta.toFixed(1)}c`,
-    className,
-    note,
-  };
-}
-
-function tradePriceTrackStyle(trade) {
-  const snapshot = tradeSnapshot(trade);
-  const averageEntry = numberOrNull(snapshot.average_entry_price) ?? numberOrNull(trade.average_entry_price) ?? 0;
-  const currentPrice = numberOrNull(snapshot.current_price) ?? numberOrNull(trade.current_price) ?? 0;
-  const entryPct = Math.max(4, Math.min(96, averageEntry * 100));
-  const currentPct = Math.max(4, Math.min(96, currentPrice * 100));
-  return `--entry-pct: ${entryPct}%; --current-pct: ${currentPct}%;`;
-}
-
-function tradeMetric(label, value, subtext, cls = "", iconText = "") {
+function metricCard(label, value, detail, icon) {
   return `
-    <div class="trade-detail-metric ${cls}">
-      <span>${iconText ? `<b aria-hidden="true">${escapeHtml(iconText)}</b>` : ""}${escapeHtml(label)}</span>
+    <article class="metric-card">
+      <div class="metric-icon"><i class="ph ${icon}" aria-hidden="true"></i></div>
+      <span>${escapeHtml(label)}</span>
       <strong>${escapeHtml(value)}</strong>
-      ${subtext ? `<small>${escapeHtml(subtext)}</small>` : ""}
-    </div>
+      <small>${escapeHtml(detail)}</small>
+    </article>
   `;
 }
 
-function scoreLine(label, value, maxValue) {
+function recommendationLabel(recommendation) {
+  if (!recommendation?.available) return "Sizing unavailable";
+  if (!(number(recommendation.final_recommended_fraction) > 0)) return "No bet at current entry";
+  return `${formatMoney(recommendation.recommended_amount)} · ${formatUnits(recommendation.recommended_units)}`;
+}
+
+function confidenceClass(score) {
+  const value = Number(score || 0);
+  if (value >= 80) return "elite";
+  if (value >= 70) return "strong";
+  return "watch";
+}
+
+function previewTradeCard(trade) {
   return `
-    <div>
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value ?? 0)}/${escapeHtml(maxValue ?? 0)}</strong>
-    </div>
+    <a class="preview-trade" href="/trades?selected=${encodeURIComponent(trade.id)}">
+      <span class="score-badge ${confidenceClass(trade.confidence_score)}">${escapeHtml(trade.confidence_score)}</span>
+      <div><small>${escapeHtml(trade.league || trade.category || "Sports")} · ${escapeHtml(trade.event_time_et || "Scheduled")}</small><strong>${escapeHtml(trade.event_title || trade.market_title)}</strong><span>${escapeHtml(trade.outcome)}</span></div>
+      <div class="preview-price"><span>Current</span><strong>${formatCents(trade.recommendation?.current_user_entry_price)}</strong><small>${escapeHtml(recommendationLabel(trade.recommendation))}</small></div>
+      <i class="ph ph-caret-right" aria-hidden="true"></i>
+    </a>
   `;
 }
 
-function scoreTextLine(label, value) {
+async function loadOverview() {
+  const metrics = document.getElementById("overview-metrics");
+  const trades = document.getElementById("overview-trades");
+  try {
+    const payload = await fetchJson("/api/overview");
+    updateGlobalStatus(payload.status);
+    const data = payload.data || {};
+    metrics.innerHTML = [
+      metricCard("Trades to Play", String(data.trades_to_play_count ?? 0), "Verified upcoming opportunities", "ph-lightning"),
+      metricCard("Enabled Wallets", String(data.enabled_wallets ?? 0), "Public wallets actively synced", "ph-wallet"),
+      metricCard("Live Positions", String(data.live_position_count ?? 0), "Markets currently in progress", "ph-broadcast"),
+      metricCard("Position Value", formatMoney(data.total_current_position_value ?? 0), "Current tracked value", "ph-chart-line-up"),
+      metricCard("API Status", String(data.api_status || "unknown").toUpperCase(), "Polymarket data connection", "ph-plugs-connected"),
+      metricCard("Last Refresh", formatDateTime(payload.status?.last_successful_refresh), "Last successful data cycle", "ph-clock"),
+    ].join("");
+    trades.innerHTML = payload.top_trades?.length
+      ? payload.top_trades.map(previewTradeCard).join("")
+      : emptyState("No verified trades today", "The tracker will surface a trade only when its start time, market state, outcome token, and executable ask are all verified.");
+  } catch (error) {
+    metrics.innerHTML = errorState(error.message);
+    trades.innerHTML = errorState(error.message);
+  }
+}
+
+function tradeFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    q: params.get("q") || "",
+    date_range: params.get("date_range") || "today",
+    min_sharps: params.get("min_sharps") || "0",
+    min_confidence: params.get("min_confidence") || "0",
+    sport: params.get("sport") || "",
+    league: params.get("league") || "",
+    wallet: params.get("wallet") || "",
+    custom_start: params.get("custom_start") || "",
+    custom_end: params.get("custom_end") || "",
+  };
+}
+
+function applyTradeFiltersToControls(filters) {
+  const mapping = {
+    "trade-search": "q",
+    "trade-date-range": "date_range",
+    "trade-sharps": "min_sharps",
+    "trade-confidence": "min_confidence",
+    "trade-sport": "sport",
+    "trade-league": "league",
+    "trade-wallet": "wallet",
+    "custom-start": "custom_start",
+    "custom-end": "custom_end",
+  };
+  Object.entries(mapping).forEach(([id, key]) => {
+    const element = document.getElementById(id);
+    if (element) element.value = filters[key];
+  });
+  document.querySelectorAll(".custom-time").forEach((field) => {
+    field.hidden = filters.date_range !== "custom";
+  });
+  if (filters.date_range === "custom") setMoreFiltersExpanded(true);
+}
+
+function setMoreFiltersExpanded(expanded) {
+  const panel = document.getElementById("more-filters");
+  const button = document.getElementById("more-filters-button");
+  if (!panel || !button) return;
+  panel.hidden = !expanded;
+  button.setAttribute("aria-expanded", String(expanded));
+}
+
+function readTradeControls() {
+  return {
+    q: document.getElementById("trade-search").value.trim(),
+    date_range: document.getElementById("trade-date-range").value,
+    min_sharps: document.getElementById("trade-sharps").value,
+    min_confidence: document.getElementById("trade-confidence").value,
+    sport: document.getElementById("trade-sport").value,
+    league: document.getElementById("trade-league").value,
+    wallet: document.getElementById("trade-wallet").value,
+    custom_start: document.getElementById("custom-start").value,
+    custom_end: document.getElementById("custom-end").value,
+  };
+}
+
+function updateTradeUrl(filters) {
+  const params = new URLSearchParams();
+  Object.entries(filters).forEach(([key, value]) => {
+    if (value && !((key === "min_sharps" || key === "min_confidence") && value === "0") && !(key === "date_range" && value === "today")) {
+      params.set(key, value);
+    }
+  });
+  if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
+  const query = params.toString();
+  window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
+}
+
+function tradeCard(trade) {
+  const recommendation = trade.recommendation || {};
+  const selected = trade.id === appState.selectedTradeId;
+  const slippage = number(recommendation.price_movement);
+  const slippageClass = slippage === null ? "" : slippage <= 0 ? "positive" : "negative";
+  const slippageText = slippage === null ? "n/a" : `${slippage > 0 ? "+" : ""}${(slippage * 100).toFixed(1)}¢`;
+  const primary = trade.primary_trader || {};
   return `
-    <div>
-      <span>${escapeHtml(label)}</span>
-      <strong>${escapeHtml(value ?? "n/a")}</strong>
-    </div>
-  `;
-}
-
-function qualityLabel(value) {
-  const numeric = numberOrNull(value);
-  if (numeric === null) return "n/a";
-  if (numeric >= 0.8) return "strong";
-  if (numeric >= 0.55) return "above avg";
-  if (numeric >= 0.3) return "average";
-  return "light";
-}
-
-const traderStats = {
-  "1winstreak1": {
-    topCategory: "MLB",
-    categoryRank: "#4",
-    categoryWinRate: "61.2%",
-    totalTrades: "12,899",
-    categoryGainsLosses: "+$1.8M / -$816.7K",
-  },
-  "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705": {
-    topCategory: "MLB",
-    categoryRank: "#4",
-    categoryWinRate: "61.2%",
-    totalTrades: "12,899",
-    categoryGainsLosses: "+$1.8M / -$816.7K",
-  },
-  "0x4f2": {
-    topCategory: "Baseball",
-    categoryRank: "#7",
-    categoryWinRate: "55.5%",
-    totalTrades: "7,225",
-    categoryGainsLosses: "+$3.1M / -$2.4M",
-  },
-  "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e": {
-    topCategory: "Baseball",
-    categoryRank: "#7",
-    categoryWinRate: "55.5%",
-    totalTrades: "7,225",
-    categoryGainsLosses: "+$3.1M / -$2.4M",
-  },
-};
-
-function traderStatsForTrade(trade) {
-  const label = String(trade.wallet_label || "").toLowerCase();
-  const address = String(trade.wallet_address || "").toLowerCase();
-  return traderStats[label] || traderStats[address] || null;
-}
-
-function renderTradeCard(trade, index, selectedKey) {
-  const key = tradeKey(trade, index);
-  const selected = key === selectedKey;
-  const relative = relativeBetSize(trade);
-  const slippage = slippageForTrade(trade);
-  const price = numberOrNull(trade.current_price);
-  const priceLabel = formatTakePriceFromProbability(price);
-  const priceUnavailable = priceLabel === "Unavailable";
-  const primaryAmount = primaryTradeSizeUsd(trade);
-  const combinedAmount = tradeSizeUsd(trade);
-  const primaryUnits = formatUnitsValue(trade.primary_trader?.relative_units);
-  const sharpsCount = Number(trade.agreeing_wallet_count || 1);
-  const sharpsLabel = `${sharpsCount} Sharp${sharpsCount === 1 ? "" : "s"}`;
-  const eventTime = trade.event_time_et || "Time unavailable";
-  const category = trade.category || trade.league || "Market";
-
-  return `
-    <button class="trade-card ${selected ? "selected" : ""} ${priceUnavailable ? "price-unavailable" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
-      <div class="trade-card-rank score-rank">
-        <span>${escapeHtml(trade.confidence_score ?? 0)}</span>
-        <small>SCORE</small>
-      </div>
-      <div class="trade-card-main">
-        <div class="trade-card-meta">
-          <span>${escapeHtml(eventTime)}</span>
-          <span>${escapeHtml(formatMoney(primaryAmount))}</span>
-          <span>${escapeHtml(primaryUnits)}</span>
-          <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
-          <span class="trade-card-current">Current: ${escapeHtml(priceLabel)}</span>
-        </div>
-        <div class="trade-card-sport">${escapeHtml(category)}</div>
-        <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
-        <div class="trade-card-subtitle">${escapeHtml(trade.market_type || "Moneyline")} / ${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} / ${escapeHtml(sharpsLabel)} / ${escapeHtml(formatMoney(combinedAmount))} combined</div>
-        <div class="trade-card-pick">
-          <div>
-            <span>Pick</span>
-            <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
-            <em>${escapeHtml(sharpsLabel)} / ${escapeHtml(relative.value)} rel. size</em>
-          </div>
-          <small class="${priceUnavailable ? "unavailable" : ""}">
-            <b aria-hidden="true">PM</b>
-            ${escapeHtml(priceLabel)}
-          </small>
-        </div>
-      </div>
-      <span class="trade-card-arrow" aria-hidden="true">&gt;</span>
+    <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}">
+      <span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Score</small></span>
+      <span class="trade-card-main">
+        <span class="trade-chip-row">
+          <span><i class="ph ph-calendar-blank" aria-hidden="true"></i>${escapeHtml(trade.event_time_et || "Verified time unavailable")}</span>
+          <span>${formatCompactMoney(primary.amount)}</span>
+          <span>${formatUnits(primary.relative_units)}</span>
+          <span class="${slippageClass}">${slippageText}</span>
+        </span>
+        <span class="trade-kicker">${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")} · ${escapeHtml(trade.sports_market_type || "Position")}</span>
+        <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
+        <span class="trade-subline">${escapeHtml(primary.wallet_label || "Tracked Sharp")} · ${trade.agreeing_wallet_count} Sharp${trade.agreeing_wallet_count === 1 ? "" : "s"} · ${formatCompactMoney(trade.combined_exposure_exact)} exposure</span>
+        <span class="trade-selection">
+          <span><small>Pick</small><strong>${escapeHtml(trade.outcome)}</strong></span>
+          <span><small>Recommended</small><strong>${escapeHtml(recommendationLabel(recommendation))}</strong></span>
+          <span class="price-pill"><small>Current</small><strong>${formatCents(recommendation.current_user_entry_price)}</strong></span>
+        </span>
+      </span>
+      <i class="ph ph-caret-right trade-caret" aria-hidden="true"></i>
     </button>
   `;
 }
 
-function renderTradeDetail(trade) {
-  if (!trade) {
-    return '<div class="empty-panel">No actionable trades to play match the current filters.</div>';
+function detailMetric(label, value, copy, tone = "") {
+  return `<article class="detail-metric ${tone}"><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(copy)}</small></article>`;
+}
+
+function whySizing(recommendation, trade) {
+  if (!recommendation.available) {
+    return `<div class="data-warning"><i class="ph ph-warning-circle" aria-hidden="true"></i><div><strong>Sizing unavailable</strong><p>${escapeHtml(recommendation.reason || recommendation.message)}</p></div></div>`;
   }
-
-  const relative = relativeBetSize(trade);
-  const slippage = slippageForTrade(trade);
-  const averageEntry = numberOrNull(trade.average_entry_price);
-  const currentPrice = numberOrNull(trade.current_price);
-  const sizeUsd = tradeSizeUsd(trade);
-  const primaryUsd = primaryTradeSizeUsd(trade);
-  const primaryUnits = formatUnitsValue(trade.primary_trader?.relative_units);
-  const profileUrl = trade.primary_trader?.wallet_profile_url;
-  const marketUrl = trade.market_url;
-  const breakdown = trade.score_breakdown || {};
-  const weights = trade.score_weights || {};
-  const supporters = trade.supporting_wallets || [];
-
+  const rows = [
+    ["Current User Entry", formatCents(recommendation.current_user_entry_price)],
+    ["Baseline Probability", formatPercent(recommendation.baseline_probability)],
+    ["Sharps", String(trade.agreeing_wallet_count)],
+    ["Sharp Evidence Score", Number(recommendation.evidence_score).toFixed(3)],
+    ["Evidence Adjustment", `+${formatPercent(recommendation.evidence_adjustment)}`],
+    ["Estimated Win Probability", formatPercent(recommendation.estimated_win_probability)],
+    ["Calculated Edge", formatPercent(recommendation.calculated_edge)],
+    ["Full Kelly", formatPercent(recommendation.full_kelly_fraction)],
+    ["Half Kelly", formatPercent(recommendation.half_kelly_fraction)],
+    ["Sharp Risk Cap", formatPercent(recommendation.sharp_risk_cap)],
+    ["Final Recommendation", formatPercent(recommendation.final_recommended_fraction)],
+    ["Bankroll", formatMoney(recommendation.bankroll)],
+    ["Recommended Bet", formatMoney(recommendation.recommended_amount)],
+    ["Recommended Units", formatUnits(recommendation.recommended_units)],
+  ];
   return `
-    <div class="trade-detail-header">
-      <div class="trade-detail-score">${escapeHtml(trade.confidence_score ?? 0)}</div>
-      <div>
-        <h3 title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</h3>
-        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")} <b aria-hidden="true">/</b> ${escapeHtml(trade.event_time_et || "Time unavailable")}</span>
-      </div>
-      ${trade.sharps_badge ? `<span class="event-badge new-entry sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : `<span class="event-badge new-entry">Actionable</span>`}
-    </div>
-
-    <div class="trade-detail-pick">
-      <div>
-        <span>Primary Trader</span>
-        <strong>${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")}</strong>
-        <small>${escapeHtml(formatMoney(primaryUsd))} / ${escapeHtml(primaryUnits)}</small>
-      </div>
-      <div>
-        <span>Pick</span>
-        <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
-      </div>
-      <div>
-        <span>Combined Exposure</span>
-        <strong>${formatMoney(sizeUsd)}</strong>
-        <small>${escapeHtml(trade.agreeing_wallet_count || 1)} agreeing wallet${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"}</small>
-      </div>
-      <div>
-        <span>Current</span>
-        <strong>${escapeHtml(formatTakePriceFromProbability(currentPrice))}<i aria-hidden="true"></i></strong>
-      </div>
-    </div>
-
-    <div class="trade-detail-metrics">
-      ${tradeMetric("Rel. Bet Size", relative.value, relative.subtext)}
-      ${tradeMetric("Primary Sharp", formatMoney(primaryUsd), `${trade.primary_trader?.wallet_label || "Tracked wallet"} exact active amount`)}
-      ${tradeMetric("Combined Exposure", formatMoney(sizeUsd), "Sum of displayed agreeing wallets")}
-      ${tradeMetric("Slippage", slippage.value, slippage.note, `slippage ${slippage.className}`)}
-      ${tradeMetric("Price At Entry", formatCentsFromProbability(averageEntry), "Average fill price")}
-    </div>
-
-    <div class="trade-stats-grid">
-      ${tradeMetric("Sharps", trade.sharps_badge || `${trade.agreeing_wallet_count || 1} Wallet`, "Consensus integrated", "positive", "S")}
-      ${tradeMetric("Trader History", trade.primary_trader?.sample_size || "n/a", "Primary trader sample", "", "TR")}
-      ${tradeMetric("Adj. Hitrate", `${((trade.primary_trader?.adjusted_hit_rate || 0) * 100).toFixed(1)}%`, "Shrunk by sample size", "positive", "HR")}
-      ${tradeMetric("Entered", timeAgo(trade.entered_at), "Tracked entry time", "", "ET")}
-    </div>
-
-    <details class="score-breakdown">
-      <summary>Why this score?</summary>
-      <div class="score-breakdown-grid">
-        ${scoreTextLine("Consensus band", `${breakdown.consensus_band || "n/a"} / ${breakdown.band_start ?? "?"}-${breakdown.band_end ?? "?"}`)}
-        ${scoreTextLine("Consensus floor", breakdown.consensus_floor)}
-        ${scoreTextLine("Secondary points", `${breakdown.secondary_points ?? 0}/${breakdown.available_secondary_points ?? 0}`)}
-        ${scoreTextLine("Combined amount", `${qualityLabel(breakdown.combined_amount)} / ${Math.round((weights.combined_amount || 0) * 100)}% weight`)}
-        ${scoreTextLine("Relative size", `${qualityLabel(breakdown.relative_size)} / ${Math.round((weights.relative_size || 0) * 100)}% weight`)}
-        ${scoreTextLine("Trader history", `${qualityLabel(breakdown.trader_history)} / ${Math.round((weights.trader_history || 0) * 100)}% weight`)}
-        ${scoreTextLine("Adjusted hit rate", `${qualityLabel(breakdown.adjusted_hit_rate)} / ${Math.round((weights.adjusted_hit_rate || 0) * 100)}% weight`)}
-        ${scoreTextLine("Slippage", `${qualityLabel(breakdown.slippage)} / ${Math.round((weights.slippage || 0) * 100)}% weight`)}
-        ${scoreLine("Final score", trade.confidence_score, 100)}
-      </div>
-      <p>${escapeHtml(breakdown.explanation || "Consensus selected the score band first; secondary metrics placed the trade inside that range.")}</p>
+    <details class="calculation-details">
+      <summary><span><i class="ph ph-function" aria-hidden="true"></i>Why this bet size?</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+      <div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
+      <p class="calculation-note">The current executable CLOB entry is the baseline probability. Sharp evidence can add only a bounded adjustment; Half Kelly is then limited by consensus and global risk caps.</p>
     </details>
-
-    <details class="supporter-breakdown">
-      <summary>Agreeing wallets</summary>
-      <div class="supporter-list">
-        ${supporters.map((supporter) => `
-          <div>
-            <strong>${escapeHtml(supporter.wallet_label)}</strong>
-            <span>${formatMoney(supporter.amount)} / ${escapeHtml(formatUnitsValue(supporter.relative_units))}</span>
-            <small>Entry ${escapeHtml(formatCentsFromProbability(supporter.average_entry_price))} / Current ${escapeHtml(formatCentsFromProbability(supporter.current_price))} / Shares ${escapeHtml(formatShares(supporter.shares))} / Updated ${escapeHtml(formatDate(supporter.last_changed_at))}</small>
-          </div>
-        `).join("")}
-      </div>
-    </details>
-
-    <div class="price-card">
-      <div class="price-card-head">
-        <strong>Price &amp; Slippage</strong>
-        <span class="price-legend">
-          <em class="entry-line"></em> Entry Price <b>${escapeHtml(formatCentsFromProbability(averageEntry))}</b>
-          <em class="current-line"></em> Current Price <b>${escapeHtml(formatTakePriceFromProbability(currentPrice))}</b>
-          <em class="slip-line"></em> Slippage <b class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</b>
-        </span>
-      </div>
-      <div class="price-track" style="${escapeHtml(tradePriceTrackStyle(trade))}">
-        <span class="axis-label axis-60">60c</span>
-        <span class="axis-label axis-45">45c</span>
-        <span class="axis-label axis-30">30c</span>
-        <span class="axis-label axis-15">15c</span>
-        <span class="axis-label axis-0">0c</span>
-        <span class="entry-marker">Entry</span>
-        <span class="current-marker">Current</span>
-      </div>
-      <p>Negative slippage means the current price is below the trader's entry, so following now is cheaper. Positive slippage means the current price is higher than entry.</p>
-    </div>
-
-    <div class="trade-detail-footer">
-      <div><span>Game Time</span><strong>${escapeHtml(trade.event_time_et || "Time unavailable")}</strong></div>
-      <div><span>Total Bet</span><strong>${formatMoney(sizeUsd)}</strong></div>
-      <div><span>Wallets</span><strong>${escapeHtml(trade.agreeing_wallet_count || 1)}</strong></div>
-      <div><span>Status</span><strong class="status-open">Pregame</strong></div>
-      ${marketUrl ? `<a class="trade-action" href="${escapeHtml(marketUrl)}" target="_blank" rel="noreferrer">Open Market</a>` : ""}
-      ${profileUrl ? `<a class="trade-action profile" href="${escapeHtml(profileUrl)}" target="_blank" rel="noreferrer">Trader Profile</a>` : ""}
-      <button class="trade-action overflow" type="button" aria-label="More actions">...</button>
-    </div>
   `;
 }
 
-function renderTrades() {
-  const trades = filteredTrades().slice(0, 100);
-  const tradeKeys = trades.map((trade, index) => tradeKey(trade, index));
-  if (!tradeKeys.includes(state.selectedTradeKey)) {
-    state.selectedTradeKey = tradeKeys[0] || null;
+function supportersMarkup(trade) {
+  return (trade.supporting_wallets || []).map((wallet) => `
+    <a class="supporter-row" href="${escapeHtml(wallet.wallet_profile_url || "#")}" target="_blank" rel="noopener noreferrer">
+      <span class="supporter-avatar"><i class="ph ph-user" aria-hidden="true"></i></span>
+      <span><strong>${escapeHtml(wallet.wallet_label)}</strong><small>${escapeHtml(wallet.wallet_address)}</small></span>
+      <span><strong>${formatMoney(wallet.amount)}</strong><small>${formatUnits(wallet.relative_units)}</small></span>
+      <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
+    </a>
+  `).join("");
+}
+
+function renderTradeDetail(trade) {
+  const panel = document.getElementById("trade-detail");
+  const recommendation = trade.recommendation || {};
+  const movement = number(recommendation.price_movement);
+  const movementTone = movement !== null && movement <= 0 ? "positive" : "negative";
+  panel.innerHTML = `
+    <div class="detail-header">
+      <span class="score-badge large ${confidenceClass(trade.confidence_score)}">${escapeHtml(trade.confidence_score)}</span>
+      <div><p>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</p><h2>${escapeHtml(trade.event_title || trade.market_title)}</h2><span>${escapeHtml(trade.market_title)} · ${escapeHtml(trade.event_time_et)}</span></div>
+      <span class="live-price"><small>Executable entry</small><strong>${formatCents(recommendation.current_user_entry_price)}</strong><em>${escapeHtml(trade.agreeing_wallet_count + " Sharp" + (trade.agreeing_wallet_count === 1 ? "" : "s"))}</em></span>
+    </div>
+    <div class="selection-banner"><span><small>Recommended side</small><strong>${escapeHtml(trade.outcome)}</strong></span><span><small>Recommended bet</small><strong>${escapeHtml(recommendationLabel(recommendation))}</strong></span></div>
+    <div class="detail-metric-grid">
+      ${detailMetric("Relative Bet Size", formatUnits(trade.primary_trader?.relative_units), "Primary Sharp versus normal size")}
+      ${detailMetric("Primary Position", formatMoney(trade.primary_trader?.amount), trade.primary_trader?.wallet_label || "Tracked Sharp")}
+      ${detailMetric("Price Movement", movement === null ? "Unavailable" : `${movement > 0 ? "+" : ""}${(movement * 100).toFixed(1)}¢`, movement !== null && movement <= 0 ? "Better than Sharp entry" : "Worse than Sharp entry", movementTone)}
+      ${detailMetric("Combined Exposure", formatMoney(trade.combined_exposure_exact), `${trade.agreeing_wallet_count} agreeing wallets`)}
+      ${detailMetric("Baseline Probability", formatPercent(recommendation.baseline_probability), "Exact current user entry")}
+      ${detailMetric("Estimated Win", formatPercent(recommendation.estimated_win_probability), "After bounded Sharp evidence")}
+      ${detailMetric("Half Kelly", formatPercent(recommendation.half_kelly_fraction), "Before risk caps")}
+      ${detailMetric("Final Stake", formatPercent(recommendation.final_recommended_fraction), "Percentage frozen in tracker", recommendation.final_recommended_fraction > 0 ? "positive" : "")}
+    </div>
+    ${whySizing(recommendation, trade)}
+    <section class="detail-section">
+      <div class="section-label"><span>Price history</span><small>Polymarket CLOB · real outcome token</small></div>
+      <div class="price-chart" id="price-chart"><div class="chart-loading">Loading verified price history…</div></div>
+    </section>
+    <section class="detail-section">
+      <div class="section-label"><span>Agreeing wallets</span><small>Exact remaining active exposure</small></div>
+      <div class="supporter-list">${supportersMarkup(trade)}</div>
+    </section>
+    <div class="detail-actions">
+      <a class="button primary" href="${escapeHtml(trade.market_url || "#")}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out" aria-hidden="true"></i>Open Polymarket</a>
+      <a class="button ghost" href="${escapeHtml(trade.primary_trader?.wallet_profile_url || "#")}" target="_blank" rel="noopener noreferrer"><i class="ph ph-user" aria-hidden="true"></i>Trader Profile</a>
+    </div>
+  `;
+  loadPriceHistory(trade.clob_token_id, recommendation.current_user_entry_price);
+}
+
+function drawLineChart(container, points, options = {}) {
+  if (!container) return;
+  if (!points.length) {
+    container.innerHTML = emptyState("No chart data", "Verified history is not available for this range.");
+    return;
   }
-
-  const selectedTrade = trades.find((trade, index) => tradeKey(trade, index) === state.selectedTradeKey);
-  const countBadge = document.getElementById("trades-count-badge");
-  const totalMatches = state.tradePagination?.total ?? trades.length;
-  if (countBadge) countBadge.textContent = totalMatches;
-
-  const tableBody = document.querySelector("#trades-table tbody");
-  if (tableBody) {
-    tableBody.innerHTML = trades.length
-      ? trades.map((trade) => `
-        <tr>
-          <td>${escapeHtml(trade.event_time_et || "n/a")}</td>
-          <td>${escapeHtml(trade.primary_trader?.wallet_label || "n/a")}</td>
-          <td>${escapeHtml(trade.sharps_badge || "Actionable")}</td>
-          <td class="market-cell"><span class="market-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</span></td>
-          <td>${escapeHtml(trade.outcome)}</td>
-          <td>${formatMoney(trade.combined_exposure_exact ?? trade.total_amount_bet)}</td>
-          <td>${escapeHtml(trade.confidence_score)}</td>
-        </tr>
-      `).join("")
-      : '<tr><td class="empty-row" colspan="7">No trades to play match the current filters.</td></tr>';
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(680, container.clientWidth * window.devicePixelRatio);
+  canvas.height = Math.max(220, container.clientHeight * window.devicePixelRatio);
+  canvas.style.width = "100%";
+  canvas.style.height = "100%";
+  container.innerHTML = "";
+  container.appendChild(canvas);
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width;
+  const height = canvas.height;
+  const pad = 44 * window.devicePixelRatio;
+  const values = points.map((point) => Number(point.value));
+  let min = Math.min(...values);
+  let max = Math.max(...values);
+  if (min === max) { min -= 0.01; max += 0.01; }
+  const x = (index) => pad + (index / Math.max(1, points.length - 1)) * (width - pad * 1.5);
+  const y = (value) => height - pad - ((value - min) / (max - min)) * (height - pad * 1.7);
+  ctx.strokeStyle = "rgba(120, 153, 165, 0.15)";
+  ctx.lineWidth = 1;
+  for (let i = 0; i < 4; i += 1) {
+    const lineY = pad + (i / 3) * (height - pad * 1.7);
+    ctx.beginPath(); ctx.moveTo(pad, lineY); ctx.lineTo(width - pad / 2, lineY); ctx.stroke();
   }
-
-  document.getElementById("trades-feed").innerHTML = trades.length
-    ? trades.map((trade, index) => renderTradeCard(trade, index, state.selectedTradeKey)).join("")
-    : '<div class="empty-panel">No recent trades match the current filters.</div>';
-
-  const detailPanel = document.getElementById("trade-detail-panel");
-  if (detailPanel) detailPanel.innerHTML = renderTradeDetail(selectedTrade);
+  const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
+  gradient.addColorStop(0, "rgba(46, 235, 154, 0.26)");
+  gradient.addColorStop(1, "rgba(46, 235, 154, 0)");
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const px = x(index); const py = y(point.value);
+    if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  });
+  ctx.lineTo(x(points.length - 1), height - pad);
+  ctx.lineTo(x(0), height - pad);
+  ctx.closePath();
+  ctx.fillStyle = gradient;
+  ctx.fill();
+  ctx.beginPath();
+  points.forEach((point, index) => {
+    const px = x(index); const py = y(point.value);
+    if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+  });
+  ctx.strokeStyle = options.color || "#35e39a";
+  ctx.lineWidth = 2.5 * window.devicePixelRatio;
+  ctx.stroke();
+  ctx.fillStyle = "#8da0a8";
+  ctx.font = `${11 * window.devicePixelRatio}px "IBM Plex Sans"`;
+  ctx.fillText(options.format ? options.format(max) : String(max), 4, pad);
+  ctx.fillText(options.format ? options.format(min) : String(min), 4, height - pad);
 }
 
-function statusClass(status) {
-  if (status === "invalid") return "pill invalid";
-  if (status === "disabled") return "pill disabled";
-  if (status === "failed" || status === "stale") return "pill invalid";
-  if (status === "ready") return "pill enabled";
-  if (status === "enabled") return "pill enabled";
-  return "pill";
-}
-
-function renderWallets() {
-  document.querySelector("#wallets-table tbody").innerHTML = state.wallets.length
-    ? state.wallets.map((wallet) => {
-      const baseUnit = wallet.base_unit ? formatMoney(wallet.base_unit) : "n/a";
-      const syncStatus = wallet.sync_status || "pending";
-      return `
-        <tr>
-          <td>${escapeHtml(wallet.label)}</td>
-          <td>${escapeHtml(wallet.address || "n/a")}</td>
-          <td>
-            <span class="${statusClass(wallet.status)}">${escapeHtml(wallet.status)}</span>
-            <span class="${statusClass(syncStatus)}">${escapeHtml(syncStatus)}</span>
-            ${wallet.message ? `<br><span class="status-label">${escapeHtml(wallet.message)}</span>` : ""}
-            <br><span class="status-label">${escapeHtml(wallet.open_position_count ?? 0)} open / ${escapeHtml(wallet.closed_position_count ?? 0)} historical</span>
-          </td>
-          <td>${escapeHtml(baseUnit)}</td>
-          <td>${escapeHtml(wallet.notes || "")}</td>
-        </tr>
-      `;
-    }).join("")
-    : '<tr><td class="empty-row" colspan="5">No wallets found in wallets.json.</td></tr>';
-
-  document.getElementById("wallet-cards").innerHTML = state.wallets.length
-    ? state.wallets.map((wallet) => {
-      const address = wallet.address || "n/a";
-      const baseUnit = wallet.base_unit ? formatMoney(wallet.base_unit) : "n/a";
-      const syncStatus = wallet.sync_status || "pending";
-      return `
-        <article class="wallet-card ${wallet.status === "invalid" ? "invalid" : ""}">
-          <div>
-            <div class="wallet-cell">
-              <span class="avatar">${escapeHtml(initials(wallet.label))}</span>
-              <span>
-                <span class="wallet-name">${escapeHtml(wallet.label)}</span>
-                <span class="address-line">
-                  <span>${escapeHtml(wallet.short_address || address)}</span>
-                  <button class="copy-button" type="button" data-address="${escapeHtml(address)}" ${address === "n/a" ? "disabled" : ""}>Copy</button>
-                </span>
-              </span>
-            </div>
-            ${wallet.message ? `<p class="warning">${escapeHtml(wallet.message)}</p>` : ""}
-            ${wallet.notes ? `<p class="muted">${escapeHtml(wallet.notes)}</p>` : ""}
-          </div>
-          <div>
-            <span class="${statusClass(wallet.status)}">${escapeHtml(wallet.status)}</span>
-            <span class="${statusClass(syncStatus)}">${escapeHtml(syncStatus)}</span>
-            <span class="cell-sub">Base unit ${escapeHtml(baseUnit)}</span>
-            <span class="cell-sub">${escapeHtml(wallet.open_position_count ?? 0)} open / ${escapeHtml(wallet.closed_position_count ?? 0)} historical</span>
-          </div>
-        </article>
-      `;
-    }).join("")
-    : '<div class="empty-panel">No wallets found in wallets.json.</div>';
-}
-
-function renderUnitAnalysis() {
-  document.querySelector("#unit-table tbody").innerHTML = state.unitAnalysis.length
-    ? state.unitAnalysis.map((entry) => `
-      <tr>
-        <td>${escapeHtml(entry.wallet_label)}</td>
-        <td>${escapeHtml(entry.estimated_base_unit_label)}</td>
-        <td><span class="pill">${escapeHtml(entry.confidence)}</span></td>
-        <td>${escapeHtml(entry.sample_size)}</td>
-        <td>${escapeHtml(entry.matched_samples)}</td>
-        <td>${escapeHtml(entry.source)}</td>
-        <td>${escapeHtml(entry.notes)}</td>
-      </tr>
-    `).join("")
-    : '<tr><td class="empty-row" colspan="7">Insufficient wallet data for unit-size analysis.</td></tr>';
-}
-
-function renderSettings() {
-  const status = state.status || {};
-  const settings = [
-    ["App status", status.app_status],
-    ["API status", status.api_status],
-    ["Enabled wallets", status.enabled_wallet_count],
-    ["Valid wallets", status.valid_wallet_count],
-    ["Invalid wallets", status.invalid_wallet_count],
-    ["Last refresh attempt", formatDate(status.last_refresh_attempt)],
-    ["Last successful refresh", formatDate(status.last_successful_refresh)],
-    ["Database", status.database?.database_path || "n/a"],
-  ];
-
-  document.getElementById("settings-list").innerHTML = settings
-    .map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd>`)
-    .join("");
-}
-
-function toggleEmptyState() {
-  const noEnabledWallets = (state.status?.enabled_wallet_count || 0) === 0;
-  document.getElementById("empty-state").classList.toggle("hidden", !noEnabledWallets);
-  document.getElementById("setup-guide").classList.toggle("hidden", !noEnabledWallets);
-}
-
-function syncSelectors() {
-  const tradeWallets = state.trades.flatMap((trade) => (trade.supporting_wallets || []).map((entry) => entry.wallet_label).filter(Boolean));
-  syncFilter("wallet-filter", [...new Set(state.positions.map((position) => position.wallet_label).concat(tradeWallets).filter(Boolean))].sort());
-  syncFilter("sport-filter", [...new Set(state.positions.map((position) => position.category).concat(state.trades.map((trade) => trade.category)).filter(Boolean))].sort());
-  syncFilter("league-filter", [...new Set(state.positions.map((position) => position.league).concat(state.trades.map((trade) => trade.league)).filter(Boolean))].sort());
-}
-
-function renderStatusChrome(status) {
-  const api = status.api_status || "idle";
-  const lastCheck = formatDate(state.lastDashboardCheck);
-  const dataRefresh = formatDate(status.last_successful_refresh);
-  const setText = (id, value) => {
-    const element = document.getElementById(id);
-    if (element) element.textContent = value;
-  };
-  setText("api-status", api);
-  setText("hero-api-status", `API ${api}`);
-  setText("last-refresh", lastCheck);
-  setText("hero-last-refresh", lastCheck);
-  setText("last-data-refresh", dataRefresh);
-  setText("hero-data-refresh", dataRefresh);
-  setText("nav-enabled-wallets", status.enabled_wallet_count ?? 0);
-  setStatusDots(api);
-}
-
-function renderAll() {
-  renderStatusChrome(state.status || {});
-  syncSelectors();
-  renderOverview();
-  renderFilteredViews();
-  renderWallets();
-  renderUnitAnalysis();
-  renderSettings();
-  toggleEmptyState();
-}
-
-async function loadDashboard() {
-  if (state.loading) return;
-  state.loading = true;
-  document.body.classList.add("loading");
+async function loadPriceHistory(tokenId, fallbackPrice) {
+  const container = document.getElementById("price-chart");
+  if (!container || !tokenId) {
+    if (container) container.innerHTML = emptyState("Price history unavailable", "This trade does not have a verified outcome token.");
+    return;
+  }
   try {
-    const tradeQuery = tradeFilterQuery();
-    const [positions, trades, wallets, unitAnalysis, status] = await Promise.all([
-      fetchJson("/api/positions"),
-      fetchJson(`/api/trades-to-play${tradeQuery ? `?${tradeQuery}` : ""}`),
-      fetchJson("/api/wallets"),
-      fetchJson("/api/unit-analysis"),
-      fetchJson("/api/status"),
-    ]);
-
-    state.positions = positions.data || [];
-    state.trades = trades.data || [];
-    state.tradePagination = trades.pagination || null;
-    state.wallets = wallets.data || [];
-    state.unitAnalysis = unitAnalysis.data || [];
-    state.consensus = [];
-    state.status = status;
-    state.lastDashboardCheck = new Date().toISOString();
-    renderAll();
-  } finally {
-    state.loading = false;
-    document.body.classList.remove("loading");
+    const payload = await fetchJson(`/api/price-history?token_id=${encodeURIComponent(tokenId)}&interval=1d`);
+    const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
+    if (!points.length && number(fallbackPrice) !== null) points.push({ timestamp: Date.now(), value: Number(fallbackPrice) });
+    drawLineChart(container, points, { format: formatCents });
+  } catch (error) {
+    container.innerHTML = emptyState("Live chart unavailable", "The trade remains sized from the verified order book; only chart history could not be loaded.");
   }
 }
 
-function clearFilters() {
-  filterIds.forEach((id) => {
-    const element = document.getElementById(id);
-    if (element) element.value = "";
+function selectTrade(id, scroll = false) {
+  const trade = appState.trades.find((item) => item.id === id);
+  if (!trade) return;
+  appState.selectedTradeId = id;
+  document.querySelectorAll(".trade-card").forEach((card) => {
+    const selected = card.dataset.tradeId === id;
+    card.classList.toggle("selected", selected);
+    card.setAttribute("aria-pressed", String(selected));
   });
-  state.selectedTradeKey = null;
-  renderFilteredViews();
-  scheduleTradeRefresh(0);
+  renderTradeDetail(trade);
+  updateTradeUrl(readTradeControls());
+  if (scroll && window.innerWidth < 980) document.getElementById("trade-detail").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function updateCustomDateFields() {
-  const isCustom = document.getElementById("date-range-filter").value === "custom";
-  document.querySelectorAll(".custom-date-field").forEach((field) => {
-    field.classList.toggle("active", isCustom);
-  });
-}
-
-function updatePauseButton() {
-  const button = document.getElementById("pause-refresh-button");
-  button.setAttribute("aria-pressed", String(state.autoRefreshPaused));
-  button.classList.toggle("paused", state.autoRefreshPaused);
-  button.textContent = state.autoRefreshPaused ? "Resume Auto" : "Pause Auto";
-  button.title = state.autoRefreshPaused ? "Resume automatic refresh" : "Pause automatic refresh";
-}
-
-function toggleAutoRefresh() {
-  state.autoRefreshPaused = !state.autoRefreshPaused;
-  updatePauseButton();
-}
-
-function applyQuickFilter(action) {
-  clearFilters();
-
-  if (action === "consensus") {
-    document.getElementById("consensus-filter").value = "yes";
-  }
-
-  if (action === "today" || action === "tomorrow" || action === "next24" || action === "next48" || action === "week") {
-    document.getElementById("date-range-filter").value = action;
-  }
-
-  if (action === "large") {
-    document.getElementById("min-position").value = "1000";
-  }
-
-  if (action === "profitable") {
-    document.getElementById("min-pnl").value = "1";
-  }
-
-  renderFilteredViews();
-  scheduleTradeRefresh(0);
-}
-
-function bindInteractions() {
-  filterIds.forEach((id) => {
-    const element = document.getElementById(id);
-    if (!element) return;
-    const handler = () => {
-      syncPairedFilters(id);
-      renderFilteredViews();
-      scheduleTradeRefresh(id === "search-input" ? 300 : 0);
-    };
-    element.addEventListener("input", handler);
-    element.addEventListener("change", handler);
-  });
-
-  document.getElementById("advanced-toggle").addEventListener("click", (event) => {
-    const button = event.currentTarget;
-    const panel = document.getElementById("advanced-filters");
-    const expanded = button.getAttribute("aria-expanded") === "true";
-    button.setAttribute("aria-expanded", String(!expanded));
-    panel.hidden = expanded;
-  });
-
-  document.getElementById("clear-filters").addEventListener("click", clearFilters);
-  document.getElementById("refresh-button").addEventListener("click", loadDashboard);
-  document.getElementById("pause-refresh-button").addEventListener("click", toggleAutoRefresh);
-
-  document.querySelectorAll(".quick-filter").forEach((button) => {
-    button.addEventListener("click", () => applyQuickFilter(button.dataset.quickFilter));
-  });
-
-  document.addEventListener("click", async (event) => {
-    const toggle = event.target.closest(".row-toggle");
-    if (toggle) {
-      const target = document.getElementById(toggle.dataset.target);
-      const expanded = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", String(!expanded));
-      if (target) target.hidden = expanded;
-    }
-
-    const tradeCard = event.target.closest(".trade-card");
-    if (tradeCard) {
-      state.selectedTradeKey = tradeCard.dataset.tradeKey;
-      renderTrades();
+async function loadTrades() {
+  const list = document.getElementById("trade-list");
+  const filters = readTradeControls();
+  updateTradeUrl(filters);
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== ""));
+  try {
+    const payload = await fetchJson(`/api/trades-to-play?${query.toString()}`);
+    appState.trades = payload.data || [];
+    updateGlobalStatus(payload.status);
+    document.getElementById("trade-result-count").textContent = `${payload.pagination.total} result${payload.pagination.total === 1 ? "" : "s"}`;
+    document.getElementById("trade-freshness").textContent = `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
+    const currentSport = document.getElementById("trade-sport").value;
+    const currentLeague = document.getElementById("trade-league").value;
+    const currentWallet = document.getElementById("trade-wallet").value;
+    setOptions(document.getElementById("trade-sport"), appState.trades.map((trade) => trade.category), "All Sports");
+    setOptions(document.getElementById("trade-league"), appState.trades.map((trade) => trade.league), "All leagues");
+    setOptions(document.getElementById("trade-wallet"), appState.trades.flatMap((trade) => (trade.supporting_wallets || []).map((wallet) => wallet.wallet_label)), "All wallets");
+    document.getElementById("trade-sport").value = currentSport;
+    document.getElementById("trade-league").value = currentLeague;
+    document.getElementById("trade-wallet").value = currentWallet;
+    if (!appState.trades.length) {
+      list.innerHTML = emptyState("No actionable trades match", "Past, live, closed, conflicted, illiquid, and unverified markets are intentionally excluded.");
+      document.getElementById("trade-detail").innerHTML = emptyState("No trade selected", "Change the date or filters to inspect another verified opportunity.");
       return;
     }
-
-    const copyButton = event.target.closest(".copy-button");
-    if (copyButton && copyButton.dataset.address) {
-      try {
-        await navigator.clipboard.writeText(copyButton.dataset.address);
-        copyButton.textContent = "Copied";
-        setTimeout(() => {
-          copyButton.textContent = "Copy";
-        }, 1400);
-      } catch (error) {
-        copyButton.textContent = "Copy failed";
-        setTimeout(() => {
-          copyButton.textContent = "Copy";
-        }, 1400);
-      }
+    const selectedParam = new URLSearchParams(window.location.search).get("selected");
+    if (!appState.trades.some((trade) => trade.id === appState.selectedTradeId)) {
+      appState.selectedTradeId = appState.trades.some((trade) => trade.id === selectedParam) ? selectedParam : appState.trades[0].id;
     }
-  });
+    list.innerHTML = appState.trades.map(tradeCard).join("");
+    list.querySelectorAll(".trade-card").forEach((card) => card.addEventListener("click", () => selectTrade(card.dataset.tradeId, true)));
+    selectTrade(appState.selectedTradeId);
+    if (payload.bankroll) {
+      document.getElementById("bankroll-input").value = Number(payload.bankroll.starting_bankroll).toFixed(0);
+      document.getElementById("unit-value").textContent = formatMoney(payload.bankroll.starting_bankroll * payload.bankroll.unit_percentage);
+    }
+  } catch (error) {
+    list.innerHTML = errorState(error.message);
+    document.getElementById("trade-detail").innerHTML = errorState(error.message);
+  }
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  bindInteractions();
-  updatePauseButton();
-  await loadDashboard();
-  setInterval(() => {
-    if (!state.autoRefreshPaused) {
-      loadDashboard();
+async function saveBankroll() {
+  const input = document.getElementById("bankroll-input");
+  const state = document.getElementById("bankroll-save-state");
+  const bankroll = Number(input.value);
+  if (!(bankroll > 0)) {
+    state.textContent = "Enter an amount greater than zero";
+    return;
+  }
+  state.textContent = "Saving...";
+  try {
+    const payload = await fetchJson("/api/user-settings", { method: "PUT", body: JSON.stringify({ starting_bankroll: bankroll }) });
+    document.getElementById("unit-value").textContent = formatMoney(payload.data.unit_value);
+    state.textContent = "Saved";
+    await loadTrades();
+  } catch (error) {
+    state.textContent = error.message;
+  }
+}
+
+function bindTrades() {
+  const initial = tradeFiltersFromUrl();
+  applyTradeFiltersToControls(initial);
+  const reload = debounce(loadTrades, 280);
+  ["trade-search"].forEach((id) => document.getElementById(id).addEventListener("input", reload));
+  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "custom-start", "custom-end"].forEach((id) => {
+    document.getElementById(id).addEventListener("change", () => {
+      if (id === "trade-date-range") {
+        const custom = document.getElementById(id).value === "custom";
+        document.querySelectorAll(".custom-time").forEach((field) => { field.hidden = !custom; });
+        if (custom) setMoreFiltersExpanded(true);
+      }
+      loadTrades();
+    });
+  });
+  document.getElementById("more-filters-button").addEventListener("click", () => {
+    const panel = document.getElementById("more-filters");
+    setMoreFiltersExpanded(panel.hidden);
+  });
+  document.getElementById("clear-trade-filters").addEventListener("click", () => {
+    applyTradeFiltersToControls({ q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", custom_start: "", custom_end: "" });
+    loadTrades();
+  });
+  document.getElementById("save-bankroll").addEventListener("click", saveBankroll);
+  document.getElementById("bankroll-input").addEventListener("keydown", (event) => { if (event.key === "Enter") saveBankroll(); });
+  document.getElementById("trade-refresh-button").addEventListener("click", async () => {
+    const button = document.getElementById("trade-refresh-button");
+    button.classList.add("spinning");
+    try {
+      await fetchJson("/api/refresh", { method: "POST", body: "{}" });
+      await loadTrades();
+      showToast("Polymarket data refreshed", "success");
+    } catch (error) {
+      showToast(error.message, "error");
+    } finally {
+      button.classList.remove("spinning");
     }
-  }, AUTO_REFRESH_MS);
-});
+  });
+  loadTrades();
+}
+
+function positionRow(row) {
+  const pnl = number(row.unrealized_pnl) || 0;
+  return `
+    <tr>
+      <td><strong>${escapeHtml(row.wallet_label)}</strong><small>${escapeHtml(row.wallet_short_address)}</small></td>
+      <td><strong>${escapeHtml(row.event_title || row.market_title)}</strong><small>${escapeHtml(row.market_title)}</small></td>
+      <td><strong>${escapeHtml(row.outcome)}</strong><small>${escapeHtml(row.sports_market_type || row.league)}</small></td>
+      <td class="mono">${formatCents(row.average_entry_price)}</td>
+      <td class="mono">${formatCents(row.current_price)}</td>
+      <td class="mono">${formatMoney(row.position_size_usd)}</td>
+      <td class="mono">${formatMoney(row.current_value)}</td>
+      <td class="mono ${pnl >= 0 ? "positive" : "negative"}">${formatMoney(pnl)}</td>
+      <td><span class="status-label live">Live</span></td>
+    </tr>
+  `;
+}
+
+function positionCard(row) {
+  return `<article class="mobile-result-card"><div><span class="status-label live">Live</span><small>${escapeHtml(row.wallet_label)}</small></div><h2>${escapeHtml(row.event_title || row.market_title)}</h2><strong>${escapeHtml(row.outcome)}</strong><dl><div><dt>Position</dt><dd>${formatMoney(row.position_size_usd)}</dd></div><div><dt>Current</dt><dd>${formatCents(row.current_price)}</dd></div><div><dt>P&amp;L</dt><dd>${formatMoney(row.unrealized_pnl)}</dd></div></dl></article>`;
+}
+
+function paginationMarkup(pagination, action) {
+  if (!pagination || pagination.total <= pagination.per_page) return "";
+  return `<button class="button ghost compact" data-page="${pagination.page - 1}" ${pagination.has_prev ? "" : "disabled"}>Previous</button><span>Page ${pagination.page}</span><button class="button ghost compact" data-page="${pagination.page + 1}" ${pagination.has_next ? "" : "disabled"}>Next</button>`;
+}
+
+async function loadPositions() {
+  const params = new URLSearchParams({
+    lifecycle: "live",
+    q: document.getElementById("position-search").value,
+    wallet: document.getElementById("position-wallet").value,
+    sport: document.getElementById("position-sport").value,
+    league: document.getElementById("position-league").value,
+    market: document.getElementById("position-market").value,
+    sort: document.getElementById("position-sort").value,
+    page: String(appState.pageNumber),
+    per_page: "50",
+  });
+  const body = document.getElementById("positions-body");
+  try {
+    const payload = await fetchJson(`/api/positions?${params.toString()}`);
+    const rows = payload.data || [];
+    updateGlobalStatus(payload.status);
+    document.getElementById("position-result-count").textContent = `${payload.pagination.total} position${payload.pagination.total === 1 ? "" : "s"}`;
+    body.innerHTML = rows.length ? rows.map(positionRow).join("") : `<tr><td colspan="9">${emptyState("No live positions", "Upcoming trades remain in Trades to Play. Completed markets move to history.")}</td></tr>`;
+    document.getElementById("positions-cards").innerHTML = rows.map(positionCard).join("");
+    const pagination = document.getElementById("positions-pagination");
+    pagination.innerHTML = paginationMarkup(payload.pagination);
+    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadPositions(); }));
+    setOptions(document.getElementById("position-sport"), rows.map((row) => row.category), "All sports");
+    setOptions(document.getElementById("position-league"), rows.map((row) => row.league), "All leagues");
+    setOptions(document.getElementById("position-market"), rows.map((row) => row.sports_market_type), "All markets");
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="9">${errorState(error.message)}</td></tr>`;
+  }
+}
+
+async function bindPositions() {
+  try {
+    const wallets = await fetchJson("/api/wallets");
+    setOptions(document.getElementById("position-wallet"), wallets.data.map((wallet) => wallet.label), "All wallets");
+  } catch {}
+  document.getElementById("position-search").addEventListener("input", debounce(() => { appState.pageNumber = 1; loadPositions(); }));
+  ["position-wallet", "position-sport", "position-league", "position-market", "position-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.pageNumber = 1; loadPositions(); }));
+  loadPositions();
+}
+
+function walletCard(wallet) {
+  const sync = wallet.sync_status || wallet.status;
+  return `
+    <article class="wallet-card">
+      <div class="wallet-card-head"><span class="wallet-avatar"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><h2>${escapeHtml(wallet.label)}</h2><span class="status-label ${escapeHtml(sync)}">${escapeHtml(sync)}</span></div></div>
+      <button class="address-copy" type="button" data-copy-address="${escapeHtml(wallet.address)}"><span>${escapeHtml(wallet.address)}</span><i class="ph ph-copy" aria-hidden="true"></i></button>
+      <div class="wallet-stats"><div><span>Open positions</span><strong>${wallet.open_position_count ?? 0}</strong></div><div><span>History events</span><strong>${wallet.historical_position_count ?? 0}</strong></div><div><span>Base unit</span><strong>${wallet.base_unit ? formatMoney(wallet.base_unit) : "Estimating"}</strong></div></div>
+      <div class="wallet-sync"><span>Last successful sync</span><strong>${formatDateTime(wallet.last_synced_at, "Not available")}</strong></div>
+      ${wallet.message ? `<p class="wallet-warning">${escapeHtml(wallet.message)}</p>` : ""}
+      <a class="button ghost" href="${escapeHtml(wallet.profile_url || "#")}" target="_blank" rel="noopener noreferrer">View on Polymarket <i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>
+    </article>
+  `;
+}
+
+async function loadWallets() {
+  const params = new URLSearchParams({ q: document.getElementById("wallet-search").value, status: document.getElementById("wallet-status").value, sort: document.getElementById("wallet-sort").value });
+  const grid = document.getElementById("wallet-grid");
+  try {
+    const payload = await fetchJson(`/api/wallets?${params.toString()}`);
+    updateGlobalStatus(payload.status);
+    document.getElementById("wallet-result-count").textContent = `${payload.total} wallet${payload.total === 1 ? "" : "s"}`;
+    grid.innerHTML = payload.data.length ? payload.data.map(walletCard).join("") : emptyState("No wallets match", "Try another name, address, or sync status.");
+    grid.querySelectorAll("[data-copy-address]").forEach((button) => button.addEventListener("click", async () => {
+      await navigator.clipboard.writeText(button.dataset.copyAddress);
+      showToast("Public wallet address copied", "success");
+    }));
+  } catch (error) {
+    grid.innerHTML = errorState(error.message);
+  }
+}
+
+function bindWallets() {
+  document.getElementById("wallet-search").addEventListener("input", debounce(loadWallets));
+  ["wallet-status", "wallet-sort"].forEach((id) => document.getElementById(id).addEventListener("change", loadWallets));
+  loadWallets();
+}
+
+function historyRow(event) {
+  return `
+    <tr>
+      <td><strong>${formatDateTime(event.detected_at)}</strong></td>
+      <td><span class="event-type">${escapeHtml(String(event.event_type || "").replaceAll("_", " "))}</span></td>
+      <td><strong>${escapeHtml(event.wallet_label)}</strong><small>${escapeHtml(event.wallet_address)}</small></td>
+      <td><strong>${escapeHtml(event.market_title)}</strong></td>
+      <td>${escapeHtml(event.outcome)}</td>
+      <td>${escapeHtml(event.league || event.category)}</td>
+      <td class="mono">${formatMoney(event.current_value ?? event.position_size_usd)}</td>
+    </tr>
+  `;
+}
+
+async function loadHistory() {
+  const params = new URLSearchParams({
+    q: document.getElementById("history-search").value,
+    wallet: document.getElementById("history-wallet").value,
+    sport: document.getElementById("history-sport").value,
+    league: document.getElementById("history-league").value,
+    event_type: document.getElementById("history-event-type").value,
+    start: document.getElementById("history-start").value,
+    end: document.getElementById("history-end").value ? document.getElementById("history-end").value + "T23:59:59" : "",
+    sort: document.getElementById("history-sort").value,
+    page: String(appState.pageNumber),
+    per_page: "50",
+  });
+  const body = document.getElementById("history-body");
+  try {
+    const payload = await fetchJson(`/api/history?${params.toString()}`);
+    document.getElementById("history-result-count").textContent = `${payload.total} event${payload.total === 1 ? "" : "s"}`;
+    body.innerHTML = payload.data.length ? payload.data.map(historyRow).join("") : `<tr><td colspan="7">${emptyState("No history matches", "Adjust the search, wallet, league, or date range.")}</td></tr>`;
+    setOptions(document.getElementById("history-sport"), payload.data.map((row) => row.category), "All sports");
+    setOptions(document.getElementById("history-league"), payload.data.map((row) => row.league), "All leagues");
+    const pagination = document.getElementById("history-pagination");
+    pagination.innerHTML = paginationMarkup(payload);
+    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadHistory(); }));
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="7">${errorState(error.message)}</td></tr>`;
+  }
+}
+
+async function bindHistory() {
+  try {
+    const wallets = await fetchJson("/api/wallets");
+    setOptions(document.getElementById("history-wallet"), wallets.data.map((wallet) => wallet.label), "All wallets");
+  } catch {}
+  document.getElementById("history-search").addEventListener("input", debounce(() => { appState.pageNumber = 1; loadHistory(); }));
+  ["history-wallet", "history-sport", "history-league", "history-event-type", "history-start", "history-end", "history-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.pageNumber = 1; loadHistory(); }));
+  loadHistory();
+}
+
+function trackerRow(row) {
+  const snapshot = row.snapshot || {};
+  const pnl = number(row.profit_loss);
+  return `
+    <tr>
+      <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
+      <td><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
+      <td class="mono">${snapshot.sharps_count ?? 0}</td>
+      <td class="mono">${snapshot.confidence_score ?? "n/a"}</td>
+      <td class="mono">${formatCents(snapshot.effective_entry_price)}</td>
+      <td class="mono">${formatPercent(snapshot.estimated_win_probability)}</td>
+      <td><strong>${formatMoney(row.recommended_amount)}</strong><small>${formatPercent(snapshot.final_recommended_fraction)} · ${formatUnits(row.recommended_units)}</small></td>
+      <td><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td>
+      <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
+      <td class="mono">${formatMoney(row.running_bankroll)}</td>
+    </tr>
+  `;
+}
+
+function drawTrackerChart(graph) {
+  const points = (graph || []).map((point, index) => ({ timestamp: point.timestamp || index, value: Number(point.bankroll) })).filter((point) => Number.isFinite(point.value));
+  drawLineChart(document.getElementById("tracker-chart"), points, { format: (value) => formatCompactMoney(value) });
+}
+
+async function loadTracker() {
+  const params = new URLSearchParams({
+    q: document.getElementById("tracker-search").value,
+    status: document.getElementById("tracker-status").value,
+    min_sharps: document.getElementById("tracker-sharps").value,
+    result: document.getElementById("tracker-result").value,
+    graph_range: appState.graphRange,
+    page: String(appState.pageNumber),
+    per_page: "50",
+  });
+  const body = document.getElementById("tracker-body");
+  try {
+    const payload = await fetchJson(`/api/bet-tracker?${params.toString()}`);
+    const summary = payload.summary || {};
+    document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
+    document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
+    document.getElementById("tracker-metrics").innerHTML = [
+      metricCard("Current Bankroll", formatMoney(summary.current_bankroll), "Replayed from frozen stake percentages", "ph-vault"),
+      metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled bets only", "ph-chart-line"),
+      metricCard("ROI", formatPercent(summary.roi), "Realized return on starting bankroll", "ph-percent"),
+      metricCard("Tracked Bets", String(summary.total_tracked_bets || 0), "Immutable recommendation snapshots", "ph-list-checks"),
+      metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes or voids`, "ph-trophy"),
+      metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved wins and losses", "ph-target"),
+      metricCard("Open Exposure", formatMoney(summary.open_exposure), "Not included in realized P/L", "ph-lock-open"),
+      metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
+    ].join("");
+    body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${emptyState("No tracked recommendations yet", "A verified Today trade is added automatically only when its calculated stake is positive.")}</td></tr>`;
+    drawTrackerChart(payload.graph);
+    const pagination = document.getElementById("tracker-pagination");
+    pagination.innerHTML = paginationMarkup(payload.pagination);
+    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadTracker(); }));
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
+  }
+}
+
+function bindTracker() {
+  document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.pageNumber = 1; loadTracker(); }));
+  ["tracker-status", "tracker-sharps", "tracker-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.pageNumber = 1; loadTracker(); }));
+  document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
+    document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    appState.graphRange = button.dataset.range;
+    loadTracker();
+  }));
+  loadTracker();
+}
+
+function bindNavigation() {
+  const toggle = document.getElementById("mobile-nav-toggle");
+  toggle?.addEventListener("click", () => {
+    const links = document.getElementById("primary-links");
+    links.classList.toggle("open");
+    toggle.setAttribute("aria-expanded", String(links.classList.contains("open")));
+  });
+  const pauseControls = document.querySelectorAll("[data-refresh-toggle]");
+  if (pauseControls.length) {
+    const renderPause = () => pauseControls.forEach((control) => {
+      const mobile = control.classList.contains("mobile-nav-pause");
+      control.setAttribute("aria-pressed", String(appState.paused));
+      control.querySelector("i").className = appState.paused ? "ph ph-play" : "ph ph-pause";
+      control.querySelector("span").textContent = appState.paused
+        ? (mobile ? "Resume refresh" : "Resume")
+        : (mobile ? "Pause refresh" : "Pause");
+      control.title = appState.paused ? "Resume automatic 15-second refresh" : "Pause automatic 15-second refresh";
+    });
+    renderPause();
+    pauseControls.forEach((control) => control.addEventListener("click", () => {
+      appState.paused = !appState.paused;
+      localStorage.setItem("iconbets-refresh-paused", String(appState.paused));
+      renderPause();
+      showToast(appState.paused ? "Automatic refresh paused" : "Automatic refresh resumed", "success");
+      if (!appState.paused) refreshCurrentPage();
+    }));
+  }
+}
+
+function refreshCurrentPage() {
+  if (appState.paused) return;
+  if (page === "overview") loadOverview();
+  if (page === "trades") loadTrades();
+  if (page === "live-positions") loadPositions();
+  if (page === "wallets") loadWallets();
+  if (page === "position-history") loadHistory();
+  if (page === "bet-tracker") loadTracker();
+  loadGlobalStatus();
+}
+
+function initialize() {
+  bindNavigation();
+  loadGlobalStatus();
+  if (page === "overview") loadOverview();
+  if (page === "trades") bindTrades();
+  if (page === "live-positions") bindPositions();
+  if (page === "wallets") bindWallets();
+  if (page === "position-history") bindHistory();
+  if (page === "bet-tracker") bindTracker();
+  window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
+}
+
+initialize();

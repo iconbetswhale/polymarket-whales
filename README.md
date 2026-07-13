@@ -1,6 +1,6 @@
 # IconBets Polymarket Wallet Tracker
 
-Private read-only Flask dashboard for manually selected Polymarket wallets. The app tracks current sports positions, recent changes, exits, consensus across tracked wallets, and wallet-level unit sizing with SQLite-backed history.
+Private read-only Flask dashboard for manually selected Polymarket wallets. The app separates verified upcoming, live, and completed sports positions; calculates bankroll-based recommendations from executable CLOB asks; and keeps an immutable SQLite-backed recommendation tracker.
 
 ## What Changed
 
@@ -23,6 +23,11 @@ The dashboard now tracks:
 - Wallet consensus on the same market and outcome
 - Wallet-level estimated unit size
 - Position conviction based only on verified data
+- Verified event lifecycle and Eastern Time start times
+- Exact executable ask and volume-weighted entry pricing
+- Evidence-bounded Half Kelly recommendations
+- Automatic Today-only Bet Tracker snapshots
+- Bankroll replay, realized P&L, ROI, and drawdown
 
 ## Repository Layout
 
@@ -30,6 +35,9 @@ The dashboard now tracks:
 - `config.py`: environment variable loading
 - `wallet_loader.py`: manual wallet validation, normalization, duplicate detection
 - `polymarket_client.py`: public Polymarket API client with timeouts, retries, and event/profile helpers
+- `market_lifecycle.py`: upcoming, live, completed, and uncertain classification
+- `bet_sizing.py`: evidence score, executable-entry simulation, Half Kelly, and risk caps
+- `bet_tracker.py`: immutable snapshots, settlement status, and bankroll replay
 - `classification.py`: sports and non-sports market classification
 - `database.py`: SQLite persistence for tracked positions and position events
 - `position_tracker.py`: refresh orchestration, event detection, consensus building, and API payload generation
@@ -142,6 +150,12 @@ Public API timeout in seconds.
 `MAX_RETRIES=3`
 Retry count for rate limits, timeouts, and transient failures.
 
+`DEFAULT_BANKROLL=10000`
+Starting bankroll used for a new anonymous browser profile.
+
+`UNIT_PERCENTAGE=0.01`
+Bankroll percentage represented by one displayed unit. The default is 1%.
+
 `ADMIN_PASSWORD=`
 Reserved only if you later add authenticated wallet editing. The current app does not expose write endpoints.
 
@@ -167,7 +181,12 @@ python app.py
 
 Open:
 
-- `http://localhost:5000/`
+- `http://localhost:5000/trades`
+- `http://localhost:5000/overview`
+- `http://localhost:5000/live-positions`
+- `http://localhost:5000/wallets`
+- `http://localhost:5000/position-history`
+- `http://localhost:5000/bet-tracker`
 - `http://localhost:5000/health`
 
 Production-style local startup:
@@ -201,6 +220,10 @@ Covered areas include:
 - Consensus grouping
 - Application startup
 - Health and API endpoints
+- Lifecycle separation and stale-status exclusion
+- Executable-entry and insufficient-liquidity handling
+- Evidence scoring, Half Kelly math, and all risk caps
+- Tracker deduplication, immutable snapshots, settlement, and bankroll replay
 
 ## How Unit Estimates Work
 
@@ -264,6 +287,43 @@ Each consensus row shows:
 - Earliest entry time
 - Most recent increase
 
+## Recommendation Sizing
+
+Recommendations use the current executable ask as the baseline probability. For a positive stake, the app walks the real Polymarket CLOB ask levels and recalculates the effective volume-weighted entry price for that stake.
+
+The evidence score is a weighted sum of normalized components:
+
+- Sharps consensus: 45%
+- Exact combined amount: 20%
+- Relative bet size: 15%
+- Proven top category: 8%
+- Bayesian-adjusted category hit rate: 8%
+- Settled category sample size: 4%
+
+Only evidence above the neutral score of `0.50` increases the estimated probability. That increase is capped at `+2pp`, `+4pp`, `+7pp`, or `+10pp` for one, two, three, or four-plus Sharps. A truly unanimous tracked-wallet signal is capped at `+12pp`.
+
+For effective entry price `p`, estimated probability `q`, and net decimal odds `b = (1 - p) / p`, the full Kelly fraction is:
+
+```text
+((b * q) - (1 - q)) / b
+```
+
+The app uses Half Kelly, never a negative stake, and applies Sharp-count bankroll caps of 1%, 2%, 3%, or 4%. A unanimous signal may reach 5%, and the global cap is always 5%. If the verified evidence does not produce positive edge, the result is `No recommended bet at the current entry`. If a token or executable ask is missing, sizing is explicitly unavailable.
+
+## Event Lifecycle
+
+An active trade is classified into exactly one state. Verified future starts are Upcoming. Explicit game or market status terms mark Live. Official closed, ended, graded, settled, canceled, or void states mark Completed. Gamma's generic event `live` publication flag is not treated as proof that a sporting event is in progress.
+
+Missing or contradictory status is marked uncertain. Obviously stale live flags and past events without reliable status are logged and hidden from active pages rather than shown incorrectly. Completed positions remain available only through Position History and Bet Tracker history.
+
+## Bet Tracker
+
+Positive recommendations are added automatically only when they are in the Today window. Next 24 Hours and Next 7 Days are preview ranges and are not tracked early.
+
+The immutable snapshot includes the event, market, line, outcome token, recommendation version, current and effective entry, Sharp entry, evidence inputs, probability adjustment, Kelly values, risk cap, original bankroll percentage, and source wallet IDs. The stable event/market/line/outcome/version key prevents duplicate refreshes from creating duplicate bets.
+
+Changing bankroll replays the stored recommended percentage against the original effective entry; it does not rerun the model with future information. Wins use `stake * ((1 / entry) - 1)`, losses use `-stake`, and pushes, voids, or cancellations return zero profit.
+
 ## Database Behavior
 
 The app creates `polymarket_tracker.db` automatically on first start.
@@ -273,6 +333,8 @@ SQLite tables include:
 - `tracked_positions`: latest open or closed snapshot per wallet and position
 - `position_events`: meaningful changes over time
 - `refresh_state`: last refresh metadata
+- `user_settings`: anonymous per-browser bankroll settings
+- `bet_tracker`: immutable recommendation snapshots and settlement state
 
 Events are only added when there is a meaningful change, such as:
 
@@ -286,6 +348,12 @@ Events are only added when there is a meaningful change, such as:
 - Full exit
 
 Repeated refreshes without meaningful changes do not create duplicate events.
+
+## Vercel Deployment
+
+`vercel.json` rewrites every frontend route to the Flask function, so direct route visits and browser refreshes work. The current deployment can run the application, but Vercel's function filesystem is ephemeral. Local SQLite data is not guaranteed to survive a cold start or redeploy.
+
+For durable hosted Bet Tracker history, point the persistence layer at a managed database such as Postgres before treating production records as permanent. Render's persistent disk configuration below supports durable SQLite as an alternative.
 
 ## Render Deployment
 

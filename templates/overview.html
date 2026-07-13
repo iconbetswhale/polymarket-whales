@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header compact-header">
+  <div><p class="eyebrow">COMMAND OVERVIEW</p><h1>Market intelligence at a glance</h1></div>
+  <a class="button primary" href="/trades">Open Trades to Play <i class="ph ph-arrow-right" aria-hidden="true"></i></a>
+</header>
+<section class="metric-grid" id="overview-metrics" aria-label="Overview metrics"></section>
+<section class="panel preview-panel" aria-labelledby="top-trades-title">
+  <div class="panel-header"><div><p class="eyebrow">HIGHEST CONVICTION</p><h2 id="top-trades-title">Today’s top trades</h2></div><a class="text-link" href="/trades">View all</a></div>
+  <div class="preview-list" id="overview-trades"><div class="skeleton-block"></div></div>
+</section>
+{% endblock %}

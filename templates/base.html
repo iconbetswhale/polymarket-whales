@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#05090c">
+  <title>{{ title }}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=20260713-terminal-2">
+</head>
+<body data-page="{{ page }}">
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <nav class="app-nav" aria-label="Primary navigation">
+    <a class="brand" href="/trades" aria-label="IconBets Trades to Play">
+      <span class="brand-icon" aria-hidden="true">IB</span>
+      <span class="brand-copy"><strong>IconBets</strong><small>Polymarket Intelligence</small></span>
+    </a>
+    <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links">
+      <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
+    </button>
+    <div class="nav-links" id="primary-links">
+      <a href="/overview" {% if page == 'overview' %}aria-current="page"{% endif %}>Overview</a>
+      <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}>Trades to Play</a>
+      <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}>Live Positions</a>
+      <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}>Wallets</a>
+      <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}>Position History</a>
+      <a href="/bet-tracker" {% if page == 'bet-tracker' %}aria-current="page"{% endif %}>Bet Tracker</a>
+      <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Pause refresh</span></button>
+    </div>
+    <div class="nav-status" aria-label="System status">
+      <span class="status-chip"><span class="status-dot" id="global-api-dot"></span>API <strong id="global-api-status">Loading</strong></span>
+      <span class="status-chip"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><strong id="global-last-refresh">Waiting</strong></span>
+      <button class="status-chip pause-chip" id="global-pause-refresh" type="button" data-refresh-toggle aria-pressed="false" title="Pause automatic 15-second refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Pause</span></button>
+      <a class="status-chip wallet-link" href="/wallets">Wallets <strong id="global-wallet-count">0</strong></a>
+    </div>
+  </nav>
+  <main class="app-shell" id="main-content">
+    {% block content %}{% endblock %}
+  </main>
+  <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
+  <script src="{{ url_for('static', filename='app.js') }}?v=20260713-terminal-2"></script>
+</body>
+</html>

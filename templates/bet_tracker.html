@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span></div></div><div class="bankroll-inline">Starting bankroll <strong id="tracker-starting-bankroll">$0.00</strong><a href="/trades">Update</a></div></header>
+<section class="metric-grid tracker-metrics" id="tracker-metrics"></section>
+<section class="panel chart-panel">
+  <div class="panel-header"><div><p class="eyebrow">BANKROLL REPLAY</p><h2>Simulated bankroll</h2></div><div class="segmented" id="graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>
+  <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Simulated bankroll over time"></div>
+</section>
+<section class="toolbar tracker-toolbar">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-search" type="search" placeholder="Search event, market, trader"></label>
+  <select id="tracker-status" aria-label="Tracker status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option></select>
+  <select id="tracker-sharps" aria-label="Sharps count"><option value="0">All Sharps</option><option value="1">1+ Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option></select>
+  <select id="tracker-result" aria-label="Result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option></select>
+</section>
+<section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Bankroll</th></tr></thead><tbody id="tracker-body"></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
+{% endblock %}

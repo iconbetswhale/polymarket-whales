@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -11,12 +12,15 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from classification import classify_market, is_sports_category
+from bet_sizing import SizingConfig, build_recommendation
+from bet_tracker import recommendation_snapshot, tracker_status_from_event
 from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
+from market_lifecycle import classify_lifecycle
 from polymarket_client import PolymarketClient
 from scoring import hours_until_resolution, score_position
-from trade_scoring import build_trades_to_play
+from trade_scoring import build_trades_to_play, filter_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
 from wallet_loader import WalletEntry, load_wallets
 
@@ -85,18 +89,89 @@ def position_key(payload: dict) -> str:
     return f"{payload.get('conditionId') or payload.get('condition_id') or payload.get('slug')}::{payload.get('outcome')}"
 
 
-def event_start_time(position: dict, event: dict | None) -> tuple[str, str]:
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
+
+
+def market_for_position(position: dict, event: dict | None) -> dict:
     event = event or {}
-    event_fields = ("startDate", "startTime", "scheduledStartTime", "gameStartTime", "start_date", "start_time")
-    position_fields = ("startDate", "startTime", "scheduledStartTime", "gameStartTime", "start_date", "start_time")
+    condition_id = str(
+        position.get("conditionId") or position.get("condition_id") or ""
+    ).lower()
+    market_slug = str(position.get("slug") or position.get("market_slug") or "").lower()
+    for market in event.get("markets") or []:
+        if (
+            condition_id
+            and str(market.get("conditionId") or "").lower() == condition_id
+        ):
+            return market
+    for market in event.get("markets") or []:
+        if market_slug and str(market.get("slug") or "").lower() == market_slug:
+            return market
+    return {}
+
+
+def outcome_token_id(position: dict, market: dict) -> str | None:
+    outcomes = [
+        str(value).strip().lower() for value in _json_list(market.get("outcomes"))
+    ]
+    token_ids = [str(value) for value in _json_list(market.get("clobTokenIds"))]
+    selected = str(position.get("outcome") or "").strip().lower()
+    for index, outcome in enumerate(outcomes):
+        if outcome == selected and index < len(token_ids):
+            return token_ids[index]
+    return None
+
+
+def coarse_event_datetime(position: dict) -> datetime | None:
+    end_date = position.get("endDate")
+    if end_date:
+        try:
+            parsed = datetime.fromisoformat(str(end_date).replace("Z", "+00:00"))
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=timezone.utc)
+            return parsed.astimezone(timezone.utc)
+        except ValueError:
+            pass
+    match = re.search(r"(20\d{2}-\d{2}-\d{2})", str(position.get("eventSlug") or ""))
+    if not match:
+        return None
+    try:
+        return datetime.fromisoformat(match.group(1)).replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def event_start_time(
+    position: dict, event: dict | None, market: dict | None = None
+) -> tuple[str, str]:
+    event = event or {}
+    market = market or market_for_position(position, event)
+    market_fields = (
+        "gameStartTime",
+        "eventStartTime",
+        "scheduledStartTime",
+        "startTime",
+    )
+    event_fields = ("startTime", "gameStartTime", "scheduledStartTime")
+    position_fields = ("startTime", "scheduledStartTime", "gameStartTime", "start_time")
+    for field in market_fields:
+        if market.get(field):
+            return str(market[field]), f"market.{field}"
     for field in event_fields:
         if event.get(field):
             return str(event[field]), f"event.{field}"
     for field in position_fields:
         if position.get(field):
             return str(position[field]), f"position.{field}"
-    if position.get("endDate"):
-        return str(position["endDate"]), "position.endDate"
     return "", "missing"
 
 
@@ -110,9 +185,12 @@ class TrackerService:
         auto_start: bool = True,
     ) -> None:
         self.settings = settings
-        self.client = client or PolymarketClient(settings.request_timeout, settings.max_retries)
+        self.client = client or PolymarketClient(
+            settings.request_timeout, settings.max_retries
+        )
         self.database = database or TrackerDatabase(settings.database_path)
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
+        self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
         self._refresh_lock = threading.Lock()
@@ -159,7 +237,9 @@ class TrackerService:
             if self.settings.dashboard_refresh <= 0:
                 return
 
-            self._thread = threading.Thread(target=self._refresh_loop, name="tracker-refresh", daemon=True)
+            self._thread = threading.Thread(
+                target=self._refresh_loop, name="tracker-refresh", daemon=True
+            )
             self._thread.start()
 
     def _refresh_loop(self) -> None:
@@ -192,7 +272,9 @@ class TrackerService:
     def _snapshot_is_stale(self) -> bool:
         with self._lock:
             status = self._cache.get("status", {})
-            timestamp = status.get("last_successful_refresh") or status.get("last_refresh_attempt")
+            timestamp = status.get("last_successful_refresh") or status.get(
+                "last_refresh_attempt"
+            )
 
         if not timestamp:
             return True
@@ -214,10 +296,14 @@ class TrackerService:
         status["last_refresh_attempt"] = attempt_time
         status["enabled_wallet_count"] = len(loader.enabled_wallets)
         status["valid_wallet_count"] = len(loader.valid_wallets)
-        status["invalid_wallet_count"] = len(loader.invalid_entries) + len(loader.file_errors)
+        status["invalid_wallet_count"] = len(loader.invalid_entries) + len(
+            loader.file_errors
+        )
         status["wallet_loader"] = loader.as_dict()
         status["wallets"] = wallet_payload
-        status["warnings"] = loader.file_errors + [error["message"] for error in wallet_payload if error["status"] == "invalid"]
+        status["warnings"] = loader.file_errors + [
+            error["message"] for error in wallet_payload if error["status"] == "invalid"
+        ]
 
         if loader.file_errors:
             status["app_status"] = "degraded"
@@ -247,52 +333,134 @@ class TrackerService:
         closed_positions = fetch_results["closed_positions"]
         api_errors = fetch_results["errors"]
         status["api_errors"] = api_errors
-        status["api_status"] = "ok" if not api_errors else ("degraded" if open_positions else "error")
+        status["api_status"] = (
+            "ok" if not api_errors else ("degraded" if open_positions else "error")
+        )
 
-        wallet_position_batches = [
-            positions
-            for positions in list(open_positions.values()) + list(closed_positions.values())
-            if positions
-        ]
+        candidate_open_positions: dict[str, list[dict] | None] = {}
+        candidate_start = _utc_now() - timedelta(days=14)
+        candidate_end = _utc_now() + timedelta(days=21)
+        for address, positions_for_wallet in open_positions.items():
+            if positions_for_wallet is None:
+                candidate_open_positions[address] = None
+                continue
+            candidate_open_positions[address] = [
+                position
+                for position in positions_for_wallet
+                if (
+                    not self.settings.sports_only
+                    or classify_market(position, None).is_sports
+                )
+                and (coarse_event_datetime(position) is not None)
+                and candidate_start <= coarse_event_datetime(position) <= candidate_end
+            ]
+
         unique_event_slugs = [
             position.get("eventSlug")
-            for positions in wallet_position_batches
+            for positions in candidate_open_positions.values()
+            if positions
             for position in positions
             if position.get("eventSlug")
         ]
+        invalidate_event_cache = getattr(self.client, "invalidate_event_cache", None)
+        if invalidate_event_cache:
+            invalidate_event_cache()
         events = self.client.get_events(unique_event_slugs)
+        category_metrics = self._build_category_metrics(closed_positions, events)
 
         current_rows: list[dict] = []
         for wallet in loader.enabled_wallets:
-            wallet_open = open_positions.get(wallet.address)
+            wallet_open = candidate_open_positions.get(wallet.address)
             if wallet_open is None:
                 continue
 
             previous_rows = self.database.get_open_positions_for_wallet(wallet.address)
-            normalized_rows = self._normalize_positions(wallet, wallet_open, events)
+            normalized_rows = self._normalize_positions(
+                wallet,
+                wallet_open,
+                events,
+                category_metrics.get(wallet.address, {}),
+            )
             current_rows.extend(
-                self._persist_positions(wallet, normalized_rows, previous_rows, closed_positions.get(wallet.address, []), events)
+                self._persist_positions(
+                    wallet,
+                    normalized_rows,
+                    previous_rows,
+                    closed_positions.get(wallet.address, []),
+                    events,
+                    observed_open_keys={
+                        position_key(position)
+                        for position in (open_positions.get(wallet.address) or [])
+                    },
+                )
             )
 
-        current_rows = [row for row in current_rows if self._position_matches_filters(row)]
-        current_rows.sort(key=lambda row: (row.get("resolution_time") or "", -float(row.get("position_size_usd") or 0)))
+        try:
+            get_order_books = getattr(self.client, "get_order_books", None)
+            order_books = (
+                get_order_books([row.get("clob_token_id") for row in current_rows])
+                if get_order_books
+                else {}
+            )
+        except Exception as exc:
+            LOGGER.warning("Failed to refresh executable CLOB prices: %s", exc)
+            order_books = {}
+            api_errors.append(f"CLOB order books: {exc}")
+            status["api_errors"] = api_errors
+            status["api_status"] = "degraded"
+        self._attach_order_books(current_rows, order_books)
+
+        current_rows = [
+            row for row in current_rows if self._position_matches_filters(row)
+        ]
+        current_rows.sort(
+            key=lambda row: (
+                row.get("resolution_time") or "",
+                -float(row.get("position_size_usd") or 0),
+            )
+        )
 
         trades = self.database.get_recent_events(limit=250)
         unit_analysis = self._build_unit_analysis(loader.enabled_wallets, current_rows)
         unit_map = {entry["wallet_address"]: entry for entry in unit_analysis}
         consensus = self._build_consensus(current_rows, trades, unit_map)
         consensus_map = {
-            (entry["condition_id"], entry["outcome"]): entry
-            for entry in consensus
+            (entry["condition_id"], entry["outcome"]): entry for entry in consensus
         }
-        positions = self._enrich_positions(current_rows, trades, unit_map, consensus_map)
-        trades_to_play = build_trades_to_play(positions, trades, unit_map, tracked_wallet_count=len(loader.enabled_wallets))
+        positions = self._enrich_positions(
+            current_rows, trades, unit_map, consensus_map
+        )
+        trades_to_play = build_trades_to_play(
+            positions,
+            trades,
+            unit_map,
+            tracked_wallet_count=len(loader.enabled_wallets),
+        )
+        self._sync_all_user_trackers(trades_to_play)
+        self._update_tracker_statuses(events)
         success_time = _iso_now()
         status["last_successful_refresh"] = success_time
         overview = self._build_overview(positions, trades, consensus, status)
-        self._apply_wallet_sync_status(wallet_payload, loader.enabled_wallets, open_positions, closed_positions, positions, success_time)
+        overview["trades_to_play_count"] = len(trades_to_play)
+        overview["live_position_count"] = len(
+            [
+                position
+                for position in positions
+                if position.get("lifecycle_status") == "live"
+            ]
+        )
+        self._apply_wallet_sync_status(
+            wallet_payload,
+            loader.enabled_wallets,
+            open_positions,
+            closed_positions,
+            positions,
+            success_time,
+        )
         status["position_count"] = len(positions)
-        status["recent_trade_count"] = len([trade for trade in trades if self._within_hours(trade["detected_at"], 24)])
+        status["recent_trade_count"] = len(
+            [trade for trade in trades if self._within_hours(trade["detected_at"], 24)]
+        )
         status["overview"] = overview
         status["app_status"] = "ok" if status["api_status"] != "error" else "degraded"
         status["database"] = self.database.health()
@@ -311,6 +479,66 @@ class TrackerService:
                 "wallets": wallet_payload,
                 "status": status,
             }
+
+    def track_recommendations_for_user(
+        self,
+        user_id: str,
+        bankroll: float,
+        plays: list[dict] | None = None,
+    ) -> int:
+        if plays is None:
+            with self._lock:
+                plays = json.loads(json.dumps(self._cache.get("trades_to_play", [])))
+        today = filter_trades_to_play(plays, date_range="today")
+        inserted = 0
+        for play in today:
+            recommendation = build_recommendation(play, bankroll, self.sizing_config)
+            if not recommendation.get("available"):
+                continue
+            if _safe_float(recommendation.get("final_recommended_fraction")) <= 0:
+                continue
+            if _safe_float(recommendation.get("recommended_amount")) < 0.01:
+                continue
+            snapshot = recommendation_snapshot(play, recommendation, bankroll)
+            if self.database.insert_tracker_snapshot(
+                user_id, snapshot, status="scheduled"
+            ):
+                inserted += 1
+        return inserted
+
+    def _sync_all_user_trackers(self, plays: list[dict]) -> None:
+        for settings in self.database.list_user_settings():
+            self.track_recommendations_for_user(
+                settings["user_id"],
+                _safe_float(settings.get("starting_bankroll")),
+                plays,
+            )
+
+    def _update_tracker_statuses(self, events: dict[str, dict]) -> None:
+        records = self.database.get_active_tracker_records()
+        slugs = [record["snapshot"].get("canonical_event_slug") for record in records]
+        missing_slugs = [slug for slug in slugs if slug and slug not in events]
+        if missing_slugs:
+            events = {**events, **self.client.get_events(missing_slugs)}
+        for record in records:
+            snapshot = record["snapshot"]
+            event = events.get(snapshot.get("canonical_event_slug"))
+            if not event:
+                continue
+            update = tracker_status_from_event(snapshot, event)
+            if (
+                update["status"] == record.get("status")
+                and not update.get("result")
+                and not update.get("settled_at")
+            ):
+                continue
+            self.database.update_tracker_status(
+                record["user_id"],
+                record["dedupe_key"],
+                update["status"],
+                update.get("result"),
+                update.get("settled_at"),
+            )
 
     def _build_wallet_payload(self, loader) -> list[dict]:
         payload: list[dict] = []
@@ -331,6 +559,7 @@ class TrackerService:
                         "sync_status": "pending" if wallet.enabled else "disabled",
                         "open_position_count": 0,
                         "closed_position_count": 0,
+                        "historical_position_count": 0,
                         "last_synced_at": None,
                         "short_address": shorten_wallet(wallet.address),
                         "profile_url": f"https://polymarket.com/profile/{wallet.address}",
@@ -349,6 +578,7 @@ class TrackerService:
                         "sync_status": "failed",
                         "open_position_count": 0,
                         "closed_position_count": 0,
+                        "historical_position_count": 0,
                         "last_synced_at": None,
                         "short_address": None,
                         "profile_url": None,
@@ -374,12 +604,16 @@ class TrackerService:
         timestamp: str,
     ) -> None:
         enabled_addresses = {wallet.address for wallet in enabled_wallets}
+        history_counts = self.database.get_wallet_history_counts()
         normalized_counts: dict[str, int] = {}
         for position in normalized_positions:
-            normalized_counts[position["wallet_address"]] = normalized_counts.get(position["wallet_address"], 0) + 1
+            normalized_counts[position["wallet_address"]] = (
+                normalized_counts.get(position["wallet_address"], 0) + 1
+            )
 
         for wallet in wallet_payload:
             address = str(wallet.get("address") or "").lower()
+            wallet["historical_position_count"] = history_counts.get(address, 0)
             if wallet.get("status") == "invalid":
                 wallet["sync_status"] = "failed"
                 continue
@@ -387,9 +621,13 @@ class TrackerService:
                 wallet["sync_status"] = "disabled"
                 continue
             if open_positions.get(address) is None:
-                has_cached_positions = bool(self.database.get_open_positions_for_wallet(address))
+                has_cached_positions = bool(
+                    self.database.get_open_positions_for_wallet(address)
+                )
                 wallet["sync_status"] = "stale" if has_cached_positions else "failed"
-                wallet["message"] = "Current-position sync failed; wallet excluded from Trades to Play until a successful refresh."
+                wallet["message"] = (
+                    "Current-position sync failed; wallet excluded from Trades to Play until a successful refresh."
+                )
                 wallet["open_position_count"] = 0
                 wallet["closed_position_count"] = len(closed_positions.get(address, []))
                 wallet["last_synced_at"] = None
@@ -412,7 +650,9 @@ class TrackerService:
             )
 
         with ThreadPoolExecutor(max_workers=min(len(wallets), 8)) as executor:
-            futures = {executor.submit(fetch_wallet, wallet): wallet for wallet in wallets}
+            futures = {
+                executor.submit(fetch_wallet, wallet): wallet for wallet in wallets
+            }
             for future in as_completed(futures):
                 wallet = futures[future]
                 try:
@@ -420,83 +660,235 @@ class TrackerService:
                     open_positions[address] = current
                     closed_positions[address] = closed
                 except Exception as exc:
-                    LOGGER.warning("Failed wallet refresh for %s: %s", wallet.address, exc)
+                    LOGGER.warning(
+                        "Failed wallet refresh for %s: %s", wallet.address, exc
+                    )
                     open_positions[wallet.address] = None
                     closed_positions[wallet.address] = []
                     errors.append(f"{wallet.label} ({wallet.address}): {exc}")
 
-        return {"open_positions": open_positions, "closed_positions": closed_positions, "errors": errors}
+        return {
+            "open_positions": open_positions,
+            "closed_positions": closed_positions,
+            "errors": errors,
+        }
 
-    def _normalize_positions(self, wallet: WalletEntry, positions: list[dict], events: dict[str, dict]) -> list[dict]:
+    def _build_category_metrics(
+        self,
+        closed_positions: dict[str, list[dict]],
+        events: dict[str, dict],
+    ) -> dict[str, dict[str, Any]]:
+        output: dict[str, dict[str, Any]] = {}
+        for wallet_address, positions in closed_positions.items():
+            categories: dict[str, dict[str, Any]] = {}
+            for position in positions:
+                event = events.get(position.get("eventSlug"))
+                classification = classify_market(position, event)
+                settlement_price = _safe_float(position.get("curPrice"), -1.0)
+                if settlement_price < 0.99 and settlement_price > 0.01:
+                    continue
+                metric = categories.setdefault(
+                    classification.category,
+                    {"sample_size": 0, "wins": 0, "losses": 0, "profit_loss": 0.0},
+                )
+                metric["sample_size"] += 1
+                metric["wins" if settlement_price >= 0.99 else "losses"] += 1
+                metric["profit_loss"] += _safe_float(position.get("realizedPnl"))
+
+            for metric in categories.values():
+                sample = metric["sample_size"]
+                wins = metric["wins"]
+                metric["raw_hit_rate"] = wins / sample if sample else None
+                metric["adjusted_hit_rate"] = (
+                    (wins + (0.52 * 100)) / (sample + 100) if sample else None
+                )
+                metric["source"] = "Polymarket closed positions"
+
+            proven = [
+                (category, metric)
+                for category, metric in categories.items()
+                if metric["sample_size"] >= 20 and metric["profit_loss"] > 0
+            ]
+            top_category = None
+            if proven:
+                top_category = max(
+                    proven,
+                    key=lambda item: (
+                        item[1].get("adjusted_hit_rate") or 0,
+                        item[1]["sample_size"],
+                        item[1]["profit_loss"],
+                    ),
+                )[0]
+            for category, metric in categories.items():
+                metric["is_top_category"] = category == top_category
+            output[wallet_address.lower()] = {
+                "top_category": top_category,
+                "categories": categories,
+            }
+        return output
+
+    def _attach_order_books(
+        self, positions: list[dict], order_books: dict[str, dict]
+    ) -> None:
+        for position in positions:
+            token_id = str(position.get("clob_token_id") or "")
+            book = order_books.get(token_id) or {}
+            asks = book.get("asks") or []
+            bids = book.get("bids") or []
+            position["orderbook"] = book
+            position["executable_ask_price"] = (
+                _safe_float(asks[0].get("price")) if asks else None
+            )
+            position["best_bid_price"] = (
+                _safe_float(bids[0].get("price")) if bids else None
+            )
+            position["executable_price_source"] = (
+                "clob_orderbook_best_ask" if asks else None
+            )
+            position["orderbook_timestamp"] = book.get("timestamp")
+
+    def _normalize_positions(
+        self,
+        wallet: WalletEntry,
+        positions: list[dict],
+        events: dict[str, dict],
+        wallet_category_metrics: dict[str, Any] | None = None,
+    ) -> list[dict]:
         rows: list[dict] = []
+        wallet_category_metrics = wallet_category_metrics or {}
         for position in positions:
             event = events.get(position.get("eventSlug"))
+            market = market_for_position(position, event)
             classification = classify_market(position, event)
             if self.settings.sports_only and not classification.is_sports:
                 continue
             probability = _safe_float(position.get("curPrice"))
-            if not within_odds_range(probability, self.settings.min_american_odds, self.settings.max_american_odds):
+            if not within_odds_range(
+                probability,
+                self.settings.min_american_odds,
+                self.settings.max_american_odds,
+            ):
                 continue
 
             size = _safe_float(position.get("size"))
             avg_price = _safe_float(position.get("avgPrice"))
             remaining_entry_value = size * avg_price
-            initial_value = _safe_float(position.get("initialValue") or position.get("totalBought") or remaining_entry_value)
-            current_value = _safe_float(position.get("currentValue") or size * probability)
+            initial_value = _safe_float(
+                position.get("initialValue")
+                or position.get("totalBought")
+                or remaining_entry_value
+            )
+            current_value = _safe_float(
+                position.get("currentValue") or size * probability
+            )
             realized_pnl = _safe_float(position.get("realizedPnl"))
             cash_pnl = _safe_float(position.get("cashPnl"))
-            unrealized_pnl = cash_pnl - realized_pnl if cash_pnl else current_value - remaining_entry_value
-            market_url = f"https://polymarket.com/event/{position.get('eventSlug')}" if position.get("eventSlug") else ""
-            resolution_time, event_time_source = event_start_time(position, event)
-            profile = self.client.get_public_profile(wallet.address)
-            profile_name = (profile or {}).get("name") or (profile or {}).get("pseudonym") or wallet.label
-
-            rows.append(
-                {
-                    "wallet_address": wallet.address,
-                    "wallet_label": wallet.label,
-                    "wallet_display_name": profile_name,
-                    "wallet_short_address": shorten_wallet(wallet.address),
-                    "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
-                    "position_key": position_key(position),
-                    "condition_id": position.get("conditionId"),
-                    "event_slug": position.get("eventSlug"),
-                    "event_id": str(position.get("eventId") or ""),
-                    "market_slug": position.get("slug"),
-                    "market_title": position.get("title") or "",
-                    "event_title": (event or {}).get("title") or position.get("title") or "",
-                    "outcome": position.get("outcome") or "",
-                    "opposite_outcome": position.get("oppositeOutcome") or "",
-                    "category": classification.category,
-                    "league": classification.league,
-                    "is_sports": classification.is_sports,
-                    "resolution_time": resolution_time,
-                    "event_time_source": event_time_source,
-                    "first_detected_at": _iso_now(),
-                    "last_seen_at": _iso_now(),
-                    "last_changed_at": _iso_now(),
-                    "closed_at": None,
-                    "average_entry_price": round(avg_price, 4),
-                    "current_price": round(probability, 4),
-                    "average_entry_price_cents": round(avg_price * 100, 2),
-                    "current_price_cents": round(probability * 100, 2),
-                    "average_entry_odds": american_odds_from_probability(avg_price),
-                    "current_odds": american_odds_from_probability(probability),
-                    "american_odds_value": american_odds_value_from_probability(probability),
-                    "position_size_usd": round(remaining_entry_value, 2),
-                    "reported_initial_value": round(initial_value, 2),
-                    "current_value": round(current_value, 2),
-                    "unrealized_pnl": round(unrealized_pnl, 2),
-                    "realized_pnl": round(realized_pnl, 2),
-                    "shares": round(size, 4),
-                    "token_units": round(size, 4),
-                    "market_url": market_url,
-                    "status": "open",
-                    "source": "current_positions",
-                    "raw_position": position,
-                    "event_tags": [tag.get("label") for tag in (event or {}).get("tags", [])],
-                }
+            unrealized_pnl = (
+                cash_pnl - realized_pnl
+                if cash_pnl
+                else current_value - remaining_entry_value
             )
+            market_url = (
+                f"https://polymarket.com/event/{position.get('eventSlug')}"
+                if position.get("eventSlug")
+                else ""
+            )
+            resolution_time, event_time_source = event_start_time(
+                position, event, market
+            )
+            profile = self.client.get_public_profile(wallet.address)
+            profile_name = (
+                (profile or {}).get("name")
+                or (profile or {}).get("pseudonym")
+                or wallet.label
+            )
+            token_id = outcome_token_id(position, market)
+            category_metric = (wallet_category_metrics.get("categories") or {}).get(
+                classification.category
+            )
+
+            row = {
+                "wallet_address": wallet.address,
+                "wallet_label": wallet.label,
+                "wallet_display_name": profile_name,
+                "wallet_short_address": shorten_wallet(wallet.address),
+                "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
+                "position_key": position_key(position),
+                "condition_id": position.get("conditionId"),
+                "event_slug": position.get("eventSlug"),
+                "event_id": str(position.get("eventId") or ""),
+                "market_id": str(market.get("id") or ""),
+                "market_slug": position.get("slug"),
+                "market_title": position.get("title") or "",
+                "event_title": (event or {}).get("title")
+                or position.get("title")
+                or "",
+                "outcome": position.get("outcome") or "",
+                "opposite_outcome": position.get("oppositeOutcome") or "",
+                "category": classification.category,
+                "league": classification.league,
+                "is_sports": classification.is_sports,
+                "resolution_time": resolution_time,
+                "event_time_source": event_time_source,
+                "clob_token_id": token_id,
+                "market_line": market.get("line"),
+                "sports_market_type": market.get("sportsMarketType")
+                or market.get("marketType"),
+                "event_active": event.get("active") if event else None,
+                "event_closed": event.get("closed") if event else None,
+                "event_archived": event.get("archived") if event else None,
+                "event_live": event.get("live") if event else None,
+                "event_ended": event.get("ended") if event else None,
+                "event_status": event.get("status") if event else None,
+                "game_status": event.get("gameStatus") if event else None,
+                "market_active": market.get("active"),
+                "market_closed": market.get("closed"),
+                "accepting_orders": market.get("acceptingOrders"),
+                "market_resolution_status": market.get("umaResolutionStatus"),
+                "market_status": market.get("marketStatus"),
+                "market_open": bool(
+                    market
+                    and market.get("active") is True
+                    and market.get("closed") is not True
+                    and market.get("acceptingOrders") is not False
+                ),
+                "fees_enabled": market.get("feesEnabled"),
+                "taker_base_fee": market.get("takerBaseFee"),
+                "category_metrics": category_metric,
+                "top_category": wallet_category_metrics.get("top_category"),
+                "first_detected_at": _iso_now(),
+                "last_seen_at": _iso_now(),
+                "last_changed_at": _iso_now(),
+                "closed_at": None,
+                "average_entry_price": round(avg_price, 4),
+                "current_price": round(probability, 4),
+                "average_entry_price_cents": round(avg_price * 100, 2),
+                "current_price_cents": round(probability * 100, 2),
+                "average_entry_odds": american_odds_from_probability(avg_price),
+                "current_odds": american_odds_from_probability(probability),
+                "american_odds_value": american_odds_value_from_probability(
+                    probability
+                ),
+                "position_size_usd": round(remaining_entry_value, 2),
+                "reported_initial_value": round(initial_value, 2),
+                "current_value": round(current_value, 2),
+                "unrealized_pnl": round(unrealized_pnl, 2),
+                "realized_pnl": round(realized_pnl, 2),
+                "shares": round(size, 4),
+                "token_units": round(size, 4),
+                "market_url": market_url,
+                "status": "open",
+                "source": "current_positions",
+                "raw_position": position,
+                "event_tags": [
+                    tag.get("label") for tag in (event or {}).get("tags", [])
+                ],
+            }
+            lifecycle = classify_lifecycle(row)
+            row["lifecycle_status"] = lifecycle.state
+            row["lifecycle_reason"] = lifecycle.reason
+            row["status_uncertain"] = lifecycle.uncertain
+            rows.append(row)
         return rows
 
     def _persist_positions(
@@ -506,12 +898,12 @@ class TrackerService:
         previous_rows: dict[str, dict],
         closed_positions: list[dict],
         events: dict[str, dict],
+        observed_open_keys: set[str] | None = None,
     ) -> list[dict]:
         now = _iso_now()
         current_by_key = {row["position_key"]: row for row in current_rows}
         closed_by_key = {
-            position_key(position): position
-            for position in closed_positions
+            position_key(position): position for position in closed_positions
         }
         output: list[dict] = []
         is_initial_wallet_scan = not previous_rows
@@ -525,14 +917,27 @@ class TrackerService:
                     if self._record_event(event):
                         row["last_changed_at"] = event["detected_at"]
             else:
-                event = self._build_event("new_entry", None, row, now, {"message": "First detected open position"})
+                event = self._build_event(
+                    "new_entry",
+                    None,
+                    row,
+                    now,
+                    {"message": "First detected open position"},
+                )
                 self._record_event(event, initial_scan=is_initial_wallet_scan)
 
             row["last_seen_at"] = now
             self.database.save_open_position(row)
             output.append(row)
 
-        missing_keys = set(previous_rows) - set(current_by_key)
+        # Candidate rows are date-filtered before enrichment, but exit detection
+        # must compare against every position returned by the wallet endpoint.
+        observed_open_keys = (
+            observed_open_keys
+            if observed_open_keys is not None
+            else set(current_by_key)
+        )
+        missing_keys = set(previous_rows) - observed_open_keys
         for key in missing_keys:
             previous = previous_rows[key]
             closed_match = closed_by_key.get(key)
@@ -542,10 +947,22 @@ class TrackerService:
             closed_snapshot["last_seen_at"] = now
             closed_snapshot["last_changed_at"] = now
             if closed_match:
-                closed_snapshot["realized_pnl"] = round(_safe_float(closed_match.get("realizedPnl")), 2)
-                closed_snapshot["current_price"] = round(_safe_float(closed_match.get("curPrice")), 4)
-                closed_snapshot["current_price_cents"] = round(_safe_float(closed_match.get("curPrice")) * 100, 2)
-            event = self._build_event("full_exit", previous, closed_snapshot, now, {"closed_position_found": bool(closed_match)})
+                closed_snapshot["realized_pnl"] = round(
+                    _safe_float(closed_match.get("realizedPnl")), 2
+                )
+                closed_snapshot["current_price"] = round(
+                    _safe_float(closed_match.get("curPrice")), 4
+                )
+                closed_snapshot["current_price_cents"] = round(
+                    _safe_float(closed_match.get("curPrice")) * 100, 2
+                )
+            event = self._build_event(
+                "full_exit",
+                previous,
+                closed_snapshot,
+                now,
+                {"closed_position_found": bool(closed_match)},
+            )
             self._record_event(event)
             self.database.close_position(closed_snapshot)
 
@@ -560,50 +977,134 @@ class TrackerService:
         self.notifier.notify(event)
         return True
 
-    def _detect_changes(self, previous: dict, current: dict, timestamp: str) -> list[dict]:
+    def _detect_changes(
+        self, previous: dict, current: dict, timestamp: str
+    ) -> list[dict]:
         events: list[dict] = []
-        size_delta = round(float(current["position_size_usd"]) - float(previous.get("position_size_usd") or 0), 2)
-        reported_size_delta = round(
-            float(current.get("reported_initial_value") or current["position_size_usd"])
-            - float(previous.get("reported_initial_value") or previous.get("position_size_usd") or 0),
+        size_delta = round(
+            float(current["position_size_usd"])
+            - float(previous.get("position_size_usd") or 0),
             2,
         )
-        current_value_delta = round(float(current["current_value"]) - float(previous.get("current_value") or 0), 2)
-        unrealized_delta = round(float(current["unrealized_pnl"]) - float(previous.get("unrealized_pnl") or 0), 2)
-        avg_price_delta = round(float(current["average_entry_price"]) - float(previous.get("average_entry_price") or 0), 4)
-        current_price_delta = round(float(current["current_price"]) - float(previous.get("current_price") or 0), 4)
+        reported_size_delta = round(
+            float(current.get("reported_initial_value") or current["position_size_usd"])
+            - float(
+                previous.get("reported_initial_value")
+                or previous.get("position_size_usd")
+                or 0
+            ),
+            2,
+        )
+        current_value_delta = round(
+            float(current["current_value"]) - float(previous.get("current_value") or 0),
+            2,
+        )
+        unrealized_delta = round(
+            float(current["unrealized_pnl"])
+            - float(previous.get("unrealized_pnl") or 0),
+            2,
+        )
+        avg_price_delta = round(
+            float(current["average_entry_price"])
+            - float(previous.get("average_entry_price") or 0),
+            4,
+        )
+        current_price_delta = round(
+            float(current["current_price"]) - float(previous.get("current_price") or 0),
+            4,
+        )
 
         size_threshold = max(10.0, (previous.get("position_size_usd") or 0) * 0.05)
-        reported_size_threshold = max(10.0, (previous.get("reported_initial_value") or previous.get("position_size_usd") or 0) * 0.05)
-        if size_delta >= size_threshold or reported_size_delta >= reported_size_threshold:
+        reported_size_threshold = max(
+            10.0,
+            (
+                previous.get("reported_initial_value")
+                or previous.get("position_size_usd")
+                or 0
+            )
+            * 0.05,
+        )
+        if (
+            size_delta >= size_threshold
+            or reported_size_delta >= reported_size_threshold
+        ):
             events.append(
                 self._build_event(
                     "size_increase",
                     previous,
                     current,
                     timestamp,
-                    {"delta_usd": reported_size_delta if reported_size_delta >= reported_size_threshold else size_delta, "active_delta_usd": size_delta},
+                    {
+                        "delta_usd": reported_size_delta
+                        if reported_size_delta >= reported_size_threshold
+                        else size_delta,
+                        "active_delta_usd": size_delta,
+                    },
                 )
             )
-        elif size_delta <= -size_threshold or reported_size_delta <= -reported_size_threshold:
+        elif (
+            size_delta <= -size_threshold
+            or reported_size_delta <= -reported_size_threshold
+        ):
             events.append(
                 self._build_event(
                     "size_decrease",
                     previous,
                     current,
                     timestamp,
-                    {"delta_usd": reported_size_delta if reported_size_delta <= -reported_size_threshold else size_delta, "active_delta_usd": size_delta},
+                    {
+                        "delta_usd": reported_size_delta
+                        if reported_size_delta <= -reported_size_threshold
+                        else size_delta,
+                        "active_delta_usd": size_delta,
+                    },
                 )
             )
 
         if abs(avg_price_delta) >= 0.01:
-            events.append(self._build_event("avg_price_change", previous, current, timestamp, {"delta": avg_price_delta}))
+            events.append(
+                self._build_event(
+                    "avg_price_change",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta": avg_price_delta},
+                )
+            )
         if abs(current_price_delta) >= 0.02:
-            events.append(self._build_event("price_change", previous, current, timestamp, {"delta": current_price_delta}))
-        if abs(current_value_delta) >= max(25.0, (previous.get("current_value") or 0) * 0.1):
-            events.append(self._build_event("current_value_change", previous, current, timestamp, {"delta_usd": current_value_delta}))
-        if abs(unrealized_delta) >= max(25.0, (abs(previous.get("unrealized_pnl") or 0)) * 0.15, 25.0):
-            events.append(self._build_event("unrealized_pnl_change", previous, current, timestamp, {"delta_usd": unrealized_delta}))
+            events.append(
+                self._build_event(
+                    "price_change",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta": current_price_delta},
+                )
+            )
+        if abs(current_value_delta) >= max(
+            25.0, (previous.get("current_value") or 0) * 0.1
+        ):
+            events.append(
+                self._build_event(
+                    "current_value_change",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta_usd": current_value_delta},
+                )
+            )
+        if abs(unrealized_delta) >= max(
+            25.0, (abs(previous.get("unrealized_pnl") or 0)) * 0.15, 25.0
+        ):
+            events.append(
+                self._build_event(
+                    "unrealized_pnl_change",
+                    previous,
+                    current,
+                    timestamp,
+                    {"delta_usd": unrealized_delta},
+                )
+            )
 
         return events
 
@@ -643,11 +1144,17 @@ class TrackerService:
                     "wallet_address": payload["wallet_address"],
                     "position_key": payload["position_key"],
                     "event_type": payload["event_type"],
-                    "position_size_usd": round(float(payload.get("position_size_usd") or 0), 2),
+                    "position_size_usd": round(
+                        float(payload.get("position_size_usd") or 0), 2
+                    ),
                     "current_value": round(float(payload.get("current_value") or 0), 2),
-                    "unrealized_pnl": round(float(payload.get("unrealized_pnl") or 0), 2),
+                    "unrealized_pnl": round(
+                        float(payload.get("unrealized_pnl") or 0), 2
+                    ),
                     "realized_pnl": round(float(payload.get("realized_pnl") or 0), 2),
-                    "average_entry_price": round(float(payload.get("average_entry_price") or 0), 4),
+                    "average_entry_price": round(
+                        float(payload.get("average_entry_price") or 0), 4
+                    ),
                     "current_price": round(float(payload.get("current_price") or 0), 4),
                     "extra": extra,
                 },
@@ -662,19 +1169,38 @@ class TrackerService:
             return False
         if self.settings.sports_only and not row.get("is_sports"):
             return False
+        lifecycle_status = row.get("lifecycle_status")
+        if lifecycle_status == "uncertain":
+            LOGGER.warning(
+                "Hiding uncertain position %s (%s): %s",
+                row.get("position_key"),
+                row.get("event_slug"),
+                row.get("lifecycle_reason"),
+            )
+            return False
+        if lifecycle_status not in {"upcoming", "live"}:
+            return False
         resolution = row.get("resolution_time")
         if resolution:
             hours = hours_until_resolution(resolution)
             row["hours_to_resolution"] = hours
-            if hours is not None and (hours < 0 or hours > self.settings.resolve_hours):
+            if (
+                row.get("lifecycle_status") == "upcoming"
+                and hours is not None
+                and hours > self.settings.resolve_hours
+            ):
                 return False
         return True
 
-    def _build_unit_analysis(self, wallets: list[WalletEntry], positions: list[dict]) -> list[dict]:
+    def _build_unit_analysis(
+        self, wallets: list[WalletEntry], positions: list[dict]
+    ) -> list[dict]:
         results: list[dict] = []
         positions_by_wallet: dict[str, list[dict]] = {}
         for position in positions:
-            positions_by_wallet.setdefault(position["wallet_address"], []).append(position)
+            positions_by_wallet.setdefault(position["wallet_address"], []).append(
+                position
+            )
 
         for wallet in wallets:
             events = self.database.get_events_for_wallet(wallet.address, limit=250)
@@ -690,41 +1216,66 @@ class TrackerService:
                 if is_sports_category(position.get("category", "")):
                     samples.append(abs(float(position.get("position_size_usd") or 0)))
 
-            estimate = estimate_unit_size(wallet.address, wallet.label, samples, wallet.base_unit)
+            estimate = estimate_unit_size(
+                wallet.address, wallet.label, samples, wallet.base_unit
+            )
             results.append(asdict(estimate))
 
         results.sort(key=lambda item: item["wallet_label"].lower())
         return results
 
-    def _build_consensus(self, positions: list[dict], trades: list[dict], unit_map: dict[str, dict]) -> list[dict]:
+    def _build_consensus(
+        self, positions: list[dict], trades: list[dict], unit_map: dict[str, dict]
+    ) -> list[dict]:
         groups: dict[tuple[str, str], list[dict]] = {}
         for position in positions:
-            groups.setdefault((position["condition_id"], position["outcome"]), []).append(position)
+            groups.setdefault(
+                (position["condition_id"], position["outcome"]), []
+            ).append(position)
 
         trade_groups: dict[tuple[str, str], list[dict]] = {}
         for trade in trades:
-            trade_groups.setdefault((trade.get("current", {}) or {}).get("condition_id", None), [])
+            trade_groups.setdefault(
+                (trade.get("current", {}) or {}).get("condition_id", None), []
+            )
 
         consensus: list[dict] = []
         for (condition_id, outcome), group in groups.items():
             if len(group) < 2:
                 continue
-            combined_value = round(sum(float(position.get("current_value") or 0) for position in group), 2)
+            combined_value = round(
+                sum(float(position.get("current_value") or 0) for position in group), 2
+            )
             combined_units = round(
                 sum(
-                    float(amount_to_units(position.get("position_size_usd") or 0, unit_map.get(position["wallet_address"], {}).get("estimated_base_unit")) or 0)
+                    float(
+                        amount_to_units(
+                            position.get("position_size_usd") or 0,
+                            unit_map.get(position["wallet_address"], {}).get(
+                                "estimated_base_unit"
+                            ),
+                        )
+                        or 0
+                    )
                     for position in group
                 ),
                 2,
             )
-            largest_holder = max(group, key=lambda position: float(position.get("position_size_usd") or 0))
-            earliest_entry = min(position.get("first_detected_at") for position in group)
+            largest_holder = max(
+                group,
+                key=lambda position: float(position.get("position_size_usd") or 0),
+            )
+            earliest_entry = min(
+                position.get("first_detected_at") for position in group
+            )
             relevant_increases = [
                 trade["detected_at"]
                 for trade in trades
                 if trade.get("event_type") == "size_increase"
-                and trade.get("position_key") in {position["position_key"] for position in group}
-                and trade.get("wallet_address") in {position["wallet_address"] for position in group}
+                and trade.get("position_key")
+                in {position["position_key"] for position in group}
+                and trade.get("wallet_address")
+                in {position["wallet_address"] for position in group}
             ]
             consensus.append(
                 {
@@ -736,17 +1287,33 @@ class TrackerService:
                     "wallet_count": len(group),
                     "combined_position_value": combined_value,
                     "combined_estimated_units": combined_units,
-                    "average_entry_price": round(sum(position["average_entry_price"] for position in group) / len(group), 4),
-                    "current_price": round(sum(position["current_price"] for position in group) / len(group), 4),
+                    "average_entry_price": round(
+                        sum(position["average_entry_price"] for position in group)
+                        / len(group),
+                        4,
+                    ),
+                    "current_price": round(
+                        sum(position["current_price"] for position in group)
+                        / len(group),
+                        4,
+                    ),
                     "wallet_names": [position["wallet_label"] for position in group],
                     "largest_holder": largest_holder["wallet_label"],
                     "earliest_entry_time": earliest_entry,
-                    "most_recent_increase": max(relevant_increases) if relevant_increases else None,
+                    "most_recent_increase": max(relevant_increases)
+                    if relevant_increases
+                    else None,
                     "market_url": group[0]["market_url"],
                 }
             )
 
-        consensus.sort(key=lambda item: (-item["wallet_count"], -item["combined_position_value"], item["market_title"].lower()))
+        consensus.sort(
+            key=lambda item: (
+                -item["wallet_count"],
+                -item["combined_position_value"],
+                item["market_title"].lower(),
+            )
+        )
         return consensus
 
     def _enrich_positions(
@@ -760,20 +1327,35 @@ class TrackerService:
         sports_totals: dict[str, float] = {}
 
         for position in positions:
-            visible_totals[position["wallet_address"]] = visible_totals.get(position["wallet_address"], 0.0) + float(position.get("current_value") or 0)
+            visible_totals[position["wallet_address"]] = visible_totals.get(
+                position["wallet_address"], 0.0
+            ) + float(position.get("current_value") or 0)
             if is_sports_category(position.get("category", "")):
-                sports_totals[position["wallet_address"]] = sports_totals.get(position["wallet_address"], 0.0) + float(position.get("current_value") or 0)
+                sports_totals[position["wallet_address"]] = sports_totals.get(
+                    position["wallet_address"], 0.0
+                ) + float(position.get("current_value") or 0)
 
         output: list[dict] = []
         for position in positions:
             wallet_unit = unit_map.get(position["wallet_address"], {})
-            estimated_units = amount_to_units(position.get("position_size_usd") or 0, wallet_unit.get("estimated_base_unit"))
+            estimated_units = amount_to_units(
+                position.get("position_size_usd") or 0,
+                wallet_unit.get("estimated_base_unit"),
+            )
             position["estimated_base_unit"] = wallet_unit.get("estimated_base_unit")
-            position["estimated_base_unit_label"] = wallet_unit.get("estimated_base_unit_label")
+            position["estimated_base_unit_label"] = wallet_unit.get(
+                "estimated_base_unit_label"
+            )
             position["estimated_units"] = estimated_units
-            position["wallet_total_visible_value"] = round(visible_totals.get(position["wallet_address"], 0.0), 2)
-            position["wallet_sports_visible_value"] = round(sports_totals.get(position["wallet_address"], 0.0), 2)
-            position["tracked_wallets_same_side"] = consensus_map.get((position["condition_id"], position["outcome"]), {}).get("wallet_count", 1)
+            position["wallet_total_visible_value"] = round(
+                visible_totals.get(position["wallet_address"], 0.0), 2
+            )
+            position["wallet_sports_visible_value"] = round(
+                sports_totals.get(position["wallet_address"], 0.0), 2
+            )
+            position["tracked_wallets_same_side"] = consensus_map.get(
+                (position["condition_id"], position["outcome"]), {}
+            ).get("wallet_count", 1)
             increase_count = len(
                 [
                     trade
@@ -783,7 +1365,12 @@ class TrackerService:
                     and trade.get("event_type") == "size_increase"
                 ]
             )
-            conviction = score_position(position, wallet_unit, position["tracked_wallets_same_side"], increase_count)
+            conviction = score_position(
+                position,
+                wallet_unit,
+                position["tracked_wallets_same_side"],
+                increase_count,
+            )
             position["position_conviction_status"] = conviction.status
             position["position_conviction"] = conviction.score
             position["position_conviction_breakdown"] = conviction.breakdown
@@ -809,14 +1396,44 @@ class TrackerService:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed >= _utc_now() - timedelta(hours=hours)
 
-    def _build_overview(self, positions: list[dict], trades: list[dict], consensus: list[dict], status: dict) -> dict:
-        new_trades_24h = len([trade for trade in trades if trade["event_type"] == "new_entry" and self._within_hours(trade["detected_at"], 24)])
-        exits_24h = len([trade for trade in trades if trade["event_type"] == "full_exit" and self._within_hours(trade["detected_at"], 24)])
+    def _build_overview(
+        self,
+        positions: list[dict],
+        trades: list[dict],
+        consensus: list[dict],
+        status: dict,
+    ) -> dict:
+        new_trades_24h = len(
+            [
+                trade
+                for trade in trades
+                if trade["event_type"] == "new_entry"
+                and self._within_hours(trade["detected_at"], 24)
+            ]
+        )
+        exits_24h = len(
+            [
+                trade
+                for trade in trades
+                if trade["event_type"] == "full_exit"
+                and self._within_hours(trade["detected_at"], 24)
+            ]
+        )
         return {
             "enabled_wallets": status["enabled_wallet_count"],
             "open_sports_positions": len(positions),
-            "total_current_position_value": round(sum(float(position.get("current_value") or 0) for position in positions), 2),
-            "total_unrealized_pnl": round(sum(float(position.get("unrealized_pnl") or 0) for position in positions), 2),
+            "total_current_position_value": round(
+                sum(
+                    float(position.get("current_value") or 0) for position in positions
+                ),
+                2,
+            ),
+            "total_unrealized_pnl": round(
+                sum(
+                    float(position.get("unrealized_pnl") or 0) for position in positions
+                ),
+                2,
+            ),
             "new_trades_last_24h": new_trades_24h,
             "exits_last_24h": exits_24h,
             "markets_with_consensus": len(consensus),

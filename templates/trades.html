@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="workspace-header">
+  <div><p class="eyebrow">PREDICTION TRADERS</p><div class="title-line"><h1>Trades to Play</h1><span class="result-badge" id="trade-result-count">0 results</span></div></div>
+  <div class="freshness"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span></div>
+</header>
+<section class="toolbar trade-toolbar" aria-label="Trade filters">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search event, team, market, trader" autocomplete="off"></label>
+  <label><span class="sr-only">Date range</span><select id="trade-date-range"><option value="today">Today</option><option value="next24">Next 24 Hours</option><option value="next7">Next 7 Days</option><option value="custom">Custom</option></select></label>
+  <label><span class="sr-only">Sharps count</span><select id="trade-sharps"><option value="0">All Sharps</option><option value="1">1 Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option><option value="4">4+ Sharps</option><option value="5">5+ Sharps</option></select></label>
+  <label><span class="sr-only">Minimum confidence</span><select id="trade-confidence"><option value="0">Any Score</option><option value="60">60+ Score</option><option value="70">70+ Score</option><option value="80">80+ Score</option><option value="90">90+ Score</option></select></label>
+  <label><span class="sr-only">Sport</span><select id="trade-sport"><option value="">All Sports</option></select></label>
+  <button class="button ghost" id="more-filters-button" type="button" aria-expanded="false" aria-controls="more-filters"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i>More Filters</button>
+  <button class="icon-button" id="trade-refresh-button" type="button" aria-label="Refresh live trade data" title="Refresh live trade data"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
+</section>
+<section class="more-filters" id="more-filters" hidden>
+  <label>League<select id="trade-league"><option value="">All leagues</option></select></label>
+  <label>Wallet<select id="trade-wallet"><option value="">All wallets</option></select></label>
+  <label class="custom-time">Custom start<input id="custom-start" type="datetime-local"></label>
+  <label class="custom-time">Custom end<input id="custom-end" type="datetime-local"></label>
+  <button class="button ghost" id="clear-trade-filters" type="button">Reset filters</button>
+</section>
+<section class="bankroll-strip" aria-label="Bankroll settings">
+  <div><span>Bankroll</span><label class="money-input"><span>$</span><input id="bankroll-input" type="number" min="1" step="100" inputmode="decimal" aria-label="Starting bankroll"></label><button class="button compact" id="save-bankroll" type="button">Save</button></div>
+  <div class="unit-readout"><span>1 Unit</span><strong id="unit-value">$0.00</strong><small>1% of bankroll</small></div>
+  <span class="save-state" id="bankroll-save-state" aria-live="polite"></span>
+</section>
+<section class="trade-workspace">
+  <div class="trade-list-panel" aria-label="Trades to Play results"><div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div></div>
+  <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite"><div class="empty-detail"><i class="ph ph-cursor-click" aria-hidden="true"></i><h2>Select a trade</h2><p>Choose a verified opportunity to inspect its price, Sharp evidence, and bankroll calculation.</p></div></aside>
+</section>
+{% endblock %}

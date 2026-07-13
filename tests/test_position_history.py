@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 
 from config import Settings
 from database import TrackerDatabase
-from position_tracker import TrackerService
+from position_tracker import (
+    TrackerService,
+    event_start_time,
+    market_for_position,
+    outcome_token_id,
+)
 
 
 class StubClient:
@@ -81,18 +87,52 @@ def sample_position(size=1000, current_value=1100, avg=0.5, cur=0.55):
         "eventId": "691040",
         "outcome": "No",
         "oppositeOutcome": "Yes",
-        "endDate": "2099-07-14T19:00:00Z",
+        "endDate": (datetime.now(timezone.utc) + timedelta(days=1)).isoformat(),
     }
+
+
+def test_real_game_time_and_exact_outcome_token_are_mapped_from_gamma_market():
+    position = sample_position()
+    position["outcome"] = "No"
+    event = {
+        "startDate": "2026-07-10T00:00:00Z",
+        "startTime": "2026-07-14T19:00:00Z",
+        "markets": [
+            {
+                "conditionId": position["conditionId"],
+                "gameStartTime": "2026-07-14 19:30:00+00",
+                "outcomes": '["Yes", "No"]',
+                "clobTokenIds": '["token-yes", "token-no"]',
+            }
+        ],
+    }
+
+    market = market_for_position(position, event)
+    start, source = event_start_time(position, event, market)
+
+    assert start == "2026-07-14 19:30:00+00"
+    assert source == "market.gameStartTime"
+    assert outcome_token_id(position, market) == "token-no"
 
 
 def test_position_change_detection(tmp_path):
     settings = _settings(tmp_path)
     database = TrackerDatabase(settings.database_path)
-    first_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]})
-    service = TrackerService(settings, client=first_client, database=database, auto_start=False)
+    first_client = StubClient(
+        {"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]}
+    )
+    service = TrackerService(
+        settings, client=first_client, database=database, auto_start=False
+    )
     service.refresh()
 
-    second_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position(size=1300, current_value=1450, avg=0.52, cur=0.6)]})
+    second_client = StubClient(
+        {
+            "0x204f72f35326db932158cba6adff0b9a1da95e14": [
+                sample_position(size=1300, current_value=1450, avg=0.52, cur=0.6)
+            ]
+        }
+    )
     service.client = second_client
     service.refresh()
     events = database.get_recent_events()
@@ -106,8 +146,12 @@ def test_position_change_detection(tmp_path):
 def test_exit_detection(tmp_path):
     settings = _settings(tmp_path)
     database = TrackerDatabase(settings.database_path)
-    open_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]})
-    service = TrackerService(settings, client=open_client, database=database, auto_start=False)
+    open_client = StubClient(
+        {"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]}
+    )
+    service = TrackerService(
+        settings, client=open_client, database=database, auto_start=False
+    )
     service.refresh()
 
     closed_client = StubClient(
@@ -132,11 +176,41 @@ def test_exit_detection(tmp_path):
     assert "full_exit" in [event["event_type"] for event in events]
 
 
+def test_position_outside_analysis_window_is_not_recorded_as_exit(tmp_path):
+    settings = _settings(tmp_path)
+    database = TrackerDatabase(settings.database_path)
+    address = "0x204f72f35326db932158cba6adff0b9a1da95e14"
+    candidate = sample_position()
+    candidate["endDate"] = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+    service = TrackerService(
+        settings,
+        client=StubClient({address: [candidate]}),
+        database=database,
+        auto_start=False,
+    )
+    service.refresh()
+
+    outside_window = sample_position()
+    outside_window["endDate"] = (
+        datetime.now(timezone.utc) + timedelta(days=30)
+    ).isoformat()
+    service.client = StubClient({address: [outside_window]})
+    service.refresh()
+
+    events = database.get_recent_events()
+    assert "full_exit" not in [event["event_type"] for event in events]
+    assert database.get_open_positions_for_wallet(address)
+
+
 def test_duplicate_event_prevention(tmp_path):
     settings = _settings(tmp_path)
     database = TrackerDatabase(settings.database_path)
-    client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]})
-    service = TrackerService(settings, client=client, database=database, auto_start=False)
+    client = StubClient(
+        {"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]}
+    )
+    service = TrackerService(
+        settings, client=client, database=database, auto_start=False
+    )
     service.refresh()
     service.refresh()
     events = database.get_recent_events()
@@ -147,13 +221,27 @@ def test_discord_notifications_skip_initial_scan_but_send_later_changes(tmp_path
     settings = _settings(tmp_path)
     database = TrackerDatabase(settings.database_path)
     notifier = StubNotifier()
-    first_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]})
-    service = TrackerService(settings, client=first_client, database=database, notifier=notifier, auto_start=False)
+    first_client = StubClient(
+        {"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position()]}
+    )
+    service = TrackerService(
+        settings,
+        client=first_client,
+        database=database,
+        notifier=notifier,
+        auto_start=False,
+    )
 
     service.refresh()
     assert notifier.events == []
 
-    second_client = StubClient({"0x204f72f35326db932158cba6adff0b9a1da95e14": [sample_position(size=1300, current_value=1450, avg=0.52, cur=0.6)]})
+    second_client = StubClient(
+        {
+            "0x204f72f35326db932158cba6adff0b9a1da95e14": [
+                sample_position(size=1300, current_value=1450, avg=0.52, cur=0.6)
+            ]
+        }
+    )
     service.client = second_client
     service.refresh()
 

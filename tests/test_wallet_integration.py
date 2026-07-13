@@ -44,6 +44,7 @@ class PartialFailureClient:
                 "eventId": "691040",
                 "outcome": "No",
                 "oppositeOutcome": "Yes",
+                "startTime": "2026-07-14T19:00:00Z",
                 "endDate": "2026-07-14T19:00:00Z",
             }
         ]
@@ -81,7 +82,9 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     for label, address in REQUESTED_WALLETS.items():
         assert by_label[label] == address
     assert not result.invalid_entries
-    assert len({wallet.address for wallet in result.valid_wallets}) == len(result.valid_wallets)
+    assert len({wallet.address for wallet in result.valid_wallets}) == len(
+        result.valid_wallets
+    )
 
 
 def test_case_insensitive_duplicate_request_is_rejected(tmp_path):
@@ -89,8 +92,20 @@ def test_case_insensitive_duplicate_request_is_rejected(tmp_path):
     wallet_file.write_text(
         json.dumps(
             [
-                {"address": REQUESTED_WALLETS["Wordylittleneck"], "label": "Wordylittleneck", "enabled": True, "base_unit": None, "notes": ""},
-                {"address": "0x3DFb153c197D4C19D3B31c1ecD2c7B6860eeabAf", "label": "Duplicate", "enabled": True, "base_unit": None, "notes": ""},
+                {
+                    "address": REQUESTED_WALLETS["Wordylittleneck"],
+                    "label": "Wordylittleneck",
+                    "enabled": True,
+                    "base_unit": None,
+                    "notes": "",
+                },
+                {
+                    "address": "0x3DFb153c197D4C19D3B31c1ecD2c7B6860eeabAf",
+                    "label": "Duplicate",
+                    "enabled": True,
+                    "base_unit": None,
+                    "notes": "",
+                },
             ]
         ),
         encoding="utf-8",
@@ -100,7 +115,9 @@ def test_case_insensitive_duplicate_request_is_rejected(tmp_path):
 
     assert len(result.valid_wallets) == 1
     assert result.valid_wallets[0].label == "Wordylittleneck"
-    assert any(error.message == "Duplicate wallet address" for error in result.invalid_entries)
+    assert any(
+        error.message == "Duplicate wallet address" for error in result.invalid_entries
+    )
 
 
 def test_failed_wallet_sync_is_visible_and_excluded_from_positions(tmp_path):
@@ -110,8 +127,20 @@ def test_failed_wallet_sync_is_visible_and_excluded_from_positions(tmp_path):
     wallet_file.write_text(
         json.dumps(
             [
-                {"address": good_wallet, "label": "Weflyhigh", "enabled": True, "base_unit": 1000, "notes": ""},
-                {"address": failing_wallet, "label": "Surfandturf", "enabled": True, "base_unit": 1000, "notes": ""},
+                {
+                    "address": good_wallet,
+                    "label": "Weflyhigh",
+                    "enabled": True,
+                    "base_unit": 1000,
+                    "notes": "",
+                },
+                {
+                    "address": failing_wallet,
+                    "label": "Surfandturf",
+                    "enabled": True,
+                    "base_unit": 1000,
+                    "notes": "",
+                },
             ]
         ),
         encoding="utf-8",
@@ -130,5 +159,10 @@ def test_failed_wallet_sync_is_visible_and_excluded_from_positions(tmp_path):
 
     assert wallets["Weflyhigh"]["sync_status"] == "ready"
     assert wallets["Surfandturf"]["sync_status"] == "failed"
-    assert [position["wallet_label"] for position in snapshot["positions"]] == ["Weflyhigh"]
-    assert all(trade["primary_trader"]["wallet_label"] == "Weflyhigh" for trade in snapshot["trades_to_play"])
+    assert [position["wallet_label"] for position in snapshot["positions"]] == [
+        "Weflyhigh"
+    ]
+    assert all(
+        trade["primary_trader"]["wallet_label"] == "Weflyhigh"
+        for trade in snapshot["trades_to_play"]
+    )
