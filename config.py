@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+PROJECT_ROOT = Path(__file__).resolve().parent
+
 
 def _get_bool(name: str, default: bool) -> bool:
     value = os.getenv(name)
@@ -44,6 +46,11 @@ def _get_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
 
+def _get_path(name: str, default: str) -> Path:
+    value = Path(os.getenv(name, default))
+    return value if value.is_absolute() else PROJECT_ROOT / value
+
+
 @dataclass(frozen=True)
 class Settings:
     dashboard_refresh: int
@@ -68,8 +75,8 @@ def get_settings() -> Settings:
     return Settings(
         dashboard_refresh=_get_int("DASHBOARD_REFRESH", 120),
         dashboard_port=dashboard_port,
-        wallets_file=Path(os.getenv("WALLETS_FILE", "wallets.json")),
-        database_path=Path(os.getenv("DATABASE_PATH", "polymarket_tracker.db")),
+        wallets_file=_get_path("WALLETS_FILE", "wallets.json"),
+        database_path=_get_path("DATABASE_PATH", "polymarket_tracker.db"),
         sports_only=_get_bool("SPORTS_ONLY", True),
         resolve_hours=_get_int("RESOLVE_HOURS", 168),
         min_american_odds=_get_optional_int("MIN_AMERICAN_ODDS"),
