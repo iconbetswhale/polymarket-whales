@@ -750,8 +750,11 @@ class TrackerService:
                 state["records_rejected"] += user_result["rejected"]
                 state["errors"] += user_result["errors"]
                 state["error_details"].extend(user_result["error_details"])
-            state["last_successful_run"] = attempted.isoformat()
-            state["status"] = "failed" if state["errors"] else "running"
+            if state["errors"]:
+                state["status"] = "failed"
+            else:
+                state["last_successful_run"] = attempted.isoformat()
+                state["status"] = "running"
         except Exception as exc:
             LOGGER.exception("Model Tracker job failed")
             state["status"] = "failed"

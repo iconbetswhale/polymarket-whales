@@ -328,24 +328,26 @@ class PostgresUserStore:
             conn.execute(
                 "DELETE FROM tracking_rejections WHERE user_id = %s", (user_id,)
             )
-            conn.executemany(
-                """
-                INSERT INTO tracking_rejections (
-                    user_id, dedupe_key, rejection_reason,
-                    last_evaluated_at, evaluation_json
-                ) VALUES (%s, %s, %s, %s, %s)
-                """,
-                [
-                    (
-                        user_id,
-                        row["recommendation_idempotency_key"],
-                        row["rejection_reason"],
-                        row["last_evaluated_at"],
-                        json.dumps(row),
+            if rows:
+                with conn.cursor() as cursor:
+                    cursor.executemany(
+                        """
+                        INSERT INTO tracking_rejections (
+                            user_id, dedupe_key, rejection_reason,
+                            last_evaluated_at, evaluation_json
+                        ) VALUES (%s, %s, %s, %s, %s)
+                        """,
+                        [
+                            (
+                                user_id,
+                                row["recommendation_idempotency_key"],
+                                row["rejection_reason"],
+                                row["last_evaluated_at"],
+                                json.dumps(row),
+                            )
+                            for row in rows
+                        ],
                     )
-                    for row in rows
-                ],
-            )
 
     def get_tracking_rejections(self, user_id: str) -> list[dict]:
         with self.connection() as conn:
