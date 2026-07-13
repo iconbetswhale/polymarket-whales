@@ -2365,20 +2365,20 @@ h3,
 .metric-card > strong,
 .trade-score strong,
 .live-price strong {
-  text-rendering: optimizeLegibility;
+  text-rendering: geometricPrecision;
 }
 
 h1 {
   font-size: clamp(34px, 2.35vw, 44px);
   font-weight: 800;
-  line-height: 0.98;
+  line-height: 1.08;
   letter-spacing: -0.048em;
 }
 
 h2 {
   font-size: clamp(22px, 1.8vw, 28px);
-  font-weight: 750;
-  line-height: 1.05;
+  font-weight: 800;
+  line-height: 1.12;
   letter-spacing: -0.035em;
 }
 
@@ -2537,7 +2537,7 @@ h2 {
 .metric-card > strong {
   font-family: var(--font-display);
   font-size: clamp(22px, 1.7vw, 30px);
-  font-weight: 750;
+  font-weight: 800;
   letter-spacing: -0.035em;
 }
 
@@ -2618,7 +2618,7 @@ h2 {
 .trade-score strong {
   font-family: var(--font-display);
   font-size: 30px;
-  font-weight: 750;
+  font-weight: 800;
   line-height: 0.9;
   letter-spacing: -0.035em;
 }
@@ -2685,7 +2685,7 @@ h2 {
   overflow: hidden;
   margin-bottom: 5px;
   font-size: 17px;
-  font-weight: 750;
+  font-weight: 800;
   line-height: 1.08;
   white-space: normal;
   -webkit-box-orient: vertical;
@@ -2783,7 +2783,7 @@ h2 {
   margin-top: 2px;
   font-family: var(--font-display);
   font-size: 16px;
-  font-weight: 750;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2905,7 +2905,7 @@ h2 {
 
 .detail-header h2 {
   font-size: clamp(22px, 1.65vw, 28px);
-  font-weight: 750;
+  font-weight: 800;
 }
 
 .score-badge.large {
@@ -2917,7 +2917,7 @@ h2 {
   box-shadow: var(--inner-highlight);
   font-family: var(--font-display);
   font-size: 26px;
-  font-weight: 750;
+  font-weight: 800;
 }
 
 .selection-banner,
@@ -2968,8 +2968,13 @@ tbody tr:hover {
 
 .empty-state h2,
 .empty-detail h2 {
+  max-width: 100%;
+  overflow: visible;
   font-size: clamp(22px, 2vw, 30px);
-  font-weight: 750;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.03em;
+  text-rendering: geometricPrecision;
 }
 
 .tracker-dialog {
