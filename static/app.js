@@ -579,6 +579,14 @@ function formatCentsFromProbability(value) {
   return `${(numeric * 100).toFixed(1)}c`;
 }
 
+function formatTakePriceFromProbability(value) {
+  const numeric = numberOrNull(value);
+  if (numeric === null || numeric <= 0 || numeric > 1) return "Unavailable";
+  const cents = numeric * 100;
+  const formatted = Math.abs(cents - Math.round(cents)) < 0.05 ? String(Math.round(cents)) : cents.toFixed(1);
+  return `${formatted}\u00a2`;
+}
+
 function formatShares(value) {
   const numeric = numberOrNull(value);
   if (numeric === null) return "n/a";
@@ -764,29 +772,44 @@ function renderTradeCard(trade, index, selectedKey) {
   const relative = relativeBetSize(trade);
   const slippage = slippageForTrade(trade);
   const price = numberOrNull(trade.current_price);
-  const badge = trade.sharps_badge ? `<span class="sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : "";
+  const priceLabel = formatTakePriceFromProbability(price);
+  const priceUnavailable = priceLabel === "Unavailable";
   const primaryAmount = primaryTradeSizeUsd(trade);
   const combinedAmount = tradeSizeUsd(trade);
   const primaryUnits = formatUnitsValue(trade.primary_trader?.relative_units);
+  const sharpsCount = Number(trade.agreeing_wallet_count || 1);
+  const sharpsLabel = `${sharpsCount} Sharp${sharpsCount === 1 ? "" : "s"}`;
+  const eventTime = trade.event_time_et || "Time unavailable";
+  const category = trade.category || trade.league || "Market";
 
   return `
-    <button class="trade-card ${selected ? "selected" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
-      <div class="trade-card-rank score-rank"><span>${escapeHtml(trade.confidence_score ?? 0)}</span><small>Score</small></div>
+    <button class="trade-card ${selected ? "selected" : ""} ${priceUnavailable ? "price-unavailable" : ""}" type="button" data-trade-key="${escapeHtml(key)}" aria-pressed="${selected}">
+      <div class="trade-card-rank score-rank">
+        <span>${escapeHtml(trade.confidence_score ?? 0)}</span>
+        <small>SCORE</small>
+      </div>
       <div class="trade-card-main">
         <div class="trade-card-meta">
-          ${badge}
-          <span>${escapeHtml(trade.event_time_et || "Time TBA")}</span>
-          <span>${escapeHtml(relative.value)}</span>
+          <span>${escapeHtml(eventTime)}</span>
+          <span>${escapeHtml(formatMoney(primaryAmount))}</span>
+          <span>${escapeHtml(primaryUnits)}</span>
           <span class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</span>
+          <span class="trade-card-current">Current: ${escapeHtml(priceLabel)}</span>
         </div>
+        <div class="trade-card-sport">${escapeHtml(category)}</div>
         <div class="trade-card-title" title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</div>
-        <div class="trade-card-subtitle">${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} leads / Primary ${escapeHtml(formatMoney(primaryAmount))} / ${escapeHtml(primaryUnits)} / Entered ${escapeHtml(timeAgo(trade.entered_at))}</div>
-      </div>
-      <div class="trade-card-pick">
-        <span>Pick</span>
-        <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
-        <em>${escapeHtml(trade.agreeing_wallet_count || 1)} sharp${Number(trade.agreeing_wallet_count || 1) === 1 ? "" : "s"} / ${escapeHtml(formatMoney(combinedAmount))} combined</em>
-        <small>${escapeHtml(formatCentsFromProbability(price))}</small>
+        <div class="trade-card-subtitle">${escapeHtml(trade.market_type || "Moneyline")} / ${escapeHtml(trade.primary_trader?.wallet_label || "Tracked wallet")} / ${escapeHtml(sharpsLabel)} / ${escapeHtml(formatMoney(combinedAmount))} combined</div>
+        <div class="trade-card-pick">
+          <div>
+            <span>Pick</span>
+            <strong>${escapeHtml(trade.outcome || "Outcome")}</strong>
+            <em>${escapeHtml(sharpsLabel)} / ${escapeHtml(relative.value)} rel. size</em>
+          </div>
+          <small class="${priceUnavailable ? "unavailable" : ""}">
+            <b aria-hidden="true">PM</b>
+            ${escapeHtml(priceLabel)}
+          </small>
+        </div>
       </div>
       <span class="trade-card-arrow" aria-hidden="true">&gt;</span>
     </button>
@@ -816,7 +839,7 @@ function renderTradeDetail(trade) {
       <div class="trade-detail-score">${escapeHtml(trade.confidence_score ?? 0)}</div>
       <div>
         <h3 title="${escapeHtml(trade.market_title)}">${escapeHtml(trade.market_title)}</h3>
-        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")} <b aria-hidden="true">/</b> ${escapeHtml(trade.event_time_et || "Time TBA")}</span>
+        <span>${escapeHtml(trade.category || "Market")} <b aria-hidden="true">/</b> ${escapeHtml(trade.league || "League")} <b aria-hidden="true">/</b> ${escapeHtml(trade.event_time_et || "Time unavailable")}</span>
       </div>
       ${trade.sharps_badge ? `<span class="event-badge new-entry sharps-badge">${escapeHtml(trade.sharps_badge)}</span>` : `<span class="event-badge new-entry">Actionable</span>`}
     </div>
@@ -838,7 +861,7 @@ function renderTradeDetail(trade) {
       </div>
       <div>
         <span>Current</span>
-        <strong>${escapeHtml(formatCentsFromProbability(currentPrice))}<i aria-hidden="true"></i></strong>
+        <strong>${escapeHtml(formatTakePriceFromProbability(currentPrice))}<i aria-hidden="true"></i></strong>
       </div>
     </div>
 
@@ -891,7 +914,7 @@ function renderTradeDetail(trade) {
         <strong>Price &amp; Slippage</strong>
         <span class="price-legend">
           <em class="entry-line"></em> Entry Price <b>${escapeHtml(formatCentsFromProbability(averageEntry))}</b>
-          <em class="current-line"></em> Current Price <b>${escapeHtml(formatCentsFromProbability(currentPrice))}</b>
+          <em class="current-line"></em> Current Price <b>${escapeHtml(formatTakePriceFromProbability(currentPrice))}</b>
           <em class="slip-line"></em> Slippage <b class="slippage ${slippage.className}">${escapeHtml(slippage.value)}</b>
         </span>
       </div>
@@ -908,7 +931,7 @@ function renderTradeDetail(trade) {
     </div>
 
     <div class="trade-detail-footer">
-      <div><span>Game Time</span><strong>${escapeHtml(trade.event_time_et || "Time TBA")}</strong></div>
+      <div><span>Game Time</span><strong>${escapeHtml(trade.event_time_et || "Time unavailable")}</strong></div>
       <div><span>Total Bet</span><strong>${formatMoney(sizeUsd)}</strong></div>
       <div><span>Wallets</span><strong>${escapeHtml(trade.agreeing_wallet_count || 1)}</strong></div>
       <div><span>Status</span><strong class="status-open">Pregame</strong></div>

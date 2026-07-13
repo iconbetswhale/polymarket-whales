@@ -2716,17 +2716,21 @@ select:focus {
 }
 
 .trade-card-list {
-  gap: 12px;
+  gap: 8px;
 }
 
 .trade-card {
-  min-height: 154px;
-  border: 1px solid rgba(125, 165, 184, 0.2);
-  border-radius: 16px;
+  grid-template-columns: 48px minmax(0, 1fr) 14px;
+  min-height: 124px;
+  gap: 16px;
+  align-items: center;
+  border: 1px solid rgba(0, 172, 225, 0.42);
+  border-radius: 9px;
   background:
-    linear-gradient(90deg, rgba(12, 34, 43, 0.96), rgba(6, 21, 29, 0.96)),
-    radial-gradient(circle at 10% 0%, rgba(40, 215, 255, 0.14), transparent 42%);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 18px 40px rgba(0, 0, 0, 0.22);
+    radial-gradient(circle at 0% 0%, rgba(37, 214, 255, 0.13), transparent 42%),
+    linear-gradient(90deg, rgba(9, 45, 56, 0.98), rgba(7, 32, 42, 0.99));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035), 0 12px 28px rgba(0, 0, 0, 0.28);
+  padding: 13px 10px;
   transition: border-color 180ms var(--ease), box-shadow 180ms var(--ease), transform 180ms var(--ease), background 180ms var(--ease);
 }
 
@@ -2743,11 +2747,11 @@ select:focus {
 
 .trade-card:hover,
 .trade-card.selected {
-  border-color: rgba(97, 255, 111, 0.72);
+  border-color: rgba(0, 184, 255, 0.86);
   background:
-    linear-gradient(90deg, rgba(14, 43, 52, 0.98), rgba(8, 25, 34, 0.98)),
-    radial-gradient(circle at 14% -12%, rgba(97, 255, 111, 0.18), transparent 42%);
-  box-shadow: 0 0 0 1px rgba(97, 255, 111, 0.28), var(--lux-glow), 0 22px 54px rgba(0, 0, 0, 0.34);
+    radial-gradient(circle at 0% 0%, rgba(37, 214, 255, 0.2), transparent 42%),
+    linear-gradient(90deg, rgba(11, 53, 66, 0.99), rgba(8, 36, 46, 0.99));
+  box-shadow: 0 0 0 1px rgba(0, 184, 255, 0.2), 0 0 24px rgba(0, 184, 255, 0.16), 0 18px 42px rgba(0, 0, 0, 0.34);
   transform: translateY(-1px);
 }
 
@@ -2758,39 +2762,165 @@ select:focus {
 
 .trade-card-rank {
   color: var(--lux-green);
-  font-size: 36px;
-  letter-spacing: -0.08em;
+  font-size: 24px;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+}
+
+.trade-card-rank small {
+  display: block;
+  margin-top: 8px;
+  color: #83a2ab;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.trade-card-main {
+  display: grid;
+  min-width: 0;
 }
 
 .trade-card-meta span {
+  min-height: 24px;
   border-color: rgba(121, 155, 171, 0.24);
-  background: rgba(3, 13, 18, 0.58);
-  color: #c8d2d6;
+  border-radius: 7px;
+  background: rgba(6, 19, 27, 0.72);
+  color: #b9ccd1;
   font-family: "JetBrains Mono", monospace;
-  font-size: 12px;
+  font-size: 10px;
+  padding: 2px 7px;
+}
+
+.trade-card-meta .trade-card-current {
+  margin-left: auto;
+  border-color: transparent;
+  background: transparent;
+  color: #c5d4d8;
+  padding-right: 0;
+}
+
+.trade-card-sport {
+  margin-top: 6px;
+  color: #9db3ba;
+  font-size: 11px;
+  font-weight: 650;
 }
 
 .trade-card-title {
   color: #f9fcfb;
-  font-size: clamp(18px, 1.15vw, 22px);
+  display: -webkit-box;
+  overflow: hidden;
+  margin-top: 2px;
+  font-size: 14px;
   line-height: 1.08;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .trade-card-subtitle {
+  overflow: hidden;
+  margin-top: 3px;
   color: #9aabb2;
+  font-size: 10px;
   font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .trade-card-pick {
-  border-left-color: rgba(121, 155, 171, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 45px;
+  margin-top: 8px;
+  border: 1px solid rgba(0, 184, 255, 0.56);
+  border-radius: 8px;
+  background: rgba(18, 58, 70, 0.86);
+  padding: 8px 8px 8px 10px;
+}
+
+.trade-card-pick div {
+  min-width: 0;
+}
+
+.trade-card-pick span,
+.trade-card-pick strong,
+.trade-card-pick em {
+  display: block;
+}
+
+.trade-card-pick span {
+  color: #b8ccd2;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.trade-card-pick strong {
+  overflow: hidden;
+  color: #f7fcfb;
+  font-size: 13px;
+  font-weight: 850;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trade-card-pick em {
+  color: #97abb2;
+  font-size: 10px;
+  font-style: normal;
+  font-weight: 700;
 }
 
 .trade-card-pick small {
-  border-color: rgba(97, 255, 111, 0.48);
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 28px;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid rgba(97, 255, 111, 0.62);
+  border-radius: 7px;
   background:
-    linear-gradient(180deg, rgba(97, 255, 111, 0.18), rgba(97, 255, 111, 0.08));
+    linear-gradient(180deg, rgba(97, 255, 111, 0.2), rgba(97, 255, 111, 0.1));
   color: var(--lux-green);
   font-family: "JetBrains Mono", monospace;
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 900;
+  padding: 2px 8px;
+}
+
+.trade-card-pick small b {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  border: 1px solid rgba(76, 125, 255, 0.72);
+  border-radius: 4px;
+  background: rgba(44, 88, 255, 0.32);
+  color: #77a5ff;
+  font-size: 8px;
+  line-height: 1;
+}
+
+.trade-card-pick small.unavailable {
+  border-color: rgba(149, 169, 178, 0.28);
+  background: rgba(149, 169, 178, 0.08);
+  color: #9badb4;
+}
+
+.trade-card.price-unavailable {
+  opacity: 0.68;
+}
+
+.trade-card-arrow {
+  color: #9fb1b7;
+  font-size: 20px;
 }
 
 .trade-detail-panel {
@@ -3199,4 +3329,76 @@ tbody tr:hover {
     min-height: auto;
     padding: 18px;
   }
+}
+
+/* Final scoped override for the compact reference-style Trades to Play cards. */
+.trade-card-list .trade-card {
+  grid-template-columns: 48px minmax(0, 1fr) 14px;
+  min-height: 132px;
+  padding: 10px;
+}
+
+.trade-card-list .trade-card-rank {
+  min-width: 48px;
+  font-size: 24px;
+}
+
+.trade-card-list .trade-card-rank span {
+  font-size: 24px;
+}
+
+.trade-card-list .trade-card-rank small {
+  margin-top: 8px;
+  font-size: 8px;
+}
+
+.trade-card-list .trade-card-main {
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-flow: row;
+}
+
+.trade-card-list .trade-card-main > * {
+  grid-column: 1;
+}
+
+.trade-card-list .trade-card-sport {
+  margin-top: 4px;
+  font-size: 10px;
+}
+
+.trade-card-list .trade-card-title {
+  font-size: 13px;
+}
+
+.trade-card-list .trade-card-subtitle {
+  font-size: 9px;
+}
+
+.trade-card-list .trade-card-meta {
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+.trade-card-list .trade-card-meta span {
+  min-height: 22px;
+  max-width: 112px;
+  overflow: hidden;
+  font-size: 9px;
+  padding: 2px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.trade-card-list .trade-card-pick {
+  grid-column: 1;
+  min-height: 43px;
+  margin-top: 6px;
+  padding: 6px 7px 6px 9px;
+}
+
+.trade-card-list .trade-card-arrow {
+  grid-column: auto;
+  width: auto;
 }

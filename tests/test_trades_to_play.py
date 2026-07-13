@@ -113,6 +113,16 @@ def test_event_time_is_converted_to_eastern_with_dst():
     assert plays[0]["event_time_et"] == "Jul 14, 2026 - 7:10 PM ET"
 
 
+def test_date_only_event_time_does_not_render_fake_clock_time():
+    position = _position("0xa", "A", resolution_time="2026-07-14", event_time_source="position.endDate")
+    plays = build_trades_to_play([position], unit_map=_unit_map("0xa"), now=_now())
+
+    assert plays[0]["event_time_et"] is None
+    assert plays[0]["event_date_et"] is None
+    assert filter_trades_to_play(plays, date_range="all", now=_now()) == plays
+    assert filter_trades_to_play(plays, date_range="today", now=_now()) == []
+
+
 def test_started_or_closed_events_are_not_actionable():
     closed = _position("0xa", "A")
     closed["status"] = "closed"

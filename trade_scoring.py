@@ -312,6 +312,10 @@ def _is_playable_size(position: dict[str, Any], unit_map: dict[str, dict[str, An
 
 
 def _format_event_time(value: Any) -> dict[str, str | None]:
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped and "T" not in stripped and " " not in stripped:
+            return {"event_time_et": None, "event_date_et": None}
     parsed = _safe_datetime(value)
     if not parsed:
         return {"event_time_et": None, "event_date_et": None}
@@ -392,7 +396,7 @@ def _date_window(mode: str, now: datetime, start: str | None = None, end: str | 
             return None, None
         return start_dt, end_dt
     if mode in {"all", ""}:
-        return now_et, None
+        return None, None
     return None, None
 
 
