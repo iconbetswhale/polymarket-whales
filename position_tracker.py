@@ -256,6 +256,7 @@ class TrackerService:
             "positions": [],
             "trades": [],
             "trades_to_play": [],
+            "trade_exclusions": [],
             "consensus": [],
             "unit_analysis": [],
             "wallets": [],
@@ -370,6 +371,7 @@ class TrackerService:
                 "positions": [],
                 "trades": self.database.get_recent_events(),
                 "trades_to_play": [],
+                "trade_exclusions": [],
                 "consensus": [],
                 "unit_analysis": [],
                 "wallets": wallet_payload,
@@ -492,11 +494,13 @@ class TrackerService:
             for wallet in loader.enabled_wallets
             if open_positions.get(wallet.address) is not None
         )
+        trade_exclusions: list[dict[str, Any]] = []
         trades_to_play = build_trades_to_play(
             positions,
             trades,
             unit_map,
             tracked_wallet_count=synced_wallet_count,
+            diagnostics=trade_exclusions,
         )
         self.reconcile_model_tracker(trades_to_play)
         self._update_tracker_statuses(events)
@@ -536,6 +540,7 @@ class TrackerService:
                 "positions": positions,
                 "trades": trades,
                 "trades_to_play": trades_to_play,
+                "trade_exclusions": trade_exclusions,
                 "consensus": consensus,
                 "unit_analysis": unit_analysis,
                 "wallets": wallet_payload,

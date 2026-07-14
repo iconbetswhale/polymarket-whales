@@ -32,4 +32,6 @@ def test_canonical_category_taxonomy_normalizes_required_sports_hierarchies():
     assert canonical_category_id("FIFA World Cup") == "soccer"
     assert canonical_category_id("Hockey") == "nhl"
     assert category_matches("NBA", ["Basketball"]) is True
+    assert category_matches("MLB", ["Sports"]) is False
+    assert category_matches("Tennis", ["Games"]) is False
     assert canonical_category_id("Football") is None

@@ -7,6 +7,7 @@ import secrets
 import threading
 import hashlib
 import hmac
+from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -35,6 +36,11 @@ USER_COOKIE = "iconbets_user"
 ADMIN_COOKIE = "iconbets_tracker_admin"
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
 
+NO_LEAD_SHARP = "NO_LEAD_SHARP"
+UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
+MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
+ZERO_KELLY = "ZERO_KELLY"
+
 
 def _safe_float(value, default: float = 0.0) -> float:
     try:
@@ -58,6 +64,67 @@ def _has_positive_recommendation(trade: dict) -> bool:
         and _safe_float(recommendation.get("final_recommended_fraction")) > 0
         and _safe_float(recommendation.get("recommended_amount")) > 0
     )
+
+
+def _entry_cents(value) -> float | None:
+    parsed = _safe_float(value, -1.0)
+    return parsed * 100.0 if 0 < parsed < 1 else None
+
+
+def _parse_entry_cents(value: str | None, label: str) -> float | None:
+    if value is None or not value.strip():
+        return None
+    try:
+        parsed = Decimal(value.strip())
+    except InvalidOperation as exc:
+        raise ValueError(f"{label} must be a number in cents.") from exc
+    if not parsed.is_finite() or not Decimal("0") < parsed < Decimal("100"):
+        raise ValueError(f"{label} must be greater than 0 and less than 100 cents.")
+    if parsed != parsed.quantize(Decimal("0.1")):
+        raise ValueError(f"{label} may use at most one decimal place.")
+    return float(parsed)
+
+
+def _entry_price_filters(args) -> tuple[float | None, float | None]:
+    minimum = _parse_entry_cents(args.get("minEntryCents"), "Minimum share price")
+    maximum = _parse_entry_cents(args.get("maxEntryCents"), "Maximum share price")
+    if minimum is not None and maximum is not None and minimum > maximum:
+        raise ValueError("Minimum share price cannot exceed maximum share price.")
+    return minimum, maximum
+
+
+def _trade_feed_rejection_reason(trade: dict) -> str | None:
+    recommendation = trade.get("recommendation") or {}
+    if not trade.get("canonical_category_id"):
+        return UNRESOLVED_TRADE_CATEGORY
+    if int(trade.get("lead_sharp_count") or 0) < 1 or not trade.get(
+        "has_lead_sharp"
+    ):
+        return NO_LEAD_SHARP
+    if (trade.get("primary_trader") or {}).get("is_lead_sharp") is not True:
+        return NO_LEAD_SHARP
+    if recommendation.get("passes_slippage_rule") is not True:
+        return (
+            recommendation.get("slippage_rejection_reason")
+            or MISSING_EXECUTABLE_PRICE
+        )
+    if not _has_positive_recommendation(trade):
+        return ZERO_KELLY
+    return None
+
+
+def _entry_price_matches(
+    trade: dict, minimum_cents: float | None, maximum_cents: float | None
+) -> bool:
+    cents = trade.get("effectiveEntryCents")
+    if cents is None:
+        return False
+    value = _safe_float(cents, -1.0)
+    if minimum_cents is not None and value + 1e-9 < minimum_cents:
+        return False
+    if maximum_cents is not None and value - 1e-9 > maximum_cents:
+        return False
+    return True
 
 
 def _parse_datetime(value: str | None) -> datetime | None:
@@ -215,7 +282,28 @@ def create_app(start_background: bool = True) -> Flask:
         payload["recommendationIdempotencyKey"] = evaluation[
             "recommendation_idempotency_key"
         ]
+        payload["sharpReferenceEntryCents"] = _entry_cents(
+            recommendation.get("sharp_reference_entry_price")
+        )
+        payload["currentTopAskCents"] = _entry_cents(
+            recommendation.get("current_top_ask_price")
+        )
+        payload["effectiveEntryCents"] = _entry_cents(
+            recommendation.get("effective_entry_price")
+        )
+        payload["slippageCents"] = recommendation.get("slippage_cents")
+        payload["unfavorableSlippagePct"] = recommendation.get(
+            "unfavorable_slippage_pct"
+        )
+        payload["passesSlippageRule"] = recommendation.get(
+            "passes_slippage_rule"
+        )
+        payload["slippageRejectionReason"] = recommendation.get(
+            "slippage_rejection_reason"
+        )
         payload["card"] = _trade_card_view(payload, recommendation)
+        payload["tradeFeedRejectionReason"] = _trade_feed_rejection_reason(payload)
+        payload["tradeFeedEligible"] = payload["tradeFeedRejectionReason"] is None
         return payload
 
     def admin_cookie_value() -> str:
@@ -506,6 +594,10 @@ def create_app(start_background: bool = True) -> Flask:
         date_range = request.args.get("date_range", "today")
         if date_range not in VALID_TRADE_DATE_RANGES:
             return jsonify({"error": "Unsupported date range"}), 400
+        try:
+            minimum_cents, maximum_cents = _entry_price_filters(request.args)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         current_settings = user_settings()
         bankroll = _safe_float(current_settings["starting_bankroll"])
         page = max(request.args.get("page", 1, type=int) or 1, 1)
@@ -537,11 +629,16 @@ def create_app(start_background: bool = True) -> Flask:
             )
             for play in filtered
         ]
-        actionable = [trade for trade in sized if _has_positive_recommendation(trade)]
+        actionable = [trade for trade in sized if trade["tradeFeedEligible"]]
+        price_matched = [
+            trade
+            for trade in actionable
+            if _entry_price_matches(trade, minimum_cents, maximum_cents)
+        ]
         visible = (
-            actionable
+            price_matched
             if show_hidden
-            else [trade for trade in actionable if not trade["isHidden"]]
+            else [trade for trade in price_matched if not trade["isHidden"]]
         )
         start = (page - 1) * per_page
         return jsonify(
@@ -550,6 +647,10 @@ def create_app(start_background: bool = True) -> Flask:
                 "bankroll": current_settings,
                 "hiddenCount": len(hidden_records),
                 "showHidden": show_hidden,
+                "entryPriceFilters": {
+                    "minEntryCents": minimum_cents,
+                    "maxEntryCents": maximum_cents,
+                },
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
@@ -560,6 +661,39 @@ def create_app(start_background: bool = True) -> Flask:
                 "status": snapshot["status"],
             }
         )
+
+    @app.route("/api/admin/trade-eligibility-diagnostics")
+    def api_trade_eligibility_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Admin access required"}), 403
+        snapshot = tracker.get_snapshot()
+        evaluated = [
+            public_trade(play, settings.default_bankroll)
+            for play in snapshot.get("trades_to_play", [])
+        ]
+        sized_rejections = [
+            {
+                "reason": trade.get("tradeFeedRejectionReason"),
+                "event_id": (trade.get("validation_ids") or {}).get("event_id"),
+                "condition_id": (trade.get("validation_ids") or {}).get(
+                    "condition_id"
+                ),
+                "outcome_id": (trade.get("validation_ids") or {}).get(
+                    "outcome_token_id"
+                ),
+                "event_title": trade.get("event_title"),
+                "market_title": trade.get("market_title"),
+                "outcome": trade.get("outcome"),
+                "canonical_category_id": trade.get("canonical_category_id"),
+                "unfavorableSlippagePct": trade.get(
+                    "unfavorableSlippagePct"
+                ),
+            }
+            for trade in evaluated
+            if not trade.get("tradeFeedEligible")
+        ]
+        exclusions = list(snapshot.get("trade_exclusions", [])) + sized_rejections
+        return jsonify({"data": exclusions, "total": len(exclusions)})
 
     @app.route("/api/hidden-trades", methods=["GET", "POST", "DELETE"])
     def api_hidden_trades():

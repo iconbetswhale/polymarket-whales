@@ -17,6 +17,18 @@
 <section class="more-filters" id="more-filters" hidden>
   <label>League<select id="trade-league"><option value="">All leagues</option></select></label>
   <label>Wallet<select id="trade-wallet"><option value="">All wallets</option></select></label>
+  <details class="share-price-filter" id="share-price-filter">
+    <summary><span>Share Price</span><strong id="share-price-summary">All</strong></summary>
+    <div class="share-price-fields">
+      <label>Min Share Price (in cents)<input id="min-entry-cents" type="number" min="0.1" max="99.9" step="0.1" inputmode="decimal" placeholder="No minimum"></label>
+      <label>Max Share Price (in cents)<input id="max-entry-cents" type="number" min="0.1" max="99.9" step="0.1" inputmode="decimal" placeholder="No maximum"></label>
+      <p class="filter-validation" id="share-price-error" role="alert" aria-live="polite"></p>
+      <div class="share-price-actions">
+        <button class="button compact" id="apply-share-price" type="button">Apply</button>
+        <button class="button ghost compact" id="clear-share-price" type="button">Clear</button>
+      </div>
+    </div>
+  </details>
   <label class="custom-time">Custom start<input id="custom-start" type="datetime-local"></label>
   <label class="custom-time">Custom end<input id="custom-end" type="datetime-local"></label>
   <label class="show-hidden-control"><input id="show-hidden-trades" type="checkbox"><span>Show hidden</span></label>

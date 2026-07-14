@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+MAX_UNFAVORABLE_SLIPPAGE_PCT = 5.0
 
 
 def _get_bool(name: str, default: bool) -> bool:

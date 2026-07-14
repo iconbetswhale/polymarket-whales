@@ -10,6 +10,7 @@ from wallet_loader import load_wallets
 
 
 REQUESTED_WALLETS = {
+    "0x4f2": "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e",
     "Weflyhigh": "0x03e8a544e97eeff5753bc1e90d46e5ef22af1697",
     "sportmaster777": "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960",
     "Wordylittleneck": "0x3dfb153c197d4c19d3b31c1ecd2c7b6860eeabaf",
@@ -93,6 +94,14 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert bagwell.base_unit == 2500
     assert bagwell.top_category == "Tennis"
     assert bagwell.actionable_position_units == 0.5
+
+    wallet_4f2 = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"
+    )
+    assert wallet_4f2.top_category == "MLB"
+    assert wallet_4f2.top_category_ids == ("mlb",)
+    assert wallet_4f2.primary_top_category_id == "mlb"
+    assert wallet_4f2.top_category_source == "manually_reviewed_locked"
 
 
 def test_case_insensitive_duplicate_request_is_rejected(tmp_path):

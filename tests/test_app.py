@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
+
 from config import Settings
 from database import TrackerDatabase
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
@@ -48,8 +50,11 @@ def _actionable_trade() -> dict:
         "event_time_et": "Tomorrow, 3:00 PM ET",
         "market_url": "https://polymarket.com/event/example",
         "category": "Soccer",
+        "canonical_category_id": "soccer",
+        "canonical_sport_id": "soccer",
         "league": "World Cup",
         "sports_market_type": "to_advance",
+        "search_blob": "spain france to-advance soccer world-cup sharp",
         "agreeing_wallet_count": 1,
         "raw_sharp_count": 1,
         "lead_sharp_count": 1,
@@ -63,6 +68,7 @@ def _actionable_trade() -> dict:
             "amount": 2000,
             "relative_units": 2,
             "wallet_label": "Sharp",
+            "is_lead_sharp": True,
         },
         "supporting_wallets": [],
         "evidence_inputs": {"adjusted_category_hit_rate": 0.6},
@@ -85,7 +91,15 @@ def _positive_recommendation(*_args, **_kwargs) -> dict:
         "recommended_units": 1,
         "recommended_shares": 250,
         "current_user_entry_price": 0.4,
+        "effective_entry_price": 0.4,
+        "current_top_ask_price": 0.4,
         "sharp_average_entry_price": 0.4,
+        "sharp_reference_entry_price": 0.4,
+        "slippage_cents": 0,
+        "price_slippage_fraction": 0,
+        "unfavorable_slippage_pct": 0,
+        "passes_slippage_rule": True,
+        "slippage_rejection_reason": None,
     }
 
 
@@ -98,6 +112,29 @@ def _positive_evaluation(play: dict, *_args, **_kwargs) -> dict:
         "recommendation_snapshot_id": "snapshot-id",
         "recommendation_idempotency_key": "dedupe-key",
     }
+
+
+def _evaluation_at(entry: float, *, passes: bool = True, reason: str | None = None):
+    def evaluate(play: dict, *_args, **_kwargs) -> dict:
+        recommendation = {
+            **_positive_recommendation(),
+            "current_user_entry_price": entry,
+            "effective_entry_price": entry,
+            "current_top_ask_price": entry,
+            "unfavorable_slippage_pct": ((entry - 0.4) / 0.4) * 100,
+            "passes_slippage_rule": passes,
+            "slippage_rejection_reason": reason,
+        }
+        return {
+            "play": play,
+            "recommendation": recommendation,
+            "model_tracker_eligible": False,
+            "model_tracker_rejection_reason": "NOT_TODAY",
+            "recommendation_snapshot_id": "snapshot-id",
+            "recommendation_idempotency_key": f"dedupe-{entry}",
+        }
+
+    return evaluate
 
 
 def test_health_endpoint(app_client):
@@ -431,6 +468,96 @@ def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["pagination"]["total"] == 2
     assert calls == 1
+
+
+@pytest.mark.parametrize(
+    ("query", "entry", "expected_total"),
+    [
+        ("minEntryCents=20", 0.2, 1),
+        ("minEntryCents=20", 0.199, 0),
+        ("maxEntryCents=80", 0.8, 1),
+        ("maxEntryCents=80", 0.801, 0),
+        ("minEntryCents=20&maxEntryCents=80", 0.507, 1),
+    ],
+)
+def test_entry_cents_filters_are_inclusive_and_backend_enforced(
+    app_client, monkeypatch, query, entry, expected_total
+):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _evaluation_at(entry))
+
+    response = app_client.get(f"/api/trades-to-play?date_range=next7&{query}")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["pagination"]["total"] == expected_total
+    if expected_total:
+        trade = payload["data"][0]
+        assert trade["effectiveEntryCents"] == pytest.approx(entry * 100)
+        assert {
+            "sharpReferenceEntryCents",
+            "currentTopAskCents",
+            "effectiveEntryCents",
+            "slippageCents",
+            "unfavorableSlippagePct",
+            "passesSlippageRule",
+            "slippageRejectionReason",
+        } <= trade.keys()
+
+
+@pytest.mark.parametrize(
+    ("query", "message"),
+    [
+        ("minEntryCents=80&maxEntryCents=20", "cannot exceed"),
+        ("minEntryCents=0", "greater than 0"),
+        ("maxEntryCents=100", "less than 100"),
+        ("minEntryCents=20.11", "one decimal"),
+        ("maxEntryCents=not-a-price", "must be a number"),
+    ],
+)
+def test_entry_cents_filter_validation_returns_clear_backend_error(
+    app_client, query, message
+):
+    response = app_client.get(f"/api/trades-to-play?date_range=next7&{query}")
+
+    assert response.status_code == 400
+    assert message in response.get_json()["error"]
+
+
+def test_excess_slippage_is_absent_from_backend_feed(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(
+        service,
+        "evaluate_recommendation",
+        _evaluation_at(0.421, passes=False, reason="SLIPPAGE_ABOVE_MAX"),
+    )
+
+    response = app_client.get("/api/trades-to-play?date_range=next7")
+
+    assert response.status_code == 200
+    assert response.get_json()["pagination"]["total"] == 0
+
+
+def test_search_date_sharps_and_entry_price_filters_compose(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _evaluation_at(0.507))
+
+    matching = app_client.get(
+        "/api/trades-to-play?date_range=next7&q=Spain&min_sharps=1"
+        "&minEntryCents=20&maxEntryCents=80"
+    )
+    too_many_sharps = app_client.get(
+        "/api/trades-to-play?date_range=next7&q=Spain&min_sharps=2"
+        "&minEntryCents=20&maxEntryCents=80"
+    )
+    unrestricted = app_client.get("/api/trades-to-play?date_range=next7")
+
+    assert matching.get_json()["pagination"]["total"] == 1
+    assert too_many_sharps.get_json()["pagination"]["total"] == 0
+    assert unrestricted.get_json()["pagination"]["total"] == 1
 
 
 def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch):

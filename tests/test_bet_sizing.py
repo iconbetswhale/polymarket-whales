@@ -3,13 +3,15 @@ from __future__ import annotations
 import pytest
 
 from bet_sizing import (
+    MISSING_EXECUTABLE_PRICE,
+    SLIPPAGE_ABOVE_MAX,
     build_recommendation,
     calculate_evidence_score,
     volume_weighted_entry,
 )
 
 
-def _play(*, entry=0.5, sharps=3, tracked=7, evidence=1.0):
+def _play(*, entry=0.5, reference=0.44, sharps=3, tracked=7, evidence=1.0):
     return {
         "id": "event::market::yes",
         "agreeing_wallet_count": sharps,
@@ -20,7 +22,8 @@ def _play(*, entry=0.5, sharps=3, tracked=7, evidence=1.0):
         "has_lead_sharp": True,
         "tracked_wallet_count": tracked,
         "current_price": 0.91,
-        "average_entry_price": 0.44,
+        "average_entry_price": reference,
+        "sharp_reference_entry_price": reference,
         "orderbook": {
             "asks": [{"price": str(entry), "size": "100000"}],
             "bids": [{"price": str(entry - 0.01), "size": "100000"}],
@@ -118,6 +121,17 @@ def test_volume_weighted_entry_walks_multiple_ask_levels():
     assert fill["liquidity_limited"] is False
 
 
+def test_insufficient_depth_reduces_the_recommendation_and_remains_explicit():
+    play = _play(entry=0.4, reference=0.4)
+    play["orderbook"]["asks"] = [{"price": "0.40", "size": "20"}]
+
+    recommendation = build_recommendation(play, 10000)
+
+    assert 0 < recommendation["recommended_amount"] <= 8
+    assert recommendation["liquidity_limited"] is True
+    assert recommendation["unfilled_amount"] > 0
+
+
 def test_missing_orderbook_never_creates_fake_recommendation():
     play = _play()
     play["orderbook"] = {}
@@ -126,6 +140,8 @@ def test_missing_orderbook_never_creates_fake_recommendation():
 
     assert recommendation["available"] is False
     assert "executable ask" in recommendation["reason"].lower()
+    assert recommendation["passes_slippage_rule"] is False
+    assert recommendation["slippage_rejection_reason"] == MISSING_EXECUTABLE_PRICE
 
 
 def test_bet_below_clob_minimum_is_not_recommended():
@@ -193,3 +209,53 @@ def test_recommendation_rejects_trade_without_a_lead_sharp():
 
     assert recommendation["available"] is False
     assert "Lead Sharp" in recommendation["reason"]
+
+
+def test_exactly_five_percent_unfavorable_slippage_is_allowed():
+    recommendation = build_recommendation(
+        _play(entry=0.42, reference=0.4), 10000
+    )
+
+    assert recommendation["unfavorable_slippage_pct"] == pytest.approx(5.0)
+    assert recommendation["passes_slippage_rule"] is True
+    assert recommendation["slippage_rejection_reason"] is None
+
+
+def test_more_than_five_percent_unfavorable_slippage_is_rejected():
+    recommendation = build_recommendation(
+        _play(entry=0.42004, reference=0.4), 10000
+    )
+
+    assert recommendation["unfavorable_slippage_pct"] == pytest.approx(5.01)
+    assert recommendation["passes_slippage_rule"] is False
+    assert recommendation["slippage_rejection_reason"] == SLIPPAGE_ABOVE_MAX
+
+
+def test_better_entry_has_negative_slippage_and_remains_allowed():
+    recommendation = build_recommendation(
+        _play(entry=0.38, reference=0.4), 10000
+    )
+
+    assert recommendation["unfavorable_slippage_pct"] == pytest.approx(-5.0)
+    assert recommendation["passes_slippage_rule"] is True
+
+
+def test_slippage_uses_depth_weighted_effective_entry_not_top_ask():
+    play = _play(entry=0.4, reference=0.4)
+    play["orderbook"]["asks"] = [
+        {"price": "0.40", "size": "7.5"},
+        {"price": "0.43", "size": "100000"},
+    ]
+
+    recommendation = build_recommendation(play, 10000)
+
+    assert recommendation["current_top_ask_price"] == pytest.approx(0.4)
+    assert recommendation["effective_entry_price"] > 0.4
+    assert recommendation["unfavorable_slippage_pct"] == pytest.approx(
+        (
+            recommendation["effective_entry_price"]
+            - recommendation["sharp_reference_entry_price"]
+        )
+        / recommendation["sharp_reference_entry_price"]
+        * 100
+    )

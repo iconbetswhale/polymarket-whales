@@ -814,6 +814,93 @@ h2 {
   padding: 0 9px;
 }
 
+.share-price-filter {
+  position: relative;
+  min-width: 220px;
+  align-self: stretch;
+  border: 1px solid var(--border-soft);
+  border-radius: 8px;
+  background: #081219;
+}
+
+.share-price-filter summary {
+  display: flex;
+  min-height: 36px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 10px;
+  color: var(--muted-strong);
+  cursor: pointer;
+  list-style: none;
+}
+
+.share-price-filter summary::-webkit-details-marker {
+  display: none;
+}
+
+.share-price-filter summary::after {
+  content: "+";
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.share-price-filter[open] summary::after {
+  content: "−";
+}
+
+.share-price-filter summary strong {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.share-price-filter.active {
+  border-color: rgba(37, 190, 224, 0.58);
+  box-shadow: inset 0 0 0 1px rgba(37, 190, 224, 0.08);
+}
+
+.share-price-filter.active summary strong {
+  color: var(--cyan);
+}
+
+.share-price-fields {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 7px);
+  left: 0;
+  display: grid;
+  width: min(440px, calc(100vw - 34px));
+  grid-template-columns: repeat(2, minmax(150px, 1fr));
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 9px;
+  background: rgba(6, 14, 19, 0.99);
+  box-shadow: var(--shadow-high);
+}
+
+.share-price-fields label {
+  min-width: 0;
+}
+
+.filter-validation {
+  grid-column: 1 / -1;
+  min-height: 14px;
+  margin: 0;
+  color: var(--red);
+  font-size: 10px;
+}
+
+.share-price-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  gap: 7px;
+}
+
 .bankroll-strip {
   display: flex;
   min-height: 52px;
@@ -2189,6 +2276,19 @@ td small {
   .more-filters {
     display: grid;
     grid-template-columns: 1fr;
+  }
+
+  .share-price-filter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .share-price-fields {
+    position: static;
+    width: auto;
+    grid-template-columns: 1fr;
+    margin: 0 8px 8px;
+    box-shadow: none;
   }
 
   .bankroll-strip {

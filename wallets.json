@@ -4,7 +4,12 @@
     "label": "0x4f2",
     "enabled": true,
     "base_unit": null,
-    "notes": ""
+    "notes": "Verified MLB/Baseball specialist. Non-MLB positions are Supporting Sharp evidence only.",
+    "top_category": "MLB",
+    "top_categories": ["MLB"],
+    "primary_top_category": "MLB",
+    "top_category_source": "manually_reviewed_locked",
+    "top_category_verified_at": "2026-07-13T00:00:00Z"
   },
   {
     "address": "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705",

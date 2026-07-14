@@ -9,6 +9,7 @@ const appState = {
   personalTradeId: null,
   trackerDiagnostics: null,
   trackerBankroll: null,
+  appliedEntryPriceFilters: { minEntryCents: "", maxEntryCents: "" },
 };
 
 function escapeHtml(value) {
@@ -319,6 +320,8 @@ function tradeFiltersFromUrl() {
     sport: params.get("sport") || "",
     league: params.get("league") || "",
     wallet: params.get("wallet") || "",
+    minEntryCents: params.get("minEntryCents") || "",
+    maxEntryCents: params.get("maxEntryCents") || "",
     custom_start: params.get("custom_start") || "",
     custom_end: params.get("custom_end") || "",
     show_hidden: params.get("show_hidden") === "true",
@@ -326,6 +329,10 @@ function tradeFiltersFromUrl() {
 }
 
 function applyTradeFiltersToControls(filters) {
+  appState.appliedEntryPriceFilters = {
+    minEntryCents: filters.minEntryCents || "",
+    maxEntryCents: filters.maxEntryCents || "",
+  };
   const mapping = {
     "trade-search": "q",
     "trade-date-range": "date_range",
@@ -334,6 +341,8 @@ function applyTradeFiltersToControls(filters) {
     "trade-sport": "sport",
     "trade-league": "league",
     "trade-wallet": "wallet",
+    "min-entry-cents": "minEntryCents",
+    "max-entry-cents": "maxEntryCents",
     "custom-start": "custom_start",
     "custom-end": "custom_end",
     "show-hidden-trades": "show_hidden",
@@ -347,7 +356,47 @@ function applyTradeFiltersToControls(filters) {
   document.querySelectorAll(".custom-time").forEach((field) => {
     field.hidden = filters.date_range !== "custom";
   });
+  updateSharePriceSummary();
   if (filters.date_range === "custom") setMoreFiltersExpanded(true);
+}
+
+function formatEntryCents(value) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "";
+  return `${Number.isInteger(parsed) ? parsed.toFixed(0) : parsed.toFixed(1)}¢`;
+}
+
+function updateSharePriceSummary() {
+  const minimum = document.getElementById("min-entry-cents")?.value.trim() || "";
+  const maximum = document.getElementById("max-entry-cents")?.value.trim() || "";
+  const summary = document.getElementById("share-price-summary");
+  const filter = document.getElementById("share-price-filter");
+  if (!summary || !filter) return;
+  if (minimum && maximum) summary.textContent = `${formatEntryCents(minimum)}–${formatEntryCents(maximum)}`;
+  else if (minimum) summary.textContent = `${formatEntryCents(minimum)} minimum`;
+  else if (maximum) summary.textContent = `${formatEntryCents(maximum)} maximum`;
+  else summary.textContent = "All";
+  filter.classList.toggle("active", Boolean(minimum || maximum));
+}
+
+function validateSharePriceControls() {
+  const minimumValue = document.getElementById("min-entry-cents").value.trim();
+  const maximumValue = document.getElementById("max-entry-cents").value.trim();
+  const minimum = minimumValue === "" ? null : Number(minimumValue);
+  const maximum = maximumValue === "" ? null : Number(maximumValue);
+  const error = document.getElementById("share-price-error");
+  let message = "";
+  const validPrecision = (value) => Math.abs((value * 10) - Math.round(value * 10)) < 1e-9;
+  if (minimum !== null && (!(minimum > 0 && minimum < 100) || !validPrecision(minimum))) {
+    message = "Minimum must be between 0 and 100 cents with at most one decimal place.";
+  } else if (maximum !== null && (!(maximum > 0 && maximum < 100) || !validPrecision(maximum))) {
+    message = "Maximum must be between 0 and 100 cents with at most one decimal place.";
+  } else if (minimum !== null && maximum !== null && minimum > maximum) {
+    message = "Minimum share price cannot exceed maximum share price.";
+  }
+  error.textContent = message;
+  updateSharePriceSummary();
+  return message === "";
 }
 
 function setMoreFiltersExpanded(expanded) {
@@ -367,6 +416,8 @@ function readTradeControls() {
     sport: document.getElementById("trade-sport").value,
     league: document.getElementById("trade-league").value,
     wallet: document.getElementById("trade-wallet").value,
+    minEntryCents: appState.appliedEntryPriceFilters.minEntryCents,
+    maxEntryCents: appState.appliedEntryPriceFilters.maxEntryCents,
     custom_start: document.getElementById("custom-start").value,
     custom_end: document.getElementById("custom-end").value,
     show_hidden: document.getElementById("show-hidden-trades").checked,
@@ -1052,8 +1103,41 @@ function bindTrades() {
     setMoreFiltersExpanded(panel.hidden);
   });
   document.getElementById("clear-trade-filters").addEventListener("click", () => {
-    applyTradeFiltersToControls({ q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", custom_start: "", custom_end: "", show_hidden: false });
+    applyTradeFiltersToControls({ q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false });
+    document.getElementById("share-price-error").textContent = "";
     loadTrades();
+  });
+  document.getElementById("apply-share-price").addEventListener("click", () => {
+    if (validateSharePriceControls()) {
+      appState.appliedEntryPriceFilters = {
+        minEntryCents: document.getElementById("min-entry-cents").value.trim(),
+        maxEntryCents: document.getElementById("max-entry-cents").value.trim(),
+      };
+      loadTrades();
+    }
+  });
+  document.getElementById("clear-share-price").addEventListener("click", () => {
+    document.getElementById("min-entry-cents").value = "";
+    document.getElementById("max-entry-cents").value = "";
+    appState.appliedEntryPriceFilters = { minEntryCents: "", maxEntryCents: "" };
+    document.getElementById("share-price-error").textContent = "";
+    updateSharePriceSummary();
+    loadTrades();
+  });
+  ["min-entry-cents", "max-entry-cents"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", () => {
+      document.getElementById("share-price-error").textContent = "";
+      updateSharePriceSummary();
+    });
+    document.getElementById(id).addEventListener("keydown", (event) => {
+      if (event.key === "Enter" && validateSharePriceControls()) {
+        appState.appliedEntryPriceFilters = {
+          minEntryCents: document.getElementById("min-entry-cents").value.trim(),
+          maxEntryCents: document.getElementById("max-entry-cents").value.trim(),
+        };
+        loadTrades();
+      }
+    });
   });
   document.getElementById("save-bankroll").addEventListener("click", saveBankroll);
   document.getElementById("bankroll-input").addEventListener("keydown", (event) => { if (event.key === "Enter") saveBankroll(); });
@@ -1086,7 +1170,7 @@ function bindTrades() {
       button.classList.remove("spinning");
     }
   });
-  loadTrades();
+  if (validateSharePriceControls()) loadTrades();
 }
 
 function positionRow(row) {

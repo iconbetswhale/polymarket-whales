@@ -42,6 +42,12 @@ TRADER_STATS = {
 
 EASTERN = ZoneInfo("America/New_York")
 MIN_PLAYABLE_UNITS = 0.2
+PRIMARY_AMOUNT_SIMILARITY_RATIO = 0.02
+
+NO_LEAD_SHARP = "NO_LEAD_SHARP"
+TOP_CATEGORY_MISMATCH = "TOP_CATEGORY_MISMATCH"
+UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
+OPPOSING_WALLETS = "OPPOSING_WALLETS"
 
 TEAM_ALIASES = {
     "tor": ["toronto", "blue-jays", "bluejays", "jays"],
@@ -502,14 +508,67 @@ def _primary_position(
             int(metric.get("sample_size") or 0),
         )
 
+    largest_amount = max(
+        _safe_float(position.get("position_size_usd")) for position in group
+    )
+    materially_similar = [
+        position
+        for position in group
+        if _safe_float(position.get("position_size_usd"))
+        >= largest_amount * (1.0 - PRIMARY_AMOUNT_SIMILARITY_RATIO)
+    ]
     return max(
-        group,
+        materially_similar,
         key=lambda position: (
-            _safe_float(position.get("position_size_usd")),
             _relative_units(position, unit_map, events_by_wallet) or 0,
             category_record(position),
+            _safe_float(position.get("position_size_usd")),
         ),
     )
+
+
+def _amount_weighted_entry(positions: list[dict[str, Any]]) -> float:
+    weighted_total = 0.0
+    amount_total = 0.0
+    for position in positions:
+        amount = _safe_float(position.get("position_size_usd"))
+        entry = _safe_float(position.get("average_entry_price"))
+        if amount <= 0 or not 0 < entry < 1:
+            continue
+        weighted_total += entry * amount
+        amount_total += amount
+    return weighted_total / amount_total if amount_total > 0 else 0.0
+
+
+def _exclusion_record(
+    group: list[dict[str, Any]], reason: str, trade_category_id: str | None = None
+) -> dict[str, Any]:
+    primary = max(
+        group,
+        key=lambda position: _safe_float(position.get("position_size_usd")),
+    )
+    return {
+        "reason": reason,
+        "event_id": primary.get("event_id"),
+        "event_slug": primary.get("event_slug"),
+        "market_id": primary.get("market_id"),
+        "condition_id": primary.get("condition_id"),
+        "outcome_id": primary.get("clob_token_id"),
+        "outcome": primary.get("outcome"),
+        "event_title": primary.get("event_title"),
+        "market_title": primary.get("market_title"),
+        "canonical_category_id": trade_category_id,
+        "wallets": [
+            {
+                "wallet_address": position.get("wallet_address"),
+                "wallet_label": position.get("wallet_label"),
+                "top_category_ids": _category_profile(position)[
+                    "top_category_ids"
+                ],
+            }
+            for position in group
+        ],
+    }
 
 
 def _collapse_unique_wallets(group: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -610,6 +669,14 @@ def filter_trades_to_play(
 
     filtered: list[dict[str, Any]] = []
     for play in plays:
+        if not canonical_category_id(play.get("canonical_category_id")):
+            continue
+        if int(play.get("lead_sharp_count") or 0) < 1 or not play.get(
+            "has_lead_sharp"
+        ):
+            continue
+        if (play.get("primary_trader") or {}).get("is_lead_sharp") is not True:
+            continue
         if min_sharps and int(play.get("agreeing_wallet_count") or 0) < min_sharps:
             continue
         if min_confidence and int(play.get("confidence_score") or 0) < min_confidence:
@@ -649,6 +716,7 @@ def build_trades_to_play(
     unit_map: dict[str, dict[str, Any]] | None = None,
     now: datetime | None = None,
     tracked_wallet_count: int | None = None,
+    diagnostics: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -674,25 +742,48 @@ def build_trades_to_play(
             side.side_key, []
         ).append(position)
 
+    diagnostics = diagnostics if diagnostics is not None else []
     playable_groups: list[list[dict[str, Any]]] = []
     missing_category_wallets: set[str] = set()
     for sides in market_sides.values():
         # If tracked wallets hold opposing sides of the same market, no side is playable.
-        if len(sides) == 1:
+        if len(sides) != 1:
             for group in sides.values():
-                unique_group = _collapse_unique_wallets(group)
-                profiles = [_category_profile(position) for position in unique_group]
-                for position, profile in zip(unique_group, profiles):
-                    if not profile["top_category_ids"]:
-                        missing_category_wallets.add(
-                            str(
-                                position.get("wallet_label")
-                                or position.get("wallet_address")
-                                or "unknown wallet"
-                            )
+                diagnostics.append(
+                    _exclusion_record(_collapse_unique_wallets(group), OPPOSING_WALLETS)
+                )
+            continue
+        for group in sides.values():
+            unique_group = _collapse_unique_wallets(group)
+            profiles = [_category_profile(position) for position in unique_group]
+            trade_category_id = profiles[0]["trade_category_id"] if profiles else None
+            for position, profile in zip(unique_group, profiles):
+                if not profile["top_category_ids"]:
+                    missing_category_wallets.add(
+                        str(
+                            position.get("wallet_label")
+                            or position.get("wallet_address")
+                            or "unknown wallet"
                         )
-                if any(profile["is_lead_sharp"] for profile in profiles):
-                    playable_groups.append(unique_group)
+                    )
+            if not trade_category_id:
+                diagnostics.append(
+                    _exclusion_record(
+                        unique_group, UNRESOLVED_TRADE_CATEGORY, trade_category_id
+                    )
+                )
+                continue
+            if not any(profile["is_lead_sharp"] for profile in profiles):
+                reason = (
+                    TOP_CATEGORY_MISMATCH
+                    if any(profile["top_category_ids"] for profile in profiles)
+                    else NO_LEAD_SHARP
+                )
+                diagnostics.append(
+                    _exclusion_record(unique_group, reason, trade_category_id)
+                )
+                continue
+            playable_groups.append(unique_group)
 
     if missing_category_wallets:
         LOGGER.warning(
@@ -802,14 +893,8 @@ def build_trades_to_play(
 
         canonical = canonical_side(primary)
         event_time = _format_event_time(primary.get("resolution_time"))
-        total_shares = sum(
-            _safe_float(position.get("shares") or position.get("token_units"))
-            for position in group
-        )
-        sharp_average_entry = (
-            total_amount / total_shares
-            if total_shares > 0
-            else _safe_float(primary.get("average_entry_price"))
+        sharp_average_entry = _amount_weighted_entry(lead_positions) or _safe_float(
+            primary.get("average_entry_price")
         )
         category_metrics = []
         for position in group:
@@ -1029,6 +1114,8 @@ def build_trades_to_play(
             "lifecycle_status": primary.get("lifecycle_status"),
             "lifecycle_reason": primary.get("lifecycle_reason"),
             "average_entry_price": round(sharp_average_entry, 6),
+            "sharp_reference_entry_price": round(sharp_average_entry, 6),
+            "sharp_reference_method": "amount_weighted_lead_sharps",
             "slippage": round(slippage, 4),
             "total_amount_bet": round(total_amount, 6),
             "combined_exposure_exact": total_amount,

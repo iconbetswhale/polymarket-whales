@@ -173,7 +173,13 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
         "current_user_entry_price": 0.5,
         "effective_entry_price": 0.5,
         "sharp_average_entry_price": 0.42,
+        "sharp_reference_entry_price": 0.42,
+        "current_top_ask_price": 0.5,
+        "slippage_cents": 8,
         "price_slippage_fraction": (0.5 - 0.42) / 0.42,
+        "unfavorable_slippage_pct": ((0.5 - 0.42) / 0.42) * 100,
+        "passes_slippage_rule": False,
+        "slippage_rejection_reason": "SLIPPAGE_ABOVE_MAX",
         "final_recommended_fraction": 0.01,
         "recommended_amount": 100,
         "recommended_units": 1,
@@ -184,9 +190,17 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
 
     assert snapshot["current_executable_entry_price"] == 0.5
     assert snapshot["sharp_average_entry_price"] == 0.42
+    assert snapshot["sharp_reference_entry_price"] == 0.42
+    assert snapshot["current_top_ask_price"] == 0.5
+    assert snapshot["slippage_cents"] == 8
     assert snapshot["price_slippage_fraction"] == pytest.approx(
         (0.5 - 0.42) / 0.42
     )
+    assert snapshot["unfavorable_slippage_pct"] == pytest.approx(
+        ((0.5 - 0.42) / 0.42) * 100
+    )
+    assert snapshot["passes_slippage_rule"] is False
+    assert snapshot["slippage_rejection_reason"] == "SLIPPAGE_ABOVE_MAX"
     assert snapshot["raw_sharp_count"] == 2
     assert snapshot["lead_sharp_count"] == 1
     assert snapshot["supporting_sharp_count"] == 1

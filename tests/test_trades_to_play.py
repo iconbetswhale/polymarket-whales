@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
+import pytest
+
 from trade_scoring import build_trades_to_play, filter_trades_to_play, sharps_badge
 
 
@@ -768,3 +770,92 @@ def test_complete_raw_agreement_scores_one_hundred_when_a_lead_exists():
     assert play["supporting_sharp_count"] == 1
     assert play["weighted_sharp_count"] == 1.5
     assert play["score_breakdown"]["category_composition"] == 0.75
+
+
+def test_0x4f2_is_mlb_lead_but_never_a_tennis_lead():
+    wallet = "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e"
+    mlb = _position(
+        wallet,
+        "0x4f2",
+        configured_top_category="MLB",
+        configured_top_category_ids=["MLB"],
+    )
+    tennis = _position(
+        wallet,
+        "0x4f2",
+        category="Tennis",
+        league="WTA",
+        configured_top_category="MLB",
+        configured_top_category_ids=["MLB"],
+    )
+    diagnostics = []
+
+    assert build_trades_to_play([mlb], unit_map=_unit_map(wallet), now=_now())
+    assert (
+        build_trades_to_play(
+            [tennis],
+            unit_map=_unit_map(wallet),
+            now=_now(),
+            diagnostics=diagnostics,
+        )
+        == []
+    )
+    assert diagnostics[0]["reason"] == "TOP_CATEGORY_MISMATCH"
+    assert diagnostics[0]["canonical_category_id"] == "tennis"
+
+
+def test_0x4f2_remains_half_weight_supporting_behind_a_tennis_lead():
+    wallet = "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e"
+    tennis_lead = _position(
+        "0xtennis",
+        "Tennis Lead",
+        amount=1000,
+        category="Tennis",
+        league="ATP",
+        configured_top_category="Tennis",
+    )
+    supporting = _position(
+        wallet,
+        "0x4f2",
+        amount=9000,
+        category="Tennis",
+        league="ATP",
+        configured_top_category="MLB",
+        configured_top_category_ids=["MLB"],
+    )
+
+    play = build_trades_to_play(
+        [tennis_lead, supporting],
+        unit_map=_unit_map("0xtennis", wallet),
+        now=_now(),
+    )[0]
+    wallets = {item["wallet_label"]: item for item in play["supporting_wallets"]}
+
+    assert play["primary_trader"]["wallet_label"] == "Tennis Lead"
+    assert play["lead_sharp_count"] == 1
+    assert play["supporting_sharp_count"] == 1
+    assert wallets["0x4f2"]["is_lead_sharp"] is False
+    assert wallets["0x4f2"]["category_weight"] == 0.5
+
+
+def test_sharp_reference_uses_amount_weighted_leads_only():
+    lead_a = _position("0xa", "Lead A", amount=1000, avg=0.4)
+    lead_b = _position("0xb", "Lead B", amount=500, avg=0.5)
+    tiny_support = _position(
+        "0xc",
+        "Tiny Supporting",
+        amount=100,
+        avg=0.1,
+        configured_top_category="Tennis",
+    )
+
+    play = build_trades_to_play(
+        [lead_a, lead_b, tiny_support],
+        unit_map=_unit_map("0xa", "0xb", "0xc", base=100),
+        now=_now(),
+    )[0]
+
+    assert play["sharp_reference_method"] == "amount_weighted_lead_sharps"
+    assert play["sharp_reference_entry_price"] == pytest.approx(
+        ((0.4 * 1000) + (0.5 * 500)) / 1500
+    )

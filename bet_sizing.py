@@ -3,6 +3,13 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 
+from config import MAX_UNFAVORABLE_SLIPPAGE_PCT
+
+
+SLIPPAGE_ABOVE_MAX = "SLIPPAGE_ABOVE_MAX"
+MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
+MISSING_SHARP_REFERENCE_PRICE = "MISSING_SHARP_REFERENCE_PRICE"
+
 
 @dataclass(frozen=True)
 class SizingConfig:
@@ -205,7 +212,9 @@ def _kelly(
 
 
 def unavailable_recommendation(
-    reason: str, config: SizingConfig = DEFAULT_SIZING_CONFIG
+    reason: str,
+    config: SizingConfig = DEFAULT_SIZING_CONFIG,
+    **details: Any,
 ) -> dict[str, Any]:
     return {
         "available": False,
@@ -213,6 +222,55 @@ def unavailable_recommendation(
         "message": "Bet size unavailable - insufficient verified data",
         "recommendation_version": config.recommendation_version,
         "config": asdict(config),
+        **details,
+    }
+
+
+def slippage_status(
+    sharp_reference_entry_price: Any,
+    current_top_ask_price: Any,
+    effective_entry_price: Any,
+) -> dict[str, Any]:
+    sharp_reference = _safe_float(sharp_reference_entry_price, -1.0)
+    top_ask = _safe_float(current_top_ask_price, -1.0)
+    effective_entry = _safe_float(effective_entry_price, -1.0)
+    if not 0 < effective_entry < 1:
+        return {
+            "sharp_reference_entry_price": sharp_reference
+            if 0 < sharp_reference < 1
+            else None,
+            "current_top_ask_price": top_ask if 0 < top_ask < 1 else None,
+            "effective_entry_price": None,
+            "slippage_cents": None,
+            "price_slippage_fraction": None,
+            "unfavorable_slippage_pct": None,
+            "passes_slippage_rule": False,
+            "slippage_rejection_reason": MISSING_EXECUTABLE_PRICE,
+        }
+    if not 0 < sharp_reference < 1:
+        return {
+            "sharp_reference_entry_price": None,
+            "current_top_ask_price": top_ask if 0 < top_ask < 1 else None,
+            "effective_entry_price": effective_entry,
+            "slippage_cents": None,
+            "price_slippage_fraction": None,
+            "unfavorable_slippage_pct": None,
+            "passes_slippage_rule": False,
+            "slippage_rejection_reason": MISSING_SHARP_REFERENCE_PRICE,
+        }
+    movement = effective_entry - sharp_reference
+    fraction = movement / sharp_reference
+    unfavorable_pct = fraction * 100.0
+    passes = unfavorable_pct <= MAX_UNFAVORABLE_SLIPPAGE_PCT + 1e-9
+    return {
+        "sharp_reference_entry_price": sharp_reference,
+        "current_top_ask_price": top_ask if 0 < top_ask < 1 else None,
+        "effective_entry_price": effective_entry,
+        "slippage_cents": movement * 100.0,
+        "price_slippage_fraction": fraction,
+        "unfavorable_slippage_pct": unfavorable_pct,
+        "passes_slippage_rule": passes,
+        "slippage_rejection_reason": None if passes else SLIPPAGE_ABOVE_MAX,
     }
 
 
@@ -244,7 +302,14 @@ def build_recommendation(
     )
     if not valid_asks:
         return unavailable_recommendation(
-            "A live executable ask is unavailable for this outcome.", config
+            "A live executable ask is unavailable for this outcome.",
+            config,
+            **slippage_status(
+                play.get("sharp_reference_entry_price")
+                or play.get("average_entry_price"),
+                None,
+                None,
+            ),
         )
 
     evidence = calculate_evidence_score(play, config)
@@ -275,9 +340,12 @@ def build_recommendation(
     evidence_adjustment = evidence_strength * adjustment_cap
     sharp_cap = stake_risk_cap(weighted_sharps, full_weight_unanimous)
 
-    entry_price = _safe_float(valid_asks[0].get("price"))
+    current_top_ask_price = _safe_float(valid_asks[0].get("price"))
+    entry_price = current_top_ask_price
     minimum_order_shares = max(0.0, _safe_float(orderbook.get("min_order_size")))
     fill: dict[str, Any] | None = None
+    liquidity_was_limited = False
+    largest_unfilled_amount = 0.0
     final_fraction = 0.0
     full_kelly = 0.0
     half_kelly = 0.0
@@ -299,6 +367,12 @@ def build_recommendation(
             return unavailable_recommendation(
                 "Order-book depth could not be verified.", config
             )
+        liquidity_was_limited = liquidity_was_limited or bool(
+            fill.get("liquidity_limited")
+        )
+        largest_unfilled_amount = max(
+            largest_unfilled_amount, _safe_float(fill.get("unfilled_amount"))
+        )
         new_entry = fill["effective_entry_price"]
         if abs(new_entry - entry_price) < 1e-9:
             break
@@ -310,12 +384,25 @@ def build_recommendation(
         fill = volume_weighted_entry(
             valid_asks, max(minimum_order_shares * entry_price, 0.01)
         )
+        if fill:
+            liquidity_was_limited = liquidity_was_limited or bool(
+                fill.get("liquidity_limited")
+            )
+            largest_unfilled_amount = max(
+                largest_unfilled_amount, _safe_float(fill.get("unfilled_amount"))
+            )
     else:
         fill = volume_weighted_entry(valid_asks, bankroll * final_fraction)
         if not fill:
             return unavailable_recommendation(
                 "Order-book depth could not be verified.", config
             )
+        liquidity_was_limited = liquidity_was_limited or bool(
+            fill.get("liquidity_limited")
+        )
+        largest_unfilled_amount = max(
+            largest_unfilled_amount, _safe_float(fill.get("unfilled_amount"))
+        )
         final_amount = fill["executable_amount"]
         final_fraction = min(final_fraction, final_amount / bankroll)
         entry_price = fill["effective_entry_price"]
@@ -327,6 +414,12 @@ def build_recommendation(
         final_amount = bankroll * final_fraction
         fill = volume_weighted_entry(valid_asks, final_amount)
         if fill:
+            liquidity_was_limited = liquidity_was_limited or bool(
+                fill.get("liquidity_limited")
+            )
+            largest_unfilled_amount = max(
+                largest_unfilled_amount, _safe_float(fill.get("unfilled_amount"))
+            )
             final_amount = fill["executable_amount"]
             final_fraction = final_amount / bankroll
             entry_price = fill["effective_entry_price"]
@@ -345,13 +438,13 @@ def build_recommendation(
         baseline_probability + evidence_adjustment, 0.01, 0.99
     )
     edge = max(0.0, estimated_probability - baseline_probability)
-    sharp_average_entry_price = _safe_float(play.get("average_entry_price"))
-    price_movement = entry_price - sharp_average_entry_price
-    price_slippage_fraction = (
-        price_movement / sharp_average_entry_price
-        if sharp_average_entry_price > 0
-        else None
+    sharp_average_entry_price = _safe_float(
+        play.get("sharp_reference_entry_price") or play.get("average_entry_price")
     )
+    status = slippage_status(
+        sharp_average_entry_price, current_top_ask_price, entry_price
+    )
+    price_movement = entry_price - sharp_average_entry_price
     units = (
         final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
     )
@@ -396,14 +489,21 @@ def build_recommendation(
         else 0.0,
         "recommended_units": units,
         "sharp_average_entry_price": sharp_average_entry_price,
+        "sharp_reference_entry_price": status["sharp_reference_entry_price"],
+        "current_top_ask_price": status["current_top_ask_price"],
         "price_movement": price_movement,
-        "price_slippage_fraction": price_slippage_fraction,
+        "slippage_cents": status["slippage_cents"],
+        "price_slippage_fraction": status["price_slippage_fraction"],
+        "unfavorable_slippage_pct": status["unfavorable_slippage_pct"],
+        "passes_slippage_rule": status["passes_slippage_rule"],
+        "slippage_rejection_reason": status["slippage_rejection_reason"],
+        "max_unfavorable_slippage_pct": MAX_UNFAVORABLE_SLIPPAGE_PCT,
         "price_movement_quality": "better"
         if price_movement < 0
         else ("worse" if price_movement > 0 else "same"),
         "orderbook_levels_used": (fill or {}).get("levels_used", 0),
-        "liquidity_limited": bool((fill or {}).get("liquidity_limited")),
-        "unfilled_amount": (fill or {}).get("unfilled_amount", 0.0),
+        "liquidity_limited": liquidity_was_limited,
+        "unfilled_amount": largest_unfilled_amount,
         "minimum_order_shares": minimum_order_shares,
         "minimum_executable_amount": max(0.01, minimum_order_shares * entry_price),
         "fees_included": False,

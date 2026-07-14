@@ -78,8 +78,20 @@ def recommendation_snapshot(
         "effective_entry_price": recommendation.get("effective_entry_price"),
         "entry_price_source": recommendation.get("entry_price_source"),
         "sharp_average_entry_price": recommendation.get("sharp_average_entry_price"),
+        "sharp_reference_entry_price": recommendation.get(
+            "sharp_reference_entry_price"
+        ),
+        "current_top_ask_price": recommendation.get("current_top_ask_price"),
+        "slippage_cents": recommendation.get("slippage_cents"),
         "price_slippage_fraction": recommendation.get(
             "price_slippage_fraction"
+        ),
+        "unfavorable_slippage_pct": recommendation.get(
+            "unfavorable_slippage_pct"
+        ),
+        "passes_slippage_rule": recommendation.get("passes_slippage_rule"),
+        "slippage_rejection_reason": recommendation.get(
+            "slippage_rejection_reason"
         ),
         "baseline_probability": recommendation.get("baseline_probability"),
         "evidence_score": recommendation.get("evidence_score"),

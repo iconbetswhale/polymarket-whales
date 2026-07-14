@@ -5,7 +5,11 @@ from datetime import datetime, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from bet_sizing import SizingConfig, build_recommendation
+from bet_sizing import (
+    MISSING_EXECUTABLE_PRICE,
+    SizingConfig,
+    build_recommendation,
+)
 from bet_tracker import recommendation_snapshot
 
 
@@ -55,7 +59,7 @@ def _unavailable_reason(recommendation: dict[str, Any]) -> str:
     if "bankroll" in reason:
         return MISSING_BANKROLL
     if "ask" in reason or "order-book" in reason or "depth" in reason:
-        return MISSING_ENTRY_PRICE
+        return MISSING_EXECUTABLE_PRICE
     return SYNC_INCOMPLETE
 
 
@@ -105,6 +109,11 @@ def evaluate_trade_recommendation(
         )
         if not 0 < entry_price < 1:
             rejection_reason = MISSING_ENTRY_PRICE
+        elif recommendation.get("passes_slippage_rule") is not True:
+            rejection_reason = (
+                recommendation.get("slippage_rejection_reason")
+                or MISSING_EXECUTABLE_PRICE
+            )
         elif not 0 < estimated_probability < 1:
             rejection_reason = INVALID_PROBABILITY_INPUT
         elif final_fraction <= 0 or recommended_amount <= 0:

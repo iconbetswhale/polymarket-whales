@@ -5,11 +5,12 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from bet_sizing import SLIPPAGE_ABOVE_MAX
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from recommendation_service import (
     EVENT_ALREADY_STARTED,
     MISSING_BANKROLL,
-    MISSING_ENTRY_PRICE,
+    MISSING_EXECUTABLE_PRICE,
     MISSING_LEAD_SHARP,
     NOT_TODAY,
     ZERO_KELLY,
@@ -162,13 +163,13 @@ def test_stake_rejections_are_explicit_and_price_units_are_decimal(temp_settings
     ] == MISSING_BANKROLL
     assert evaluate_trade_recommendation(_play(asks=[]), 10000, config, NOW)[
         "model_tracker_rejection_reason"
-    ] == MISSING_ENTRY_PRICE
+    ] == MISSING_EXECUTABLE_PRICE
     assert evaluate_trade_recommendation(
         _play(strong_evidence=False), 10000, config, NOW
     )["model_tracker_rejection_reason"] == ZERO_KELLY
     assert evaluate_trade_recommendation(
         _play(asks=[{"price": 40, "size": 1000}]), 10000, config, NOW
-    )["model_tracker_rejection_reason"] == MISSING_ENTRY_PRICE
+    )["model_tracker_rejection_reason"] == MISSING_EXECUTABLE_PRICE
 
 
 def test_stable_idempotency_distinguishes_market_and_outcome(temp_settings):
@@ -210,6 +211,24 @@ def test_repeated_backend_runs_insert_once_without_opening_a_page(
     assert records[0]["status"] == "scheduled"
 
 
+def test_model_tracker_rejects_excess_slippage_without_deleting_history(
+    temp_settings, db
+):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    accepted = service.reconcile_model_tracker([_play()], NOW)
+    excessive = _play(asks=[{"price": 0.421, "size": 10000}])
+    rejected = service.reconcile_model_tracker(
+        [excessive], NOW + timedelta(seconds=5)
+    )
+
+    assert accepted["records_inserted"] == 1
+    assert rejected["records_rejected"] == 1
+    assert db.get_tracking_rejections(MODEL_TRACKER_USER_ID)[0][
+        "rejection_reason"
+    ] == SLIPPAGE_ABOVE_MAX
+    assert len(db.get_tracker_records(MODEL_TRACKER_USER_ID)) == 1
+
+
 def test_one_failed_trade_does_not_stop_the_batch(temp_settings, db, monkeypatch):
     service = TrackerService(temp_settings, database=db, auto_start=False)
     original = service.evaluate_recommendation
@@ -240,5 +259,5 @@ def test_rejection_reasons_are_persisted_for_diagnostics(temp_settings, db):
 
     assert result["rejected"] == 1
     persisted = db.get_tracking_rejections("server-user")
-    assert persisted[0]["rejection_reason"] == MISSING_ENTRY_PRICE
+    assert persisted[0]["rejection_reason"] == MISSING_EXECUTABLE_PRICE
     assert persisted[0]["recommendation_idempotency_key"]
