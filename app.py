@@ -325,17 +325,26 @@ def create_app(start_background: bool = True) -> Flask:
         recommendation = evaluation["recommendation"]
         payload = json.loads(json.dumps(play))
         orderbook = payload.pop("orderbook", {}) or {}
+        asks = orderbook.get("asks") or []
+        bids = orderbook.get("bids") or []
         payload["orderbook_summary"] = {
-            "best_ask": (orderbook.get("asks") or [{}])[0].get("price")
-            if orderbook.get("asks")
-            else None,
-            "best_bid": (orderbook.get("bids") or [{}])[0].get("price")
-            if orderbook.get("bids")
-            else None,
-            "ask_levels": len(orderbook.get("asks") or []),
-            "bid_levels": len(orderbook.get("bids") or []),
+            "best_ask": asks[0].get("price") if asks else None,
+            "best_bid": bids[0].get("price") if bids else None,
+            "ask_levels": len(asks),
+            "bid_levels": len(bids),
             "min_order_size": orderbook.get("min_order_size"),
             "tick_size": orderbook.get("tick_size"),
+            "timestamp": orderbook.get("timestamp"),
+        }
+        payload["orderbook"] = {
+            "asks": [
+                {"price": level.get("price"), "size": level.get("size")}
+                for level in asks[:8]
+            ],
+            "bids": [
+                {"price": level.get("price"), "size": level.get("size")}
+                for level in bids[:8]
+            ],
             "timestamp": orderbook.get("timestamp"),
         }
         payload["recommendation"] = recommendation
