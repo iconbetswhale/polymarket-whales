@@ -78,6 +78,9 @@ def recommendation_snapshot(
         "effective_entry_price": recommendation.get("effective_entry_price"),
         "entry_price_source": recommendation.get("entry_price_source"),
         "sharp_average_entry_price": recommendation.get("sharp_average_entry_price"),
+        "price_slippage_fraction": recommendation.get(
+            "price_slippage_fraction"
+        ),
         "baseline_probability": recommendation.get("baseline_probability"),
         "evidence_score": recommendation.get("evidence_score"),
         "evidence_components": recommendation.get("evidence_components"),

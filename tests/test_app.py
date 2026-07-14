@@ -6,7 +6,12 @@ from datetime import datetime, timedelta, timezone
 from config import Settings
 from database import TrackerDatabase
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
-from app import _format_event_start, _has_positive_recommendation, _trade_card_view
+from app import (
+    _format_event_start,
+    _has_positive_recommendation,
+    _slippage_fraction,
+    _trade_card_view,
+)
 
 
 class CountingClient:
@@ -378,7 +383,17 @@ def test_trade_card_view_uses_real_metric_and_recommendation_values():
         "recommended_amount": 154,
         "recommended_units": 1.54,
         "current_actionable_price": 0.4,
+        "slippage_fraction": (0.4 - 0.405) / 0.405,
     }
+
+
+def test_slippage_fraction_uses_whale_entry_as_the_percentage_baseline():
+    worse = _slippage_fraction(0.4, 0.389)
+    better = _slippage_fraction(0.389, 0.4)
+
+    assert round(worse * 100, 1) == 2.8
+    assert round(better * 100, 1) == -2.8
+    assert _slippage_fraction(0.4, 0) is None
 
 
 def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):

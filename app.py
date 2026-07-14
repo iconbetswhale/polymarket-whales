@@ -43,6 +43,14 @@ def _safe_float(value, default: float = 0.0) -> float:
         return default
 
 
+def _slippage_fraction(user_entry, whale_entry) -> float | None:
+    user_price = _safe_float(user_entry, -1.0)
+    whale_price = _safe_float(whale_entry, -1.0)
+    if user_price < 0 or whale_price <= 0:
+        return None
+    return (user_price - whale_price) / whale_price
+
+
 def _has_positive_recommendation(trade: dict) -> bool:
     recommendation = trade.get("recommendation") or {}
     return (
@@ -107,6 +115,9 @@ def _trade_card_view(
         "recommended_amount": recommendation.get("recommended_amount"),
         "recommended_units": recommendation.get("recommended_units"),
         "current_actionable_price": recommendation.get("current_user_entry_price"),
+        "slippage_fraction": _slippage_fraction(
+            recommendation.get("current_user_entry_price"), sharp_entry
+        ),
     }
 
 

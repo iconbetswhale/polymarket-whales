@@ -2814,6 +2814,109 @@ h2 {
   box-shadow: none;
 }
 
+.trade-metric-chip.slippage-chip {
+  position: relative;
+  font: inherit;
+  outline: none;
+}
+
+.trade-metric-chip.slippage-chip.worse {
+  border-color: rgba(255, 102, 122, 0.38);
+  color: var(--red);
+}
+
+.trade-metric-chip.slippage-chip.worse i {
+  color: var(--red);
+}
+
+.trade-metric-chip.slippage-chip.better {
+  border-color: rgba(81, 223, 137, 0.38);
+  color: var(--green);
+}
+
+.trade-metric-chip.slippage-chip.better i {
+  color: var(--green);
+}
+
+.trade-metric-chip.slippage-chip:focus-visible {
+  box-shadow: 0 0 0 2px rgba(37, 184, 236, 0.22), var(--inner-highlight);
+}
+
+.slippage-tooltip {
+  position: absolute;
+  z-index: 60;
+  top: calc(100% + 8px);
+  right: -7px;
+  display: none;
+  width: min(270px, calc(100vw - 36px));
+  padding: 12px;
+  border: 1px solid rgba(126, 165, 178, 0.24);
+  border-radius: 9px;
+  background: rgba(8, 16, 20, 0.99);
+  box-shadow: var(--shadow-high);
+  color: var(--muted-strong);
+  font-family: var(--font-body);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+  white-space: normal;
+}
+
+.slippage-tooltip > span:first-child {
+  display: block;
+  margin-bottom: 9px;
+}
+
+.slippage-tooltip > span:first-child strong {
+  color: var(--text);
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 700;
+}
+
+.slippage-tier {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+}
+
+.slippage-tier i {
+  font-size: 8px !important;
+}
+
+.slippage-tier strong {
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.slippage-tier em {
+  color: var(--muted);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.slippage-tier.ideal i {
+  color: var(--green) !important;
+}
+
+.slippage-tier.acceptable i {
+  color: var(--amber) !important;
+}
+
+.slippage-tier.danger i {
+  color: var(--red) !important;
+}
+
+.slippage-chip:hover .slippage-tooltip,
+.slippage-chip:focus-visible .slippage-tooltip,
+.slippage-chip:focus-within .slippage-tooltip,
+.slippage-chip[aria-expanded="true"] .slippage-tooltip {
+  display: block;
+}
+
 .trade-selection {
   display: grid;
   grid-template-columns: minmax(130px, 1fr) auto auto 36px;

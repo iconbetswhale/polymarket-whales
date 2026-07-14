@@ -173,6 +173,7 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
         "current_user_entry_price": 0.5,
         "effective_entry_price": 0.5,
         "sharp_average_entry_price": 0.42,
+        "price_slippage_fraction": (0.5 - 0.42) / 0.42,
         "final_recommended_fraction": 0.01,
         "recommended_amount": 100,
         "recommended_units": 1,
@@ -183,6 +184,9 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
 
     assert snapshot["current_executable_entry_price"] == 0.5
     assert snapshot["sharp_average_entry_price"] == 0.42
+    assert snapshot["price_slippage_fraction"] == pytest.approx(
+        (0.5 - 0.42) / 0.42
+    )
     assert snapshot["raw_sharp_count"] == 2
     assert snapshot["lead_sharp_count"] == 1
     assert snapshot["supporting_sharp_count"] == 1

@@ -109,6 +109,44 @@ function tradeMetricChip(icon, value, tooltip, tone = "") {
   return `<span class="trade-metric-chip ${tone}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}: ${escapeHtml(value)}"><i class="ph ${icon}" aria-hidden="true"></i><strong>${escapeHtml(value)}</strong></span>`;
 }
 
+function slippageComparison(userEntry, whaleEntry, providedFraction = null) {
+  const userPrice = number(userEntry);
+  const whalePrice = number(whaleEntry);
+  const supplied = number(providedFraction);
+  if (userPrice === null || whalePrice === null || whalePrice <= 0) return null;
+  const fraction = supplied ?? ((userPrice - whalePrice) / whalePrice);
+  const percent = fraction * 100;
+  const formatted = `${percent > 0 ? "+" : ""}${percent.toFixed(1)}%`;
+  const tone = percent > 0.0001 ? "worse" : percent < -0.0001 ? "better" : "same";
+  const severity = Math.abs(percent) < 3 ? "slightly worse" : Math.abs(percent) <= 5 ? "worse" : "much worse";
+  const comparison = tone === "worse"
+    ? severity
+    : tone === "better"
+      ? "better"
+      : "the same";
+  return { fraction, percent, formatted, tone, comparison, userPrice, whalePrice };
+}
+
+function slippageMetricChip(comparison) {
+  if (!comparison) {
+    return tradeMetricChip("ph-arrows-left-right", "N/A", "Entry slippage unavailable");
+  }
+  const direction = comparison.tone === "worse" ? "worse" : comparison.tone === "better" ? "better" : "unchanged";
+  const aria = `${comparison.formatted} slippage, ${direction} than the tracked whale's entry`;
+  return `
+    <button class="trade-metric-chip slippage-chip ${comparison.tone}" type="button" data-testid="slippage-tooltip-trigger" aria-expanded="false" aria-label="${escapeHtml(aria)}">
+      <i class="ph ph-arrows-left-right" aria-hidden="true"></i>
+      <strong>${escapeHtml(comparison.formatted)}</strong>
+      <span class="slippage-tooltip" role="tooltip">
+        <span>You're now getting a <strong>${escapeHtml(comparison.comparison)}</strong> price of <strong>${escapeHtml(formatCents(comparison.userPrice))}</strong>, compared to the tracked whale's <strong>${escapeHtml(formatCents(comparison.whalePrice))}</strong>.</span>
+        <span class="slippage-tier ideal"><i class="ph ph-circle" aria-hidden="true"></i><strong>Under 3%</strong><em>- ideal</em></span>
+        <span class="slippage-tier acceptable"><i class="ph ph-circle" aria-hidden="true"></i><strong>3-5%</strong><em>- acceptable</em></span>
+        <span class="slippage-tier danger"><i class="ph ph-circle" aria-hidden="true"></i><strong>Over 5%</strong><em>- edge likely gone</em></span>
+      </span>
+    </button>
+  `;
+}
+
 function walletMeta(label, value) {
   if (!value && value !== 0) return "";
   return `<span><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`;
@@ -379,6 +417,11 @@ function tradeCard(trade) {
   const relativeSize = card.relative_bet_size ?? primary.relative_units;
   const categoryHitRate = card.category_hit_rate;
   const currentPrice = card.current_actionable_price ?? recommendation.current_user_entry_price;
+  const slippage = slippageComparison(
+    currentPrice,
+    traderEntry,
+    card.slippage_fraction ?? recommendation.price_slippage_fraction,
+  );
   const recommendedAmount = card.recommended_amount ?? recommendation.recommended_amount;
   const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
   const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
@@ -405,7 +448,7 @@ function tradeCard(trade) {
         <span class="trade-metrics-row">
           ${tradeMetricChip("ph-calendar-blank", eventTime, "Scheduled event start in Eastern Time", "time")}
           ${tradeMetricChip("ph-coins", formatOptionalMoney(betAmount, true), amountTooltip)}
-          ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Trader average entry")}
+          ${slippageMetricChip(slippage)}
           ${tradeMetricChip("ph-arrow-up-right", formatRelativeSize(relativeSize), relativeTooltip)}
           ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
         </span>
@@ -647,8 +690,13 @@ function whySizing(recommendation, trade) {
   `;
 }
 
-function whyScore(trade) {
+function whyScore(trade, recommendation) {
   const breakdown = trade.score_breakdown || {};
+  const slippage = slippageComparison(
+    recommendation.current_user_entry_price,
+    recommendation.sharp_average_entry_price ?? trade.average_entry_price,
+    recommendation.price_slippage_fraction,
+  );
   const rows = [
     ["Confidence Score", String(trade.confidence_score ?? "N/A")],
     ["Raw Consensus", `${trade.raw_sharp_count ?? trade.agreeing_wallet_count ?? 0} unique Sharps`],
@@ -659,7 +707,7 @@ function whyScore(trade) {
     ["Category Composition", formatPercent(breakdown.category_composition)],
     ["Weighted Amount Signal", formatPercent(trade.weighted_amount_signal)],
     ["Weighted Relative Size", formatPercent(trade.weighted_relative_size_signal)],
-    ["Current Slippage", formatCents(trade.slippage)],
+    ["Entry Slippage", slippage?.formatted || "Unavailable"],
   ];
   return `
     <details class="calculation-details score-details">
@@ -690,8 +738,12 @@ function supportersMarkup(trade) {
 function renderTradeDetail(trade) {
   const panel = document.getElementById("trade-detail");
   const recommendation = trade.recommendation || {};
-  const movement = number(recommendation.price_movement);
-  const movementTone = movement !== null && movement <= 0 ? "positive" : "negative";
+  const slippage = slippageComparison(
+    recommendation.current_user_entry_price,
+    recommendation.sharp_average_entry_price ?? trade.average_entry_price,
+    recommendation.price_slippage_fraction,
+  );
+  const slippageTone = slippage?.tone === "better" ? "positive" : slippage?.tone === "worse" ? "negative" : "";
   panel.innerHTML = `
     <div class="detail-header">
       <span class="score-badge large ${confidenceClass(trade.confidence_score)}">${escapeHtml(trade.confidence_score)}</span>
@@ -702,7 +754,7 @@ function renderTradeDetail(trade) {
     <div class="detail-metric-grid">
       ${detailMetric("Relative Bet Size", formatUnits(trade.primary_trader?.relative_units), "Primary Sharp versus normal size")}
       ${detailMetric("Primary Lead Sharp", formatMoney(trade.primary_trader?.amount), trade.primary_trader?.wallet_label || "Tracked Sharp")}
-      ${detailMetric("Price Movement", movement === null ? "Unavailable" : `${movement > 0 ? "+" : ""}${(movement * 100).toFixed(1)}¢`, movement !== null && movement <= 0 ? "Better than Sharp entry" : "Worse than Sharp entry", movementTone)}
+      ${detailMetric("Entry Slippage", slippage?.formatted || "Unavailable", slippage ? `${formatCents(slippage.userPrice)} user entry vs ${formatCents(slippage.whalePrice)} whale entry` : "Price comparison unavailable", slippageTone)}
       ${detailMetric("Combined Exposure", formatMoney(trade.combined_exposure_exact), `${trade.agreeing_wallet_count} agreeing wallets`)}
       ${detailMetric("Weighted Consensus", weightedSharpLabel(trade.weighted_sharp_count), `${trade.lead_sharp_count || 0} Lead | ${trade.supporting_sharp_count || 0} Supporting`)}
       ${detailMetric("Baseline Probability", formatPercent(recommendation.baseline_probability), "Exact current user entry")}
@@ -714,7 +766,7 @@ function renderTradeDetail(trade) {
       <div class="section-label"><span>Personal Exposure</span><small>Confirmed Personal Tracker fills only</small></div>
       <div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div>
     </section>
-    ${whyScore(trade)}
+    ${whyScore(trade, recommendation)}
     ${whySizing(recommendation, trade)}
     <section class="detail-section">
       <div class="section-label"><span>Price history</span><small>Polymarket CLOB · real outcome token</small></div>
@@ -932,6 +984,14 @@ async function loadTrades() {
       button.addEventListener("click", (event) => {
         event.stopPropagation();
         restoreHiddenTrade(button.dataset.hiddenId);
+      });
+    });
+    list.querySelectorAll(".slippage-chip").forEach((button) => {
+      button.addEventListener("click", (event) => {
+        event.stopPropagation();
+        const expanded = button.getAttribute("aria-expanded") === "true";
+        list.querySelectorAll(".slippage-chip").forEach((chip) => chip.setAttribute("aria-expanded", "false"));
+        button.setAttribute("aria-expanded", String(!expanded));
       });
     });
     list.querySelectorAll(".personal-warning").forEach((button) => {

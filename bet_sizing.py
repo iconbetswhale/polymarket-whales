@@ -345,7 +345,13 @@ def build_recommendation(
         baseline_probability + evidence_adjustment, 0.01, 0.99
     )
     edge = max(0.0, estimated_probability - baseline_probability)
-    price_movement = entry_price - _safe_float(play.get("average_entry_price"))
+    sharp_average_entry_price = _safe_float(play.get("average_entry_price"))
+    price_movement = entry_price - sharp_average_entry_price
+    price_slippage_fraction = (
+        price_movement / sharp_average_entry_price
+        if sharp_average_entry_price > 0
+        else None
+    )
     units = (
         final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
     )
@@ -389,8 +395,9 @@ def build_recommendation(
         if final_fraction > 0
         else 0.0,
         "recommended_units": units,
-        "sharp_average_entry_price": _safe_float(play.get("average_entry_price")),
+        "sharp_average_entry_price": sharp_average_entry_price,
         "price_movement": price_movement,
+        "price_slippage_fraction": price_slippage_fraction,
         "price_movement_quality": "better"
         if price_movement < 0
         else ("worse" if price_movement > 0 else "same"),

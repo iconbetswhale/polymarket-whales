@@ -42,6 +42,9 @@ def test_current_executable_ask_is_probability_baseline_not_confidence_or_snapsh
     assert recommendation["current_user_entry_price"] == pytest.approx(0.42)
     assert recommendation["baseline_probability"] == pytest.approx(0.42)
     assert recommendation["baseline_probability"] != pytest.approx(0.91)
+    assert recommendation["price_slippage_fraction"] == pytest.approx(
+        (0.42 - 0.44) / 0.44
+    )
 
 
 def test_weak_evidence_produces_zero_kelly_and_no_forced_bet():
