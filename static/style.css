@@ -1356,6 +1356,18 @@ h2 {
   padding: 8px 2px;
 }
 
+.supporter-row.lead-sharp .supporter-avatar {
+  border-color: rgba(140, 240, 79, 0.42);
+  background: rgba(140, 240, 79, 0.08);
+  color: var(--lime);
+}
+
+.supporter-row.supporting-sharp .supporter-avatar {
+  border-color: rgba(245, 187, 80, 0.38);
+  background: rgba(245, 187, 80, 0.08);
+  color: var(--amber);
+}
+
 .supporter-row + .supporter-row {
   border-top: 1px solid var(--border-soft);
 }

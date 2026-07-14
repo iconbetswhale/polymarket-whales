@@ -13,7 +13,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 from urllib.parse import quote
 
-from classification import classify_market, is_sports_category
+from classification import (
+    canonical_category_id,
+    canonical_category_ids,
+    classify_market,
+    is_sports_category,
+)
 from bet_sizing import SizingConfig
 from bet_tracker import tracker_status_from_event
 from config import Settings
@@ -884,6 +889,11 @@ class TrackerService:
                         "base_unit": wallet.base_unit,
                         "notes": wallet.notes,
                         "top_category": wallet.top_category,
+                        "top_categories": list(wallet.top_categories),
+                        "top_category_ids": list(wallet.top_category_ids),
+                        "primary_top_category_id": wallet.primary_top_category_id,
+                        "top_category_source": wallet.top_category_source,
+                        "top_category_verified_at": wallet.top_category_verified_at,
                         "bettor_type": wallet.bettor_type,
                         "selectivity": wallet.selectivity,
                         "selectivity_score": wallet.selectivity_score,
@@ -914,6 +924,18 @@ class TrackerService:
                         "base_unit": raw_entry.get("base_unit"),
                         "notes": raw_entry.get("notes") or "",
                         "top_category": raw_entry.get("top_category"),
+                        "top_categories": raw_entry.get("top_categories") or [],
+                        "top_category_ids": raw_entry.get("topCategoryIds") or [],
+                        "primary_top_category_id": raw_entry.get(
+                            "primary_top_category"
+                        )
+                        or raw_entry.get("primaryTopCategoryId"),
+                        "top_category_source": raw_entry.get("top_category_source")
+                        or raw_entry.get("topCategorySource"),
+                        "top_category_verified_at": raw_entry.get(
+                            "top_category_verified_at"
+                        )
+                        or raw_entry.get("topCategoryVerifiedAt"),
                         "bettor_type": raw_entry.get("bettor_type"),
                         "selectivity": raw_entry.get("selectivity"),
                         "selectivity_score": raw_entry.get("selectivity_score"),
@@ -1078,6 +1100,12 @@ class TrackerService:
                 )
             output[wallet_address.lower()] = {
                 "top_category": top_category,
+                "top_category_ids": list(canonical_category_ids([top_category])),
+                "primary_top_category_id": canonical_category_id(top_category),
+                "top_category_source": (
+                    "statistically_verified" if top_category else None
+                ),
+                "top_category_verified_at": _iso_now() if top_category else None,
                 "categories": categories,
             }
         return output
@@ -1160,6 +1188,23 @@ class TrackerService:
             category_metric = (wallet_category_metrics.get("categories") or {}).get(
                 classification.category
             )
+            configured_top_category_ids = list(wallet.top_category_ids)
+            statistical_top_category_ids = list(
+                wallet_category_metrics.get("top_category_ids") or []
+            )
+            effective_top_category_ids = (
+                configured_top_category_ids or statistical_top_category_ids
+            )
+            effective_top_category_source = (
+                wallet.top_category_source
+                if configured_top_category_ids
+                else wallet_category_metrics.get("top_category_source")
+            )
+            effective_top_category_verified_at = (
+                wallet.top_category_verified_at
+                if configured_top_category_ids
+                else wallet_category_metrics.get("top_category_verified_at")
+            )
 
             row = {
                 "wallet_address": wallet.address,
@@ -1170,6 +1215,7 @@ class TrackerService:
                 "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
                 "wallet_base_unit": wallet.base_unit,
                 "wallet_top_category": wallet.top_category,
+                "wallet_top_categories": list(wallet.top_categories),
                 "wallet_bettor_type": wallet.bettor_type,
                 "wallet_selectivity": wallet.selectivity,
                 "wallet_selectivity_score": wallet.selectivity_score,
@@ -1193,6 +1239,15 @@ class TrackerService:
                 "opposite_outcome": position.get("oppositeOutcome") or "",
                 "category": classification.category,
                 "league": classification.league,
+                "canonical_sport_id": canonical_category_id(
+                    classification.category
+                ),
+                "canonical_league_id": canonical_category_id(
+                    classification.league
+                ),
+                "canonical_category_id": canonical_category_id(
+                    classification.category
+                ),
                 "is_sports": classification.is_sports,
                 "resolution_time": resolution_time,
                 "event_time_source": event_time_source,
@@ -1223,6 +1278,16 @@ class TrackerService:
                 "category_metrics": category_metric,
                 "top_category": wallet_category_metrics.get("top_category"),
                 "configured_top_category": wallet.top_category,
+                "configured_top_categories": list(wallet.top_categories),
+                "configured_top_category_ids": configured_top_category_ids,
+                "top_category_ids": effective_top_category_ids,
+                "primary_top_category_id": (
+                    effective_top_category_ids[0]
+                    if effective_top_category_ids
+                    else None
+                ),
+                "top_category_source": effective_top_category_source,
+                "top_category_verified_at": effective_top_category_verified_at,
                 "first_detected_at": _iso_now(),
                 "last_seen_at": _iso_now(),
                 "last_changed_at": _iso_now(),
@@ -1591,6 +1656,11 @@ class TrackerService:
                 {
                     "display_address": wallet.display_address,
                     "top_category": wallet.top_category,
+                    "top_categories": list(wallet.top_categories),
+                    "top_category_ids": list(wallet.top_category_ids),
+                    "primary_top_category_id": wallet.primary_top_category_id,
+                    "top_category_source": wallet.top_category_source,
+                    "top_category_verified_at": wallet.top_category_verified_at,
                     "bettor_type": wallet.bettor_type,
                     "selectivity": wallet.selectivity,
                     "selectivity_score": wallet.selectivity_score,

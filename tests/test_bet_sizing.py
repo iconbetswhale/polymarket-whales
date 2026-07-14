@@ -13,6 +13,11 @@ def _play(*, entry=0.5, sharps=3, tracked=7, evidence=1.0):
     return {
         "id": "event::market::yes",
         "agreeing_wallet_count": sharps,
+        "raw_sharp_count": sharps,
+        "lead_sharp_count": sharps,
+        "supporting_sharp_count": 0,
+        "weighted_sharp_count": float(sharps),
+        "has_lead_sharp": True,
         "tracked_wallet_count": tracked,
         "current_price": 0.91,
         "average_entry_price": 0.44,
@@ -131,3 +136,57 @@ def test_bet_below_clob_minimum_is_not_recommended():
     assert recommendation["recommended_amount"] == 0
     assert recommendation["recommended_shares"] == 0
     assert recommendation["minimum_executable_amount"] == pytest.approx(4.70)
+
+
+def test_supporting_sharp_is_half_weighted_before_probability_and_kelly():
+    single = _play(entry=0.5, sharps=1, tracked=7, evidence=1.0)
+    mixed = _play(entry=0.5, sharps=2, tracked=7, evidence=1.0)
+    mixed.update(
+        {
+            "lead_sharp_count": 1,
+            "supporting_sharp_count": 1,
+            "weighted_sharp_count": 1.5,
+        }
+    )
+    mixed["evidence_inputs"]["top_category"] = 0.75
+    full = _play(entry=0.5, sharps=2, tracked=7, evidence=1.0)
+
+    single_evidence = calculate_evidence_score(single)
+    mixed_evidence = calculate_evidence_score(mixed)
+    full_evidence = calculate_evidence_score(full)
+    single_recommendation = build_recommendation(single, 10000)
+    mixed_recommendation = build_recommendation(mixed, 10000)
+    full_recommendation = build_recommendation(full, 10000)
+
+    assert single_evidence["consensus_details"]["weighted_sharps"] == 1.0
+    assert mixed_evidence["consensus_details"]["weighted_sharps"] == 1.5
+    assert full_evidence["consensus_details"]["weighted_sharps"] == 2.0
+    assert (
+        full_evidence["components"]["sharps_consensus"]
+        > mixed_evidence["components"]["sharps_consensus"]
+        > single_evidence["components"]["sharps_consensus"]
+    )
+    assert mixed_recommendation["maximum_adjustment"] == pytest.approx(0.03)
+    assert mixed_recommendation["sharp_risk_cap"] == pytest.approx(0.015)
+    assert (
+        full_recommendation["recommended_amount"]
+        > mixed_recommendation["recommended_amount"]
+        > single_recommendation["recommended_amount"]
+    )
+
+
+def test_recommendation_rejects_trade_without_a_lead_sharp():
+    play = _play(sharps=2)
+    play.update(
+        {
+            "lead_sharp_count": 0,
+            "supporting_sharp_count": 2,
+            "weighted_sharp_count": 1.0,
+            "has_lead_sharp": False,
+        }
+    )
+
+    recommendation = build_recommendation(play, 10000)
+
+    assert recommendation["available"] is False
+    assert "Lead Sharp" in recommendation["reason"]

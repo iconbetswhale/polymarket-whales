@@ -1,4 +1,4 @@
-from classification import classify_market
+from classification import canonical_category_id, category_matches, classify_market
 from position_tracker import american_odds_from_probability, probability_from_american_odds
 
 
@@ -22,3 +22,14 @@ def test_american_odds_conversion():
     assert american_odds_from_probability(0.6) == "-150"
     assert american_odds_from_probability(0.4) == "+150"
     assert round(probability_from_american_odds(-150), 2) == 0.6
+
+
+def test_canonical_category_taxonomy_normalizes_required_sports_hierarchies():
+    assert canonical_category_id("baseball") == "mlb"
+    assert canonical_category_id("MLB") == "mlb"
+    assert canonical_category_id("ATP Challenger") == "tennis"
+    assert canonical_category_id("WTA") == "tennis"
+    assert canonical_category_id("FIFA World Cup") == "soccer"
+    assert canonical_category_id("Hockey") == "nhl"
+    assert category_matches("NBA", ["Basketball"]) is True
+    assert canonical_category_id("Football") is None

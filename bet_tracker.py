@@ -68,6 +68,9 @@ def recommendation_snapshot(
         "market_title": play.get("market_title"),
         "category": play.get("category"),
         "league": play.get("league"),
+        "canonical_sport_id": play.get("canonical_sport_id"),
+        "canonical_league_id": play.get("canonical_league_id"),
+        "canonical_category_id": play.get("canonical_category_id"),
         "market_url": play.get("market_url"),
         "current_executable_entry_price": recommendation.get(
             "current_user_entry_price"
@@ -87,7 +90,25 @@ def recommendation_snapshot(
         "final_recommended_fraction": recommendation.get("final_recommended_fraction"),
         "risk_cap_applied": recommendation.get("risk_cap_applied"),
         "confidence_score": play.get("confidence_score"),
+        "score_breakdown": play.get("score_breakdown"),
         "sharps_count": play.get("agreeing_wallet_count"),
+        "raw_sharp_count": play.get("raw_sharp_count"),
+        "lead_sharp_count": play.get("lead_sharp_count"),
+        "supporting_sharp_count": play.get("supporting_sharp_count"),
+        "weighted_sharp_count": play.get("weighted_sharp_count"),
+        "has_lead_sharp": play.get("has_lead_sharp"),
+        "lead_wallet_ids": play.get("lead_wallet_ids"),
+        "supporting_wallet_ids": play.get("supporting_wallet_ids"),
+        "primary_lead_wallet_id": play.get("primary_lead_wallet_id"),
+        "category_match_by_wallet": play.get("category_match_by_wallet"),
+        "category_weight_by_wallet": play.get("category_weight_by_wallet"),
+        "weighted_consensus_score": play.get("weighted_consensus_score"),
+        "weighted_amount_signal": play.get("weighted_amount_signal"),
+        "weighted_relative_size_signal": play.get(
+            "weighted_relative_size_signal"
+        ),
+        "consensus_details": recommendation.get("consensus_details"),
+        "category_weighting": recommendation.get("category_weighting"),
         "agreeing_wallet_ids": [
             entry.get("wallet_address") for entry in play.get("supporting_wallets", [])
         ],

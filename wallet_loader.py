@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from classification import canonical_category_ids
+
 WALLET_RE = re.compile(r"^0x[a-fA-F0-9]{40}$")
 
 
@@ -18,6 +20,11 @@ class WalletEntry:
     base_unit: float | None
     notes: str
     top_category: str | None
+    top_categories: tuple[str, ...]
+    top_category_ids: tuple[str, ...]
+    primary_top_category_id: str | None
+    top_category_source: str | None
+    top_category_verified_at: str | None
     bettor_type: str | None
     selectivity: str | None
     selectivity_score: float | None
@@ -79,6 +86,18 @@ def _parse_optional_text(value: Any) -> str | None:
     if value in ("", None):
         return None
     return str(value).strip() or None
+
+
+def _parse_optional_text_list(value: Any) -> tuple[str, ...]:
+    if value in ("", None):
+        return ()
+    values = value if isinstance(value, (list, tuple, set)) else [value]
+    parsed: list[str] = []
+    for item in values:
+        text = _parse_optional_text(item)
+        if text and text not in parsed:
+            parsed.append(text)
+    return tuple(parsed)
 
 
 def _parse_optional_positive_float(value: Any, field: str) -> float | None:
@@ -188,6 +207,30 @@ def load_wallets(path: Path) -> WalletLoadResult:
         label = str(item.get("label") or f"Wallet {index + 1}").strip()
         notes = str(item.get("notes") or "")
         enabled = bool(item.get("enabled", True))
+        configured_top_categories = list(
+            _parse_optional_text_list(
+                item.get("top_categories") or item.get("topCategoryIds")
+            )
+        )
+        configured_primary_category = _parse_optional_text(
+            item.get("primary_top_category")
+            or item.get("primaryTopCategoryId")
+            or item.get("top_category")
+        )
+        if (
+            configured_primary_category
+            and configured_primary_category not in configured_top_categories
+        ):
+            configured_top_categories.insert(0, configured_primary_category)
+        top_category_ids = canonical_category_ids(configured_top_categories)
+        primary_top_category_ids = canonical_category_ids(
+            [configured_primary_category]
+        )
+        top_category_source = _parse_optional_text(
+            item.get("top_category_source") or item.get("topCategorySource")
+        )
+        if not top_category_source and top_category_ids:
+            top_category_source = "manual_config"
         wallets.append(
             WalletEntry(
                 address=address,
@@ -196,7 +239,17 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 enabled=enabled,
                 base_unit=base_unit,
                 notes=notes,
-                top_category=_parse_optional_text(item.get("top_category")),
+                top_category=configured_primary_category,
+                top_categories=tuple(configured_top_categories),
+                top_category_ids=top_category_ids,
+                primary_top_category_id=(
+                    primary_top_category_ids[0] if primary_top_category_ids else None
+                ),
+                top_category_source=top_category_source,
+                top_category_verified_at=_parse_optional_text(
+                    item.get("top_category_verified_at")
+                    or item.get("topCategoryVerifiedAt")
+                ),
                 bettor_type=_parse_optional_text(item.get("bettor_type")),
                 selectivity=_parse_optional_text(item.get("selectivity")),
                 selectivity_score=_parse_optional_positive_float(

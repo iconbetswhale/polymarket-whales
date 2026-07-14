@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 
@@ -18,6 +19,101 @@ SPORTS_CATEGORIES = {
     "Boxing",
     "Other Sports",
 }
+
+
+CATEGORY_ALIASES = {
+    "mlb": {
+        "mlb",
+        "baseball",
+        "major-league-baseball",
+        "major-league-baseball-mlb",
+        "world-series",
+    },
+    "nba": {"nba", "national-basketball-association"},
+    "wnba": {"wnba", "womens-national-basketball-association"},
+    "basketball": {"basketball"},
+    "nfl": {"nfl", "national-football-league", "american-football"},
+    "nhl": {"nhl", "hockey", "national-hockey-league", "stanley-cup"},
+    "college-basketball": {
+        "ncaab",
+        "college-basketball",
+        "march-madness",
+    },
+    "college-football": {"ncaaf", "college-football", "bowl-game"},
+    "soccer": {
+        "soccer",
+        "fifa",
+        "fifa-world-cup",
+        "fifwc",
+        "uefa",
+        "premier-league",
+        "champions-league",
+        "la-liga",
+        "laliga",
+        "serie-a",
+        "bundesliga",
+        "ligue-1",
+        "mls",
+    },
+    "tennis": {
+        "tennis",
+        "atp",
+        "wta",
+        "challenger",
+        "atp-challenger",
+        "wimbledon",
+        "us-open-tennis",
+        "french-open-tennis",
+        "australian-open-tennis",
+    },
+    "golf": {"golf", "pga", "masters", "ryder-cup", "open-championship"},
+    "mma": {"mma", "ufc", "bellator", "fight-night"},
+    "boxing": {"boxing"},
+    "other-sports": {"other-sports"},
+}
+
+CATEGORY_HIERARCHY = {
+    "basketball": {"nba", "wnba", "college-basketball"},
+}
+
+
+def _normalize_category_text(value: object) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", str(value or "").strip().lower()).strip(
+        "-"
+    )
+
+
+def canonical_category_id(value: object) -> str | None:
+    """Map configured and classified category labels to a stable category id."""
+    normalized = _normalize_category_text(value)
+    if not normalized:
+        return None
+    for category_id, aliases in CATEGORY_ALIASES.items():
+        if normalized in aliases:
+            return category_id
+    return None
+
+
+def canonical_category_ids(values: object) -> tuple[str, ...]:
+    if values in (None, ""):
+        return ()
+    raw_values = values if isinstance(values, (list, tuple, set)) else [values]
+    normalized: list[str] = []
+    for value in raw_values:
+        category_id = canonical_category_id(value)
+        if category_id and category_id not in normalized:
+            normalized.append(category_id)
+    return tuple(normalized)
+
+
+def category_matches(trade_category: object, top_categories: object) -> bool:
+    trade_id = canonical_category_id(trade_category)
+    if not trade_id:
+        return False
+    for top_id in canonical_category_ids(top_categories):
+        if top_id == trade_id or trade_id in CATEGORY_HIERARCHY.get(top_id, set()):
+            return True
+    return False
 
 
 @dataclass(frozen=True)

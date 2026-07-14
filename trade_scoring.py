@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -8,13 +9,22 @@ from statistics import median
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from classification import (
+    canonical_category_id,
+    canonical_category_ids,
+    category_matches,
+)
+
 SECONDARY_SCORE_WEIGHTS = {
-    "combined_amount": 0.35,
-    "relative_size": 0.30,
-    "trader_history": 0.20,
+    "category_composition": 0.25,
+    "combined_amount": 0.25,
+    "relative_size": 0.20,
+    "trader_history": 0.15,
     "adjusted_hit_rate": 0.10,
     "slippage": 0.05,
 }
+
+LOGGER = logging.getLogger(__name__)
 
 
 TRADER_STATS = {
@@ -49,6 +59,44 @@ TEAM_ALIASES = {
 class CanonicalSide:
     market_key: str
     side_key: str
+
+
+def _category_profile(position: dict[str, Any]) -> dict[str, Any]:
+    configured_values = (
+        position.get("configured_top_category_ids")
+        or position.get("configured_top_categories")
+        or position.get("configured_top_category")
+        or position.get("wallet_top_categories")
+        or position.get("wallet_top_category")
+    )
+    configured_ids = canonical_category_ids(configured_values)
+    statistical_values = position.get("top_category_ids") or position.get(
+        "top_category"
+    )
+    statistical_ids = canonical_category_ids(statistical_values)
+    top_category_ids = configured_ids or statistical_ids
+    trade_category_id = canonical_category_id(
+        position.get("canonical_category_id") or position.get("category")
+    )
+    is_lead = category_matches(trade_category_id, top_category_ids)
+    source = position.get("top_category_source")
+    if configured_ids:
+        source = source or "manual_config"
+    elif statistical_ids:
+        source = source or "statistically_verified"
+    return {
+        "trade_category_id": trade_category_id,
+        "top_category_ids": list(top_category_ids),
+        "primary_top_category_id": (
+            position.get("primary_top_category_id")
+            or (top_category_ids[0] if top_category_ids else None)
+        ),
+        "top_category_source": source,
+        "top_category_verified_at": position.get("top_category_verified_at"),
+        "is_lead_sharp": is_lead,
+        "sharp_role": "Lead Sharp" if is_lead else "Supporting Sharp",
+        "category_weight": 1.0 if is_lead else 0.5,
+    }
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -198,33 +246,44 @@ def _consensus_band(
 
 
 def _weighted_hit_rate(
-    group: list[dict[str, Any]], events_by_wallet: dict[str, list[dict[str, Any]]]
+    group: list[dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+    category_weights: dict[str, float] | None = None,
 ) -> float:
-    total_samples = 0
+    total_samples = 0.0
     weighted_rate = 0.0
     for position in group:
         sample = _sample_size(position, events_by_wallet)
         rate = _adjusted_hit_rate(position, sample)
-        total_samples += sample
-        weighted_rate += rate * sample
+        wallet = str(position.get("wallet_address") or "").lower()
+        category_weight = (category_weights or {}).get(wallet, 1.0)
+        weighted_sample = sample * category_weight
+        total_samples += weighted_sample
+        weighted_rate += rate * weighted_sample
     return weighted_rate / total_samples if total_samples > 0 else 0.5
 
 
 def _confidence_score(
     *,
     wallet_count: int,
+    lead_sharp_count: int,
+    supporting_sharp_count: int,
+    weighted_sharp_count: float,
     tracked_wallet_count: int | None,
-    total_amount: float,
-    amount_benchmark: float,
-    primary_units: float,
-    strongest_units: float,
-    average_units: float,
-    sample_size: int,
+    combined_amount_signal: float,
+    relative_size_signal: float,
+    trader_history_signal: float,
     adjusted_hit_rate: float,
     group_hit_rate: float,
     slippage: float,
 ) -> tuple[int, dict[str, Any]]:
     band = _consensus_band(wallet_count, tracked_wallet_count)
+    composition_quality = max(
+        0.0, min(1.0, weighted_sharp_count / max(1, wallet_count))
+    )
+    hit_rate_quality = _curve(
+        max(((adjusted_hit_rate * 0.7) + (group_hit_rate * 0.3)) - 0.5, 0), 0.15
+    )
     if band["is_unanimous"]:
         return 100, {
             "architecture": "consensus_first",
@@ -235,32 +294,40 @@ def _confidence_score(
             "available_secondary_points": 0,
             "secondary_points": 0,
             "secondary_quality": 1.0,
-            "combined_amount": 1.0,
-            "relative_size": 1.0,
-            "trader_history": 1.0,
-            "adjusted_hit_rate": 1.0,
-            "slippage": 1.0,
+            "raw_sharp_count": wallet_count,
+            "lead_sharp_count": lead_sharp_count,
+            "supporting_sharp_count": supporting_sharp_count,
+            "weighted_sharp_count": weighted_sharp_count,
+            "category_composition": round(composition_quality, 4),
+            "combined_amount": round(combined_amount_signal, 4),
+            "relative_size": round(relative_size_signal, 4),
+            "trader_history": round(trader_history_signal, 4),
+            "adjusted_hit_rate": round(hit_rate_quality, 4),
+            "slippage": round(_slippage_quality(slippage), 4),
             "explanation": "Complete tracked-wallet agreement. Every enabled tracked wallet has an active position on this exact side.",
         }
 
-    conviction_units = (
-        (primary_units * 0.40)
-        + (min(strongest_units, 10) * 0.35)
-        + (min(average_units, 10) * 0.25)
-    )
-    hit_rate_quality = _curve(
-        max(((adjusted_hit_rate * 0.7) + (group_hit_rate * 0.3)) - 0.5, 0), 0.15
-    )
     components = {
-        "combined_amount": _log_score(total_amount, amount_benchmark),
-        "relative_size": _log_score(conviction_units, 5),
-        "trader_history": _log_score(sample_size, 1000),
+        "category_composition": composition_quality,
+        "combined_amount": combined_amount_signal,
+        "relative_size": relative_size_signal,
+        "trader_history": trader_history_signal,
         "adjusted_hit_rate": hit_rate_quality,
         "slippage": _slippage_quality(slippage),
     }
-    secondary_quality = sum(
+    non_category_quality = sum(
         components[key] * SECONDARY_SCORE_WEIGHTS[key]
         for key in SECONDARY_SCORE_WEIGHTS
+        if key != "category_composition"
+    )
+    category_factor = 0.5 + (0.5 * composition_quality)
+    secondary_quality = min(
+        1.0,
+        (
+            components["category_composition"]
+            * SECONDARY_SCORE_WEIGHTS["category_composition"]
+        )
+        + (non_category_quality * category_factor),
     )
     available_points = max(0, band["end"] - band["floor"])
     secondary_points = round(secondary_quality * available_points)
@@ -274,12 +341,17 @@ def _confidence_score(
         "available_secondary_points": available_points,
         "secondary_points": secondary_points,
         "secondary_quality": round(secondary_quality, 4),
+        "raw_sharp_count": wallet_count,
+        "lead_sharp_count": lead_sharp_count,
+        "supporting_sharp_count": supporting_sharp_count,
+        "weighted_sharp_count": weighted_sharp_count,
+        "category_composition": round(composition_quality, 4),
         "combined_amount": round(components["combined_amount"], 4),
         "relative_size": round(components["relative_size"], 4),
         "trader_history": round(components["trader_history"], 4),
         "adjusted_hit_rate": round(components["adjusted_hit_rate"], 4),
         "slippage": round(components["slippage"], 4),
-        "explanation": f"{band['description']} Secondary metrics placed it at {score} within that consensus range.",
+        "explanation": f"{band['description']} {lead_sharp_count} Lead and {supporting_sharp_count} Supporting Sharps produced {weighted_sharp_count:g} weighted consensus. Secondary metrics placed it at {score} within that consensus range.",
     }
 
 
@@ -423,11 +495,19 @@ def _primary_position(
     unit_map: dict[str, dict[str, Any]],
     events_by_wallet: dict[str, list[dict[str, Any]]],
 ) -> dict[str, Any]:
+    def category_record(position: dict[str, Any]) -> tuple[float, int]:
+        metric = position.get("category_metrics") or {}
+        return (
+            _safe_float(metric.get("adjusted_hit_rate"), 0.5),
+            int(metric.get("sample_size") or 0),
+        )
+
     return max(
         group,
         key=lambda position: (
             _safe_float(position.get("position_size_usd")),
             _relative_units(position, unit_map, events_by_wallet) or 0,
+            category_record(position),
         ),
     )
 
@@ -595,12 +675,30 @@ def build_trades_to_play(
         ).append(position)
 
     playable_groups: list[list[dict[str, Any]]] = []
+    missing_category_wallets: set[str] = set()
     for sides in market_sides.values():
         # If tracked wallets hold opposing sides of the same market, no side is playable.
         if len(sides) == 1:
-            playable_groups.extend(
-                _collapse_unique_wallets(group) for group in sides.values()
-            )
+            for group in sides.values():
+                unique_group = _collapse_unique_wallets(group)
+                profiles = [_category_profile(position) for position in unique_group]
+                for position, profile in zip(unique_group, profiles):
+                    if not profile["top_category_ids"]:
+                        missing_category_wallets.add(
+                            str(
+                                position.get("wallet_label")
+                                or position.get("wallet_address")
+                                or "unknown wallet"
+                            )
+                        )
+                if any(profile["is_lead_sharp"] for profile in profiles):
+                    playable_groups.append(unique_group)
+
+    if missing_category_wallets:
+        LOGGER.warning(
+            "Wallets without a verified top category were limited to Supporting Sharp weight: %s",
+            ", ".join(sorted(missing_category_wallets)),
+        )
 
     group_amounts = [
         sum(_safe_float(position.get("position_size_usd")) for position in group)
@@ -627,42 +725,81 @@ def build_trades_to_play(
             if position.get("wallet_address")
         }
         wallet_count = len(unique_wallets)
+        profiles_by_wallet = {
+            str(position.get("wallet_address") or "").lower(): _category_profile(
+                position
+            )
+            for position in group
+        }
+        lead_positions = [
+            position
+            for position in group
+            if profiles_by_wallet[
+                str(position.get("wallet_address") or "").lower()
+            ]["is_lead_sharp"]
+        ]
+        supporting_positions = [
+            position
+            for position in group
+            if not profiles_by_wallet[
+                str(position.get("wallet_address") or "").lower()
+            ]["is_lead_sharp"]
+        ]
+        lead_sharp_count = len(lead_positions)
+        supporting_sharp_count = len(supporting_positions)
+        weighted_sharp_count = lead_sharp_count + (supporting_sharp_count * 0.5)
+        category_weights = {
+            wallet: profile["category_weight"]
+            for wallet, profile in profiles_by_wallet.items()
+        }
         total_amount = sum(
             _safe_float(position.get("position_size_usd")) for position in group
         )
-        primary = _primary_position(group, unit_map, events_by_wallet)
-        strongest_units = max(
-            (_relative_units(position, unit_map, events_by_wallet) or 0)
+        weighted_total_amount = sum(
+            _safe_float(position.get("position_size_usd"))
+            * category_weights[
+                str(position.get("wallet_address") or "").lower()
+            ]
             for position in group
         )
-        primary_units = _relative_units(primary, unit_map, events_by_wallet) or 0
-        average_units = sum(
-            (_relative_units(position, unit_map, events_by_wallet) or 0)
+        primary = _primary_position(lead_positions, unit_map, events_by_wallet)
+        units_by_wallet = {
+            str(position.get("wallet_address") or "").lower(): (
+                _relative_units(position, unit_map, events_by_wallet) or 0
+            )
             for position in group
-        ) / len(group)
-        conviction_units = (
+        }
+        strongest_units = max(units_by_wallet.values())
+        primary_wallet = str(primary.get("wallet_address") or "").lower()
+        primary_units = units_by_wallet[primary_wallet]
+        average_units = sum(units_by_wallet.values()) / len(group)
+        weighted_strongest_units = max(
+            units * category_weights[wallet]
+            for wallet, units in units_by_wallet.items()
+        )
+        weighted_average_units = sum(
+            units * category_weights[wallet]
+            for wallet, units in units_by_wallet.items()
+        ) / weighted_sharp_count
+        weighted_conviction_units = (
             (primary_units * 0.40)
-            + (min(strongest_units, 10) * 0.35)
-            + (min(average_units, 10) * 0.25)
+            + (min(weighted_strongest_units, 10) * 0.35)
+            + (min(weighted_average_units, 10) * 0.25)
         )
         sample_size = _sample_size(primary, events_by_wallet)
         adjusted_hit_rate = _adjusted_hit_rate(primary, sample_size)
-        group_hit_rate = _weighted_hit_rate(group, events_by_wallet)
+        weighted_sample_total = sum(
+            _sample_size(position, events_by_wallet)
+            * category_weights[
+                str(position.get("wallet_address") or "").lower()
+            ]
+            for position in group
+        )
+        group_hit_rate = _weighted_hit_rate(
+            group, events_by_wallet, category_weights
+        )
         slippage = _slippage(primary)
 
-        confidence, breakdown = _confidence_score(
-            wallet_count=wallet_count,
-            tracked_wallet_count=tracked_wallet_count,
-            total_amount=total_amount,
-            amount_benchmark=amount_benchmark,
-            primary_units=primary_units,
-            strongest_units=strongest_units,
-            average_units=average_units,
-            sample_size=sample_size,
-            adjusted_hit_rate=adjusted_hit_rate,
-            group_hit_rate=group_hit_rate,
-            slippage=slippage,
-        )
         canonical = canonical_side(primary)
         event_time = _format_event_time(primary.get("resolution_time"))
         total_shares = sum(
@@ -674,59 +811,105 @@ def build_trades_to_play(
             if total_shares > 0
             else _safe_float(primary.get("average_entry_price"))
         )
-        category_metrics = [
-            position.get("category_metrics")
-            for position in group
-            if position.get("category_metrics")
-        ]
+        category_metrics = []
+        for position in group:
+            metric = position.get("category_metrics")
+            if not metric:
+                continue
+            wallet = str(position.get("wallet_address") or "").lower()
+            category_metrics.append(
+                {
+                    **metric,
+                    "wallet_address": position.get("wallet_address"),
+                    "wallet_label": position.get("wallet_label"),
+                    "category_weight": category_weights[wallet],
+                }
+            )
         category_sample_total = sum(
             int(metric.get("sample_size") or 0) for metric in category_metrics
         )
+        weighted_category_sample_total = sum(
+            int(metric.get("sample_size") or 0)
+            * _safe_float(metric.get("category_weight"), 0.5)
+            for metric in category_metrics
+        )
         category_hit_rate = None
-        if category_sample_total > 0:
+        if weighted_category_sample_total > 0:
             category_hit_rate = (
                 sum(
                     _safe_float(metric.get("adjusted_hit_rate"), 0.5)
                     * int(metric.get("sample_size") or 0)
+                    * _safe_float(metric.get("category_weight"), 0.5)
                     for metric in category_metrics
                 )
-                / category_sample_total
+                / weighted_category_sample_total
             )
-        top_category_score = (
-            sum(
-                1.0 if metric.get("is_top_category") else 0.0
-                for metric in category_metrics
-            )
-            / len(category_metrics)
-            if category_metrics
-            else None
+        weighted_amount_signal = _log_score(
+            weighted_total_amount, amount_benchmark
         )
+        weighted_relative_size_signal = _log_score(weighted_conviction_units, 5)
+        weighted_history_signal = _log_score(weighted_sample_total, 1000)
+        confidence, breakdown = _confidence_score(
+            wallet_count=wallet_count,
+            lead_sharp_count=lead_sharp_count,
+            supporting_sharp_count=supporting_sharp_count,
+            weighted_sharp_count=weighted_sharp_count,
+            tracked_wallet_count=tracked_wallet_count,
+            combined_amount_signal=weighted_amount_signal,
+            relative_size_signal=weighted_relative_size_signal,
+            trader_history_signal=weighted_history_signal,
+            adjusted_hit_rate=adjusted_hit_rate,
+            group_hit_rate=(
+                category_hit_rate
+                if category_hit_rate is not None
+                else group_hit_rate
+            ),
+            slippage=slippage,
+        )
+        top_category_score = weighted_sharp_count / wallet_count
         evidence_inputs = {
-            "combined_amount": _log_score(total_amount, amount_benchmark),
-            "relative_size": _log_score(conviction_units, 5),
+            "combined_amount": weighted_amount_signal,
+            "relative_size": weighted_relative_size_signal,
             "top_category": top_category_score,
             "adjusted_category_hit_rate": category_hit_rate,
-            "category_sample_size": _log_score(category_sample_total, 500)
-            if category_sample_total
+            "category_sample_size": _log_score(
+                weighted_category_sample_total, 500
+            )
+            if weighted_category_sample_total
             else None,
+            "raw_sharp_count": wallet_count,
+            "lead_sharp_count": lead_sharp_count,
+            "supporting_sharp_count": supporting_sharp_count,
+            "weighted_sharp_count": weighted_sharp_count,
+            "actual_combined_amount": total_amount,
+            "weighted_combined_amount": weighted_total_amount,
+            "weighted_amount_signal": weighted_amount_signal,
+            "weighted_relative_size_signal": weighted_relative_size_signal,
+            "weighted_history_signal": weighted_history_signal,
+            "actual_category_sample_size": category_sample_total,
+            "weighted_category_sample_size": weighted_category_sample_total,
             "relative_size_details": {
                 "primary_units": primary_units,
                 "strongest_units": strongest_units,
                 "average_units": average_units,
-                "conviction_units": conviction_units,
+                "weighted_strongest_units": weighted_strongest_units,
+                "weighted_average_units": weighted_average_units,
+                "weighted_conviction_units": weighted_conviction_units,
             },
             "category_details": category_metrics,
             "amount_benchmark_p90": amount_benchmark,
         }
-        supporters = sorted(
-            [
+        supporters = []
+        for position in group:
+            wallet = str(position.get("wallet_address") or "").lower()
+            profile = profiles_by_wallet[wallet]
+            units = units_by_wallet[wallet]
+            supporters.append(
                 {
                     "wallet_address": position.get("wallet_address"),
                     "wallet_label": position.get("wallet_label"),
                     "amount": _safe_float(position.get("position_size_usd")),
-                    "relative_units": _relative_units(
-                        position, unit_map, events_by_wallet
-                    ),
+                    "relative_units": units,
                     "average_entry_price": position.get("average_entry_price"),
                     "current_price": position.get("current_price"),
                     "shares": position.get("shares") or position.get("token_units"),
@@ -737,6 +920,24 @@ def build_trades_to_play(
                     "signal_tier": position.get("signal_tier"),
                     "top_category": position.get("configured_top_category")
                     or position.get("top_category"),
+                    "top_category_ids": profile["top_category_ids"],
+                    "primary_top_category_id": profile[
+                        "primary_top_category_id"
+                    ],
+                    "top_category_source": profile["top_category_source"],
+                    "top_category_verified_at": profile[
+                        "top_category_verified_at"
+                    ],
+                    "is_lead_sharp": profile["is_lead_sharp"],
+                    "sharp_role": profile["sharp_role"],
+                    "category_match": profile["is_lead_sharp"],
+                    "category_weight": profile["category_weight"],
+                    "weighted_amount_contribution": _safe_float(
+                        position.get("position_size_usd")
+                    )
+                    * profile["category_weight"],
+                    "weighted_relative_contribution": units
+                    * profile["category_weight"],
                     "bettor_type": position.get("wallet_bettor_type"),
                     "selectivity": position.get("wallet_selectivity"),
                     "selectivity_score": position.get("wallet_selectivity_score"),
@@ -747,9 +948,10 @@ def build_trades_to_play(
                     "category_metrics": position.get("category_metrics"),
                     "source": "active_position_snapshot",
                 }
-                for position in group
-            ],
+            )
+        supporters.sort(
             key=lambda item: (
+                not item["is_lead_sharp"],
                 -item["amount"],
                 -(item["relative_units"] or 0),
                 str(item["wallet_label"]).lower(),
@@ -777,11 +979,39 @@ def build_trades_to_play(
             "tracked_wallet_count": tracked_wallet_count,
             "sharps_badge": sharps_badge(wallet_count),
             "agreeing_wallet_count": wallet_count,
+            "raw_sharp_count": wallet_count,
+            "lead_sharp_count": lead_sharp_count,
+            "supporting_sharp_count": supporting_sharp_count,
+            "weighted_sharp_count": weighted_sharp_count,
+            "has_lead_sharp": lead_sharp_count > 0,
+            "lead_wallet_ids": sorted(
+                str(position.get("wallet_address") or "").lower()
+                for position in lead_positions
+            ),
+            "supporting_wallet_ids": sorted(
+                str(position.get("wallet_address") or "").lower()
+                for position in supporting_positions
+            ),
+            "primary_lead_wallet_id": primary_wallet,
+            "category_match_by_wallet": {
+                wallet: profile["is_lead_sharp"]
+                for wallet, profile in profiles_by_wallet.items()
+            },
+            "category_weight_by_wallet": category_weights,
+            "weighted_consensus_score": weighted_sharp_count,
+            "weighted_amount_signal": weighted_amount_signal,
+            "weighted_relative_size_signal": weighted_relative_size_signal,
             "market_title": primary.get("market_title"),
             "event_title": primary.get("event_title") or primary.get("market_title"),
             "outcome": primary.get("outcome"),
             "category": primary.get("category"),
             "league": primary.get("league"),
+            "canonical_sport_id": primary.get("canonical_sport_id")
+            or canonical_category_id(primary.get("category")),
+            "canonical_league_id": primary.get("canonical_league_id")
+            or canonical_category_id(primary.get("league")),
+            "canonical_category_id": primary.get("canonical_category_id")
+            or canonical_category_id(primary.get("category")),
             "event_slug": primary.get("event_slug"),
             "event_time_source": primary.get("event_time_source") or "unknown",
             "market_url": primary.get("market_url"),
@@ -814,6 +1044,22 @@ def build_trades_to_play(
                 "signal_tier": primary.get("signal_tier"),
                 "top_category": primary.get("configured_top_category")
                 or primary.get("top_category"),
+                "top_category_ids": profiles_by_wallet[primary_wallet][
+                    "top_category_ids"
+                ],
+                "primary_top_category_id": profiles_by_wallet[primary_wallet][
+                    "primary_top_category_id"
+                ],
+                "top_category_source": profiles_by_wallet[primary_wallet][
+                    "top_category_source"
+                ],
+                "top_category_verified_at": profiles_by_wallet[primary_wallet][
+                    "top_category_verified_at"
+                ],
+                "is_lead_sharp": True,
+                "sharp_role": "Lead Sharp",
+                "category_match": True,
+                "category_weight": 1.0,
                 "bettor_type": primary.get("wallet_bettor_type"),
                 "selectivity": primary.get("wallet_selectivity"),
                 "selectivity_score": primary.get("wallet_selectivity_score"),

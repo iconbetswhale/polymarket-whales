@@ -215,6 +215,18 @@ function recommendationLabel(recommendation) {
   return `${formatMoney(recommendation.recommended_amount)} · ${formatUnits(recommendation.recommended_units)} · ${formatPercent(recommendation.final_recommended_fraction, 2)}`;
 }
 
+function weightedSharpLabel(value) {
+  const parsed = number(value);
+  return parsed === null ? "N/A" : parsed.toFixed(1);
+}
+
+function sharpCompositionLabel(trade) {
+  const raw = number(trade.raw_sharp_count ?? trade.agreeing_wallet_count) || 0;
+  const leads = number(trade.lead_sharp_count) || 0;
+  const supporting = number(trade.supporting_sharp_count) || 0;
+  return `${raw} Sharps | ${leads} Lead | ${supporting} Supporting | ${weightedSharpLabel(trade.weighted_sharp_count)} weighted`;
+}
+
 function confidenceClass(score) {
   const value = Number(score || 0);
   if (value >= 100) return "premium";
@@ -609,7 +621,11 @@ function whySizing(recommendation, trade) {
   const rows = [
     ["Current User Entry", formatCents(recommendation.current_user_entry_price)],
     ["Baseline Probability", formatPercent(recommendation.baseline_probability)],
-    ["Sharps", String(trade.agreeing_wallet_count)],
+    ["Raw Sharps", String(trade.raw_sharp_count ?? trade.agreeing_wallet_count)],
+    ["Lead Sharps", String(trade.lead_sharp_count ?? 0)],
+    ["Supporting Sharps", String(trade.supporting_sharp_count ?? 0)],
+    ["Weighted Consensus", weightedSharpLabel(trade.weighted_sharp_count)],
+    ["Category Weighting", (trade.supporting_sharp_count || 0) > 0 ? "Supporting counted at 0.5x" : "All Sharps counted at 1.0x"],
     ["Sharp Evidence Score", Number(recommendation.evidence_score).toFixed(3)],
     ["Evidence Adjustment", `+${formatPercent(recommendation.evidence_adjustment)}`],
     ["Estimated Win Probability", formatPercent(recommendation.estimated_win_probability)],
@@ -626,20 +642,49 @@ function whySizing(recommendation, trade) {
     <details class="calculation-details">
       <summary><span><i class="ph ph-function" aria-hidden="true"></i>Why this bet size?</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
       <div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
-      <p class="calculation-note">The current executable CLOB entry is the baseline probability. Sharp evidence can add only a bounded adjustment; Half Kelly is then limited by consensus and global risk caps.</p>
+      <p class="calculation-note">The executable CLOB entry is the baseline probability. Lead Sharps contribute 1.0x and Supporting Sharps contribute 0.5x to evidence before the probability adjustment, Half Kelly, and risk caps are applied.</p>
+    </details>
+  `;
+}
+
+function whyScore(trade) {
+  const breakdown = trade.score_breakdown || {};
+  const rows = [
+    ["Confidence Score", String(trade.confidence_score ?? "N/A")],
+    ["Raw Consensus", `${trade.raw_sharp_count ?? trade.agreeing_wallet_count ?? 0} unique Sharps`],
+    ["Lead Sharps", String(trade.lead_sharp_count ?? 0)],
+    ["Supporting Sharps", String(trade.supporting_sharp_count ?? 0)],
+    ["Weighted Consensus", weightedSharpLabel(trade.weighted_sharp_count)],
+    ["Consensus Band", breakdown.consensus_band || "Unavailable"],
+    ["Category Composition", formatPercent(breakdown.category_composition)],
+    ["Weighted Amount Signal", formatPercent(trade.weighted_amount_signal)],
+    ["Weighted Relative Size", formatPercent(trade.weighted_relative_size_signal)],
+    ["Current Slippage", formatCents(trade.slippage)],
+  ];
+  return `
+    <details class="calculation-details score-details">
+      <summary><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>Why this score?</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+      <div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
+      <p class="calculation-note">Raw unique-wallet agreement sets the score band. Lead and Supporting composition determines how strongly category evidence, amount, relative size, history, and category performance place the trade inside that band.</p>
     </details>
   `;
 }
 
 function supportersMarkup(trade) {
-  return (trade.supporting_wallets || []).map((wallet) => `
-    <a class="supporter-row" href="${escapeHtml(wallet.wallet_profile_url || "#")}" target="_blank" rel="noopener noreferrer">
+  return (trade.supporting_wallets || []).map((wallet) => {
+    const role = wallet.is_lead_sharp ? "Lead Sharp" : "Supporting Sharp";
+    const category = (wallet.top_category_ids || []).join(", ") || "Top category unresolved";
+    const categoryWeight = number(wallet.category_weight);
+    const weight = `${(categoryWeight === null ? 0.5 : categoryWeight).toFixed(1)}x model weight`;
+    return `
+    <a class="supporter-row ${wallet.is_lead_sharp ? "lead-sharp" : "supporting-sharp"}" href="${escapeHtml(wallet.wallet_profile_url || "#")}" target="_blank" rel="noopener noreferrer">
       <span class="supporter-avatar"><i class="ph ph-user" aria-hidden="true"></i></span>
-      <span><strong>${escapeHtml(wallet.wallet_label)}</strong><small>${escapeHtml(wallet.wallet_address)}</small></span>
+      <span><strong>${escapeHtml(wallet.wallet_label)}</strong><small>${escapeHtml(`${role} | ${category} | ${weight}`)}</small></span>
       <span><strong>${formatMoney(wallet.amount)}</strong><small>${formatUnits(wallet.relative_units)}</small></span>
       <i class="ph ph-arrow-up-right" aria-hidden="true"></i>
     </a>
-  `).join("");
+  `;
+  }).join("");
 }
 
 function renderTradeDetail(trade) {
@@ -656,9 +701,10 @@ function renderTradeDetail(trade) {
     <div class="selection-banner"><span><small>Recommended side</small><strong>${escapeHtml(trade.outcome)}</strong></span><span><small>Recommended bet</small><strong>${escapeHtml(recommendationLabel(recommendation))}</strong></span></div>
     <div class="detail-metric-grid">
       ${detailMetric("Relative Bet Size", formatUnits(trade.primary_trader?.relative_units), "Primary Sharp versus normal size")}
-      ${detailMetric("Primary Position", formatMoney(trade.primary_trader?.amount), trade.primary_trader?.wallet_label || "Tracked Sharp")}
+      ${detailMetric("Primary Lead Sharp", formatMoney(trade.primary_trader?.amount), trade.primary_trader?.wallet_label || "Tracked Sharp")}
       ${detailMetric("Price Movement", movement === null ? "Unavailable" : `${movement > 0 ? "+" : ""}${(movement * 100).toFixed(1)}¢`, movement !== null && movement <= 0 ? "Better than Sharp entry" : "Worse than Sharp entry", movementTone)}
       ${detailMetric("Combined Exposure", formatMoney(trade.combined_exposure_exact), `${trade.agreeing_wallet_count} agreeing wallets`)}
+      ${detailMetric("Weighted Consensus", weightedSharpLabel(trade.weighted_sharp_count), `${trade.lead_sharp_count || 0} Lead | ${trade.supporting_sharp_count || 0} Supporting`)}
       ${detailMetric("Baseline Probability", formatPercent(recommendation.baseline_probability), "Exact current user entry")}
       ${detailMetric("Estimated Win", formatPercent(recommendation.estimated_win_probability), "After bounded Sharp evidence")}
       ${detailMetric("Half Kelly", formatPercent(recommendation.half_kelly_fraction), "Before risk caps")}
@@ -668,13 +714,14 @@ function renderTradeDetail(trade) {
       <div class="section-label"><span>Personal Exposure</span><small>Confirmed Personal Tracker fills only</small></div>
       <div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div>
     </section>
+    ${whyScore(trade)}
     ${whySizing(recommendation, trade)}
     <section class="detail-section">
       <div class="section-label"><span>Price history</span><small>Polymarket CLOB · real outcome token</small></div>
       <div class="price-chart" id="price-chart"><div class="chart-loading">Loading verified price history…</div></div>
     </section>
     <section class="detail-section">
-      <div class="section-label"><span>Agreeing wallets</span><small>Exact remaining active exposure</small></div>
+      <div class="section-label"><span>Sharps on this trade</span><small>${escapeHtml(sharpCompositionLabel(trade))} | exact exposure shown</small></div>
       <div class="supporter-list">${supportersMarkup(trade)}</div>
     </section>
     <div class="detail-actions">

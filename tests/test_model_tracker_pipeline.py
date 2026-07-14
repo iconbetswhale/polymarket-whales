@@ -10,6 +10,7 @@ from recommendation_service import (
     EVENT_ALREADY_STARTED,
     MISSING_BANKROLL,
     MISSING_ENTRY_PRICE,
+    MISSING_LEAD_SHARP,
     NOT_TODAY,
     ZERO_KELLY,
     evaluate_trade_recommendation,
@@ -46,6 +47,11 @@ def _play(
         "market_open": True,
         "lifecycle_status": "upcoming",
         "agreeing_wallet_count": 1,
+        "raw_sharp_count": 1,
+        "lead_sharp_count": 1,
+        "supporting_sharp_count": 0,
+        "weighted_sharp_count": 1.0,
+        "has_lead_sharp": True,
         "tracked_wallet_count": 2,
         "confidence_score": 82,
         "combined_exposure_exact": 2000.0,
@@ -86,6 +92,25 @@ def test_positive_full_precision_today_recommendation_is_tracker_eligible(
     assert 0 < recommendation["final_recommended_fraction"] < 0.01
     assert recommendation["recommended_amount"] > 0
     assert evaluation["qualifies_today"] is True
+
+
+def test_model_tracker_rejects_supporting_only_trade(temp_settings):
+    play = _play()
+    play.update(
+        {
+            "lead_sharp_count": 0,
+            "supporting_sharp_count": 1,
+            "weighted_sharp_count": 0.5,
+            "has_lead_sharp": False,
+        }
+    )
+
+    evaluation = evaluate_trade_recommendation(
+        play, 10000, TrackerService(temp_settings, auto_start=False).sizing_config, NOW
+    )
+
+    assert evaluation["model_tracker_eligible"] is False
+    assert evaluation["model_tracker_rejection_reason"] == MISSING_LEAD_SHARP
 
 
 @pytest.mark.parametrize(

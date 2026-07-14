@@ -21,6 +21,7 @@ INVALID_PROBABILITY_INPUT = "INVALID_PROBABILITY_INPUT"
 ZERO_KELLY = "ZERO_KELLY"
 DUPLICATE_RECOMMENDATION = "DUPLICATE_RECOMMENDATION"
 SYNC_INCOMPLETE = "SYNC_INCOMPLETE"
+MISSING_LEAD_SHARP = "MISSING_LEAD_SHARP"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -49,6 +50,8 @@ def event_is_today(event_start: datetime, now: datetime) -> bool:
 
 def _unavailable_reason(recommendation: dict[str, Any]) -> str:
     reason = str(recommendation.get("reason") or "").lower()
+    if "lead sharp" in reason:
+        return MISSING_LEAD_SHARP
     if "bankroll" in reason:
         return MISSING_BANKROLL
     if "ask" in reason or "order-book" in reason or "depth" in reason:

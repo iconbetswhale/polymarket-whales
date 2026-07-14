@@ -28,28 +28,35 @@ def clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
 
 
-def probability_adjustment_cap(sharps: int, unanimous: bool) -> float:
+def _interpolated_cap(
+    weighted_sharps: float, points: tuple[tuple[float, float], ...]
+) -> float:
+    weighted_sharps = max(points[0][0], float(weighted_sharps))
+    for index in range(1, len(points)):
+        lower_count, lower_cap = points[index - 1]
+        upper_count, upper_cap = points[index]
+        if weighted_sharps <= upper_count:
+            progress = (weighted_sharps - lower_count) / (
+                upper_count - lower_count
+            )
+            return lower_cap + ((upper_cap - lower_cap) * progress)
+    return points[-1][1]
+
+
+def probability_adjustment_cap(sharps: float, unanimous: bool) -> float:
     if unanimous:
         return 0.12
-    if sharps >= 4:
-        return 0.10
-    if sharps == 3:
-        return 0.07
-    if sharps == 2:
-        return 0.04
-    return 0.02
+    return _interpolated_cap(
+        sharps, ((1.0, 0.02), (2.0, 0.04), (3.0, 0.07), (4.0, 0.10))
+    )
 
 
-def stake_risk_cap(sharps: int, unanimous: bool) -> float:
+def stake_risk_cap(sharps: float, unanimous: bool) -> float:
     if unanimous:
         return 0.05
-    if sharps >= 4:
-        return 0.04
-    if sharps == 3:
-        return 0.03
-    if sharps == 2:
-        return 0.02
-    return 0.01
+    return _interpolated_cap(
+        sharps, ((1.0, 0.01), (2.0, 0.02), (3.0, 0.03), (4.0, 0.04))
+    )
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -70,15 +77,27 @@ def calculate_evidence_score(
 ) -> dict[str, Any]:
     inputs = play.get("evidence_inputs") or {}
     sharps = max(1, int(play.get("agreeing_wallet_count") or 1))
+    lead_sharps = max(0, int(play.get("lead_sharp_count") or 0))
+    supporting_sharps = max(
+        0, int(play.get("supporting_sharp_count") or (sharps - lead_sharps))
+    )
+    weighted_sharps = max(
+        1.0,
+        _safe_float(
+            play.get("weighted_sharp_count"),
+            lead_sharps + (supporting_sharps * 0.5),
+        ),
+    )
     tracked = max(sharps, int(play.get("tracked_wallet_count") or sharps))
-    additional_sharps = max(0, sharps - 1)
+    additional_sharps = max(0.0, weighted_sharps - 1.0)
     count_target = max(2, int(config.consensus_count_target))
     count_strength = clamp(additional_sharps / (count_target - 1), 0.0, 1.0)
     percentage_strength = clamp(additional_sharps / max(1, tracked - 1), 0.0, 1.0)
     unanimous = sharps == tracked
+    full_weight_unanimous = unanimous and abs(weighted_sharps - sharps) < 1e-9
     consensus = (
         1.0
-        if unanimous
+        if full_weight_unanimous
         else 0.5
         + 0.5
         * (
@@ -112,13 +131,19 @@ def calculate_evidence_score(
         "weights": weights,
         "consensus_details": {
             "agreeing_sharps": sharps,
+            "raw_sharps": sharps,
+            "lead_sharps": lead_sharps,
+            "supporting_sharps": supporting_sharps,
+            "weighted_sharps": weighted_sharps,
             "tracked_wallets": tracked,
             "count_strength": count_strength,
             "percentage_strength": percentage_strength,
             "component": consensus,
             "unanimous": unanimous,
+            "full_weight_unanimous": full_weight_unanimous,
+            "supporting_weight": 0.5,
         },
-        "formula": "sum(component * configured_weight); one verified Sharp is neutral, additional agreement increases the consensus component",
+        "formula": "sum(component * configured_weight); Lead Sharps count 1.0 and Supporting Sharps count 0.5 before probability and Kelly sizing",
     }
 
 
@@ -199,6 +224,12 @@ def build_recommendation(
     bankroll = _safe_float(bankroll)
     if bankroll <= 0:
         return unavailable_recommendation("Bankroll must be greater than zero.", config)
+    if int(play.get("lead_sharp_count") or 0) < 1 or not bool(
+        play.get("has_lead_sharp")
+    ):
+        return unavailable_recommendation(
+            "At least one verified Lead Sharp is required for this trade.", config
+        )
 
     orderbook = play.get("orderbook") or {}
     asks = orderbook.get("asks") or []
@@ -218,9 +249,23 @@ def build_recommendation(
 
     evidence = calculate_evidence_score(play, config)
     sharps = max(1, int(play.get("agreeing_wallet_count") or 1))
+    lead_sharps = max(1, int(play.get("lead_sharp_count") or 1))
+    supporting_sharps = max(
+        0, int(play.get("supporting_sharp_count") or (sharps - lead_sharps))
+    )
+    weighted_sharps = max(
+        1.0,
+        _safe_float(
+            play.get("weighted_sharp_count"),
+            lead_sharps + (supporting_sharps * 0.5),
+        ),
+    )
     tracked = max(sharps, int(play.get("tracked_wallet_count") or sharps))
     unanimous = sharps == tracked
-    adjustment_cap = probability_adjustment_cap(sharps, unanimous)
+    full_weight_unanimous = unanimous and abs(weighted_sharps - sharps) < 1e-9
+    adjustment_cap = probability_adjustment_cap(
+        weighted_sharps, full_weight_unanimous
+    )
     evidence_strength = clamp(
         (evidence["score"] - config.neutral_threshold)
         / (1.0 - config.neutral_threshold),
@@ -228,7 +273,7 @@ def build_recommendation(
         1.0,
     )
     evidence_adjustment = evidence_strength * adjustment_cap
-    sharp_cap = stake_risk_cap(sharps, unanimous)
+    sharp_cap = stake_risk_cap(weighted_sharps, full_weight_unanimous)
 
     entry_price = _safe_float(valid_asks[0].get("price"))
     minimum_order_shares = max(0.0, _safe_float(orderbook.get("min_order_size")))
@@ -321,6 +366,11 @@ def build_recommendation(
         "evidence_components": evidence["components"],
         "evidence_weights": evidence["weights"],
         "consensus_details": evidence["consensus_details"],
+        "raw_sharp_count": sharps,
+        "lead_sharp_count": lead_sharps,
+        "supporting_sharp_count": supporting_sharps,
+        "weighted_sharp_count": weighted_sharps,
+        "category_weighting": "Lead Sharps count 1.0x; Supporting Sharps count 0.5x before probability and Kelly calculations.",
         "evidence_strength": evidence_strength,
         "evidence_adjustment": evidence_adjustment,
         "maximum_adjustment": adjustment_cap,

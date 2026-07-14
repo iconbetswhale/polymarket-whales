@@ -152,6 +152,15 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
         "outcome": "Yes",
         "clob_token_id": "token-yes",
         "average_entry_price": 0.42,
+        "raw_sharp_count": 2,
+        "lead_sharp_count": 1,
+        "supporting_sharp_count": 1,
+        "weighted_sharp_count": 1.5,
+        "has_lead_sharp": True,
+        "lead_wallet_ids": ["0xlead"],
+        "supporting_wallet_ids": ["0xsupport"],
+        "primary_lead_wallet_id": "0xlead",
+        "category_weight_by_wallet": {"0xlead": 1.0, "0xsupport": 0.5},
         "validation_ids": {
             "event_id": "1",
             "condition_id": "condition",
@@ -167,9 +176,16 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
         "final_recommended_fraction": 0.01,
         "recommended_amount": 100,
         "recommended_units": 1,
+        "category_weighting": "Lead 1.0x, Supporting 0.5x",
     }
 
     snapshot = recommendation_snapshot(play, recommendation, 10000)
 
     assert snapshot["current_executable_entry_price"] == 0.5
     assert snapshot["sharp_average_entry_price"] == 0.42
+    assert snapshot["raw_sharp_count"] == 2
+    assert snapshot["lead_sharp_count"] == 1
+    assert snapshot["supporting_sharp_count"] == 1
+    assert snapshot["weighted_sharp_count"] == 1.5
+    assert snapshot["primary_lead_wallet_id"] == "0xlead"
+    assert snapshot["category_weight_by_wallet"]["0xsupport"] == 0.5

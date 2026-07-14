@@ -39,6 +39,18 @@ def _position(
         "shares": 100,
     }
     payload.update(overrides)
+    if not any(
+        key in overrides
+        for key in (
+            "configured_top_category",
+            "configured_top_categories",
+            "configured_top_category_ids",
+            "top_category",
+            "top_category_ids",
+        )
+    ):
+        payload["configured_top_category"] = payload["category"]
+        payload["configured_top_category_ids"] = [payload["category"]]
     return payload
 
 
@@ -561,3 +573,198 @@ def test_failed_wallets_do_not_count_toward_unanimous_consensus():
         now=_now(),
     )
     assert not_ready_plays[0]["confidence_score"] < 100
+
+
+def test_lead_sharp_is_required_and_supporting_sharps_cannot_originate():
+    lead = _position("0xa", "Lead", configured_top_category="MLB")
+    supporting = _position(
+        "0xb", "Supporting", configured_top_category="Tennis"
+    )
+    other_supporting = _position(
+        "0xc", "Other Supporting", configured_top_category="Soccer"
+    )
+    unit_map = _unit_map("0xa", "0xb", "0xc")
+
+    lead_only = build_trades_to_play([lead], unit_map=unit_map, now=_now())
+    supporting_only = build_trades_to_play(
+        [supporting], unit_map=unit_map, now=_now()
+    )
+    supporting_pair = build_trades_to_play(
+        [supporting, other_supporting], unit_map=unit_map, now=_now()
+    )
+    mixed = build_trades_to_play(
+        [lead, supporting], unit_map=unit_map, now=_now()
+    )
+
+    assert lead_only[0]["lead_sharp_count"] == 1
+    assert supporting_only == []
+    assert supporting_pair == []
+    assert mixed[0]["raw_sharp_count"] == 2
+    assert mixed[0]["lead_sharp_count"] == 1
+    assert mixed[0]["supporting_sharp_count"] == 1
+    assert mixed[0]["weighted_sharp_count"] == 1.5
+
+
+def test_missing_top_category_cannot_create_a_lead_sharp():
+    unresolved = _position(
+        "0xa",
+        "Unresolved",
+        configured_top_category=None,
+        top_category=None,
+    )
+
+    assert (
+        build_trades_to_play(
+            [unresolved], unit_map=_unit_map("0xa"), now=_now()
+        )
+        == []
+    )
+
+
+def test_supporting_wallet_keeps_raw_amount_but_uses_half_weighted_signals():
+    lead = _position(
+        "0xa", "Lead", amount=1000, configured_top_category="MLB"
+    )
+    supporting = _position(
+        "0xb", "Supporting", amount=6000, configured_top_category="Tennis"
+    )
+    play = build_trades_to_play(
+        [lead, supporting],
+        unit_map=_unit_map("0xa", "0xb"),
+        now=_now(),
+    )[0]
+    wallets = {wallet["wallet_label"]: wallet for wallet in play["supporting_wallets"]}
+
+    assert play["combined_exposure_exact"] == 7000
+    assert play["evidence_inputs"]["actual_combined_amount"] == 7000
+    assert play["evidence_inputs"]["weighted_combined_amount"] == 4000
+    assert wallets["Supporting"]["amount"] == 6000
+    assert wallets["Supporting"]["category_weight"] == 0.5
+    assert wallets["Supporting"]["weighted_amount_contribution"] == 3000
+
+
+def test_primary_trader_is_always_selected_from_lead_sharps():
+    lead = _position(
+        "0xa", "Lead", amount=1000, configured_top_category="MLB"
+    )
+    larger_supporting = _position(
+        "0xb", "Larger Supporting", amount=9000, configured_top_category="Tennis"
+    )
+    play = build_trades_to_play(
+        [lead, larger_supporting],
+        unit_map=_unit_map("0xa", "0xb"),
+        now=_now(),
+    )[0]
+
+    assert play["primary_trader"]["wallet_label"] == "Lead"
+    assert play["primary_trader"]["is_lead_sharp"] is True
+    assert {wallet["wallet_label"] for wallet in play["supporting_wallets"]} == {
+        "Lead",
+        "Larger Supporting",
+    }
+
+
+def test_lead_and_supporting_composition_controls_ranking_inside_raw_bands():
+    positions = [
+        _position("0xa", "Full A", condition_id="0xfull2", amount=1000),
+        _position("0xb", "Full B", condition_id="0xfull2", amount=1000),
+        _position("0xc", "Mixed Lead", condition_id="0xmixed2", amount=1000),
+        _position(
+            "0xd",
+            "Mixed Supporting",
+            condition_id="0xmixed2",
+            amount=1000,
+            configured_top_category="Tennis",
+        ),
+        _position("0xe", "Single Lead", condition_id="0xsingle", amount=1000),
+    ]
+    plays = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb", "0xc", "0xd", "0xe"),
+        tracked_wallet_count=6,
+        now=_now(),
+    )
+    by_market = {play["canonical_market_key"]: play for play in plays}
+
+    assert by_market["0xfull2"]["confidence_score"] > by_market["0xmixed2"][
+        "confidence_score"
+    ]
+    assert by_market["0xmixed2"]["confidence_score"] > by_market["0xsingle"][
+        "confidence_score"
+    ]
+    assert 70 <= by_market["0xmixed2"]["confidence_score"] <= 79
+
+
+def test_three_leads_rank_above_two_leads_plus_supporting():
+    positions = [
+        _position("0xa", "A", condition_id="0xfull3"),
+        _position("0xb", "B", condition_id="0xfull3"),
+        _position("0xc", "C", condition_id="0xfull3"),
+        _position("0xd", "D", condition_id="0xmixed3"),
+        _position("0xe", "E", condition_id="0xmixed3"),
+        _position(
+            "0xf",
+            "F",
+            condition_id="0xmixed3",
+            configured_top_category="Tennis",
+        ),
+    ]
+    plays = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb", "0xc", "0xd", "0xe", "0xf"),
+        tracked_wallet_count=7,
+        now=_now(),
+    )
+    by_market = {play["canonical_market_key"]: play for play in plays}
+
+    assert by_market["0xfull3"]["confidence_score"] > by_market["0xmixed3"][
+        "confidence_score"
+    ]
+    assert by_market["0xmixed3"]["confidence_score"] >= 80
+    assert by_market["0xmixed3"]["weighted_sharp_count"] == 2.5
+
+
+def test_opposing_supporting_wallet_still_excludes_the_trade():
+    lead = _position(
+        "0xa", "Lead", outcome="Yankees", configured_top_category="MLB"
+    )
+    supporting_agreement = _position(
+        "0xb",
+        "Supporting",
+        outcome="Yankees",
+        configured_top_category="Tennis",
+    )
+    opposing = _position(
+        "0xc",
+        "Opposing Supporting",
+        outcome="Red Sox",
+        configured_top_category="Soccer",
+    )
+
+    assert (
+        build_trades_to_play(
+            [lead, supporting_agreement, opposing],
+            unit_map=_unit_map("0xa", "0xb", "0xc"),
+            now=_now(),
+        )
+        == []
+    )
+
+
+def test_complete_raw_agreement_scores_one_hundred_when_a_lead_exists():
+    positions = [
+        _position("0xa", "Lead", configured_top_category="MLB"),
+        _position("0xb", "Supporting", configured_top_category="Tennis"),
+    ]
+    play = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb"),
+        tracked_wallet_count=2,
+        now=_now(),
+    )[0]
+
+    assert play["confidence_score"] == 100
+    assert play["lead_sharp_count"] == 1
+    assert play["supporting_sharp_count"] == 1
+    assert play["weighted_sharp_count"] == 1.5
+    assert play["score_breakdown"]["category_composition"] == 0.75
