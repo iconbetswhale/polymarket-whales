@@ -27,8 +27,7 @@
       <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}>Live Positions</a>
       <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}>Wallets</a>
       <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}>Position History</a>
-      <a href="/model-tracker" {% if page == 'model-tracker' %}aria-current="page"{% endif %}>Model Tracker</a>
-      <a href="/personal-tracking" {% if page == 'personal-tracking' %}aria-current="page"{% endif %}>Personal Tracking</a>
+      <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}>Tracker</a>
       <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
     </div>
     <div class="nav-status" aria-label="System status">
@@ -36,12 +35,31 @@
       <span class="status-chip"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><strong id="global-last-refresh">Waiting</strong></span>
       <button class="status-chip pause-chip" id="global-pause-refresh" type="button" data-refresh-toggle aria-pressed="false" title="Pause automatic 15-second page refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
       <a class="status-chip wallet-link" href="/wallets">Wallets <strong id="global-wallet-count">0</strong></a>
+      <button class="status-chip account-chip" id="account-open" type="button"><i class="ph ph-user-circle" aria-hidden="true"></i><strong id="account-status">Account</strong></button>
     </div>
   </nav>
   <main class="app-shell" id="main-content">
     {% block content %}{% endblock %}
   </main>
   <div class="toast" id="app-toast" role="status" aria-live="polite"></div>
+  <dialog class="tracker-dialog account-dialog" id="account-dialog" aria-labelledby="account-title">
+    <div class="tracker-dialog-shell">
+      <button class="icon-button tracker-dialog-close" id="account-close" type="button" aria-label="Close account settings"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <p class="eyebrow">ACCOUNT SYNC</p>
+      <h2 id="account-title">Keep your settings on every device</h2>
+      <p class="tracker-dialog-note" id="account-copy">Create an account or sign in to sync your saved bankroll, Personal Tracker, hidden trades, and view preferences.</p>
+      <div class="account-authenticated" id="account-authenticated" hidden>
+        <div class="account-identity"><i class="ph ph-check-circle" aria-hidden="true"></i><div><span>Signed in as</span><strong id="account-email"></strong></div></div>
+        <button class="button ghost" id="account-logout" type="button">Sign out</button>
+      </div>
+      <form id="account-form">
+        <label class="tracker-dialog-field">Email<input id="account-email-input" type="email" autocomplete="email" required></label>
+        <label class="tracker-dialog-field">Password<input id="account-password" type="password" minlength="8" autocomplete="current-password" required></label>
+        <p class="tracker-admin-error" id="account-error" role="alert" aria-live="polite"></p>
+        <div class="tracker-dialog-actions account-actions"><button class="button ghost" id="account-login" type="submit">Sign in</button><button class="button primary" id="account-register" type="button">Create account</button></div>
+      </form>
+    </div>
+  </dialog>
   <script src="{{ url_for('static', filename='app.js', v=asset_version) }}"></script>
 </body>
 </html>

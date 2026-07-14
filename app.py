@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import hashlib
@@ -15,6 +16,7 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 from bet_tracker import replay_tracker
 from config import get_settings
+from database import SettingsVersionConflict
 from personal_tracker import (
     canonical_trade_identity,
     has_complete_identity,
@@ -33,13 +35,34 @@ logging.basicConfig(
 LOGGER = logging.getLogger(__name__)
 EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
+AUTH_SESSION_COOKIE = "iconbets_session"
 ADMIN_COOKIE = "iconbets_tracker_admin"
+AUTH_SESSION_DAYS = 30
+PASSWORD_ITERATIONS = 310_000
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
 UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
 MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
 ZERO_KELLY = "ZERO_KELLY"
+
+
+def _normalize_email(value: object) -> str:
+    return str(value or "").strip().lower()
+
+
+def _valid_email(value: str) -> bool:
+    return bool(re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value))
+
+
+def _password_digest(password: str, salt: bytes, iterations: int) -> str:
+    return hashlib.pbkdf2_hmac(
+        "sha256", password.encode("utf-8"), salt, iterations
+    ).hex()
+
+
+def _session_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -202,7 +225,16 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.before_request
     def prepare_request():
-        user_id = request.cookies.get(USER_COOKIE)
+        session_token = request.cookies.get(AUTH_SESSION_COOKIE)
+        account = (
+            tracker.database.get_auth_session(_session_token_hash(session_token))
+            if session_token
+            else None
+        )
+        user_id = account.get("user_id") if account else request.cookies.get(USER_COOKIE)
+        g.iconbets_authenticated = bool(account)
+        g.iconbets_account_email = account.get("email") if account else None
+        g.iconbets_session_token = session_token if account else None
         g.iconbets_new_user = not bool(user_id)
         g.iconbets_user_id = user_id or secrets.token_urlsafe(24)
 
@@ -241,16 +273,48 @@ def create_app(start_background: bool = True) -> Flask:
             user_id,
             max_age=60 * 60 * 24 * 365,
             httponly=True,
-            secure=request.is_secure,
+            secure=request.is_secure or bool(os.getenv("VERCEL")),
             samesite="Lax",
             path="/",
         )
 
+    def set_auth_cookie(response, token: str) -> None:
+        response.set_cookie(
+            AUTH_SESSION_COOKIE,
+            token,
+            max_age=60 * 60 * 24 * AUTH_SESSION_DAYS,
+            httponly=True,
+            secure=request.is_secure or bool(os.getenv("VERCEL")),
+            samesite="Lax",
+            path="/",
+        )
+
+    def create_account_session(user_id: str) -> str:
+        token = secrets.token_urlsafe(32)
+        expires_at = (
+            datetime.now(timezone.utc) + timedelta(days=AUTH_SESSION_DAYS)
+        ).isoformat()
+        tracker.database.create_auth_session(
+            user_id, _session_token_hash(token), expires_at
+        )
+        return token
+
+    def present_user_settings(current: dict) -> dict:
+        current = dict(current)
+        current["sizing_bankroll_configured"] = bool(
+            current.get("sizing_bankroll_configured")
+        )
+        current["account_authenticated"] = bool(g.iconbets_authenticated)
+        current["account_email"] = g.iconbets_account_email
+        return current
+
     def user_settings() -> dict:
-        return tracker.database.get_or_create_user_settings(
-            g.iconbets_user_id,
-            settings.default_bankroll,
-            settings.unit_percentage,
+        return present_user_settings(
+            tracker.database.get_or_create_user_settings(
+                g.iconbets_user_id,
+                settings.default_bankroll,
+                settings.unit_percentage,
+            )
         )
 
     def public_trade(play: dict, bankroll: float) -> dict:
@@ -400,27 +464,25 @@ def create_app(start_background: bool = True) -> Flask:
             page="position-history",
         )
 
+    @app.route("/tracker")
+    def tracker_page():
+        return render_template("tracker.html", title="IconBets Tracker", page="tracker")
+
     @app.route("/model-tracker")
     def model_tracker_page():
-        return render_template(
-            "bet_tracker.html", title="IconBets Model Tracker", page="model-tracker"
-        )
+        return redirect(url_for("tracker_page", view="model"), code=301)
 
     @app.route("/personal-tracking")
     def personal_tracking_page():
-        return render_template(
-            "personal_tracking.html",
-            title="IconBets Personal Tracking",
-            page="personal-tracking",
-        )
+        return redirect(url_for("tracker_page", view="personal"), code=301)
 
     @app.route("/bet-tracker")
     def legacy_bet_tracker():
-        return redirect(url_for("model_tracker_page"), code=301)
+        return redirect(url_for("tracker_page", view="model"), code=301)
 
     @app.route("/personal-tracker")
     def legacy_personal_tracker():
-        return redirect(url_for("personal_tracking_page"), code=301)
+        return redirect(url_for("tracker_page", view="personal"), code=301)
 
     @app.route("/history")
     def legacy_history():
@@ -846,8 +908,10 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/personal-tracker")
     def api_personal_tracker():
+        current_settings = user_settings()
         replay = replay_personal_tracker(
-            tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+            tracker.database.get_personal_bet_fills(g.iconbets_user_id),
+            _safe_float(current_settings["personal_tracker_bankroll"]),
         )
         rows = replay["rows"]
         query = request.args.get("q", "").strip().lower()
@@ -903,6 +967,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": list(reversed(rows))[start : start + per_page],
                 "summary": replay["summary"],
                 "graph": graph,
+                "bankroll": current_settings,
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
@@ -935,25 +1000,134 @@ def create_app(start_background: bool = True) -> Flask:
         snapshot = tracker.get_snapshot()
         return jsonify({"data": snapshot["consensus"], "status": snapshot["status"]})
 
+    @app.route("/api/auth/session")
+    def api_auth_session():
+        return jsonify(
+            {
+                "authenticated": bool(g.iconbets_authenticated),
+                "email": g.iconbets_account_email,
+            }
+        )
+
+    @app.route("/api/auth/register", methods=["POST"])
+    def api_auth_register():
+        payload = request.get_json(silent=True) or {}
+        email = _normalize_email(payload.get("email"))
+        password = str(payload.get("password") or "")
+        if not _valid_email(email):
+            return jsonify({"error": "Enter a valid email address."}), 400
+        if len(password) < 8:
+            return jsonify({"error": "Password must be at least 8 characters."}), 400
+        salt = secrets.token_bytes(16)
+        try:
+            tracker.database.create_account(
+                g.iconbets_user_id,
+                email,
+                salt.hex(),
+                _password_digest(password, salt, PASSWORD_ITERATIONS),
+                PASSWORD_ITERATIONS,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 409
+        user_settings()
+        token = create_account_session(g.iconbets_user_id)
+        response = jsonify({"authenticated": True, "email": email})
+        g.iconbets_new_user = False
+        set_auth_cookie(response, token)
+        response.delete_cookie(USER_COOKIE, path="/")
+        return response, 201
+
+    @app.route("/api/auth/login", methods=["POST"])
+    def api_auth_login():
+        payload = request.get_json(silent=True) or {}
+        email = _normalize_email(payload.get("email"))
+        password = str(payload.get("password") or "")
+        account = tracker.database.get_account_by_email(email)
+        if account is None:
+            return jsonify({"error": "Email or password is incorrect."}), 401
+        try:
+            salt = bytes.fromhex(str(account["password_salt"]))
+            iterations = int(account["password_iterations"])
+        except (KeyError, TypeError, ValueError):
+            return jsonify({"error": "Email or password is incorrect."}), 401
+        supplied = _password_digest(password, salt, iterations)
+        if not hmac.compare_digest(supplied, str(account["password_hash"])):
+            return jsonify({"error": "Email or password is incorrect."}), 401
+        token = create_account_session(str(account["user_id"]))
+        response = jsonify({"authenticated": True, "email": account["email"]})
+        g.iconbets_new_user = False
+        set_auth_cookie(response, token)
+        response.delete_cookie(USER_COOKIE, path="/")
+        return response
+
+    @app.route("/api/auth/logout", methods=["POST"])
+    def api_auth_logout():
+        session_token = request.cookies.get(AUTH_SESSION_COOKIE)
+        if session_token:
+            tracker.database.delete_auth_session(_session_token_hash(session_token))
+        anonymous_user_id = secrets.token_urlsafe(24)
+        response = jsonify({"authenticated": False})
+        response.delete_cookie(AUTH_SESSION_COOKIE, path="/")
+        set_user_cookie(response, anonymous_user_id)
+        return response
+
     @app.route("/api/user-settings", methods=["GET", "PUT"])
     def api_user_settings():
         current = user_settings()
         if request.method == "PUT":
             payload = request.get_json(silent=True) or {}
-            bankroll = _safe_float(payload.get("starting_bankroll"), -1)
+            bankroll = _safe_float(
+                payload.get("trades_to_play_bankroll", payload.get("starting_bankroll")),
+                -1,
+            )
             if bankroll <= 0:
                 return jsonify(
                     {"error": "Starting bankroll must be greater than zero."}
                 ), 400
-            current = tracker.database.update_user_settings(
-                g.iconbets_user_id,
-                bankroll,
-                settings.unit_percentage,
-            )
-        current["unit_value"] = _safe_float(current["starting_bankroll"]) * _safe_float(
-            current["unit_percentage"]
-        )
+            expected_version = payload.get("expected_version")
+            if expected_version is not None:
+                try:
+                    expected_version = int(expected_version)
+                except (TypeError, ValueError):
+                    return jsonify({"error": "Settings version must be an integer."}), 400
+            try:
+                current = tracker.database.update_user_settings(
+                    g.iconbets_user_id,
+                    bankroll,
+                    settings.unit_percentage,
+                    expected_version,
+                )
+            except SettingsVersionConflict as exc:
+                latest = present_user_settings(exc.current)
+                latest["unit_value"] = _safe_float(
+                    latest["trades_to_play_bankroll"]
+                ) * _safe_float(latest["unit_percentage"])
+                return jsonify(
+                    {
+                        "error": "Bankroll changed in another session. Reloaded the latest saved value.",
+                        "data": latest,
+                    }
+                ), 409
+        current = present_user_settings(current)
+        current["unit_value"] = _safe_float(
+            current["trades_to_play_bankroll"]
+        ) * _safe_float(current["unit_percentage"])
         return jsonify({"data": current})
+
+    @app.route("/api/tracker-preference", methods=["PUT"])
+    def api_tracker_preference():
+        payload = request.get_json(silent=True) or {}
+        tracker_view = str(payload.get("view") or "").strip().lower()
+        if tracker_view not in {"model", "personal"}:
+            return jsonify({"error": "Tracker view must be model or personal."}), 400
+        user_settings()
+        return jsonify(
+            {
+                "data": tracker.database.update_tracker_view(
+                    g.iconbets_user_id, tracker_view
+                )
+            }
+        )
 
     @app.route("/api/model-tracker/settings", methods=["GET", "PUT"])
     @app.route("/api/bet-tracker/settings", methods=["GET", "PUT"])
@@ -969,6 +1143,21 @@ def create_app(start_background: bool = True) -> Flask:
             current = tracker.database.update_tracker_bankroll(
                 g.iconbets_user_id,
                 bankroll,
+            )
+        return jsonify({"data": current})
+
+    @app.route("/api/personal-tracker/settings", methods=["GET", "PUT"])
+    def api_personal_tracker_settings():
+        current = user_settings()
+        if request.method == "PUT":
+            payload = request.get_json(silent=True) or {}
+            bankroll = _safe_float(payload.get("personal_tracker_bankroll"), -1)
+            if bankroll <= 0:
+                return jsonify(
+                    {"error": "Personal Tracker starting bankroll must be greater than zero."}
+                ), 400
+            current = tracker.database.update_personal_tracker_bankroll(
+                g.iconbets_user_id, bankroll
             )
         return jsonify({"data": current})
 

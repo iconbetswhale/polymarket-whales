@@ -224,7 +224,9 @@ def personal_exposure_for_trade(
     return payload
 
 
-def replay_personal_tracker(fills: list[dict[str, Any]]) -> dict[str, Any]:
+def replay_personal_tracker(
+    fills: list[dict[str, Any]], starting_bankroll: float = 10_000.0
+) -> dict[str, Any]:
     rows: list[dict[str, Any]] = []
     realized_profit = 0.0
     open_exposure = 0.0
@@ -296,23 +298,43 @@ def replay_personal_tracker(fills: list[dict[str, Any]]) -> dict[str, Any]:
         key=lambda row: str(row.get("settled_at") or row.get("event_start_time") or ""),
     )
     running_profit = 0.0
-    graph = [{"timestamp": None, "profit_loss": 0.0}]
+    starting_bankroll = max(float(starting_bankroll), 0.01)
+    graph = [
+        {
+            "timestamp": None,
+            "profit_loss": 0.0,
+            "bankroll": starting_bankroll,
+        }
+    ]
     for row in settled_rows:
         running_profit += float(row["profit_loss"] or 0)
         graph.append(
             {
                 "timestamp": row.get("settled_at") or row.get("event_start_time"),
                 "profit_loss": running_profit,
+                "bankroll": starting_bankroll + running_profit,
             }
         )
+
+    peak_bankroll = starting_bankroll
+    maximum_drawdown = 0.0
+    for point in graph:
+        bankroll = float(point["bankroll"])
+        peak_bankroll = max(peak_bankroll, bankroll)
+        if peak_bankroll > 0:
+            maximum_drawdown = max(
+                maximum_drawdown, (peak_bankroll - bankroll) / peak_bankroll
+            )
 
     decisions = wins + losses
     return {
         "rows": rows,
         "graph": graph,
         "summary": {
+            "starting_bankroll": starting_bankroll,
+            "current_bankroll": starting_bankroll + realized_profit,
             "realized_profit_loss": realized_profit,
-            "roi": realized_profit / settled_wagered if settled_wagered > 0 else 0.0,
+            "roi": realized_profit / starting_bankroll,
             "total_tracked_bets": len(fills),
             "wins": wins,
             "losses": losses,
@@ -322,5 +344,6 @@ def replay_personal_tracker(fills: list[dict[str, Any]]) -> dict[str, Any]:
             "potential_payout": potential_payout,
             "total_wagered": total_wagered,
             "settled_wagered": settled_wagered,
+            "maximum_drawdown": maximum_drawdown,
         },
     }

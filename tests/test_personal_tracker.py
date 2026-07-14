@@ -132,16 +132,20 @@ def test_personal_tracker_replays_actual_shares_entries_fees_and_results():
         _trade(), "fill-3", entry_price=0.5, shares=20, fees=0, status="live"
     )
 
-    replay = replay_personal_tracker([won, lost, open_fill])
+    replay = replay_personal_tracker([won, lost, open_fill], starting_bankroll=1000)
 
     assert replay["summary"]["realized_profit_loss"] == 27
-    assert replay["summary"]["roi"] == 27 / 73
+    assert replay["summary"]["starting_bankroll"] == 1000
+    assert replay["summary"]["current_bankroll"] == 1027
+    assert replay["summary"]["roi"] == 27 / 1000
     assert replay["summary"]["wins"] == 1
     assert replay["summary"]["losses"] == 1
     assert replay["summary"]["open_exposure"] == 10
     assert replay["summary"]["potential_payout"] == 20
     assert replay["summary"]["total_wagered"] == 83
     assert replay["graph"][-1]["profit_loss"] == 27
+    assert replay["graph"][-1]["bankroll"] == 1027
+    assert replay["summary"]["maximum_drawdown"] == 32 / 1059
     assert replay["rows"][0]["profit_loss"] == 59
     assert replay["rows"][1]["profit_loss"] == -32
     assert replay["rows"][2]["profit_loss"] is None

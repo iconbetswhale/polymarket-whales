@@ -47,6 +47,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   color-scheme: dark;
   background: var(--bg);
@@ -2412,6 +2416,248 @@ td small {
 
   .segmented {
     overflow-x: auto;
+  }
+}
+
+/* Combined Tracker and account-backed bankroll controls */
+.tracker-page-header {
+  align-items: flex-end;
+  margin-bottom: 14px;
+}
+
+.tracker-subtitle {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tracker-switcher-shell {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 14px;
+}
+
+.tracker-view-toggle {
+  display: grid;
+  width: min(100%, 620px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px;
+  padding: 5px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(15, 30, 38, 0.94), rgba(7, 16, 22, 0.96));
+  box-shadow: var(--inner-highlight), var(--shadow-low);
+}
+
+.tracker-view-toggle button {
+  display: flex;
+  min-height: 58px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 18px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: transform var(--motion-fast) var(--ease-out), border-color var(--motion-fast) ease, background var(--motion-fast) ease, box-shadow var(--motion-fast) ease, color var(--motion-fast) ease;
+}
+
+.tracker-view-toggle button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.tracker-view-toggle button[aria-selected="true"] {
+  border-color: rgba(91, 215, 255, 0.7);
+  background: linear-gradient(145deg, rgba(37, 184, 236, 0.18), rgba(81, 223, 137, 0.08));
+  color: var(--text);
+  box-shadow: 0 0 0 1px rgba(37, 184, 236, 0.12), 0 9px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  transform: translateY(-1px);
+}
+
+.tracker-view-toggle button > i {
+  color: var(--cyan-bright);
+  font-size: 22px;
+}
+
+.tracker-view-toggle button > span {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+}
+
+.tracker-view-toggle strong {
+  font-family: var(--font-display);
+  font-size: 16px;
+  line-height: 1.2;
+}
+
+.tracker-view-toggle small {
+  color: var(--muted);
+  font-size: 9px;
+}
+
+.tracker-context {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+}
+
+.tracker-context > i {
+  color: var(--cyan);
+  font-size: 24px;
+}
+
+.tracker-context strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.tracker-context p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.tracker-loading-state {
+  display: grid;
+  width: 100%;
+  min-height: 150px;
+  align-content: center;
+  gap: 9px;
+  padding: 24px;
+}
+
+.tracker-loading-state span {
+  display: block;
+  width: 100%;
+  height: 11px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, rgba(86, 129, 145, 0.08), rgba(91, 215, 255, 0.18), rgba(86, 129, 145, 0.08));
+  background-size: 220% 100%;
+  animation: tracker-loading 1.2s linear infinite;
+}
+
+.tracker-loading-state span:nth-child(2) {
+  width: 78%;
+}
+
+.tracker-loading-state span:nth-child(3) {
+  width: 56%;
+}
+
+.metric-loading {
+  grid-column: 1 / -1;
+  min-height: 110px;
+}
+
+@keyframes tracker-loading {
+  to { background-position: -220% 0; }
+}
+
+.account-chip i {
+  color: var(--cyan);
+}
+
+.account-dialog .tracker-dialog-shell {
+  width: min(430px, calc(100vw - 28px));
+}
+
+.account-authenticated {
+  display: grid;
+  gap: 16px;
+}
+
+.account-identity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1px solid rgba(81, 223, 137, 0.25);
+  border-radius: 8px;
+  background: var(--green-soft);
+}
+
+.account-identity > i {
+  color: var(--green);
+  font-size: 24px;
+}
+
+.account-identity > div {
+  display: grid;
+}
+
+.account-identity span {
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.account-identity strong {
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+
+.account-actions .button {
+  flex: 1;
+}
+
+.save-state[data-state="saved"] {
+  color: var(--green);
+}
+
+.save-state[data-state="saving"],
+.save-state[data-state="unsaved"],
+.save-state[data-state="default"] {
+  color: var(--amber);
+}
+
+.save-state[data-state="error"] {
+  color: var(--red);
+}
+
+.bankroll-loading {
+  opacity: 0.68;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tracker-loading-state span {
+    animation: none;
+  }
+}
+
+@media (max-width: 680px) {
+  .tracker-page-header {
+    align-items: stretch;
+  }
+
+  .tracker-view-toggle button {
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .tracker-view-toggle button > i {
+    display: none;
+  }
+
+  .tracker-view-toggle strong {
+    font-size: 14px;
+  }
+
+  .tracker-view-toggle small {
+    font-size: 8px;
+  }
+
+  .tracker-context {
+    align-items: flex-start;
+  }
+
+  .tracker-context p {
+    font-size: 10px;
   }
 }
 

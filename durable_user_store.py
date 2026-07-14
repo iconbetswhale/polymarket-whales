@@ -45,10 +45,38 @@ class PostgresUserStore:
             CREATE TABLE IF NOT EXISTS user_settings (
                 user_id TEXT PRIMARY KEY,
                 starting_bankroll DOUBLE PRECISION NOT NULL,
+                trades_to_play_bankroll DOUBLE PRECISION NOT NULL,
+                sizing_bankroll_configured BOOLEAN NOT NULL DEFAULT FALSE,
                 tracker_bankroll DOUBLE PRECISION NOT NULL,
+                personal_tracker_bankroll DOUBLE PRECISION NOT NULL,
+                tracker_view TEXT NOT NULL DEFAULT 'model',
+                settings_version INTEGER NOT NULL DEFAULT 1,
                 unit_percentage DOUBLE PRECISION NOT NULL,
                 updated_at TEXT NOT NULL
             )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS user_accounts (
+                user_id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                password_salt TEXT NOT NULL,
+                password_hash TEXT NOT NULL,
+                password_iterations INTEGER NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS auth_sessions (
+                token_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                expires_at TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
+                ON auth_sessions(user_id, expires_at)
             """,
             """
             CREATE TABLE IF NOT EXISTS bet_tracker (
@@ -175,11 +203,66 @@ class PostgresUserStore:
             )
             conn.execute(
                 """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS trades_to_play_bankroll DOUBLE PRECISION
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS sizing_bankroll_configured BOOLEAN
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS personal_tracker_bankroll DOUBLE PRECISION
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS tracker_view TEXT
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS settings_version INTEGER
+                """
+            )
+            conn.execute(
+                """
                 UPDATE user_settings
                 SET tracker_bankroll = starting_bankroll
                 WHERE tracker_bankroll IS NULL
                 """
             )
+            conn.execute(
+                """
+                UPDATE user_settings
+                SET trades_to_play_bankroll = starting_bankroll,
+                    sizing_bankroll_configured = TRUE,
+                    personal_tracker_bankroll = COALESCE(
+                        personal_tracker_bankroll, starting_bankroll
+                    ),
+                    tracker_view = COALESCE(tracker_view, 'model'),
+                    settings_version = COALESCE(settings_version, 1)
+                WHERE trades_to_play_bankroll IS NULL
+                   OR sizing_bankroll_configured IS NULL
+                   OR personal_tracker_bankroll IS NULL
+                   OR tracker_view IS NULL
+                   OR settings_version IS NULL
+                """
+            )
+            for statement in (
+                "ALTER TABLE user_settings ALTER COLUMN trades_to_play_bankroll SET NOT NULL",
+                "ALTER TABLE user_settings ALTER COLUMN sizing_bankroll_configured SET NOT NULL",
+                "ALTER TABLE user_settings ALTER COLUMN personal_tracker_bankroll SET NOT NULL",
+                "ALTER TABLE user_settings ALTER COLUMN tracker_view SET NOT NULL",
+                "ALTER TABLE user_settings ALTER COLUMN settings_version SET NOT NULL",
+            ):
+                conn.execute(statement)
             invalid_rows: list[tuple[str, str]] = []
             rows = conn.execute(
                 "SELECT user_id, dedupe_key, snapshot_json FROM bet_tracker"
@@ -209,14 +292,18 @@ class PostgresUserStore:
             conn.execute(
                 """
                 INSERT INTO user_settings (
-                    user_id, starting_bankroll, tracker_bankroll,
+                    user_id, starting_bankroll, trades_to_play_bankroll,
+                    sizing_bankroll_configured, tracker_bankroll,
+                    personal_tracker_bankroll, tracker_view, settings_version,
                     unit_percentage, updated_at
                 )
-                VALUES (%s, %s, %s, %s, %s)
+                VALUES (%s, %s, %s, FALSE, %s, %s, 'model', 1, %s, %s)
                 ON CONFLICT (user_id) DO NOTHING
                 """,
                 (
                     user_id,
+                    default_bankroll,
+                    default_bankroll,
                     default_bankroll,
                     default_bankroll,
                     unit_percentage,
@@ -225,8 +312,10 @@ class PostgresUserStore:
             )
             row = conn.execute(
                 """
-                SELECT user_id, starting_bankroll, tracker_bankroll,
-                       unit_percentage, updated_at
+                SELECT user_id, starting_bankroll, trades_to_play_bankroll,
+                       sizing_bankroll_configured, tracker_bankroll,
+                       personal_tracker_bankroll, tracker_view,
+                       settings_version, unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = %s
                 """,
@@ -235,32 +324,47 @@ class PostgresUserStore:
         return dict(row)
 
     def update_user_settings(
-        self, user_id: str, starting_bankroll: float, unit_percentage: float
+        self,
+        user_id: str,
+        starting_bankroll: float,
+        unit_percentage: float,
+        expected_version: int | None = None,
     ) -> dict:
+        from database import SettingsVersionConflict
+
+        self.get_or_create_user_settings(user_id, starting_bankroll, unit_percentage)
         now = datetime.now(timezone.utc).isoformat()
         with self.connection() as conn:
+            version_sql = " AND settings_version = %s" if expected_version is not None else ""
+            values: list[Any] = [
+                starting_bankroll,
+                starting_bankroll,
+                unit_percentage,
+                now,
+                user_id,
+            ]
+            if expected_version is not None:
+                values.append(expected_version)
             row = conn.execute(
-                """
-                INSERT INTO user_settings (
-                    user_id, starting_bankroll, tracker_bankroll,
-                    unit_percentage, updated_at
-                )
-                VALUES (%s, %s, %s, %s, %s)
-                ON CONFLICT (user_id) DO UPDATE SET
-                    starting_bankroll = EXCLUDED.starting_bankroll,
-                    unit_percentage = EXCLUDED.unit_percentage,
-                    updated_at = EXCLUDED.updated_at
-                RETURNING user_id, starting_bankroll, tracker_bankroll,
-                          unit_percentage, updated_at
+                f"""
+                UPDATE user_settings
+                SET starting_bankroll = %s, trades_to_play_bankroll = %s,
+                    sizing_bankroll_configured = TRUE,
+                    unit_percentage = %s, updated_at = %s,
+                    settings_version = settings_version + 1
+                WHERE user_id = %s{version_sql}
+                RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
+                          sizing_bankroll_configured, tracker_bankroll,
+                          personal_tracker_bankroll, tracker_view,
+                          settings_version, unit_percentage, updated_at
                 """,
-                (
-                    user_id,
-                    starting_bankroll,
-                    starting_bankroll,
-                    unit_percentage,
-                    now,
-                ),
+                values,
             ).fetchone()
+            if row is None:
+                current = conn.execute(
+                    "SELECT * FROM user_settings WHERE user_id = %s", (user_id,)
+                ).fetchone()
+                raise SettingsVersionConflict(dict(current))
         return dict(row)
 
     def update_tracker_bankroll(self, user_id: str, tracker_bankroll: float) -> dict:
@@ -269,12 +373,57 @@ class PostgresUserStore:
             row = conn.execute(
                 """
                 UPDATE user_settings
-                SET tracker_bankroll = %s, updated_at = %s
+                SET tracker_bankroll = %s, updated_at = %s,
+                    settings_version = settings_version + 1
                 WHERE user_id = %s
-                RETURNING user_id, starting_bankroll, tracker_bankroll,
-                          unit_percentage, updated_at
+                RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
+                          sizing_bankroll_configured, tracker_bankroll,
+                          personal_tracker_bankroll, tracker_view,
+                          settings_version, unit_percentage, updated_at
                 """,
                 (tracker_bankroll, now, user_id),
+            ).fetchone()
+        if row is None:
+            raise LookupError(f"User settings not found for {user_id}")
+        return dict(row)
+
+    def update_personal_tracker_bankroll(
+        self, user_id: str, personal_tracker_bankroll: float
+    ) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE user_settings
+                SET personal_tracker_bankroll = %s, updated_at = %s,
+                    settings_version = settings_version + 1
+                WHERE user_id = %s
+                RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
+                          sizing_bankroll_configured, tracker_bankroll,
+                          personal_tracker_bankroll, tracker_view,
+                          settings_version, unit_percentage, updated_at
+                """,
+                (personal_tracker_bankroll, now, user_id),
+            ).fetchone()
+        if row is None:
+            raise LookupError(f"User settings not found for {user_id}")
+        return dict(row)
+
+    def update_tracker_view(self, user_id: str, tracker_view: str) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE user_settings
+                SET tracker_view = %s, updated_at = %s,
+                    settings_version = settings_version + 1
+                WHERE user_id = %s
+                RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
+                          sizing_bankroll_configured, tracker_bankroll,
+                          personal_tracker_bankroll, tracker_view,
+                          settings_version, unit_percentage, updated_at
+                """,
+                (tracker_view, now, user_id),
             ).fetchone()
         if row is None:
             raise LookupError(f"User settings not found for {user_id}")
@@ -284,12 +433,88 @@ class PostgresUserStore:
         with self.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT user_id, starting_bankroll, tracker_bankroll,
-                       unit_percentage, updated_at
+                SELECT user_id, starting_bankroll, trades_to_play_bankroll,
+                       sizing_bankroll_configured, tracker_bankroll,
+                       personal_tracker_bankroll, tracker_view,
+                       settings_version, unit_percentage, updated_at
                 FROM user_settings
                 """
             ).fetchall()
         return [dict(row) for row in rows]
+
+    def create_account(
+        self,
+        user_id: str,
+        email: str,
+        password_salt: str,
+        password_hash: str,
+        password_iterations: int,
+    ) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            with self.connection() as conn:
+                row = conn.execute(
+                    """
+                    INSERT INTO user_accounts (
+                        user_id, email, password_salt, password_hash,
+                        password_iterations, created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    RETURNING *
+                    """,
+                    (
+                        user_id,
+                        email,
+                        password_salt,
+                        password_hash,
+                        password_iterations,
+                        now,
+                        now,
+                    ),
+                ).fetchone()
+        except Exception as exc:
+            if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                raise ValueError("An account already exists for that email.") from exc
+            raise
+        return dict(row)
+
+    def get_account_by_email(self, email: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM user_accounts WHERE LOWER(email) = LOWER(%s)",
+                (email,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def create_auth_session(
+        self, user_id: str, token_hash: str, expires_at: str
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO auth_sessions (token_hash, user_id, expires_at, created_at)
+                VALUES (%s, %s, %s, %s)
+                """,
+                (token_hash, user_id, expires_at, now),
+            )
+
+    def get_auth_session(self, token_hash: str) -> dict | None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT a.user_id, a.email, s.expires_at
+                FROM auth_sessions s
+                JOIN user_accounts a ON a.user_id = s.user_id
+                WHERE s.token_hash = %s AND s.expires_at > %s
+                """,
+                (token_hash, now),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def delete_auth_session(self, token_hash: str) -> None:
+        with self.connection() as conn:
+            conn.execute("DELETE FROM auth_sessions WHERE token_hash = %s", (token_hash,))
 
     def promote_tracker_records_to_global(self, global_user_id: str) -> int:
         with self.connection() as conn:

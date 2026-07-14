@@ -9,6 +9,14 @@ const appState = {
   personalTradeId: null,
   trackerDiagnostics: null,
   trackerBankroll: null,
+  personalTrackerBankroll: null,
+  trackerView: null,
+  trackerCache: { model: null, personal: null },
+  trackerPage: { model: 1, personal: 1 },
+  userSettings: null,
+  sizingBankrollDirty: false,
+  bankrollSavePending: false,
+  account: { authenticated: false, email: null },
   appliedEntryPriceFilters: { minEntryCents: "", maxEntryCents: "" },
 };
 
@@ -182,7 +190,12 @@ async function fetchJson(url, options = {}) {
     ...options,
   });
   const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload.error || `Request failed (${response.status})`);
+  if (!response.ok) {
+    const error = new Error(payload.error || `Request failed (${response.status})`);
+    error.status = response.status;
+    error.payload = payload;
+    throw error;
+  }
   return payload;
 }
 
@@ -235,6 +248,95 @@ async function loadGlobalStatus() {
   } catch (error) {
     updateGlobalStatus({ api_status: "error" });
   }
+}
+
+function renderAccountState(account = {}) {
+  appState.account = {
+    authenticated: Boolean(account.authenticated),
+    email: account.email || null,
+  };
+  const status = document.getElementById("account-status");
+  const form = document.getElementById("account-form");
+  const authenticated = document.getElementById("account-authenticated");
+  const email = document.getElementById("account-email");
+  if (status) status.textContent = appState.account.authenticated ? "Synced" : "Account";
+  if (form) form.hidden = appState.account.authenticated;
+  if (authenticated) authenticated.hidden = !appState.account.authenticated;
+  if (email) email.textContent = appState.account.email || "";
+}
+
+async function loadAccountState() {
+  try {
+    renderAccountState(await fetchJson("/api/auth/session"));
+  } catch (_error) {
+    renderAccountState({ authenticated: false });
+  }
+}
+
+function openAccountDialog() {
+  const dialog = document.getElementById("account-dialog");
+  if (!dialog) return;
+  document.getElementById("account-error").textContent = "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  if (!appState.account.authenticated) document.getElementById("account-email-input")?.focus();
+}
+
+function closeAccountDialog() {
+  const dialog = document.getElementById("account-dialog");
+  if (!dialog) return;
+  document.getElementById("account-form")?.reset();
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function submitAccount(mode) {
+  const form = document.getElementById("account-form");
+  const error = document.getElementById("account-error");
+  const buttons = form.querySelectorAll("button");
+  if (!form.reportValidity()) return;
+  buttons.forEach((button) => { button.disabled = true; });
+  error.textContent = "";
+  try {
+    const account = await fetchJson(`/api/auth/${mode}`, {
+      method: "POST",
+      body: JSON.stringify({
+        email: document.getElementById("account-email-input").value,
+        password: document.getElementById("account-password").value,
+      }),
+    });
+    renderAccountState(account);
+    closeAccountDialog();
+    showToast(mode === "register" ? "Account created. Your settings are now synced." : "Signed in. Your synced settings are loaded.", "success");
+    window.location.reload();
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+function bindAccount() {
+  document.getElementById("account-open")?.addEventListener("click", openAccountDialog);
+  document.getElementById("account-close")?.addEventListener("click", closeAccountDialog);
+  document.getElementById("account-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeAccountDialog();
+  });
+  document.getElementById("account-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    submitAccount("login");
+  });
+  document.getElementById("account-register")?.addEventListener("click", () => submitAccount("register"));
+  document.getElementById("account-logout")?.addEventListener("click", async () => {
+    try {
+      await fetchJson("/api/auth/logout", { method: "POST" });
+      showToast("Signed out. This browser now uses a new private profile.", "success");
+      window.location.reload();
+    } catch (error) {
+      showToast(error.message, "error");
+    }
+  });
+  loadAccountState();
 }
 
 function metricCard(label, value, detail, icon) {
@@ -883,7 +985,7 @@ async function removePersonalFill(fillId) {
   try {
     await fetchJson(`/api/personal-bets/${encodeURIComponent(fillId)}`, { method: "DELETE" });
     showToast("Personal fill removed from active exposure", "success");
-    if (page === "personal-tracking") await loadPersonalTracker();
+    if (page === "tracker" && appState.trackerView === "personal") await loadPersonalTracker();
     else await loadTrades();
   } catch (error) {
     showToast(error.message, "error");
@@ -976,6 +1078,43 @@ function selectTrade(id, scroll = false) {
   if (scroll && window.innerWidth < 980) document.getElementById("trade-detail").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function applySizingBankroll(settings, { forceInput = false } = {}) {
+  if (!settings) return;
+  appState.userSettings = settings;
+  const bankroll = number(settings.trades_to_play_bankroll ?? settings.starting_bankroll);
+  const input = document.getElementById("bankroll-input");
+  const button = document.getElementById("save-bankroll");
+  const state = document.getElementById("bankroll-save-state");
+  if (input) {
+    input.disabled = false;
+    input.closest(".money-input")?.classList.remove("bankroll-loading");
+    if (forceInput || !appState.sizingBankrollDirty) input.value = bankroll === null ? "" : bankroll.toFixed(2);
+  }
+  if (button) button.disabled = false;
+  if (bankroll !== null) {
+    document.getElementById("unit-value").textContent = formatMoney(bankroll * Number(settings.unit_percentage || 0.01));
+  }
+  if (state && !appState.sizingBankrollDirty) {
+    state.textContent = settings.sizing_bankroll_configured
+      ? settings.account_authenticated ? "Saved to your account" : "Saved to this browser - sign in to sync"
+      : "Configured default - save to make permanent";
+    state.dataset.state = settings.sizing_bankroll_configured ? "saved" : "default";
+  }
+}
+
+async function loadSizingBankroll() {
+  const input = document.getElementById("bankroll-input");
+  const button = document.getElementById("save-bankroll");
+  if (input) input.disabled = true;
+  if (button) button.disabled = true;
+  try {
+    const payload = await fetchJson("/api/user-settings");
+    applySizingBankroll(payload.data, { forceInput: true });
+  } catch (error) {
+    document.getElementById("bankroll-save-state").textContent = `Could not load saved bankroll: ${error.message}`;
+  }
+}
+
 async function loadTrades() {
   const list = document.getElementById("trade-list");
   const filters = readTradeControls();
@@ -984,6 +1123,7 @@ async function loadTrades() {
   try {
     const payload = await fetchJson(`/api/trades-to-play?${query.toString()}`);
     appState.trades = payload.data || [];
+    if (payload.bankroll) applySizingBankroll(payload.bankroll);
     updateGlobalStatus(payload.status);
     document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
     document.getElementById("trade-result-count").textContent = `${payload.pagination.total} result${payload.pagination.total === 1 ? "" : "s"}`;
@@ -1054,10 +1194,6 @@ async function loadTrades() {
       });
     });
     selectTrade(appState.selectedTradeId);
-    if (payload.bankroll) {
-      document.getElementById("bankroll-input").value = Number(payload.bankroll.starting_bankroll).toFixed(0);
-      document.getElementById("unit-value").textContent = formatMoney(payload.bankroll.starting_bankroll * payload.bankroll.unit_percentage);
-    }
   } catch (error) {
     list.innerHTML = errorState(error.message);
     document.getElementById("trade-detail").innerHTML = errorState(error.message);
@@ -1070,16 +1206,38 @@ async function saveBankroll() {
   const bankroll = Number(input.value);
   if (!(bankroll > 0)) {
     state.textContent = "Enter an amount greater than zero";
+    state.dataset.state = "error";
     return;
   }
+  if (appState.bankrollSavePending) return;
+  appState.bankrollSavePending = true;
+  const button = document.getElementById("save-bankroll");
+  button.disabled = true;
   state.textContent = "Saving...";
+  state.dataset.state = "saving";
   try {
-    const payload = await fetchJson("/api/user-settings", { method: "PUT", body: JSON.stringify({ starting_bankroll: bankroll }) });
-    document.getElementById("unit-value").textContent = formatMoney(payload.data.unit_value);
+    const payload = await fetchJson("/api/user-settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        trades_to_play_bankroll: bankroll,
+        expected_version: appState.userSettings?.settings_version,
+      }),
+    });
+    appState.sizingBankrollDirty = false;
+    applySizingBankroll(payload.data, { forceInput: true });
     state.textContent = "Saved";
+    state.dataset.state = "saved";
     await loadTrades();
   } catch (error) {
-    state.textContent = error.message;
+    if (error.status === 409 && error.payload?.data) {
+      appState.sizingBankrollDirty = false;
+      applySizingBankroll(error.payload.data, { forceInput: true });
+    }
+    state.textContent = `Save failed: ${error.message}`;
+    state.dataset.state = "error";
+  } finally {
+    appState.bankrollSavePending = false;
+    button.disabled = false;
   }
 }
 
@@ -1140,6 +1298,12 @@ function bindTrades() {
     });
   });
   document.getElementById("save-bankroll").addEventListener("click", saveBankroll);
+  document.getElementById("bankroll-input").addEventListener("input", () => {
+    appState.sizingBankrollDirty = true;
+    const state = document.getElementById("bankroll-save-state");
+    state.textContent = "Unsaved changes";
+    state.dataset.state = "unsaved";
+  });
   document.getElementById("bankroll-input").addEventListener("keydown", (event) => { if (event.key === "Enter") saveBankroll(); });
   document.getElementById("personal-tracker-close")?.addEventListener("click", closePersonalTracker);
   document.getElementById("personal-tracker-dismiss")?.addEventListener("click", closePersonalTracker);
@@ -1170,7 +1334,7 @@ function bindTrades() {
       button.classList.remove("spinning");
     }
   });
-  if (validateSharePriceControls()) loadTrades();
+  if (validateSharePriceControls()) loadSizingBankroll().finally(loadTrades);
 }
 
 function positionRow(row) {
@@ -1374,7 +1538,7 @@ function renderTrackerDiagnostics(diagnostics = {}) {
   renderTrackerState(diagnostics);
   const panel = document.getElementById("tracker-diagnostics");
   if (!panel) return;
-  panel.hidden = false;
+  panel.hidden = appState.trackerView !== "model";
   document.getElementById("tracker-diagnostic-grid").innerHTML = [
     metricCard("Last successful run", formatDateTime(diagnostics.last_successful_run, "Never"), "Most recent completed backend job", "ph-check-circle"),
     metricCard("Evaluated", String(diagnostics.recommendations_evaluated || 0), "Today recommendations checked", "ph-magnifying-glass"),
@@ -1478,45 +1642,6 @@ async function loadTrackerDiagnostics(showLogin = false) {
   renderTrackerDiagnostics(payload.data || {});
 }
 
-async function loadTracker() {
-  const params = new URLSearchParams({
-    q: document.getElementById("tracker-search").value,
-    status: document.getElementById("tracker-status").value,
-    min_sharps: document.getElementById("tracker-sharps").value,
-    result: document.getElementById("tracker-result").value,
-    graph_range: appState.graphRange,
-    page: String(appState.pageNumber),
-    per_page: "50",
-  });
-  const body = document.getElementById("tracker-body");
-  try {
-    const payload = await fetchJson(`/api/model-tracker?${params.toString()}`);
-    const summary = payload.summary || {};
-    appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
-    document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
-    document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
-    renderTrackerState(payload.tracking || {});
-    document.getElementById("tracker-metrics").innerHTML = [
-      metricCard("Current Bankroll", formatMoney(summary.current_bankroll), "Replayed from frozen stake percentages", "ph-vault"),
-      metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled bets only", "ph-chart-line"),
-      metricCard("ROI", formatPercent(summary.roi), "Realized return on starting bankroll", "ph-percent"),
-      metricCard("Tracked Bets", String(summary.total_tracked_bets || 0), "Immutable recommendation snapshots", "ph-list-checks"),
-      metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes or voids`, "ph-trophy"),
-      metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved wins and losses", "ph-target"),
-      metricCard("Open Exposure", formatMoney(summary.open_exposure), "Not included in realized P/L", "ph-lock-open"),
-      metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
-    ].join("");
-    body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${trackerEmptyState()}</td></tr>`;
-    drawTrackerChart(payload.graph);
-    const pagination = document.getElementById("tracker-pagination");
-    pagination.innerHTML = paginationMarkup(payload.pagination);
-    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadTracker(); }));
-    if (!document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
-  } catch (error) {
-    body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
-  }
-}
-
 function personalTrackerRow(row) {
   const status = String(row.status || "unresolved").toLowerCase();
   const pnl = number(row.profit_loss);
@@ -1542,86 +1667,270 @@ function personalTrackerRow(row) {
 }
 
 function drawPersonalTrackerChart(graph, hasTrackedBets) {
-  const container = document.getElementById("personal-chart");
+  const container = document.getElementById("tracker-chart");
   if (!hasTrackedBets) {
-    container.innerHTML = emptyState("No personal results yet", "Track a trade from the Today tab to begin your personal P&L history.");
+    container.innerHTML = emptyState("No personal results yet", "Track a trade from Trades to Play to begin your private bankroll history.");
     return;
   }
   const points = (graph || [])
-    .map((point, index) => ({ timestamp: point.timestamp || index, value: Number(point.profit_loss) }))
+    .map((point, index) => ({ timestamp: point.timestamp || index, value: Number(point.bankroll) }))
     .filter((point) => Number.isFinite(point.value));
-  drawLineChart(container, points, { format: (value) => formatMoney(value) });
+  drawLineChart(container, points, { format: (value) => formatCompactMoney(value) });
+}
+
+function renderModelTracker(payload) {
+  if (appState.trackerView !== "model") return;
+  const summary = payload.summary || {};
+  appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
+  document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
+  document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
+  renderTrackerState(payload.tracking || {});
+  document.getElementById("tracker-metrics").innerHTML = [
+    metricCard("Starting Bankroll", formatMoney(summary.starting_bankroll), "Model replay baseline", "ph-bank"),
+    metricCard("Current Bankroll", formatMoney(summary.current_bankroll), "Replayed from frozen stake percentages", "ph-vault"),
+    metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled Model bets only", "ph-chart-line"),
+    metricCard("ROI", formatPercent(summary.roi), "Realized return on Model bankroll", "ph-percent"),
+    metricCard("Model Bets", String(summary.total_tracked_bets || 0), "Immutable recommendation snapshots", "ph-list-checks"),
+    metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes or voids`, "ph-trophy"),
+    metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved Model wins and losses", "ph-target"),
+    metricCard("Open Exposure", formatMoney(summary.open_exposure), "Not included in realized P/L", "ph-lock-open"),
+    metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
+  ].join("");
+  const body = document.getElementById("tracker-body");
+  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${trackerEmptyState()}</td></tr>`;
+  drawTrackerChart(payload.graph);
+  renderTrackerPagination(payload.pagination, "model");
+}
+
+function renderPersonalTracker(payload) {
+  if (appState.trackerView !== "personal") return;
+  const summary = payload.summary || {};
+  appState.personalTrackerBankroll = payload.bankroll?.personal_tracker_bankroll ?? summary.starting_bankroll;
+  document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
+  document.getElementById("personal-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
+  document.getElementById("tracker-metrics").innerHTML = [
+    metricCard("Starting Bankroll", formatMoney(summary.starting_bankroll), "Personal performance baseline", "ph-bank"),
+    metricCard("Current Bankroll", formatMoney(summary.current_bankroll), "Starting bankroll plus realized P/L", "ph-vault"),
+    metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled personal trades after fees", "ph-chart-line"),
+    metricCard("ROI", formatPercent(summary.roi), "Return on Personal starting bankroll", "ph-percent"),
+    metricCard("Personal Bets", String(summary.total_tracked_bets || 0), "Manual confirmed purchases only", "ph-list-checks"),
+    metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes, voids, or canceled`, "ph-trophy"),
+    metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved personal wins and losses", "ph-target"),
+    metricCard("Open Exposure", formatMoney(summary.open_exposure), "Amount paid on unresolved trades", "ph-lock-open"),
+    metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough personal decline", "ph-trend-down"),
+  ].join("");
+  const body = document.getElementById("tracker-body");
+  body.innerHTML = payload.data.length
+    ? payload.data.map(personalTrackerRow).join("")
+    : `<tr><td colspan="10"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Trades to Play card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Trades to Play</a></div></td></tr>`;
+  body.querySelectorAll("[data-personal-fill-remove]").forEach((button) => {
+    button.addEventListener("click", () => removePersonalFill(button.dataset.personalFillRemove));
+  });
+  drawPersonalTrackerChart(payload.graph, Number(summary.total_tracked_bets || 0) > 0);
+  renderTrackerPagination(payload.pagination, "personal");
+}
+
+function renderTrackerPagination(pagination, view) {
+  const container = document.getElementById("tracker-pagination");
+  container.innerHTML = paginationMarkup(pagination);
+  container.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => {
+    appState.trackerPage[view] = Number(button.dataset.page);
+    loadTrackerView();
+  }));
+}
+
+function trackerRequestParams(view) {
+  const params = {
+    q: document.getElementById("tracker-search").value,
+    status: document.getElementById("tracker-status").value,
+    result: document.getElementById("tracker-result").value,
+    graph_range: appState.graphRange,
+    page: String(appState.trackerPage[view]),
+    per_page: "50",
+  };
+  if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
+  return new URLSearchParams(params);
+}
+
+async function loadTracker() {
+  try {
+    const payload = await fetchJson(`/api/model-tracker?${trackerRequestParams("model").toString()}`);
+    appState.trackerCache.model = payload;
+    renderModelTracker(payload);
+    if (appState.trackerView === "model" && !document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
+  } catch (error) {
+    if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="10">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
+  }
 }
 
 async function loadPersonalTracker() {
   const params = new URLSearchParams({
-    q: document.getElementById("personal-search").value,
-    status: document.getElementById("personal-status").value,
-    result: document.getElementById("personal-result").value,
-    graph_range: appState.graphRange,
-    page: String(appState.pageNumber),
-    per_page: "50",
+    ...Object.fromEntries(trackerRequestParams("personal")),
   });
-  const body = document.getElementById("personal-tracker-body");
   try {
     const payload = await fetchJson(`/api/personal-tracker?${params.toString()}`);
-    const summary = payload.summary || {};
-    document.getElementById("personal-result-count").textContent = `${payload.pagination.total} tracked`;
-    document.getElementById("personal-metrics").innerHTML = [
-      metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled personal trades after fees", "ph-chart-line"),
-      metricCard("ROI", formatPercent(summary.roi), "Return on settled amount paid", "ph-percent"),
-      metricCard("Tracked Bets", String(summary.total_tracked_bets || 0), "Manual confirmed purchases only", "ph-list-checks"),
-      metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes, voids, or canceled`, "ph-trophy"),
-      metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved wins and losses", "ph-target"),
-      metricCard("Open Exposure", formatMoney(summary.open_exposure), "Amount paid on unresolved trades", "ph-lock-open"),
-      metricCard("Total Wagered", formatMoney(summary.total_wagered), "Position cost plus entered fees", "ph-coins"),
-      metricCard("Potential Payout", formatMoney(summary.potential_payout), "Open shares at $1 resolution", "ph-trend-up"),
-    ].join("");
-    body.innerHTML = payload.data.length
-      ? payload.data.map(personalTrackerRow).join("")
-      : `<tr><td colspan="10"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Today trade card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Today's Trades</a></div></td></tr>`;
-    body.querySelectorAll("[data-personal-fill-remove]").forEach((button) => {
-      button.addEventListener("click", () => removePersonalFill(button.dataset.personalFillRemove));
-    });
-    drawPersonalTrackerChart(payload.graph, Number(summary.total_tracked_bets || 0) > 0);
-    const pagination = document.getElementById("personal-pagination");
-    pagination.innerHTML = paginationMarkup(payload.pagination);
-    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => {
-      appState.pageNumber = Number(button.dataset.page);
-      loadPersonalTracker();
-    }));
+    appState.trackerCache.personal = payload;
+    renderPersonalTracker(payload);
   } catch (error) {
-    body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
+    if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="10">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
   }
 }
 
-function bindPersonalTracker() {
-  document.getElementById("personal-search").addEventListener("input", debounce(() => {
-    appState.pageNumber = 1;
-    loadPersonalTracker();
-  }));
-  ["personal-status", "personal-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => {
-    appState.pageNumber = 1;
-    loadPersonalTracker();
-  }));
-  document.querySelectorAll("#personal-graph-range button").forEach((button) => button.addEventListener("click", () => {
-    document.querySelectorAll("#personal-graph-range button").forEach((item) => item.classList.remove("active"));
-    button.classList.add("active");
-    appState.graphRange = button.dataset.range;
-    loadPersonalTracker();
-  }));
-  loadPersonalTracker();
+function loadTrackerView() {
+  return appState.trackerView === "personal" ? loadPersonalTracker() : loadTracker();
+}
+
+function configureTrackerShell(view) {
+  const model = view === "model";
+  const copy = model ? {
+    eyebrow: "SIMULATED MODEL PERFORMANCE",
+    subtitle: "Automatically tracked performance from model recommendations",
+    title: "Global recommendation ledger",
+    context: "Every eligible recommendation is frozen at its original entry, stake percentage, confidence, and Sharp evidence. Personal purchases never enter these results.",
+    icon: "ph-robot",
+    chartEyebrow: "BANKROLL REPLAY",
+    chartTitle: "Simulated Model bankroll",
+  } : {
+    eyebrow: "YOUR CONFIRMED TRADES",
+    subtitle: "Performance from bets you manually tracked",
+    title: "Your private trade log",
+    context: "Only purchases you manually confirm from Trades to Play appear here. Model recommendations never enter these totals.",
+    icon: "ph-user-focus",
+    chartEyebrow: "PERSONAL PERFORMANCE",
+    chartTitle: "Personal bankroll",
+  };
+  document.getElementById("tracker-eyebrow").textContent = copy.eyebrow;
+  document.getElementById("tracker-subtitle").textContent = copy.subtitle;
+  document.getElementById("tracker-context-title").textContent = copy.title;
+  document.getElementById("tracker-context-copy").textContent = copy.context;
+  document.getElementById("tracker-context-icon").className = `ph ${copy.icon}`;
+  document.getElementById("tracker-chart-eyebrow").textContent = copy.chartEyebrow;
+  document.getElementById("tracker-chart-title").textContent = copy.chartTitle;
+  document.getElementById("model-bankroll-control").hidden = !model;
+  document.getElementById("personal-bankroll-control").hidden = model;
+  document.getElementById("tracker-admin-open").hidden = !model;
+  document.getElementById("personal-track-action").hidden = model;
+  document.getElementById("tracker-job-state").hidden = !model;
+  document.getElementById("tracker-sharps").hidden = !model;
+  document.querySelector('#tracker-status option[value="canceled"]').hidden = model;
+  document.querySelector('#tracker-result option[value="canceled"]').hidden = model;
+  if (model && document.getElementById("tracker-status").value === "canceled") document.getElementById("tracker-status").value = "";
+  if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
+  document.getElementById("tracker-search").placeholder = model ? "Search event, market, trader" : "Search event, market, selection";
+  document.getElementById("tracker-table-head").innerHTML = model
+    ? "<th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Bankroll</th>"
+    : "<th>Event / Market</th><th>Selection</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Tracked</th><th>Action</th>";
+  document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
+  document.querySelectorAll("[data-tracker-view]").forEach((button) => {
+    const selected = button.dataset.trackerView === view;
+    button.setAttribute("aria-selected", String(selected));
+    button.tabIndex = selected ? 0 : -1;
+  });
+}
+
+async function selectTrackerView(view, { persist = true } = {}) {
+  const normalized = view === "personal" ? "personal" : "model";
+  appState.trackerView = normalized;
+  configureTrackerShell(normalized);
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", normalized);
+  window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
+  const cached = appState.trackerCache[normalized];
+  if (cached) {
+    if (normalized === "model") renderModelTracker(cached);
+    else renderPersonalTracker(cached);
+  } else {
+    document.getElementById("tracker-result-count").textContent = "Loading";
+    document.getElementById("tracker-metrics").innerHTML = '<div class="tracker-loading-state metric-loading"><span></span><span></span><span></span></div>';
+    document.getElementById("tracker-chart").innerHTML = '<div class="tracker-loading-state"><span></span><span></span><span></span></div>';
+    document.getElementById("tracker-body").innerHTML = '<tr><td colspan="10"><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr>';
+  }
+  loadTrackerView();
+  if (persist) {
+    fetchJson("/api/tracker-preference", { method: "PUT", body: JSON.stringify({ view: normalized }) }).catch(() => {});
+  }
+}
+
+function openPersonalBankrollDialog() {
+  const dialog = document.getElementById("personal-bankroll-dialog");
+  const input = document.getElementById("personal-bankroll-input");
+  document.getElementById("personal-bankroll-error").textContent = "";
+  input.value = number(appState.personalTrackerBankroll)?.toFixed(2) || "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  input.focus();
+  input.select();
+}
+
+function closePersonalBankrollDialog() {
+  const dialog = document.getElementById("personal-bankroll-dialog");
+  document.getElementById("personal-bankroll-form")?.reset();
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function savePersonalTrackerBankroll(event) {
+  event.preventDefault();
+  const form = document.getElementById("personal-bankroll-form");
+  const submit = form.querySelector('button[type="submit"]');
+  const error = document.getElementById("personal-bankroll-error");
+  const bankroll = number(document.getElementById("personal-bankroll-input").value);
+  if (bankroll === null || bankroll <= 0) {
+    error.textContent = "Enter a bankroll greater than zero.";
+    return;
+  }
+  submit.disabled = true;
+  error.textContent = "";
+  try {
+    await fetchJson("/api/personal-tracker/settings", { method: "PUT", body: JSON.stringify({ personal_tracker_bankroll: bankroll }) });
+    closePersonalBankrollDialog();
+    appState.trackerCache.personal = null;
+    await loadPersonalTracker();
+    showToast("Personal starting bankroll updated. Purchases and Model results are unchanged.", "success");
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+async function initializeTrackerView() {
+  let settings = {};
+  try {
+    settings = (await fetchJson("/api/user-settings")).data || {};
+  } catch (_error) {
+    // Tracker APIs can still load independently if settings retrieval fails.
+  }
+  const params = new URLSearchParams(window.location.search);
+  const requested = params.get("view");
+  const view = requested === null
+    ? (["model", "personal"].includes(settings.tracker_view) ? settings.tracker_view : "model")
+    : (["model", "personal"].includes(requested) ? requested : "model");
+  selectTrackerView(view, { persist: requested !== null });
 }
 
 function bindTracker() {
-  document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.pageNumber = 1; loadTracker(); }));
-  ["tracker-status", "tracker-sharps", "tracker-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.pageNumber = 1; loadTracker(); }));
+  document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");
     appState.graphRange = button.dataset.range;
-    loadTracker();
+    loadTrackerView();
   }));
+  document.querySelectorAll("[data-tracker-view]").forEach((button) => {
+    button.addEventListener("click", () => selectTrackerView(button.dataset.trackerView));
+    button.addEventListener("keydown", (event) => {
+      if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+      event.preventDefault();
+      const next = event.key === "Home" || event.key === "ArrowLeft" ? "model" : "personal";
+      selectTrackerView(next);
+      document.querySelector(`[data-tracker-view="${next}"]`).focus();
+    });
+  });
+  document.getElementById("tracker-body").addEventListener("click", (event) => {
+    if (event.target.closest(".tracker-retry")) loadTrackerView();
+  });
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
   document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);
   document.getElementById("tracker-bankroll-form")?.addEventListener("submit", saveTrackerBankroll);
@@ -1629,6 +1938,13 @@ function bindTracker() {
   document.getElementById("tracker-bankroll-dismiss")?.addEventListener("click", closeTrackerBankrollDialog);
   document.getElementById("tracker-bankroll-dialog")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closeTrackerBankrollDialog();
+  });
+  document.getElementById("personal-bankroll-edit")?.addEventListener("click", openPersonalBankrollDialog);
+  document.getElementById("personal-bankroll-form")?.addEventListener("submit", savePersonalTrackerBankroll);
+  document.getElementById("personal-bankroll-close")?.addEventListener("click", closePersonalBankrollDialog);
+  document.getElementById("personal-bankroll-dismiss")?.addEventListener("click", closePersonalBankrollDialog);
+  document.getElementById("personal-bankroll-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closePersonalBankrollDialog();
   });
   document.getElementById("tracker-admin-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -1652,6 +1968,7 @@ function bindTracker() {
     try {
       const payload = await fetchJson("/api/admin/model-tracker/reconcile", { method: "POST", body: JSON.stringify({ force: true }) });
       showToast(`Reconciled: ${payload.data.records_inserted || 0} inserted, ${payload.data.records_skipped_duplicates || 0} existing`, "success");
+      appState.trackerCache.model = null;
       await Promise.all([loadTracker(), loadTrackerDiagnostics()]);
     } catch (error) {
       showToast(error.message, "error");
@@ -1670,7 +1987,7 @@ function bindTracker() {
     }
   });
   loadTrackerDiagnostics();
-  loadTracker();
+  initializeTrackerView();
 }
 
 function bindNavigation() {
@@ -1709,21 +2026,20 @@ function refreshCurrentPage() {
   if (page === "live-positions") loadPositions();
   if (page === "wallets") loadWallets();
   if (page === "position-history") loadHistory();
-  if (page === "model-tracker") loadTracker();
-  if (page === "personal-tracking") loadPersonalTracker();
+  if (page === "tracker") loadTrackerView();
   loadGlobalStatus();
 }
 
 function initialize() {
   bindNavigation();
+  bindAccount();
   loadGlobalStatus();
   if (page === "overview") loadOverview();
   if (page === "trades") bindTrades();
   if (page === "live-positions") bindPositions();
   if (page === "wallets") bindWallets();
   if (page === "position-history") bindHistory();
-  if (page === "model-tracker") bindTracker();
-  if (page === "personal-tracking") bindPersonalTracker();
+  if (page === "tracker") bindTracker();
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
 }
 

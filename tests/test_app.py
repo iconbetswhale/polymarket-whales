@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 import pytest
 
@@ -203,9 +204,11 @@ def test_status_endpoints(app_client):
 
 
 def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
-    html = app_client.get("/model-tracker").get_data(as_text=True)
+    html = app_client.get("/tracker?view=model").get_data(as_text=True)
 
     assert "Model Tracker" in html
+    assert "Personal Tracker" in html
+    assert 'id="tracker-view-toggle"' in html
     assert 'id="tracker-job-state"' in html
     assert 'id="tracker-bankroll-edit"' in html
     assert 'id="tracker-bankroll-dialog"' in html
@@ -220,15 +223,17 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert "/static/style.css?v=local" in html
 
 
-def test_personal_tracking_page_is_separate_from_model_tracker(app_client):
-    html = app_client.get("/personal-tracking").get_data(as_text=True)
+def test_tracker_page_uses_one_shared_shell_for_both_trackers(app_client):
+    html = app_client.get("/tracker?view=personal").get_data(as_text=True)
 
-    assert "Personal Tracking" in html
-    assert 'id="personal-metrics"' in html
-    assert 'id="personal-chart"' in html
-    assert 'id="personal-tracker-body"' in html
-    assert 'href="/model-tracker"' in html
-    assert 'href="/personal-tracking"' in html
+    assert html.count('href="/tracker"') == 1
+    assert 'id="tracker-metrics"' in html
+    assert 'id="tracker-chart"' in html
+    assert 'id="tracker-body"' in html
+    assert 'id="personal-bankroll-control"' in html
+    assert 'id="model-bankroll-control"' in html
+    assert 'href="/model-tracker"' not in html
+    assert 'href="/personal-tracking"' not in html
 
 
 def test_model_tracker_history_is_shared_across_browser_users(app_client):
@@ -297,6 +302,118 @@ def test_tracker_bankroll_api_rejects_non_positive_values(app_client):
     assert "greater than zero" in response.get_json()["error"]
 
 
+def test_account_bankroll_persists_across_login_and_is_user_owned(app_client):
+    default_bankroll = app_client.application.config["SETTINGS"].default_bankroll
+    owner = app_client.application.test_client()
+    initial = owner.get("/api/user-settings").get_json()["data"]
+    saved = owner.put(
+        "/api/user-settings",
+        json={
+            "trades_to_play_bankroll": 25000,
+            "expected_version": initial["settings_version"],
+        },
+    )
+    assert saved.status_code == 200
+    assert saved.get_json()["data"]["unit_value"] == 250
+
+    registered = owner.post(
+        "/api/auth/register",
+        json={"email": "owner@example.com", "password": "strong-pass-1"},
+    )
+    assert registered.status_code == 201
+
+    another_device = app_client.application.test_client()
+    assert another_device.post(
+        "/api/auth/login",
+        json={"email": "owner@example.com", "password": "strong-pass-1"},
+    ).status_code == 200
+    synced = another_device.get("/api/user-settings").get_json()["data"]
+    assert synced["trades_to_play_bankroll"] == 25000
+    assert synced["sizing_bankroll_configured"] is True
+
+    other_account = app_client.application.test_client()
+    other_account.get("/api/user-settings")
+    assert other_account.post(
+        "/api/auth/register",
+        json={"email": "other@example.com", "password": "strong-pass-2"},
+    ).status_code == 201
+    other_settings = other_account.get("/api/user-settings").get_json()["data"]
+    assert other_settings["trades_to_play_bankroll"] == default_bankroll
+    assert other_settings["trades_to_play_bankroll"] != synced["trades_to_play_bankroll"]
+
+    assert another_device.post("/api/auth/logout").status_code == 200
+    signed_out_settings = another_device.get("/api/user-settings").get_json()["data"]
+    assert signed_out_settings["trades_to_play_bankroll"] == default_bankroll
+
+
+def test_failed_and_stale_bankroll_saves_preserve_confirmed_value(app_client):
+    app_client.set_cookie("iconbets_user", "versioned-user")
+    initial = app_client.get("/api/user-settings").get_json()["data"]
+    first = app_client.put(
+        "/api/user-settings",
+        json={
+            "trades_to_play_bankroll": 1000,
+            "expected_version": initial["settings_version"],
+        },
+    )
+    assert first.status_code == 200
+    assert first.get_json()["data"]["unit_value"] == 10
+
+    invalid = app_client.put(
+        "/api/user-settings", json={"trades_to_play_bankroll": 0}
+    )
+    stale = app_client.put(
+        "/api/user-settings",
+        json={
+            "trades_to_play_bankroll": 50000,
+            "expected_version": initial["settings_version"],
+        },
+    )
+
+    assert invalid.status_code == 400
+    assert stale.status_code == 409
+    assert stale.get_json()["data"]["trades_to_play_bankroll"] == 1000
+    current = app_client.get("/api/user-settings").get_json()["data"]
+    assert current["trades_to_play_bankroll"] == 1000
+
+
+def test_personal_bankroll_and_view_preference_are_separate_per_user(app_client):
+    first = app_client.application.test_client()
+    second = app_client.application.test_client()
+    first.set_cookie("iconbets_user", "first-preferences")
+    second.set_cookie("iconbets_user", "second-preferences")
+    first.get("/api/user-settings")
+    second.get("/api/user-settings")
+
+    assert first.put(
+        "/api/personal-tracker/settings",
+        json={"personal_tracker_bankroll": 5000},
+    ).status_code == 200
+    assert first.put(
+        "/api/tracker-preference", json={"view": "personal"}
+    ).status_code == 200
+
+    first_settings = first.get("/api/user-settings").get_json()["data"]
+    second_settings = second.get("/api/user-settings").get_json()["data"]
+    assert first_settings["personal_tracker_bankroll"] == 5000
+    assert first_settings["tracker_view"] == "personal"
+    assert second_settings["personal_tracker_bankroll"] != 5000
+    assert second_settings["tracker_view"] == "model"
+    assert first.get("/api/personal-tracker").get_json()["summary"][
+        "starting_bankroll"
+    ] == 5000
+
+
+def test_tracker_shell_script_supports_query_memory_and_keyboard_navigation():
+    script = (Path(__file__).parents[1] / "static" / "app.js").read_text()
+
+    assert 'params.get("view")' in script
+    assert 'fetchJson("/api/tracker-preference"' in script
+    assert '"ArrowLeft", "ArrowRight", "Home", "End"' in script
+    assert 'appState.trackerCache = ' not in script
+    assert 'trackerCache: { model: null, personal: null }' in script
+
+
 def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
     service = app_client.application.extensions["tracker_service"]
     app_client.set_cookie("iconbets_user", "render-user")
@@ -324,15 +441,14 @@ def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
     assert payload["data"][0]["status"] == "scheduled"
 
 
-def test_dedicated_pages_are_real_routes(app_client):
+def test_dedicated_pages_and_tracker_redirects(app_client):
     for route in (
         "/overview",
         "/trades",
         "/live-positions",
         "/wallets",
         "/position-history",
-        "/model-tracker",
-        "/personal-tracking",
+        "/tracker",
     ):
         response = app_client.get(route)
         assert response.status_code == 200
@@ -340,8 +456,16 @@ def test_dedicated_pages_are_real_routes(app_client):
 
     assert app_client.get("/").status_code == 302
     assert app_client.get("/history").status_code == 301
-    assert app_client.get("/bet-tracker").status_code == 301
-    assert app_client.get("/personal-tracker").status_code == 301
+    redirects = {
+        "/model-tracker": "/tracker?view=model",
+        "/bet-tracker": "/tracker?view=model",
+        "/personal-tracking": "/tracker?view=personal",
+        "/personal-tracker": "/tracker?view=personal",
+    }
+    for route, target in redirects.items():
+        response = app_client.get(route)
+        assert response.status_code == 301
+        assert response.headers["Location"].endswith(target)
 
 
 def test_trade_date_presets_reject_removed_modes(app_client):
@@ -434,8 +558,6 @@ def test_slippage_fraction_uses_whale_entry_as_the_percentage_baseline():
 
 
 def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):
-    import app as app_module
-
     service = app_client.application.extensions["tracker_service"]
     service._cache["trades_to_play"] = [
         _actionable_trade(),
@@ -561,8 +683,6 @@ def test_search_date_sharps_and_entry_price_filters_compose(app_client, monkeypa
 
 
 def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch):
-    import app as app_module
-
     service = app_client.application.extensions["tracker_service"]
     service._cache["trades_to_play"] = [_actionable_trade()]
     monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
@@ -597,8 +717,6 @@ def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch)
 def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
     app_client, monkeypatch
 ):
-    import app as app_module
-
     service = app_client.application.extensions["tracker_service"]
     service._cache["trades_to_play"] = [_actionable_trade()]
     monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
@@ -637,8 +755,6 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
 
 
 def test_opposing_personal_fill_requires_explicit_confirmation(app_client, monkeypatch):
-    import app as app_module
-
     service = app_client.application.extensions["tracker_service"]
     recommended = _actionable_trade()
     opposing = {

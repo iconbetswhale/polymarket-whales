@@ -35,9 +35,9 @@
   <button class="button ghost" id="clear-trade-filters" type="button">Reset filters</button>
 </section>
 <section class="bankroll-strip" aria-label="Bankroll settings">
-  <div><span>Bankroll</span><label class="money-input"><span>$</span><input id="bankroll-input" type="number" min="1" step="100" inputmode="decimal" aria-label="Starting bankroll"></label><button class="button compact" id="save-bankroll" type="button">Save</button></div>
-  <div class="unit-readout"><span>1 Unit</span><strong id="unit-value">$0.00</strong><small>1% of bankroll</small></div>
-  <span class="save-state" id="bankroll-save-state" aria-live="polite"></span>
+  <div><span>Trades to Play Bankroll</span><label class="money-input bankroll-loading"><span>$</span><input id="bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Trades to Play sizing bankroll" disabled></label><button class="button compact" id="save-bankroll" type="button" disabled>Save Bankroll</button></div>
+  <div class="unit-readout"><span>1 Unit</span><strong id="unit-value">Loading</strong><small>1% of saved bankroll</small></div>
+  <span class="save-state" id="bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
 </section>
 <section class="trade-workspace">
   <div class="trade-list-panel" aria-label="Trades to Play results"><div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div></div>
