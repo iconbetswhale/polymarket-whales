@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from config import Settings
@@ -31,6 +32,9 @@ class PartialFailureClient:
             raise RuntimeError("simulated current-position sync failure")
         if wallet_address != self.good_wallet:
             return []
+        event_time = datetime.now(timezone.utc) + timedelta(days=1)
+        event_date = event_time.date().isoformat()
+        event_time_iso = event_time.isoformat().replace("+00:00", "Z")
         return [
             {
                 "conditionId": "0x1111111111111111111111111111111111111111111111111111111111111111",
@@ -41,14 +45,14 @@ class PartialFailureClient:
                 "cashPnl": 50,
                 "realizedPnl": 0,
                 "curPrice": 0.55,
-                "title": "Will France win on 2026-07-14?",
-                "slug": "fifwc-fra-esp-2026-07-14-fra",
-                "eventSlug": "fifwc-fra-esp-2026-07-14",
+                "title": f"Will France win on {event_date}?",
+                "slug": f"fifwc-fra-esp-{event_date}-fra",
+                "eventSlug": f"fifwc-fra-esp-{event_date}",
                 "eventId": "691040",
                 "outcome": "No",
                 "oppositeOutcome": "Yes",
-                "startTime": "2026-07-14T19:00:00Z",
-                "endDate": "2026-07-14T19:00:00Z",
+                "startTime": event_time_iso,
+                "endDate": event_time_iso,
             }
         ]
 

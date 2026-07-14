@@ -36,3 +36,11 @@ def test_empty_state_heading_keeps_full_glyph_box_visible():
     assert "font-weight: 700" in empty_heading_rule
     assert "line-height: 1.2" in empty_heading_rule
     assert "text-rendering: geometricPrecision" in empty_heading_rule
+
+
+def test_trades_workspace_is_centered_and_capped_on_ultrawide_screens():
+    css = STYLE_PATH.read_text(encoding="utf-8")
+    trades_page_rule = _rule(css, ".trades-page")
+
+    assert "width: min(100%, 1520px)" in trades_page_rule
+    assert "margin-inline: auto" in trades_page_rule

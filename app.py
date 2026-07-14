@@ -19,12 +19,16 @@ from config import get_settings
 from database import SettingsVersionConflict
 from execution_providers import build_execution_provider_registry
 from personal_tracker import (
+    PERSONAL_SPORTSBOOK_CHOICES,
     canonical_trade_identity,
     has_complete_identity,
     hidden_trade_snapshot,
     identity_key,
+    normalize_personal_tags,
+    normalize_sportsbook,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    personal_tags_from_fill,
     replay_personal_tracker,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
@@ -43,6 +47,30 @@ PASSWORD_ITERATIONS = 310_000
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
+
+
+def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
+    used_sportsbooks = {
+        normalize_sportsbook(fill.get("sportsbook")) for fill in fills
+    }
+    tags = {
+        tag
+        for fill in fills
+        for tag in personal_tags_from_fill(fill)
+    }
+    sportsbook_choices = list(PERSONAL_SPORTSBOOK_CHOICES)
+    known_choices = {choice.casefold() for choice in sportsbook_choices}
+    sportsbook_choices.extend(
+        sorted(
+            (book for book in used_sportsbooks if book.casefold() not in known_choices),
+            key=str.casefold,
+        )
+    )
+    return {
+        "sportsbooks": sorted(used_sportsbooks, key=str.casefold),
+        "sportsbook_choices": sportsbook_choices,
+        "tags": sorted(tags, key=str.casefold),
+    }
 UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
 MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
 ZERO_KELLY = "ZERO_KELLY"
@@ -896,6 +924,11 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Shares must be greater than zero."}), 400
         if fees < 0:
             return jsonify({"error": "Fees cannot be negative."}), 400
+        try:
+            sportsbook = normalize_sportsbook(payload.get("sportsbook"))
+            tags = normalize_personal_tags(payload.get("tags"))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
 
         fill = personal_fill_snapshot(
             public,
@@ -903,6 +936,8 @@ def create_app(start_background: bool = True) -> Flask:
             entry_price=entry_price,
             shares=shares,
             fees=fees,
+            sportsbook=sportsbook,
+            tags=tags,
         )
         stored = tracker.database.insert_personal_bet_fill(
             g.iconbets_user_id, fill, status="scheduled"
@@ -920,39 +955,74 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Personal fill was not found."}), 404
         return jsonify({"canceled": True})
 
+    @app.route("/api/personal-tracker/options")
+    def api_personal_tracker_options():
+        fills = tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+        return jsonify({"data": _personal_tracker_filter_options(fills)})
+
     @app.route("/api/personal-tracker")
     def api_personal_tracker():
         current_settings = user_settings()
-        replay = replay_personal_tracker(
-            tracker.database.get_personal_bet_fills(g.iconbets_user_id),
-            _safe_float(current_settings["personal_tracker_bankroll"]),
-        )
-        rows = replay["rows"]
+        all_fills = tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+        filter_options = _personal_tracker_filter_options(all_fills)
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         result_filter = request.args.get("result", "").strip().lower()
+        sportsbook_filter = request.args.get("sportsbook", "").strip().lower()
+        tag_filter = request.args.get("tag", "").strip().lower()
+        fills = all_fills
         if query:
-            rows = [
-                row
-                for row in rows
+            fills = [
+                fill
+                for fill in fills
                 if query
                 in " ".join(
-                    str(row.get(field) or "").lower()
-                    for field in ("event_title", "market_title", "selection")
+                    [
+                        *(
+                            str(fill.get(field) or "").lower()
+                            for field in (
+                                "event_title",
+                                "market_title",
+                                "selection",
+                                "sportsbook",
+                            )
+                        ),
+                        *(tag.lower() for tag in personal_tags_from_fill(fill)),
+                    ]
                 )
             ]
         if status_filter:
-            rows = [
-                row
-                for row in rows
-                if str(row.get("status") or "").lower() == status_filter
+            fills = [
+                fill
+                for fill in fills
+                if str(fill.get("status") or "").lower() == status_filter
             ]
         if result_filter:
-            rows = [
-                row
-                for row in rows
-                if str(row.get("result") or "").lower() == result_filter
+            fills = [
+                fill
+                for fill in fills
+                if str(fill.get("result") or "").lower() == result_filter
             ]
+        if sportsbook_filter:
+            fills = [
+                fill
+                for fill in fills
+                if normalize_sportsbook(fill.get("sportsbook")).lower()
+                == sportsbook_filter
+            ]
+        if tag_filter:
+            fills = [
+                fill
+                for fill in fills
+                if tag_filter
+                in {tag.lower() for tag in personal_tags_from_fill(fill)}
+            ]
+
+        replay = replay_personal_tracker(
+            fills,
+            _safe_float(current_settings["personal_tracker_bankroll"]),
+        )
+        rows = replay["rows"]
 
         graph_range = request.args.get("graph_range", "month")
         now = datetime.now(timezone.utc)
@@ -982,6 +1052,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "graph": graph,
                 "bankroll": current_settings,
+                "filter_options": filter_options,
                 "pagination": {
                     "page": page,
                     "per_page": per_page,

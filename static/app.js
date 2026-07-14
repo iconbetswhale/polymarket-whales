@@ -7,6 +7,8 @@ const appState = {
   pageNumber: 1,
   graphRange: "month",
   personalTradeId: null,
+  personalSelectedTags: [],
+  personalTrackerOptions: null,
   trackerDiagnostics: null,
   trackerBankroll: null,
   personalTrackerBankroll: null,
@@ -810,11 +812,77 @@ function openPersonalTracker(trade) {
   document.getElementById("personal-entry-price").value = number(currentEntry) === null ? "" : (Number(currentEntry) * 100).toFixed(1);
   document.getElementById("personal-shares").value = number(recommendedShares) === null ? "" : Number(recommendedShares).toFixed(2);
   document.getElementById("personal-fees").value = "0";
+  appState.personalSelectedTags = [];
+  renderPersonalSelectedTags();
+  const preferredBook = localStorage.getItem("iconbets-personal-sportsbook") || "Polymarket";
+  setSelectOptions(document.getElementById("personal-sportsbook"), [preferredBook], preferredBook);
+  loadPersonalTrackerOptions();
   document.getElementById("personal-conflict-check").checked = false;
   updatePersonalPurchaseTotal();
   renderPurchaseExposureNotice(trade.personalExposureSummary || {});
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
+}
+
+function setSelectOptions(select, values, selectedValue = "", emptyLabel = null) {
+  if (!select) return;
+  const normalizedValues = [...new Set((values || []).filter(Boolean))];
+  const options = emptyLabel === null ? [] : [`<option value="">${escapeHtml(emptyLabel)}</option>`];
+  options.push(...normalizedValues.map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`));
+  select.innerHTML = options.join("");
+  if (selectedValue && normalizedValues.some((value) => value === selectedValue)) select.value = selectedValue;
+}
+
+function renderPersonalTrackingOptions(options = {}) {
+  appState.personalTrackerOptions = options;
+  const sportsbook = document.getElementById("personal-sportsbook");
+  const preferredBook = sportsbook?.value || localStorage.getItem("iconbets-personal-sportsbook") || "Polymarket";
+  const sportsbookChoices = options.sportsbook_choices?.length ? options.sportsbook_choices : ["Polymarket"];
+  if (!sportsbookChoices.includes(preferredBook)) sportsbookChoices.push(preferredBook);
+  setSelectOptions(sportsbook, sportsbookChoices, preferredBook);
+  renderPersonalSelectedTags();
+}
+
+async function loadPersonalTrackerOptions({ force = false } = {}) {
+  if (appState.personalTrackerOptions && !force) {
+    renderPersonalTrackingOptions(appState.personalTrackerOptions);
+    return;
+  }
+  try {
+    const payload = await fetchJson("/api/personal-tracker/options");
+    renderPersonalTrackingOptions(payload.data || {});
+  } catch (_error) {
+    renderPersonalTrackingOptions({ sportsbook_choices: ["Polymarket"], tags: [] });
+  }
+}
+
+function addPersonalTag(rawTag) {
+  const tag = String(rawTag || "").trim().replace(/^#+/, "").replace(/\s+/g, " ");
+  if (!tag) return;
+  if (tag.length > 32) {
+    showToast("Tags must be 32 characters or fewer", "error");
+    return;
+  }
+  if (appState.personalSelectedTags.some((item) => item.toLowerCase() === tag.toLowerCase())) return;
+  if (appState.personalSelectedTags.length >= 8) {
+    showToast("Choose no more than 8 tags per bet", "error");
+    return;
+  }
+  appState.personalSelectedTags.push(tag);
+  renderPersonalSelectedTags();
+}
+
+function renderPersonalSelectedTags() {
+  const container = document.getElementById("personal-selected-tags");
+  const count = document.getElementById("personal-tag-count");
+  const existing = document.getElementById("personal-existing-tag");
+  if (!container || !count || !existing) return;
+  count.textContent = `${appState.personalSelectedTags.length} selected`;
+  container.innerHTML = appState.personalSelectedTags.length
+    ? appState.personalSelectedTags.map((tag) => `<button type="button" data-remove-personal-tag="${escapeHtml(tag)}" title="Remove ${escapeHtml(tag)}"><span>#${escapeHtml(tag)}</span><i class="ph ph-x" aria-hidden="true"></i></button>`).join("")
+    : "<span>No tags selected</span>";
+  const availableTags = (appState.personalTrackerOptions?.tags || []).filter((tag) => !appState.personalSelectedTags.some((selected) => selected.toLowerCase() === tag.toLowerCase()));
+  setSelectOptions(existing, availableTags, "", "Select an existing tag");
 }
 
 function renderPurchaseExposureNotice(exposure) {
@@ -872,10 +940,14 @@ async function savePersonalPurchase(event) {
         entry_price: Number(document.getElementById("personal-entry-price").value) / 100,
         shares: Number(document.getElementById("personal-shares").value),
         fees: Number(document.getElementById("personal-fees").value || 0),
+        sportsbook: document.getElementById("personal-sportsbook").value,
+        tags: appState.personalSelectedTags,
         confirm_duplicate: Boolean(exposure.hasExactPersonalPosition),
         confirm_conflict: document.getElementById("personal-conflict-check").checked,
       }),
     });
+    localStorage.setItem("iconbets-personal-sportsbook", document.getElementById("personal-sportsbook").value);
+    appState.personalTrackerOptions = null;
     closePersonalTracker();
     showToast("Personal purchase tracked", "success");
     await loadTrades();
@@ -892,6 +964,7 @@ function closePersonalTracker() {
   if (typeof dialog.close === "function") dialog.close();
   else dialog.removeAttribute("open");
   appState.personalTradeId = null;
+  appState.personalSelectedTags = [];
 }
 
 async function hideTrade(tradeId) {
@@ -1544,6 +1617,28 @@ function bindTrades() {
     if (event.target === event.currentTarget) closePersonalTracker();
   });
   document.getElementById("personal-tracker-form")?.addEventListener("submit", savePersonalPurchase);
+  document.getElementById("personal-existing-tag")?.addEventListener("change", (event) => {
+    addPersonalTag(event.target.value);
+    event.target.value = "";
+  });
+  document.getElementById("personal-add-tag")?.addEventListener("click", () => {
+    const input = document.getElementById("personal-new-tag");
+    addPersonalTag(input.value);
+    input.value = "";
+    input.focus();
+  });
+  document.getElementById("personal-new-tag")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    addPersonalTag(event.currentTarget.value);
+    event.currentTarget.value = "";
+  });
+  document.getElementById("personal-selected-tags")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-remove-personal-tag]");
+    if (!button) return;
+    appState.personalSelectedTags = appState.personalSelectedTags.filter((tag) => tag !== button.dataset.removePersonalTag);
+    renderPersonalSelectedTags();
+  });
   ["personal-entry-price", "personal-shares", "personal-fees"].forEach((id) => {
     document.getElementById(id)?.addEventListener("input", updatePersonalPurchaseTotal);
   });
@@ -1934,7 +2029,9 @@ function personalTrackerRow(row) {
   const status = String(row.status || "unresolved").toLowerCase();
   const pnl = number(row.profit_loss);
   const active = ["scheduled", "live", "unresolved"].includes(status);
-  const eventCopy = `<strong>${escapeHtml(row.event_title || "Unknown event")}</strong><small>${escapeHtml(row.market_title || "Market")} | ${escapeHtml(formatDateTime(row.event_start_time))}</small>`;
+  const tags = Array.isArray(row.tags) ? row.tags : [];
+  const metadata = `<span class="personal-bet-metadata"><span class="personal-book-badge"><i class="ph ph-buildings" aria-hidden="true"></i>${escapeHtml(row.sportsbook || "Polymarket")}</span>${tags.map((tag) => `<span class="personal-tag-badge">#${escapeHtml(tag)}</span>`).join("")}</span>`;
+  const eventCopy = `<strong>${escapeHtml(row.event_title || "Unknown event")}</strong><small>${escapeHtml(row.market_title || "Market")} | ${escapeHtml(formatDateTime(row.event_start_time))}</small>${metadata}`;
   const eventMarkup = row.market_url
     ? `<a class="personal-market-link" href="${escapeHtml(row.market_url)}" target="_blank" rel="noopener noreferrer">${eventCopy}</a>`
     : eventCopy;
@@ -1952,6 +2049,15 @@ function personalTrackerRow(row) {
       <td>${active ? `<button class="personal-fill-remove personal-tracker-remove" type="button" data-personal-fill-remove="${escapeHtml(row.fill_id)}" aria-label="Remove ${escapeHtml(row.selection || "personal trade")}" title="Remove this open personal trade"><i class="ph ph-trash" aria-hidden="true"></i></button>` : '<span class="muted">Settled</span>'}</td>
     </tr>
   `;
+}
+
+function renderPersonalTrackerFilters(options = {}) {
+  const sportsbook = document.getElementById("tracker-sportsbook");
+  const tag = document.getElementById("tracker-tag");
+  const selectedSportsbook = sportsbook.value;
+  const selectedTag = tag.value;
+  setSelectOptions(sportsbook, options.sportsbooks || [], selectedSportsbook, "All books");
+  setSelectOptions(tag, options.tags || [], selectedTag, "All tags");
 }
 
 function drawPersonalTrackerChart(graph, hasTrackedBets) {
@@ -1994,6 +2100,7 @@ function renderPersonalTracker(payload) {
   if (appState.trackerView !== "personal") return;
   const summary = payload.summary || {};
   appState.personalTrackerBankroll = payload.bankroll?.personal_tracker_bankroll ?? summary.starting_bankroll;
+  renderPersonalTrackerFilters(payload.filter_options || {});
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
   document.getElementById("personal-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   document.getElementById("tracker-metrics").innerHTML = [
@@ -2037,6 +2144,10 @@ function trackerRequestParams(view) {
     per_page: "50",
   };
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
+  if (view === "personal") {
+    params.sportsbook = document.getElementById("tracker-sportsbook").value;
+    params.tag = document.getElementById("tracker-tag").value;
+  }
   return new URLSearchParams(params);
 }
 
@@ -2100,6 +2211,8 @@ function configureTrackerShell(view) {
   document.getElementById("personal-track-action").hidden = model;
   document.getElementById("tracker-job-state").hidden = !model;
   document.getElementById("tracker-sharps").hidden = !model;
+  document.getElementById("tracker-sportsbook").hidden = model;
+  document.getElementById("tracker-tag").hidden = model;
   document.querySelector('#tracker-status option[value="canceled"]').hidden = model;
   document.querySelector('#tracker-result option[value="canceled"]').hidden = model;
   if (model && document.getElementById("tracker-status").value === "canceled") document.getElementById("tracker-status").value = "";
@@ -2199,7 +2312,7 @@ async function initializeTrackerView() {
 
 function bindTracker() {
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
-  ["tracker-status", "tracker-sharps", "tracker-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-result", "tracker-sportsbook", "tracker-tag"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");

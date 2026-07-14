@@ -4,8 +4,11 @@ from database import TrackerDatabase
 from personal_tracker import (
     canonical_trade_identity,
     identity_key,
+    normalize_personal_tags,
+    normalize_sportsbook,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    personal_tags_from_fill,
     replay_personal_tracker,
 )
 
@@ -72,6 +75,18 @@ def test_canonical_identity_includes_event_market_line_and_outcome():
         "market_line": "2.5",
         "canonical_outcome_id": "outcome-a",
     }
+
+
+def test_personal_book_and_tags_are_normalized_without_losing_display_case():
+    assert normalize_sportsbook("  Hard   Rock Bet  ") == "Hard Rock Bet"
+    assert normalize_personal_tags([" Tennis ", "#Value", "tennis", ""]) == [
+        "Tennis",
+        "Value",
+    ]
+    assert personal_tags_from_fill({"tags_json": '["Live", "Favorites"]'}) == [
+        "Live",
+        "Favorites",
+    ]
 
 
 def test_exposure_priority_is_opposing_then_exact_then_same_event():
@@ -214,3 +229,24 @@ def test_personal_fills_are_user_scoped_and_canceled_fills_are_inactive(tmp_path
     assert database.cancel_personal_bet_fill("user-1", first["fill_id"]) is True
     assert database.get_personal_bet_fills("user-1", active_only=True) == []
     assert database.get_personal_bet_fills("user-1")[0]["status"] == "canceled"
+
+
+def test_personal_fill_sportsbook_and_tags_persist_in_sqlite(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    fill = personal_fill_snapshot(
+        _trade(),
+        fill_id="fill-book-tags",
+        entry_price=0.4,
+        shares=25,
+        fees=0,
+        sportsbook="DraftKings",
+        tags=["Tennis", "Value"],
+    )
+
+    stored = database.insert_personal_bet_fill("user-1", fill)
+    replay = replay_personal_tracker(database.get_personal_bet_fills("user-1"))
+
+    assert stored["sportsbook"] == "DraftKings"
+    assert stored["tags_json"] == '["Tennis", "Value"]'
+    assert replay["rows"][0]["sportsbook"] == "DraftKings"
+    assert replay["rows"][0]["tags"] == ["Tennis", "Value"]

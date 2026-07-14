@@ -246,6 +246,8 @@ class TrackerDatabase:
                     status TEXT NOT NULL,
                     result TEXT,
                     settled_at TEXT,
+                    sportsbook TEXT NOT NULL DEFAULT 'Polymarket',
+                    tags_json TEXT NOT NULL DEFAULT '[]',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -267,6 +269,18 @@ class TrackerDatabase:
                 str(row["name"])
                 for row in conn.execute("PRAGMA table_info(user_settings)")
             }
+            personal_fill_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(personal_bet_fills)")
+            }
+            if "sportsbook" not in personal_fill_columns:
+                conn.execute(
+                    "ALTER TABLE personal_bet_fills ADD COLUMN sportsbook TEXT NOT NULL DEFAULT 'Polymarket'"
+                )
+            if "tags_json" not in personal_fill_columns:
+                conn.execute(
+                    "ALTER TABLE personal_bet_fills ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'"
+                )
             if "tracker_bankroll" not in settings_columns:
                 conn.execute(
                     "ALTER TABLE user_settings ADD COLUMN tracker_bankroll REAL"
@@ -1327,11 +1341,11 @@ class TrackerDatabase:
                     canonical_outcome_id, event_title, market_title, selection,
                     event_start_time, market_url, entry_price, shares,
                     position_cost, fees, total_paid, status, result, settled_at,
-                    created_at, updated_at
+                    sportsbook, tags_json, created_at, updated_at
                 )
                 VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    NULL, NULL, ?, ?
+                    NULL, NULL, ?, ?, ?, ?
                 )
                 """,
                 (
@@ -1354,6 +1368,8 @@ class TrackerDatabase:
                     fill.get("fees") or 0,
                     fill["total_paid"],
                     status,
+                    fill.get("sportsbook") or "Polymarket",
+                    json.dumps(fill.get("tags") or []),
                     now,
                     now,
                 ),

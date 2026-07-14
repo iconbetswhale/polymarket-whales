@@ -768,6 +768,84 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
     assert other_user.get("/api/personal-tracker").get_json()["pagination"]["total"] == 0
 
 
+def test_personal_tracker_filters_books_and_tags_with_separate_stats(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
+    monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
+    app_client.set_cookie("iconbets_user", "metadata-user")
+    base = {
+        "trade_id": "market-1::outcome-a",
+        "entry_price": 0.4,
+        "shares": 100,
+        "fees": 1,
+    }
+
+    first = app_client.post(
+        "/api/personal-bets",
+        json={**base, "sportsbook": "DraftKings", "tags": ["Tennis", "Value"]},
+    )
+    second = app_client.post(
+        "/api/personal-bets",
+        json={
+            **base,
+            "sportsbook": "FanDuel",
+            "tags": ["Tennis", "Live"],
+            "confirm_duplicate": True,
+        },
+    )
+    assert first.status_code == 201
+    assert second.status_code == 201
+    service.database.update_personal_bet_status(
+        first.get_json()["data"]["fill_id"], "won", "Won", "2026-07-14T20:00:00+00:00"
+    )
+    service.database.update_personal_bet_status(
+        second.get_json()["data"]["fill_id"], "lost", "Lost", "2026-07-14T21:00:00+00:00"
+    )
+
+    combined = app_client.get("/api/personal-tracker").get_json()
+    draftkings = app_client.get(
+        "/api/personal-tracker?sportsbook=DraftKings"
+    ).get_json()
+    live_tag = app_client.get("/api/personal-tracker?tag=Live").get_json()
+    options = app_client.get("/api/personal-tracker/options").get_json()["data"]
+
+    assert combined["summary"]["total_tracked_bets"] == 2
+    assert combined["summary"]["wins"] == 1
+    assert combined["summary"]["losses"] == 1
+    assert draftkings["pagination"]["total"] == 1
+    assert draftkings["summary"]["wins"] == 1
+    assert draftkings["summary"]["losses"] == 0
+    assert draftkings["data"][0]["sportsbook"] == "DraftKings"
+    assert live_tag["pagination"]["total"] == 1
+    assert live_tag["summary"]["losses"] == 1
+    assert live_tag["data"][0]["tags"] == ["Tennis", "Live"]
+    assert options["sportsbooks"] == ["DraftKings", "FanDuel"]
+    assert options["tags"] == ["Live", "Tennis", "Value"]
+
+
+def test_personal_tracker_rejects_invalid_tag_metadata(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
+    monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
+
+    response = app_client.post(
+        "/api/personal-bets",
+        json={
+            "trade_id": "market-1::outcome-a",
+            "entry_price": 0.4,
+            "shares": 100,
+            "tags": [f"tag-{index}" for index in range(9)],
+        },
+    )
+
+    assert response.status_code == 400
+    assert "no more than 8 tags" in response.get_json()["error"]
+
+
 def test_opposing_personal_fill_requires_explicit_confirmation(app_client, monkeypatch):
     service = app_client.application.extensions["tracker_service"]
     recommended = _actionable_trade()

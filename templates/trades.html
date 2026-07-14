@@ -97,6 +97,18 @@
     <div class="tracker-dialog-summary" id="personal-tracker-summary"></div>
     <div class="personal-exposure-notice" id="personal-tracker-exposure" hidden></div>
     <form id="personal-tracker-form">
+      <div class="personal-tracking-meta">
+        <label>Sportsbook<select id="personal-sportsbook" required><option value="Polymarket">Polymarket</option></select></label>
+        <div class="personal-tag-builder">
+          <div class="personal-tag-heading"><span>Tags <small>Optional, up to 8</small></span><span id="personal-tag-count">0 selected</span></div>
+          <div class="personal-tag-controls">
+            <select id="personal-existing-tag" aria-label="Select an existing personal bet tag"><option value="">Select an existing tag</option></select>
+            <input id="personal-new-tag" type="text" maxlength="32" placeholder="Create a new tag" aria-label="Create a new personal bet tag">
+            <button class="button ghost compact" id="personal-add-tag" type="button"><i class="ph ph-plus" aria-hidden="true"></i>Add</button>
+          </div>
+          <div class="personal-selected-tags" id="personal-selected-tags" aria-live="polite"><span>No tags selected</span></div>
+        </div>
+      </div>
       <div class="personal-purchase-fields">
         <label>Entry price <span class="input-with-suffix"><input id="personal-entry-price" type="number" min="0.1" max="99.9" step="0.1" inputmode="decimal" required><span>cents</span></span></label>
         <label>Shares <input id="personal-shares" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
@@ -104,7 +116,7 @@
       </div>
       <div class="personal-purchase-total" id="personal-purchase-total"><span>Position Cost</span><strong>$0.00</strong><small>Total paid $0.00</small></div>
       <label class="conflict-confirmation" id="personal-conflict-confirmation" hidden><input id="personal-conflict-check" type="checkbox"><span><strong>Confirm opposing exposure</strong>You already hold the opposing outcome. This purchase will create a hedge or conflict.</span></label>
-      <p class="tracker-dialog-note">This records a confirmed personal fill only. It does not place an order on Polymarket or change Model Tracker history.</p>
+      <p class="tracker-dialog-note">Sportsbook and tags are saved with this personal fill for private filtering. This does not place an order or change Model Tracker history.</p>
       <div class="tracker-dialog-actions">
         <button class="button ghost" id="personal-tracker-dismiss" type="button">Cancel</button>
         <button class="button primary" id="personal-tracker-submit" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Track purchase</button>

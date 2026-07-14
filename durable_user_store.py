@@ -172,6 +172,8 @@ class PostgresUserStore:
                 status TEXT NOT NULL,
                 result TEXT,
                 settled_at TEXT,
+                sportsbook TEXT NOT NULL DEFAULT 'Polymarket',
+                tags_json TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -199,6 +201,18 @@ class PostgresUserStore:
                 """
                 ALTER TABLE user_settings
                 ADD COLUMN IF NOT EXISTS tracker_bankroll DOUBLE PRECISION
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE personal_bet_fills
+                ADD COLUMN IF NOT EXISTS sportsbook TEXT NOT NULL DEFAULT 'Polymarket'
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE personal_bet_fills
+                ADD COLUMN IF NOT EXISTS tags_json TEXT NOT NULL DEFAULT '[]'
                 """
             )
             conn.execute(
@@ -787,11 +801,11 @@ class PostgresUserStore:
                     canonical_outcome_id, event_title, market_title, selection,
                     event_start_time, market_url, entry_price, shares,
                     position_cost, fees, total_paid, status, result, settled_at,
-                    created_at, updated_at
+                    sportsbook, tags_json, created_at, updated_at
                 )
                 VALUES (
                     %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
-                    %s, %s, %s, %s, %s, %s, NULL, NULL, %s, %s
+                    %s, %s, %s, %s, %s, %s, NULL, NULL, %s, %s, %s, %s
                 )
                 RETURNING *
                 """,
@@ -815,6 +829,8 @@ class PostgresUserStore:
                     fill.get("fees") or 0,
                     fill["total_paid"],
                     status,
+                    fill.get("sportsbook") or "Polymarket",
+                    json.dumps(fill.get("tags") or []),
                     now,
                     now,
                 ),

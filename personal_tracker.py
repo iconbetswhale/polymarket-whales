@@ -1,11 +1,75 @@
 from __future__ import annotations
 
+import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
 
 ACTIVE_PERSONAL_STATUSES = {"scheduled", "live", "unresolved"}
 SETTLED_PERSONAL_STATUSES = {"won", "lost", "push", "void", "canceled"}
+DEFAULT_PERSONAL_SPORTSBOOK = "Polymarket"
+PERSONAL_SPORTSBOOK_CHOICES = (
+    "Polymarket",
+    "NoVIG",
+    "DraftKings",
+    "FanDuel",
+    "BetMGM",
+    "Caesars Sportsbook",
+    "bet365",
+    "Fanatics Sportsbook",
+    "Hard Rock Bet",
+    "ESPN BET",
+    "Kalshi",
+    "ProphetX",
+    "Other",
+)
+MAX_PERSONAL_TAGS = 8
+MAX_PERSONAL_TAG_LENGTH = 32
+
+
+def normalize_sportsbook(value: Any) -> str:
+    sportsbook = " ".join(str(value or "").split()) or DEFAULT_PERSONAL_SPORTSBOOK
+    if len(sportsbook) > 64:
+        raise ValueError("Sportsbook names must be 64 characters or fewer.")
+    return sportsbook
+
+
+def normalize_personal_tags(value: Any) -> list[str]:
+    if value in (None, ""):
+        return []
+    if not isinstance(value, (list, tuple, set)):
+        raise ValueError("Tags must be provided as a list.")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for raw_tag in value:
+        tag = " ".join(str(raw_tag or "").strip().lstrip("#").split())
+        if not tag:
+            continue
+        if len(tag) > MAX_PERSONAL_TAG_LENGTH:
+            raise ValueError(
+                f"Tags must be {MAX_PERSONAL_TAG_LENGTH} characters or fewer."
+            )
+        key = tag.casefold()
+        if key in seen:
+            continue
+        seen.add(key)
+        normalized.append(tag)
+    if len(normalized) > MAX_PERSONAL_TAGS:
+        raise ValueError(f"Choose no more than {MAX_PERSONAL_TAGS} tags per bet.")
+    return normalized
+
+
+def personal_tags_from_fill(fill: dict[str, Any]) -> list[str]:
+    value = fill.get("tags")
+    if value is None:
+        try:
+            value = json.loads(str(fill.get("tags_json") or "[]"))
+        except (TypeError, ValueError, json.JSONDecodeError):
+            value = []
+    try:
+        return normalize_personal_tags(value)
+    except ValueError:
+        return []
 
 
 def normalize_market_line(value: Any) -> str:
@@ -75,6 +139,8 @@ def personal_fill_snapshot(
     entry_price: float,
     shares: float,
     fees: float,
+    sportsbook: str = DEFAULT_PERSONAL_SPORTSBOOK,
+    tags: list[str] | None = None,
 ) -> dict[str, Any]:
     identity = canonical_trade_identity(trade)
     position_cost = entry_price * shares
@@ -95,6 +161,8 @@ def personal_fill_snapshot(
         "position_cost": position_cost,
         "fees": fees,
         "total_paid": position_cost + fees,
+        "sportsbook": normalize_sportsbook(sportsbook),
+        "tags": normalize_personal_tags(tags),
     }
 
 
@@ -134,6 +202,8 @@ def _public_entry(entry: dict[str, Any]) -> dict[str, Any]:
         "totalPaid": entry.get("total_paid"),
         "status": entry.get("status"),
         "trackedAt": entry.get("created_at"),
+        "sportsbook": normalize_sportsbook(entry.get("sportsbook")),
+        "tags": personal_tags_from_fill(entry),
     }
 
 
@@ -285,6 +355,8 @@ def replay_personal_tracker(
                 "settled_at": fill.get("settled_at"),
                 "profit_loss": profit,
                 "payout": payout,
+                "sportsbook": normalize_sportsbook(fill.get("sportsbook")),
+                "tags": personal_tags_from_fill(fill),
             }
         )
 
