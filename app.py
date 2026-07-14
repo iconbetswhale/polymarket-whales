@@ -3,7 +3,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import secrets
 import threading
 import hashlib
@@ -22,8 +21,9 @@ from personal_tracker import (
     identity_key,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    replay_personal_tracker,
 )
-from position_tracker import TrackerService
+from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from trade_scoring import filter_trades_to_play
 
 logging.basicConfig(
@@ -34,7 +34,6 @@ EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
 ADMIN_COOKIE = "iconbets_tracker_admin"
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
-PROFILE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -302,11 +301,27 @@ def create_app(start_background: bool = True) -> Flask:
             page="position-history",
         )
 
-    @app.route("/bet-tracker")
-    def bet_tracker_page():
+    @app.route("/model-tracker")
+    def model_tracker_page():
         return render_template(
-            "bet_tracker.html", title="IconBets Bet Tracker", page="bet-tracker"
+            "bet_tracker.html", title="IconBets Model Tracker", page="model-tracker"
         )
+
+    @app.route("/personal-tracking")
+    def personal_tracking_page():
+        return render_template(
+            "personal_tracking.html",
+            title="IconBets Personal Tracking",
+            page="personal-tracking",
+        )
+
+    @app.route("/bet-tracker")
+    def legacy_bet_tracker():
+        return redirect(url_for("model_tracker_page"), code=301)
+
+    @app.route("/personal-tracker")
+    def legacy_personal_tracker():
+        return redirect(url_for("personal_tracking_page"), code=301)
 
     @app.route("/history")
     def legacy_history():
@@ -684,6 +699,75 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Personal fill was not found."}), 404
         return jsonify({"canceled": True})
 
+    @app.route("/api/personal-tracker")
+    def api_personal_tracker():
+        replay = replay_personal_tracker(
+            tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+        )
+        rows = replay["rows"]
+        query = request.args.get("q", "").strip().lower()
+        status_filter = request.args.get("status", "").strip().lower()
+        result_filter = request.args.get("result", "").strip().lower()
+        if query:
+            rows = [
+                row
+                for row in rows
+                if query
+                in " ".join(
+                    str(row.get(field) or "").lower()
+                    for field in ("event_title", "market_title", "selection")
+                )
+            ]
+        if status_filter:
+            rows = [
+                row
+                for row in rows
+                if str(row.get("status") or "").lower() == status_filter
+            ]
+        if result_filter:
+            rows = [
+                row
+                for row in rows
+                if str(row.get("result") or "").lower() == result_filter
+            ]
+
+        graph_range = request.args.get("graph_range", "month")
+        now = datetime.now(timezone.utc)
+        cutoffs = {
+            "today": now - timedelta(days=1),
+            "week": now - timedelta(days=7),
+            "month": now - timedelta(days=31),
+            "year": now - timedelta(days=366),
+        }
+        cutoff = cutoffs.get(graph_range, cutoffs["month"])
+        graph = [
+            point
+            for point in replay["graph"]
+            if point.get("timestamp") is None
+            or (
+                _parse_datetime(point.get("timestamp"))
+                or datetime.min.replace(tzinfo=timezone.utc)
+            )
+            >= cutoff
+        ]
+        page = max(request.args.get("page", 1, type=int) or 1, 1)
+        per_page = min(max(request.args.get("per_page", 50, type=int) or 50, 1), 100)
+        start = (page - 1) * per_page
+        return jsonify(
+            {
+                "data": list(reversed(rows))[start : start + per_page],
+                "summary": replay["summary"],
+                "graph": graph,
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": len(rows),
+                    "has_next": start + per_page < len(rows),
+                    "has_prev": page > 1,
+                },
+            }
+        )
+
     @app.route("/api/history")
     def api_history():
         return jsonify(
@@ -721,12 +805,12 @@ def create_app(start_background: bool = True) -> Flask:
                 bankroll,
                 settings.unit_percentage,
             )
-            tracker.track_recommendations_for_user(g.iconbets_user_id, bankroll)
         current["unit_value"] = _safe_float(current["starting_bankroll"]) * _safe_float(
             current["unit_percentage"]
         )
         return jsonify({"data": current})
 
+    @app.route("/api/model-tracker/settings", methods=["GET", "PUT"])
     @app.route("/api/bet-tracker/settings", methods=["GET", "PUT"])
     def api_bet_tracker_settings():
         current = user_settings()
@@ -735,7 +819,7 @@ def create_app(start_background: bool = True) -> Flask:
             bankroll = _safe_float(payload.get("tracker_bankroll"), -1)
             if bankroll <= 0:
                 return jsonify(
-                    {"error": "Bet Tracker bankroll must be greater than zero."}
+                    {"error": "Model Tracker bankroll must be greater than zero."}
                 ), 400
             current = tracker.database.update_tracker_bankroll(
                 g.iconbets_user_id,
@@ -743,35 +827,12 @@ def create_app(start_background: bool = True) -> Flask:
             )
         return jsonify({"data": current})
 
-    @app.route("/api/bet-tracker/profile", methods=["POST"])
-    def api_bet_tracker_profile():
-        payload = request.get_json(silent=True) or {}
-        profile_key = str(payload.get("profile_key") or "").strip()
-        if not PROFILE_KEY_PATTERN.fullmatch(profile_key):
-            return jsonify({"error": "Enter a valid Tracker profile key."}), 400
-
-        matched_profile = next(
-            (
-                row
-                for row in tracker.database.list_user_settings()
-                if hmac.compare_digest(str(row.get("user_id") or ""), profile_key)
-            ),
-            None,
-        )
-        if matched_profile is None:
-            return jsonify({"error": "Tracker profile key was not found."}), 404
-
-        g.iconbets_new_user = False
-        g.iconbets_user_id = profile_key
-        response = jsonify({"data": {"profile_key": profile_key}})
-        set_user_cookie(response, profile_key)
-        return response
-
+    @app.route("/api/model-tracker")
     @app.route("/api/bet-tracker")
     def api_bet_tracker():
         current_settings = user_settings()
         replay = replay_tracker(
-            tracker.database.get_tracker_records(g.iconbets_user_id),
+            tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID),
             _safe_float(current_settings["tracker_bankroll"]),
         )
         rows = replay["rows"]
@@ -856,14 +917,10 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "graph": graph,
                 "bankroll": current_settings,
-                "profile": {
-                    "key": g.iconbets_user_id,
-                    "is_new": bool(getattr(g, "iconbets_new_user", False)),
-                },
                 "tracking": {
                     key: value
                     for key, value in tracker.tracking_diagnostics(
-                        g.iconbets_user_id
+                        MODEL_TRACKER_USER_ID
                     ).items()
                     if key != "rejections"
                 },
@@ -899,7 +956,7 @@ def create_app(start_background: bool = True) -> Flask:
     def api_model_tracker_diagnostics():
         if not is_admin():
             return jsonify({"error": "Administrator access required."}), 403
-        return jsonify({"data": tracker.tracking_diagnostics(g.iconbets_user_id)})
+        return jsonify({"data": tracker.tracking_diagnostics(MODEL_TRACKER_USER_ID)})
 
     @app.route("/api/admin/model-tracker/pause", methods=["POST"])
     def api_model_tracker_pause():
@@ -918,7 +975,7 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"data": {**state, "status": "paused"}})
         tracker.refresh()
         if state.get("paused") and force:
-            result = tracker.reconcile_all_user_trackers(force=True)
+            result = tracker.reconcile_model_tracker(force=True)
         else:
             result = tracker.database.get_tracking_job_state()
         return jsonify({"data": result})

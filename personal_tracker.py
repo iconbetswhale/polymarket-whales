@@ -5,6 +5,7 @@ from typing import Any
 
 
 ACTIVE_PERSONAL_STATUSES = {"scheduled", "live", "unresolved"}
+SETTLED_PERSONAL_STATUSES = {"won", "lost", "push", "void", "canceled"}
 
 
 def normalize_market_line(value: Any) -> str:
@@ -221,3 +222,105 @@ def personal_exposure_for_trade(
             },
         }
     return payload
+
+
+def replay_personal_tracker(fills: list[dict[str, Any]]) -> dict[str, Any]:
+    rows: list[dict[str, Any]] = []
+    realized_profit = 0.0
+    open_exposure = 0.0
+    potential_payout = 0.0
+    total_wagered = 0.0
+    settled_wagered = 0.0
+    wins = losses = pushes_voids = 0
+
+    for fill in fills:
+        entry = float(fill.get("entry_price") or 0)
+        shares = float(fill.get("shares") or 0)
+        fees = float(fill.get("fees") or 0)
+        position_cost = float(fill.get("position_cost") or (entry * shares))
+        total_paid = float(fill.get("total_paid") or (position_cost + fees))
+        status = str(fill.get("status") or "unresolved").lower()
+        profit: float | None = None
+        payout: float | None = None
+        total_wagered += total_paid
+
+        if status == "won":
+            payout = shares
+            profit = payout - total_paid
+            wins += 1
+        elif status == "lost":
+            payout = 0.0
+            profit = -total_paid
+            losses += 1
+        elif status in {"push", "void", "canceled"}:
+            payout = position_cost
+            profit = 0.0
+            pushes_voids += 1
+        elif status in ACTIVE_PERSONAL_STATUSES:
+            open_exposure += total_paid
+            potential_payout += shares
+
+        if status in SETTLED_PERSONAL_STATUSES and profit is not None:
+            realized_profit += profit
+            settled_wagered += total_paid
+
+        rows.append(
+            {
+                "fill_id": fill.get("fill_id"),
+                "event_title": fill.get("event_title"),
+                "market_title": fill.get("market_title"),
+                "selection": fill.get("selection"),
+                "event_start_time": fill.get("event_start_time"),
+                "market_url": fill.get("market_url"),
+                "entry_price": entry,
+                "shares": shares,
+                "position_cost": position_cost,
+                "fees": fees,
+                "total_paid": total_paid,
+                "status": status,
+                "result": fill.get("result"),
+                "created_at": fill.get("created_at"),
+                "settled_at": fill.get("settled_at"),
+                "profit_loss": profit,
+                "payout": payout,
+            }
+        )
+
+    settled_rows = sorted(
+        (
+            row
+            for row in rows
+            if row["status"] in SETTLED_PERSONAL_STATUSES
+            and row["profit_loss"] is not None
+        ),
+        key=lambda row: str(row.get("settled_at") or row.get("event_start_time") or ""),
+    )
+    running_profit = 0.0
+    graph = [{"timestamp": None, "profit_loss": 0.0}]
+    for row in settled_rows:
+        running_profit += float(row["profit_loss"] or 0)
+        graph.append(
+            {
+                "timestamp": row.get("settled_at") or row.get("event_start_time"),
+                "profit_loss": running_profit,
+            }
+        )
+
+    decisions = wins + losses
+    return {
+        "rows": rows,
+        "graph": graph,
+        "summary": {
+            "realized_profit_loss": realized_profit,
+            "roi": realized_profit / settled_wagered if settled_wagered > 0 else 0.0,
+            "total_tracked_bets": len(fills),
+            "wins": wins,
+            "losses": losses,
+            "pushes_voids": pushes_voids,
+            "win_rate": wins / decisions if decisions else None,
+            "open_exposure": open_exposure,
+            "potential_payout": potential_payout,
+            "total_wagered": total_wagered,
+            "settled_wagered": settled_wagered,
+        },
+    }

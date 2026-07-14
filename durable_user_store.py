@@ -291,6 +291,35 @@ class PostgresUserStore:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def promote_tracker_records_to_global(self, global_user_id: str) -> int:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH ranked AS (
+                    SELECT dedupe_key, snapshot_id, status, result, settled_at,
+                           created_at, updated_at, snapshot_json,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY dedupe_key
+                               ORDER BY created_at ASC, user_id ASC
+                           ) AS source_rank
+                    FROM bet_tracker
+                    WHERE user_id <> %s
+                )
+                INSERT INTO bet_tracker (
+                    user_id, dedupe_key, snapshot_id, status, result, settled_at,
+                    created_at, updated_at, snapshot_json
+                )
+                SELECT %s, dedupe_key, snapshot_id, status, result, settled_at,
+                       created_at, updated_at, snapshot_json
+                FROM ranked
+                WHERE source_rank = 1
+                ON CONFLICT (user_id, dedupe_key) DO NOTHING
+                RETURNING dedupe_key
+                """,
+                (global_user_id, global_user_id),
+            ).fetchall()
+        return len(rows)
+
     def insert_tracker_snapshot(
         self, user_id: str, snapshot: dict, status: str = "scheduled"
     ) -> bool:

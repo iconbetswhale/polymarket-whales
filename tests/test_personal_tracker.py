@@ -6,6 +6,7 @@ from personal_tracker import (
     identity_key,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    replay_personal_tracker,
 )
 
 
@@ -114,6 +115,47 @@ def test_multiple_exact_fills_remain_separate_and_aggregate_vwap():
     assert aggregate["totalPositionCost"] == 70
     assert aggregate["averageEntry"] == 70 / 150
     assert aggregate["totalFees"] == 3
+
+
+def test_personal_tracker_replays_actual_shares_entries_fees_and_results():
+    won = {
+        **_fill(_trade(), "fill-1", entry_price=0.4, shares=100, fees=1, status="won"),
+        "result": "Won",
+        "settled_at": "2026-07-14T20:00:00+00:00",
+    }
+    lost = {
+        **_fill(_trade(), "fill-2", entry_price=0.6, shares=50, fees=2, status="lost"),
+        "result": "Lost",
+        "settled_at": "2026-07-14T21:00:00+00:00",
+    }
+    open_fill = _fill(
+        _trade(), "fill-3", entry_price=0.5, shares=20, fees=0, status="live"
+    )
+
+    replay = replay_personal_tracker([won, lost, open_fill])
+
+    assert replay["summary"]["realized_profit_loss"] == 27
+    assert replay["summary"]["roi"] == 27 / 73
+    assert replay["summary"]["wins"] == 1
+    assert replay["summary"]["losses"] == 1
+    assert replay["summary"]["open_exposure"] == 10
+    assert replay["summary"]["potential_payout"] == 20
+    assert replay["summary"]["total_wagered"] == 83
+    assert replay["graph"][-1]["profit_loss"] == 27
+    assert replay["rows"][0]["profit_loss"] == 59
+    assert replay["rows"][1]["profit_loss"] == -32
+    assert replay["rows"][2]["profit_loss"] is None
+
+
+def test_canceled_personal_fill_does_not_create_fake_fee_loss():
+    canceled = _fill(
+        _trade(), "fill-1", entry_price=0.4, shares=100, fees=1, status="canceled"
+    )
+
+    replay = replay_personal_tracker([canceled])
+
+    assert replay["summary"]["realized_profit_loss"] == 0
+    assert replay["rows"][0]["profit_loss"] == 0
 
 
 def test_hidden_trade_is_unique_exact_and_user_scoped(tmp_path):

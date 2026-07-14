@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from position_tracker import TrackerService
+from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from recommendation_service import (
     EVENT_ALREADY_STARTED,
     MISSING_BANKROLL,
@@ -173,15 +173,14 @@ def test_repeated_backend_runs_insert_once_without_opening_a_page(
     temp_settings, db
 ):
     service = TrackerService(temp_settings, database=db, auto_start=False)
-    db.get_or_create_user_settings("server-user", 10000, 0.01)
 
-    first = service.reconcile_all_user_trackers([_play()], NOW)
-    second = service.reconcile_all_user_trackers([_play()], NOW + timedelta(seconds=5))
+    first = service.reconcile_model_tracker([_play()], NOW)
+    second = service.reconcile_model_tracker([_play()], NOW + timedelta(seconds=5))
 
     assert first["records_inserted"] == 1
     assert second["records_inserted"] == 0
     assert second["records_skipped_duplicates"] == 1
-    records = db.get_tracker_records("server-user")
+    records = db.get_tracker_records(MODEL_TRACKER_USER_ID)
     assert len(records) == 1
     assert records[0]["status"] == "scheduled"
 

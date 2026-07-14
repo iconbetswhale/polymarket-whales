@@ -452,22 +452,48 @@ h2 {
   box-shadow: 0 0 0 3px rgba(37, 190, 224, 0.1);
 }
 
-.tracker-profile-key-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 8px;
-}
-
-.tracker-profile-key-row input[readonly] {
-  color: var(--muted-strong);
-}
-
-.tracker-profile-connect {
-  margin-top: 16px;
-}
-
-.tracker-empty-state .button {
+.empty-state .button {
   margin-top: 14px;
+}
+
+.personal-tracking-note {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 13px 16px;
+}
+
+.personal-tracking-note > i {
+  color: var(--cyan);
+  font-size: 24px;
+}
+
+.personal-tracking-note strong {
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 15px;
+}
+
+.personal-tracking-note p {
+  margin: 2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.personal-market-link {
+  display: grid;
+  color: inherit;
+}
+
+.personal-market-link:hover strong,
+.personal-market-link:focus-visible strong {
+  color: var(--cyan);
+}
+
+.personal-tracker-table .muted {
+  color: var(--muted);
+  font-size: 10px;
 }
 
 .tracker-admin-error {
@@ -2100,6 +2126,16 @@ td small {
     display: none;
   }
 
+  .personal-tracking-header {
+    flex-direction: column;
+  }
+
+  .personal-tracking-header > .button {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+  }
+
   .metric-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3302,9 +3338,6 @@ tbody tr:hover {
     display: grid;
   }
 
-  .tracker-profile-key-row {
-    grid-template-columns: 1fr;
-  }
 }
 
 /* User-scoped hidden trades and Personal Tracker exposure */
@@ -3470,7 +3503,7 @@ tbody tr:hover {
 }
 
 .trade-selection {
-  grid-template-columns: minmax(130px, 1fr) auto auto 78px;
+  grid-template-columns: minmax(130px, 1fr) auto auto 104px;
 }
 
 .trade-card-actions {
@@ -3498,8 +3531,14 @@ tbody tr:hover {
 }
 
 .trade-card-actions .tracker-quick-action {
+  display: flex;
+  width: auto;
+  min-width: 62px;
+  padding: 0 9px;
   border-color: rgba(37, 184, 236, 0.36);
   color: var(--cyan-bright);
+  gap: 4px;
+  white-space: nowrap;
 }
 
 .trade-hide-action:hover,

@@ -38,6 +38,9 @@ class ReturningResult:
     def fetchone(self):
         return self.row
 
+    def fetchall(self):
+        return self.row if isinstance(self.row, list) else [self.row]
+
 
 class ReturningConnection(FakeConnection):
     def __init__(self, row) -> None:
@@ -125,3 +128,16 @@ def test_postgres_trade_bankroll_update_preserves_tracker_bankroll():
     assert "tracker_bankroll = EXCLUDED.tracker_bankroll" not in conflict_update
     assert settings["starting_bankroll"] == 15000
     assert settings["tracker_bankroll"] == 25000
+
+
+def test_postgres_promotes_deduplicated_records_to_global_ledger():
+    connection = ReturningConnection([{"dedupe_key": "one"}, {"dedupe_key": "two"}])
+    store = _store_with_connection(connection)
+
+    promoted = store.promote_tracker_records_to_global("global-model")
+
+    query, values = connection.queries[0]
+    assert promoted == 2
+    assert "ROW_NUMBER() OVER" in query
+    assert "ON CONFLICT (user_id, dedupe_key) DO NOTHING" in query
+    assert values == ("global-model", "global-model")

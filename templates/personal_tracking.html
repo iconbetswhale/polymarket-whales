@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-header personal-tracking-header">
+  <div><p class="eyebrow">YOUR CONFIRMED TRADES</p><div class="title-line"><h1>Personal Tracking</h1><span class="result-badge" id="personal-result-count">0 tracked</span></div></div>
+  <a class="button primary" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Track a trade</a>
+</header>
+<section class="panel personal-tracking-note">
+  <i class="ph ph-user-focus" aria-hidden="true"></i>
+  <div><strong>Your private trade log</strong><p>Only purchases you manually confirm from a Trades to Play card appear here. Model Tracker trades are kept separate.</p></div>
+</section>
+<section class="metric-grid tracker-metrics" id="personal-metrics"></section>
+<section class="panel chart-panel">
+  <div class="panel-header"><div><p class="eyebrow">REALIZED RESULTS</p><h2>Cumulative personal P&amp;L</h2></div><div class="segmented" id="personal-graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>
+  <div class="tracker-chart" id="personal-chart" role="img" aria-label="Cumulative personal profit and loss over time"></div>
+</section>
+<section class="toolbar personal-tracker-toolbar">
+  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="personal-search" type="search" placeholder="Search event, market, selection"></label>
+  <select id="personal-status" aria-label="Personal tracking status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option><option value="canceled">Canceled</option></select>
+  <select id="personal-result" aria-label="Personal tracking result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="canceled">Canceled</option></select>
+</section>
+<section class="panel table-panel"><div class="responsive-table personal-tracker-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Tracked</th><th>Action</th></tr></thead><tbody id="personal-tracker-body"></tbody></table></div><div class="pagination" id="personal-pagination"></div></section>
+{% endblock %}

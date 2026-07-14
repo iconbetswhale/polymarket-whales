@@ -1,6 +1,5 @@
 const page = document.body.dataset.page;
 const AUTO_REFRESH_MS = 15000;
-const TRACKER_PROFILE_STORAGE_KEY = "iconbets-tracker-profile";
 const appState = {
   paused: localStorage.getItem("iconbets-refresh-paused") === "true",
   selectedTradeId: null,
@@ -10,26 +9,7 @@ const appState = {
   personalTradeId: null,
   trackerDiagnostics: null,
   trackerBankroll: null,
-  trackerProfileKey: null,
-  trackerProfileRestoreAttempted: false,
 };
-
-function savedTrackerProfileKey() {
-  try {
-    return window.localStorage.getItem(TRACKER_PROFILE_STORAGE_KEY) || "";
-  } catch (_error) {
-    return "";
-  }
-}
-
-function rememberTrackerProfileKey(profileKey) {
-  try {
-    if (profileKey) window.localStorage.setItem(TRACKER_PROFILE_STORAGE_KEY, profileKey);
-    else window.localStorage.removeItem(TRACKER_PROFILE_STORAGE_KEY);
-  } catch (_error) {
-    // The HttpOnly cookie remains the source of truth when browser storage is disabled.
-  }
-}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -182,7 +162,7 @@ function emptyState(title, copy) {
 }
 
 function trackerEmptyState() {
-  return `<div class="empty-state tracker-empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>No tracked recommendations yet</h2><p>Verified Today trades are added automatically. If you used another browser, reconnect the same Tracker profile to restore its saved history.</p><button class="button ghost compact" id="tracker-empty-profile-open" type="button"><i class="ph ph-devices" aria-hidden="true"></i>Connect Tracker profile</button></div>`;
+  return `<div class="empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>No model recommendations tracked yet</h2><p>The shared Model Tracker automatically records every positive-stake recommendation from the Today tab.</p></div>`;
 }
 
 function errorState(message) {
@@ -428,7 +408,7 @@ function tradeCard(trade) {
             ${trade.isHidden
               ? `<button class="trade-restore-action" type="button" data-testid="restore-trade-action" data-hidden-id="${escapeHtml(trade.hiddenRecordId)}" title="Restore this trade" aria-label="Restore this trade to Trades to Play"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
               : `<button class="trade-hide-action" type="button" data-testid="hide-trade-action" data-trade-id="${escapeHtml(trade.id)}" title="Hide this trade" aria-label="Hide this trade from Trades to Play"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>`}
-            <button class="tracker-quick-action" type="button" data-testid="personal-tracker-action" data-trade-id="${escapeHtml(trade.id)}" title="Open Personal Tracker" aria-label="Open Personal Tracker for ${escapeHtml(trade.outcome)}"><i class="ph ph-plus" aria-hidden="true"></i></button>
+            <button class="tracker-quick-action" type="button" data-testid="personal-tracker-action" data-trade-id="${escapeHtml(trade.id)}" title="Track this personal trade" aria-label="Track ${escapeHtml(trade.outcome)} in Personal Tracking"><i class="ph ph-plus" aria-hidden="true"></i><span>Track</span></button>
           </span>
         </span>
       </span>
@@ -753,7 +733,8 @@ async function removePersonalFill(fillId) {
   try {
     await fetchJson(`/api/personal-bets/${encodeURIComponent(fillId)}`, { method: "DELETE" });
     showToast("Personal fill removed from active exposure", "success");
-    await loadTrades();
+    if (page === "personal-tracking") await loadPersonalTracker();
+    else await loadTrades();
   } catch (error) {
     showToast(error.message, "error");
   }
@@ -1265,71 +1246,6 @@ function closeTrackerBankrollDialog() {
   else dialog.removeAttribute("open");
 }
 
-function openTrackerProfileDialog() {
-  const dialog = document.getElementById("tracker-profile-dialog");
-  if (!dialog) return;
-  document.getElementById("tracker-profile-error").textContent = "";
-  document.getElementById("tracker-profile-current").value = appState.trackerProfileKey || "";
-  document.getElementById("tracker-profile-input").value = "";
-  if (typeof dialog.showModal === "function") dialog.showModal();
-  else dialog.setAttribute("open", "");
-}
-
-function closeTrackerProfileDialog() {
-  const dialog = document.getElementById("tracker-profile-dialog");
-  if (!dialog) return;
-  document.getElementById("tracker-profile-form").reset();
-  if (typeof dialog.close === "function") dialog.close();
-  else dialog.removeAttribute("open");
-}
-
-async function connectTrackerProfile(profileKey) {
-  await fetchJson("/api/bet-tracker/profile", {
-    method: "POST",
-    body: JSON.stringify({ profile_key: profileKey }),
-  });
-  appState.trackerProfileKey = profileKey;
-  rememberTrackerProfileKey(profileKey);
-}
-
-async function saveTrackerProfile(event) {
-  event.preventDefault();
-  const form = document.getElementById("tracker-profile-form");
-  const submit = form.querySelector('button[type="submit"]');
-  const error = document.getElementById("tracker-profile-error");
-  const profileKey = document.getElementById("tracker-profile-input").value.trim();
-  if (!/^[A-Za-z0-9_-]{20,128}$/.test(profileKey)) {
-    error.textContent = "Enter a valid Tracker profile key.";
-    return;
-  }
-  submit.disabled = true;
-  error.textContent = "";
-  try {
-    await connectTrackerProfile(profileKey);
-    closeTrackerProfileDialog();
-    appState.pageNumber = 1;
-    await loadTracker();
-    showToast("Tracker profile connected. Saved bet history is restored.", "success");
-  } catch (requestError) {
-    error.textContent = requestError.message;
-  } finally {
-    submit.disabled = false;
-  }
-}
-
-async function copyTrackerProfileKey() {
-  const input = document.getElementById("tracker-profile-current");
-  if (!input?.value) return;
-  try {
-    await navigator.clipboard.writeText(input.value);
-    showToast("Tracker profile key copied", "success");
-  } catch (_error) {
-    input.focus();
-    input.select();
-    showToast("Profile key selected. Copy it to keep it safe.", "success");
-  }
-}
-
 async function saveTrackerBankroll(event) {
   event.preventDefault();
   const form = document.getElementById("tracker-bankroll-form");
@@ -1343,13 +1259,13 @@ async function saveTrackerBankroll(event) {
   submit.disabled = true;
   error.textContent = "";
   try {
-    await fetchJson("/api/bet-tracker/settings", {
+    await fetchJson("/api/model-tracker/settings", {
       method: "PUT",
       body: JSON.stringify({ tracker_bankroll: trackerBankroll }),
     });
     closeTrackerBankrollDialog();
     await loadTracker();
-    showToast("Bet Tracker bankroll updated. Trades to Play is unchanged.", "success");
+    showToast("Model Tracker replay bankroll updated. Trades to Play is unchanged.", "success");
   } catch (requestError) {
     error.textContent = requestError.message;
   } finally {
@@ -1383,23 +1299,8 @@ async function loadTracker() {
   });
   const body = document.getElementById("tracker-body");
   try {
-    const payload = await fetchJson(`/api/bet-tracker?${params.toString()}`);
+    const payload = await fetchJson(`/api/model-tracker?${params.toString()}`);
     const summary = payload.summary || {};
-    const profileKey = String(payload.profile?.key || payload.bankroll?.user_id || "");
-    const savedProfileKey = savedTrackerProfileKey();
-    const currentProfileIsEmpty = Number(summary.total_tracked_bets || 0) === 0;
-    if (currentProfileIsEmpty && savedProfileKey && savedProfileKey !== profileKey && !appState.trackerProfileRestoreAttempted) {
-      appState.trackerProfileRestoreAttempted = true;
-      try {
-        await connectTrackerProfile(savedProfileKey);
-        await loadTracker();
-        return;
-      } catch (_error) {
-        rememberTrackerProfileKey("");
-      }
-    }
-    appState.trackerProfileKey = profileKey;
-    rememberTrackerProfileKey(profileKey);
     appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
     document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
     document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
@@ -1415,7 +1316,6 @@ async function loadTracker() {
       metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
     ].join("");
     body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${trackerEmptyState()}</td></tr>`;
-    document.getElementById("tracker-empty-profile-open")?.addEventListener("click", openTrackerProfileDialog);
     drawTrackerChart(payload.graph);
     const pagination = document.getElementById("tracker-pagination");
     pagination.innerHTML = paginationMarkup(payload.pagination);
@@ -1424,6 +1324,102 @@ async function loadTracker() {
   } catch (error) {
     body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
   }
+}
+
+function personalTrackerRow(row) {
+  const status = String(row.status || "unresolved").toLowerCase();
+  const pnl = number(row.profit_loss);
+  const active = ["scheduled", "live", "unresolved"].includes(status);
+  const eventCopy = `<strong>${escapeHtml(row.event_title || "Unknown event")}</strong><small>${escapeHtml(row.market_title || "Market")} | ${escapeHtml(formatDateTime(row.event_start_time))}</small>`;
+  const eventMarkup = row.market_url
+    ? `<a class="personal-market-link" href="${escapeHtml(row.market_url)}" target="_blank" rel="noopener noreferrer">${eventCopy}</a>`
+    : eventCopy;
+  return `
+    <tr>
+      <td>${eventMarkup}</td>
+      <td><strong>${escapeHtml(row.selection || "Selection")}</strong></td>
+      <td class="mono">${escapeHtml(formatShares(row.shares))}</td>
+      <td class="mono">${escapeHtml(formatCents(row.entry_price))}</td>
+      <td class="mono">${escapeHtml(formatMoney(row.position_cost))}</td>
+      <td class="mono">${escapeHtml(formatMoney(row.fees))}</td>
+      <td><span class="status-label ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
+      <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : escapeHtml(formatMoney(pnl))}</td>
+      <td>${escapeHtml(formatDateTime(row.created_at))}</td>
+      <td>${active ? `<button class="personal-fill-remove personal-tracker-remove" type="button" data-personal-fill-remove="${escapeHtml(row.fill_id)}" aria-label="Remove ${escapeHtml(row.selection || "personal trade")}" title="Remove this open personal trade"><i class="ph ph-trash" aria-hidden="true"></i></button>` : '<span class="muted">Settled</span>'}</td>
+    </tr>
+  `;
+}
+
+function drawPersonalTrackerChart(graph, hasTrackedBets) {
+  const container = document.getElementById("personal-chart");
+  if (!hasTrackedBets) {
+    container.innerHTML = emptyState("No personal results yet", "Track a trade from the Today tab to begin your personal P&L history.");
+    return;
+  }
+  const points = (graph || [])
+    .map((point, index) => ({ timestamp: point.timestamp || index, value: Number(point.profit_loss) }))
+    .filter((point) => Number.isFinite(point.value));
+  drawLineChart(container, points, { format: (value) => formatMoney(value) });
+}
+
+async function loadPersonalTracker() {
+  const params = new URLSearchParams({
+    q: document.getElementById("personal-search").value,
+    status: document.getElementById("personal-status").value,
+    result: document.getElementById("personal-result").value,
+    graph_range: appState.graphRange,
+    page: String(appState.pageNumber),
+    per_page: "50",
+  });
+  const body = document.getElementById("personal-tracker-body");
+  try {
+    const payload = await fetchJson(`/api/personal-tracker?${params.toString()}`);
+    const summary = payload.summary || {};
+    document.getElementById("personal-result-count").textContent = `${payload.pagination.total} tracked`;
+    document.getElementById("personal-metrics").innerHTML = [
+      metricCard("Realized P/L", formatMoney(summary.realized_profit_loss), "Settled personal trades after fees", "ph-chart-line"),
+      metricCard("ROI", formatPercent(summary.roi), "Return on settled amount paid", "ph-percent"),
+      metricCard("Tracked Bets", String(summary.total_tracked_bets || 0), "Manual confirmed purchases only", "ph-list-checks"),
+      metricCard("Record", `${summary.wins || 0}-${summary.losses || 0}`, `${summary.pushes_voids || 0} pushes, voids, or canceled`, "ph-trophy"),
+      metricCard("Win Rate", summary.win_rate === null ? "Pending" : formatPercent(summary.win_rate), "Resolved wins and losses", "ph-target"),
+      metricCard("Open Exposure", formatMoney(summary.open_exposure), "Amount paid on unresolved trades", "ph-lock-open"),
+      metricCard("Total Wagered", formatMoney(summary.total_wagered), "Position cost plus entered fees", "ph-coins"),
+      metricCard("Potential Payout", formatMoney(summary.potential_payout), "Open shares at $1 resolution", "ph-trend-up"),
+    ].join("");
+    body.innerHTML = payload.data.length
+      ? payload.data.map(personalTrackerRow).join("")
+      : `<tr><td colspan="10"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Today trade card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Today's Trades</a></div></td></tr>`;
+    body.querySelectorAll("[data-personal-fill-remove]").forEach((button) => {
+      button.addEventListener("click", () => removePersonalFill(button.dataset.personalFillRemove));
+    });
+    drawPersonalTrackerChart(payload.graph, Number(summary.total_tracked_bets || 0) > 0);
+    const pagination = document.getElementById("personal-pagination");
+    pagination.innerHTML = paginationMarkup(payload.pagination);
+    pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => {
+      appState.pageNumber = Number(button.dataset.page);
+      loadPersonalTracker();
+    }));
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
+  }
+}
+
+function bindPersonalTracker() {
+  document.getElementById("personal-search").addEventListener("input", debounce(() => {
+    appState.pageNumber = 1;
+    loadPersonalTracker();
+  }));
+  ["personal-status", "personal-result"].forEach((id) => document.getElementById(id).addEventListener("change", () => {
+    appState.pageNumber = 1;
+    loadPersonalTracker();
+  }));
+  document.querySelectorAll("#personal-graph-range button").forEach((button) => button.addEventListener("click", () => {
+    document.querySelectorAll("#personal-graph-range button").forEach((item) => item.classList.remove("active"));
+    button.classList.add("active");
+    appState.graphRange = button.dataset.range;
+    loadPersonalTracker();
+  }));
+  loadPersonalTracker();
 }
 
 function bindTracker() {
@@ -1436,14 +1432,6 @@ function bindTracker() {
     loadTracker();
   }));
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
-  document.getElementById("tracker-profile-open")?.addEventListener("click", openTrackerProfileDialog);
-  document.getElementById("tracker-profile-form")?.addEventListener("submit", saveTrackerProfile);
-  document.getElementById("tracker-profile-copy")?.addEventListener("click", copyTrackerProfileKey);
-  document.getElementById("tracker-profile-close")?.addEventListener("click", closeTrackerProfileDialog);
-  document.getElementById("tracker-profile-dismiss")?.addEventListener("click", closeTrackerProfileDialog);
-  document.getElementById("tracker-profile-dialog")?.addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) closeTrackerProfileDialog();
-  });
   document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);
   document.getElementById("tracker-bankroll-form")?.addEventListener("submit", saveTrackerBankroll);
   document.getElementById("tracker-bankroll-close")?.addEventListener("click", closeTrackerBankrollDialog);
@@ -1530,7 +1518,8 @@ function refreshCurrentPage() {
   if (page === "live-positions") loadPositions();
   if (page === "wallets") loadWallets();
   if (page === "position-history") loadHistory();
-  if (page === "bet-tracker") loadTracker();
+  if (page === "model-tracker") loadTracker();
+  if (page === "personal-tracking") loadPersonalTracker();
   loadGlobalStatus();
 }
 
@@ -1542,7 +1531,8 @@ function initialize() {
   if (page === "live-positions") bindPositions();
   if (page === "wallets") bindWallets();
   if (page === "position-history") bindHistory();
-  if (page === "bet-tracker") bindTracker();
+  if (page === "model-tracker") bindTracker();
+  if (page === "personal-tracking") bindPersonalTracker();
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
 }
 

@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from config import Settings
 from database import TrackerDatabase
-from position_tracker import TrackerService
+from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import _format_event_start, _has_positive_recommendation, _trade_card_view
 
 
@@ -151,18 +151,19 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/status").status_code == 200
     assert app_client.get("/api/user-settings").status_code == 200
     assert app_client.get("/api/bet-tracker").status_code == 200
+    assert app_client.get("/api/model-tracker").status_code == 200
+    assert app_client.get("/api/personal-tracker").status_code == 200
 
 
 def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
-    html = app_client.get("/bet-tracker").get_data(as_text=True)
+    html = app_client.get("/model-tracker").get_data(as_text=True)
 
+    assert "Model Tracker" in html
     assert 'id="tracker-job-state"' in html
     assert 'id="tracker-bankroll-edit"' in html
     assert 'id="tracker-bankroll-dialog"' in html
     assert 'id="tracker-bankroll-form"' in html
-    assert 'id="tracker-profile-open"' in html
-    assert 'id="tracker-profile-dialog"' in html
-    assert 'id="tracker-profile-form"' in html
+    assert "Tracker profile" not in html
     assert 'id="tracker-reconcile"' in html
     assert 'id="tracker-pause-job"' in html
     assert 'id="tracker-rejection-body"' in html
@@ -172,19 +173,27 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert "/static/style.css?v=local" in html
 
 
-def test_tracker_profile_can_reconnect_existing_history(app_client):
+def test_personal_tracking_page_is_separate_from_model_tracker(app_client):
+    html = app_client.get("/personal-tracking").get_data(as_text=True)
+
+    assert "Personal Tracking" in html
+    assert 'id="personal-metrics"' in html
+    assert 'id="personal-chart"' in html
+    assert 'id="personal-tracker-body"' in html
+    assert 'href="/model-tracker"' in html
+    assert 'href="/personal-tracking"' in html
+
+
+def test_model_tracker_history_is_shared_across_browser_users(app_client):
     service = app_client.application.extensions["tracker_service"]
-    source_profile = "source-profile-key-1234567890"
-    current_profile = "current-profile-key-123456789"
-    service.database.get_or_create_user_settings(source_profile, 10000, 0.01)
     assert service.database.insert_tracker_snapshot(
-        source_profile,
+        MODEL_TRACKER_USER_ID,
         {
-            "snapshot_id": "profile-snapshot",
-            "dedupe_key": "profile-event::profile-market::::profile-outcome::v2",
+            "snapshot_id": "shared-snapshot",
+            "dedupe_key": "shared-event::shared-market::::shared-outcome::v2",
             "recommendation_version": "v2",
             "recommendation_timestamp": datetime.now(timezone.utc).isoformat(),
-            "event_title": "Saved tennis match",
+            "event_title": "Shared tennis match",
             "market_title": "Match winner",
             "recommended_side": "Player A",
             "effective_entry_price": 0.5,
@@ -195,46 +204,18 @@ def test_tracker_profile_can_reconnect_existing_history(app_client):
             "sharps_count": 1,
         },
     )
-    app_client.set_cookie("iconbets_user", current_profile)
-    assert app_client.get("/api/bet-tracker").get_json()["pagination"]["total"] == 0
+    first_user = app_client.application.test_client()
+    first_user.set_cookie("iconbets_user", "first-browser")
+    second_user = app_client.application.test_client()
+    second_user.set_cookie("iconbets_user", "second-browser")
 
-    response = app_client.post(
-        "/api/bet-tracker/profile",
-        json={"profile_key": source_profile},
-    )
+    first_payload = first_user.get("/api/model-tracker").get_json()
+    second_payload = second_user.get("/api/model-tracker").get_json()
 
-    assert response.status_code == 200
-    assert f"iconbets_user={source_profile}" in response.headers["Set-Cookie"]
-    payload = app_client.get("/api/bet-tracker").get_json()
-    assert payload["profile"] == {"key": source_profile, "is_new": False}
-    assert payload["pagination"]["total"] == 1
-    assert payload["data"][0]["snapshot"]["event_title"] == "Saved tennis match"
-    assert service.database.get_tracker_records(current_profile) == []
-
-
-def test_tracker_profile_rejects_unknown_key_without_switching_user(app_client):
-    current_profile = "current-profile-key-123456789"
-    app_client.set_cookie("iconbets_user", current_profile)
-    app_client.get("/api/user-settings")
-
-    response = app_client.post(
-        "/api/bet-tracker/profile",
-        json={"profile_key": "unknown-profile-key-123456789"},
-    )
-
-    assert response.status_code == 404
-    assert app_client.get("/api/user-settings").get_json()["data"]["user_id"] == current_profile
-
-
-def test_tracker_marks_only_the_first_cookie_less_request_as_new(app_client):
-    fresh_client = app_client.application.test_client()
-
-    first = fresh_client.get("/api/bet-tracker").get_json()
-    second = fresh_client.get("/api/bet-tracker").get_json()
-
-    assert first["profile"]["is_new"] is True
-    assert second["profile"]["is_new"] is False
-    assert first["profile"]["key"] == second["profile"]["key"]
+    assert first_payload["pagination"]["total"] == 1
+    assert second_payload["pagination"]["total"] == 1
+    assert first_payload["data"][0]["snapshot"]["event_title"] == "Shared tennis match"
+    assert second_payload["data"][0]["snapshot_id"] == "shared-snapshot"
 
 
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
@@ -242,7 +223,7 @@ def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
     trade_settings = app_client.get("/api/user-settings").get_json()["data"]
 
     response = app_client.put(
-        "/api/bet-tracker/settings",
+        "/api/model-tracker/settings",
         json={"tracker_bankroll": 25000},
     )
 
@@ -251,7 +232,7 @@ def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
     assert tracker_settings["tracker_bankroll"] == 25000
     assert tracker_settings["starting_bankroll"] == trade_settings["starting_bankroll"]
 
-    tracker_payload = app_client.get("/api/bet-tracker").get_json()
+    tracker_payload = app_client.get("/api/model-tracker").get_json()
     assert tracker_payload["summary"]["starting_bankroll"] == 25000
     assert (
         app_client.get("/api/user-settings").get_json()["data"]["starting_bankroll"]
@@ -261,7 +242,7 @@ def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
 
 def test_tracker_bankroll_api_rejects_non_positive_values(app_client):
     response = app_client.put(
-        "/api/bet-tracker/settings",
+        "/api/model-tracker/settings",
         json={"tracker_bankroll": 0},
     )
 
@@ -272,7 +253,7 @@ def test_tracker_bankroll_api_rejects_non_positive_values(app_client):
 def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
     service = app_client.application.extensions["tracker_service"]
     app_client.set_cookie("iconbets_user", "render-user")
-    assert app_client.get("/api/bet-tracker").get_json()["pagination"]["total"] == 0
+    assert app_client.get("/api/model-tracker").get_json()["pagination"]["total"] == 0
     snapshot = {
         "snapshot_id": "render-snapshot",
         "dedupe_key": "event::market::::outcome::v2",
@@ -289,9 +270,9 @@ def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
         "estimated_win_probability": 0.42,
         "sharps_count": 1,
     }
-    assert service.database.insert_tracker_snapshot("render-user", snapshot) is True
+    assert service.database.insert_tracker_snapshot(MODEL_TRACKER_USER_ID, snapshot) is True
 
-    payload = app_client.get("/api/bet-tracker").get_json()
+    payload = app_client.get("/api/model-tracker").get_json()
     assert payload["pagination"]["total"] == 1
     assert payload["data"][0]["status"] == "scheduled"
 
@@ -303,7 +284,8 @@ def test_dedicated_pages_are_real_routes(app_client):
         "/live-positions",
         "/wallets",
         "/position-history",
-        "/bet-tracker",
+        "/model-tracker",
+        "/personal-tracking",
     ):
         response = app_client.get(route)
         assert response.status_code == 200
@@ -311,6 +293,8 @@ def test_dedicated_pages_are_real_routes(app_client):
 
     assert app_client.get("/").status_code == 302
     assert app_client.get("/history").status_code == 301
+    assert app_client.get("/bet-tracker").status_code == 301
+    assert app_client.get("/personal-tracker").status_code == 301
 
 
 def test_trade_date_presets_reject_removed_modes(app_client):
@@ -486,6 +470,7 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
         "/api/personal-bets", json={**purchase, "confirm_duplicate": True}
     )
     feed = app_client.get("/api/trades-to-play?date_range=next7").get_json()
+    personal_tracker = app_client.get("/api/personal-tracker").get_json()
 
     assert first.status_code == 201
     assert duplicate.status_code == 409
@@ -493,11 +478,15 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
     assert second.status_code == 201
     assert feed["data"][0]["personalExposureType"] == "exact"
     assert feed["data"][0]["personalEntryCount"] == 2
+    assert personal_tracker["pagination"]["total"] == 2
+    assert personal_tracker["summary"]["total_tracked_bets"] == 2
+    assert personal_tracker["data"][0]["selection"] == "Spain"
 
     other_user = app_client.application.test_client()
     other_user.set_cookie("iconbets_user", "another-user")
     other_feed = other_user.get("/api/trades-to-play?date_range=next7").get_json()
     assert other_feed["data"][0]["personalExposureType"] == "none"
+    assert other_user.get("/api/personal-tracker").get_json()["pagination"]["total"] == 0
 
 
 def test_opposing_personal_fill_requires_explicit_confirmation(app_client, monkeypatch):

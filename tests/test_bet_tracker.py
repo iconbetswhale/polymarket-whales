@@ -44,6 +44,25 @@ def test_tracker_rejects_near_zero_recommendation(tmp_path):
     assert database.get_tracker_records("user-1") == []
 
 
+def test_existing_user_records_promote_to_one_global_ledger_without_deletion(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    first = _snapshot()
+    second = copy.deepcopy(first)
+    second["snapshot_id"] = "snapshot-2"
+    second["dedupe_key"] = "event-2::market-2::::outcome-2::v2"
+    assert database.insert_tracker_snapshot("user-1", first) is True
+    assert database.insert_tracker_snapshot("user-2", first) is True
+    assert database.insert_tracker_snapshot("user-2", second) is True
+
+    promoted = database.promote_tracker_records_to_global("global-model")
+
+    assert promoted == 2
+    assert len(database.get_tracker_records("global-model")) == 2
+    assert len(database.get_tracker_records("user-1")) == 1
+    assert len(database.get_tracker_records("user-2")) == 2
+    assert database.promote_tracker_records_to_global("global-model") == 0
+
+
 def test_durable_store_receives_user_owned_tracker_data(tmp_path, monkeypatch):
     class FakeDurableStore:
         def __init__(self, database_url):

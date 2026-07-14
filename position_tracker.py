@@ -33,6 +33,7 @@ from unit_analysis import amount_to_units, estimate_unit_size
 from wallet_loader import WalletEntry, load_wallets
 
 LOGGER = logging.getLogger(__name__)
+MODEL_TRACKER_USER_ID = "iconbets-model-tracker-global"
 
 
 def _utc_now() -> datetime:
@@ -231,6 +232,14 @@ class TrackerService:
         self.database = database or TrackerDatabase(
             settings.database_path, settings.durable_database_url
         )
+        promoted_records = self.database.promote_tracker_records_to_global(
+            MODEL_TRACKER_USER_ID
+        )
+        if promoted_records:
+            LOGGER.info(
+                "Promoted %s existing recommendations into the global Model Tracker",
+                promoted_records,
+            )
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self._lock = threading.Lock()
@@ -351,7 +360,7 @@ class TrackerService:
             status["app_status"] = "degraded"
 
         if not loader.enabled_wallets:
-            self.reconcile_all_user_trackers([])
+            self.reconcile_model_tracker([])
             snapshot = {
                 "positions": [],
                 "trades": self.database.get_recent_events(),
@@ -484,7 +493,7 @@ class TrackerService:
             unit_map,
             tracked_wallet_count=synced_wallet_count,
         )
-        self.reconcile_all_user_trackers(trades_to_play)
+        self.reconcile_model_tracker(trades_to_play)
         self._update_tracker_statuses(events)
         success_time = _iso_now()
         status["last_successful_refresh"] = success_time
@@ -535,6 +544,13 @@ class TrackerService:
         plays: list[dict] | None = None,
     ) -> int:
         return self.reconcile_user_tracker(user_id, bankroll, plays)["inserted"]
+
+    def track_model_recommendations(self, plays: list[dict] | None = None) -> int:
+        return self.reconcile_user_tracker(
+            MODEL_TRACKER_USER_ID,
+            self.settings.default_bankroll,
+            plays,
+        )["inserted"]
 
     def evaluate_recommendation(
         self,
@@ -692,7 +708,7 @@ class TrackerService:
         self.database.replace_tracking_rejections(user_id, result["rejections"])
         return result
 
-    def reconcile_all_user_trackers(
+    def reconcile_model_tracker(
         self,
         plays: list[dict] | None = None,
         now: datetime | None = None,
@@ -714,7 +730,8 @@ class TrackerService:
             "records_rejected": 0,
             "errors": 0,
             "error_details": [],
-            "user_configurations": 0,
+            "user_configurations": 1,
+            "tracker_scope": "global",
             "interval_seconds": self.settings.tracker_job_interval_seconds,
         }
         try:
@@ -723,33 +740,19 @@ class TrackerService:
                     plays = json.loads(
                         json.dumps(self._cache.get("trades_to_play", []))
                     )
-            users = self.database.list_user_settings()
-            state["user_configurations"] = len(users)
-            for user in users:
-                try:
-                    user_result = self.reconcile_user_tracker(
-                        user["user_id"],
-                        _safe_float(user.get("starting_bankroll")),
-                        plays,
-                        attempted,
-                    )
-                except Exception as exc:
-                    LOGGER.exception(
-                        "Model Tracker reconciliation failed for user=%s",
-                        user.get("user_id"),
-                    )
-                    state["errors"] += 1
-                    state["error_details"].append(
-                        {"user_id": user.get("user_id"), "error": str(exc)}
-                    )
-                    continue
-                state["recommendations_evaluated"] += user_result["evaluated"]
-                state["eligible_recommendations"] += user_result["eligible"]
-                state["records_inserted"] += user_result["inserted"]
-                state["records_skipped_duplicates"] += user_result["existing"]
-                state["records_rejected"] += user_result["rejected"]
-                state["errors"] += user_result["errors"]
-                state["error_details"].extend(user_result["error_details"])
+            tracker_result = self.reconcile_user_tracker(
+                MODEL_TRACKER_USER_ID,
+                self.settings.default_bankroll,
+                plays,
+                attempted,
+            )
+            state["recommendations_evaluated"] = tracker_result["evaluated"]
+            state["eligible_recommendations"] = tracker_result["eligible"]
+            state["records_inserted"] = tracker_result["inserted"]
+            state["records_skipped_duplicates"] = tracker_result["existing"]
+            state["records_rejected"] = tracker_result["rejected"]
+            state["errors"] = tracker_result["errors"]
+            state["error_details"] = tracker_result["error_details"]
             if state["errors"]:
                 state["status"] = "failed"
             else:
@@ -765,6 +768,14 @@ class TrackerService:
         ).isoformat()
         self.database.set_tracking_job_state(state)
         return state
+
+    def reconcile_all_user_trackers(
+        self,
+        plays: list[dict] | None = None,
+        now: datetime | None = None,
+        force: bool = False,
+    ) -> dict:
+        return self.reconcile_model_tracker(plays, now, force)
 
     def set_tracking_paused(self, paused: bool) -> dict:
         state = self.database.get_tracking_job_state()

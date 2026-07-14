@@ -592,6 +592,36 @@ class TrackerDatabase:
             ).fetchall()
         return [dict(row) for row in rows]
 
+    def promote_tracker_records_to_global(self, global_user_id: str) -> int:
+        if self.user_store:
+            return self.user_store.promote_tracker_records_to_global(global_user_id)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                WITH ranked AS (
+                    SELECT dedupe_key, snapshot_id, status, result, settled_at,
+                           created_at, updated_at, snapshot_json,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY dedupe_key
+                               ORDER BY created_at ASC, user_id ASC
+                           ) AS source_rank
+                    FROM bet_tracker
+                    WHERE user_id <> ?
+                )
+                INSERT OR IGNORE INTO bet_tracker (
+                    user_id, dedupe_key, snapshot_id, status, result, settled_at,
+                    created_at, updated_at, snapshot_json
+                )
+                SELECT ?, dedupe_key, snapshot_id, status, result, settled_at,
+                       created_at, updated_at, snapshot_json
+                FROM ranked
+                WHERE source_rank = 1
+                """,
+                (global_user_id, global_user_id),
+            )
+            row = conn.execute("SELECT changes() AS count").fetchone()
+        return int(row["count"] or 0)
+
     def insert_tracker_snapshot(
         self, user_id: str, snapshot: dict, status: str = "scheduled"
     ) -> bool:
