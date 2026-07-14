@@ -1,5 +1,6 @@
 const page = document.body.dataset.page;
 const AUTO_REFRESH_MS = 15000;
+const TRACKER_PROFILE_STORAGE_KEY = "iconbets-tracker-profile";
 const appState = {
   paused: localStorage.getItem("iconbets-refresh-paused") === "true",
   selectedTradeId: null,
@@ -9,7 +10,26 @@ const appState = {
   personalTradeId: null,
   trackerDiagnostics: null,
   trackerBankroll: null,
+  trackerProfileKey: null,
+  trackerProfileRestoreAttempted: false,
 };
+
+function savedTrackerProfileKey() {
+  try {
+    return window.localStorage.getItem(TRACKER_PROFILE_STORAGE_KEY) || "";
+  } catch (_error) {
+    return "";
+  }
+}
+
+function rememberTrackerProfileKey(profileKey) {
+  try {
+    if (profileKey) window.localStorage.setItem(TRACKER_PROFILE_STORAGE_KEY, profileKey);
+    else window.localStorage.removeItem(TRACKER_PROFILE_STORAGE_KEY);
+  } catch (_error) {
+    // The HttpOnly cookie remains the source of truth when browser storage is disabled.
+  }
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -159,6 +179,10 @@ function showToast(message, tone = "neutral") {
 
 function emptyState(title, copy) {
   return `<div class="empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p></div>`;
+}
+
+function trackerEmptyState() {
+  return `<div class="empty-state tracker-empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>No tracked recommendations yet</h2><p>Verified Today trades are added automatically. If you used another browser, reconnect the same Tracker profile to restore its saved history.</p><button class="button ghost compact" id="tracker-empty-profile-open" type="button"><i class="ph ph-devices" aria-hidden="true"></i>Connect Tracker profile</button></div>`;
 }
 
 function errorState(message) {
@@ -1241,6 +1265,71 @@ function closeTrackerBankrollDialog() {
   else dialog.removeAttribute("open");
 }
 
+function openTrackerProfileDialog() {
+  const dialog = document.getElementById("tracker-profile-dialog");
+  if (!dialog) return;
+  document.getElementById("tracker-profile-error").textContent = "";
+  document.getElementById("tracker-profile-current").value = appState.trackerProfileKey || "";
+  document.getElementById("tracker-profile-input").value = "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+}
+
+function closeTrackerProfileDialog() {
+  const dialog = document.getElementById("tracker-profile-dialog");
+  if (!dialog) return;
+  document.getElementById("tracker-profile-form").reset();
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function connectTrackerProfile(profileKey) {
+  await fetchJson("/api/bet-tracker/profile", {
+    method: "POST",
+    body: JSON.stringify({ profile_key: profileKey }),
+  });
+  appState.trackerProfileKey = profileKey;
+  rememberTrackerProfileKey(profileKey);
+}
+
+async function saveTrackerProfile(event) {
+  event.preventDefault();
+  const form = document.getElementById("tracker-profile-form");
+  const submit = form.querySelector('button[type="submit"]');
+  const error = document.getElementById("tracker-profile-error");
+  const profileKey = document.getElementById("tracker-profile-input").value.trim();
+  if (!/^[A-Za-z0-9_-]{20,128}$/.test(profileKey)) {
+    error.textContent = "Enter a valid Tracker profile key.";
+    return;
+  }
+  submit.disabled = true;
+  error.textContent = "";
+  try {
+    await connectTrackerProfile(profileKey);
+    closeTrackerProfileDialog();
+    appState.pageNumber = 1;
+    await loadTracker();
+    showToast("Tracker profile connected. Saved bet history is restored.", "success");
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+async function copyTrackerProfileKey() {
+  const input = document.getElementById("tracker-profile-current");
+  if (!input?.value) return;
+  try {
+    await navigator.clipboard.writeText(input.value);
+    showToast("Tracker profile key copied", "success");
+  } catch (_error) {
+    input.focus();
+    input.select();
+    showToast("Profile key selected. Copy it to keep it safe.", "success");
+  }
+}
+
 async function saveTrackerBankroll(event) {
   event.preventDefault();
   const form = document.getElementById("tracker-bankroll-form");
@@ -1296,6 +1385,21 @@ async function loadTracker() {
   try {
     const payload = await fetchJson(`/api/bet-tracker?${params.toString()}`);
     const summary = payload.summary || {};
+    const profileKey = String(payload.profile?.key || payload.bankroll?.user_id || "");
+    const savedProfileKey = savedTrackerProfileKey();
+    const currentProfileIsEmpty = Number(summary.total_tracked_bets || 0) === 0;
+    if (currentProfileIsEmpty && savedProfileKey && savedProfileKey !== profileKey && !appState.trackerProfileRestoreAttempted) {
+      appState.trackerProfileRestoreAttempted = true;
+      try {
+        await connectTrackerProfile(savedProfileKey);
+        await loadTracker();
+        return;
+      } catch (_error) {
+        rememberTrackerProfileKey("");
+      }
+    }
+    appState.trackerProfileKey = profileKey;
+    rememberTrackerProfileKey(profileKey);
     appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
     document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
     document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
@@ -1310,7 +1414,8 @@ async function loadTracker() {
       metricCard("Open Exposure", formatMoney(summary.open_exposure), "Not included in realized P/L", "ph-lock-open"),
       metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
     ].join("");
-    body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${emptyState("No tracked recommendations yet", "A verified Today trade is added automatically only when its calculated stake is positive.")}</td></tr>`;
+    body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${trackerEmptyState()}</td></tr>`;
+    document.getElementById("tracker-empty-profile-open")?.addEventListener("click", openTrackerProfileDialog);
     drawTrackerChart(payload.graph);
     const pagination = document.getElementById("tracker-pagination");
     pagination.innerHTML = paginationMarkup(payload.pagination);
@@ -1331,6 +1436,14 @@ function bindTracker() {
     loadTracker();
   }));
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
+  document.getElementById("tracker-profile-open")?.addEventListener("click", openTrackerProfileDialog);
+  document.getElementById("tracker-profile-form")?.addEventListener("submit", saveTrackerProfile);
+  document.getElementById("tracker-profile-copy")?.addEventListener("click", copyTrackerProfileKey);
+  document.getElementById("tracker-profile-close")?.addEventListener("click", closeTrackerProfileDialog);
+  document.getElementById("tracker-profile-dismiss")?.addEventListener("click", closeTrackerProfileDialog);
+  document.getElementById("tracker-profile-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeTrackerProfileDialog();
+  });
   document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);
   document.getElementById("tracker-bankroll-form")?.addEventListener("submit", saveTrackerBankroll);
   document.getElementById("tracker-bankroll-close")?.addEventListener("click", closeTrackerBankrollDialog);

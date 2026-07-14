@@ -160,6 +160,9 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert 'id="tracker-bankroll-edit"' in html
     assert 'id="tracker-bankroll-dialog"' in html
     assert 'id="tracker-bankroll-form"' in html
+    assert 'id="tracker-profile-open"' in html
+    assert 'id="tracker-profile-dialog"' in html
+    assert 'id="tracker-profile-form"' in html
     assert 'id="tracker-reconcile"' in html
     assert 'id="tracker-pause-job"' in html
     assert 'id="tracker-rejection-body"' in html
@@ -167,6 +170,71 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert 'id="tracker-admin-password"' in html
     assert "/static/app.js?v=local" in html
     assert "/static/style.css?v=local" in html
+
+
+def test_tracker_profile_can_reconnect_existing_history(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    source_profile = "source-profile-key-1234567890"
+    current_profile = "current-profile-key-123456789"
+    service.database.get_or_create_user_settings(source_profile, 10000, 0.01)
+    assert service.database.insert_tracker_snapshot(
+        source_profile,
+        {
+            "snapshot_id": "profile-snapshot",
+            "dedupe_key": "profile-event::profile-market::::profile-outcome::v2",
+            "recommendation_version": "v2",
+            "recommendation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_title": "Saved tennis match",
+            "market_title": "Match winner",
+            "recommended_side": "Player A",
+            "effective_entry_price": 0.5,
+            "final_recommended_fraction": 0.005,
+            "original_displayed_amount": 50,
+            "original_recommended_units": 0.5,
+            "estimated_win_probability": 0.55,
+            "sharps_count": 1,
+        },
+    )
+    app_client.set_cookie("iconbets_user", current_profile)
+    assert app_client.get("/api/bet-tracker").get_json()["pagination"]["total"] == 0
+
+    response = app_client.post(
+        "/api/bet-tracker/profile",
+        json={"profile_key": source_profile},
+    )
+
+    assert response.status_code == 200
+    assert f"iconbets_user={source_profile}" in response.headers["Set-Cookie"]
+    payload = app_client.get("/api/bet-tracker").get_json()
+    assert payload["profile"] == {"key": source_profile, "is_new": False}
+    assert payload["pagination"]["total"] == 1
+    assert payload["data"][0]["snapshot"]["event_title"] == "Saved tennis match"
+    assert service.database.get_tracker_records(current_profile) == []
+
+
+def test_tracker_profile_rejects_unknown_key_without_switching_user(app_client):
+    current_profile = "current-profile-key-123456789"
+    app_client.set_cookie("iconbets_user", current_profile)
+    app_client.get("/api/user-settings")
+
+    response = app_client.post(
+        "/api/bet-tracker/profile",
+        json={"profile_key": "unknown-profile-key-123456789"},
+    )
+
+    assert response.status_code == 404
+    assert app_client.get("/api/user-settings").get_json()["data"]["user_id"] == current_profile
+
+
+def test_tracker_marks_only_the_first_cookie_less_request_as_new(app_client):
+    fresh_client = app_client.application.test_client()
+
+    first = fresh_client.get("/api/bet-tracker").get_json()
+    second = fresh_client.get("/api/bet-tracker").get_json()
+
+    assert first["profile"]["is_new"] is True
+    assert second["profile"]["is_new"] is False
+    assert first["profile"]["key"] == second["profile"]["key"]
 
 
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):

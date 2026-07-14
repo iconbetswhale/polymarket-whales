@@ -452,6 +452,24 @@ h2 {
   box-shadow: 0 0 0 3px rgba(37, 190, 224, 0.1);
 }
 
+.tracker-profile-key-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.tracker-profile-key-row input[readonly] {
+  color: var(--muted-strong);
+}
+
+.tracker-profile-connect {
+  margin-top: 16px;
+}
+
+.tracker-empty-state .button {
+  margin-top: 14px;
+}
+
 .tracker-admin-error {
   min-height: 18px;
   margin: 8px 0;
@@ -3282,6 +3300,10 @@ tbody tr:hover {
 
   .tracker-dialog-actions {
     display: grid;
+  }
+
+  .tracker-profile-key-row {
+    grid-template-columns: 1fr;
   }
 }
 

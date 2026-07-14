@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import secrets
 import threading
 import hashlib
@@ -33,6 +34,7 @@ EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
 ADMIN_COOKIE = "iconbets_tracker_admin"
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
+PROFILE_KEY_PATTERN = re.compile(r"^[A-Za-z0-9_-]{20,128}$")
 
 
 def _safe_float(value, default: float = 0.0) -> float:
@@ -153,15 +155,19 @@ def create_app(start_background: bool = True) -> Flask:
     @app.after_request
     def persist_user_cookie(response):
         if getattr(g, "iconbets_new_user", False):
-            response.set_cookie(
-                USER_COOKIE,
-                g.iconbets_user_id,
-                max_age=60 * 60 * 24 * 365,
-                httponly=True,
-                secure=request.is_secure,
-                samesite="Lax",
-            )
+            set_user_cookie(response, g.iconbets_user_id)
         return response
+
+    def set_user_cookie(response, user_id: str) -> None:
+        response.set_cookie(
+            USER_COOKIE,
+            user_id,
+            max_age=60 * 60 * 24 * 365,
+            httponly=True,
+            secure=request.is_secure,
+            samesite="Lax",
+            path="/",
+        )
 
     def user_settings() -> dict:
         return tracker.database.get_or_create_user_settings(
@@ -737,6 +743,30 @@ def create_app(start_background: bool = True) -> Flask:
             )
         return jsonify({"data": current})
 
+    @app.route("/api/bet-tracker/profile", methods=["POST"])
+    def api_bet_tracker_profile():
+        payload = request.get_json(silent=True) or {}
+        profile_key = str(payload.get("profile_key") or "").strip()
+        if not PROFILE_KEY_PATTERN.fullmatch(profile_key):
+            return jsonify({"error": "Enter a valid Tracker profile key."}), 400
+
+        matched_profile = next(
+            (
+                row
+                for row in tracker.database.list_user_settings()
+                if hmac.compare_digest(str(row.get("user_id") or ""), profile_key)
+            ),
+            None,
+        )
+        if matched_profile is None:
+            return jsonify({"error": "Tracker profile key was not found."}), 404
+
+        g.iconbets_new_user = False
+        g.iconbets_user_id = profile_key
+        response = jsonify({"data": {"profile_key": profile_key}})
+        set_user_cookie(response, profile_key)
+        return response
+
     @app.route("/api/bet-tracker")
     def api_bet_tracker():
         current_settings = user_settings()
@@ -826,6 +856,10 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "graph": graph,
                 "bankroll": current_settings,
+                "profile": {
+                    "key": g.iconbets_user_id,
+                    "is_new": bool(getattr(g, "iconbets_new_user", False)),
+                },
                 "tracking": {
                     key: value
                     for key, value in tracker.tracking_diagnostics(

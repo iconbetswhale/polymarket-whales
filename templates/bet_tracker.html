@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span><span class="status-label stale" id="tracker-job-state">Tracking: Stale</span></div></div><div class="tracker-header-actions"><div class="bankroll-inline">Tracker bankroll <strong id="tracker-starting-bankroll">$0.00</strong><button class="bankroll-edit" id="tracker-bankroll-edit" type="button">Edit</button></div><button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button></div></header>
+<header class="page-header"><div><p class="eyebrow">SIMULATED PERFORMANCE</p><div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">0 tracked</span><span class="status-label stale" id="tracker-job-state">Tracking: Stale</span></div></div><div class="tracker-header-actions"><div class="bankroll-inline">Tracker bankroll <strong id="tracker-starting-bankroll">$0.00</strong><button class="bankroll-edit" id="tracker-bankroll-edit" type="button">Edit</button></div><button class="button ghost compact" id="tracker-profile-open" type="button"><i class="ph ph-devices" aria-hidden="true"></i>Tracker profile</button><button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button></div></header>
 <section class="panel tracker-diagnostics" id="tracker-diagnostics" hidden>
   <div class="panel-header"><div><p class="eyebrow">AUTOMATIC TRACKING</p><h2>Model Tracker diagnostics</h2></div><div class="tracker-diagnostic-actions"><button class="button ghost compact" id="tracker-pause-job" type="button">Pause tracking</button><button class="button primary compact" id="tracker-reconcile" type="button"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Reconcile Today</button></div></div>
   <div class="tracker-diagnostic-grid" id="tracker-diagnostic-grid"></div>
@@ -28,6 +28,20 @@
       <label class="tracker-dialog-field">Tracker bankroll<input id="tracker-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
       <p class="tracker-admin-error" id="tracker-bankroll-error" role="alert" aria-live="polite"></p>
       <div class="tracker-dialog-actions"><button class="button ghost" id="tracker-bankroll-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Update replay</button></div>
+    </form>
+  </div>
+</dialog>
+<dialog class="tracker-dialog" id="tracker-profile-dialog" aria-labelledby="tracker-profile-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="tracker-profile-close" type="button" aria-label="Close Tracker profile settings"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">TRACKER CONTINUITY</p>
+    <h2 id="tracker-profile-title">Connect this browser</h2>
+    <p class="tracker-dialog-note">Your tracked bets are private to a random profile key. Keep this key somewhere safe and use it to reconnect after changing browsers or clearing site data.</p>
+    <form id="tracker-profile-form">
+      <div class="tracker-dialog-field"><span>Current profile key</span><div class="tracker-profile-key-row"><input id="tracker-profile-current" type="text" readonly aria-label="Current Tracker profile key"><button class="button ghost compact" id="tracker-profile-copy" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy</button></div></div>
+      <label class="tracker-dialog-field tracker-profile-connect">Connect an existing profile<input id="tracker-profile-input" type="text" minlength="20" maxlength="128" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="Paste a Tracker profile key"></label>
+      <p class="tracker-admin-error" id="tracker-profile-error" role="alert" aria-live="polite"></p>
+      <div class="tracker-dialog-actions"><button class="button ghost" id="tracker-profile-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-link" aria-hidden="true"></i>Connect profile</button></div>
     </form>
   </div>
 </dialog>
