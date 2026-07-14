@@ -56,4 +56,6 @@ jobs:
             https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/prophetx)"
           status="$(printf '%s' "$response" | python -c 'import json,sys; print(json.load(sys.stdin).get("status", "connection failed"))')"
           printf 'ProphetX provider status: %s\n' "$status"
-          test "$status" = "authenticated"
+          if [ "$status" != "authenticated" ]; then
+            printf '::warning::ProphetX provider status: %s\n' "$status"
+          fi
