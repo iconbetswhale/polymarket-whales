@@ -24,6 +24,7 @@ NOVIG_LOGO_URL = (
     "6436d7c4d343f31dbf62d683_favicon.png"
 )
 NOVIG_BOOKMAKER_ID = "novig"
+PROPHETX_PRODUCTION_BASE_URL = "https://cash.api.prophetx.co/partner"
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
 MAX_PROVIDER_PAGES = 10
 
@@ -32,6 +33,13 @@ class MatchConfidence(str, Enum):
     EXACT = "Exact"
     PROBABLE = "Probable"
     NO_MATCH = "No Match"
+
+
+class ProviderHealthStatus(str, Enum):
+    CONFIGURED = "configured"
+    AUTHENTICATED = "authenticated"
+    UNAUTHORIZED = "unauthorized"
+    CONNECTION_FAILED = "connection failed"
 
 
 @dataclass(frozen=True)
@@ -116,6 +124,82 @@ class PolymarketProvider(ExecutionProvider):
                 tooltip="Polymarket Current Best Price",
             )
         return options
+
+
+class ProphetXProvider(ExecutionProvider):
+    provider_name = "ProphetX"
+    provider_key = "prophetx"
+
+    def __init__(
+        self,
+        access_key: str | None,
+        secret_key: str | None,
+        *,
+        base_url: str = PROPHETX_PRODUCTION_BASE_URL,
+        request_timeout: int = 15,
+        session: requests.Session | None = None,
+    ) -> None:
+        self._access_key = str(access_key or "").strip() or None
+        self._secret_key = str(secret_key or "").strip() or None
+        self.base_url = base_url.rstrip("/")
+        self.request_timeout = max(int(request_timeout), 1)
+        self.session = session or requests.Session()
+        self._health_status = (
+            ProviderHealthStatus.CONFIGURED
+            if self._access_key and self._secret_key
+            else ProviderHealthStatus.CONNECTION_FAILED
+        )
+        self._health_lock = threading.RLock()
+
+    def __repr__(self) -> str:
+        configured = bool(self._access_key and self._secret_key)
+        return f"<ProphetXProvider configured={configured}>"
+
+    def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
+        # Market normalization is intentionally deferred until exact settlement
+        # matching is implemented for ProphetX.
+        return {}
+
+    def health_status(self, *, authenticate: bool = False) -> ProviderHealthStatus:
+        if not self._access_key or not self._secret_key:
+            return ProviderHealthStatus.CONNECTION_FAILED
+        if not authenticate:
+            return self._health_status
+
+        try:
+            response = self.session.post(
+                f"{self.base_url}/auth/login",
+                json={
+                    "access_key": self._access_key,
+                    "secret_key": self._secret_key,
+                },
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                timeout=self.request_timeout,
+            )
+            status_code = int(getattr(response, "status_code", 0))
+            if status_code in {400, 401, 403}:
+                result = ProviderHealthStatus.UNAUTHORIZED
+            elif status_code != 200:
+                result = ProviderHealthStatus.CONNECTION_FAILED
+            else:
+                payload = response.json()
+                token = ((payload or {}).get("data") or {}).get("access_token")
+                result = (
+                    ProviderHealthStatus.AUTHENTICATED
+                    if isinstance(token, str) and token.strip()
+                    else ProviderHealthStatus.CONNECTION_FAILED
+                )
+        except Exception:
+            # This boundary deliberately suppresses provider exception details so
+            # credentials and upstream response bodies can never reach logs or APIs.
+            result = ProviderHealthStatus.CONNECTION_FAILED
+
+        with self._health_lock:
+            self._health_status = result
+        return result
 
 
 @dataclass(frozen=True)
@@ -367,6 +451,25 @@ class ExecutionProviderRegistry:
             ]
         return trades
 
+    def provider_health(
+        self, provider_key: str, *, authenticate: bool = False
+    ) -> ProviderHealthStatus:
+        provider = next(
+            (
+                item
+                for item in self.providers
+                if item.provider_key == str(provider_key or "").strip().lower()
+            ),
+            None,
+        )
+        checker = getattr(provider, "health_status", None)
+        if not callable(checker):
+            return ProviderHealthStatus.CONNECTION_FAILED
+        try:
+            return checker(authenticate=authenticate)
+        except Exception:
+            return ProviderHealthStatus.CONNECTION_FAILED
+
 
 def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
     return ExecutionProviderRegistry(
@@ -380,6 +483,16 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     "https://api.sportsgameodds.com/v2",
                 ),
                 cache_ttl_seconds=getattr(settings, "novig_cache_ttl_seconds", 45),
+                request_timeout=getattr(settings, "request_timeout", 15),
+            ),
+            ProphetXProvider(
+                getattr(settings, "prophetx_access_key", None),
+                getattr(settings, "prophetx_secret_key", None),
+                base_url=getattr(
+                    settings,
+                    "prophetx_api_base_url",
+                    PROPHETX_PRODUCTION_BASE_URL,
+                ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
         )

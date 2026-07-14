@@ -45,3 +45,15 @@ jobs:
 
       - name: Deploy production
         run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
+
+      - name: Verify ProphetX authentication
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/prophetx)"
+          status="$(printf '%s' "$response" | python -c 'import json,sys; print(json.load(sys.stdin).get("status", "connection failed"))')"
+          printf 'ProphetX provider status: %s\n' "$status"
+          test "$status" = "authenticated"

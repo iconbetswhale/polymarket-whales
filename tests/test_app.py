@@ -8,6 +8,7 @@ import pytest
 
 from config import Settings
 from database import TrackerDatabase
+from execution_providers import ProviderHealthStatus
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
     _format_event_start,
@@ -201,6 +202,51 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/bet-tracker").status_code == 200
     assert app_client.get("/api/model-tracker").status_code == 200
     assert app_client.get("/api/personal-tracker").status_code == 200
+    assert app_client.get("/api/provider-health/prophetx").status_code == 200
+
+
+def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "prophetx"
+    )
+    provider._access_key = "test-access"
+    provider._secret_key = "test-secret"
+    provider._health_status = ProviderHealthStatus.CONFIGURED
+
+    class HealthResponse:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"data": {"access_token": "temporary-session-token"}}
+
+    class HealthSession:
+        @staticmethod
+        def post(*_args, **_kwargs):
+            return HealthResponse()
+
+    provider.session = HealthSession()
+    settings = app_client.application.config["SETTINGS"]
+    object.__setattr__(settings, "tracker_job_secret", "test-job-secret")
+
+    configured = app_client.get("/api/provider-health/prophetx")
+    unauthorized = app_client.post("/api/provider-health/prophetx")
+    authenticated = app_client.post(
+        "/api/provider-health/prophetx",
+        headers={"Authorization": "Bearer test-job-secret"},
+    )
+
+    assert configured.get_json() == {"status": "configured"}
+    assert unauthorized.status_code == 401
+    assert unauthorized.get_json() == {"status": "unauthorized"}
+    assert authenticated.get_json() == {"status": "authenticated"}
+    combined = "".join(
+        response.get_data(as_text=True)
+        for response in (configured, unauthorized, authenticated)
+    )
+    assert "test-access" not in combined
+    assert "test-secret" not in combined
 
 
 def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):

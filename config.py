@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -77,6 +77,9 @@ class Settings:
     novig_api_key: str | None = None
     novig_api_base_url: str = "https://api.sportsgameodds.com/v2"
     novig_cache_ttl_seconds: int = 45
+    prophetx_access_key: str | None = field(default=None, repr=False)
+    prophetx_secret_key: str | None = field(default=None, repr=False)
+    prophetx_api_base_url: str = "https://cash.api.prophetx.co/partner"
 
 
 def get_settings() -> Settings:
@@ -120,4 +123,9 @@ def get_settings() -> Settings:
             "NOVIG_ODDS_API_BASE_URL", "https://api.sportsgameodds.com/v2"
         ),
         novig_cache_ttl_seconds=_get_int("NOVIG_ODDS_CACHE_TTL_SECONDS", 45),
+        prophetx_access_key=os.getenv("PROPHETX_ACCESS_KEY") or None,
+        prophetx_secret_key=os.getenv("PROPHETX_SECRET_KEY") or None,
+        prophetx_api_base_url=os.getenv(
+            "PROPHETX_API_BASE_URL", "https://cash.api.prophetx.co/partner"
+        ),
     )

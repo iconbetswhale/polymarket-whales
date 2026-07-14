@@ -17,7 +17,10 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 from bet_tracker import replay_tracker
 from config import get_settings
 from database import SettingsVersionConflict
-from execution_providers import build_execution_provider_registry
+from execution_providers import (
+    ProviderHealthStatus,
+    build_execution_provider_registry,
+)
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
     canonical_trade_identity,
@@ -269,7 +272,10 @@ def create_app(start_background: bool = True) -> Flask:
         g.iconbets_new_user = not bool(user_id)
         g.iconbets_user_id = user_id or secrets.token_urlsafe(24)
 
-        if request.endpoint == "api_model_tracker_reconcile":
+        if request.endpoint in {
+            "api_model_tracker_reconcile",
+            "api_prophetx_health",
+        }:
             return
         if (
             not start_background
@@ -550,6 +556,15 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/status")
     def api_status():
         return jsonify(tracker.get_snapshot()["status"])
+
+    @app.route("/api/provider-health/prophetx", methods=["GET", "POST"])
+    def api_prophetx_health():
+        if request.method == "POST" and not has_job_authorization():
+            return jsonify({"status": ProviderHealthStatus.UNAUTHORIZED.value}), 401
+        status = execution_providers.provider_health(
+            "prophetx", authenticate=request.method == "POST"
+        )
+        return jsonify({"status": status.value})
 
     @app.route("/api/overview")
     def api_overview():

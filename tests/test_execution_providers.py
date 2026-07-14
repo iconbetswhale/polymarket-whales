@@ -5,17 +5,21 @@ from copy import deepcopy
 import pytest
 import requests
 
+from config import get_settings
 from execution_providers import (
     ExecutionProviderRegistry,
     MatchConfidence,
     NoVIGProvider,
     PolymarketProvider,
+    ProphetXProvider,
+    ProviderHealthStatus,
 )
 
 
 class FakeResponse:
-    def __init__(self, payload: dict) -> None:
+    def __init__(self, payload: dict, status_code: int = 200) -> None:
         self.payload = payload
+        self.status_code = status_code
 
     def raise_for_status(self) -> None:
         return None
@@ -31,6 +35,12 @@ class FakeSession:
         self.error: Exception | None = None
 
     def get(self, url, **kwargs):
+        self.calls.append((url, kwargs))
+        if self.error:
+            raise self.error
+        return FakeResponse(self.payload)
+
+    def post(self, url, **kwargs):
         self.calls.append((url, kwargs))
         if self.error:
             raise self.error
@@ -362,6 +372,98 @@ def test_unconfigured_provider_is_hidden_without_network_access() -> None:
 
     assert novig.options_for_trades([trade()]) == {}
     assert session.calls == []
+
+
+def test_prophetx_configuration_is_redacted_and_does_not_make_a_request() -> None:
+    session = FakeSession({})
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    assert provider.health_status() is ProviderHealthStatus.CONFIGURED
+    assert session.calls == []
+    assert "test-access" not in repr(provider)
+    assert "test-secret" not in repr(provider)
+
+
+def test_prophetx_settings_use_only_the_exact_environment_names(monkeypatch) -> None:
+    monkeypatch.setenv("PROPHETX_ACCESS_KEY", "exact-access")
+    monkeypatch.setenv("PROPHETX_SECRET_KEY", "exact-secret")
+    monkeypatch.setenv("PROPHETX_API_KEY", "wrong-access")
+    monkeypatch.setenv("PROPHETX_API_SECRET", "wrong-secret")
+
+    settings = get_settings()
+
+    assert settings.prophetx_access_key == "exact-access"
+    assert settings.prophetx_secret_key == "exact-secret"
+    assert "exact-access" not in repr(settings)
+    assert "exact-secret" not in repr(settings)
+
+
+def test_prophetx_authentication_uses_the_production_contract() -> None:
+    session = FakeSession({"data": {"access_token": "temporary-session-token"}})
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    status = provider.health_status(authenticate=True)
+
+    assert status is ProviderHealthStatus.AUTHENTICATED
+    assert session.calls == [
+        (
+            "https://cash.api.prophetx.co/partner/auth/login",
+            {
+                "json": {
+                    "access_key": "test-access",
+                    "secret_key": "test-secret",
+                },
+                "headers": {
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+                "timeout": 15,
+            },
+        )
+    ]
+
+
+@pytest.mark.parametrize("status_code", [400, 401, 403])
+def test_prophetx_rejects_invalid_credentials_without_error_details(
+    status_code: int,
+) -> None:
+    session = FakeSession({"message": "sensitive upstream detail"})
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+    session.post = lambda *_args, **_kwargs: FakeResponse({}, status_code=status_code)
+
+    assert (
+        provider.health_status(authenticate=True)
+        is ProviderHealthStatus.UNAUTHORIZED
+    )
+
+
+@pytest.mark.parametrize(
+    "session",
+    [
+        FakeSession({"data": {}}),
+        FakeSession({"data": {"access_token": ""}}),
+    ],
+)
+def test_prophetx_malformed_success_is_a_redacted_connection_failure(
+    session: FakeSession,
+) -> None:
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    assert (
+        provider.health_status(authenticate=True)
+        is ProviderHealthStatus.CONNECTION_FAILED
+    )
+
+
+def test_prophetx_connection_error_is_redacted() -> None:
+    session = FakeSession({})
+    session.error = requests.ConnectionError("do not return this detail")
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    assert (
+        provider.health_status(authenticate=True)
+        is ProviderHealthStatus.CONNECTION_FAILED
+    )
 
 
 def test_novig_homepage_is_never_used_as_an_execution_link() -> None:
