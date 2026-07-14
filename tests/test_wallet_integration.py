@@ -17,6 +17,7 @@ REQUESTED_WALLETS = {
     "phonesculptor": "0xf1528f12e645462c344799b62b1b421a6a4c64aa",
     "Surfandturf": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
     "Bagwell306": "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
+    "ferrariChampions2026": "0xfe787d2da716d60e8acff57fb87eb13cd4d10319",
 }
 
 
@@ -102,6 +103,16 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert wallet_4f2.top_category_ids == ("mlb",)
     assert wallet_4f2.primary_top_category_id == "mlb"
     assert wallet_4f2.top_category_source == "manually_reviewed_locked"
+
+    ferrari = next(
+        wallet
+        for wallet in result.valid_wallets
+        if wallet.label == "ferrariChampions2026"
+    )
+    assert ferrari.base_unit == 5000
+    assert ferrari.top_category_ids == ("mlb",)
+    assert ferrari.minimum_actionable_exposure_dollars == 2500
+    assert ferrari.requires_fill_aggregation is True
 
 
 def test_case_insensitive_duplicate_request_is_rejected(tmp_path):

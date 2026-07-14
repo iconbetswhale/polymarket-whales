@@ -20,20 +20,30 @@ class WalletEntry:
     base_unit: float | None
     notes: str
     top_category: str | None
+    top_category_display: str | None
     top_categories: tuple[str, ...]
     top_category_ids: tuple[str, ...]
     primary_top_category_id: str | None
     top_category_source: str | None
     top_category_verified_at: str | None
     bettor_type: str | None
+    trader_type: str | None
     selectivity: str | None
+    selectivity_code: str | None
     selectivity_score: float | None
     hold_tendency: str | None
+    hold_profile: str | None
     copyability: str | None
+    copyability_code: str | None
     execution_style: str | None
+    execution_style_code: str | None
     general_strategy: str | None
     minimum_position_units: float | None
     actionable_position_units: float | None
+    typical_execution_tranche_dollars: float | None
+    minimum_actionable_exposure_dollars: float | None
+    requires_fill_aggregation: bool
+    hedge_detection_required: bool
 
 
 @dataclass(frozen=True)
@@ -107,6 +117,21 @@ def _parse_optional_positive_float(value: Any, field: str) -> float | None:
     if parsed <= 0:
         raise ValueError(f"{field} must be greater than zero when provided")
     return parsed
+
+
+def _parse_bool(value: Any, default: bool = False) -> bool:
+    if value in (None, ""):
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    raise ValueError("must be a boolean")
 
 
 def load_wallets(path: Path) -> WalletLoadResult:
@@ -189,6 +214,41 @@ def load_wallets(path: Path) -> WalletLoadResult:
             )
             continue
 
+        optional_dollar_fields: dict[str, float | None] = {}
+        invalid_optional_dollars = False
+        for field in (
+            "typical_execution_tranche_dollars",
+            "minimum_actionable_exposure_dollars",
+        ):
+            value = item.get(field)
+            try:
+                optional_dollar_fields[field] = _parse_optional_positive_float(
+                    value, field
+                )
+            except (TypeError, ValueError) as exc:
+                invalid_entries.append(
+                    WalletError(index=index, field=field, value=value, message=str(exc))
+                )
+                invalid_optional_dollars = True
+                break
+        if invalid_optional_dollars:
+            continue
+
+        boolean_fields: dict[str, bool] = {}
+        invalid_boolean = False
+        for field in ("requires_fill_aggregation", "hedge_detection_required"):
+            value = item.get(field)
+            try:
+                boolean_fields[field] = _parse_bool(value)
+            except ValueError as exc:
+                invalid_entries.append(
+                    WalletError(index=index, field=field, value=value, message=str(exc))
+                )
+                invalid_boolean = True
+                break
+        if invalid_boolean:
+            continue
+
         if (
             minimum_position_units is not None
             and actionable_position_units is not None
@@ -240,6 +300,9 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 base_unit=base_unit,
                 notes=notes,
                 top_category=configured_primary_category,
+                top_category_display=_parse_optional_text(
+                    item.get("top_category_display")
+                ),
                 top_categories=tuple(configured_top_categories),
                 top_category_ids=top_category_ids,
                 primary_top_category_id=(
@@ -251,16 +314,35 @@ def load_wallets(path: Path) -> WalletLoadResult:
                     or item.get("topCategoryVerifiedAt")
                 ),
                 bettor_type=_parse_optional_text(item.get("bettor_type")),
+                trader_type=_parse_optional_text(item.get("trader_type")),
                 selectivity=_parse_optional_text(item.get("selectivity")),
+                selectivity_code=_parse_optional_text(item.get("selectivity_code")),
                 selectivity_score=_parse_optional_positive_float(
                     item.get("selectivity_score"), "selectivity_score"
                 ),
                 hold_tendency=_parse_optional_text(item.get("hold_tendency")),
+                hold_profile=_parse_optional_text(item.get("hold_profile")),
                 copyability=_parse_optional_text(item.get("copyability")),
+                copyability_code=_parse_optional_text(item.get("copyability_code")),
                 execution_style=_parse_optional_text(item.get("execution_style")),
+                execution_style_code=_parse_optional_text(
+                    item.get("execution_style_code")
+                ),
                 general_strategy=_parse_optional_text(item.get("general_strategy")),
                 minimum_position_units=minimum_position_units,
                 actionable_position_units=actionable_position_units,
+                typical_execution_tranche_dollars=optional_dollar_fields[
+                    "typical_execution_tranche_dollars"
+                ],
+                minimum_actionable_exposure_dollars=optional_dollar_fields[
+                    "minimum_actionable_exposure_dollars"
+                ],
+                requires_fill_aggregation=boolean_fields[
+                    "requires_fill_aggregation"
+                ],
+                hedge_detection_required=boolean_fields[
+                    "hedge_detection_required"
+                ],
             )
         )
 

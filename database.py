@@ -82,6 +82,48 @@ class TrackerDatabase:
                 CREATE INDEX IF NOT EXISTS idx_position_events_type_detected
                     ON position_events(event_type, detected_at DESC);
 
+                CREATE TABLE IF NOT EXISTS tracked_wallet_registry (
+                    normalized_address TEXT PRIMARY KEY COLLATE NOCASE,
+                    display_label TEXT NOT NULL,
+                    enabled INTEGER NOT NULL,
+                    sync_status TEXT NOT NULL DEFAULT 'pending',
+                    last_synced_at TEXT,
+                    last_error TEXT,
+                    config_json TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    CHECK (normalized_address = lower(normalized_address))
+                );
+
+                CREATE TABLE IF NOT EXISTS wallet_execution_fills (
+                    fill_id TEXT PRIMARY KEY,
+                    wallet_address TEXT NOT NULL COLLATE NOCASE,
+                    transaction_hash TEXT,
+                    condition_id TEXT NOT NULL,
+                    outcome_id TEXT NOT NULL,
+                    side TEXT NOT NULL,
+                    shares REAL NOT NULL,
+                    price REAL NOT NULL,
+                    usd_amount REAL NOT NULL,
+                    executed_at INTEGER NOT NULL,
+                    event_slug TEXT,
+                    market_slug TEXT,
+                    market_title TEXT,
+                    outcome TEXT,
+                    fill_json TEXT NOT NULL,
+                    imported_at TEXT NOT NULL,
+                    CHECK (wallet_address = lower(wallet_address))
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_wallet_fills_position
+                    ON wallet_execution_fills(
+                        wallet_address,
+                        condition_id,
+                        outcome_id,
+                        executed_at
+                    );
+                CREATE INDEX IF NOT EXISTS idx_wallet_fills_transaction
+                    ON wallet_execution_fills(wallet_address, transaction_hash);
+
                 CREATE TABLE IF NOT EXISTS refresh_state (
                     key TEXT PRIMARY KEY,
                     value TEXT NOT NULL
@@ -298,6 +340,145 @@ class TrackerDatabase:
                 "DELETE FROM bet_tracker WHERE user_id = ? AND dedupe_key = ?",
                 invalid_rows,
             )
+
+    def sync_wallet_registry(self, wallets: list[dict]) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            for wallet in wallets:
+                address = str(wallet.get("address") or "").strip().lower()
+                if not address:
+                    continue
+                conn.execute(
+                    """
+                    INSERT INTO tracked_wallet_registry (
+                        normalized_address,
+                        display_label,
+                        enabled,
+                        sync_status,
+                        config_json,
+                        updated_at
+                    )
+                    VALUES (?, ?, ?, 'pending', ?, ?)
+                    ON CONFLICT(normalized_address) DO UPDATE SET
+                        display_label = excluded.display_label,
+                        enabled = excluded.enabled,
+                        config_json = excluded.config_json,
+                        updated_at = excluded.updated_at
+                    """,
+                    (
+                        address,
+                        str(wallet.get("label") or address),
+                        1 if wallet.get("enabled") else 0,
+                        json.dumps(wallet),
+                        now,
+                    ),
+                )
+
+    def set_wallet_sync_state(
+        self,
+        wallet_address: str,
+        status: str,
+        *,
+        last_synced_at: str | None = None,
+        error: str | None = None,
+    ) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE tracked_wallet_registry
+                SET sync_status = ?,
+                    last_synced_at = COALESCE(?, last_synced_at),
+                    last_error = ?,
+                    updated_at = ?
+                WHERE normalized_address = ?
+                """,
+                (
+                    status,
+                    last_synced_at,
+                    error,
+                    datetime.now(timezone.utc).isoformat(),
+                    str(wallet_address or "").lower(),
+                ),
+            )
+
+    def insert_wallet_execution_fills(self, fills: list[dict]) -> int:
+        if not fills:
+            return 0
+        imported_at = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            before = conn.total_changes
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO wallet_execution_fills (
+                    fill_id,
+                    wallet_address,
+                    transaction_hash,
+                    condition_id,
+                    outcome_id,
+                    side,
+                    shares,
+                    price,
+                    usd_amount,
+                    executed_at,
+                    event_slug,
+                    market_slug,
+                    market_title,
+                    outcome,
+                    fill_json,
+                    imported_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        fill["fill_id"],
+                        str(fill["wallet_address"]).lower(),
+                        fill.get("transaction_hash"),
+                        fill["condition_id"],
+                        fill["outcome_id"],
+                        fill["side"],
+                        fill["shares"],
+                        fill["price"],
+                        fill["usd_amount"],
+                        fill["timestamp"],
+                        fill.get("event_slug"),
+                        fill.get("market_slug"),
+                        fill.get("market_title"),
+                        fill.get("outcome"),
+                        json.dumps(fill.get("raw_fill") or {}),
+                        imported_at,
+                    )
+                    for fill in fills
+                ],
+            )
+            return conn.total_changes - before
+
+    def get_wallet_execution_fills(self, wallet_address: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT fill_id, wallet_address, transaction_hash, condition_id,
+                       outcome_id, side, shares, price, usd_amount,
+                       executed_at AS timestamp, event_slug, market_slug,
+                       market_title, outcome
+                FROM wallet_execution_fills
+                WHERE wallet_address = ?
+                ORDER BY executed_at ASC, fill_id ASC
+                """,
+                (str(wallet_address or "").lower(),),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def get_wallet_fill_counts(self) -> dict[str, int]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT wallet_address, COUNT(*) AS count
+                FROM wallet_execution_fills
+                GROUP BY wallet_address
+                """
+            ).fetchall()
+        return {str(row["wallet_address"]).lower(): int(row["count"]) for row in rows}
 
     def get_open_positions_for_wallet(self, wallet_address: str) -> dict[str, dict]:
         with self.connection() as conn:

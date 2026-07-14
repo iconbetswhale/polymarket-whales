@@ -157,9 +157,12 @@ function slippageMetricChip(comparison) {
   `;
 }
 
-function walletMeta(label, value) {
+function walletMeta(label, value, tooltip = "") {
   if (!value && value !== 0) return "";
-  return `<span><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`;
+  const tooltipAttributes = tooltip
+    ? ` title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(`${label}: ${value}. ${tooltip}`)}"`
+    : "";
+  return `<span${tooltipAttributes}><small>${escapeHtml(label)}</small><strong>${escapeHtml(value)}</strong></span>`;
 }
 
 function formatDateTime(value, fallback = "Unavailable") {
@@ -1458,11 +1461,19 @@ function walletCard(wallet) {
       <button class="address-copy" type="button" data-copy-address="${escapeHtml(wallet.address)}"><span>${escapeHtml(wallet.display_address || wallet.address)}</span><i class="ph ph-copy" aria-hidden="true"></i></button>
       <div class="wallet-stats"><div><span>Open positions</span><strong>${wallet.open_position_count ?? 0}</strong></div><div><span>History events</span><strong>${wallet.historical_position_count ?? 0}</strong></div><div><span>Base unit</span><strong>${wallet.base_unit ? formatMoney(wallet.base_unit) : "Estimating"}</strong></div></div>
       <div class="wallet-sync wallet-meta">${[
-        walletMeta("Top category", wallet.top_category),
+        walletMeta("Top category", wallet.top_category_display || wallet.top_category),
+        walletMeta("Half unit", wallet.minimum_actionable_exposure_dollars ? formatMoney(wallet.minimum_actionable_exposure_dollars) : null),
+        walletMeta("Execution tranche", wallet.typical_execution_tranche_dollars ? `Approx. ${formatMoney(wallet.typical_execution_tranche_dollars)}` : null, "An execution tranche is not a full unit. Individual small fills are aggregated and should not be copied independently."),
+        walletMeta("Actionable exposure", wallet.minimum_actionable_exposure_dollars ? `${formatMoney(wallet.minimum_actionable_exposure_dollars)} / ${(wallet.actionable_position_units || 0).toFixed(2)}u` : null, "Signals become actionable only after completed fills are aggregated to this net exposure."),
         walletMeta("Type", wallet.bettor_type),
         walletMeta("Selectivity", wallet.selectivity),
         walletMeta("Hold", wallet.hold_tendency),
         walletMeta("Copyability", wallet.copyability),
+        walletMeta("Execution", wallet.execution_style),
+        walletMeta("Synced fills", wallet.requires_fill_aggregation ? wallet.deduplicated_fill_count : null),
+        walletMeta("Avg. fills / position", wallet.requires_fill_aggregation ? wallet.average_fills_per_aggregated_position : null),
+        walletMeta("Settled positions", wallet.requires_fill_aggregation ? wallet.settled_aggregated_position_count : null),
+        walletMeta("Fill backfill", wallet.requires_fill_aggregation ? wallet.historical_backfill_status : null),
       ].join("")}</div>
       <div class="wallet-sync"><span>Last successful sync</span><strong>${formatDateTime(wallet.last_synced_at, "Not available")}</strong></div>
       ${wallet.message ? `<p class="wallet-warning">${escapeHtml(wallet.message)}</p>` : ""}

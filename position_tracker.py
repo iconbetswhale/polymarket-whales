@@ -35,6 +35,7 @@ from recommendation_service import (
 from scoring import hours_until_resolution, score_position
 from trade_scoring import build_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
+from wallet_activity import aggregate_trade_fills, normalize_trade_fills
 from wallet_loader import WalletEntry, load_wallets
 
 LOGGER = logging.getLogger(__name__)
@@ -174,7 +175,7 @@ def outcome_token_id(position: dict, market: dict) -> str | None:
     for index, outcome in enumerate(outcomes):
         if outcome == selected and index < len(token_ids):
             return token_ids[index]
-    return None
+    return str(position.get("asset") or "") or None
 
 
 def coarse_event_datetime(position: dict) -> datetime | None:
@@ -348,6 +349,11 @@ class TrackerService:
         attempt_time = _iso_now()
         loader = load_wallets(self.settings.wallets_file)
         wallet_payload = self._build_wallet_payload(loader)
+        self.database.sync_wallet_registry(
+            [asdict(wallet) for wallet in loader.valid_wallets]
+        )
+        for wallet in loader.enabled_wallets:
+            self.database.set_wallet_sync_state(wallet.address, "syncing")
 
         status = self._empty_status()
         status["last_refresh_attempt"] = attempt_time
@@ -390,6 +396,7 @@ class TrackerService:
         fetch_results = self._fetch_wallet_data(loader.enabled_wallets)
         open_positions = fetch_results["open_positions"]
         closed_positions = fetch_results["closed_positions"]
+        raw_trade_fills = fetch_results["trade_fills"]
         api_errors = fetch_results["errors"]
         status["api_errors"] = api_errors
         status["api_status"] = (
@@ -427,6 +434,34 @@ class TrackerService:
         events = self.client.get_events(unique_event_slugs)
         category_metrics = self._build_category_metrics(closed_positions, events)
 
+        fill_aggregates_by_wallet: dict[
+            str, dict[tuple[str, str], dict[str, Any]]
+        ] = {}
+        fill_sync_stats: dict[str, dict[str, Any]] = {}
+        for wallet in loader.enabled_wallets:
+            raw_fills = raw_trade_fills.get(wallet.address) or []
+            normalized_fills, duplicate_count = normalize_trade_fills(
+                wallet.address, raw_fills
+            )
+            imported_count = self.database.insert_wallet_execution_fills(
+                normalized_fills
+            )
+            aggregates = aggregate_trade_fills(normalized_fills)
+            fill_aggregates_by_wallet[wallet.address] = aggregates
+            fill_counts = [aggregate["fill_count"] for aggregate in aggregates.values()]
+            fill_sync_stats[wallet.address] = {
+                "raw_fill_count": len(raw_fills),
+                "deduplicated_fill_count": len(normalized_fills),
+                "duplicate_fill_count": duplicate_count,
+                "new_fill_count": imported_count,
+                "aggregated_position_count": len(aggregates),
+                "average_fills_per_aggregated_position": (
+                    round(sum(fill_counts) / len(fill_counts), 2)
+                    if fill_counts
+                    else 0.0
+                ),
+            }
+
         current_rows: list[dict] = []
         for wallet in loader.enabled_wallets:
             wallet_open = candidate_open_positions.get(wallet.address)
@@ -439,7 +474,9 @@ class TrackerService:
                 wallet_open,
                 events,
                 category_metrics.get(wallet.address, {}),
+                fill_aggregates_by_wallet.get(wallet.address, {}),
             )
+            self._apply_wallet_hedge_controls(normalized_rows)
             current_rows.extend(
                 self._persist_positions(
                     wallet,
@@ -522,6 +559,7 @@ class TrackerService:
             closed_positions,
             positions,
             success_time,
+            fill_sync_stats,
         )
         status["position_count"] = len(positions)
         status["recent_trade_count"] = len(
@@ -894,26 +932,43 @@ class TrackerService:
                         "base_unit": wallet.base_unit,
                         "notes": wallet.notes,
                         "top_category": wallet.top_category,
+                        "top_category_display": wallet.top_category_display,
                         "top_categories": list(wallet.top_categories),
                         "top_category_ids": list(wallet.top_category_ids),
                         "primary_top_category_id": wallet.primary_top_category_id,
                         "top_category_source": wallet.top_category_source,
                         "top_category_verified_at": wallet.top_category_verified_at,
                         "bettor_type": wallet.bettor_type,
+                        "trader_type": wallet.trader_type,
                         "selectivity": wallet.selectivity,
+                        "selectivity_code": wallet.selectivity_code,
                         "selectivity_score": wallet.selectivity_score,
                         "hold_tendency": wallet.hold_tendency,
+                        "hold_profile": wallet.hold_profile,
                         "copyability": wallet.copyability,
+                        "copyability_code": wallet.copyability_code,
                         "execution_style": wallet.execution_style,
+                        "execution_style_code": wallet.execution_style_code,
                         "general_strategy": wallet.general_strategy,
                         "minimum_position_units": wallet.minimum_position_units,
                         "actionable_position_units": wallet.actionable_position_units,
+                        "typical_execution_tranche_dollars": wallet.typical_execution_tranche_dollars,
+                        "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
+                        "requires_fill_aggregation": wallet.requires_fill_aggregation,
+                        "hedge_detection_required": wallet.hedge_detection_required,
                         "status": "enabled" if wallet.enabled else "disabled",
                         "sync_status": "pending" if wallet.enabled else "disabled",
                         "open_position_count": 0,
                         "closed_position_count": 0,
                         "historical_position_count": 0,
                         "last_synced_at": None,
+                        "raw_fill_count": 0,
+                        "deduplicated_fill_count": 0,
+                        "duplicate_fill_count": 0,
+                        "new_fill_count": 0,
+                        "aggregated_position_count": 0,
+                        "average_fills_per_aggregated_position": 0.0,
+                        "historical_backfill_status": "pending",
                         "short_address": shorten_wallet(wallet.address),
                         "profile_url": f"https://polymarket.com/profile/{wallet.address}",
                     }
@@ -929,6 +984,7 @@ class TrackerService:
                         "base_unit": raw_entry.get("base_unit"),
                         "notes": raw_entry.get("notes") or "",
                         "top_category": raw_entry.get("top_category"),
+                        "top_category_display": raw_entry.get("top_category_display"),
                         "top_categories": raw_entry.get("top_categories") or [],
                         "top_category_ids": raw_entry.get("topCategoryIds") or [],
                         "primary_top_category_id": raw_entry.get(
@@ -942,11 +998,16 @@ class TrackerService:
                         )
                         or raw_entry.get("topCategoryVerifiedAt"),
                         "bettor_type": raw_entry.get("bettor_type"),
+                        "trader_type": raw_entry.get("trader_type"),
                         "selectivity": raw_entry.get("selectivity"),
+                        "selectivity_code": raw_entry.get("selectivity_code"),
                         "selectivity_score": raw_entry.get("selectivity_score"),
                         "hold_tendency": raw_entry.get("hold_tendency"),
+                        "hold_profile": raw_entry.get("hold_profile"),
                         "copyability": raw_entry.get("copyability"),
+                        "copyability_code": raw_entry.get("copyability_code"),
                         "execution_style": raw_entry.get("execution_style"),
+                        "execution_style_code": raw_entry.get("execution_style_code"),
                         "general_strategy": raw_entry.get("general_strategy"),
                         "minimum_position_units": raw_entry.get(
                             "minimum_position_units"
@@ -954,12 +1015,31 @@ class TrackerService:
                         "actionable_position_units": raw_entry.get(
                             "actionable_position_units"
                         ),
+                        "typical_execution_tranche_dollars": raw_entry.get(
+                            "typical_execution_tranche_dollars"
+                        ),
+                        "minimum_actionable_exposure_dollars": raw_entry.get(
+                            "minimum_actionable_exposure_dollars"
+                        ),
+                        "requires_fill_aggregation": raw_entry.get(
+                            "requires_fill_aggregation", False
+                        ),
+                        "hedge_detection_required": raw_entry.get(
+                            "hedge_detection_required", False
+                        ),
                         "status": "invalid",
                         "sync_status": "failed",
                         "open_position_count": 0,
                         "closed_position_count": 0,
                         "historical_position_count": 0,
                         "last_synced_at": None,
+                        "raw_fill_count": 0,
+                        "deduplicated_fill_count": 0,
+                        "duplicate_fill_count": 0,
+                        "new_fill_count": 0,
+                        "aggregated_position_count": 0,
+                        "average_fills_per_aggregated_position": 0.0,
+                        "historical_backfill_status": "failed",
                         "short_address": None,
                         "profile_url": None,
                         "message": next(
@@ -982,6 +1062,7 @@ class TrackerService:
         closed_positions: dict[str, list[dict]],
         normalized_positions: list[dict],
         timestamp: str,
+        fill_sync_stats: dict[str, dict[str, Any]],
     ) -> None:
         enabled_addresses = {wallet.address for wallet in enabled_wallets}
         history_counts = self.database.get_wallet_history_counts()
@@ -993,12 +1074,14 @@ class TrackerService:
 
         for wallet in wallet_payload:
             address = str(wallet.get("address") or "").lower()
+            wallet.update(fill_sync_stats.get(address, {}))
             wallet["historical_position_count"] = history_counts.get(address, 0)
             if wallet.get("status") == "invalid":
                 wallet["sync_status"] = "failed"
                 continue
             if address not in enabled_addresses:
                 wallet["sync_status"] = "disabled"
+                self.database.set_wallet_sync_state(address, "disabled")
                 continue
             if open_positions.get(address) is None:
                 has_cached_positions = bool(
@@ -1011,22 +1094,70 @@ class TrackerService:
                 wallet["open_position_count"] = 0
                 wallet["closed_position_count"] = len(closed_positions.get(address, []))
                 wallet["last_synced_at"] = None
+                self.database.set_wallet_sync_state(
+                    address, wallet["sync_status"], error=wallet["message"]
+                )
                 continue
             wallet["sync_status"] = "ready"
             wallet["open_position_count"] = normalized_counts.get(address, 0)
             wallet["closed_position_count"] = len(closed_positions.get(address, []))
+            wallet["settled_aggregated_position_count"] = len(
+                closed_positions.get(address, [])
+            )
+            wallet["historical_backfill_status"] = (
+                "partial"
+                if wallet.get("requires_fill_aggregation")
+                and len(closed_positions.get(address, [])) >= 500
+                else "ready"
+            )
             wallet["last_synced_at"] = timestamp
+            self.database.set_wallet_sync_state(
+                address, "ready", last_synced_at=timestamp
+            )
 
     def _fetch_wallet_data(self, wallets: list[WalletEntry]) -> dict[str, Any]:
         open_positions: dict[str, list[dict] | None] = {}
         closed_positions: dict[str, list[dict]] = {}
+        trade_fills: dict[str, list[dict]] = {}
         errors: list[str] = []
 
-        def fetch_wallet(wallet: WalletEntry) -> tuple[str, list[dict], list[dict]]:
+        def fetch_wallet(
+            wallet: WalletEntry,
+        ) -> tuple[str, list[dict], list[dict], list[dict]]:
+            current = self.client.get_current_positions(wallet.address)
+            closed = self.client.get_closed_positions(
+                wallet.address, 500 if wallet.requires_fill_aggregation else 50
+            )
+            fills: list[dict] = []
+            if wallet.requires_fill_aggregation:
+                range_start = _utc_now() - timedelta(days=30)
+                range_end = _utc_now() + timedelta(days=30)
+                market_ids = sorted(
+                    {
+                        str(position.get("conditionId") or "").lower()
+                        for position in current
+                        if position.get("conditionId")
+                        and _safe_float(position.get("currentValue")) > 0
+                        and (
+                            coarse_event_datetime(position) is None
+                            or range_start
+                            <= coarse_event_datetime(position)
+                            <= range_end
+                        )
+                    }
+                )
+                get_user_trades = getattr(self.client, "get_user_trades", None)
+                if market_ids and not callable(get_user_trades):
+                    raise RuntimeError(
+                        "Required executed-fill sync is unavailable for this wallet"
+                    )
+                if market_ids:
+                    fills = get_user_trades(wallet.address, market_ids)
             return (
                 wallet.address,
-                self.client.get_current_positions(wallet.address),
-                self.client.get_closed_positions(wallet.address),
+                current,
+                closed,
+                fills,
             )
 
         with ThreadPoolExecutor(max_workers=min(len(wallets), 8)) as executor:
@@ -1036,20 +1167,23 @@ class TrackerService:
             for future in as_completed(futures):
                 wallet = futures[future]
                 try:
-                    address, current, closed = future.result()
+                    address, current, closed, fills = future.result()
                     open_positions[address] = current
                     closed_positions[address] = closed
+                    trade_fills[address] = fills
                 except Exception as exc:
                     LOGGER.warning(
                         "Failed wallet refresh for %s: %s", wallet.address, exc
                     )
                     open_positions[wallet.address] = None
                     closed_positions[wallet.address] = []
+                    trade_fills[wallet.address] = []
                     errors.append(f"{wallet.label} ({wallet.address}): {exc}")
 
         return {
             "open_positions": open_positions,
             "closed_positions": closed_positions,
+            "trade_fills": trade_fills,
             "errors": errors,
         }
 
@@ -1141,9 +1275,11 @@ class TrackerService:
         positions: list[dict],
         events: dict[str, dict],
         wallet_category_metrics: dict[str, Any] | None = None,
+        fill_aggregates: dict[tuple[str, str], dict[str, Any]] | None = None,
     ) -> list[dict]:
         rows: list[dict] = []
         wallet_category_metrics = wallet_category_metrics or {}
+        fill_aggregates = fill_aggregates or {}
         for position in positions:
             event = events.get(position.get("eventSlug"))
             market = market_for_position(position, event)
@@ -1190,6 +1326,12 @@ class TrackerService:
                 or wallet.label
             )
             token_id = outcome_token_id(position, market)
+            fill_aggregate = fill_aggregates.get(
+                (
+                    str(position.get("conditionId") or "").lower(),
+                    str(token_id or ""),
+                )
+            )
             category_metric = (wallet_category_metrics.get("categories") or {}).get(
                 classification.category
             )
@@ -1220,21 +1362,33 @@ class TrackerService:
                 "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
                 "wallet_base_unit": wallet.base_unit,
                 "wallet_top_category": wallet.top_category,
+                "wallet_top_category_display": wallet.top_category_display,
                 "wallet_top_categories": list(wallet.top_categories),
                 "wallet_bettor_type": wallet.bettor_type,
+                "wallet_trader_type": wallet.trader_type,
                 "wallet_selectivity": wallet.selectivity,
+                "wallet_selectivity_code": wallet.selectivity_code,
                 "wallet_selectivity_score": wallet.selectivity_score,
                 "wallet_hold_tendency": wallet.hold_tendency,
+                "wallet_hold_profile": wallet.hold_profile,
                 "wallet_copyability": wallet.copyability,
+                "wallet_copyability_code": wallet.copyability_code,
                 "wallet_execution_style": wallet.execution_style,
+                "wallet_execution_style_code": wallet.execution_style_code,
                 "wallet_general_strategy": wallet.general_strategy,
                 "minimum_position_units": wallet.minimum_position_units,
                 "actionable_position_units": wallet.actionable_position_units,
+                "typical_execution_tranche_dollars": wallet.typical_execution_tranche_dollars,
+                "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
+                "requires_fill_aggregation": wallet.requires_fill_aggregation,
+                "hedge_detection_required": wallet.hedge_detection_required,
                 "position_key": position_key(position),
                 "condition_id": position.get("conditionId"),
                 "event_slug": position.get("eventSlug"),
-                "event_id": str(position.get("eventId") or ""),
-                "market_id": str(market.get("id") or ""),
+                "event_id": str(position.get("eventId") or (event or {}).get("id") or ""),
+                "market_id": str(
+                    market.get("id") or position.get("conditionId") or ""
+                ),
                 "market_slug": position.get("slug"),
                 "market_title": position.get("title") or "",
                 "event_title": (event or {}).get("title")
@@ -1316,6 +1470,55 @@ class TrackerService:
                 "market_url": market_url,
                 "status": "open",
                 "source": "current_positions",
+                "fill_aggregation_source": (
+                    "polymarket_executed_trades"
+                    if wallet.requires_fill_aggregation
+                    else "current_position_snapshot"
+                ),
+                "fill_aggregation_status": (
+                    "ready"
+                    if fill_aggregate
+                    else (
+                        "no_matching_fills"
+                        if wallet.requires_fill_aggregation
+                        else "not_required"
+                    )
+                ),
+                "raw_fill_count": (fill_aggregate or {}).get("fill_count", 0),
+                "deduplicated_fill_count": (fill_aggregate or {}).get(
+                    "fill_count", 0
+                ),
+                "buy_fill_count": (fill_aggregate or {}).get("buy_fill_count", 0),
+                "sell_fill_count": (fill_aggregate or {}).get("sell_fill_count", 0),
+                "fill_first_entry_at": (fill_aggregate or {}).get("first_entry_at"),
+                "fill_last_addition_at": (fill_aggregate or {}).get(
+                    "last_addition_at"
+                ),
+                "fill_calculated_remaining_shares": (fill_aggregate or {}).get(
+                    "remaining_shares"
+                ),
+                "fill_calculated_remaining_cost_basis": (fill_aggregate or {}).get(
+                    "remaining_cost_basis"
+                ),
+                "signal_position_size_usd": round(remaining_entry_value, 6),
+                "net_directional_exposure_usd": round(remaining_entry_value, 6),
+                "opposing_exposure_usd": 0.0,
+                "wallet_hedge_status": "unhedged",
+                "signal_rejection_reason": (
+                    "INVALID_MARKET_MAPPING"
+                    if wallet.requires_fill_aggregation
+                    and (not position.get("conditionId") or not token_id)
+                    else (
+                        "FULLY_EXITED_POSITION"
+                        if wallet.requires_fill_aggregation
+                        and (fill_aggregate or {}).get("fully_exited")
+                        else (
+                            SYNC_INCOMPLETE
+                            if wallet.requires_fill_aggregation and not fill_aggregate
+                            else None
+                        )
+                    )
+                ),
                 "raw_position": position,
                 "event_tags": [
                     tag.get("label") for tag in (event or {}).get("tags", [])
@@ -1327,6 +1530,97 @@ class TrackerService:
             row["status_uncertain"] = lifecycle.uncertain
             rows.append(row)
         return rows
+
+    def _apply_wallet_hedge_controls(self, rows: list[dict]) -> None:
+        groups: dict[tuple[str, str], list[dict]] = {}
+        for row in rows:
+            if not row.get("hedge_detection_required"):
+                continue
+            groups.setdefault(
+                (
+                    str(row.get("wallet_address") or "").lower(),
+                    str(row.get("condition_id") or "").lower(),
+                ),
+                [],
+            ).append(row)
+
+        for group in groups.values():
+            outcomes = {
+                str(row.get("outcome") or "").strip().lower(): row for row in group
+            }
+            if len(outcomes) < 2:
+                continue
+
+            candidates = sorted(
+                group,
+                key=lambda row: (
+                    _safe_float(row.get("shares")),
+                    _safe_float(row.get("position_size_usd")),
+                ),
+                reverse=True,
+            )
+            leader = candidates[0]
+            opponent = next(
+                (
+                    row
+                    for row in candidates[1:]
+                    if str(row.get("outcome") or "").strip().lower()
+                    == str(leader.get("opposite_outcome") or "").strip().lower()
+                ),
+                None,
+            )
+            if opponent is None:
+                continue
+            leader_shares = _safe_float(leader.get("shares"))
+            opposing_shares = _safe_float(opponent.get("shares"))
+            net_shares = max(0.0, leader_shares - opposing_shares)
+            net_cost_basis = net_shares * _safe_float(
+                leader.get("average_entry_price")
+            )
+            actionable_dollars = _safe_float(
+                leader.get("minimum_actionable_exposure_dollars")
+            )
+            if actionable_dollars <= 0:
+                actionable_dollars = _safe_float(leader.get("wallet_base_unit")) * _safe_float(
+                    leader.get("actionable_position_units"), 0.5
+                )
+
+            for row in group:
+                other_exposure = max(
+                    (
+                        _safe_float(other.get("position_size_usd"))
+                        for other in group
+                        if other is not row
+                    ),
+                    default=0.0,
+                )
+                row["gross_position_size_usd"] = _safe_float(
+                    row.get("position_size_usd")
+                )
+                row["opposing_exposure_usd"] = round(other_exposure, 6)
+                row["wallet_hedge_status"] = "opposing_exposure_detected"
+
+            for row in group:
+                if row is leader:
+                    continue
+                row["signal_position_size_usd"] = 0.0
+                row["net_directional_exposure_usd"] = 0.0
+                row["net_directional_shares"] = 0.0
+                row["signal_rejection_reason"] = (
+                    row.get("signal_rejection_reason") or "HEDGED_WALLET_POSITION"
+                )
+
+            leader["signal_position_size_usd"] = round(net_cost_basis, 6)
+            leader["net_directional_exposure_usd"] = round(net_cost_basis, 6)
+            leader["net_directional_shares"] = round(net_shares, 8)
+            if net_shares <= 0 or net_cost_basis < actionable_dollars:
+                leader["wallet_hedge_status"] = "no_clear_directional_exposure"
+                leader["signal_rejection_reason"] = (
+                    leader.get("signal_rejection_reason")
+                    or "NO_CLEAR_DIRECTIONAL_EXPOSURE"
+                )
+            else:
+                leader["wallet_hedge_status"] = "directional_after_hedge"
 
     def _persist_positions(
         self,
@@ -1661,20 +1955,30 @@ class TrackerService:
                 {
                     "display_address": wallet.display_address,
                     "top_category": wallet.top_category,
+                    "top_category_display": wallet.top_category_display,
                     "top_categories": list(wallet.top_categories),
                     "top_category_ids": list(wallet.top_category_ids),
                     "primary_top_category_id": wallet.primary_top_category_id,
                     "top_category_source": wallet.top_category_source,
                     "top_category_verified_at": wallet.top_category_verified_at,
                     "bettor_type": wallet.bettor_type,
+                    "trader_type": wallet.trader_type,
                     "selectivity": wallet.selectivity,
+                    "selectivity_code": wallet.selectivity_code,
                     "selectivity_score": wallet.selectivity_score,
                     "hold_tendency": wallet.hold_tendency,
+                    "hold_profile": wallet.hold_profile,
                     "copyability": wallet.copyability,
+                    "copyability_code": wallet.copyability_code,
                     "execution_style": wallet.execution_style,
+                    "execution_style_code": wallet.execution_style_code,
                     "general_strategy": wallet.general_strategy,
                     "minimum_position_units": wallet.minimum_position_units,
                     "actionable_position_units": wallet.actionable_position_units,
+                    "typical_execution_tranche_dollars": wallet.typical_execution_tranche_dollars,
+                    "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
+                    "requires_fill_aggregation": wallet.requires_fill_aggregation,
+                    "hedge_detection_required": wallet.hedge_detection_required,
                 }
             )
             results.append(result)
@@ -1800,16 +2104,23 @@ class TrackerService:
                 position.get("position_size_usd") or 0,
                 wallet_unit.get("estimated_base_unit"),
             )
+            signal_units = amount_to_units(
+                position.get("signal_position_size_usd")
+                if position.get("signal_position_size_usd") is not None
+                else position.get("position_size_usd") or 0,
+                wallet_unit.get("estimated_base_unit"),
+            )
             position["estimated_base_unit"] = wallet_unit.get("estimated_base_unit")
             position["estimated_base_unit_label"] = wallet_unit.get(
                 "estimated_base_unit_label"
             )
             position["estimated_units"] = estimated_units
             position["position_units"] = estimated_units
+            position["signal_units"] = signal_units
             minimum_units = position.get("minimum_position_units")
             actionable_units = position.get("actionable_position_units")
             position["signal_tier"] = _wallet_signal_tier(
-                estimated_units, minimum_units, actionable_units
+                signal_units, minimum_units, actionable_units
             )
             position["wallet_total_visible_value"] = round(
                 visible_totals.get(position["wallet_address"], 0.0), 2

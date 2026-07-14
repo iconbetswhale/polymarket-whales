@@ -12,6 +12,7 @@ LOGGER = logging.getLogger(__name__)
 
 CURRENT_POSITIONS_URL = "https://data-api.polymarket.com/positions"
 CLOSED_POSITIONS_URL = "https://data-api.polymarket.com/closed-positions"
+USER_TRADES_URL = "https://data-api.polymarket.com/trades"
 EVENT_BY_SLUG_URL = "https://gamma-api.polymarket.com/events/slug"
 PUBLIC_PROFILE_URL = "https://gamma-api.polymarket.com/public-profile"
 CLOB_BOOKS_URL = "https://clob.polymarket.com/books"
@@ -127,26 +128,109 @@ class PolymarketClient:
             results.extend(payload)
             if len(payload) < limit:
                 break
+            # Results are ordered by current value descending. Once a page ends
+            # at zero, all later rows are settled/unredeemed history rather than
+            # live exposure and do not belong in the current-position sync.
+            try:
+                if float(payload[-1].get("currentValue") or 0) <= 0:
+                    break
+            except (TypeError, ValueError, AttributeError):
+                pass
             offset += limit
 
         return results
 
     def get_closed_positions(self, wallet_address: str, limit: int = 50) -> list[dict]:
-        payload = self._get_json(
-            CLOSED_POSITIONS_URL,
-            {
-                "user": wallet_address,
-                "limit": min(limit, 50),
-                "offset": 0,
-                "sortBy": "TIMESTAMP",
-                "sortDirection": "DESC",
-            },
-        )
-        if not isinstance(payload, list):
-            raise RuntimeError(
-                f"Unexpected closed positions payload for {wallet_address}"
+        results: list[dict] = []
+        requested = max(0, int(limit))
+        offset = 0
+        while len(results) < requested:
+            page_limit = min(50, requested - len(results))
+            payload = self._get_json(
+                CLOSED_POSITIONS_URL,
+                {
+                    "user": wallet_address,
+                    "limit": page_limit,
+                    "offset": offset,
+                    "sortBy": "TIMESTAMP",
+                    "sortDirection": "DESC",
+                },
             )
-        return payload
+            if not isinstance(payload, list):
+                raise RuntimeError(
+                    f"Unexpected closed positions payload for {wallet_address}"
+                )
+            results.extend(payload)
+            if len(payload) < page_limit:
+                break
+            offset += page_limit
+        return results
+
+    def get_user_trades(
+        self,
+        wallet_address: str,
+        market_ids: list[str] | None = None,
+        *,
+        max_records: int = 50000,
+    ) -> list[dict]:
+        """Fetch complete executed-trade windows for a wallet's active markets."""
+        unique_markets = sorted(
+            {
+                str(market_id).strip().lower()
+                for market_id in (market_ids or [])
+                if str(market_id).strip()
+            }
+        )
+        market_chunks: list[list[str] | None] = (
+            [unique_markets[index : index + 20] for index in range(0, len(unique_markets), 20)]
+            if unique_markets
+            else [None]
+        )
+        results: list[dict] = []
+
+        for market_chunk in market_chunks:
+            window_end: int | None = None
+            while True:
+                window_rows: list[dict] = []
+                exhausted = False
+                for offset in (0, 1000, 2000, 3000):
+                    params: dict[str, Any] = {
+                        "user": wallet_address,
+                        "limit": 1000,
+                        "offset": offset,
+                        "takerOnly": "false",
+                        "start": 1,
+                    }
+                    if market_chunk:
+                        params["market"] = ",".join(market_chunk)
+                    if window_end is not None:
+                        params["end"] = window_end
+                    payload = self._get_json(USER_TRADES_URL, params)
+                    if not isinstance(payload, list):
+                        raise RuntimeError(
+                            f"Unexpected user trades payload for {wallet_address}"
+                        )
+                    window_rows.extend(payload)
+                    if len(payload) < 1000:
+                        exhausted = True
+                        break
+
+                results.extend(window_rows)
+                if len(results) > max_records:
+                    raise RuntimeError(
+                        f"Executed-fill sync exceeded {max_records} rows for {wallet_address}"
+                    )
+                if exhausted or not window_rows:
+                    break
+                oldest_timestamp = min(
+                    int(row.get("timestamp") or 0) for row in window_rows
+                )
+                next_end = oldest_timestamp - 1
+                if oldest_timestamp <= 1 or next_end == window_end:
+                    break
+                window_end = next_end
+
+        return results
 
     def get_event(self, event_slug: str) -> dict | None:
         if not event_slug:

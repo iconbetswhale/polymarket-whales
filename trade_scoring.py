@@ -48,6 +48,7 @@ NO_LEAD_SHARP = "NO_LEAD_SHARP"
 TOP_CATEGORY_MISMATCH = "TOP_CATEGORY_MISMATCH"
 UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
 OPPOSING_WALLETS = "OPPOSING_WALLETS"
+BELOW_WALLET_ACTIONABLE_THRESHOLD = "BELOW_WALLET_ACTIONABLE_THRESHOLD"
 
 TEAM_ALIASES = {
     "tor": ["toronto", "blue-jays", "bluejays", "jays"],
@@ -110,6 +111,12 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value if value is not None else default)
     except (TypeError, ValueError):
         return default
+
+
+def _position_signal_amount(position: dict[str, Any]) -> float:
+    if position.get("signal_position_size_usd") is not None:
+        return _safe_float(position.get("signal_position_size_usd"))
+    return _safe_float(position.get("position_size_usd"))
 
 
 def _safe_datetime(value: Any) -> datetime | None:
@@ -387,7 +394,7 @@ def _relative_units(
     unit_map: dict[str, dict[str, Any]],
     events_by_wallet: dict[str, list[dict[str, Any]]],
 ) -> float | None:
-    amount = _safe_float(position.get("position_size_usd"))
+    amount = _position_signal_amount(position)
     wallet = str(position.get("wallet_address") or "").lower()
     base_unit = unit_map.get(wallet, {}).get("estimated_base_unit") or position.get(
         "estimated_base_unit"
@@ -467,7 +474,7 @@ def _is_playable_size(
     return (
         units is not None
         and units > _minimum_units(position)
-        and _safe_float(position.get("position_size_usd")) > 0
+        and _position_signal_amount(position) > 0
     )
 
 
@@ -509,12 +516,12 @@ def _primary_position(
         )
 
     largest_amount = max(
-        _safe_float(position.get("position_size_usd")) for position in group
+        _position_signal_amount(position) for position in group
     )
     materially_similar = [
         position
         for position in group
-        if _safe_float(position.get("position_size_usd"))
+        if _position_signal_amount(position)
         >= largest_amount * (1.0 - PRIMARY_AMOUNT_SIMILARITY_RATIO)
     ]
     return max(
@@ -522,7 +529,7 @@ def _primary_position(
         key=lambda position: (
             _relative_units(position, unit_map, events_by_wallet) or 0,
             category_record(position),
-            _safe_float(position.get("position_size_usd")),
+            _position_signal_amount(position),
         ),
     )
 
@@ -531,7 +538,7 @@ def _amount_weighted_entry(positions: list[dict[str, Any]]) -> float:
     weighted_total = 0.0
     amount_total = 0.0
     for position in positions:
-        amount = _safe_float(position.get("position_size_usd"))
+        amount = _position_signal_amount(position)
         entry = _safe_float(position.get("average_entry_price"))
         if amount <= 0 or not 0 < entry < 1:
             continue
@@ -545,7 +552,7 @@ def _exclusion_record(
 ) -> dict[str, Any]:
     primary = max(
         group,
-        key=lambda position: _safe_float(position.get("position_size_usd")),
+        key=_position_signal_amount,
     )
     return {
         "reason": reason,
@@ -558,6 +565,18 @@ def _exclusion_record(
         "event_title": primary.get("event_title"),
         "market_title": primary.get("market_title"),
         "canonical_category_id": trade_category_id,
+        "aggregated_cost_basis": _safe_float(primary.get("position_size_usd")),
+        "signal_cost_basis": _position_signal_amount(primary),
+        "calculated_units": primary.get("signal_units")
+        or primary.get("position_units"),
+        "opposing_exposure_usd": _safe_float(
+            primary.get("opposing_exposure_usd")
+        ),
+        "net_directional_exposure_usd": _safe_float(
+            primary.get("net_directional_exposure_usd")
+        ),
+        "wallet_hedge_status": primary.get("wallet_hedge_status"),
+        "fill_count": int(primary.get("deduplicated_fill_count") or 0),
         "wallets": [
             {
                 "wallet_address": position.get("wallet_address"),
@@ -585,9 +604,9 @@ def _collapse_unique_wallets(group: list[dict[str, Any]]) -> list[dict[str, Any]
         position_time = str(
             position.get("last_changed_at") or position.get("first_detected_at") or ""
         )
-        if position_time > existing_time or _safe_float(
-            position.get("position_size_usd")
-        ) > _safe_float(existing.get("position_size_usd")):
+        if position_time > existing_time or _position_signal_amount(
+            position
+        ) > _position_signal_amount(existing):
             by_wallet[wallet] = position
     return list(by_wallet.values())
 
@@ -729,20 +748,33 @@ def build_trades_to_play(
             str(event.get("wallet_address") or "").lower(), []
         ).append(event)
 
+    diagnostics = diagnostics if diagnostics is not None else []
     market_sides: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for position in positions:
+        rejection_reason = position.get("signal_rejection_reason")
+        if rejection_reason:
+            diagnostics.append(_exclusion_record([position], str(rejection_reason)))
+            continue
         if not _is_actionable(position, now):
             continue
         if not _is_playable_size(position, unit_map, events_by_wallet):
+            if position.get("actionable_position_units") is not None:
+                diagnostics.append(
+                    _exclusion_record(
+                        [position], BELOW_WALLET_ACTIONABLE_THRESHOLD
+                    )
+                )
             continue
         if not _is_actionable_wallet_position(position, unit_map, events_by_wallet):
+            diagnostics.append(
+                _exclusion_record([position], BELOW_WALLET_ACTIONABLE_THRESHOLD)
+            )
             continue
         side = canonical_side(position)
         market_sides.setdefault(side.market_key, {}).setdefault(
             side.side_key, []
         ).append(position)
 
-    diagnostics = diagnostics if diagnostics is not None else []
     playable_groups: list[list[dict[str, Any]]] = []
     missing_category_wallets: set[str] = set()
     for sides in market_sides.values():
@@ -792,7 +824,7 @@ def build_trades_to_play(
         )
 
     group_amounts = [
-        sum(_safe_float(position.get("position_size_usd")) for position in group)
+        sum(_position_signal_amount(position) for position in group)
         for group in playable_groups
     ]
     historical_amounts = [
@@ -844,10 +876,10 @@ def build_trades_to_play(
             for wallet, profile in profiles_by_wallet.items()
         }
         total_amount = sum(
-            _safe_float(position.get("position_size_usd")) for position in group
+            _position_signal_amount(position) for position in group
         )
         weighted_total_amount = sum(
-            _safe_float(position.get("position_size_usd"))
+            _position_signal_amount(position)
             * category_weights[
                 str(position.get("wallet_address") or "").lower()
             ]
@@ -993,7 +1025,8 @@ def build_trades_to_play(
                 {
                     "wallet_address": position.get("wallet_address"),
                     "wallet_label": position.get("wallet_label"),
-                    "amount": _safe_float(position.get("position_size_usd")),
+                    "amount": _position_signal_amount(position),
+                    "gross_amount": _safe_float(position.get("position_size_usd")),
                     "relative_units": units,
                     "average_entry_price": position.get("average_entry_price"),
                     "current_price": position.get("current_price"),
@@ -1017,9 +1050,7 @@ def build_trades_to_play(
                     "sharp_role": profile["sharp_role"],
                     "category_match": profile["is_lead_sharp"],
                     "category_weight": profile["category_weight"],
-                    "weighted_amount_contribution": _safe_float(
-                        position.get("position_size_usd")
-                    )
+                    "weighted_amount_contribution": _position_signal_amount(position)
                     * profile["category_weight"],
                     "weighted_relative_contribution": units
                     * profile["category_weight"],
@@ -1124,7 +1155,8 @@ def build_trades_to_play(
             "primary_trader": {
                 "wallet_address": primary.get("wallet_address"),
                 "wallet_label": primary.get("wallet_label"),
-                "amount": _safe_float(primary.get("position_size_usd")),
+                "amount": _position_signal_amount(primary),
+                "gross_amount": _safe_float(primary.get("position_size_usd")),
                 "relative_units": _relative_units(primary, unit_map, events_by_wallet),
                 "minimum_position_units": primary.get("minimum_position_units"),
                 "actionable_position_units": primary.get("actionable_position_units"),
