@@ -18,6 +18,7 @@ const appState = {
   bankrollSavePending: false,
   account: { authenticated: false, email: null },
   appliedEntryPriceFilters: { minEntryCents: "", maxEntryCents: "" },
+  executionOdds: {},
 };
 
 function escapeHtml(value) {
@@ -560,6 +561,52 @@ function personalExposureWarning(trade) {
   `;
 }
 
+function annotateExecutionMovements(trades) {
+  const nextOdds = { ...appState.executionOdds };
+  trades.forEach((trade) => {
+    (trade.executionOptions || []).forEach((option) => {
+      const current = number(option.americanOdds);
+      const key = `${trade.id}:${option.providerKey}:${option.selectionId}`;
+      const previous = number(appState.executionOdds[key]);
+      option.priceMovement = "";
+      if (current !== null && previous !== null && current !== previous) {
+        option.priceMovement = current > previous ? "price-improved" : "price-worsened";
+      }
+      if (current !== null) nextOdds[key] = current;
+    });
+  });
+  appState.executionOdds = nextOdds;
+}
+
+function executionOptionButton(trade, option) {
+  if (option.matchingConfidence !== "Exact") return "";
+  const providerName = option.providerName || "Exchange";
+  const providerKey = String(option.providerKey || "provider").toLowerCase();
+  const displayOdds = option.isAvailable ? option.displayOdds : "Unavailable";
+  const movement = option.priceMovement || "";
+  const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
+  const classes = `execution-option execution-option--${providerKey}${polymarketClass} ${movement}`.trim();
+  const tooltip = option.tooltip || `${providerName} Current Best Price`;
+  const content = `
+    <img src="${escapeHtml(option.logoUrl || "")}" alt="" aria-hidden="true" width="18" height="18">
+    <span><small>${escapeHtml(providerName)}</small><strong>${escapeHtml(displayOdds)}</strong></span>
+    <span class="execution-option-tooltip" role="tooltip">${escapeHtml(tooltip)}</span>
+  `;
+  if (!option.isAvailable || !option.deepLink) {
+    return `<button class="${escapeHtml(classes)}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(providerName)} is unavailable">${content}</button>`;
+  }
+  return `
+    <a class="${escapeHtml(classes)}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on ${escapeHtml(providerName)} at ${escapeHtml(displayOdds)}">
+      ${content}
+    </a>
+  `;
+}
+
+function executionToolbar(trade) {
+  const options = (trade.executionOptions || []).filter((option) => option.matchingConfidence === "Exact");
+  return `<span class="execution-toolbar" aria-label="Execution options">${options.map((option) => executionOptionButton(trade, option)).join("")}</span>`;
+}
+
 function tradeCard(trade) {
   const recommendation = trade.recommendation || {};
   const card = trade.card || {};
@@ -608,10 +655,7 @@ function tradeCard(trade) {
         <span class="trade-selection">
           <span class="trade-pick"><small>Pick · ${escapeHtml(sharpLabel)}</small><strong>${escapeHtml(trade.outcome)}</strong></span>
           <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em></span>
-          <a class="polymarket-price-link" href="${escapeHtml(trade.market_url || "#")}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on Polymarket at ${escapeHtml(formatOptionalCents(currentPrice))}">
-            <img src="https://polymarket.com/icons/favicon-32x32.png" alt="" aria-hidden="true" width="18" height="18">
-            <span><small>Polymarket</small><strong>${formatOptionalCents(currentPrice)}</strong></span>
-          </a>
+          ${executionToolbar(trade)}
           <span class="trade-card-actions">
             ${trade.isHidden
               ? `<button class="trade-restore-action" type="button" data-testid="restore-trade-action" data-hidden-id="${escapeHtml(trade.hiddenRecordId)}" title="Restore this trade" aria-label="Restore this trade to Trades to Play"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
@@ -1122,7 +1166,9 @@ async function loadTrades() {
   const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== "" && value !== false));
   try {
     const payload = await fetchJson(`/api/trades-to-play?${query.toString()}`);
-    appState.trades = payload.data || [];
+    const trades = payload.data || [];
+    annotateExecutionMovements(trades);
+    appState.trades = trades;
     if (payload.bankroll) applySizingBankroll(payload.bankroll);
     updateGlobalStatus(payload.status);
     document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);

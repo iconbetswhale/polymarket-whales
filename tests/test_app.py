@@ -592,6 +592,20 @@ def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):
     assert calls == 1
 
 
+def test_trade_feed_includes_polymarket_execution_option(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
+
+    response = app_client.get("/api/trades-to-play?date_range=next7")
+
+    assert response.status_code == 200
+    options = response.get_json()["data"][0]["executionOptions"]
+    assert [option["providerName"] for option in options] == ["Polymarket"]
+    assert options[0]["matchingConfidence"] == "Exact"
+    assert options[0]["deepLink"] == "https://polymarket.com/event/example"
+
+
 @pytest.mark.parametrize(
     ("query", "entry", "expected_total"),
     [

@@ -35,6 +35,7 @@ The dashboard now tracks:
 - `config.py`: environment variable loading
 - `wallet_loader.py`: manual wallet validation, normalization, duplicate detection
 - `polymarket_client.py`: public Polymarket API client with timeouts, retries, and event/profile helpers
+- `execution_providers.py`: exchange-provider contract, canonical market matching, cached NoVIG feed, and deep links
 - `market_lifecycle.py`: upcoming, live, completed, and uncertain classification
 - `bet_sizing.py`: evidence score, executable-entry simulation, Half Kelly, and risk caps
 - `bet_tracker.py`: immutable snapshots, settlement status, and bankroll replay
@@ -175,6 +176,21 @@ Minimum position size required before an event sends a Discord alert.
 
 `DISCORD_NOTIFY_ON_INITIAL_SCAN=false`
 When false, the first scan after adding a wallet records existing open positions without sending Discord alerts. This helps prevent old positions from spamming the channel.
+
+`NOVIG_ODDS_API_KEY=`
+Server-side SportsGameOdds API key for normalized NoVIG prices and market deep links. `SPORTSGAMEODDS_API_KEY` is accepted as an alias. When no key is configured, NoVIG options remain hidden and Polymarket execution is unaffected.
+
+`NOVIG_ODDS_API_BASE_URL=https://api.sportsgameodds.com/v2`
+NoVIG market-feed base URL. Override only for a compatible proxy or test service.
+
+`NOVIG_ODDS_CACHE_TTL_SECONDS=45`
+Maximum in-memory age for live NoVIG prices. One cached provider feed matches all visible trades, avoiding per-card API requests.
+
+## Execution Options
+
+Trades to Play exposes execution providers through an ordered provider registry. Polymarket is always first. NoVIG is included only when the normalized sport, league, participants, event time, market type, period, line, side, alternate-line status, and settlement rules all match exactly.
+
+The NoVIG integration reads one paginated SportsGameOdds event feed, builds an in-memory sport/time index, and matches the current trade page against that index. Probable and ambiguous matches are never returned to the card. If a previously verified NoVIG match becomes unreachable, its stale price and link are removed and the option is shown as disabled and unavailable.
 
 ## Run Locally
 

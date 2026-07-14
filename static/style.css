@@ -3320,7 +3320,17 @@ h2 {
   white-space: nowrap;
 }
 
-.trade-selection .polymarket-price-link {
+.trade-selection > .execution-toolbar {
+  display: grid;
+  min-width: 211px;
+  align-items: center;
+  grid-template-columns: repeat(auto-fit, minmax(102px, 1fr));
+  justify-content: flex-end;
+  gap: 7px;
+}
+
+.trade-selection .execution-option {
+  position: relative;
   display: inline-flex;
   min-width: 102px;
   min-height: 43px;
@@ -3332,11 +3342,15 @@ h2 {
   border-radius: 7px;
   background: linear-gradient(180deg, rgba(54, 112, 38, 0.84), rgba(30, 70, 27, 0.9));
   box-shadow: var(--inner-highlight), 0 8px 18px rgba(81, 223, 137, 0.12), inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  text-decoration: none;
   transition: border-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease, filter var(--motion-fast) ease, transform var(--motion-fast) var(--ease-out);
 }
 
-.trade-selection .polymarket-price-link:hover,
-.trade-selection .polymarket-price-link:focus-visible {
+.trade-selection .execution-option:hover,
+.trade-selection .execution-option:focus-visible {
   border-color: #a9ff61;
   background: linear-gradient(180deg, rgba(66, 137, 45, 0.9), rgba(35, 82, 30, 0.94));
   box-shadow: var(--inner-highlight), 0 11px 22px rgba(81, 223, 137, 0.2), 0 0 16px rgba(140, 240, 79, 0.1);
@@ -3345,13 +3359,13 @@ h2 {
   transform: translateY(-2px);
 }
 
-.trade-selection .polymarket-price-link:active {
+.trade-selection .execution-option:active {
   box-shadow: var(--inner-pressed);
   filter: brightness(0.96);
   transform: translateY(1px);
 }
 
-.polymarket-price-link img {
+.execution-option img {
   width: 21px;
   height: 21px;
   flex: 0 0 21px;
@@ -3359,19 +3373,80 @@ h2 {
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
 }
 
-.polymarket-price-link > span {
+.execution-option > span:not(.execution-option-tooltip) {
   display: grid;
 }
 
-.polymarket-price-link > span small {
+.execution-option > span small {
   color: rgba(228, 255, 224, 0.64);
   font-size: 7px;
 }
 
-.polymarket-price-link > span strong {
+.execution-option > span strong {
   color: #c6ff91;
   font-family: var(--font-mono);
   font-size: 14px;
+}
+
+.execution-option-tooltip {
+  position: absolute;
+  z-index: 50;
+  right: 0;
+  bottom: calc(100% + 8px);
+  display: none;
+  width: max-content;
+  max-width: 210px;
+  padding: 7px 9px;
+  border: 1px solid rgba(91, 215, 255, 0.32);
+  border-radius: 6px;
+  background: rgba(5, 15, 20, 0.98);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.35;
+  pointer-events: none;
+  text-transform: none;
+  white-space: normal;
+}
+
+.execution-option:hover .execution-option-tooltip,
+.execution-option:focus-visible .execution-option-tooltip {
+  display: block;
+}
+
+.trade-selection .execution-option:disabled {
+  border-color: rgba(126, 165, 178, 0.22);
+  background: linear-gradient(180deg, rgba(34, 48, 53, 0.76), rgba(20, 30, 34, 0.82));
+  box-shadow: var(--inner-highlight), inset 0 -2px 0 rgba(0, 0, 0, 0.18);
+  cursor: not-allowed;
+  filter: grayscale(0.5);
+  opacity: 0.72;
+  transform: none;
+}
+
+.trade-selection .execution-option:disabled > span strong {
+  color: var(--muted-strong);
+  font-size: 10px;
+}
+
+@keyframes execution-price-improved {
+  0%, 100% { border-color: rgba(140, 240, 79, 0.55); }
+  35% { border-color: #8cff4f; box-shadow: 0 0 0 3px rgba(140, 255, 79, 0.18), 0 10px 22px rgba(81, 223, 137, 0.28); }
+}
+
+@keyframes execution-price-worsened {
+  0%, 100% { border-color: rgba(140, 240, 79, 0.55); }
+  35% { border-color: #ff667a; box-shadow: 0 0 0 3px rgba(255, 102, 122, 0.17), 0 10px 22px rgba(255, 70, 95, 0.22); }
+}
+
+.execution-option.price-improved {
+  animation: execution-price-improved 900ms ease-out 1;
+}
+
+.execution-option.price-worsened {
+  animation: execution-price-worsened 900ms ease-out 1;
 }
 
 .tracker-quick-action {
@@ -3591,6 +3666,12 @@ tbody tr:hover {
   }
 }
 
+@media (min-width: 1241px) and (max-width: 1500px) {
+  .trade-card {
+    grid-template-columns: minmax(180px, 0.5fr) minmax(570px, 1.5fr) 14px;
+  }
+}
+
 @media (max-width: 1240px) {
   .trade-workspace {
     display: block;
@@ -3772,9 +3853,16 @@ tbody tr:hover {
     font-size: 14px;
   }
 
-  .trade-selection .polymarket-price-link {
+  .trade-selection > .execution-toolbar {
     grid-column: 1 / -1;
     grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+
+  .trade-selection .execution-option {
     width: 100%;
     min-height: 49px;
   }
@@ -3964,7 +4052,7 @@ tbody tr:hover {
 }
 
 .trade-selection {
-  grid-template-columns: minmax(130px, 1fr) auto auto 104px;
+  grid-template-columns: minmax(130px, 1fr) auto minmax(102px, auto) 104px;
 }
 
 .trade-card-actions {
@@ -4392,6 +4480,20 @@ tbody tr:hover {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  .trade-selection > .execution-toolbar {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+    min-width: 0;
+    width: 100%;
+  }
+
+  .trade-selection .execution-option {
+    width: 100%;
+    min-height: 49px;
+  }
+
   .trade-card-actions {
     grid-column: 2;
     grid-row: 1;
@@ -4433,5 +4535,12 @@ tbody tr:hover {
   .personal-fill-remove {
     grid-column: 2;
     grid-row: 1 / span 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .execution-option.price-improved,
+  .execution-option.price-worsened {
+    animation: none;
   }
 }

@@ -17,6 +17,7 @@ from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 from bet_tracker import replay_tracker
 from config import get_settings
 from database import SettingsVersionConflict
+from execution_providers import build_execution_provider_registry
 from personal_tracker import (
     canonical_trade_identity,
     has_complete_identity,
@@ -214,9 +215,11 @@ def _trade_card_view(
 def create_app(start_background: bool = True) -> Flask:
     settings = get_settings()
     tracker = TrackerService(settings, auto_start=False)
+    execution_providers = build_execution_provider_registry(settings)
 
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
+    app.extensions["execution_providers"] = execution_providers
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
     app.jinja_env.globals["asset_version"] = (
@@ -703,9 +706,11 @@ def create_app(start_background: bool = True) -> Flask:
             else [trade for trade in price_matched if not trade["isHidden"]]
         )
         start = (page - 1) * per_page
+        page_trades = visible[start : start + per_page]
+        execution_providers.attach_options(page_trades)
         return jsonify(
             {
-                "data": visible[start : start + per_page],
+                "data": page_trades,
                 "bankroll": current_settings,
                 "hiddenCount": len(hidden_records),
                 "showHidden": show_hidden,
