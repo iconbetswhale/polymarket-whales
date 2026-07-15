@@ -1377,8 +1377,8 @@ function drawLineChart(container, points, options = {}) {
     ctx.beginPath(); ctx.moveTo(pad, lineY); ctx.lineTo(width - pad / 2, lineY); ctx.stroke();
   }
   const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
-  gradient.addColorStop(0, "rgba(214, 170, 80, 0.26)");
-  gradient.addColorStop(1, "rgba(214, 170, 80, 0)");
+  gradient.addColorStop(0, "rgba(19, 183, 237, 0.2)");
+  gradient.addColorStop(1, "rgba(19, 183, 237, 0)");
   ctx.beginPath();
   points.forEach((point, index) => {
     const px = x(index); const py = y(point.value);
@@ -1394,7 +1394,7 @@ function drawLineChart(container, points, options = {}) {
     const px = x(index); const py = y(point.value);
     if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   });
-  ctx.strokeStyle = options.color || "#d8ad55";
+  ctx.strokeStyle = options.color || "#13b7ed";
   ctx.lineWidth = 2.5 * window.devicePixelRatio;
   ctx.stroke();
   ctx.fillStyle = "#aaa69d";

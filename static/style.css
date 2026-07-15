@@ -7591,3 +7591,392 @@ body[data-page="trades"] {
   .personal-position-row { grid-template-columns:1fr; }.position-selection { grid-column:auto; align-items:stretch; }.personal-sell-button { min-height:46px; }
   .position-detail-selection { align-items:stretch; flex-direction:column; }.sell-calculation { grid-template-columns:repeat(2,1fr); }
 }
+
+/* OddsJam-inspired graphite theme */
+:root {
+  --bg: #05080b;
+  --bg-elevated: #080e12;
+  --nav: #060a0d;
+  --panel: #0d151a;
+  --panel-strong: #111b21;
+  --panel-soft: #152128;
+  --panel-raised: #19272f;
+  --panel-hover: #14242d;
+  --surface-raised: #152128;
+  --border: #26353e;
+  --border-strong: #395361;
+  --border-soft: rgba(139, 164, 177, 0.18);
+  --text: #f4f7f8;
+  --text-primary: #f4f7f8;
+  --muted: #83949e;
+  --muted-strong: #b8c4ca;
+  --cyan: #13b7ed;
+  --cyan-bright: #50d1fa;
+  --cyan-soft: rgba(19, 183, 237, 0.1);
+  --green: #6fd34a;
+  --green-bright: #8be35c;
+  --green-deep: #193b1d;
+  --green-soft: rgba(111, 211, 74, 0.1);
+  --success: #6fd34a;
+  --danger: #ff5d69;
+  --red: #ff5d69;
+  --warning: #f3ad3d;
+  --amber: #f3ad3d;
+  --yellow-green: #9bdb50;
+  --edge-gradient: linear-gradient(135deg, rgba(87, 119, 133, 0.5), rgba(38, 53, 62, 0.34) 64%, rgba(255, 255, 255, 0.025));
+  --edge-gradient-active: linear-gradient(135deg, rgba(80, 209, 250, 0.9), rgba(19, 183, 237, 0.34) 70%, rgba(255, 255, 255, 0.06));
+  --inner-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.045);
+  --shadow-low: 0 8px 22px rgba(0, 0, 0, 0.26);
+  --shadow: 0 18px 48px rgba(0, 0, 0, 0.38);
+  --shadow-high: 0 28px 76px rgba(0, 0, 0, 0.5);
+}
+
+html {
+  background: var(--bg);
+}
+
+body,
+body[data-page="trades"] {
+  background:
+    radial-gradient(ellipse at 18% -18%, rgba(19, 183, 237, 0.075), transparent 38rem),
+    radial-gradient(ellipse at 88% 4%, rgba(67, 98, 111, 0.07), transparent 30rem),
+    linear-gradient(180deg, #070c10 0%, #05080b 42%, #05080b 100%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(19, 183, 237, 0.3);
+  color: #ffffff;
+}
+
+.app-nav,
+body[data-page="trades"] .app-nav {
+  border-bottom-color: #1f2d35;
+  background: rgba(5, 9, 12, 0.96);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.34), var(--inner-highlight);
+}
+
+.brand-icon,
+.metric-icon {
+  border-color: rgba(19, 183, 237, 0.52);
+  background: linear-gradient(145deg, rgba(19, 183, 237, 0.2), rgba(8, 20, 26, 0.92));
+  color: var(--cyan-bright);
+  box-shadow: var(--inner-highlight), 0 8px 22px rgba(19, 183, 237, 0.1);
+}
+
+.nav-links a {
+  height: 38px;
+  align-self: center;
+  border: 1px solid transparent;
+  border-radius: 8px;
+}
+
+.nav-links a:hover {
+  border-color: #263943;
+  background: #10191f;
+  color: #ffffff;
+}
+
+.nav-links a[aria-current="page"] {
+  border-color: rgba(19, 183, 237, 0.7);
+  background: linear-gradient(180deg, rgba(19, 183, 237, 0.14), rgba(19, 183, 237, 0.055));
+  box-shadow: var(--inner-highlight), 0 7px 18px rgba(0, 0, 0, 0.22);
+  color: var(--cyan-bright);
+}
+
+.nav-links a[aria-current="page"]::after {
+  display: none;
+}
+
+.status-chip,
+.trades-command-primary .result-badge,
+.compact-search,
+.compact-search input,
+.model-status-pill {
+  border-color: #24343d;
+  background: #0c1419;
+  color: var(--muted-strong);
+  box-shadow: var(--inner-highlight);
+}
+
+.model-status-pill {
+  border-color: rgba(111, 211, 74, 0.36);
+  background: rgba(111, 211, 74, 0.075);
+  color: var(--green);
+}
+
+.panel,
+.toolbar,
+.more-filters,
+.bankroll-strip,
+.wallet-card,
+.metric-card {
+  border-color: #26353e;
+  background: linear-gradient(180deg, rgba(15, 24, 29, 0.99), rgba(10, 17, 21, 0.99));
+  box-shadow: var(--inner-highlight), var(--shadow-low);
+}
+
+.panel-header {
+  border-bottom-color: #24343d;
+  background: #10191f;
+}
+
+.metric-card {
+  background: linear-gradient(145deg, #101a20, #0b1216);
+}
+
+.button,
+.icon-button {
+  border-color: #2b3b44;
+  background: linear-gradient(180deg, #172229, #10181d);
+  color: var(--muted-strong);
+}
+
+.button:hover,
+.icon-button:hover {
+  border-color: #46606d;
+  background: #1b2931;
+  color: #ffffff;
+}
+
+.button.primary {
+  border-color: rgba(19, 183, 237, 0.72);
+  background: linear-gradient(180deg, #087fab, #075b7b);
+  box-shadow: var(--inner-highlight), 0 9px 22px rgba(0, 136, 187, 0.2);
+  color: #ffffff;
+}
+
+.button.primary:hover {
+  border-color: var(--cyan-bright);
+  background: linear-gradient(180deg, #0a96c8, #076b90);
+  color: #ffffff;
+}
+
+.toolbar input,
+.toolbar select,
+.more-filters input,
+.more-filters select,
+.money-input,
+.personal-tracking-meta select,
+.personal-tag-controls input,
+.personal-tag-controls select {
+  border-color: #293a43;
+  background: #091014;
+  color: var(--muted-strong);
+}
+
+.toolbar input:focus,
+.toolbar select:focus,
+.more-filters input:focus,
+.more-filters select:focus,
+.money-input:focus-within,
+.personal-tracking-meta select:focus,
+.personal-tag-controls input:focus {
+  border-color: rgba(19, 183, 237, 0.82);
+  box-shadow: 0 0 0 3px rgba(19, 183, 237, 0.1);
+}
+
+.bankroll-strip {
+  background: linear-gradient(90deg, #0d191f, #0a1216);
+}
+
+.tracker-view-toggle,
+.trades-view-tabs {
+  border-color: #293a43;
+  background: #0b1216;
+}
+
+.tracker-view-toggle button[aria-selected="true"],
+.trades-view-tabs button.active,
+.workspace-tabs button.active {
+  border-color: rgba(19, 183, 237, 0.78);
+  background: rgba(19, 183, 237, 0.11);
+  box-shadow: var(--inner-highlight), 0 0 0 1px rgba(19, 183, 237, 0.08);
+  color: #ffffff;
+}
+
+.segmented button.active,
+.price-range-controls button.active,
+.pnl-range-controls button.active,
+.closed-filter-bar button.active,
+.position-chart-ranges button.active {
+  border-color: rgba(19, 183, 237, 0.68);
+  background: rgba(19, 183, 237, 0.11);
+  color: var(--cyan-bright);
+}
+
+.personal-selected-tags button,
+.personal-book-badge,
+.personal-tag-badge {
+  border-color: rgba(19, 183, 237, 0.34);
+  background: rgba(19, 183, 237, 0.08);
+  color: var(--cyan-bright);
+}
+
+body[data-page="trades"] {
+  --trade-canvas: #05080b;
+  --trade-surface: #0d151a;
+  --trade-surface-raised: #16232a;
+  --trade-surface-selected: #0c2029;
+  --trade-border: #283840;
+  --trade-border-soft: rgba(139, 164, 177, 0.2);
+  --trade-border-active: #13b7ed;
+  --trade-text: #f4f7f8;
+  --trade-muted: #8798a2;
+  --trade-score: #73d247;
+  --trade-accent: #13b7ed;
+  --trade-positive: #6fd34a;
+}
+
+.trade-card {
+  border-color: var(--trade-border);
+  background: linear-gradient(180deg, #111a1f 0%, #0d1519 100%);
+  box-shadow: var(--inner-highlight), 0 5px 14px rgba(0, 0, 0, 0.28);
+}
+
+.trade-card:hover {
+  border-color: #425964;
+  background: linear-gradient(180deg, #142129 0%, #101a20 100%);
+}
+
+.trade-card.selected {
+  border-color: var(--trade-border-active);
+  background: linear-gradient(180deg, #0e2731 0%, #0c1c23 100%);
+  box-shadow: 0 0 0 1px rgba(19, 183, 237, 0.09), var(--inner-highlight);
+}
+
+.trade-metric-chip,
+.trades-command-actions .icon-button,
+.toolbar-bankroll,
+.trade-card-actions .tracker-quick-action,
+.trade-card-actions .trade-hide-action,
+.trade-card-actions .trade-restore-action,
+.detail-header-actions .tracker-quick-action,
+.detail-header-actions .trade-hide-action {
+  border-color: #2a3a43;
+  background: #10191e;
+  color: var(--muted-strong);
+}
+
+.trade-card-actions .tracker-quick-action,
+.detail-header-actions .tracker-quick-action {
+  border-color: rgba(19, 183, 237, 0.52);
+  color: var(--cyan-bright);
+}
+
+.trade-selection {
+  border-color: #2c3d46;
+  background: #172229;
+}
+
+.trade-card.selected .trade-selection {
+  border-color: rgba(19, 183, 237, 0.68);
+  background: #102832;
+}
+
+.trade-selection .execution-option,
+.detail-selection-panel .execution-option {
+  border-color: #3f5661;
+  background: linear-gradient(180deg, #24343c, #18252c);
+  box-shadow: var(--inner-highlight), 0 6px 14px rgba(0, 0, 0, 0.24);
+}
+
+.trade-selection .execution-option--polymarket,
+.detail-selection-panel .execution-option--polymarket {
+  border-color: rgba(111, 211, 74, 0.68);
+  background: linear-gradient(180deg, #2c5d20, #1d4418);
+}
+
+.trade-selection .execution-option--prophetx,
+.detail-selection-panel .execution-option--prophetx,
+.trade-selection .execution-option--novig,
+.detail-selection-panel .execution-option--novig {
+  border-color: rgba(19, 183, 237, 0.64);
+  background: linear-gradient(180deg, #075f7e, #08445b);
+}
+
+.trade-selection .execution-option:hover,
+.trade-selection .execution-option:focus-visible,
+.detail-selection-panel .execution-option:hover,
+.detail-selection-panel .execution-option:focus-visible {
+  border-color: var(--cyan-bright);
+  filter: brightness(1.12);
+  box-shadow: var(--inner-highlight), 0 9px 20px rgba(0, 0, 0, 0.32);
+}
+
+.execution-option > span small {
+  color: rgba(240, 248, 251, 0.68);
+}
+
+.execution-option > span strong {
+  color: #ffffff;
+}
+
+.execution-option-tooltip {
+  border-color: #38505c;
+  background: rgba(7, 12, 15, 0.98);
+}
+
+.trade-detail {
+  border-color: rgba(19, 183, 237, 0.7);
+  background: #070b0e;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.44), var(--inner-highlight);
+}
+
+.detail-selection-panel,
+.detail-strip-card,
+.detail-section,
+.detail-accordion,
+.calculation-details,
+.personal-position-row,
+.position-detail-card {
+  border-color: #293a43;
+  background: linear-gradient(180deg, #111b21, #0c1418);
+}
+
+.personal-position-row:hover,
+.personal-position-row.selected {
+  border-color: var(--cyan);
+  background: linear-gradient(110deg, #102731, #101b21);
+}
+
+.personal-position-detail,
+.personal-pnl-popover {
+  background: rgba(8, 14, 18, 0.98);
+}
+
+.price-legend .recommended-entry::before,
+.orderbook-row.bid .orderbook-depth i {
+  background: var(--green);
+}
+
+.trade-pin-action.active,
+.whiteboard-card.above-slippage {
+  border-color: rgba(19, 183, 237, 0.5);
+  background: rgba(19, 183, 237, 0.09);
+  color: var(--cyan-bright);
+}
+
+.score-badge,
+.score-badge.strong,
+.trade-score,
+.trade-score.strong,
+.whiteboard-score strong {
+  color: var(--green);
+}
+
+.score-badge {
+  border-color: rgba(111, 211, 74, 0.28);
+  background: rgba(111, 211, 74, 0.07);
+}
+
+.whiteboard-card {
+  border-color: var(--border);
+  background: linear-gradient(180deg, #111a1f, #0c1418);
+}
+
+.pinned-label,
+.trade-pin-action.active,
+.trades-view-tabs span {
+  color: var(--cyan-bright);
+}
