@@ -1345,7 +1345,7 @@ function drawLineChart(container, points, options = {}) {
   ctx.lineWidth = 2.5 * window.devicePixelRatio;
   ctx.stroke();
   ctx.fillStyle = "#8da0a8";
-  ctx.font = `${11 * window.devicePixelRatio}px "IBM Plex Sans"`;
+  ctx.font = `${11 * window.devicePixelRatio}px "DM Sans"`;
   ctx.fillText(options.format ? options.format(max) : String(max), 4, pad);
   ctx.fillText(options.format ? options.format(min) : String(min), 4, height - pad);
 }

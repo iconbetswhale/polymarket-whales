@@ -34,9 +34,10 @@
   --inner-pressed: inset 0 2px 5px rgba(0, 0, 0, 0.42);
   --edge-gradient: linear-gradient(135deg, rgba(91, 215, 255, 0.46), rgba(42, 75, 88, 0.36) 42%, rgba(81, 223, 137, 0.18));
   --edge-gradient-active: linear-gradient(135deg, rgba(91, 215, 255, 0.95), rgba(37, 184, 236, 0.38) 55%, rgba(81, 223, 137, 0.5));
-  --font-display: "League Spartan", sans-serif;
-  --font-body: "IBM Plex Sans", sans-serif;
-  --font-mono: "JetBrains Mono", monospace;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-body: "DM Sans", sans-serif;
+  --font-data: "DM Sans", sans-serif;
+  --font-mono: var(--font-data);
   --motion-fast: 140ms;
   --motion-base: 210ms;
   --motion-panel: 300ms;
@@ -67,6 +68,7 @@ body {
     linear-gradient(180deg, #05090c 0%, #061015 52%, #05090c 100%);
   font-family: var(--font-body);
   font-size: 14px;
+  font-variant-numeric: tabular-nums lining-nums;
   line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
@@ -343,19 +345,20 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
+  font-optical-sizing: auto;
 }
 
 h1 {
   margin-bottom: 0;
   font-size: clamp(24px, 2.2vw, 34px);
   line-height: 1.08;
-  letter-spacing: -0.045em;
+  letter-spacing: -0.035em;
 }
 
 h2 {
   margin-bottom: 0;
   font-size: 18px;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.018em;
 }
 
 .title-line {
@@ -2817,14 +2820,14 @@ h1 {
   font-size: clamp(34px, 2.35vw, 44px);
   font-weight: 800;
   line-height: 1.08;
-  letter-spacing: -0.048em;
+  letter-spacing: -0.035em;
 }
 
 h2 {
   font-size: clamp(22px, 1.8vw, 28px);
   font-weight: 800;
   line-height: 1.12;
-  letter-spacing: -0.035em;
+  letter-spacing: -0.024em;
 }
 
 .workspace-header,
@@ -3064,8 +3067,8 @@ h2 {
   font-family: var(--font-display);
   font-size: 30px;
   font-weight: 800;
-  line-height: 0.9;
-  letter-spacing: -0.035em;
+  line-height: 1.08;
+  letter-spacing: -0.025em;
 }
 
 .trade-score small {
@@ -4818,11 +4821,11 @@ body[data-page="trades"] .app-shell {
   margin: 0 4px 0 0;
   overflow: visible;
   color: var(--trade-text);
-  font-family: var(--font-body);
-  font-size: 24px;
+  font-family: var(--font-display);
+  font-size: 26px;
   font-weight: 700;
-  line-height: 1.25;
-  letter-spacing: -0.035em;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
 }
 
 .trades-command-primary .result-badge {
@@ -5616,10 +5619,11 @@ body[data-page="trades"] .app-shell {
 .low-inventory-state h2 {
   margin: 0 0 4px;
   overflow: visible;
-  font-family: var(--font-body);
-  font-size: 22px;
+  font-family: var(--font-display);
+  font-size: 24px;
   font-weight: 700;
-  line-height: 1.28;
+  line-height: 1.22;
+  letter-spacing: -0.02em;
 }
 
 .low-inventory-state p {

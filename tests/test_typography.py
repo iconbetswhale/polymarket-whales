@@ -5,6 +5,8 @@ from pathlib import Path
 
 
 STYLE_PATH = Path(__file__).resolve().parents[1] / "static" / "style.css"
+SCRIPT_PATH = Path(__file__).resolve().parents[1] / "static" / "app.js"
+TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "base.html"
 
 
 def _rule(css: str, selector: str) -> str:
@@ -25,6 +27,23 @@ def test_display_headings_use_loaded_font_weights_and_safe_line_height():
     assert "text-rendering: optimizeLegibility" not in css
     assert "font-weight: 800" in _rule(css, "h2")
     assert "line-height: 1.12" in _rule(css, "h2")
+
+
+def test_typography_uses_warm_display_and_readable_tabular_data_fonts():
+    css = STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    template = TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert '--font-display: "Fraunces", Georgia, serif' in css
+    assert '--font-body: "DM Sans", sans-serif' in css
+    assert '--font-data: "DM Sans", sans-serif' in css
+    assert "font-variant-numeric: tabular-nums lining-nums" in css
+    assert "family=DM+Sans" in template
+    assert "family=Fraunces" in template
+    assert '"DM Sans"' in script
+    assert "IBM Plex Sans" not in template + css + script
+    assert "JetBrains Mono" not in template + css + script
+    assert "League Spartan" not in template + css + script
 
 
 def test_empty_state_heading_keeps_full_glyph_box_visible():
