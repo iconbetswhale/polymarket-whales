@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from database import TrackerDatabase
 from personal_tracker import (
     canonical_trade_identity,
@@ -250,3 +252,42 @@ def test_personal_fill_sportsbook_and_tags_persist_in_sqlite(tmp_path):
     assert stored["tags_json"] == '["Tennis", "Value"]'
     assert replay["rows"][0]["sportsbook"] == "DraftKings"
     assert replay["rows"][0]["tags"] == ["Tennis", "Value"]
+
+
+def test_personal_fill_persists_authoritative_sharp_snapshot(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    trade = {
+        **_trade(),
+        "primary_lead_wallet_id": "0xlead",
+        "supporting_wallets": [
+            {
+                "wallet_address": "0xsupport",
+                "wallet_label": "Large Supporter",
+                "is_lead_sharp": False,
+                "amount": 9000,
+                "relative_units": 3.6,
+                "average_entry_price": 0.38,
+                "top_category": "Soccer",
+            },
+            {
+                "wallet_address": "0xlead",
+                "wallet_label": "Bagwell306",
+                "is_lead_sharp": True,
+                "amount": 3400,
+                "relative_units": 1.36,
+                "average_entry_price": 0.4,
+                "top_category": "Tennis",
+            },
+        ],
+    }
+    fill = personal_fill_snapshot(
+        trade, fill_id="fill-sharps", entry_price=0.41, shares=25, fees=0
+    )
+
+    stored = database.insert_personal_bet_fill("user-1", fill)
+    replay = replay_personal_tracker(database.get_personal_bet_fills("user-1"))
+    persisted = json.loads(stored["sharp_snapshot_json"])
+
+    assert persisted["primary_sharp"]["display_name"] == "Bagwell306"
+    assert persisted["agreeing_sharps"][0]["display_name"] == "Bagwell306"
+    assert replay["rows"][0]["sharp_snapshot"] == persisted

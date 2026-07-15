@@ -14,6 +14,7 @@ from execution_providers import NOVIG_LOGO_URL, POLYMARKET_LOGO_URL
 from flask import redirect
 from personal_tracker import personal_fill_snapshot
 from position_tracker import MODEL_TRACKER_USER_ID
+from sharp_tracking import sharp_snapshot_from_trade
 
 
 def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
@@ -260,6 +261,7 @@ def build_app():
         except Exception:
             continue
         model_dedupe = f"qa-model-clv-{index}"
+        sharp_snapshot = sharp_snapshot_from_trade(trade)
         tracker.database.insert_tracker_snapshot(
             MODEL_TRACKER_USER_ID,
             {
@@ -282,6 +284,10 @@ def build_app():
                 "estimated_win_probability": 0.55,
                 "confidence_score": trade["confidence_score"],
                 "sharps_count": trade["agreeing_wallet_count"],
+                "primary_lead_wallet_id": trade["supporting_wallets"][0][
+                    "wallet_address"
+                ],
+                "sharp_snapshot": sharp_snapshot,
             },
         )
         if clv_values[index] is not None:

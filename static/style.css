@@ -1915,6 +1915,103 @@ td small {
   font-weight: 500;
 }
 
+.sharp-details {
+  position: relative;
+  min-width: 108px;
+}
+
+.sharp-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+
+.sharp-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.sharp-details summary strong {
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sharp-details summary small {
+  padding: 2px 5px;
+  border: 1px solid rgba(215, 174, 102, 0.3);
+  border-radius: 999px;
+  color: var(--gold, #d6aa50);
+}
+
+.sharp-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  left: 0;
+  display: none;
+  width: min(390px, calc(100vw - 40px));
+  max-height: 340px;
+  overflow: auto;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: #0b151b;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.45);
+}
+
+.sharp-details[open] .sharp-popover,
+.sharp-details:hover .sharp-popover,
+.sharp-details:focus-within .sharp-popover {
+  display: grid;
+  gap: 8px;
+}
+
+.sharp-wallet-detail {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5px 12px;
+  padding: 9px;
+  border: 1px solid var(--border-soft);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.018);
+}
+
+.sharp-wallet-detail > strong,
+.sharp-wallet-detail > code,
+.sharp-wallet-detail > em {
+  grid-column: 1 / -1;
+}
+
+.sharp-wallet-detail code {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.sharp-wallet-detail em {
+  color: var(--gold, #d6aa50);
+  font-size: 10px;
+  font-style: normal;
+}
+
+.sharp-wallet-detail > span {
+  display: grid;
+  gap: 2px;
+  font-family: var(--font-numeric);
+  font-size: 11px;
+}
+
+.sharp-wallet-detail b,
+.sharp-unavailable {
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .clv-details[open] > .clv-marker-chart {
   position: relative;
   display: block;

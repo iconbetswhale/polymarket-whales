@@ -166,7 +166,26 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
             "condition_id": "condition",
             "market_slug": "market",
         },
-        "supporting_wallets": [],
+        "supporting_wallets": [
+            {
+                "wallet_address": "0xsupport",
+                "wallet_label": "Large Supporter",
+                "is_lead_sharp": False,
+                "amount": 9000,
+                "relative_units": 3.6,
+                "average_entry_price": 0.4,
+                "top_category": "Soccer",
+            },
+            {
+                "wallet_address": "0xlead",
+                "wallet_label": "Bagwell306",
+                "is_lead_sharp": True,
+                "amount": 3400,
+                "relative_units": 1.36,
+                "average_entry_price": 0.42,
+                "top_category": "Tennis",
+            },
+        ],
     }
     recommendation = {
         "recommendation_version": "v1",
@@ -207,3 +226,6 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
     assert snapshot["weighted_sharp_count"] == 1.5
     assert snapshot["primary_lead_wallet_id"] == "0xlead"
     assert snapshot["category_weight_by_wallet"]["0xsupport"] == 0.5
+    assert snapshot["primary_sharp"]["display_name"] == "Bagwell306"
+    assert snapshot["agreeing_sharps"][0]["display_name"] == "Bagwell306"
+    assert snapshot["agreeing_sharps"][1]["display_name"] == "Large Supporter"

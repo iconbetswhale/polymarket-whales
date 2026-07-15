@@ -41,6 +41,11 @@ from personal_positions import (
     personal_realized_pnl_summary,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from sharp_tracking import (
+    sharp_snapshot_from_fill,
+    sharp_snapshot_from_model,
+    tracker_identity,
+)
 from model_tracker_discord import build_discord_connection_test_payload
 from trade_scoring import filter_trades_to_play
 from whiteboard import (
@@ -82,6 +87,46 @@ def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> lis
             "clv_cents": None,
         }
     return rows
+
+
+def _attach_historical_personal_sharps(
+    fills: list[dict], model_records: list[dict]
+) -> list[dict]:
+    model_by_identity: dict[tuple[str, str, str, str], list[dict]] = {}
+    for record in model_records:
+        snapshot = record.get("snapshot") or {}
+        identity = tracker_identity(snapshot)
+        if all((identity[0], identity[1], identity[3])):
+            model_by_identity.setdefault(identity, []).append(snapshot)
+
+    enriched = []
+    for fill in fills:
+        item = dict(fill)
+        current = sharp_snapshot_from_fill(item)
+        if current.get("primary_sharp") or current.get("agreeing_sharps"):
+            item["sharp_snapshot"] = current
+            enriched.append(item)
+            continue
+        fill_time = _parse_datetime(item.get("created_at"))
+        candidates = model_by_identity.get(tracker_identity(item), [])
+        eligible = [
+            snapshot
+            for snapshot in candidates
+            if fill_time is not None
+            and (_parse_datetime(snapshot.get("recommendation_timestamp")) or fill_time)
+            <= fill_time
+        ]
+        if eligible:
+            selected = max(
+                eligible,
+                key=lambda snapshot: _parse_datetime(
+                    snapshot.get("recommendation_timestamp")
+                )
+                or datetime.min.replace(tzinfo=timezone.utc),
+            )
+            item["sharp_snapshot"] = sharp_snapshot_from_model(selected)
+        enriched.append(item)
+    return enriched
 
 
 def _filter_sort_clv_rows(rows: list[dict]) -> list[dict]:
@@ -1356,6 +1401,10 @@ def create_app(start_background: bool = True) -> Flask:
     def api_personal_tracker():
         current_settings = user_settings()
         all_fills = tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+        all_fills = _attach_historical_personal_sharps(
+            all_fills,
+            tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID),
+        )
         filter_options = _personal_tracker_filter_options(all_fills)
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
@@ -1710,6 +1759,8 @@ def create_app(start_background: bool = True) -> Flask:
             _safe_float(current_settings["tracker_bankroll"]),
         )
         rows = replay["rows"]
+        for row in rows:
+            row["sharp_snapshot"] = sharp_snapshot_from_model(row.get("snapshot") or {})
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         sport = request.args.get("sport", "").strip().lower()

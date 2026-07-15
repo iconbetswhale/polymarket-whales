@@ -12,11 +12,55 @@ from execution_providers import ProviderHealthStatus
 from model_tracker_discord import DiscordDeliveryResult
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
+    _attach_historical_personal_sharps,
     _format_event_start,
     _has_positive_recommendation,
     _slippage_fraction,
     _trade_card_view,
 )
+
+
+def test_historical_personal_sharp_backfill_requires_exact_earlier_snapshot():
+    fill = {
+        "canonical_event_id": "event-1",
+        "canonical_market_id": "market-1",
+        "market_line": "2.5",
+        "canonical_outcome_id": "yes-token",
+        "created_at": "2026-07-14T16:00:00+00:00",
+        "sharp_snapshot_json": "{}",
+    }
+    matching_snapshot = {
+        "canonical_event_id": "event-1",
+        "canonical_market_id": "market-1",
+        "market_line": 2.5,
+        "outcome_id": "yes-token",
+        "recommendation_timestamp": "2026-07-14T15:00:00+00:00",
+        "primary_sharp": {"display_name": "Bagwell306", "wallet_address": "0xlead"},
+        "agreeing_sharps": [
+            {"display_name": "Bagwell306", "wallet_address": "0xlead"}
+        ],
+    }
+    later_snapshot = {
+        **matching_snapshot,
+        "recommendation_timestamp": "2026-07-14T17:00:00+00:00",
+        "primary_sharp": {"display_name": "Future Sharp", "wallet_address": "0xfuture"},
+    }
+    wrong_outcome = {
+        **matching_snapshot,
+        "outcome_id": "no-token",
+        "primary_sharp": {"display_name": "Wrong Side", "wallet_address": "0xwrong"},
+    }
+
+    result = _attach_historical_personal_sharps(
+        [fill],
+        [
+            {"snapshot": matching_snapshot},
+            {"snapshot": later_snapshot},
+            {"snapshot": wrong_outcome},
+        ],
+    )
+
+    assert result[0]["sharp_snapshot"]["primary_sharp"]["display_name"] == "Bagwell306"
 
 
 class CountingClient:

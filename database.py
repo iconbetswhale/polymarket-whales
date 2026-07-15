@@ -294,6 +294,7 @@ class TrackerDatabase:
                     settled_at TEXT,
                     sportsbook TEXT NOT NULL DEFAULT 'Polymarket',
                     tags_json TEXT NOT NULL DEFAULT '[]',
+                    sharp_snapshot_json TEXT NOT NULL DEFAULT '{}',
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -407,6 +408,10 @@ class TrackerDatabase:
             if "tags_json" not in personal_fill_columns:
                 conn.execute(
                     "ALTER TABLE personal_bet_fills ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]'"
+                )
+            if "sharp_snapshot_json" not in personal_fill_columns:
+                conn.execute(
+                    "ALTER TABLE personal_bet_fills ADD COLUMN sharp_snapshot_json TEXT NOT NULL DEFAULT '{}'"
                 )
             if "tracker_bankroll" not in settings_columns:
                 conn.execute(
@@ -1732,11 +1737,11 @@ class TrackerDatabase:
                     canonical_outcome_id, event_title, market_title, selection,
                     event_start_time, market_url, entry_price, shares,
                     position_cost, fees, total_paid, status, result, settled_at,
-                    sportsbook, tags_json, created_at, updated_at
+                    sportsbook, tags_json, sharp_snapshot_json, created_at, updated_at
                 )
                 VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    NULL, NULL, ?, ?, ?, ?
+                    NULL, NULL, ?, ?, ?, ?, ?
                 )
                 """,
                 (
@@ -1761,6 +1766,7 @@ class TrackerDatabase:
                     status,
                     fill.get("sportsbook") or "Polymarket",
                     json.dumps(fill.get("tags") or []),
+                    json.dumps(fill.get("sharp_snapshot") or {}),
                     now,
                     now,
                 ),

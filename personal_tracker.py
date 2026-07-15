@@ -4,6 +4,8 @@ import json
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
+from sharp_tracking import sharp_snapshot_from_fill, sharp_snapshot_from_trade
+
 
 ACTIVE_PERSONAL_STATUSES = {"scheduled", "live", "unresolved"}
 SETTLED_PERSONAL_STATUSES = {"won", "lost", "push", "void", "canceled"}
@@ -143,6 +145,7 @@ def personal_fill_snapshot(
     tags: list[str] | None = None,
 ) -> dict[str, Any]:
     identity = canonical_trade_identity(trade)
+    sharp_snapshot = sharp_snapshot_from_trade(trade)
     position_cost = entry_price * shares
     validation = trade.get("validation_ids") or {}
     return {
@@ -163,6 +166,7 @@ def personal_fill_snapshot(
         "total_paid": position_cost + fees,
         "sportsbook": normalize_sportsbook(sportsbook),
         "tags": normalize_personal_tags(tags),
+        "sharp_snapshot": sharp_snapshot,
     }
 
 
@@ -357,6 +361,7 @@ def replay_personal_tracker(
                 "payout": payout,
                 "sportsbook": normalize_sportsbook(fill.get("sportsbook")),
                 "tags": personal_tags_from_fill(fill),
+                "sharp_snapshot": sharp_snapshot_from_fill(fill),
             }
         )
 

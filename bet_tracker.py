@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from market_lifecycle import classify_lifecycle
+from sharp_tracking import sharp_snapshot_from_trade
 
 
 OPEN_TRACKER_STATUSES = {"scheduled", "live", "unresolved"}
@@ -53,6 +54,7 @@ def recommendation_snapshot(
     dedupe_key = "::".join([event_id, market_id, str(line or ""), outcome_id, version])
     snapshot_id = hashlib.sha256(dedupe_key.encode("utf-8")).hexdigest()
     timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
+    sharp_snapshot = sharp_snapshot_from_trade(play)
     return {
         "snapshot_id": snapshot_id,
         "dedupe_key": dedupe_key,
@@ -115,6 +117,12 @@ def recommendation_snapshot(
         "lead_wallet_ids": play.get("lead_wallet_ids"),
         "supporting_wallet_ids": play.get("supporting_wallet_ids"),
         "primary_lead_wallet_id": play.get("primary_lead_wallet_id"),
+        "primary_sharp": sharp_snapshot.get("primary_sharp"),
+        "agreeing_sharps": sharp_snapshot.get("agreeing_sharps"),
+        "primary_sharp_selection_source": sharp_snapshot.get(
+            "primary_selection_source"
+        ),
+        "sharp_snapshot": sharp_snapshot,
         "category_match_by_wallet": play.get("category_match_by_wallet"),
         "category_weight_by_wallet": play.get("category_weight_by_wallet"),
         "weighted_consensus_score": play.get("weighted_consensus_score"),

@@ -2270,6 +2270,31 @@ function clvCell(row) {
   </details>`;
 }
 
+function sharpCell(snapshot = {}) {
+  const primary = snapshot.primary_sharp || null;
+  const wallets = Array.isArray(snapshot.agreeing_sharps) ? snapshot.agreeing_sharps : [];
+  if (!primary) return '<span class="sharp-unavailable">Unavailable</span>';
+  const primaryAddress = String(primary.wallet_address || "").toLowerCase();
+  const additional = Math.max(wallets.filter((wallet) => String(wallet.wallet_address || "").toLowerCase() !== primaryAddress).length, 0);
+  const walletRows = wallets.map((wallet) => {
+    const units = number(wallet.units);
+    const relative = number(wallet.relative_bet_size);
+    return `<span class="sharp-wallet-detail">
+      <strong>${escapeHtml(wallet.display_name || wallet.wallet_address || "Unknown Sharp")}</strong>
+      <code>${escapeHtml(wallet.wallet_address || "Address unavailable")}</code>
+      <em>${escapeHtml(wallet.role || "Supporting Sharp")}${wallet.top_category ? ` | ${escapeHtml(wallet.top_category)}` : ""}</em>
+      <span><b>Amount</b>${escapeHtml(number(wallet.amount) === null ? "Unavailable" : formatMoney(wallet.amount))}</span>
+      <span><b>Units</b>${escapeHtml(units === null ? "Unavailable" : formatUnits(units))}</span>
+      <span><b>Average entry</b>${escapeHtml(number(wallet.average_entry) === null ? "Unavailable" : formatCents(wallet.average_entry))}</span>
+      <span><b>Relative bet size</b>${escapeHtml(relative === null ? "Unavailable" : `${relative.toFixed(2)}x normal`)}</span>
+    </span>`;
+  }).join("");
+  return `<details class="sharp-details">
+    <summary aria-label="Show all agreeing Sharps"><strong>${escapeHtml(primary.display_name || primary.wallet_address || "Unknown Sharp")}</strong>${additional ? `<small>+${additional}</small>` : ""}</summary>
+    <span class="sharp-popover">${walletRows || '<span class="sharp-unavailable">Wallet details unavailable</span>'}</span>
+  </details>`;
+}
+
 function trackerRow(row) {
   const snapshot = row.snapshot || {};
   const pnl = number(row.profit_loss);
@@ -2277,6 +2302,7 @@ function trackerRow(row) {
     <tr>
       <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
       <td><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
+      <td>${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
       <td class="mono">${snapshot.sharps_count ?? 0}</td>
       <td class="mono">${snapshot.confidence_score ?? "n/a"}</td>
       <td class="mono">${formatCents(snapshot.effective_entry_price)}</td>
@@ -2457,6 +2483,7 @@ function personalTrackerRow(row) {
     <tr>
       <td>${eventMarkup}</td>
       <td><strong>${escapeHtml(row.selection || "Selection")}</strong></td>
+      <td>${sharpCell(row.sharp_snapshot || {})}</td>
       <td class="mono">${escapeHtml(formatShares(row.shares))}</td>
       <td class="mono">${escapeHtml(formatCents(row.entry_price))}</td>
       <td class="mono">${escapeHtml(formatMoney(row.position_cost))}</td>
@@ -2511,7 +2538,7 @@ function renderModelTracker(payload) {
   ].join("");
   renderClvAnalytics(payload);
   const body = document.getElementById("tracker-body");
-  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="11">${trackerEmptyState()}</td></tr>`;
+  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="12">${trackerEmptyState()}</td></tr>`;
   drawTrackerChart(payload.graph);
   renderTrackerPagination(payload.pagination, "model");
 }
@@ -2538,7 +2565,7 @@ function renderPersonalTracker(payload) {
   const body = document.getElementById("tracker-body");
   body.innerHTML = payload.data.length
     ? payload.data.map(personalTrackerRow).join("")
-    : `<tr><td colspan="11"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Trades to Play card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Trades to Play</a></div></td></tr>`;
+    : `<tr><td colspan="12"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Trades to Play card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Trades to Play</a></div></td></tr>`;
   body.querySelectorAll("[data-personal-fill-remove]").forEach((button) => {
     button.addEventListener("click", () => removePersonalFill(button.dataset.personalFillRemove));
   });
@@ -2583,7 +2610,7 @@ async function loadTracker() {
     renderModelTracker(payload);
     if (appState.trackerView === "model" && !document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
   } catch (error) {
-    if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="11">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
+    if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="12">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
   }
 }
 
@@ -2596,7 +2623,7 @@ async function loadPersonalTracker() {
     appState.trackerCache.personal = payload;
     renderPersonalTracker(payload);
   } catch (error) {
-    if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="11">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
+    if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="12">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
   }
 }
 
@@ -2644,8 +2671,8 @@ function configureTrackerShell(view) {
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
   document.getElementById("tracker-search").placeholder = model ? "Search event, market, trader" : "Search event, market, selection";
   document.getElementById("tracker-table-head").innerHTML = model
-    ? "<th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Bankroll</th>"
-    : "<th>Event / Market</th><th>Selection</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
+    ? "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Bankroll</th>"
+    : "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
   document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
     const selected = button.dataset.trackerView === view;
@@ -2669,7 +2696,7 @@ async function selectTrackerView(view, { persist = true } = {}) {
     document.getElementById("tracker-result-count").textContent = "Loading";
     document.getElementById("tracker-metrics").innerHTML = '<div class="tracker-loading-state metric-loading"><span></span><span></span><span></span></div>';
     document.getElementById("tracker-chart").innerHTML = '<div class="tracker-loading-state"><span></span><span></span><span></span></div>';
-    document.getElementById("tracker-body").innerHTML = '<tr><td colspan="11"><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr>';
+    document.getElementById("tracker-body").innerHTML = '<tr><td colspan="12"><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr>';
   }
   loadTrackerView();
   if (persist) {
