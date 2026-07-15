@@ -292,6 +292,7 @@ class DiscordNotificationDispatcher:
         validation_failure = self.bot.validate_connection()
         if validation_failure:
             result["connection_failed"] = 1
+            result["connection_error"] = validation_failure.error_code
             return result
         try:
             jobs = self.database.claim_discord_notifications(self.batch_size)
