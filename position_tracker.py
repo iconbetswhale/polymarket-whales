@@ -589,6 +589,7 @@ class TrackerService:
             positions,
             success_time,
             fill_sync_stats,
+            category_metrics,
         )
         status["position_count"] = len(positions)
         status["recent_trade_count"] = len(
@@ -1418,6 +1419,7 @@ class TrackerService:
         normalized_positions: list[dict],
         timestamp: str,
         fill_sync_stats: dict[str, dict[str, Any]],
+        category_metrics: dict[str, dict[str, Any]],
     ) -> None:
         enabled_addresses = {wallet.address for wallet in enabled_wallets}
         history_counts = self.database.get_wallet_history_counts()
@@ -1430,6 +1432,38 @@ class TrackerService:
         for wallet in wallet_payload:
             address = str(wallet.get("address") or "").lower()
             wallet.update(fill_sync_stats.get(address, {}))
+            category_profile = category_metrics.get(address, {})
+            statistical_top = category_profile.get("top_category")
+            wallet["statistical_top_category"] = statistical_top
+            wallet["statistical_top_category_source"] = category_profile.get(
+                "top_category_source"
+            )
+            if not wallet.get("top_category") and statistical_top:
+                wallet["top_category"] = statistical_top
+                wallet["top_category_ids"] = category_profile.get(
+                    "top_category_ids"
+                ) or []
+                wallet["primary_top_category_id"] = category_profile.get(
+                    "primary_top_category_id"
+                )
+                wallet["top_category_source"] = category_profile.get(
+                    "top_category_source"
+                )
+                wallet["top_category_verified_at"] = category_profile.get(
+                    "top_category_verified_at"
+                )
+            primary_category_id = wallet.get("primary_top_category_id")
+            category_stats = next(
+                (
+                    {"category": category, **metric}
+                    for category, metric in (
+                        category_profile.get("categories") or {}
+                    ).items()
+                    if canonical_category_id(category) == primary_category_id
+                ),
+                None,
+            )
+            wallet["top_category_stats"] = category_stats
             wallet["historical_position_count"] = history_counts.get(address, 0)
             if wallet.get("status") == "invalid":
                 wallet["sync_status"] = "failed"
@@ -1481,7 +1515,7 @@ class TrackerService:
         ) -> tuple[str, list[dict], list[dict], list[dict]]:
             current = self.client.get_current_positions(wallet.address)
             closed = self.client.get_closed_positions(
-                wallet.address, 500 if wallet.requires_fill_aggregation else 50
+                wallet.address, 500 if wallet.requires_fill_aggregation else 300
             )
             fills: list[dict] = []
             if wallet.requires_fill_aggregation:

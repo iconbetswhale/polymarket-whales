@@ -63,6 +63,26 @@ def test_historical_personal_sharp_backfill_requires_exact_earlier_snapshot():
     assert result[0]["sharp_snapshot"]["primary_sharp"]["display_name"] == "Bagwell306"
 
 
+def test_wallet_cards_show_complete_category_and_profile_fields():
+    script = Path("static/app.js").read_text(encoding="utf-8")
+
+    for label in (
+        "Category record",
+        "Adjusted hit rate",
+        "Category P/L",
+        "Category source",
+        "Half unit",
+        "Actionable exposure",
+        "Type",
+        "Selectivity",
+        "Hold",
+        "Copyability",
+        "Execution",
+        "Strategy",
+    ):
+        assert f'walletMeta("{label}"' in script
+
+
 class CountingClient:
     def __init__(self):
         self.current_calls = []

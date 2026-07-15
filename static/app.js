@@ -2122,21 +2122,35 @@ async function bindPositions() {
 
 function walletCard(wallet) {
   const sync = wallet.sync_status || wallet.status;
+  const unit = number(wallet.base_unit);
+  const actionableUnits = number(wallet.actionable_position_units);
+  const explicitActionableExposure = number(wallet.minimum_actionable_exposure_dollars);
+  const actionableExposure = explicitActionableExposure ?? (unit !== null && actionableUnits !== null ? unit * actionableUnits : null);
+  const categoryStats = wallet.top_category_stats || {};
+  const categorySample = number(categoryStats.sample_size);
+  const categoryRecord = categorySample === null
+    ? "Awaiting settled history"
+    : `${categoryStats.wins || 0}-${categoryStats.losses || 0} | ${categorySample} settled`;
   return `
     <article class="wallet-card">
       <div class="wallet-card-head"><span class="wallet-avatar"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><h2>${escapeHtml(wallet.label)}</h2><span class="status-label ${escapeHtml(sync)}">${escapeHtml(sync)}</span></div></div>
       <button class="address-copy" type="button" data-copy-address="${escapeHtml(wallet.address)}"><span>${escapeHtml(wallet.display_address || wallet.address)}</span><i class="ph ph-copy" aria-hidden="true"></i></button>
       <div class="wallet-stats"><div><span>Open positions</span><strong>${wallet.open_position_count ?? 0}</strong></div><div><span>History events</span><strong>${wallet.historical_position_count ?? 0}</strong></div><div><span>Base unit</span><strong>${wallet.base_unit ? formatMoney(wallet.base_unit) : "Estimating"}</strong></div></div>
       <div class="wallet-sync wallet-meta">${[
-        walletMeta("Top category", wallet.top_category_display || wallet.top_category),
-        walletMeta("Half unit", wallet.minimum_actionable_exposure_dollars ? formatMoney(wallet.minimum_actionable_exposure_dollars) : null),
-        walletMeta("Execution tranche", wallet.typical_execution_tranche_dollars ? `Approx. ${formatMoney(wallet.typical_execution_tranche_dollars)}` : null, "An execution tranche is not a full unit. Individual small fills are aggregated and should not be copied independently."),
-        walletMeta("Actionable exposure", wallet.minimum_actionable_exposure_dollars ? `${formatMoney(wallet.minimum_actionable_exposure_dollars)} / ${(wallet.actionable_position_units || 0).toFixed(2)}u` : null, "Signals become actionable only after completed fills are aggregated to this net exposure."),
-        walletMeta("Type", wallet.bettor_type),
-        walletMeta("Selectivity", wallet.selectivity),
-        walletMeta("Hold", wallet.hold_tendency),
-        walletMeta("Copyability", wallet.copyability),
-        walletMeta("Execution", wallet.execution_style),
+        walletMeta("Top category", wallet.top_category_display || wallet.top_category || "Awaiting classification"),
+        walletMeta("Category record", categoryRecord),
+        walletMeta("Adjusted hit rate", number(categoryStats.adjusted_hit_rate) === null ? "Awaiting settled history" : formatPercent(categoryStats.adjusted_hit_rate)),
+        walletMeta("Category P/L", number(categoryStats.profit_loss) === null ? "Awaiting settled history" : formatMoney(categoryStats.profit_loss)),
+        walletMeta("Category source", wallet.top_category_source ? String(wallet.top_category_source).replaceAll("_", " ") : "Awaiting classification"),
+        walletMeta("Half unit", unit === null ? "Estimating" : formatMoney(unit / 2)),
+        walletMeta("Execution tranche", wallet.typical_execution_tranche_dollars ? `Approx. ${formatMoney(wallet.typical_execution_tranche_dollars)}` : "Not separately configured", "An execution tranche is not a full unit. Individual small fills are aggregated and should not be copied independently."),
+        walletMeta("Actionable exposure", actionableExposure === null ? "Uses global threshold" : `${formatMoney(actionableExposure)} / ${(actionableUnits || 0).toFixed(2)}u`, "Signals become actionable only after completed fills are aggregated to this net exposure."),
+        walletMeta("Type", wallet.bettor_type || "Not yet classified"),
+        walletMeta("Selectivity", wallet.selectivity || "Not yet classified"),
+        walletMeta("Hold", wallet.hold_tendency || "Not yet classified"),
+        walletMeta("Copyability", wallet.copyability || "Not yet classified"),
+        walletMeta("Execution", wallet.execution_style || "Not yet classified"),
+        walletMeta("Strategy", wallet.general_strategy || "Not yet classified"),
         walletMeta("Synced fills", wallet.requires_fill_aggregation ? wallet.deduplicated_fill_count : null),
         walletMeta("Avg. fills / position", wallet.requires_fill_aggregation ? wallet.average_fills_per_aggregated_position : null),
         walletMeta("Settled positions", wallet.requires_fill_aggregation ? wallet.settled_aggregated_position_count : null),

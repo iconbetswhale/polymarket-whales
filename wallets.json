@@ -16,42 +16,75 @@
     "label": "1winstreak1",
     "enabled": true,
     "base_unit": 3000,
-    "notes": ""
+    "notes": "Settled-history review identifies MLB/Baseball as this wallet's primary specialty.",
+    "top_category": "MLB",
+    "top_category_display": "MLB / Baseball",
+    "top_categories": ["MLB", "Baseball", "Major League Baseball"],
+    "primary_top_category": "MLB",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0x03e8a544e97eeff5753bc1e90d46e5ef22af1697",
     "label": "Weflyhigh",
     "enabled": true,
     "base_unit": null,
-    "notes": "Unit size pending automatic estimation from real tracked position history."
+    "notes": "Unit size pending automatic estimation. Settled-history review identifies NBA as the strongest verified category.",
+    "top_category": "NBA",
+    "top_categories": ["NBA", "National Basketball Association"],
+    "primary_top_category": "NBA",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960",
     "label": "sportmaster777",
     "enabled": true,
     "base_unit": null,
-    "notes": "Unit size pending automatic estimation from real tracked position history."
+    "notes": "Unit size pending automatic estimation. Settled-history review identifies MLB/Baseball as this wallet's primary specialty.",
+    "top_category": "MLB",
+    "top_category_display": "MLB / Baseball",
+    "top_categories": ["MLB", "Baseball", "Major League Baseball"],
+    "primary_top_category": "MLB",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0x3dfb153c197d4c19d3b31c1ecd2c7b6860eeabaf",
     "label": "Wordylittleneck",
     "enabled": true,
     "base_unit": null,
-    "notes": "Unit size pending automatic estimation from real tracked position history."
+    "notes": "Unit size pending automatic estimation. Settled-history review identifies MLB/Baseball as this wallet's strongest category.",
+    "top_category": "MLB",
+    "top_category_display": "MLB / Baseball",
+    "top_categories": ["MLB", "Baseball", "Major League Baseball"],
+    "primary_top_category": "MLB",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0xf1528f12e645462c344799b62b1b421a6a4c64aa",
     "label": "phonesculptor",
     "enabled": true,
     "base_unit": null,
-    "notes": "Unit size pending automatic estimation from real tracked position history."
+    "notes": "Unit size pending automatic estimation. Settled-history review identifies Soccer as this wallet's strongest category.",
+    "top_category": "Soccer",
+    "top_categories": ["Soccer", "Football"],
+    "primary_top_category": "Soccer",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
     "label": "Surfandturf",
     "enabled": true,
     "base_unit": null,
-    "notes": "Unit size pending automatic estimation from real tracked position history."
+    "notes": "Unit size pending automatic estimation. Settled-history review identifies NBA as this wallet's strongest verified category.",
+    "top_category": "NBA",
+    "top_categories": ["NBA", "National Basketball Association"],
+    "primary_top_category": "NBA",
+    "top_category_source": "settled_history_reviewed",
+    "top_category_verified_at": "2026-07-15T00:00:00Z"
   },
   {
     "address": "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
@@ -60,6 +93,10 @@
     "base_unit": 2500,
     "notes": "Manual unit size override. Units are based on exact remaining dollars invested, not share count.",
     "top_category": "Tennis",
+    "top_categories": ["Tennis", "ATP", "WTA", "Challenger"],
+    "primary_top_category": "Tennis",
+    "top_category_source": "manually_reviewed_locked",
+    "top_category_verified_at": "2026-07-14T00:00:00Z",
     "bettor_type": "Automated systematic directional bettor",
     "selectivity": "Low",
     "selectivity_score": 2,
