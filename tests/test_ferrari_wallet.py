@@ -64,7 +64,9 @@ def _position(
         "league": category,
         "canonical_category_id": category.lower(),
         "configured_top_category": "Baseball",
-        "configured_top_category_ids": ["mlb"],
+        "configured_top_category_ids": ["mlb", "tennis"],
+        "configured_sub_top_categories": ["Tennis"],
+        "configured_sub_top_category_ids": ["tennis"],
         "resolution_time": "2026-07-14T23:10:00Z",
         "first_detected_at": "2026-07-13T00:00:00+00:00",
         "last_changed_at": "2026-07-13T00:10:00+00:00",
@@ -110,7 +112,8 @@ def test_ferrari_wallet_identity_metadata_and_aliases_are_authoritative():
     assert wallet.base_unit == 5000
     assert wallet.top_category == "Baseball"
     assert wallet.top_category_display == "MLB / Baseball"
-    assert wallet.top_category_ids == ("mlb",)
+    assert wallet.top_category_ids == ("mlb", "tennis")
+    assert wallet.sub_top_categories == ("Tennis",)
     assert wallet.trader_type == "ULTRA_HFT_AUTOMATED_HEDGING"
     assert wallet.selectivity_code == "VERY_LOW"
     assert wallet.copyability_code == "LOW_WITHOUT_AGGREGATION"
@@ -204,7 +207,7 @@ def test_wallet_specific_unit_math_and_exact_actionable_threshold():
     assert 5000 / 5000 == 1.0
 
 
-def test_non_mlb_position_cannot_originate_but_can_support_at_half_weight():
+def test_tennis_sub_category_can_originate_at_full_weight():
     ferrari = _position(
         amount=5000,
         category="Tennis",
@@ -218,8 +221,11 @@ def test_non_mlb_position_cannot_originate_but_can_support_at_half_weight():
         now=datetime(2026, 7, 13, tzinfo=timezone.utc),
         diagnostics=diagnostics,
     )
-    assert alone == []
-    assert diagnostics[0]["reason"] == "SINGLE_NON_CATEGORY_WALLET"
+    assert len(alone) == 1
+    assert diagnostics == []
+    assert alone[0]["lead_sharp_count"] == 1
+    assert alone[0]["supporting_wallets"][0]["sharp_role"] == "Lead Sharp"
+    assert alone[0]["supporting_wallets"][0]["category_weight"] == 1.0
 
     tennis_lead = _position(
         amount=3000,
@@ -238,15 +244,15 @@ def test_non_mlb_position_cannot_originate_but_can_support_at_half_weight():
         },
         now=datetime(2026, 7, 13, tzinfo=timezone.utc),
     )[0]
-    assert mixed["primary_trader"]["wallet_label"] == "TennisLead"
-    assert mixed["weighted_sharp_count"] == 1.5
+    assert mixed["primary_trader"]["wallet_label"] == "ferrariChampions2026"
+    assert mixed["weighted_sharp_count"] == 2.0
     ferrari_support = next(
         supporter
         for supporter in mixed["supporting_wallets"]
         if supporter["wallet_address"] == FERRARI_ADDRESS
     )
-    assert ferrari_support["sharp_role"] == "Supporting Sharp"
-    assert ferrari_support["category_weight"] == 0.5
+    assert ferrari_support["sharp_role"] == "Lead Sharp"
+    assert ferrari_support["category_weight"] == 1.0
 
 
 def test_same_wallet_opposing_exposure_is_netted_before_signal_scoring():

@@ -126,7 +126,9 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
         if wallet.label == "ferrariChampions2026"
     )
     assert ferrari.base_unit == 5000
-    assert ferrari.top_category_ids == ("mlb",)
+    assert ferrari.top_category_ids == ("mlb", "tennis")
+    assert ferrari.sub_top_categories == ("Tennis",)
+    assert ferrari.sub_top_category_ids == ("tennis",)
     assert ferrari.minimum_actionable_exposure_dollars == 2500
     assert ferrari.requires_fill_aggregation is True
 
@@ -138,6 +140,14 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert phonesculptor.sub_top_categories == ("Soccer",)
     assert phonesculptor.sub_top_category_ids == ("soccer",)
     assert phonesculptor.top_category_ids == ("mlb", "soccer")
+
+    weflyhigh = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Weflyhigh"
+    )
+    assert weflyhigh.primary_top_category_id == "nba"
+    assert weflyhigh.sub_top_categories == ("NHL", "MLB")
+    assert weflyhigh.sub_top_category_ids == ("nhl", "mlb")
+    assert weflyhigh.top_category_ids == ("nba", "nhl", "mlb")
 
 
 def test_every_enabled_wallet_has_an_authoritative_top_category():
