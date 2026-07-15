@@ -962,3 +962,80 @@ def test_opposing_personal_fill_requires_explicit_confirmation(app_client, monke
     assert blocked.status_code == 409
     assert blocked.get_json()["confirmationRequired"] == "conflict"
     assert confirmed.status_code == 201
+def test_personal_workspace_positions_sell_and_ownership(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
+    monkeypatch.setattr(service, "track_recommendations_for_user", lambda *_args: 0)
+    monkeypatch.setattr(
+        service.client,
+        "get_order_books",
+        lambda _ids: {
+            "outcome-a": {
+                "bids": [{"price": 0.5, "size": 200}],
+                "timestamp": "2026-07-15T12:00:00+00:00",
+            }
+        },
+        raising=False,
+    )
+    monkeypatch.setattr(
+        service.client,
+        "get_price_history",
+        lambda *_args, **_kwargs: [{"t": 1, "p": "0.5"}],
+        raising=False,
+    )
+    app_client.set_cookie("iconbets_user", "workspace-user")
+    purchase = app_client.post(
+        "/api/personal-bets",
+        json={"trade_id": "market-1::outcome-a", "entry_price": 0.4, "shares": 100, "fees": 1},
+    )
+    assert purchase.status_code == 201
+
+    open_payload = app_client.get("/api/personal-positions?state=open").get_json()
+    position = open_payload["data"][0]
+    assert open_payload["counts"] == {"positions": 1, "closed": 0}
+    assert position["quote"]["effectiveSellPrice"] == 0.5
+    assert position["unrealizedPnl"] == 9
+    assert (
+        app_client.get(
+            f"/api/personal-positions/{position['positionId']}/price-history"
+        ).status_code
+        == 200
+    )
+
+    other_user = app_client.application.test_client()
+    other_user.set_cookie("iconbets_user", "other-workspace-user")
+    assert other_user.get("/api/personal-positions?state=all").get_json()["data"] == []
+    forbidden = other_user.post(
+        f"/api/personal-positions/{position['positionId']}/exits",
+        json={"shares": 100, "sell_price": 0.5, "fees": 0, "idempotency_key": "other-1"},
+    )
+    assert forbidden.status_code == 404
+    assert (
+        other_user.get(
+            f"/api/personal-positions/{position['positionId']}/price-history"
+        ).status_code
+        == 404
+    )
+
+    partial = app_client.post(
+        f"/api/personal-positions/{position['positionId']}/exits",
+        json={"shares": 25, "sell_price": 0.5, "fees": 0.5, "idempotency_key": "sell-1"},
+    )
+    assert partial.status_code == 201
+    remaining = app_client.get("/api/personal-positions?state=open").get_json()["data"][0]
+    assert remaining["remainingShares"] == 75
+    assert remaining["status"] == "partially_sold"
+
+    full = app_client.post(
+        f"/api/personal-positions/{position['positionId']}/exits",
+        json={"shares": 75, "sell_price": 0.6, "fees": 0, "idempotency_key": "sell-2"},
+    )
+    assert full.status_code == 201
+    assert app_client.get("/api/personal-positions?state=open").get_json()["data"] == []
+    closed = app_client.get("/api/personal-positions?state=closed&closure=sold").get_json()
+    assert closed["counts"] == {"positions": 0, "closed": 1}
+    assert closed["data"][0]["realizedPnl"] == 16
+    summary = app_client.get("/api/personal-pnl?period=all").get_json()["data"]
+    assert summary["realizedPnl"] == pytest.approx(16)
+    assert summary["timezone"] == "America/New_York"

@@ -3,6 +3,7 @@ from __future__ import annotations
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+import os
 import sys
 from types import MethodType
 
@@ -10,6 +11,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app as app_module
 from execution_providers import NOVIG_LOGO_URL, POLYMARKET_LOGO_URL
+from flask import redirect
+from personal_tracker import personal_fill_snapshot
 
 
 def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
@@ -173,6 +176,17 @@ def build_app():
         {"t": int((now - timedelta(minutes=15 * step)).timestamp()), "p": str(0.31 + step * 0.002)}
         for step in range(24, -1, -1)
     ]
+    tracker.client.get_order_books = lambda token_ids: {
+        token_id: {
+            "bids": [
+                {"price": "0.52", "size": "80"},
+                {"price": "0.49", "size": "150"},
+            ],
+            "asks": [{"price": "0.53", "size": "200"}],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        for token_id in token_ids
+    }
 
     registry = flask_app.extensions["execution_providers"]
 
@@ -228,8 +242,56 @@ def build_app():
                 }
 
     registry.attach_options = attach_options
+
+    qa_user = "visual-qa-user"
+    for index, trade in enumerate(trades):
+        fill = personal_fill_snapshot(
+            trade,
+            fill_id=f"workspace-qa-fill-{index}",
+            entry_price=(0.40, 0.65, 0.45, 0.70)[index],
+            shares=(100, 60, 80, 40)[index],
+            fees=1,
+            sportsbook="Polymarket",
+        )
+        try:
+            stored = tracker.database.insert_personal_bet_fill(qa_user, fill)
+        except Exception:
+            continue
+        if index == 2:
+            tracker.database.insert_personal_position_exit(
+                qa_user,
+                {
+                    "exit_id": "workspace-qa-exit-sold",
+                    "idempotency_key": "workspace-qa-sold",
+                    **{key: stored[key] for key in ("canonical_event_id", "canonical_market_id", "market_line", "canonical_outcome_id")},
+                    "sportsbook": "Polymarket",
+                    "shares_sold": 80,
+                    "sell_price": 0.62,
+                    "gross_proceeds": 49.6,
+                    "fees": 0.6,
+                    "net_proceeds": 49.0,
+                    "sold_at": now.isoformat(),
+                    "mode": "tracker_only",
+                },
+            )
+        elif index == 3:
+            tracker.database.update_personal_bet_status(
+                stored["fill_id"], "lost", "Lost", now.isoformat()
+            )
+
+    @flask_app.route("/qa/session")
+    def qa_session():
+        response = redirect("/trades")
+        response.set_cookie("iconbets_user", qa_user)
+        return response
+
     return flask_app
 
 
 if __name__ == "__main__":
-    build_app().run(host="127.0.0.1", port=5001, debug=False, use_reloader=False)
+    build_app().run(
+        host="127.0.0.1",
+        port=int(os.getenv("VISUAL_QA_PORT", "5001")),
+        debug=False,
+        use_reloader=False,
+    )

@@ -34,6 +34,11 @@ from personal_tracker import (
     personal_tags_from_fill,
     replay_personal_tracker,
 )
+from personal_positions import (
+    aggregate_personal_positions,
+    executable_sell_quote,
+    personal_realized_pnl_summary,
+)
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from model_tracker_discord import build_discord_connection_test_payload
 from trade_scoring import filter_trades_to_play
@@ -1129,6 +1134,167 @@ def create_app(start_background: bool = True) -> Flask:
         fills = tracker.database.get_personal_bet_fills(g.iconbets_user_id)
         return jsonify({"data": _personal_tracker_filter_options(fills)})
 
+    def personal_position_snapshot(*, include_quotes: bool = True) -> list[dict]:
+        fills = tracker.database.get_personal_bet_fills(g.iconbets_user_id)
+        exits = tracker.database.get_personal_position_exits(g.iconbets_user_id)
+        preliminary = aggregate_personal_positions(fills, exits)
+        polymarket_open = [
+            item
+            for item in preliminary
+            if not item["isClosed"]
+            and item["provider"].lower() == "polymarket"
+            and item["canonicalOutcomeId"]
+        ]
+        quotes = {}
+        if include_quotes and polymarket_open:
+            try:
+                books = tracker.client.get_order_books(
+                    [item["canonicalOutcomeId"] for item in polymarket_open]
+                )
+            except Exception as exc:
+                LOGGER.warning("Personal position quotes unavailable: %s", exc)
+                books = {}
+            for item in polymarket_open:
+                book = books.get(item["canonicalOutcomeId"]) or {}
+                quotes[item["canonicalOutcomeId"]] = executable_sell_quote(
+                    book.get("bids") or [],
+                    item["remainingShares"],
+                    timestamp=book.get("timestamp"),
+                )
+        return aggregate_personal_positions(fills, exits, quotes)
+
+    @app.route("/api/personal-positions")
+    def api_personal_positions():
+        state = request.args.get("state", "open").lower()
+        if state not in {"open", "closed", "all"}:
+            state = "open"
+        positions = personal_position_snapshot(include_quotes=state != "closed")
+        closure = request.args.get("closure", "all").lower()
+        query = request.args.get("q", "").strip().lower()
+        visible = positions
+        if state == "open":
+            visible = [item for item in visible if not item["isClosed"]]
+        elif state == "closed":
+            visible = [item for item in visible if item["isClosed"]]
+        if closure in {"sold", "resolved"}:
+            visible = [item for item in visible if item["closureMethod"] == closure]
+        if query:
+            visible = [
+                item
+                for item in visible
+                if query
+                in " ".join(
+                    str(item.get(key) or "").lower()
+                    for key in ("eventTitle", "marketTitle", "selection", "provider")
+                )
+            ]
+        page = max(request.args.get("page", 1, type=int) or 1, 1)
+        per_page = min(max(request.args.get("per_page", 50, type=int) or 50, 1), 100)
+        start = (page - 1) * per_page
+        return jsonify(
+            {
+                "data": visible[start : start + per_page],
+                "counts": {
+                    "positions": sum(not item["isClosed"] for item in positions),
+                    "closed": sum(item["isClosed"] for item in positions),
+                },
+                "pagination": {
+                    "page": page,
+                    "per_page": per_page,
+                    "total": len(visible),
+                    "has_next": start + per_page < len(visible),
+                },
+            }
+        )
+
+    @app.route("/api/personal-positions/<position_id>/exits", methods=["POST"])
+    def api_record_personal_exit(position_id: str):
+        payload = request.get_json(silent=True) or {}
+        position = next(
+            (
+                item
+                for item in personal_position_snapshot(include_quotes=False)
+                if item["positionId"] == position_id and not item["isClosed"]
+            ),
+            None,
+        )
+        if position is None:
+            return jsonify({"error": "Open personal position was not found."}), 404
+        shares = _safe_float(payload.get("shares"), -1)
+        price = _safe_float(payload.get("sell_price"), -1)
+        fees = _safe_float(payload.get("fees"), 0)
+        if shares <= 0 or shares > position["remainingShares"] + 1e-9:
+            return jsonify({"error": "Shares must not exceed the open balance."}), 400
+        if not 0 < price <= 1:
+            return jsonify({"error": "Sell price must be between 0 and 1."}), 400
+        if fees < 0:
+            return jsonify({"error": "Fees cannot be negative."}), 400
+        idempotency_key = str(payload.get("idempotency_key") or "").strip()
+        if not idempotency_key or len(idempotency_key) > 128:
+            return jsonify({"error": "A valid idempotency key is required."}), 400
+        sold_at = datetime.now(timezone.utc).isoformat()
+        gross = shares * price
+        record = {
+            "exit_id": secrets.token_urlsafe(18),
+            "idempotency_key": idempotency_key,
+            "canonical_event_id": position["canonicalEventId"],
+            "canonical_market_id": position["canonicalMarketId"],
+            "market_line": position["marketLine"],
+            "canonical_outcome_id": position["canonicalOutcomeId"],
+            "sportsbook": position["provider"],
+            "shares_sold": shares,
+            "sell_price": price,
+            "gross_proceeds": gross,
+            "fees": fees,
+            "net_proceeds": gross - fees,
+            "sold_at": sold_at,
+            "mode": "tracker_only",
+        }
+        try:
+            stored = tracker.database.insert_personal_position_exit(
+                g.iconbets_user_id, record
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify({"data": stored, "executionMode": "tracker_only"}), 201
+
+    @app.route("/api/personal-positions/<position_id>/price-history")
+    def api_personal_position_price_history(position_id: str):
+        position = next(
+            (
+                item
+                for item in personal_position_snapshot(include_quotes=False)
+                if item["positionId"] == position_id
+            ),
+            None,
+        )
+        if position is None:
+            return jsonify({"error": "Personal position was not found."}), 404
+        if position["provider"].lower() != "polymarket":
+            return jsonify({"error": "Price history is unavailable for this provider."}), 409
+        interval = request.args.get("interval", "1d")
+        if interval not in {"1d", "1w", "1m", "max"}:
+            interval = "1d"
+        try:
+            history = tracker.client.get_price_history(
+                position["canonicalOutcomeId"], interval=interval, fidelity=15
+            )
+        except Exception as exc:
+            LOGGER.warning("Personal position price history unavailable: %s", exc)
+            return jsonify({"error": "Price history is temporarily unavailable."}), 502
+        return jsonify({"data": history, "source": "Polymarket CLOB"})
+
+    @app.route("/api/personal-pnl")
+    def api_personal_pnl():
+        positions = personal_position_snapshot(include_quotes=False)
+        return jsonify(
+            {
+                "data": personal_realized_pnl_summary(
+                    positions, request.args.get("period", "week")
+                )
+            }
+        )
+
     @app.route("/api/personal-tracker")
     def api_personal_tracker():
         current_settings = user_settings()
@@ -1191,6 +1357,61 @@ def create_app(start_background: bool = True) -> Flask:
             fills,
             _safe_float(current_settings["personal_tracker_bankroll"]),
         )
+        all_exits = tracker.database.get_personal_position_exits(g.iconbets_user_id)
+        fill_keys = {
+            (
+                str(fill.get("canonical_event_id") or "").lower(),
+                str(fill.get("canonical_market_id") or "").lower(),
+                str(fill.get("market_line") or "").lower(),
+                str(fill.get("canonical_outcome_id") or "").lower(),
+                normalize_sportsbook(fill.get("sportsbook")).lower(),
+            )
+            for fill in fills
+        }
+        exits = [
+            item
+            for item in all_exits
+            if (
+                str(item.get("canonical_event_id") or "").lower(),
+                str(item.get("canonical_market_id") or "").lower(),
+                str(item.get("market_line") or "").lower(),
+                str(item.get("canonical_outcome_id") or "").lower(),
+                normalize_sportsbook(item.get("sportsbook")).lower(),
+            )
+            in fill_keys
+        ]
+        if exits:
+            positions = aggregate_personal_positions(fills, exits)
+            realized = sum(float(item.get("realizedPnl") or 0) for item in positions)
+            starting = _safe_float(current_settings["personal_tracker_bankroll"])
+            closed = [item for item in positions if item["isClosed"]]
+            replay["summary"].update(
+                {
+                    "current_bankroll": starting + realized,
+                    "realized_profit_loss": realized,
+                    "roi": realized / starting if starting > 0 else 0,
+                    "open_exposure": sum(
+                        float(item.get("remainingCostBasis") or 0)
+                        for item in positions
+                        if not item["isClosed"]
+                    ),
+                    "settled_wagered": sum(
+                        float(item.get("totalPaid") or 0) for item in closed
+                    ),
+                }
+            )
+            realized_graph = personal_realized_pnl_summary(positions, "all")["graph"]
+            replay["graph"] = [
+                {"timestamp": None, "profit_loss": 0, "bankroll": starting},
+                *(
+                    {
+                        "timestamp": point["timestamp"],
+                        "profit_loss": point["profitLoss"],
+                        "bankroll": starting + point["profitLoss"],
+                    }
+                    for point in realized_graph
+                ),
+            ]
         rows = replay["rows"]
 
         graph_range = request.args.get("graph_range", "month")

@@ -309,6 +309,31 @@ class TrackerDatabase:
                         canonical_outcome_id,
                         status
                     );
+
+                CREATE TABLE IF NOT EXISTS personal_position_exits (
+                    exit_id TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    idempotency_key TEXT NOT NULL,
+                    canonical_event_id TEXT NOT NULL,
+                    canonical_market_id TEXT NOT NULL,
+                    market_line TEXT NOT NULL DEFAULT '',
+                    canonical_outcome_id TEXT NOT NULL,
+                    sportsbook TEXT NOT NULL,
+                    shares_sold REAL NOT NULL,
+                    sell_price REAL NOT NULL,
+                    gross_proceeds REAL NOT NULL,
+                    fees REAL NOT NULL DEFAULT 0,
+                    net_proceeds REAL NOT NULL,
+                    sold_at TEXT NOT NULL,
+                    mode TEXT NOT NULL DEFAULT 'tracker_only',
+                    created_at TEXT NOT NULL,
+                    UNIQUE(user_id, idempotency_key)
+                );
+                CREATE INDEX IF NOT EXISTS idx_personal_exits_user_position
+                    ON personal_position_exits(
+                        user_id, canonical_event_id, canonical_market_id,
+                        market_line, canonical_outcome_id, sportsbook
+                    );
                 """
             )
             settings_columns = {
@@ -1707,6 +1732,50 @@ class TrackerDatabase:
                 WHERE user_id = ? {where}
                 ORDER BY created_at ASC, fill_id ASC
                 """,
+                (user_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
+
+    def insert_personal_position_exit(self, user_id: str, record: dict) -> dict:
+        if self.user_store:
+            return self.user_store.insert_personal_position_exit(user_id, record)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO personal_position_exits (
+                        exit_id, user_id, idempotency_key, canonical_event_id,
+                        canonical_market_id, market_line, canonical_outcome_id,
+                        sportsbook, shares_sold, sell_price, gross_proceeds,
+                        fees, net_proceeds, sold_at, mode, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        record["exit_id"], user_id, record["idempotency_key"],
+                        record["canonical_event_id"], record["canonical_market_id"],
+                        record.get("market_line") or "", record["canonical_outcome_id"],
+                        record["sportsbook"], record["shares_sold"], record["sell_price"],
+                        record["gross_proceeds"], record.get("fees") or 0,
+                        record["net_proceeds"], record["sold_at"],
+                        record.get("mode") or "tracker_only", now,
+                    ),
+                )
+            except sqlite3.IntegrityError as exc:
+                raise ValueError("This exit was already recorded.") from exc
+            row = conn.execute(
+                "SELECT * FROM personal_position_exits WHERE exit_id = ? AND user_id = ?",
+                (record["exit_id"], user_id),
+            ).fetchone()
+        return dict(row)
+
+    def get_personal_position_exits(self, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_personal_position_exits(user_id)
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM personal_position_exits
+                   WHERE user_id = ? ORDER BY sold_at ASC, exit_id ASC""",
                 (user_id,),
             ).fetchall()
         return [dict(row) for row in rows]

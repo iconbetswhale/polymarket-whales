@@ -24,6 +24,14 @@ const appState = {
   tradeRenderSignatures: {},
   tradesView: "feed",
   whiteboard: [],
+  workspaceTab: "trades",
+  personalPositions: [],
+  personalClosed: [],
+  selectedPersonalPositionId: null,
+  selectedClosedPositionId: null,
+  closureFilter: "all",
+  pnlPeriod: "week",
+  sellPosition: null,
 };
 
 function researchBadges(trade) {
@@ -102,6 +110,13 @@ function formatOptionalMoney(value, compact = false) {
 
 function formatOptionalCents(value) {
   return number(value) === null ? "N/A" : formatCents(value);
+}
+
+function formatExitCents(value) {
+  const parsed = number(value);
+  if (parsed === null || parsed < 0 || parsed > 1) return "N/A";
+  const cents = parsed * 100;
+  return `${Number.isInteger(cents) ? cents.toFixed(0) : cents.toFixed(1)}¢`;
 }
 
 function formatRelativeSize(value) {
@@ -613,6 +628,7 @@ function updateTradeUrl(filters) {
     }
   });
   if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
+  if (appState.workspaceTab !== "trades") params.set("tab", appState.workspaceTab);
   const query = params.toString();
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
 }
@@ -1469,6 +1485,7 @@ async function loadTrades() {
     updateGlobalStatus(payload.status);
     document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
     document.getElementById("whiteboard-count").textContent = String(payload.whiteboardCount || 0);
+    document.getElementById("trades-tab-count").textContent = String(payload.pagination?.total ?? appState.trades.length);
     document.getElementById("trade-result-count").textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
     document.getElementById("trade-freshness").textContent = `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
     const currentSport = document.getElementById("trade-sport").value;
@@ -1556,6 +1573,189 @@ function selectTradesView(view) {
   if (appState.tradesView === "whiteboard") loadWhiteboard();
 }
 
+function signedMoney(value) {
+  const parsed = number(value) || 0;
+  return `${parsed > 0 ? "+" : ""}${formatMoney(parsed)}`;
+}
+
+function pnlTone(value) {
+  const parsed = number(value) || 0;
+  return parsed > 0 ? "positive" : parsed < 0 ? "negative" : "neutral";
+}
+
+function positionReturn(position) {
+  const value = number(position.returnPct);
+  return value === null ? "N/A" : `${value > 0 ? "+" : ""}${(value * 100).toFixed(1)}%`;
+}
+
+function personalSellButton(position, compact = false) {
+  const quote = position.quote || {};
+  const price = number(quote.effectiveSellPrice);
+  const manualVenue = String(position.provider).toLowerCase() !== "polymarket";
+  const unavailable = price === null || ["unavailable", "stale"].includes(quote.quoteFreshness);
+  const disabled = unavailable && !manualVenue;
+  const label = manualVenue ? "Record exit manually" : unavailable ? "Exit quote unavailable" : `Record sell ${formatCents(price)}`;
+  return `<button class="personal-sell-button ${compact ? "compact" : ""}" type="button" data-sell-position="${escapeHtml(position.positionId)}" ${disabled ? "disabled" : ""}><i class="ph ph-arrow-square-out" aria-hidden="true"></i><span>${escapeHtml(position.provider)}<strong>${label}</strong></span></button>`;
+}
+
+function personalPositionRow(position, closed = false) {
+  const pnl = closed ? position.realizedPnl : position.totalPnl;
+  const selectedId = closed ? appState.selectedClosedPositionId : appState.selectedPersonalPositionId;
+  const status = closed ? (position.closureMethod || "closed") : position.status;
+  return `<article class="personal-position-row ${String(selectedId) === String(position.positionId) ? "selected" : ""}" data-position-id="${escapeHtml(position.positionId)}" data-position-state="${closed ? "closed" : "open"}" tabindex="0">
+    <div class="position-return ${pnlTone(pnl)}"><strong>${closed ? signedMoney(pnl) : positionReturn(position)}</strong><small>${closed ? positionReturn(position) : signedMoney(position.unrealizedPnl)}</small></div>
+    <div class="position-copy"><span class="position-status ${closed ? "closed" : ""}">${escapeHtml(String(status).replaceAll("_", " "))}</span><small>${escapeHtml(position.provider)} · ${escapeHtml(formatDateTime(position.eventStartTime))}</small><h3>${escapeHtml(position.eventTitle || position.marketTitle)}</h3><p>${escapeHtml(position.marketTitle || "Market")}</p></div>
+    <div class="position-selection"><span><strong>${escapeHtml(position.selection)}</strong><small>${formatShares(closed ? position.totalPurchasedShares : position.remainingShares)} shares · ${formatCents(position.averageBuyEntry)} entry</small></span>${closed ? `<strong class="closure-price">${number(position.averageSellEntry) !== null ? formatExitCents(position.averageSellEntry) : number(position.settlementPrice) !== null ? `${formatExitCents(position.settlementPrice)} settled` : "Closed"}</strong>` : personalSellButton(position, true)}</div>
+  </article>`;
+}
+
+function depthMarkup(position) {
+  const quote = position.quote || {};
+  if (!quote.bestBid) return '<div class="position-empty-section">Executable bid depth is unavailable for this provider.</div>';
+  return `<div class="position-depth"><span><small>Best visible bid</small><strong>${formatCents(quote.bestBid)}</strong></span><span><small>Effective exit</small><strong>${formatCents(quote.effectiveSellPrice)}</strong></span><span><small>Executable shares</small><strong>${formatShares(quote.executableShares)}</strong></span><span><small>Unfilled shares</small><strong>${formatShares(quote.unfilledShares)}</strong></span></div>`;
+}
+
+function renderPersonalPositionDetail(position, closed = false) {
+  const target = document.getElementById(closed ? "personal-closed-detail" : "personal-position-detail");
+  if (!position) {
+    target.innerHTML = emptyState(closed ? "Select a closed position" : "Select an open position", "Choose a personal position to inspect its cashflows and pricing.");
+    return;
+  }
+  const pnl = closed ? position.realizedPnl : position.totalPnl;
+  target.innerHTML = `<div class="position-detail-header"><span class="position-detail-return ${pnlTone(pnl)}">${closed ? signedMoney(pnl) : positionReturn(position)}</span><div><small>PERSONAL TRACKER · ${escapeHtml(position.provider)}</small><h2>${escapeHtml(position.eventTitle || position.marketTitle)}</h2><p>${escapeHtml(position.marketTitle || "Market")}</p></div></div>
+    <section class="position-detail-selection"><span><small>Selection</small><strong>${escapeHtml(position.selection)}</strong></span><span><strong>${formatShares(closed ? position.totalPurchasedShares : position.remainingShares)} shares</strong><small>${closed ? "Total purchased" : `${formatOptionalMoney(position.currentMarketValue)} current value`}</small></span>${closed ? "" : personalSellButton(position)}</section>
+    <section class="position-pnl-strip"><span><small>Your entry</small><strong>${formatCents(position.averageBuyEntry)}</strong></span><span><small>${closed ? "Final exit" : "Executable exit"}</small><strong>${closed ? formatExitCents(position.averageSellEntry ?? position.settlementPrice) : formatOptionalCents(position.quote?.effectiveSellPrice)}</strong></span><span><small>Total return</small><strong class="${pnlTone(pnl)}">${positionReturn(position)}</strong></span></section>
+    <section class="position-detail-card position-price-history"><header><span><i class="ph ph-chart-line" aria-hidden="true"></i> Price</span><span class="position-chart-ranges"><button class="active" data-position-range="1d">1D</button><button data-position-range="1w">1W</button><button data-position-range="1m">1M</button><button data-position-range="max">MAX</button></span></header><div class="position-history-chart" id="personal-position-chart-${closed ? "closed" : "open"}"><div class="chart-loading">Loading verified price history…</div></div></section>
+    <section class="position-detail-card"><header><span><i class="ph ph-receipt" aria-hidden="true"></i> Position cashflows</span></header><div class="position-cashflow-grid"><span><small>Purchase cost</small><strong>${formatMoney(position.grossPurchaseCost)}</strong></span><span><small>Buy fees</small><strong>${formatMoney(position.buyFees)}</strong></span><span><small>Sale proceeds</small><strong>${formatMoney(position.netSaleProceeds)}</strong></span><span><small>Sell fees</small><strong>${formatMoney(position.sellFees)}</strong></span><span><small>Realized P&amp;L</small><strong class="${pnlTone(position.realizedPnl)}">${signedMoney(position.realizedPnl)}</strong></span><span><small>${closed ? "Closure" : "Unrealized P&L"}</small><strong class="${pnlTone(position.unrealizedPnl)}">${closed ? escapeHtml(position.closureMethod || "Closed") : signedMoney(position.unrealizedPnl)}</strong></span></div></section>
+    ${closed ? "" : `<section class="position-detail-card"><header><span><i class="ph ph-list-dashes" aria-hidden="true"></i> Executable sell depth</span><small>Bids are used to value exits</small></header>${depthMarkup(position)}</section>`}`;
+  loadPersonalPositionHistory(position, closed);
+}
+
+async function loadPersonalPositionHistory(position, closed, interval = "1d") {
+  const container = document.getElementById(`personal-position-chart-${closed ? "closed" : "open"}`);
+  if (!container) return;
+  try {
+    const payload = await fetchJson(`/api/personal-positions/${encodeURIComponent(position.positionId)}/price-history?interval=${encodeURIComponent(interval)}`);
+    const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
+    drawLineChart(container, points, { format: formatExitCents });
+  } catch (error) {
+    container.innerHTML = emptyState("Price history unavailable", "This provider does not expose verified price history here.");
+  }
+}
+
+async function loadPersonalPositions(state = "open") {
+  const closed = state === "closed";
+  const list = document.getElementById(closed ? "personal-closed-list" : "personal-position-list");
+  const params = new URLSearchParams({ state });
+  if (closed) params.set("closure", appState.closureFilter);
+  const query = document.getElementById("trade-search")?.value.trim();
+  if (query) params.set("q", query);
+  try {
+    const payload = await fetchJson(`/api/personal-positions?${params.toString()}`);
+    document.getElementById("positions-tab-count").textContent = String(payload.counts.positions);
+    document.getElementById("closed-tab-count").textContent = String(payload.counts.closed);
+    const rows = payload.data || [];
+    if (closed) appState.personalClosed = rows;
+    else appState.personalPositions = rows;
+    const selectedKey = closed ? "selectedClosedPositionId" : "selectedPersonalPositionId";
+    if (!rows.some((item) => item.positionId === appState[selectedKey])) appState[selectedKey] = rows[0]?.positionId || null;
+    list.innerHTML = rows.length ? rows.map((item) => personalPositionRow(item, closed)).join("") : emptyState(closed ? "No closed personal positions yet" : "No open personal positions", closed ? "Sold and resolved Personal Tracker bets will appear here." : "Bets you manually track will appear here until they are sold or resolved.");
+    renderPersonalPositionDetail(rows.find((item) => item.positionId === appState[selectedKey]), closed);
+  } catch (error) {
+    list.innerHTML = errorState(error.message);
+  }
+}
+
+function selectPersonalPosition(positionId, closed) {
+  if (closed) appState.selectedClosedPositionId = positionId;
+  else appState.selectedPersonalPositionId = positionId;
+  const rows = closed ? appState.personalClosed : appState.personalPositions;
+  const list = document.getElementById(closed ? "personal-closed-list" : "personal-position-list");
+  list.querySelectorAll(".personal-position-row").forEach((row) => row.classList.toggle("selected", row.dataset.positionId === positionId));
+  renderPersonalPositionDetail(rows.find((item) => item.positionId === positionId), closed);
+}
+
+function selectWorkspaceTab(tab, { syncUrl = true } = {}) {
+  appState.workspaceTab = ["trades", "positions", "closed"].includes(tab) ? tab : "trades";
+  localStorage.setItem("iconbets-trades-workspace-tab", appState.workspaceTab);
+  document.querySelector(".trade-workspace").hidden = appState.workspaceTab !== "trades";
+  document.getElementById("whiteboard-workspace").hidden = true;
+  document.getElementById("personal-positions-workspace").hidden = appState.workspaceTab !== "positions";
+  document.getElementById("personal-closed-workspace").hidden = appState.workspaceTab !== "closed";
+  document.querySelectorAll("[data-workspace-tab]").forEach((button) => {
+    const active = button.dataset.workspaceTab === appState.workspaceTab;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  document.getElementById("trade-result-count").hidden = appState.workspaceTab !== "trades";
+  document.querySelector(".model-status-pill").hidden = appState.workspaceTab !== "trades";
+  document.getElementById("trade-search").placeholder = appState.workspaceTab === "trades" ? "Search" : "Search personal positions";
+  if (appState.workspaceTab === "positions") loadPersonalPositions("open");
+  if (appState.workspaceTab === "closed") loadPersonalPositions("closed");
+  if (syncUrl) updateTradeUrl(readTradeControls());
+}
+
+function openWhiteboard() {
+  document.querySelector(".trade-workspace").hidden = true;
+  document.getElementById("personal-positions-workspace").hidden = true;
+  document.getElementById("personal-closed-workspace").hidden = true;
+  document.getElementById("whiteboard-workspace").hidden = false;
+  loadWhiteboard();
+}
+
+function pnlChart(points) {
+  if (!points.length) return emptyState("No realized P&L yet", "Sold and resolved Personal Tracker positions will build this chart.");
+  const values = [0, ...points.map((point) => Number(point.profitLoss) || 0)];
+  const min = Math.min(...values); const max = Math.max(...values); const span = Math.max(max - min, 1);
+  const path = values.map((value, index) => `${index ? "L" : "M"} ${(index / Math.max(values.length - 1, 1)) * 320} ${110 - ((value - min) / span) * 90}`).join(" ");
+  const zeroY = 110 - ((0 - min) / span) * 90;
+  const tone = values[values.length - 1] < 0 ? "negative" : "positive";
+  return `<svg viewBox="0 0 320 125" role="img" aria-label="Cumulative realized Personal Tracker profit and loss"><line x1="0" y1="${zeroY}" x2="320" y2="${zeroY}" class="pnl-zero-line"/><path d="${path}" class="pnl-line ${tone}" fill="none"/><path d="${path} L 320 115 L 0 115 Z" class="pnl-area ${tone}"/></svg>`;
+}
+
+async function loadPersonalPnl(period = appState.pnlPeriod) {
+  appState.pnlPeriod = period;
+  const payload = await fetchJson(`/api/personal-pnl?period=${encodeURIComponent(period)}`);
+  const data = payload.data;
+  const labels = { today: "TODAY", week: "PAST WEEK", month: "THIS MONTH", year: "THIS YEAR", all: "ALL TIME" };
+  document.getElementById("personal-pnl-period-label").textContent = labels[period] || labels.week;
+  [["personal-pnl-period-value", data.realizedPnl], ["personal-pnl-today-value", data.todayPnl], ["personal-pnl-expanded-value", data.realizedPnl], ["personal-pnl-expanded-today", data.todayPnl], ["personal-pnl-yesterday", data.yesterdayPnl]].forEach(([id, value]) => { const node = document.getElementById(id); node.textContent = `${signedMoney(value)}${id.includes("today") ? " Today" : id.includes("yesterday") ? " Yesterday" : ""}`; node.className = pnlTone(value); });
+  document.getElementById("personal-pnl-chart").innerHTML = pnlChart(data.graph || []);
+  document.querySelectorAll("[data-pnl-period]").forEach((button) => button.classList.toggle("active", button.dataset.pnlPeriod === period));
+}
+
+function openSellDialog(position) {
+  appState.sellPosition = position;
+  const dialog = document.getElementById("personal-sell-dialog");
+  document.getElementById("personal-sell-summary").innerHTML = `<strong>${escapeHtml(position.eventTitle)}</strong><span>${escapeHtml(position.selection)} · ${escapeHtml(position.provider)}</span><small>${formatShares(position.remainingShares)} open shares · ${formatCents(position.averageBuyEntry)} average entry</small>`;
+  document.getElementById("personal-sell-shares").value = position.remainingShares;
+  document.getElementById("personal-sell-price").value = number(position.quote?.effectiveSellPrice) ? (position.quote.effectiveSellPrice * 100).toFixed(1) : "";
+  document.getElementById("personal-sell-fees").value = "0";
+  const link = document.getElementById("personal-sell-provider-link");
+  link.href = position.marketUrl || "#"; link.hidden = !position.marketUrl;
+  updateSellCalculation();
+  dialog.showModal();
+}
+
+function updateSellCalculation() {
+  const position = appState.sellPosition; if (!position) return;
+  const shares = number(document.getElementById("personal-sell-shares").value) || 0;
+  const price = (number(document.getElementById("personal-sell-price").value) || 0) / 100;
+  const fee = number(document.getElementById("personal-sell-fees").value) || 0;
+  const gross = shares * price; const cost = shares * (position.totalPaid / position.totalPurchasedShares); const realized = gross - fee - cost;
+  document.getElementById("personal-sell-calculation").innerHTML = `<span><small>Gross proceeds</small><strong>${formatMoney(gross)}</strong></span><span><small>Net proceeds</small><strong>${formatMoney(gross - fee)}</strong></span><span><small>Estimated realized P&amp;L</small><strong class="${pnlTone(realized)}">${signedMoney(realized)}</strong></span><span><small>Remaining shares</small><strong>${formatShares(Math.max(position.remainingShares - shares, 0))}</strong></span>`;
+}
+
+async function recordPersonalExit(event) {
+  event.preventDefault(); const position = appState.sellPosition; if (!position) return;
+  const submit = document.getElementById("personal-sell-submit"); submit.disabled = true;
+  try {
+    await fetchJson(`/api/personal-positions/${encodeURIComponent(position.positionId)}/exits`, { method: "POST", body: JSON.stringify({ shares: Number(document.getElementById("personal-sell-shares").value), sell_price: Number(document.getElementById("personal-sell-price").value) / 100, fees: Number(document.getElementById("personal-sell-fees").value) || 0, idempotency_key: crypto.randomUUID() }) });
+    document.getElementById("personal-sell-dialog").close(); showToast("Personal Tracker exit recorded", "success");
+    await Promise.all([loadPersonalPositions("open"), loadPersonalPositions("closed"), loadPersonalPnl()]);
+  } catch (error) { showToast(error.message, "error"); } finally { submit.disabled = false; }
+}
+
 async function saveBankroll() {
   const input = document.getElementById("bankroll-input");
   const state = document.getElementById("bankroll-save-state");
@@ -1600,7 +1800,11 @@ async function saveBankroll() {
 function bindTrades() {
   const initial = tradeFiltersFromUrl();
   applyTradeFiltersToControls(initial);
-  const reload = debounce(loadTrades, 280);
+  const reload = debounce(() => {
+    if (appState.workspaceTab === "positions") loadPersonalPositions("open");
+    else if (appState.workspaceTab === "closed") loadPersonalPositions("closed");
+    else loadTrades();
+  }, 280);
   const filterDefaults = { q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", classification: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false, execution: "", min_bet: "0", max_slippage: "", sort: "confidence-desc" };
   const applyPriceFields = () => {
     appState.appliedEntryPriceFilters = {
@@ -1771,7 +1975,9 @@ function bindTrades() {
     const card = target.closest(".trade-card");
     if (card) selectTrade(card.dataset.tradeId, true);
   });
-  document.querySelectorAll("[data-trades-view]").forEach((button) => button.addEventListener("click", () => selectTradesView(button.dataset.tradesView)));
+  document.querySelectorAll("[data-workspace-tab]").forEach((button) => button.addEventListener("click", () => selectWorkspaceTab(button.dataset.workspaceTab)));
+  document.getElementById("open-whiteboard-button")?.addEventListener("click", () => { togglePopover("trades-more-button", "trades-more-menu", false); openWhiteboard(); });
+  document.getElementById("close-whiteboard-button")?.addEventListener("click", () => selectWorkspaceTab("trades"));
   document.getElementById("whiteboard-list")?.addEventListener("click", (event) => {
     const unpin = event.target.closest(".whiteboard-unpin");
     if (unpin) pinTrade("", unpin.dataset.pinId);
@@ -1782,6 +1988,30 @@ function bindTrades() {
     }
   });
   document.getElementById("whiteboard-sort")?.addEventListener("change", () => loadWhiteboard());
+  ["personal-position-list", "personal-closed-list"].forEach((id) => document.getElementById(id)?.addEventListener("click", (event) => {
+    const sell = event.target.closest("[data-sell-position]");
+    const closed = id === "personal-closed-list";
+    const rows = closed ? appState.personalClosed : appState.personalPositions;
+    if (sell) { const position = rows.find((item) => item.positionId === sell.dataset.sellPosition); if (position) openSellDialog(position); return; }
+    const row = event.target.closest(".personal-position-row"); if (row) selectPersonalPosition(row.dataset.positionId, closed);
+  }));
+  ["personal-position-detail", "personal-closed-detail"].forEach((id) => document.getElementById(id)?.addEventListener("click", (event) => {
+    const sell = event.target.closest("[data-sell-position]");
+    const closed = id === "personal-closed-detail";
+    const rows = closed ? appState.personalClosed : appState.personalPositions;
+    if (sell) { const position = rows.find((item) => item.positionId === sell.dataset.sellPosition); if (position) openSellDialog(position); return; }
+    const range = event.target.closest("[data-position-range]");
+    if (range) { const positionId = closed ? appState.selectedClosedPositionId : appState.selectedPersonalPositionId; const position = rows.find((item) => item.positionId === positionId); if (position) { event.currentTarget.querySelectorAll("[data-position-range]").forEach((item) => item.classList.toggle("active", item === range)); loadPersonalPositionHistory(position, closed, range.dataset.positionRange); } }
+  }));
+  document.querySelectorAll("[data-closure-filter]").forEach((button) => button.addEventListener("click", () => { appState.closureFilter = button.dataset.closureFilter; document.querySelectorAll("[data-closure-filter]").forEach((item) => item.classList.toggle("active", item === button)); loadPersonalPositions("closed"); }));
+  document.getElementById("personal-pnl-button")?.addEventListener("click", () => { const panel = document.getElementById("personal-pnl-popover"); togglePopover("personal-pnl-button", "personal-pnl-popover", panel.hidden); });
+  document.querySelectorAll("[data-pnl-period]").forEach((button) => button.addEventListener("click", () => loadPersonalPnl(button.dataset.pnlPeriod)));
+  document.getElementById("personal-sell-form")?.addEventListener("submit", recordPersonalExit);
+  document.getElementById("personal-sell-close")?.addEventListener("click", () => document.getElementById("personal-sell-dialog").close());
+  document.getElementById("personal-sell-dismiss")?.addEventListener("click", () => document.getElementById("personal-sell-dialog").close());
+  ["personal-sell-shares", "personal-sell-price", "personal-sell-fees"].forEach((id) => document.getElementById(id)?.addEventListener("input", updateSellCalculation));
+  document.getElementById("sell-full-position")?.addEventListener("click", () => { document.getElementById("personal-sell-shares").value = appState.sellPosition?.remainingShares || ""; updateSellCalculation(); });
+  document.getElementById("sell-half-position")?.addEventListener("click", () => { document.getElementById("personal-sell-shares").value = ((appState.sellPosition?.remainingShares || 0) / 2).toFixed(2); updateSellCalculation(); });
   list.addEventListener("keydown", (event) => {
     if (!['Enter', ' '].includes(event.key) || event.target.closest("a, button")) return;
     const card = event.target.closest(".trade-card");
@@ -1793,6 +2023,7 @@ function bindTrades() {
     if (!event.target.closest(".toolbar-popover-shell")) {
       togglePopover("bankroll-popover-button", "bankroll-popover", false);
       togglePopover("trades-more-button", "trades-more-menu", false);
+      togglePopover("personal-pnl-button", "personal-pnl-popover", false);
     }
   });
   document.addEventListener("keydown", (event) => {
@@ -1814,6 +2045,11 @@ function bindTrades() {
       button.classList.remove("spinning");
     }
   });
+  const requestedTab = new URLSearchParams(window.location.search).get("tab") || localStorage.getItem("iconbets-trades-workspace-tab") || "trades";
+  selectWorkspaceTab(requestedTab, { syncUrl: false });
+  loadPersonalPnl();
+  loadPersonalPositions("open");
+  loadPersonalPositions("closed");
   if (validateSharePriceControls()) loadSizingBankroll().finally(loadTrades);
 }
 
@@ -2528,7 +2764,12 @@ function bindNavigation() {
 function refreshCurrentPage() {
   if (appState.paused) return;
   if (page === "overview") loadOverview();
-  if (page === "trades") loadTrades();
+  if (page === "trades") {
+    if (appState.workspaceTab === "positions") loadPersonalPositions("open");
+    else if (appState.workspaceTab === "closed") loadPersonalPositions("closed");
+    else loadTrades();
+    loadPersonalPnl();
+  }
   if (page === "live-positions") loadPositions();
   if (page === "wallets") loadWallets();
   if (page === "position-history") loadHistory();

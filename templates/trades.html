@@ -3,10 +3,11 @@
 <section class="trades-page">
   <header class="trades-command-bar">
     <div class="trades-command-primary">
-      <h1>Trades to Play</h1>
-      <div class="trades-view-tabs" role="tablist" aria-label="Trades workspace">
-        <button class="active" type="button" role="tab" data-trades-view="feed" aria-selected="true">Trades to Play</button>
-        <button type="button" role="tab" data-trades-view="whiteboard" aria-selected="false">Whiteboard <span id="whiteboard-count">0</span></button>
+      <h1>Traders</h1>
+      <div class="trades-view-tabs workspace-tabs" role="tablist" aria-label="Personal trading workspace">
+        <button class="active" type="button" role="tab" data-workspace-tab="trades" aria-selected="true">Trades <span id="trades-tab-count">0</span></button>
+        <button type="button" role="tab" data-workspace-tab="positions" aria-selected="false">Positions <span id="positions-tab-count">0</span></button>
+        <button type="button" role="tab" data-workspace-tab="closed" aria-selected="false">Closed <span id="closed-tab-count">0</span></button>
       </div>
       <span class="result-badge" id="trade-result-count">0 Picks</span>
       <span class="model-status-pill"><span class="status-dot"></span>Model live</span>
@@ -23,12 +24,22 @@
           <button class="button compact primary" id="save-bankroll" type="button" disabled>Save Bankroll</button>
         </section>
       </div>
+      <div class="toolbar-popover-shell personal-pnl-shell">
+        <button class="personal-pnl-summary" id="personal-pnl-button" type="button" aria-expanded="false" aria-controls="personal-pnl-popover"><span id="personal-pnl-period-label">PAST WEEK</span><strong id="personal-pnl-period-value">$0.00</strong><em id="personal-pnl-today-value">$0.00 Today</em><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+        <section class="personal-pnl-popover" id="personal-pnl-popover" hidden>
+          <div class="pnl-range-controls" role="group" aria-label="Realized P and L range"><button data-pnl-period="today">1D</button><button class="active" data-pnl-period="week">1W</button><button data-pnl-period="month">1M</button><button data-pnl-period="year">1Y</button><button data-pnl-period="all">MAX</button></div>
+          <div class="pnl-popover-summary"><strong id="personal-pnl-expanded-value">$0.00</strong><span><em id="personal-pnl-expanded-today">$0.00 Today</em><em id="personal-pnl-yesterday">$0.00 Yesterday</em></span></div>
+          <div class="personal-pnl-chart" id="personal-pnl-chart"></div>
+          <small>Realized Personal Tracker P&amp;L only · America/New_York</small>
+        </section>
+      </div>
       <button class="icon-button trades-pause-control" type="button" data-refresh-toggle aria-pressed="false" aria-label="Pause automatic refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
       <button class="icon-button settings-trigger" id="more-filters-button" type="button" aria-expanded="false" aria-controls="more-filters" aria-label="Open trade settings"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="active-filter-count" id="active-filter-count">0</span></button>
       <button class="icon-button" id="trade-refresh-button" type="button" aria-label="Refresh live trade data" title="Refresh live trade data"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
       <div class="toolbar-popover-shell">
         <button class="icon-button" id="trades-more-button" type="button" aria-expanded="false" aria-controls="trades-more-menu" aria-label="More trade actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
         <div class="trades-more-menu" id="trades-more-menu" hidden>
+          <button class="menu-action" id="open-whiteboard-button" type="button"><i class="ph ph-push-pin" aria-hidden="true"></i><span>Whiteboard</span><strong id="whiteboard-count">0</strong></button>
           <button class="menu-action hidden-trades-button" id="hidden-trades-button" type="button"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Manage hidden trades</span><strong id="hidden-trades-count">0</strong></button>
           <div class="menu-status"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span></div>
           <small>All event times shown in ET</small>
@@ -94,10 +105,35 @@
     <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite"><div class="empty-detail"><i class="ph ph-cursor-click" aria-hidden="true"></i><h2>Select a trade</h2><p>Choose a verified opportunity to inspect its price, Sharp evidence, and bankroll calculation.</p></div></aside>
   </section>
   <section class="whiteboard-workspace" id="whiteboard-workspace" hidden>
-    <div class="whiteboard-toolbar"><div><p class="eyebrow">PERSONAL RESEARCH</p><h2>Your Whiteboard</h2><span>Frozen research snapshots with live price checks</span></div><label>Sort<select id="whiteboard-sort"><option value="event">Event start</option><option value="pinned">Pin time</option><option value="score">Frozen score</option><option value="slippage">Current slippage</option><option value="amount">Frozen recommended amount</option><option value="classification">Classification</option></select></label></div>
+    <div class="whiteboard-toolbar"><div><button class="button ghost compact" id="close-whiteboard-button" type="button"><i class="ph ph-arrow-left" aria-hidden="true"></i>Back to Trades</button><p class="eyebrow">PERSONAL RESEARCH</p><h2>Your Whiteboard</h2><span>Frozen research snapshots with live price checks</span></div><label>Sort<select id="whiteboard-sort"><option value="event">Event start</option><option value="pinned">Pin time</option><option value="score">Frozen score</option><option value="slippage">Current slippage</option><option value="amount">Frozen recommended amount</option><option value="classification">Classification</option></select></label></div>
     <div class="whiteboard-list" id="whiteboard-list"><div class="skeleton-card"></div></div>
   </section>
+  <section class="personal-positions-workspace" id="personal-positions-workspace" hidden>
+    <div class="personal-position-list-panel"><div class="personal-position-list" id="personal-position-list"><div class="skeleton-card"></div></div></div>
+    <aside class="personal-position-detail" id="personal-position-detail" aria-live="polite"></aside>
+  </section>
+  <section class="personal-closed-workspace" id="personal-closed-workspace" hidden>
+    <div class="personal-closed-list-panel">
+      <div class="closed-filter-bar" role="group" aria-label="Closed position type"><button class="active" data-closure-filter="all">All</button><button data-closure-filter="sold">Sold</button><button data-closure-filter="resolved">Resolved</button></div>
+      <div class="personal-position-list" id="personal-closed-list"><div class="skeleton-card"></div></div>
+    </div>
+    <aside class="personal-position-detail" id="personal-closed-detail" aria-live="polite"></aside>
+  </section>
 </section>
+<dialog class="tracker-dialog" id="personal-sell-dialog" aria-labelledby="personal-sell-title">
+  <div class="tracker-dialog-shell sell-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="personal-sell-close" type="button" aria-label="Close sell dialog"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">PERSONAL TRACKER EXIT</p><h2 id="personal-sell-title">Record a sale</h2>
+    <div class="tracker-dialog-summary" id="personal-sell-summary"></div>
+    <div class="tracker-only-notice"><i class="ph ph-info" aria-hidden="true"></i><strong>This records the exit in Personal Tracker. It does not submit a sell order to the provider.</strong></div>
+    <form id="personal-sell-form">
+      <div class="sell-preset-actions"><button class="button ghost compact" id="sell-full-position" type="button">Full sell</button><button class="button ghost compact" id="sell-half-position" type="button">Sell half</button></div>
+      <div class="personal-purchase-fields"><label>Shares to sell<input id="personal-sell-shares" type="number" min="0.01" step="0.01" required></label><label>Actual sell price<span class="input-with-suffix"><input id="personal-sell-price" type="number" min="0.1" max="100" step="0.1" required><span>cents</span></span></label><label>Sell fee<span class="input-with-suffix money"><span>$</span><input id="personal-sell-fees" type="number" min="0" step="0.01" value="0"></span></label></div>
+      <div class="sell-calculation" id="personal-sell-calculation"></div>
+      <div class="tracker-dialog-actions"><a class="button ghost" id="personal-sell-provider-link" target="_blank" rel="noopener noreferrer">Open provider</a><button class="button ghost" id="personal-sell-dismiss" type="button">Cancel</button><button class="button primary" id="personal-sell-submit" type="submit">Record exit</button></div>
+    </form>
+  </div>
+</dialog>
 <dialog class="tracker-dialog" id="personal-tracker-dialog" aria-labelledby="personal-tracker-title">
   <div class="tracker-dialog-shell">
     <button class="icon-button tracker-dialog-close" id="personal-tracker-close" type="button" aria-label="Close Personal Tracker"><i class="ph ph-x" aria-hidden="true"></i></button>
