@@ -149,6 +149,30 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert weflyhigh.sub_top_category_ids == ("nhl", "mlb")
     assert weflyhigh.top_category_ids == ("nba", "nhl", "mlb")
 
+    sportmaster = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "sportmaster777"
+    )
+    assert sportmaster.primary_top_category_id == "mlb"
+    assert sportmaster.sub_top_categories == ("NBA", "NHL", "Soccer")
+    assert sportmaster.sub_top_category_ids == ("nba", "nhl", "soccer")
+    assert sportmaster.top_category_ids == ("mlb", "nba", "nhl", "soccer")
+
+    wordylittleneck = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Wordylittleneck"
+    )
+    assert wordylittleneck.primary_top_category_id == "mlb"
+    assert wordylittleneck.sub_top_categories == ("UFC",)
+    assert wordylittleneck.sub_top_category_ids == ("mma",)
+    assert wordylittleneck.top_category_ids == ("mlb", "mma")
+
+    surfandturf = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Surfandturf"
+    )
+    assert surfandturf.primary_top_category_id == "nba"
+    assert surfandturf.sub_top_categories == ("UFC",)
+    assert surfandturf.sub_top_category_ids == ("mma",)
+    assert surfandturf.top_category_ids == ("nba", "mma")
+
 
 def test_every_enabled_wallet_has_an_authoritative_top_category():
     result = load_wallets(Path("wallets.json"))
