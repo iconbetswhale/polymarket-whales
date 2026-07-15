@@ -36,7 +36,7 @@
   --edge-gradient-active: linear-gradient(135deg, rgba(91, 215, 255, 0.95), rgba(37, 184, 236, 0.38) 55%, rgba(81, 223, 137, 0.5));
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "DM Sans", sans-serif;
-  --font-data: "Chivo Mono", monospace;
+  --font-data: "Roboto Condensed", sans-serif;
   --font-mono: var(--font-data);
   --motion-fast: 140ms;
   --motion-base: 210ms;
@@ -6533,6 +6533,19 @@ td small,
 .orderbook-row,
 .orderbook-summary {
   text-rendering: geometricPrecision;
+}
+
+.metric-card > strong,
+.trade-score strong,
+.score-badge,
+.trade-recommendation strong,
+.detail-selection-size strong,
+.detail-strip-metric strong,
+.personal-purchase-total strong,
+.orderbook-row,
+.orderbook-summary {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .personal-tag-heading,

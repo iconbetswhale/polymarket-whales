@@ -36,12 +36,13 @@ def test_typography_uses_warm_display_and_readable_tabular_data_fonts():
 
     assert '--font-display: "Fraunces", Georgia, serif' in css
     assert '--font-body: "DM Sans", sans-serif' in css
-    assert '--font-data: "Chivo Mono", monospace' in css
+    assert '--font-data: "Roboto Condensed", sans-serif' in css
     assert "font-variant-numeric: tabular-nums lining-nums" in css
     assert "family=DM+Sans" in template
     assert "family=Fraunces" in template
-    assert "family=Chivo+Mono" in template
-    assert '"Chivo Mono"' in script
+    assert "family=Roboto+Condensed" in template
+    assert '"Roboto Condensed"' in script
+    assert "Chivo Mono" not in template + css + script
     assert "Sometype Mono" not in template + css + script
     assert "IBM Plex Sans" not in template + css + script
     assert "JetBrains Mono" not in template + css + script
