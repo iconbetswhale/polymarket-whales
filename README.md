@@ -208,13 +208,21 @@ Maximum in-memory age for live NoVIG prices. One cached provider feed matches al
 Server-only credentials generated from the ProphetX sandbox account under **Menu → API Integration**. Authentication responses are cached for nine minutes so the ten-minute access token is renewed before expiry. Credential values and upstream error bodies are never logged or returned by the provider-health endpoint.
 
 `PROPHETX_API_BASE_URL=https://api-ss-sandbox.betprophet.co/partner`
-ProphetX Trading API base URL. Keep the sandbox URL until ProphetX explicitly grants production access. Order submission remains disabled while the integration is limited to authentication and read-only market-data preparation.
+ProphetX Trading API base URL. Keep the sandbox URL until ProphetX explicitly grants production access. Order submission remains disabled; IconBets uses only authenticated read-only tournament, event, market, odds, and liquidity endpoints.
+
+`PROPHETX_TRADE_URL=https://ss-sandbox.betprophet.co/`
+Destination opened by an exact ProphetX execution option. Change this to the production lobby only after ProphetX grants production access.
+
+`PROPHETX_CACHE_TTL_SECONDS=30`
+Maximum in-memory age for the batched ProphetX market feed. The provider never performs one request per trade card.
 
 ## Execution Options
 
 Trades to Play exposes execution providers through an ordered provider registry. Polymarket is always first. NoVIG is included only when the normalized sport, league, participants, event time, market type, period, line, side, alternate-line status, and settlement rules all match exactly.
 
 The NoVIG integration reads one paginated SportsGameOdds event feed, builds an in-memory sport/time index, and matches the current trade page against that index. Probable and ambiguous matches are never returned to the card. If a previously verified NoVIG match becomes unreachable, its stale price and link are removed and the option is shown as disabled and unavailable.
+
+The ProphetX integration exchanges the server-only key pair for a short-lived token, batch-loads the affiliate tournament/event/v3 market feed, converts decimal prices to American odds, and uses the same exact canonical matcher. Only one exact match is shown; mismatched periods, sides, lines, participants, start times, or ambiguous selections remain hidden.
 
 ## Run Locally
 

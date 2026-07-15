@@ -47,6 +47,53 @@ class FakeSession:
         return FakeResponse(self.payload)
 
 
+class FakeProphetXSession:
+    def __init__(self, *, market_type="moneyline", selections=None) -> None:
+        self.calls = []
+        self.market_type = market_type
+        self.selections = selections or [[{
+            "id": 501,
+            "name": "New York Yankees",
+            "odds": 2.08,
+            "line": None,
+            "liquidity": 900.0,
+        }], [{
+            "id": 502,
+            "name": "Boston Red Sox",
+            "odds": 1.83,
+            "line": None,
+            "liquidity": 850.0,
+        }]]
+
+    def post(self, url, **kwargs):
+        self.calls.append(("POST", url, kwargs))
+        return FakeResponse({"data": {"access_token": "temporary-session-token"}})
+
+    def get(self, url, **kwargs):
+        self.calls.append(("GET", url, kwargs))
+        if url.endswith("/affiliate/get_tournaments"):
+            return FakeResponse({"data": {"tournaments": [{
+                "id": 10,
+                "name": "MLB - Regular Season",
+                "sport": "baseball",
+            }]}})
+        if url.endswith("/affiliate/get_sport_events"):
+            return FakeResponse({"data": {"sport_events": [{
+                "event_id": 101,
+                "tournament_id": 10,
+                "name": "New York Yankees vs Boston Red Sox",
+                "start_time": "2026-07-14T23:00:00Z",
+                "home_team": "New York Yankees",
+                "away_team": "Boston Red Sox",
+            }]}})
+        return FakeResponse({"data": {"101": [{
+            "market_id": 555,
+            "event_id": 101,
+            "market_type": self.market_type,
+            "liquidity": 1750.0,
+            "selections": self.selections,
+        }]}})
+
 def trade(**overrides) -> dict:
     value = {
         "id": "trade-1",
@@ -424,6 +471,63 @@ def test_prophetx_authentication_uses_the_sandbox_contract() -> None:
 
     assert provider.health_status(authenticate=True) is ProviderHealthStatus.AUTHENTICATED
     assert len(session.calls) == 1
+
+
+def test_prophetx_exact_market_adds_live_execution_option() -> None:
+    session = FakeProphetXSession()
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    option = provider.options_for_trades([trade()])["trade-1"]
+
+    assert option.provider_name == "ProphetX"
+    assert option.display_odds == "+108"
+    assert option.selection_id == "501"
+    assert option.deep_link == "https://ss-sandbox.betprophet.co/"
+    assert option.matching_confidence is MatchConfidence.EXACT
+    assert [call[0] for call in session.calls] == ["POST", "GET", "GET", "GET"]
+    market_call = session.calls[-1]
+    assert market_call[2]["params"] == [("event_ids", "101")]
+    assert market_call[2]["headers"]["Authorization"] == "temporary-session-token"
+
+
+def test_prophetx_feed_is_cached_for_all_visible_trades() -> None:
+    session = FakeProphetXSession()
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    options = provider.options_for_trades([trade(), trade(id="trade-2")])
+    provider.options_for_trades([trade()])
+
+    assert set(options) == {"trade-1", "trade-2"}
+    assert len(session.calls) == 4
+
+
+def test_prophetx_near_matches_are_hidden() -> None:
+    wrong_line = [[{
+        "id": 601,
+        "name": "Over",
+        "odds": 2.10,
+        "line": 8.0,
+        "liquidity": 500.0,
+    }], [{
+        "id": 602,
+        "name": "Under",
+        "odds": 1.80,
+        "line": 8.0,
+        "liquidity": 500.0,
+    }]]
+    provider = ProphetXProvider(
+        "test-access",
+        "test-secret",
+        session=FakeProphetXSession(market_type="total", selections=wrong_line),
+    )
+    source = trade(
+        market_title="Over 8.5 Runs",
+        outcome="Over 8.5",
+        sports_market_type="total",
+        market_line=8.5,
+    )
+
+    assert provider.options_for_trades([source]) == {}
 
 
 @pytest.mark.parametrize("status_code", [400, 401, 403])

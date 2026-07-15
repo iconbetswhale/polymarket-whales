@@ -25,6 +25,9 @@ NOVIG_LOGO_URL = (
 )
 NOVIG_BOOKMAKER_ID = "novig"
 PROPHETX_SANDBOX_BASE_URL = "https://api-ss-sandbox.betprophet.co/partner"
+PROPHETX_SANDBOX_TRADE_URL = "https://ss-sandbox.betprophet.co/"
+PROPHETX_PRODUCTION_TRADE_URL = "https://www.prophetx.co/lobby/"
+PROPHETX_LOGO_URL = "https://www.prophetx.co/favicon.ico"
 PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
 MAX_PROVIDER_PAGES = 10
@@ -137,12 +140,16 @@ class ProphetXProvider(ExecutionProvider):
         secret_key: str | None,
         *,
         base_url: str = PROPHETX_SANDBOX_BASE_URL,
+        trade_url: str | None = None,
+        cache_ttl_seconds: int = 30,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
         self._access_key = str(access_key or "").strip() or None
         self._secret_key = str(secret_key or "").strip() or None
         self.base_url = base_url.rstrip("/")
+        self.trade_url = str(trade_url or _default_prophetx_trade_url(base_url)).strip()
+        self.cache_ttl_seconds = max(int(cache_ttl_seconds), 1)
         self.request_timeout = max(int(request_timeout), 1)
         self.session = session or requests.Session()
         self._health_status = (
@@ -153,15 +160,134 @@ class ProphetXProvider(ExecutionProvider):
         self._health_lock = threading.RLock()
         self._bearer_token: str | None = None
         self._token_expires_at = 0.0
+        self._market_cache: _CacheEntry | None = None
+        self._last_matches: dict[str, ExecutionOption] = {}
 
     def __repr__(self) -> str:
         configured = bool(self._access_key and self._secret_key)
         return f"<ProphetXProvider configured={configured}>"
 
     def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
-        # Market normalization is intentionally deferred until exact settlement
-        # matching is implemented for ProphetX.
-        return {}
+        if not self._access_key or not self._secret_key or not trades:
+            return {}
+        canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
+        if not canonical:
+            return {}
+
+        try:
+            index = self._prophetx_market_index()
+        except (requests.RequestException, ValueError, TypeError):
+            # Never log upstream response bodies because they may contain auth data.
+            LOGGER.warning("ProphetX market refresh failed")
+            return self._unavailable_last_matches(canonical)
+
+        options: dict[str, ExecutionOption] = {}
+        for trade in canonical:
+            confidence, market = _match_exact_trade(trade, index)
+            if confidence is not MatchConfidence.EXACT or market is None:
+                continue
+            available = bool(
+                market.is_available
+                and market.american_odds is not None
+                and _valid_deep_link(market.deep_link)
+            )
+            options[trade.trade_id] = ExecutionOption(
+                provider_name=self.provider_name,
+                provider_key=self.provider_key,
+                market_id=market.event_id,
+                selection_id=market.selection_id,
+                display_odds=market.display_odds if available else "Unavailable",
+                deep_link=market.deep_link if available else None,
+                is_available=available,
+                last_updated=market.last_updated,
+                matching_confidence=MatchConfidence.EXACT,
+                logo_url=PROPHETX_LOGO_URL,
+                tooltip="ProphetX Current Best Price",
+                american_odds=market.american_odds if available else None,
+            )
+
+        with self._health_lock:
+            self._last_matches.update(options)
+        return options
+
+    def _unavailable_last_matches(
+        self, trades: list[CanonicalTrade]
+    ) -> dict[str, ExecutionOption]:
+        with self._health_lock:
+            return {
+                trade.trade_id: replace(
+                    previous,
+                    display_odds="Unavailable",
+                    deep_link=None,
+                    is_available=False,
+                    american_odds=None,
+                )
+                for trade in trades
+                if (previous := self._last_matches.get(trade.trade_id)) is not None
+            }
+
+    def _prophetx_market_index(self) -> ProviderMarketIndex:
+        now = time.monotonic()
+        with self._health_lock:
+            if self._market_cache and now - self._market_cache.loaded_at < self.cache_ttl_seconds:
+                return self._market_cache.index
+
+        token = self._access_token()
+        headers = {"Authorization": token, "Accept": "application/json"}
+        tournaments = self._get_data("/affiliate/get_tournaments", headers)
+        events = self._get_data("/affiliate/get_sport_events", headers)
+        tournament_rows = _payload_list(tournaments, "tournaments")
+        event_rows = _payload_list(events, "sport_events")
+        event_ids = [str(row.get("event_id")) for row in event_rows if row.get("event_id") is not None]
+        markets: object = {}
+        if event_ids:
+            markets = self._get_data(
+                "/v3/affiliate/get_multiple_markets",
+                headers,
+                params=[("event_ids", event_id) for event_id in event_ids],
+            )
+        index = ProviderMarketIndex(
+            normalize_prophetx_markets(
+                tournament_rows,
+                event_rows,
+                markets,
+                trade_url=self.trade_url,
+            )
+        )
+        with self._health_lock:
+            self._market_cache = _CacheEntry(loaded_at=now, index=index)
+        return index
+
+    def _get_data(self, path: str, headers: dict, *, params=None) -> object:
+        response = self.session.get(
+            f"{self.base_url}{path}",
+            headers=headers,
+            params=params,
+            timeout=self.request_timeout,
+        )
+        if int(getattr(response, "status_code", 0)) == 401:
+            with self._health_lock:
+                self._bearer_token = None
+                self._token_expires_at = 0.0
+            headers = {**headers, "Authorization": self._access_token()}
+            response = self.session.get(
+                f"{self.base_url}{path}",
+                headers=headers,
+                params=params,
+                timeout=self.request_timeout,
+            )
+        response.raise_for_status()
+        payload = response.json()
+        return payload.get("data") if isinstance(payload, dict) else None
+
+    def _access_token(self) -> str:
+        if self.health_status(authenticate=True) is not ProviderHealthStatus.AUTHENTICATED:
+            raise ValueError("ProphetX authentication unavailable")
+        with self._health_lock:
+            if not self._bearer_token:
+                raise ValueError("ProphetX authentication unavailable")
+            # The affiliate market-data contract uses the raw session token.
+            return self._bearer_token
 
     def health_status(self, *, authenticate: bool = False) -> ProviderHealthStatus:
         if not self._access_key or not self._secret_key:
@@ -336,21 +462,7 @@ class NoVIGProvider(ExecutionProvider):
     def match_trade(
         self, trade: CanonicalTrade, index: ProviderMarketIndex
     ) -> tuple[MatchConfidence, NormalizedProviderMarket | None]:
-        probable = False
-        exact_matches: list[NormalizedProviderMarket] = []
-        for market in index.candidates(trade):
-            if not _event_is_exact(trade, market):
-                continue
-            probable = True
-            if _market_is_exact(trade, market):
-                exact_matches.append(market)
-
-        if len(exact_matches) != 1:
-            return (
-                MatchConfidence.PROBABLE if probable else MatchConfidence.NO_MATCH,
-                None,
-            )
-        return MatchConfidence.EXACT, exact_matches[0]
+        return _match_exact_trade(trade, index)
 
     def _execution_option(self, market: NormalizedProviderMarket) -> ExecutionOption:
         available = bool(
@@ -508,6 +620,10 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     "prophetx_api_base_url",
                     PROPHETX_SANDBOX_BASE_URL,
                 ),
+                trade_url=getattr(settings, "prophetx_trade_url", None),
+                cache_ttl_seconds=getattr(
+                    settings, "prophetx_cache_ttl_seconds", 30
+                ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
         )
@@ -645,6 +761,259 @@ def normalize_novig_events(events: Iterable[dict]) -> list[NormalizedProviderMar
     return normalized
 
 
+def normalize_prophetx_markets(
+    tournaments: Iterable[dict],
+    events: Iterable[dict],
+    markets_payload: object,
+    *,
+    trade_url: str,
+) -> list[NormalizedProviderMarket]:
+    tournament_map = {
+        str(row.get("id")): row
+        for row in tournaments
+        if isinstance(row, dict) and row.get("id") is not None
+    }
+    markets_by_event = _prophetx_markets_by_event(markets_payload)
+    normalized: list[NormalizedProviderMarket] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        event_id = str(event.get("event_id") or "").strip()
+        tournament = tournament_map.get(str(event.get("tournament_id")), {})
+        sport_id = _canonical_sport_id(
+            tournament.get("sport") or event.get("sport")
+        )
+        league_id = _prophetx_league_id(
+            tournament.get("name") or event.get("league")
+        )
+        start_at = _parse_datetime(event.get("start_time"))
+        home_names = _provider_names(event.get("home_team"))
+        away_names = _provider_names(event.get("away_team"))
+        if not all((event_id, sport_id, league_id, start_at, home_names, away_names)):
+            continue
+
+        event_link = str(
+            event.get("deep_link")
+            or event.get("deeplink")
+            or event.get("url")
+            or trade_url
+            or ""
+        ).strip() or None
+        for market in markets_by_event.get(event_id, []):
+            if not isinstance(market, dict):
+                continue
+            market_type = _normalize_name(
+                market.get("market_type") or market.get("type")
+            )
+            period_id = _prophetx_period_id(market)
+            is_alternative = bool(market.get("is_alternative")) or bool(
+                re.search(
+                    r"\b(?:alt|alternative)\b",
+                    " ".join(
+                        str(market.get(key) or "")
+                        for key in ("name", "category_name", "sub_type")
+                    ),
+                    re.I,
+                )
+            )
+            for selection in _flatten_prophetx_selections(market.get("selections")):
+                selection_name = str(selection.get("name") or "").strip()
+                side_id, stat_entity_id = _prophetx_selection_side(
+                    market_type,
+                    selection_name,
+                    home_names,
+                    away_names,
+                )
+                if not side_id:
+                    continue
+                line = _float_or_none(selection.get("line"))
+                rules, bet_type_id, stat_id = _prophetx_settlement_rules(
+                    market_type,
+                    sport_id,
+                    period_id,
+                    stat_entity_id,
+                )
+                if not rules:
+                    continue
+                american_odds, display_odds = _decimal_to_american_odds(
+                    selection.get("odds")
+                )
+                selection_link = str(
+                    selection.get("deep_link")
+                    or selection.get("deeplink")
+                    or market.get("deep_link")
+                    or market.get("deeplink")
+                    or event_link
+                    or ""
+                ).strip() or None
+                selection_id = str(
+                    selection.get("id")
+                    or selection.get("selection_id")
+                    or selection.get("strike_id")
+                    or ""
+                ).strip()
+                if not selection_id:
+                    continue
+                normalized.append(
+                    NormalizedProviderMarket(
+                        event_id=str(market.get("market_id") or event_id),
+                        selection_id=selection_id,
+                        sport_id=sport_id,
+                        league_id=league_id,
+                        start_at=start_at,
+                        home_names=home_names,
+                        away_names=away_names,
+                        market_name=str(market.get("name") or market_type),
+                        stat_id=stat_id,
+                        stat_entity_id=stat_entity_id,
+                        period_id=period_id,
+                        bet_type_id=bet_type_id,
+                        side_id=side_id,
+                        line=line,
+                        is_alternative=is_alternative,
+                        display_odds=display_odds,
+                        american_odds=american_odds,
+                        deep_link=selection_link,
+                        is_available=bool(
+                            american_odds is not None
+                            and (_float_or_none(selection.get("liquidity")) or 0) > 0
+                        ),
+                        last_updated=str(
+                            selection.get("updated_at")
+                            or market.get("updated_at")
+                            or ""
+                        ).strip()
+                        or None,
+                        settlement_rules=rules,
+                    )
+                )
+    return normalized
+
+
+def _payload_list(payload: object, key: str) -> list[dict]:
+    if isinstance(payload, dict):
+        payload = payload.get(key, [])
+    return [row for row in payload if isinstance(row, dict)] if isinstance(payload, list) else []
+
+
+def _prophetx_markets_by_event(payload: object) -> dict[str, list[dict]]:
+    if isinstance(payload, list):
+        grouped: dict[str, list[dict]] = defaultdict(list)
+        for market in payload:
+            if isinstance(market, dict) and market.get("event_id") is not None:
+                grouped[str(market["event_id"])].append(market)
+        return grouped
+    if not isinstance(payload, dict):
+        return {}
+    return {
+        str(event_id): [market for market in markets if isinstance(market, dict)]
+        for event_id, markets in payload.items()
+        if isinstance(markets, list)
+    }
+
+
+def _flatten_prophetx_selections(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    flattened: list[dict] = []
+    for item in value:
+        if isinstance(item, dict):
+            flattened.append(item)
+        elif isinstance(item, list):
+            flattened.extend(child for child in item if isinstance(child, dict))
+    return flattened
+
+
+def _provider_names(value: object) -> tuple[str, ...]:
+    normalized = _normalize_name(value)
+    return (normalized,) if normalized else ()
+
+
+def _prophetx_league_id(value: object) -> str:
+    normalized = _normalize_name(value)
+    known = ("NFL", "NCAAF", "MLB", "NBA", "WNBA", "NCAAB", "NHL", "MLS", "ATP", "WTA", "ITF")
+    tokens = set(normalized.upper().split())
+    for league in known:
+        if league in tokens:
+            return league
+    return _normalize_identifier(value)
+
+
+def _prophetx_period_id(market: dict) -> str:
+    value = _normalize_name(
+        market.get("period")
+        or market.get("period_name")
+        or market.get("sub_type")
+        or market.get("name")
+    )
+    for labels, period_id in (
+        (("first half", "1st half"), "1h"),
+        (("second half", "2nd half"), "2h"),
+        (("first quarter", "1st quarter"), "1q"),
+        (("first period", "1st period"), "1p"),
+        (("first set", "1st set"), "1s"),
+        (("regulation", "90 minutes"), "reg"),
+    ):
+        if any(label in value for label in labels):
+            return period_id
+    return "game"
+
+
+def _prophetx_selection_side(
+    market_type: str,
+    selection_name: str,
+    home_names: tuple[str, ...],
+    away_names: tuple[str, ...],
+) -> tuple[str | None, str]:
+    normalized = _normalize_name(selection_name)
+    if market_type in {"total", "totals", "over under"}:
+        if normalized.startswith("over"):
+            return "over", "all"
+        if normalized.startswith("under"):
+            return "under", "all"
+        return None, "all"
+    if normalized in {"draw", "tie"}:
+        return "draw", "all"
+    if _name_matches(_selection_name(selection_name), home_names):
+        return "home", "home"
+    if _name_matches(_selection_name(selection_name), away_names):
+        return "away", "away"
+    return None, ""
+
+
+def _prophetx_settlement_rules(
+    market_type: str,
+    sport_id: str,
+    period_id: str,
+    stat_entity_id: str,
+) -> tuple[str | None, str, str]:
+    if market_type in {"moneyline", "money line", "sup moneyline"}:
+        if sport_id == "SOCCER" and period_id in {"game", "reg"}:
+            return "winner:regulation:three_way", "ml3way", "points"
+        return f"winner:{period_id}:draw_push", "ml", "points"
+    if market_type in {"spread", "handicap"}:
+        return f"spread:{period_id}:team", "sp", "points"
+    if market_type in {"total", "totals", "over under"}:
+        return f"total:{period_id}:all", "ou", "points"
+    return None, "", ""
+
+
+def _decimal_to_american_odds(value: object) -> tuple[int | None, str]:
+    decimal = _float_or_none(value)
+    if decimal is None or decimal <= 1:
+        return None, "Unavailable"
+    american = round((decimal - 1) * 100) if decimal >= 2 else round(-100 / (decimal - 1))
+    return american, f"{american:+d}"
+
+
+def _default_prophetx_trade_url(base_url: str) -> str:
+    return (
+        PROPHETX_SANDBOX_TRADE_URL
+        if "sandbox" in str(base_url).lower()
+        else PROPHETX_PRODUCTION_TRADE_URL
+    )
+
+
 def _event_is_exact(
     trade: CanonicalTrade, market: NormalizedProviderMarket
 ) -> bool:
@@ -662,6 +1031,25 @@ def _event_is_exact(
         _name_matches(first, market.away_names)
         and _name_matches(second, market.home_names)
     )
+
+
+def _match_exact_trade(
+    trade: CanonicalTrade, index: ProviderMarketIndex
+) -> tuple[MatchConfidence, NormalizedProviderMarket | None]:
+    probable = False
+    exact_matches: list[NormalizedProviderMarket] = []
+    for market in index.candidates(trade):
+        if not _event_is_exact(trade, market):
+            continue
+        probable = True
+        if _market_is_exact(trade, market):
+            exact_matches.append(market)
+    if len(exact_matches) != 1:
+        return (
+            MatchConfidence.PROBABLE if probable else MatchConfidence.NO_MATCH,
+            None,
+        )
+    return MatchConfidence.EXACT, exact_matches[0]
 
 
 def _market_is_exact(
