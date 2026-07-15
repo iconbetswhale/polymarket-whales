@@ -398,7 +398,7 @@ def test_prophetx_settings_use_only_the_exact_environment_names(monkeypatch) -> 
     assert "exact-secret" not in repr(settings)
 
 
-def test_prophetx_authentication_uses_the_production_contract() -> None:
+def test_prophetx_authentication_uses_the_sandbox_contract() -> None:
     session = FakeSession({"data": {"access_token": "temporary-session-token"}})
     provider = ProphetXProvider("test-access", "test-secret", session=session)
 
@@ -407,7 +407,7 @@ def test_prophetx_authentication_uses_the_production_contract() -> None:
     assert status is ProviderHealthStatus.AUTHENTICATED
     assert session.calls == [
         (
-            "https://cash.api.prophetx.co/partner/auth/login",
+            "https://api-ss-sandbox.betprophet.co/partner/auth/login",
             {
                 "json": {
                     "access_key": "test-access",
@@ -421,6 +421,9 @@ def test_prophetx_authentication_uses_the_production_contract() -> None:
             },
         )
     ]
+
+    assert provider.health_status(authenticate=True) is ProviderHealthStatus.AUTHENTICATED
+    assert len(session.calls) == 1
 
 
 @pytest.mark.parametrize("status_code", [400, 401, 403])

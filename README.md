@@ -204,6 +204,12 @@ NoVIG market-feed base URL. Override only for a compatible proxy or test service
 `NOVIG_ODDS_CACHE_TTL_SECONDS=45`
 Maximum in-memory age for live NoVIG prices. One cached provider feed matches all visible trades, avoiding per-card API requests.
 
+`PROPHETX_ACCESS_KEY=` and `PROPHETX_SECRET_KEY=`
+Server-only credentials generated from the ProphetX sandbox account under **Menu → API Integration**. Authentication responses are cached for nine minutes so the ten-minute access token is renewed before expiry. Credential values and upstream error bodies are never logged or returned by the provider-health endpoint.
+
+`PROPHETX_API_BASE_URL=https://api-ss-sandbox.betprophet.co/partner`
+ProphetX Trading API base URL. Keep the sandbox URL until ProphetX explicitly grants production access. Order submission remains disabled while the integration is limited to authentication and read-only market-data preparation.
+
 ## Execution Options
 
 Trades to Play exposes execution providers through an ordered provider registry. Polymarket is always first. NoVIG is included only when the normalized sport, league, participants, event time, market type, period, line, side, alternate-line status, and settlement rules all match exactly.

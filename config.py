@@ -84,7 +84,7 @@ class Settings:
     novig_cache_ttl_seconds: int = 45
     prophetx_access_key: str | None = field(default=None, repr=False)
     prophetx_secret_key: str | None = field(default=None, repr=False)
-    prophetx_api_base_url: str = "https://cash.api.prophetx.co/partner"
+    prophetx_api_base_url: str = "https://api-ss-sandbox.betprophet.co/partner"
 
 
 def get_settings() -> Settings:
@@ -140,6 +140,7 @@ def get_settings() -> Settings:
         prophetx_access_key=os.getenv("PROPHETX_ACCESS_KEY") or None,
         prophetx_secret_key=os.getenv("PROPHETX_SECRET_KEY") or None,
         prophetx_api_base_url=os.getenv(
-            "PROPHETX_API_BASE_URL", "https://cash.api.prophetx.co/partner"
+            "PROPHETX_API_BASE_URL",
+            "https://api-ss-sandbox.betprophet.co/partner",
         ),
     )

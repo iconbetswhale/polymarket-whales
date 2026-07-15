@@ -24,7 +24,8 @@ NOVIG_LOGO_URL = (
     "6436d7c4d343f31dbf62d683_favicon.png"
 )
 NOVIG_BOOKMAKER_ID = "novig"
-PROPHETX_PRODUCTION_BASE_URL = "https://cash.api.prophetx.co/partner"
+PROPHETX_SANDBOX_BASE_URL = "https://api-ss-sandbox.betprophet.co/partner"
+PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
 MAX_PROVIDER_PAGES = 10
 
@@ -135,7 +136,7 @@ class ProphetXProvider(ExecutionProvider):
         access_key: str | None,
         secret_key: str | None,
         *,
-        base_url: str = PROPHETX_PRODUCTION_BASE_URL,
+        base_url: str = PROPHETX_SANDBOX_BASE_URL,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -150,6 +151,8 @@ class ProphetXProvider(ExecutionProvider):
             else ProviderHealthStatus.CONNECTION_FAILED
         )
         self._health_lock = threading.RLock()
+        self._bearer_token: str | None = None
+        self._token_expires_at = 0.0
 
     def __repr__(self) -> str:
         configured = bool(self._access_key and self._secret_key)
@@ -165,6 +168,10 @@ class ProphetXProvider(ExecutionProvider):
             return ProviderHealthStatus.CONNECTION_FAILED
         if not authenticate:
             return self._health_status
+
+        with self._health_lock:
+            if self._bearer_token and time.monotonic() < self._token_expires_at:
+                return ProviderHealthStatus.AUTHENTICATED
 
         try:
             response = self.session.post(
@@ -199,6 +206,14 @@ class ProphetXProvider(ExecutionProvider):
 
         with self._health_lock:
             self._health_status = result
+            if result is ProviderHealthStatus.AUTHENTICATED:
+                self._bearer_token = token.strip()
+                self._token_expires_at = (
+                    time.monotonic() + PROPHETX_TOKEN_REFRESH_SECONDS
+                )
+            else:
+                self._bearer_token = None
+                self._token_expires_at = 0.0
         return result
 
 
@@ -491,7 +506,7 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 base_url=getattr(
                     settings,
                     "prophetx_api_base_url",
-                    PROPHETX_PRODUCTION_BASE_URL,
+                    PROPHETX_SANDBOX_BASE_URL,
                 ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
