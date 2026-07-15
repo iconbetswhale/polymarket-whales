@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
 
 
@@ -99,6 +99,30 @@ class PostgresUserStore:
             """
             CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                 ON bet_tracker(status, updated_at DESC)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS discord_trade_notifications (
+                id BIGSERIAL PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                dedupe_key TEXT NOT NULL,
+                snapshot_id TEXT NOT NULL,
+                notification_type TEXT NOT NULL DEFAULT 'model_tracker_insert',
+                status TEXT NOT NULL DEFAULT 'pending',
+                attempts INTEGER NOT NULL DEFAULT 0,
+                payload_json TEXT NOT NULL,
+                discord_message_id TEXT,
+                response_status INTEGER,
+                last_error TEXT,
+                next_attempt_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                delivered_at TEXT,
+                UNIQUE (user_id, dedupe_key, notification_type)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_discord_notifications_delivery
+                ON discord_trade_notifications(status, next_attempt_at, created_at)
             """,
             """
             CREATE TABLE IF NOT EXISTS tracking_job_state (
@@ -560,7 +584,11 @@ class PostgresUserStore:
         return len(rows)
 
     def insert_tracker_snapshot(
-        self, user_id: str, snapshot: dict, status: str = "scheduled"
+        self,
+        user_id: str,
+        snapshot: dict,
+        status: str = "scheduled",
+        discord_payload: dict | None = None,
     ) -> bool:
         fraction = float(snapshot.get("final_recommended_fraction") or 0)
         amount = snapshot.get("original_displayed_amount")
@@ -588,7 +616,135 @@ class PostgresUserStore:
                     json.dumps(snapshot),
                 ),
             ).fetchone()
+            if row is not None and discord_payload is not None:
+                conn.execute(
+                    """
+                    INSERT INTO discord_trade_notifications (
+                        user_id, dedupe_key, snapshot_id, notification_type,
+                        status, attempts, payload_json, created_at, updated_at
+                    ) VALUES (%s, %s, %s, 'model_tracker_insert', 'pending', 0, %s, %s, %s)
+                    """,
+                    (
+                        user_id,
+                        snapshot["dedupe_key"],
+                        snapshot["snapshot_id"],
+                        json.dumps(discord_payload),
+                        now,
+                        now,
+                    ),
+                )
         return row is not None
+
+    def claim_discord_notifications(self, limit: int = 10) -> list[dict]:
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        stale_iso = (now - timedelta(minutes=10)).isoformat()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH candidates AS (
+                    SELECT id
+                    FROM discord_trade_notifications
+                    WHERE (
+                        status IN ('pending', 'retry')
+                        AND (next_attempt_at IS NULL OR next_attempt_at <= %s)
+                    ) OR (status = 'sending' AND updated_at <= %s)
+                    ORDER BY created_at ASC
+                    FOR UPDATE SKIP LOCKED
+                    LIMIT %s
+                )
+                UPDATE discord_trade_notifications AS notification
+                SET status = 'sending', attempts = notification.attempts + 1,
+                    updated_at = %s, next_attempt_at = NULL
+                FROM candidates
+                WHERE notification.id = candidates.id
+                RETURNING notification.id, notification.attempts,
+                          notification.payload_json
+                """,
+                (now_iso, stale_iso, max(int(limit), 1), now_iso),
+            ).fetchall()
+        return [
+            {
+                "id": row["id"],
+                "attempts": row["attempts"],
+                "payload": json.loads(row["payload_json"]),
+            }
+            for row in rows
+        ]
+
+    def mark_discord_notification_delivered(
+        self, notification_id: int, message_id: str | None, response_status: int | None
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE discord_trade_notifications
+                SET status = 'delivered', discord_message_id = %s,
+                    response_status = %s, last_error = NULL,
+                    delivered_at = %s, updated_at = %s, next_attempt_at = NULL
+                WHERE id = %s
+                """,
+                (message_id, response_status, now, now, notification_id),
+            )
+
+    def mark_discord_notification_failed(
+        self,
+        notification_id: int,
+        error_code: str,
+        response_status: int | None,
+        *,
+        retry_at: datetime | None = None,
+        terminal: bool = False,
+    ) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE discord_trade_notifications
+                SET status = %s, response_status = %s, last_error = %s,
+                    next_attempt_at = %s, updated_at = %s
+                WHERE id = %s
+                """,
+                (
+                    "failed" if terminal else "retry",
+                    response_status,
+                    str(error_code)[:80],
+                    retry_at.astimezone(timezone.utc).isoformat() if retry_at else None,
+                    now,
+                    notification_id,
+                ),
+            )
+
+    def get_discord_notification_stats(self) -> dict[str, int]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM discord_trade_notifications GROUP BY status
+                """
+            ).fetchall()
+        stats = {"pending": 0, "sending": 0, "retry": 0, "delivered": 0, "failed": 0}
+        stats.update({str(row["status"]): int(row["count"]) for row in rows})
+        return stats
+
+    def get_discord_notification(self, user_id: str, dedupe_key: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, status, attempts, payload_json, discord_message_id,
+                       response_status, last_error, next_attempt_at,
+                       created_at, updated_at, delivered_at
+                FROM discord_trade_notifications
+                WHERE user_id = %s AND dedupe_key = %s
+                """,
+                (user_id, dedupe_key),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        payload["payload"] = json.loads(payload.pop("payload_json"))
+        return payload
 
     def get_tracker_records(self, user_id: str) -> list[dict]:
         with self.connection() as conn:

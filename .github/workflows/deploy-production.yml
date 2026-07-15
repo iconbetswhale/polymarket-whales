@@ -46,6 +46,30 @@ jobs:
       - name: Deploy production
         run: vercel deploy --prod --yes --token="$VERCEL_TOKEN"
 
+      - name: Reconcile Model Tracker and verify Discord delivery
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{"force":false}' \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/model-tracker/reconcile)"
+          DISCORD_RESULT="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ["DISCORD_RESULT"]).get("data", {})
+          discord = data.get("discord_notifications", {})
+          print(
+              "Discord Model Tracker: "
+              f"enabled={bool(discord.get('enabled'))} "
+              f"configured={bool(discord.get('configured'))} "
+              f"delivered={int(discord.get('delivered') or 0)} "
+              f"retrying={int(discord.get('retrying') or 0)} "
+              f"failed={int(discord.get('failed') or 0)}"
+          )
+          PY
+
       - name: Verify ProphetX authentication
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}

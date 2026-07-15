@@ -42,6 +42,7 @@ The dashboard now tracks:
 - `classification.py`: sports and non-sports market classification
 - `database.py`: SQLite market cache with durable user-store routing
 - `durable_user_store.py`: PostgreSQL persistence for bankrolls, Model Tracker records, hidden trades, and personal fills
+- `model_tracker_discord.py`: Model Tracker bot payloads, Discord validation, and outbox delivery
 - `position_tracker.py`: refresh orchestration, event detection, consensus building, and API payload generation
 - `unit_analysis.py`: betting-unit estimation and manual overrides
 - `scoring.py`: position conviction scoring
@@ -176,6 +177,23 @@ Minimum position size required before an event sends a Discord alert.
 
 `DISCORD_NOTIFY_ON_INITIAL_SCAN=false`
 When false, the first scan after adding a wallet records existing open positions without sending Discord alerts. This helps prevent old positions from spamming the channel.
+
+`DISCORD_BOT_TOKEN=`
+Server-only Discord bot token used for Model Tracker notifications. Never expose it to browser code, logs, or API responses.
+
+`DISCORD_GUILD_ID=`
+Discord server ID that must own the configured trade channel.
+
+`DISCORD_TRADE_CHANNEL_ID=`
+Discord channel ID that receives successfully inserted Model Tracker recommendations.
+
+`DISCORD_NOTIFICATIONS_ENABLED=false`
+Enables Model Tracker bot notifications. The bot variables can be configured while this remains false.
+
+`DISCORD_NOTIFICATION_BATCH_SIZE=10`
+Maximum persisted Discord jobs claimed during one backend reconciliation run.
+
+The Model Tracker insert is the notification source of truth. A qualifying Today recommendation and its unique Discord outbox job are written in one database transaction. The existing scheduled Model Tracker reconciliation drains that outbox, records success or a safe error code, and retries transient failures without requiring a browser page to be open. Personal Tracker records and dashboard-only recommendations never enter this outbox.
 
 `NOVIG_ODDS_API_KEY=`
 Server-side SportsGameOdds API key for normalized NoVIG prices and market deep links. `SPORTSGAMEODDS_API_KEY` is accepted as an alias. When no key is configured, NoVIG options remain hidden and Polymarket execution is unaffected.

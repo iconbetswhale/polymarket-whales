@@ -71,6 +71,11 @@ class Settings:
     discord_alert_types: tuple[str, ...] = ("new_entry", "size_increase", "full_exit")
     discord_min_position_usd: float = 0.0
     discord_notify_on_initial_scan: bool = False
+    discord_bot_token: str | None = field(default=None, repr=False)
+    discord_guild_id: str | None = None
+    discord_trade_channel_id: str | None = None
+    discord_notifications_enabled: bool = False
+    discord_notification_batch_size: int = 10
     durable_database_url: str | None = None
     tracker_job_secret: str | None = None
     tracker_job_interval_seconds: int = 300
@@ -105,6 +110,15 @@ def get_settings() -> Settings:
         discord_min_position_usd=_get_float("DISCORD_MIN_POSITION_USD", 0.0),
         discord_notify_on_initial_scan=_get_bool(
             "DISCORD_NOTIFY_ON_INITIAL_SCAN", False
+        ),
+        discord_bot_token=os.getenv("DISCORD_BOT_TOKEN") or None,
+        discord_guild_id=os.getenv("DISCORD_GUILD_ID") or None,
+        discord_trade_channel_id=os.getenv("DISCORD_TRADE_CHANNEL_ID") or None,
+        discord_notifications_enabled=_get_bool(
+            "DISCORD_NOTIFICATIONS_ENABLED", False
+        ),
+        discord_notification_batch_size=_get_int(
+            "DISCORD_NOTIFICATION_BATCH_SIZE", 10
         ),
         durable_database_url=(
             os.getenv("DURABLE_DATABASE_URL")

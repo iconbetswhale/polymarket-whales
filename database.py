@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -179,6 +179,28 @@ class TrackerDatabase:
                     ON bet_tracker(user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                     ON bet_tracker(status, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS discord_trade_notifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    dedupe_key TEXT NOT NULL,
+                    snapshot_id TEXT NOT NULL,
+                    notification_type TEXT NOT NULL DEFAULT 'model_tracker_insert',
+                    status TEXT NOT NULL DEFAULT 'pending',
+                    attempts INTEGER NOT NULL DEFAULT 0,
+                    payload_json TEXT NOT NULL,
+                    discord_message_id TEXT,
+                    response_status INTEGER,
+                    last_error TEXT,
+                    next_attempt_at TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL,
+                    delivered_at TEXT,
+                    UNIQUE (user_id, dedupe_key, notification_type)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_discord_notifications_delivery
+                    ON discord_trade_notifications(status, next_attempt_at, created_at);
 
                 CREATE TABLE IF NOT EXISTS tracking_job_state (
                     key TEXT PRIMARY KEY,
@@ -1040,10 +1062,18 @@ class TrackerDatabase:
         return int(row["count"] or 0)
 
     def insert_tracker_snapshot(
-        self, user_id: str, snapshot: dict, status: str = "scheduled"
+        self,
+        user_id: str,
+        snapshot: dict,
+        status: str = "scheduled",
+        discord_payload: dict | None = None,
     ) -> bool:
         if self.user_store:
-            return self.user_store.insert_tracker_snapshot(user_id, snapshot, status)
+            if discord_payload is None:
+                return self.user_store.insert_tracker_snapshot(user_id, snapshot, status)
+            return self.user_store.insert_tracker_snapshot(
+                user_id, snapshot, status, discord_payload
+            )
         fraction = float(snapshot.get("final_recommended_fraction") or 0)
         amount = snapshot.get("original_displayed_amount")
         if fraction <= 1e-12 or (amount is not None and float(amount) < 0.01):
@@ -1068,7 +1098,168 @@ class TrackerDatabase:
                     json.dumps(snapshot),
                 ),
             )
-            return cursor.rowcount > 0
+            inserted = cursor.rowcount > 0
+            if inserted and discord_payload is not None:
+                conn.execute(
+                    """
+                    INSERT INTO discord_trade_notifications (
+                        user_id, dedupe_key, snapshot_id, notification_type,
+                        status, attempts, payload_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'model_tracker_insert', 'pending', 0, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        snapshot["dedupe_key"],
+                        snapshot["snapshot_id"],
+                        json.dumps(discord_payload),
+                        now,
+                        now,
+                    ),
+                )
+            return inserted
+
+    def claim_discord_notifications(self, limit: int = 10) -> list[dict]:
+        if self.user_store:
+            return self.user_store.claim_discord_notifications(limit)
+        now = datetime.now(timezone.utc)
+        now_iso = now.isoformat()
+        stale_iso = (now.replace(microsecond=0) - timedelta(minutes=10)).isoformat()
+        claimed: list[dict] = []
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id
+                FROM discord_trade_notifications
+                WHERE (
+                    status IN ('pending', 'retry')
+                    AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
+                ) OR (status = 'sending' AND updated_at <= ?)
+                ORDER BY created_at ASC
+                LIMIT ?
+                """,
+                (now_iso, stale_iso, max(int(limit), 1)),
+            ).fetchall()
+            for row in rows:
+                cursor = conn.execute(
+                    """
+                    UPDATE discord_trade_notifications
+                    SET status = 'sending', attempts = attempts + 1,
+                        updated_at = ?, next_attempt_at = NULL
+                    WHERE id = ? AND (
+                        status IN ('pending', 'retry')
+                        OR (status = 'sending' AND updated_at <= ?)
+                    )
+                    """,
+                    (now_iso, row["id"], stale_iso),
+                )
+                if cursor.rowcount:
+                    claimed_row = conn.execute(
+                        """
+                        SELECT id, attempts, payload_json
+                        FROM discord_trade_notifications WHERE id = ?
+                        """,
+                        (row["id"],),
+                    ).fetchone()
+                    claimed.append(
+                        {
+                            "id": claimed_row["id"],
+                            "attempts": claimed_row["attempts"],
+                            "payload": json.loads(claimed_row["payload_json"]),
+                        }
+                    )
+        return claimed
+
+    def mark_discord_notification_delivered(
+        self, notification_id: int, message_id: str | None, response_status: int | None
+    ) -> None:
+        if self.user_store:
+            self.user_store.mark_discord_notification_delivered(
+                notification_id, message_id, response_status
+            )
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE discord_trade_notifications
+                SET status = 'delivered', discord_message_id = ?,
+                    response_status = ?, last_error = NULL,
+                    delivered_at = ?, updated_at = ?, next_attempt_at = NULL
+                WHERE id = ?
+                """,
+                (message_id, response_status, now, now, notification_id),
+            )
+
+    def mark_discord_notification_failed(
+        self,
+        notification_id: int,
+        error_code: str,
+        response_status: int | None,
+        *,
+        retry_at: datetime | None = None,
+        terminal: bool = False,
+    ) -> None:
+        if self.user_store:
+            self.user_store.mark_discord_notification_failed(
+                notification_id,
+                error_code,
+                response_status,
+                retry_at=retry_at,
+                terminal=terminal,
+            )
+            return
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE discord_trade_notifications
+                SET status = ?, response_status = ?, last_error = ?,
+                    next_attempt_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (
+                    "failed" if terminal else "retry",
+                    response_status,
+                    str(error_code)[:80],
+                    retry_at.astimezone(timezone.utc).isoformat() if retry_at else None,
+                    now,
+                    notification_id,
+                ),
+            )
+
+    def get_discord_notification_stats(self) -> dict[str, int]:
+        if self.user_store:
+            return self.user_store.get_discord_notification_stats()
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT status, COUNT(*) AS count
+                FROM discord_trade_notifications GROUP BY status
+                """
+            ).fetchall()
+        stats = {"pending": 0, "sending": 0, "retry": 0, "delivered": 0, "failed": 0}
+        stats.update({str(row["status"]): int(row["count"]) for row in rows})
+        return stats
+
+    def get_discord_notification(self, user_id: str, dedupe_key: str) -> dict | None:
+        if self.user_store:
+            return self.user_store.get_discord_notification(user_id, dedupe_key)
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT id, status, attempts, payload_json, discord_message_id,
+                       response_status, last_error, next_attempt_at,
+                       created_at, updated_at, delivered_at
+                FROM discord_trade_notifications
+                WHERE user_id = ? AND dedupe_key = ?
+                """,
+                (user_id, dedupe_key),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        payload["payload"] = json.loads(payload.pop("payload_json"))
+        return payload
 
     def get_tracker_records(self, user_id: str) -> list[dict]:
         if self.user_store:

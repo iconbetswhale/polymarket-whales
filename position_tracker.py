@@ -24,6 +24,11 @@ from bet_tracker import tracker_status_from_event
 from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
+from model_tracker_discord import (
+    DiscordNotificationDispatcher,
+    ModelTrackerDiscordBot,
+    build_model_tracker_discord_payload,
+)
 from market_lifecycle import classify_lifecycle
 from polymarket_client import PolymarketClient
 from recommendation_service import (
@@ -229,6 +234,7 @@ class TrackerService:
         client: PolymarketClient | None = None,
         database: TrackerDatabase | None = None,
         notifier: DiscordNotifier | None = None,
+        model_discord_bot: ModelTrackerDiscordBot | None = None,
         auto_start: bool = True,
     ) -> None:
         self.settings = settings
@@ -247,6 +253,14 @@ class TrackerService:
                 promoted_records,
             )
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
+        self.model_discord_bot = model_discord_bot or ModelTrackerDiscordBot.from_settings(
+            settings
+        )
+        self.discord_dispatcher = DiscordNotificationDispatcher(
+            self.database,
+            self.model_discord_bot,
+            settings.discord_notification_batch_size,
+        )
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
@@ -701,8 +715,17 @@ class TrackerService:
                     continue
 
                 snapshot = evaluation["snapshot"]
+                discord_payload = None
+                if (
+                    user_id == MODEL_TRACKER_USER_ID
+                    and self.model_discord_bot.enabled
+                ):
+                    discord_payload = build_model_tracker_discord_payload(snapshot)
                 if self.database.insert_tracker_snapshot(
-                    user_id, snapshot, status="scheduled"
+                    user_id,
+                    snapshot,
+                    status="scheduled",
+                    discord_payload=discord_payload,
                 ):
                     result["inserted"] += 1
                     LOGGER.info(
@@ -811,6 +834,18 @@ class TrackerService:
             state["status"] = "failed"
             state["errors"] += 1
             state["error_details"].append({"error": str(exc)})
+        try:
+            delivery = self.discord_dispatcher.dispatch_pending()
+            state["discord_notifications"] = {
+                **self.discord_dispatcher.safe_status(),
+                **delivery,
+            }
+        except Exception:
+            LOGGER.exception("Discord notification dispatch failed")
+            state["discord_notifications"] = {
+                **self.model_discord_bot.safe_configuration(),
+                "dispatch_error": True,
+            }
         state["next_scheduled_run"] = (
             attempted + timedelta(seconds=self.settings.tracker_job_interval_seconds)
         ).isoformat()
@@ -863,6 +898,10 @@ class TrackerService:
             **state,
             "status": status,
             "rejections": self.database.get_tracking_rejections(user_id),
+            "discord_notifications": {
+                **state.get("discord_notifications", {}),
+                **self.discord_dispatcher.safe_status(),
+            },
         }
 
     def _update_tracker_statuses(self, events: dict[str, dict]) -> None:
