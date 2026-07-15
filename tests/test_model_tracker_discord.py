@@ -12,6 +12,7 @@ from model_tracker_discord import (
     DiscordDeliveryResult,
     DiscordNotificationDispatcher,
     ModelTrackerDiscordBot,
+    build_discord_connection_test_payload,
     build_model_tracker_discord_payload,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
@@ -78,6 +79,16 @@ def test_bot_configuration_reads_exact_server_environment_names(monkeypatch, tmp
     assert settings.discord_trade_channel_id == "channel-1"
     assert settings.discord_notifications_enabled is True
     assert token not in repr(settings)
+
+
+def test_connection_test_payload_is_labeled_and_deduplicated():
+    payload = build_discord_connection_test_payload("commit-sha-for-test-message")
+
+    assert payload["content"] == "IconBets Discord connection test"
+    assert payload["embeds"][0]["footer"]["text"].endswith("Test message")
+    assert payload["allowed_mentions"] == {"parse": []}
+    assert len(payload["nonce"]) <= 25
+    assert payload["enforce_nonce"] is True
 
 
 def test_tracker_insert_and_discord_outbox_are_atomic_and_deduplicated(tmp_path):

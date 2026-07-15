@@ -9,6 +9,7 @@ import pytest
 from config import Settings
 from database import TrackerDatabase
 from execution_providers import ProviderHealthStatus
+from model_tracker_discord import DiscordDeliveryResult
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
     _format_event_start,
@@ -247,6 +248,33 @@ def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
     )
     assert "test-access" not in combined
     assert "test-secret" not in combined
+
+
+def test_discord_connection_test_requires_job_auth_and_returns_safe_result(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    settings = app_client.application.config["SETTINGS"]
+    object.__setattr__(settings, "tracker_job_secret", "test-job-secret")
+    sent_payloads = []
+
+    def send(payload):
+        sent_payloads.append(payload)
+        return DiscordDeliveryResult(True, message_id="message-id", status_code=200)
+
+    monkeypatch.setattr(service.model_discord_bot, "send", send)
+
+    unauthorized = app_client.post("/api/admin/discord-notifications/test")
+    delivered = app_client.post(
+        "/api/admin/discord-notifications/test",
+        headers={"Authorization": "Bearer test-job-secret"},
+        json={"nonce": "one-time-test"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert delivered.get_json() == {"status": "authenticated", "delivered": True}
+    assert sent_payloads[0]["content"] == "IconBets Discord connection test"
+    assert sent_payloads[0]["allowed_mentions"] == {"parse": []}
 
 
 def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):

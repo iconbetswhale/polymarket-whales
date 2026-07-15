@@ -72,6 +72,27 @@ jobs:
           )
           PY
 
+      - name: Send requested one-time Discord test
+        if: github.event_name == 'push' && contains(github.event.head_commit.message, '[discord-test]')
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            --header "Content-Type: application/json" \
+            --data "{\"nonce\":\"${GITHUB_SHA:0:25}\"}" \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/discord-notifications/test)"
+          printf '%s' "$response" | python -c '
+          import json, sys
+          data = json.load(sys.stdin)
+          print(
+              "Discord test: "
+              f"status={data.get('"'"'status'"'"', '"'"'unknown'"'"')} "
+              f"delivered={bool(data.get('"'"'delivered'"'"'))}"
+          )
+          '
+
       - name: Verify ProphetX authentication
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}

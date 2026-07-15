@@ -102,6 +102,30 @@ def build_model_tracker_discord_payload(snapshot: dict[str, Any]) -> dict[str, A
     return payload
 
 
+def build_discord_connection_test_payload(nonce: str = "") -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "content": "IconBets Discord connection test",
+        "embeds": [
+            {
+                "title": "Connection successful",
+                "description": (
+                    "The IconBets production backend can securely post Model "
+                    "Tracker recommendations to this channel."
+                ),
+                "color": int("D6AA50", 16),
+                "footer": {"text": "Icon Labs Model Tracker | Test message"},
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            }
+        ],
+        "allowed_mentions": {"parse": []},
+    }
+    safe_nonce = str(nonce or "").strip()[:25]
+    if safe_nonce:
+        payload["nonce"] = safe_nonce
+        payload["enforce_nonce"] = True
+    return payload
+
+
 @dataclass(frozen=True)
 class DiscordDeliveryResult:
     delivered: bool

@@ -35,6 +35,7 @@ from personal_tracker import (
     replay_personal_tracker,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from model_tracker_discord import build_discord_connection_test_payload
 from trade_scoring import filter_trades_to_play
 
 logging.basicConfig(
@@ -565,6 +566,27 @@ def create_app(start_background: bool = True) -> Flask:
             "prophetx", authenticate=request.method == "POST"
         )
         return jsonify({"status": status.value})
+
+    @app.route("/api/admin/discord-notifications/test", methods=["POST"])
+    def api_discord_notification_test():
+        if not has_job_authorization():
+            return jsonify({"status": "unauthorized"}), 401
+        nonce = str((request.get_json(silent=True) or {}).get("nonce") or "")
+        result = tracker.model_discord_bot.send(
+            build_discord_connection_test_payload(nonce)
+        )
+        if result.delivered:
+            return jsonify({"status": "authenticated", "delivered": True})
+        return (
+            jsonify(
+                {
+                    "status": tracker.model_discord_bot.safe_configuration()["status"],
+                    "delivered": False,
+                    "error": result.error_code or "connection_failed",
+                }
+            ),
+            502,
+        )
 
     @app.route("/api/overview")
     def api_overview():
