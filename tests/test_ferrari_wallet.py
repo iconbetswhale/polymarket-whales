@@ -219,7 +219,7 @@ def test_non_mlb_position_cannot_originate_but_can_support_at_half_weight():
         diagnostics=diagnostics,
     )
     assert alone == []
-    assert diagnostics[0]["reason"] == "TOP_CATEGORY_MISMATCH"
+    assert diagnostics[0]["reason"] == "SINGLE_NON_CATEGORY_WALLET"
 
     tennis_lead = _position(
         amount=3000,

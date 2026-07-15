@@ -37,6 +37,12 @@ from personal_tracker import (
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from model_tracker_discord import build_discord_connection_test_payload
 from trade_scoring import filter_trades_to_play
+from whiteboard import (
+    canonical_trade_identity as whiteboard_identity,
+    dynamic_whiteboard_state,
+    identity_key as whiteboard_identity_key,
+    whiteboard_snapshot,
+)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
@@ -153,11 +159,9 @@ def _trade_feed_rejection_reason(trade: dict) -> str | None:
     recommendation = trade.get("recommendation") or {}
     if not trade.get("canonical_category_id"):
         return UNRESOLVED_TRADE_CATEGORY
-    if int(trade.get("lead_sharp_count") or 0) < 1 or not trade.get(
-        "has_lead_sharp"
-    ):
-        return NO_LEAD_SHARP
-    if (trade.get("primary_trader") or {}).get("is_lead_sharp") is not True:
+    if not trade.get("tradeClassification") and int(
+        trade.get("lead_sharp_count") or 0
+    ) < 1:
         return NO_LEAD_SHARP
     if recommendation.get("passes_slippage_rule") is not True:
         return (
@@ -747,6 +751,10 @@ def create_app(start_background: bool = True) -> Flask:
             "yes",
         }
         hidden_records, hidden_by_key = hidden_records_by_key(g.iconbets_user_id)
+        active_pins = tracker.database.get_whiteboard_pins(g.iconbets_user_id)
+        pinned_keys = {
+            whiteboard_identity_key(pin): pin["id"] for pin in active_pins
+        }
         active_personal_fills = tracker.database.get_personal_bet_fills(
             g.iconbets_user_id, active_only=True
         )
@@ -761,6 +769,7 @@ def create_app(start_background: bool = True) -> Flask:
             sport=request.args.get("sport", ""),
             league=request.args.get("league", ""),
             wallet=request.args.get("wallet", ""),
+            classification=request.args.get("classification", ""),
         )
         sized = [
             decorate_personal_state(
@@ -768,6 +777,12 @@ def create_app(start_background: bool = True) -> Flask:
             )
             for play in filtered
         ]
+        for trade in sized:
+            pin_id = pinned_keys.get(
+                whiteboard_identity_key(whiteboard_identity(trade))
+            )
+            trade["isPinnedByCurrentUser"] = pin_id is not None
+            trade["whiteboardPinId"] = pin_id
         actionable = [trade for trade in sized if trade["tradeFeedEligible"]]
         price_matched = [
             trade
@@ -787,6 +802,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": page_trades,
                 "bankroll": current_settings,
                 "hiddenCount": len(hidden_records),
+                "whiteboardCount": len(active_pins),
                 "showHidden": show_hidden,
                 "entryPriceFilters": {
                     "minEntryCents": minimum_cents,
@@ -802,6 +818,112 @@ def create_app(start_background: bool = True) -> Flask:
                 "status": snapshot["status"],
             }
         )
+
+    @app.route("/api/whiteboard", methods=["GET", "POST"])
+    def api_whiteboard():
+        snapshot = tracker.get_snapshot()
+        current_settings = user_settings()
+        bankroll = _safe_float(current_settings["starting_bankroll"])
+        current_trades = [
+            public_trade(play, bankroll)
+            for play in snapshot.get("trades_to_play", [])
+        ]
+        execution_providers.attach_options(current_trades)
+        current_by_key = {
+            whiteboard_identity_key(whiteboard_identity(trade)): trade
+            for trade in current_trades
+        }
+        if request.method == "POST":
+            payload = request.get_json(silent=True) or {}
+            trade_id = str(payload.get("trade_id") or "")
+            trade = next(
+                (item for item in current_trades if str(item.get("id")) == trade_id),
+                None,
+            )
+            if trade is None:
+                return jsonify({"error": "Trade is no longer available to pin"}), 409
+            frozen = whiteboard_snapshot(trade)
+            record = tracker.database.pin_whiteboard_trade(
+                g.iconbets_user_id,
+                {
+                    **whiteboard_identity(trade),
+                    "market_type": trade.get("sports_market_type"),
+                    "period": trade.get("period") or "game",
+                    "snapshot": frozen,
+                },
+            )
+            return jsonify({"data": {key: value for key, value in record.items() if key != "user_id"}}), 201
+
+        records = tracker.database.get_whiteboard_pins(g.iconbets_user_id)
+        rows = []
+        now = datetime.now(timezone.utc)
+        for record in records:
+            frozen = record["snapshot"]
+            key = whiteboard_identity_key(record)
+            current = current_by_key.get(key)
+            dynamic = dynamic_whiteboard_state(frozen, current)
+            status = str(dynamic.get("official_event_status") or "").lower()
+            event_start = _parse_datetime(dynamic.get("official_event_start_time"))
+            archive_reason = None
+            if "cancel" in status:
+                archive_reason = "EVENT_CANCELED"
+            elif "void" in status:
+                archive_reason = "MARKET_VOIDED"
+            elif status in {"settled", "resolved", "closed"}:
+                archive_reason = "MARKET_SETTLED"
+            elif event_start and event_start <= now and status != "postponed":
+                archive_reason = "EVENT_STARTED"
+            if archive_reason:
+                tracker.database.archive_whiteboard_pin(
+                    g.iconbets_user_id, record["id"], archive_reason
+                )
+                continue
+            row = {
+                key: value
+                for key, value in record.items()
+                if key not in {"user_id", "snapshot"}
+            }
+            rows.append(
+                {
+                    **row,
+                    "snapshot": frozen,
+                    "dynamic": dynamic,
+                    "currentTrade": current,
+                }
+            )
+        query = request.args.get("q", "").strip().lower()
+        if query:
+            rows = [
+                row
+                for row in rows
+                if query
+                in " ".join(
+                    str(row["snapshot"].get(key) or "").lower()
+                    for key in ("event_title", "market_title", "selection", "sport", "league")
+                )
+            ]
+        sort = request.args.get("sort", "event")
+        if sort == "pinned":
+            rows.sort(key=lambda row: str(row.get("pinned_at") or ""), reverse=True)
+        elif sort == "score":
+            rows.sort(key=lambda row: -_safe_float(row["snapshot"].get("confidence_score")))
+        elif sort == "slippage":
+            rows.sort(key=lambda row: _safe_float(row["dynamic"].get("current_unfavorable_slippage_pct"), 9999))
+        elif sort == "amount":
+            rows.sort(key=lambda row: -_safe_float(row["snapshot"].get("recommended_dollar_amount")))
+        elif sort == "classification":
+            rows.sort(key=lambda row: str(row["snapshot"].get("trade_classification") or ""))
+        else:
+            rows.sort(key=lambda row: str(row["dynamic"].get("official_event_start_time") or "9999"))
+        return jsonify({"data": rows, "total": len(rows)})
+
+    @app.route("/api/whiteboard/<int:pin_id>", methods=["DELETE"])
+    def api_unpin_whiteboard(pin_id: int):
+        if not tracker.database.archive_whiteboard_pin(
+            g.iconbets_user_id, pin_id, "USER_UNPINNED"
+        ):
+            return jsonify({"error": "Pin not found"}), 404
+        return jsonify({"archived": True, "archiveReason": "USER_UNPINNED"})
 
     @app.route("/api/admin/trade-eligibility-diagnostics")
     def api_trade_eligibility_diagnostics():
@@ -829,6 +951,16 @@ def create_app(start_background: bool = True) -> Flask:
                 "unfavorableSlippagePct": trade.get(
                     "unfavorableSlippagePct"
                 ),
+                "tradeClassification": trade.get("tradeClassification"),
+                "rawAgreeingSharpCount": trade.get("rawAgreeingSharpCount"),
+                "rawContradictingSharpCount": trade.get("rawContradictingSharpCount"),
+                "weightedAgreeingConsensus": trade.get("weightedAgreeingConsensus"),
+                "weightedContradictingConsensus": trade.get("weightedContradictingConsensus"),
+                "netSharpMajority": trade.get("netSharpMajority"),
+                "majorityRatio": trade.get("majorityRatio"),
+                "confidenceScoreCap": trade.get("confidenceScoreCap"),
+                "probabilityAdjustmentCap": trade.get("probabilityAdjustmentCap"),
+                "riskCap": trade.get("riskCap"),
             }
             for trade in evaluated
             if not trade.get("tradeFeedEligible")
@@ -1430,6 +1562,27 @@ def create_app(start_background: bool = True) -> Flask:
         if state.get("paused") and not force:
             return jsonify({"data": {**state, "status": "paused"}})
         tracker.refresh()
+        now = datetime.now(timezone.utc)
+        for pin in tracker.database.get_all_active_whiteboard_pins():
+            frozen = pin.get("snapshot") or {}
+            status = str(frozen.get("official_event_status") or "").lower()
+            event_start = _parse_datetime(
+                frozen.get("official_event_start_time")
+                or frozen.get("event_start_time")
+            )
+            reason = None
+            if "cancel" in status:
+                reason = "EVENT_CANCELED"
+            elif "void" in status:
+                reason = "MARKET_VOIDED"
+            elif status in {"settled", "resolved", "closed"}:
+                reason = "MARKET_SETTLED"
+            elif event_start and event_start <= now and status != "postponed":
+                reason = "EVENT_STARTED"
+            if reason:
+                tracker.database.archive_whiteboard_pin(
+                    pin["user_id"], pin["id"], reason
+                )
         if state.get("paused") and force:
             result = tracker.reconcile_model_tracker(force=True)
         else:

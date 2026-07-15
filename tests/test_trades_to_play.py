@@ -445,7 +445,7 @@ def test_every_enabled_wallet_agreeing_scores_exactly_one_hundred():
     )
 
 
-def test_missing_wallet_prevents_one_hundred_and_opposing_wallet_excludes_trade():
+def test_missing_wallet_prevents_one_hundred_and_opposing_minority_is_research():
     non_unanimous = [
         _position("0xa", "A", amount=500),
         _position("0xb", "B", amount=600),
@@ -460,15 +460,14 @@ def test_missing_wallet_prevents_one_hundred_and_opposing_wallet_excludes_trade(
     assert plays[0]["confidence_score"] < 100
 
     opposing = non_unanimous + [_position("0xc", "C", outcome="Red Sox", amount=700)]
-    assert (
-        build_trades_to_play(
-            opposing,
-            unit_map=_unit_map("0xa", "0xb", "0xc"),
-            tracked_wallet_count=3,
-            now=_now(),
-        )
-        == []
+    research = build_trades_to_play(
+        opposing,
+        unit_map=_unit_map("0xa", "0xb", "0xc"),
+        tracked_wallet_count=3,
+        now=_now(),
     )
+    assert research[0]["tradeClassification"] == "CONTRADICTING_SHARPS"
+    assert research[0]["confidence_score"] <= 69
 
 
 def test_duplicate_and_inactive_wallets_do_not_create_unanimity():
@@ -577,7 +576,7 @@ def test_failed_wallets_do_not_count_toward_unanimous_consensus():
     assert not_ready_plays[0]["confidence_score"] < 100
 
 
-def test_lead_sharp_is_required_and_supporting_sharps_cannot_originate():
+def test_two_supporting_sharps_create_non_category_research_trade():
     lead = _position("0xa", "Lead", configured_top_category="MLB")
     supporting = _position(
         "0xb", "Supporting", configured_top_category="Tennis"
@@ -600,7 +599,8 @@ def test_lead_sharp_is_required_and_supporting_sharps_cannot_originate():
 
     assert lead_only[0]["lead_sharp_count"] == 1
     assert supporting_only == []
-    assert supporting_pair == []
+    assert supporting_pair[0]["tradeClassification"] == "SHARP_NON_CATEGORY"
+    assert supporting_pair[0]["primary_trader"]["sharp_role"] == "Research Anchor"
     assert mixed[0]["raw_sharp_count"] == 2
     assert mixed[0]["lead_sharp_count"] == 1
     assert mixed[0]["supporting_sharp_count"] == 1
@@ -726,7 +726,7 @@ def test_three_leads_rank_above_two_leads_plus_supporting():
     assert by_market["0xmixed3"]["weighted_sharp_count"] == 2.5
 
 
-def test_opposing_supporting_wallet_still_excludes_the_trade():
+def test_opposing_supporting_wallet_creates_majority_research_trade():
     lead = _position(
         "0xa", "Lead", outcome="Yankees", configured_top_category="MLB"
     )
@@ -743,14 +743,14 @@ def test_opposing_supporting_wallet_still_excludes_the_trade():
         configured_top_category="Soccer",
     )
 
-    assert (
-        build_trades_to_play(
-            [lead, supporting_agreement, opposing],
-            unit_map=_unit_map("0xa", "0xb", "0xc"),
-            now=_now(),
-        )
-        == []
+    plays = build_trades_to_play(
+        [lead, supporting_agreement, opposing],
+        unit_map=_unit_map("0xa", "0xb", "0xc"),
+        now=_now(),
     )
+    assert plays[0]["tradeClassification"] == "CONTRADICTING_SHARPS"
+    assert plays[0]["rawAgreeingSharpCount"] == 2
+    assert plays[0]["rawContradictingSharpCount"] == 1
 
 
 def test_complete_raw_agreement_scores_one_hundred_when_a_lead_exists():
@@ -800,7 +800,7 @@ def test_0x4f2_is_mlb_lead_but_never_a_tennis_lead():
         )
         == []
     )
-    assert diagnostics[0]["reason"] == "TOP_CATEGORY_MISMATCH"
+    assert diagnostics[0]["reason"] == "SINGLE_NON_CATEGORY_WALLET"
     assert diagnostics[0]["canonical_category_id"] == "tennis"
 
 

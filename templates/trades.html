@@ -4,6 +4,10 @@
   <header class="trades-command-bar">
     <div class="trades-command-primary">
       <h1>Trades to Play</h1>
+      <div class="trades-view-tabs" role="tablist" aria-label="Trades workspace">
+        <button class="active" type="button" role="tab" data-trades-view="feed" aria-selected="true">Trades to Play</button>
+        <button type="button" role="tab" data-trades-view="whiteboard" aria-selected="false">Whiteboard <span id="whiteboard-count">0</span></button>
+      </div>
       <span class="result-badge" id="trade-result-count">0 Picks</span>
       <span class="model-status-pill"><span class="status-dot"></span>Model live</span>
     </div>
@@ -56,6 +60,7 @@
         <label>Sport<select id="trade-sport"><option value="">All Sports</option></select></label>
         <label>League<select id="trade-league"><option value="">All leagues</option></select></label>
         <label>Sharp Wallet<select id="trade-wallet"><option value="">All wallets</option></select></label>
+        <label>Classification<select id="trade-classification"><option value="">All Trades</option><option value="STANDARD">Standard</option><option value="CONTRADICTING_SHARPS">Contradicting Sharps</option><option value="SHARP_NON_CATEGORY">Sharp Non-Category</option><option value="RESEARCH_ONLY">Research Only</option></select></label>
         <label>Execution Venue<select id="trade-execution"><option value="">All exact venues</option><option value="polymarket">Polymarket</option><option value="novig">NoVIG exact matches</option><option value="prophetx">ProphetX exact matches</option></select></label>
         <label>Minimum Rec. Bet<select id="trade-min-bet"><option value="0">Any amount</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></label>
         <label>Maximum Slippage<select id="trade-max-slippage"><option value="">Model limit</option><option value="0.03">3% or better</option><option value="0.05">5% or better</option></select></label>
@@ -88,6 +93,10 @@
     </div>
     <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite"><div class="empty-detail"><i class="ph ph-cursor-click" aria-hidden="true"></i><h2>Select a trade</h2><p>Choose a verified opportunity to inspect its price, Sharp evidence, and bankroll calculation.</p></div></aside>
   </section>
+  <section class="whiteboard-workspace" id="whiteboard-workspace" hidden>
+    <div class="whiteboard-toolbar"><div><p class="eyebrow">PERSONAL RESEARCH</p><h2>Your Whiteboard</h2><span>Frozen research snapshots with live price checks</span></div><label>Sort<select id="whiteboard-sort"><option value="event">Event start</option><option value="pinned">Pin time</option><option value="score">Frozen score</option><option value="slippage">Current slippage</option><option value="amount">Frozen recommended amount</option><option value="classification">Classification</option></select></label></div>
+    <div class="whiteboard-list" id="whiteboard-list"><div class="skeleton-card"></div></div>
+  </section>
 </section>
 <dialog class="tracker-dialog" id="personal-tracker-dialog" aria-labelledby="personal-tracker-title">
   <div class="tracker-dialog-shell">
@@ -96,6 +105,7 @@
     <h2 id="personal-tracker-title">Track a personal purchase</h2>
     <div class="tracker-dialog-summary" id="personal-tracker-summary"></div>
     <div class="personal-exposure-notice" id="personal-tracker-exposure" hidden></div>
+    <div class="research-tracker-warning" id="personal-research-warning" hidden></div>
     <form id="personal-tracker-form">
       <div class="personal-tracking-meta">
         <label>Sportsbook<select id="personal-sportsbook" required><option value="Polymarket">Polymarket</option></select></label>

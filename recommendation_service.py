@@ -11,6 +11,7 @@ from bet_sizing import (
     build_recommendation,
 )
 from bet_tracker import recommendation_snapshot
+from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS
 
 
 EASTERN = ZoneInfo("America/New_York")
@@ -79,8 +80,11 @@ def evaluate_trade_recommendation(
     snapshot = recommendation_snapshot(play, recommendation, bankroll, now)
     event_start = parse_event_start(play.get("event_date_et"))
     rejection_reason: str | None = None
+    classification = str(play.get("tradeClassification") or "STANDARD")
 
-    if event_start is None:
+    if classification in RESEARCH_CLASSIFICATIONS:
+        rejection_reason = POLICIES[classification].model_tracker_rejection_reason
+    elif event_start is None:
         rejection_reason = INVALID_EVENT_TIME
     elif event_start <= now:
         rejection_reason = EVENT_ALREADY_STARTED

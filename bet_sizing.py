@@ -4,6 +4,7 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from config import MAX_UNFAVORABLE_SLIPPAGE_PCT
+from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS, STANDARD
 
 
 SLIPPAGE_ABOVE_MAX = "SLIPPAGE_ABOVE_MAX"
@@ -89,7 +90,7 @@ def calculate_evidence_score(
         0, int(play.get("supporting_sharp_count") or (sharps - lead_sharps))
     )
     weighted_sharps = max(
-        1.0,
+        0.0,
         _safe_float(
             play.get("weighted_sharp_count"),
             lead_sharps + (supporting_sharps * 0.5),
@@ -282,8 +283,10 @@ def build_recommendation(
     bankroll = _safe_float(bankroll)
     if bankroll <= 0:
         return unavailable_recommendation("Bankroll must be greater than zero.", config)
-    if int(play.get("lead_sharp_count") or 0) < 1 or not bool(
-        play.get("has_lead_sharp")
+    classification = str(play.get("tradeClassification") or STANDARD)
+    if classification == STANDARD and (
+        int(play.get("lead_sharp_count") or 0) < 1
+        or not bool(play.get("has_lead_sharp"))
     ):
         return unavailable_recommendation(
             "At least one verified Lead Sharp is required for this trade.", config
@@ -314,12 +317,12 @@ def build_recommendation(
 
     evidence = calculate_evidence_score(play, config)
     sharps = max(1, int(play.get("agreeing_wallet_count") or 1))
-    lead_sharps = max(1, int(play.get("lead_sharp_count") or 1))
+    lead_sharps = max(0, int(play.get("lead_sharp_count") or 0))
     supporting_sharps = max(
         0, int(play.get("supporting_sharp_count") or (sharps - lead_sharps))
     )
     weighted_sharps = max(
-        1.0,
+        0.0,
         _safe_float(
             play.get("weighted_sharp_count"),
             lead_sharps + (supporting_sharps * 0.5),
@@ -328,8 +331,11 @@ def build_recommendation(
     tracked = max(sharps, int(play.get("tracked_wallet_count") or sharps))
     unanimous = sharps == tracked
     full_weight_unanimous = unanimous and abs(weighted_sharps - sharps) < 1e-9
-    adjustment_cap = probability_adjustment_cap(
-        weighted_sharps, full_weight_unanimous
+    policy = POLICIES[classification]
+    adjustment_cap = (
+        policy.probability_adjustment_cap
+        if classification in RESEARCH_CLASSIFICATIONS
+        else probability_adjustment_cap(weighted_sharps, full_weight_unanimous)
     )
     evidence_strength = clamp(
         (evidence["score"] - config.neutral_threshold)
@@ -337,8 +343,18 @@ def build_recommendation(
         0.0,
         1.0,
     )
+    if classification in RESEARCH_CLASSIFICATIONS:
+        opposing = max(0, int(play.get("rawContradictingSharpCount") or 0))
+        agreeing = max(1, int(play.get("rawAgreeingSharpCount") or sharps))
+        agreeing_weight = 0.25 if play.get("isNonCategoryConsensus") else 0.5
+        net_research_weight = max(0.0, agreeing * agreeing_weight - opposing)
+        evidence_strength *= clamp(net_research_weight / agreeing, 0.0, 1.0)
     evidence_adjustment = evidence_strength * adjustment_cap
-    sharp_cap = stake_risk_cap(weighted_sharps, full_weight_unanimous)
+    sharp_cap = (
+        policy.risk_cap
+        if classification in RESEARCH_CLASSIFICATIONS
+        else stake_risk_cap(weighted_sharps, full_weight_unanimous)
+    )
 
     current_top_ask_price = _safe_float(valid_asks[0].get("price"))
     entry_price = current_top_ask_price
@@ -470,6 +486,8 @@ def build_recommendation(
         "supporting_sharp_count": supporting_sharps,
         "weighted_sharp_count": weighted_sharps,
         "category_weighting": "Lead Sharps count 1.0x; Supporting Sharps count 0.5x before probability and Kelly calculations.",
+        "trade_classification": classification,
+        "is_research_only": classification in RESEARCH_CLASSIFICATIONS,
         "evidence_strength": evidence_strength,
         "evidence_adjustment": evidence_adjustment,
         "maximum_adjustment": adjustment_cap,

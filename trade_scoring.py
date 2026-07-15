@@ -14,6 +14,13 @@ from classification import (
     canonical_category_ids,
     category_matches,
 )
+from trade_research import (
+    CONTRADICTING_NON_CATEGORY,
+    SHARP_NON_CATEGORY,
+    classification_fields,
+    classify_trade,
+    research_confidence,
+)
 
 SECONDARY_SCORE_WEIGHTS = {
     "category_composition": 0.25,
@@ -309,7 +316,9 @@ def _confidence_score(
             "secondary_quality": 1.0,
             "raw_sharp_count": wallet_count,
             "lead_sharp_count": lead_sharp_count,
+            "leadSharpCount": lead_sharp_count,
             "supporting_sharp_count": supporting_sharp_count,
+            "supportingSharpCount": supporting_sharp_count,
             "weighted_sharp_count": weighted_sharp_count,
             "category_composition": round(composition_quality, 4),
             "combined_amount": round(combined_amount_signal, 4),
@@ -676,6 +685,7 @@ def filter_trades_to_play(
     sport: str = "",
     league: str = "",
     wallet: str = "",
+    classification: str = "",
     now: datetime | None = None,
 ) -> list[dict[str, Any]]:
     if date_range not in {"", "today", "next24", "next7", "custom"}:
@@ -690,12 +700,18 @@ def filter_trades_to_play(
     for play in plays:
         if not canonical_category_id(play.get("canonical_category_id")):
             continue
-        if int(play.get("lead_sharp_count") or 0) < 1 or not play.get(
-            "has_lead_sharp"
-        ):
-            continue
-        if (play.get("primary_trader") or {}).get("is_lead_sharp") is not True:
-            continue
+        if not play.get("tradeClassification"):
+            if int(play.get("lead_sharp_count") or 0) < 1:
+                continue
+            play["tradeClassification"] = "STANDARD"
+            play["isResearchOnly"] = False
+        if classification:
+            current = str(play.get("tradeClassification") or "")
+            if classification == "RESEARCH_ONLY":
+                if not play.get("isResearchOnly"):
+                    continue
+            elif current != classification:
+                continue
         if min_sharps and int(play.get("agreeing_wallet_count") or 0) < min_sharps:
             continue
         if min_confidence and int(play.get("confidence_score") or 0) < min_confidence:
@@ -775,18 +791,21 @@ def build_trades_to_play(
             side.side_key, []
         ).append(position)
 
-    playable_groups: list[list[dict[str, Any]]] = []
+    playable_groups: list[
+        tuple[list[dict[str, Any]], list[dict[str, Any]], str]
+    ] = []
     missing_category_wallets: set[str] = set()
     for sides in market_sides.values():
-        # If tracked wallets hold opposing sides of the same market, no side is playable.
-        if len(sides) != 1:
-            for group in sides.values():
-                diagnostics.append(
-                    _exclusion_record(_collapse_unique_wallets(group), OPPOSING_WALLETS)
-                )
-            continue
-        for group in sides.values():
+        for side_key, group in sides.items():
             unique_group = _collapse_unique_wallets(group)
+            opposing_group = _collapse_unique_wallets(
+                [
+                    position
+                    for other_side, other_positions in sides.items()
+                    if other_side != side_key
+                    for position in other_positions
+                ]
+            )
             profiles = [_category_profile(position) for position in unique_group]
             trade_category_id = profiles[0]["trade_category_id"] if profiles else None
             for position, profile in zip(unique_group, profiles):
@@ -805,17 +824,26 @@ def build_trades_to_play(
                     )
                 )
                 continue
-            if not any(profile["is_lead_sharp"] for profile in profiles):
-                reason = (
-                    TOP_CATEGORY_MISMATCH
-                    if any(profile["top_category_ids"] for profile in profiles)
-                    else NO_LEAD_SHARP
-                )
+            lead_count = sum(1 for profile in profiles if profile["is_lead_sharp"])
+            classification = classify_trade(
+                len(unique_group), len(opposing_group), lead_count
+            )
+            if classification is None:
+                if opposing_group:
+                    reason = (
+                        "TIED_SHARPS"
+                        if len(unique_group) == len(opposing_group)
+                        else "CONTRADICTING_SIDE_MAJORITY"
+                        if len(unique_group) < len(opposing_group)
+                        else "INSUFFICIENT_AGREEING_MAJORITY"
+                    )
+                else:
+                    reason = "SINGLE_NON_CATEGORY_WALLET"
                 diagnostics.append(
                     _exclusion_record(unique_group, reason, trade_category_id)
                 )
                 continue
-            playable_groups.append(unique_group)
+            playable_groups.append((unique_group, opposing_group, classification))
 
     if missing_category_wallets:
         LOGGER.warning(
@@ -825,7 +853,7 @@ def build_trades_to_play(
 
     group_amounts = [
         sum(_position_signal_amount(position) for position in group)
-        for group in playable_groups
+        for group, _opposing, _classification in playable_groups
     ]
     historical_amounts = [
         abs(_safe_float(event.get("position_size_usd") or event.get("delta_usd")))
@@ -841,7 +869,7 @@ def build_trades_to_play(
     )
 
     output: list[dict[str, Any]] = []
-    for group in playable_groups:
+    for group, opposing_group, classification in playable_groups:
         unique_wallets = {
             str(position.get("wallet_address") or "").lower()
             for position in group
@@ -870,9 +898,16 @@ def build_trades_to_play(
         ]
         lead_sharp_count = len(lead_positions)
         supporting_sharp_count = len(supporting_positions)
-        weighted_sharp_count = lead_sharp_count + (supporting_sharp_count * 0.5)
+        supporting_weight = (
+            0.25
+            if classification in {SHARP_NON_CATEGORY, CONTRADICTING_NON_CATEGORY}
+            else 0.5
+        )
+        weighted_sharp_count = lead_sharp_count + (
+            supporting_sharp_count * supporting_weight
+        )
         category_weights = {
-            wallet: profile["category_weight"]
+            wallet: (1.0 if profile["is_lead_sharp"] else supporting_weight)
             for wallet, profile in profiles_by_wallet.items()
         }
         total_amount = sum(
@@ -885,7 +920,9 @@ def build_trades_to_play(
             ]
             for position in group
         )
-        primary = _primary_position(lead_positions, unit_map, events_by_wallet)
+        primary = _primary_position(
+            lead_positions or group, unit_map, events_by_wallet
+        )
         units_by_wallet = {
             str(position.get("wallet_address") or "").lower(): (
                 _relative_units(position, unit_map, events_by_wallet) or 0
@@ -925,7 +962,7 @@ def build_trades_to_play(
 
         canonical = canonical_side(primary)
         event_time = _format_event_time(primary.get("resolution_time"))
-        sharp_average_entry = _amount_weighted_entry(lead_positions) or _safe_float(
+        sharp_average_entry = _amount_weighted_entry(lead_positions or group) or _safe_float(
             primary.get("average_entry_price")
         )
         category_metrics = []
@@ -983,6 +1020,29 @@ def build_trades_to_play(
             ),
             slippage=slippage,
         )
+        classification_meta = classification_fields(
+            classification, wallet_count, len(opposing_group)
+        )
+        if classification_meta["isResearchOnly"]:
+            confidence = research_confidence(
+                classification,
+                wallet_count,
+                len(opposing_group),
+                (
+                    weighted_amount_signal
+                    + weighted_relative_size_signal
+                    + weighted_history_signal
+                )
+                / 3,
+            )
+            breakdown = {
+                **breakdown,
+                "research_only": True,
+                "classification": classification,
+                "score_cap": classification_meta["confidenceScoreCap"],
+                "majority_ratio": classification_meta["majorityRatio"],
+                "net_sharp_majority": classification_meta["netSharpMajority"],
+            }
         top_category_score = weighted_sharp_count / wallet_count
         evidence_inputs = {
             "combined_amount": weighted_amount_signal,
@@ -1073,6 +1133,33 @@ def build_trades_to_play(
                 str(item["wallet_label"]).lower(),
             ),
         )
+        contradictors = [
+            {
+                "wallet_address": position.get("wallet_address"),
+                "wallet_label": position.get("wallet_label"),
+                "opposing_selection": position.get("outcome"),
+                "amount": _position_signal_amount(position),
+                "gross_amount": _safe_float(position.get("position_size_usd")),
+                "relative_units": _relative_units(
+                    position, unit_map, events_by_wallet
+                )
+                or 0,
+                "average_entry_price": position.get("average_entry_price"),
+                "current_price": position.get("current_price"),
+                "top_category": position.get("configured_top_category")
+                or position.get("top_category"),
+                "wallet_profile_url": position.get("wallet_profile_url"),
+                "source": "active_position_snapshot",
+            }
+            for position in opposing_group
+        ]
+        contradictors.sort(
+            key=lambda item: (
+                -item["amount"],
+                -item["relative_units"],
+                str(item["wallet_label"]).lower(),
+            )
+        )
 
         play = {
             "id": f"{canonical.market_key}::{canonical.side_key}",
@@ -1090,15 +1177,20 @@ def build_trades_to_play(
                 "wallet_addresses": sorted(unique_wallets),
             },
             "confidence_score": confidence,
+            "confidenceScore": confidence,
             "score_breakdown": breakdown,
             "score_weights": SECONDARY_SCORE_WEIGHTS,
             "tracked_wallet_count": tracked_wallet_count,
             "sharps_badge": sharps_badge(wallet_count),
             "agreeing_wallet_count": wallet_count,
+            "rawAgreeingSharpCount": wallet_count,
+            "rawContradictingSharpCount": len(opposing_group),
             "raw_sharp_count": wallet_count,
             "lead_sharp_count": lead_sharp_count,
             "supporting_sharp_count": supporting_sharp_count,
             "weighted_sharp_count": weighted_sharp_count,
+            "weightedAgreeingConsensus": weighted_sharp_count,
+            "weightedContradictingConsensus": float(len(opposing_group)),
             "has_lead_sharp": lead_sharp_count > 0,
             "lead_wallet_ids": sorted(
                 str(position.get("wallet_address") or "").lower()
@@ -1109,6 +1201,20 @@ def build_trades_to_play(
                 for position in supporting_positions
             ),
             "primary_lead_wallet_id": primary_wallet,
+            "agreeingWalletIds": sorted(unique_wallets),
+            "contradictingWalletIds": sorted(
+                str(position.get("wallet_address") or "").lower()
+                for position in opposing_group
+                if position.get("wallet_address")
+            ),
+            "leadWalletIds": sorted(
+                str(position.get("wallet_address") or "").lower()
+                for position in lead_positions
+            ),
+            "supportingWalletIds": sorted(
+                str(position.get("wallet_address") or "").lower()
+                for position in supporting_positions
+            ),
             "category_match_by_wallet": {
                 wallet: profile["is_lead_sharp"]
                 for wallet, profile in profiles_by_wallet.items()
@@ -1146,10 +1252,18 @@ def build_trades_to_play(
             "lifecycle_reason": primary.get("lifecycle_reason"),
             "average_entry_price": round(sharp_average_entry, 6),
             "sharp_reference_entry_price": round(sharp_average_entry, 6),
-            "sharp_reference_method": "amount_weighted_lead_sharps",
+            "sharp_reference_method": (
+                "amount_weighted_lead_sharps"
+                if lead_positions
+                else "amount_weighted_research_consensus"
+            ),
             "slippage": round(slippage, 4),
             "total_amount_bet": round(total_amount, 6),
             "combined_exposure_exact": total_amount,
+            "agreeingExposureDollars": total_amount,
+            "contradictingExposureDollars": sum(
+                _position_signal_amount(position) for position in opposing_group
+            ),
             "strongest_relative_units": strongest_units,
             "evidence_inputs": evidence_inputs,
             "primary_trader": {
@@ -1175,10 +1289,11 @@ def build_trades_to_play(
                 "top_category_verified_at": profiles_by_wallet[primary_wallet][
                     "top_category_verified_at"
                 ],
-                "is_lead_sharp": True,
-                "sharp_role": "Lead Sharp",
-                "category_match": True,
-                "category_weight": 1.0,
+                "is_lead_sharp": bool(lead_positions),
+                "is_research_anchor": not bool(lead_positions),
+                "sharp_role": "Lead Sharp" if lead_positions else "Research Anchor",
+                "category_match": bool(lead_positions),
+                "category_weight": 1.0 if lead_positions else supporting_weight,
                 "bettor_type": primary.get("wallet_bettor_type"),
                 "selectivity": primary.get("wallet_selectivity"),
                 "selectivity_score": primary.get("wallet_selectivity_score"),
@@ -1190,6 +1305,8 @@ def build_trades_to_play(
                 "source": "active_position_snapshot",
             },
             "supporting_wallets": supporters,
+            "contradicting_wallets": contradictors,
+            **classification_meta,
             "first_detected_at": min(
                 position.get("first_detected_at") or "" for position in group
             ),

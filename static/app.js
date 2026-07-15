@@ -22,7 +22,25 @@ const appState = {
   appliedEntryPriceFilters: { minEntryCents: "", maxEntryCents: "" },
   executionOdds: {},
   tradeRenderSignatures: {},
+  tradesView: "feed",
+  whiteboard: [],
 };
+
+function researchBadges(trade) {
+  const badges = [];
+  if (trade.hasContradictingSharps) badges.push('<span class="research-badge"><i class="ph ph-warning" aria-hidden="true"></i>Contradicting Sharps</span>');
+  if (trade.isNonCategoryConsensus) badges.push('<span class="research-badge"><i class="ph ph-warning" aria-hidden="true"></i>Sharp Non-Category</span>');
+  return badges.join("");
+}
+
+function researchTrackerWarning(trade) {
+  if (!trade.isResearchOnly) return "";
+  const lines = [];
+  if (trade.hasContradictingSharps) lines.push(`<strong>Research-only signal: Contradicting Sharps</strong><span>${trade.rawAgreeingSharpCount || 0} tracked wallets support this outcome and ${trade.rawContradictingSharpCount || 0} tracked wallets hold an opposing outcome.</span>`);
+  if (trade.isNonCategoryConsensus) lines.push('<strong>Research-only signal: Sharp Non-Category</strong><span>Multiple wallets agree, but none has this market as a verified top category.</span>');
+  lines.push("<span>This trade will not be included in Model Tracker.</span>");
+  return lines.join("");
+}
 
 function escapeHtml(value) {
   return String(value ?? "")
@@ -429,6 +447,7 @@ function tradeFiltersFromUrl() {
     sport: params.get("sport") || "",
     league: params.get("league") || "",
     wallet: params.get("wallet") || "",
+    classification: params.get("classification") || "",
     minEntryCents: params.get("minEntryCents") || "",
     maxEntryCents: params.get("maxEntryCents") || "",
     custom_start: params.get("custom_start") || "",
@@ -454,6 +473,7 @@ function applyTradeFiltersToControls(filters) {
     "trade-sport": "sport",
     "trade-league": "league",
     "trade-wallet": "wallet",
+    "trade-classification": "classification",
     "min-entry-cents": "minEntryCents",
     "max-entry-cents": "maxEntryCents",
     "custom-start": "custom_start",
@@ -545,6 +565,7 @@ function updateActiveFilterCount() {
     Boolean(document.getElementById("trade-sport")?.value),
     Boolean(document.getElementById("trade-league")?.value),
     Boolean(document.getElementById("trade-wallet")?.value),
+    Boolean(document.getElementById("trade-classification")?.value),
     Boolean(document.getElementById("trade-execution")?.value),
     document.getElementById("trade-min-bet")?.value !== "0",
     Boolean(document.getElementById("trade-max-slippage")?.value),
@@ -569,6 +590,7 @@ function readTradeControls() {
     sport: document.getElementById("trade-sport").value,
     league: document.getElementById("trade-league").value,
     wallet: document.getElementById("trade-wallet").value,
+    classification: document.getElementById("trade-classification").value,
     minEntryCents: appState.appliedEntryPriceFilters.minEntryCents,
     maxEntryCents: appState.appliedEntryPriceFilters.maxEntryCents,
     custom_start: document.getElementById("custom-start").value,
@@ -763,6 +785,7 @@ function tradeCard(trade) {
         <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
         <span class="trade-event-copy">
           <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</span>
+          <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
           <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
           <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))} · ${escapeHtml(trade.market_title || "Market")}</span>
         </span>
@@ -782,6 +805,7 @@ function tradeCard(trade) {
           <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em></span>
           ${executionToolbar(trade)}
           <span class="trade-card-actions">
+            <button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" data-pin-id="${escapeHtml(trade.whiteboardPinId || "")}" title="${trade.isPinnedByCurrentUser ? "Unpin from Whiteboard" : "Pin to Whiteboard"}" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from your Whiteboard" : "Pin this trade to your Whiteboard"}"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button>
             ${trade.isHidden
               ? `<button class="trade-restore-action" type="button" data-testid="restore-trade-action" data-hidden-id="${escapeHtml(trade.hiddenRecordId)}" title="Restore this trade" aria-label="Restore this trade to Trades to Play"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
               : `<button class="trade-hide-action" type="button" data-testid="hide-trade-action" data-trade-id="${escapeHtml(trade.id)}" title="Hide this trade" aria-label="Hide this trade from Trades to Play"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>`}
@@ -820,6 +844,9 @@ function openPersonalTracker(trade) {
   document.getElementById("personal-conflict-check").checked = false;
   updatePersonalPurchaseTotal();
   renderPurchaseExposureNotice(trade.personalExposureSummary || {});
+  const researchWarning = document.getElementById("personal-research-warning");
+  researchWarning.innerHTML = researchTrackerWarning(trade);
+  researchWarning.hidden = !trade.isResearchOnly;
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
 }
@@ -1171,6 +1198,12 @@ function detailSelectionPanel(trade) {
   `;
 }
 
+function contradictorsMarkup(trade) {
+  const wallets = trade.contradicting_wallets || [];
+  if (!wallets.length) return "";
+  return `<details class="detail-accordion research-opposition" open><summary><span><i class="ph ph-warning" aria-hidden="true"></i>Contradicting Sharps</span><small>${formatMoney(trade.contradictingExposureDollars || 0)} opposing exposure</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="supporter-list">${wallets.map((wallet) => `<div class="supporter-row"><span><strong>${escapeHtml(wallet.wallet_label || wallet.wallet_address)}</strong><small>${escapeHtml(wallet.opposing_selection || "Opposing selection")} / ${escapeHtml(wallet.top_category || "Category unavailable")}</small></span><span><strong>${formatMoney(wallet.amount)}</strong><small>${formatUnits(wallet.relative_units)} / ${formatOptionalCents(wallet.average_entry_price)}</small></span></div>`).join("")}</div></details>`;
+}
+
 function renderTradeDetail(trade) {
   const panel = document.getElementById("trade-detail");
   const recommendation = trade.recommendation || {};
@@ -1188,7 +1221,7 @@ function renderTradeDetail(trade) {
     <div class="detail-header">
       <span class="score-badge large ${confidenceClass(trade.confidence_score)}">${escapeHtml(trade.confidence_score)}</span>
       <div class="detail-title-copy"><p>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</p><h2>${escapeHtml(trade.event_title || trade.market_title)}</h2><span>${escapeHtml(humanizeMarketType(trade.sports_market_type))} · ${escapeHtml(trade.event_time_et || "Time unavailable")}</span></div>
-      <span class="detail-header-actions">${personalExposureWarning(trade)}<button class="trade-hide-action" id="detail-hide-action" type="button" aria-label="${trade.isHidden ? "Restore" : "Hide"} this trade"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i></button><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button></span>
+      <span class="detail-header-actions">${personalExposureWarning(trade)}<button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" id="detail-pin-action" type="button" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from" : "Pin this trade to"} your Whiteboard"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button><button class="trade-hide-action" id="detail-hide-action" type="button" aria-label="${trade.isHidden ? "Restore" : "Hide"} this trade"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i></button><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button></span>
       <span class="live-price"><small>Executable entry</small><strong>${escapeHtml(formatOptionalCents(currentPrice))}</strong><em>${escapeHtml(trade.agreeing_wallet_count + " Sharp" + (trade.agreeing_wallet_count === 1 ? "" : "s"))}</em></span>
     </div>
     ${detailSelectionPanel(trade)}
@@ -1217,13 +1250,15 @@ function renderTradeDetail(trade) {
       <div class="section-label"><span><i class="ph ph-chart-bar-horizontal" aria-hidden="true"></i>Order book</span><small>Verified Polymarket CLOB depth</small></div>
       <div class="orderbook">${tradeOrderBook(trade)}</div>
     </section>
-    <details class="detail-accordion"><summary><span><i class="ph ph-users-three" aria-hidden="true"></i>Sharps on this trade</span><small>${escapeHtml(sharpCompositionLabel(trade))}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="supporter-list">${supportersMarkup(trade)}</div></details>
+    <details class="detail-accordion"><summary><span><i class="ph ph-users-three" aria-hidden="true"></i>Sharps on this trade</span><small>${escapeHtml(sharpCompositionLabel(trade))}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="research-badges">${researchBadges(trade)}</div><div class="supporter-list">${supportersMarkup(trade)}</div></details>
+    ${contradictorsMarkup(trade)}
     ${whyScore(trade, recommendation)}
     ${whySizing(recommendation, trade)}
     <details class="detail-accordion personal-exposure-section"><summary><span><i class="ph ph-user-focus" aria-hidden="true"></i>Personal exposure</span><small>Confirmed fills only</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div></details>
     <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
   `;
   panel.querySelector("#detail-track-action")?.addEventListener("click", () => openPersonalTracker(trade));
+  panel.querySelector("#detail-pin-action")?.addEventListener("click", () => pinTrade(trade.id, trade.whiteboardPinId || ""));
   panel.querySelector("#detail-hide-action")?.addEventListener("click", () => {
     if (trade.isHidden) restoreHiddenTrade(trade.hiddenRecordId);
     else hideTrade(trade.id);
@@ -1433,6 +1468,7 @@ async function loadTrades() {
     if (payload.bankroll) applySizingBankroll(payload.bankroll);
     updateGlobalStatus(payload.status);
     document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
+    document.getElementById("whiteboard-count").textContent = String(payload.whiteboardCount || 0);
     document.getElementById("trade-result-count").textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
     document.getElementById("trade-freshness").textContent = `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
     const currentSport = document.getElementById("trade-sport").value;
@@ -1462,6 +1498,62 @@ async function loadTrades() {
     list.innerHTML = errorState(error.message);
     document.getElementById("trade-detail").innerHTML = errorState(error.message);
   }
+}
+
+function whiteboardCard(row) {
+  const frozen = row.snapshot || {};
+  const dynamic = row.dynamic || {};
+  const warningTrade = {
+    hasContradictingSharps: frozen.warning_flags?.has_contradicting_sharps,
+    isNonCategoryConsensus: frozen.warning_flags?.is_non_category_consensus,
+  };
+  const executionTrade = row.currentTrade || {
+    outcome: frozen.selection,
+    executionOptions: dynamic.execution_options || [],
+  };
+  return `<article class="whiteboard-card ${dynamic.above_max_slippage ? "above-slippage" : ""}">
+    <header><span class="pinned-label"><i class="ph ph-push-pin-fill" aria-hidden="true"></i>Pinned ${escapeHtml(formatDateTime(row.pinned_at))}</span><span class="research-badges">${researchBadges(warningTrade)}</span><button class="whiteboard-unpin" type="button" data-pin-id="${escapeHtml(row.id)}" aria-label="Unpin this trade"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+    <div class="whiteboard-main"><div><small>${escapeHtml(frozen.sport || "Sports")} / ${escapeHtml(frozen.league || "Market")}</small><h3>${escapeHtml(frozen.event_title || frozen.market_title)}</h3><strong>${escapeHtml(frozen.selection)}</strong></div><span class="whiteboard-score"><small>Frozen score</small><strong>${escapeHtml(frozen.confidence_score ?? "N/A")}</strong></span></div>
+    <div class="whiteboard-prices"><span><small>Sharp Entry</small><strong>${formatOptionalCents(frozen.sharp_reference_entry)}</strong></span><span><small>Entry When Pinned</small><strong>${formatOptionalCents(frozen.entry_when_pinned)}</strong></span><span><small>Current Entry</small><strong>${formatOptionalCents(dynamic.current_entry)}</strong></span><span><small>Current Slippage</small><strong>${number(dynamic.current_unfavorable_slippage_pct) === null ? "N/A" : `${Number(dynamic.current_unfavorable_slippage_pct).toFixed(2)}%`}</strong></span><span><small>Frozen recommendation</small><strong>${formatOptionalMoney(frozen.recommended_dollar_amount)}</strong></span></div>
+    ${dynamic.above_max_slippage ? '<p class="whiteboard-slippage-warning"><i class="ph ph-warning" aria-hidden="true"></i>Above 5% slippage. The frozen research snapshot remains available, but execution may no longer be reasonable.</p>' : ""}
+    <footer><span>${escapeHtml(formatDateTime(dynamic.official_event_start_time))}</span><span>${escapeHtml(dynamic.official_event_status || "Unavailable")}</span>${executionToolbar(executionTrade)}${row.currentTrade ? `<button class="whiteboard-track" type="button" data-trade-id="${escapeHtml(row.currentTrade.id)}"><i class="ph ph-plus" aria-hidden="true"></i>Personal Track</button>` : ""}</footer>
+  </article>`;
+}
+
+async function loadWhiteboard() {
+  const list = document.getElementById("whiteboard-list");
+  try {
+    const sort = document.getElementById("whiteboard-sort")?.value || "event";
+    const payload = await fetchJson(`/api/whiteboard?sort=${encodeURIComponent(sort)}`);
+    appState.whiteboard = payload.data || [];
+    document.getElementById("whiteboard-count").textContent = String(payload.total || 0);
+    list.innerHTML = appState.whiteboard.length ? appState.whiteboard.map(whiteboardCard).join("") : emptyState("Your Whiteboard is empty", "Pin any upcoming trade to preserve its research snapshot here.");
+  } catch (error) {
+    list.innerHTML = errorState(error.message);
+  }
+}
+
+async function pinTrade(tradeId, pinId = "") {
+  try {
+    if (pinId) await fetchJson(`/api/whiteboard/${encodeURIComponent(pinId)}`, { method: "DELETE" });
+    else await fetchJson("/api/whiteboard", { method: "POST", body: JSON.stringify({ trade_id: tradeId }) });
+    showToast(pinId ? "Trade removed from Whiteboard" : "Trade pinned to Whiteboard", "success");
+    await Promise.all([loadTrades(), loadWhiteboard()]);
+  } catch (error) {
+    showToast(error.message, "error");
+  }
+}
+
+function selectTradesView(view) {
+  appState.tradesView = view === "whiteboard" ? "whiteboard" : "feed";
+  document.querySelector(".trade-workspace").hidden = appState.tradesView !== "feed";
+  document.getElementById("whiteboard-workspace").hidden = appState.tradesView !== "whiteboard";
+  document.querySelectorAll("[data-trades-view]").forEach((button) => {
+    const active = button.dataset.tradesView === appState.tradesView;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  if (appState.tradesView === "whiteboard") loadWhiteboard();
 }
 
 async function saveBankroll() {
@@ -1509,7 +1601,7 @@ function bindTrades() {
   const initial = tradeFiltersFromUrl();
   applyTradeFiltersToControls(initial);
   const reload = debounce(loadTrades, 280);
-  const filterDefaults = { q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false, execution: "", min_bet: "0", max_slippage: "", sort: "confidence-desc" };
+  const filterDefaults = { q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", classification: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false, execution: "", min_bet: "0", max_slippage: "", sort: "confidence-desc" };
   const applyPriceFields = () => {
     appState.appliedEntryPriceFilters = {
       minEntryCents: document.getElementById("min-entry-cents").value.trim(),
@@ -1526,7 +1618,7 @@ function bindTrades() {
     loadTrades();
   };
   document.getElementById("trade-search").addEventListener("input", reload);
-  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "custom-start", "custom-end", "show-hidden-trades", "trade-execution", "trade-min-bet", "trade-max-slippage", "trade-sort"].forEach((id) => {
+  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "trade-classification", "custom-start", "custom-end", "show-hidden-trades", "trade-execution", "trade-min-bet", "trade-max-slippage", "trade-sort"].forEach((id) => {
     document.getElementById(id).addEventListener("change", () => {
       if (id === "trade-date-range") {
         const custom = document.getElementById(id).value === "custom";
@@ -1661,6 +1753,8 @@ function bindTrades() {
       if (trade) openPersonalTracker(trade);
       return;
     }
+    const pin = target.closest(".trade-pin-action");
+    if (pin) { pinTrade(pin.dataset.tradeId, pin.dataset.pinId); return; }
     const hide = target.closest(".trade-hide-action");
     if (hide) { hideTrade(hide.dataset.tradeId); return; }
     const restore = target.closest(".trade-restore-action");
@@ -1677,6 +1771,17 @@ function bindTrades() {
     const card = target.closest(".trade-card");
     if (card) selectTrade(card.dataset.tradeId, true);
   });
+  document.querySelectorAll("[data-trades-view]").forEach((button) => button.addEventListener("click", () => selectTradesView(button.dataset.tradesView)));
+  document.getElementById("whiteboard-list")?.addEventListener("click", (event) => {
+    const unpin = event.target.closest(".whiteboard-unpin");
+    if (unpin) pinTrade("", unpin.dataset.pinId);
+    const track = event.target.closest(".whiteboard-track");
+    if (track) {
+      const row = appState.whiteboard.find((item) => String(item.currentTrade?.id) === String(track.dataset.tradeId));
+      if (row?.currentTrade) openPersonalTracker(row.currentTrade);
+    }
+  });
+  document.getElementById("whiteboard-sort")?.addEventListener("change", () => loadWhiteboard());
   list.addEventListener("keydown", (event) => {
     if (!['Enter', ' '].includes(event.key) || event.target.closest("a, button")) return;
     const card = event.target.closest(".trade-card");

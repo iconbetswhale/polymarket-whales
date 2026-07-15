@@ -246,6 +246,30 @@ class TrackerDatabase:
                 CREATE INDEX IF NOT EXISTS idx_hidden_trades_user_hidden
                     ON hidden_trades(user_id, hidden_at DESC);
 
+                CREATE TABLE IF NOT EXISTS whiteboard_pins (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id TEXT NOT NULL,
+                    canonical_event_id TEXT NOT NULL,
+                    canonical_market_id TEXT NOT NULL,
+                    market_line TEXT NOT NULL DEFAULT '',
+                    canonical_outcome_id TEXT NOT NULL,
+                    market_type TEXT,
+                    period TEXT,
+                    snapshot_json TEXT NOT NULL,
+                    pinned_at TEXT NOT NULL,
+                    archived_at TEXT,
+                    archive_reason TEXT,
+                    created_at TEXT NOT NULL,
+                    updated_at TEXT NOT NULL
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_whiteboard_active_unique
+                    ON whiteboard_pins(
+                        user_id, canonical_event_id, canonical_market_id,
+                        market_line, canonical_outcome_id
+                    ) WHERE archived_at IS NULL;
+                CREATE INDEX IF NOT EXISTS idx_whiteboard_user_active
+                    ON whiteboard_pins(user_id, archived_at, pinned_at DESC);
+
                 CREATE TABLE IF NOT EXISTS personal_bet_fills (
                     fill_id TEXT PRIMARY KEY,
                     user_id TEXT NOT NULL,
@@ -1516,6 +1540,101 @@ class TrackerDatabase:
                 "DELETE FROM hidden_trades WHERE user_id = ?", (user_id,)
             )
             return cursor.rowcount
+
+    def pin_whiteboard_trade(self, user_id: str, pin: dict) -> dict:
+        if self.user_store:
+            return self.user_store.pin_whiteboard_trade(user_id, pin)
+        now = datetime.now(timezone.utc).isoformat()
+        values = (
+            user_id,
+            pin["canonical_event_id"],
+            pin["canonical_market_id"],
+            pin.get("market_line") or "",
+            pin["canonical_outcome_id"],
+            pin.get("market_type"),
+            pin.get("period"),
+            json.dumps(pin["snapshot"], sort_keys=True),
+            now,
+            now,
+            now,
+        )
+        with self.connection() as conn:
+            try:
+                conn.execute(
+                    """
+                    INSERT INTO whiteboard_pins (
+                        user_id, canonical_event_id, canonical_market_id,
+                        market_line, canonical_outcome_id, market_type, period,
+                        snapshot_json, pinned_at, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    values,
+                )
+            except sqlite3.IntegrityError:
+                pass
+            row = conn.execute(
+                """
+                SELECT * FROM whiteboard_pins
+                WHERE user_id = ? AND canonical_event_id = ?
+                  AND canonical_market_id = ? AND market_line = ?
+                  AND canonical_outcome_id = ? AND archived_at IS NULL
+                """,
+                values[:5],
+            ).fetchone()
+        result = dict(row)
+        result["snapshot"] = json.loads(result.pop("snapshot_json"))
+        return result
+
+    def get_whiteboard_pins(self, user_id: str, active_only: bool = True) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_whiteboard_pins(user_id, active_only)
+        clause = "AND archived_at IS NULL" if active_only else ""
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM whiteboard_pins
+                WHERE user_id = ? {clause}
+                ORDER BY pinned_at DESC, id DESC
+                """,
+                (user_id,),
+            ).fetchall()
+        results = []
+        for row in rows:
+            item = dict(row)
+            item["snapshot"] = json.loads(item.pop("snapshot_json"))
+            results.append(item)
+        return results
+
+    def get_all_active_whiteboard_pins(self) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_all_active_whiteboard_pins()
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM whiteboard_pins WHERE archived_at IS NULL"
+            ).fetchall()
+        results = []
+        for row in rows:
+            item = dict(row)
+            item["snapshot"] = json.loads(item.pop("snapshot_json"))
+            results.append(item)
+        return results
+
+    def archive_whiteboard_pin(
+        self, user_id: str, pin_id: int, reason: str
+    ) -> bool:
+        if self.user_store:
+            return self.user_store.archive_whiteboard_pin(user_id, pin_id, reason)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE whiteboard_pins
+                SET archived_at = ?, archive_reason = ?, updated_at = ?
+                WHERE user_id = ? AND id = ? AND archived_at IS NULL
+                """,
+                (now, reason, now, user_id, pin_id),
+            )
+            return cursor.rowcount > 0
 
     def insert_personal_bet_fill(
         self, user_id: str, fill: dict, status: str = "scheduled"
