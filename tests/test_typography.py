@@ -63,3 +63,31 @@ def test_trades_workspace_is_centered_and_capped_on_ultrawide_screens():
 
     assert "width: min(100%, 1520px)" in trades_page_rule
     assert "margin-inline: auto" in trades_page_rule
+
+
+def test_readability_refinement_enlarges_dense_trade_microcopy():
+    css = STYLE_PATH.read_text(encoding="utf-8")
+
+    trade_context_rule = _rule(css, ".trade-kicker,\n.trade-market")
+    provider_label_rule = _rule(css, ".trade-selection small,\n.execution-option > span small")
+    orderbook_rule = _rule(
+        css,
+        ".live-price small,\n.live-price em,\n.detail-selection-size small,\n.detail-strip-metric small,\n.price-range-controls button,\n.price-legend,\n.orderbook-side > small,\n.orderbook-row,\n.orderbook-row > strong,\n.orderbook-summary,\n.orderbook-empty small,\n.detail-accordion > summary > small,\n.calculation-grid strong,\n.calculation-note,\n.supporter-row small",
+    )
+
+    assert "/* Readability and depth refinements */" in css
+    assert "font-size: 11px" in trade_context_rule
+    assert "font-size: 9.5px" in provider_label_rule
+    assert "font-size: 10px" in orderbook_rule
+
+
+def test_depth_refinement_uses_neutral_dimension_and_restrained_green():
+    css = STYLE_PATH.read_text(encoding="utf-8")
+    root_rule = _rule(css, ":root")
+    trades_rule = _rule(css, 'body[data-page="trades"]')
+
+    assert "--muted: #96a8b0" in root_rule
+    assert "rgba(215, 174, 102, 0.16)" in root_rule
+    assert "--trade-score: #ddb86e" in trades_rule
+    assert "repeating-linear-gradient" in trades_rule
+    assert "background-attachment: fixed" in trades_rule
