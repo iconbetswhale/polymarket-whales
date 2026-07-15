@@ -49,8 +49,9 @@
   <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-search" type="search" placeholder="Search event, market, trader"></label>
   <select id="tracker-sportsbook" class="personal-tracker-filter" aria-label="Sportsbook" hidden><option value="">All books</option></select>
   <select id="tracker-tag" class="personal-tracker-filter" aria-label="Personal bet tag" hidden><option value="">All tags</option></select>
+  <select id="tracker-sharp-wallet" aria-label="Sharp wallet"><option value="">All Sharps</option></select>
   <select id="tracker-status" aria-label="Tracker status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option><option value="canceled">Canceled</option></select>
-  <select id="tracker-sharps" aria-label="Sharps count"><option value="0">All Sharps</option><option value="1">1+ Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option></select>
+  <select id="tracker-sharps" aria-label="Sharps count"><option value="0">Any Sharp count</option><option value="1">1+ Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option></select>
   <select id="tracker-result" aria-label="Result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="canceled">Canceled</option></select>
   <select id="tracker-clv-status" aria-label="CLV status"><option value="">Any CLV</option><option value="positive">Positive CLV</option><option value="negative">Negative CLV</option><option value="pending">CLV Pending</option><option value="unavailable">CLV Unavailable</option><option value="stale_quote">Stale quote</option><option value="market_mapping_error">Mapping error</option><option value="void">CLV Void</option></select>
   <label class="compact-number-filter">Min CLV%<input id="tracker-clv-min" type="number" step="0.01" inputmode="decimal"></label>
@@ -59,6 +60,15 @@
 </section>
 
 <section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr id="tracker-table-head"></tr></thead><tbody id="tracker-body"><tr><td><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
+
+<dialog class="tracker-dialog tracker-sharp-source-dialog" id="sharp-source-dialog" aria-labelledby="sharp-source-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="sharp-source-close" type="button" aria-label="Close Sharp Source details"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">IMMUTABLE RECOMMENDATION EVIDENCE</p>
+    <h2 id="sharp-source-title">Sharp Source</h2>
+    <div id="sharp-source-content"></div>
+  </div>
+</dialog>
 
 <dialog class="tracker-dialog" id="tracker-bankroll-dialog" aria-labelledby="tracker-bankroll-title">
   <div class="tracker-dialog-shell">

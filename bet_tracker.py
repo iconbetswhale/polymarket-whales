@@ -119,6 +119,10 @@ def recommendation_snapshot(
         "primary_lead_wallet_id": play.get("primary_lead_wallet_id"),
         "primary_sharp": sharp_snapshot.get("primary_sharp"),
         "agreeing_sharps": sharp_snapshot.get("agreeing_sharps"),
+        "contradicting_sharps": sharp_snapshot.get("contradicting_sharps"),
+        "sharp_count_snapshot": sharp_snapshot.get("sharp_count_snapshot"),
+        "sharp_source_status": sharp_snapshot.get("sharp_source_status"),
+        "trade_classification": sharp_snapshot.get("trade_classification"),
         "primary_sharp_selection_source": sharp_snapshot.get(
             "primary_selection_source"
         ),

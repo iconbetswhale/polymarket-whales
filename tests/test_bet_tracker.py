@@ -7,6 +7,7 @@ import pytest
 import database as database_module
 from bet_tracker import recommendation_snapshot, replay_tracker
 from database import TrackerDatabase
+from sharp_tracking import sharp_snapshot_from_fill, sharp_snapshot_from_trade
 
 
 def _snapshot(fraction=0.02, entry=0.4):
@@ -20,6 +21,70 @@ def _snapshot(fraction=0.02, entry=0.4):
         "event_title": "Example event",
         "recommended_side": "Yes",
     }
+
+
+def test_sharp_snapshot_freezes_authoritative_roles_and_contradictors():
+    trade = {
+        "primary_lead_wallet_id": "0xlead",
+        "tradeClassification": "CONTRADICTING_SHARPS",
+        "isResearchOnly": True,
+        "confidence_score": 67,
+        "supporting_wallets": [
+            {
+                "wallet_address": "0xsupport",
+                "wallet_label": "Large Supporter",
+                "is_lead_sharp": False,
+                "amount": 9000,
+                "relative_units": 3.6,
+                "average_entry_price": 0.38,
+                "top_category": "Soccer",
+            },
+            {
+                "wallet_address": "0xlead",
+                "wallet_label": "Bagwell306",
+                "is_lead_sharp": True,
+                "amount": 3400,
+                "relative_units": 1.36,
+                "average_entry_price": 0.4,
+                "top_category": "Tennis",
+            },
+        ],
+        "contradicting_wallets": [
+            {
+                "wallet_address": "0xoppose",
+                "wallet_label": "Opposing Sharp",
+                "amount": 2100,
+                "relative_units": 0.84,
+                "average_entry_price": 0.6,
+                "top_category": "Tennis",
+            }
+        ],
+    }
+
+    snapshot = sharp_snapshot_from_trade(trade)
+
+    assert snapshot["primary_sharp"]["display_name"] == "Bagwell306"
+    assert snapshot["primary_sharp"]["role"] == "Lead Sharp"
+    assert snapshot["agreeing_sharps"][1]["display_name"] == "Large Supporter"
+    assert snapshot["contradicting_sharps"][0]["role"] == "Contradicting Sharp"
+    assert snapshot["lead_sharp_wallet_ids"] == ["0xlead"]
+    assert snapshot["supporting_sharp_wallet_ids"] == ["0xsupport"]
+    assert snapshot["sharp_count_snapshot"] == 2
+    assert snapshot["trade_classification"] == "CONTRADICTING_SHARPS"
+    assert snapshot["confidence_score_snapshot"] == 67
+    assert snapshot["sharp_source_status"] == "recommendation_snapshot"
+
+
+def test_missing_and_manual_sharp_sources_are_never_guessed():
+    unavailable = sharp_snapshot_from_fill({"sharp_snapshot_json": "{}"})
+    manual = sharp_snapshot_from_fill(
+        {"sharp_snapshot_json": "{}", "entry_source": "manual"}
+    )
+
+    assert unavailable["primary_sharp"] is None
+    assert unavailable["sharp_source_status"] == "unavailable"
+    assert manual["primary_sharp"] is None
+    assert manual["sharp_source_status"] == "manual_entry"
 
 
 def test_tracker_snapshot_insert_is_deduplicated_and_immutable(tmp_path):

@@ -15,6 +15,8 @@ const appState = {
   trackerView: null,
   trackerCache: { model: null, personal: null },
   trackerPage: { model: 1, personal: 1 },
+  sharpSources: {},
+  sharpSourceSequence: 0,
   userSettings: null,
   sizingBankrollDirty: false,
   bankrollSavePending: false,
@@ -2293,7 +2295,10 @@ function clvCell(row) {
 function sharpCell(snapshot = {}) {
   const primary = snapshot.primary_sharp || null;
   const wallets = Array.isArray(snapshot.agreeing_sharps) ? snapshot.agreeing_sharps : [];
-  if (!primary) return '<span class="sharp-unavailable">Unavailable</span>';
+  const sourceStatus = String(snapshot.sharp_source_status || "unavailable");
+  if (!primary) return `<span class="sharp-unavailable">${sourceStatus === "manual_entry" ? "Manual entry" : "Sharp unavailable"}</span>`;
+  const sourceId = `sharp-source-${++appState.sharpSourceSequence}`;
+  appState.sharpSources[sourceId] = snapshot;
   const primaryAddress = String(primary.wallet_address || "").toLowerCase();
   const additional = Math.max(wallets.filter((wallet) => String(wallet.wallet_address || "").toLowerCase() !== primaryAddress).length, 0);
   const walletRows = wallets.map((wallet) => {
@@ -2309,10 +2314,51 @@ function sharpCell(snapshot = {}) {
       <span><b>Relative bet size</b>${escapeHtml(relative === null ? "Unavailable" : `${relative.toFixed(2)}x normal`)}</span>
     </span>`;
   }).join("");
-  return `<details class="sharp-details">
+  const contradictingRows = (snapshot.contradicting_sharps || []).map((wallet) => `<span class="sharp-wallet-detail contradicting">
+    <strong>${escapeHtml(wallet.display_name || wallet.wallet_address || "Unknown Sharp")}</strong>
+    <code>${escapeHtml(wallet.wallet_address || "Address unavailable")}</code>
+    <em>Contradicting Sharp${wallet.top_category ? ` | ${escapeHtml(wallet.top_category)}` : ""}</em>
+  </span>`).join("");
+  return `<span class="sharp-cell-actions"><details class="sharp-details">
     <summary aria-label="Show all agreeing Sharps"><strong>${escapeHtml(primary.display_name || primary.wallet_address || "Unknown Sharp")}</strong>${additional ? `<small>+${additional}</small>` : ""}</summary>
-    <span class="sharp-popover">${walletRows || '<span class="sharp-unavailable">Wallet details unavailable</span>'}</span>
-  </details>`;
+    <span class="sharp-popover"><b class="sharp-popover-title">Sharp Source</b>${walletRows || '<span class="sharp-unavailable">Wallet details unavailable</span>'}${contradictingRows ? `<b class="sharp-popover-title warning">Contradicting Sharps</b>${contradictingRows}` : ""}</span>
+  </details><button class="sharp-source-open" type="button" data-sharp-source-id="${sourceId}" aria-label="Open Sharp Source for ${escapeHtml(primary.display_name || primary.wallet_address || "Sharp")}" title="Open frozen Sharp Source details"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></button></span>`;
+}
+
+function sharpSourceWalletMarkup(wallet, heading) {
+  if (!wallet) return "";
+  return `<article class="sharp-source-wallet">
+    <span class="sharp-source-heading">${escapeHtml(heading)}</span>
+    <strong>${escapeHtml(wallet.display_name || wallet.wallet_address || "Unknown Sharp")}</strong>
+    <code>${escapeHtml(wallet.wallet_address || "Address unavailable")}</code>
+    <div><span>Role</span><b>${escapeHtml(wallet.role || "Supporting Sharp")}</b></div>
+    <div><span>Top Category</span><b>${escapeHtml(wallet.top_category || "Unavailable")}</b></div>
+    <div><span>Sharp Position</span><b>${escapeHtml(number(wallet.amount) === null ? "Unavailable" : `${formatMoney(wallet.amount)} · ${formatUnits(wallet.units)}`)}</b></div>
+    <div><span>Sharp Entry</span><b>${escapeHtml(number(wallet.average_entry) === null ? "Unavailable" : formatCents(wallet.average_entry))}</b></div>
+  </article>`;
+}
+
+function openSharpSourceDialog(sourceId) {
+  const snapshot = appState.sharpSources[sourceId] || {};
+  const primary = snapshot.primary_sharp || null;
+  const agreeing = snapshot.agreeing_sharps || [];
+  const primaryAddress = String(primary?.wallet_address || "").toLowerCase();
+  const additional = agreeing.filter((wallet) => String(wallet.wallet_address || "").toLowerCase() !== primaryAddress);
+  const contradicting = snapshot.contradicting_sharps || [];
+  const flags = [
+    snapshot.is_research_only ? "Research-only" : "",
+    snapshot.is_non_category_consensus ? "Sharp Non-Category" : "",
+    snapshot.trade_classification && snapshot.trade_classification !== "STANDARD" ? snapshot.trade_classification.replaceAll("_", " ") : "",
+  ].filter(Boolean);
+  document.getElementById("sharp-source-content").innerHTML = `${flags.length ? `<div class="sharp-source-flags">${flags.map((flag) => `<span>${escapeHtml(flag)}</span>`).join("")}</div>` : ""}
+    ${sharpSourceWalletMarkup(primary, primary?.role === "Research Anchor" ? "Research Anchor" : "Primary Sharp")}
+    <section class="sharp-source-group"><h3>Additional Sharps</h3>${additional.length ? additional.map((wallet) => sharpSourceWalletMarkup(wallet, wallet.role || "Supporting Sharp")).join("") : '<p class="muted">No additional agreeing Sharps.</p>'}</section>
+    ${contradicting.length ? `<section class="sharp-source-group warning"><h3>Contradicting Sharps</h3>${contradicting.map((wallet) => sharpSourceWalletMarkup(wallet, "Contradicting Sharp")).join("")}</section>` : ""}`;
+  document.getElementById("sharp-source-dialog").showModal();
+}
+
+function closeSharpSourceDialog() {
+  document.getElementById("sharp-source-dialog")?.close();
 }
 
 function trackerRow(row) {
@@ -2321,17 +2367,17 @@ function trackerRow(row) {
   return `
     <tr>
       <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
-      <td><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
-      <td>${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
-      <td class="mono">${snapshot.sharps_count ?? 0}</td>
-      <td class="mono">${snapshot.confidence_score ?? "n/a"}</td>
-      <td class="mono">${formatCents(snapshot.effective_entry_price)}</td>
-      <td class="mono">${formatPercent(snapshot.estimated_win_probability)}</td>
+      <td data-label="Selection"><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
+      <td data-label="Sharp">${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
+      <td data-label="Sharps" class="mono">${snapshot.sharps_count ?? 0}</td>
+      <td data-label="Score" class="mono">${snapshot.confidence_score ?? "n/a"}</td>
+      <td data-label="User Entry" class="mono">${formatCents(snapshot.effective_entry_price)}</td>
+      <td data-label="Est. Win" class="mono">${formatPercent(snapshot.estimated_win_probability)}</td>
       <td><strong>${formatMoney(row.recommended_amount)}</strong><small>${formatPercent(snapshot.final_recommended_fraction)} · ${formatUnits(row.recommended_units)}</small></td>
-      <td><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td>
-      <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
-      <td>${clvCell(row)}</td>
-      <td class="mono">${formatMoney(row.running_bankroll)}</td>
+      <td data-label="Status"><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td>
+      <td data-label="P&amp;L" class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
+      <td data-label="Entry CLV">${clvCell(row)}</td>
+      <td data-label="Bankroll" class="mono">${formatMoney(row.running_bankroll)}</td>
     </tr>
   `;
 }
@@ -2501,18 +2547,18 @@ function personalTrackerRow(row) {
     : eventCopy;
   return `
     <tr>
-      <td>${eventMarkup}</td>
-      <td><strong>${escapeHtml(row.selection || "Selection")}</strong></td>
-      <td>${sharpCell(row.sharp_snapshot || {})}</td>
-      <td class="mono">${escapeHtml(formatShares(row.shares))}</td>
-      <td class="mono">${escapeHtml(formatCents(row.entry_price))}</td>
-      <td class="mono">${escapeHtml(formatMoney(row.position_cost))}</td>
-      <td class="mono">${escapeHtml(formatMoney(row.fees))}</td>
-      <td><span class="status-label ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
-      <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : escapeHtml(formatMoney(pnl))}</td>
-      <td>${clvCell(row)}</td>
-      <td>${escapeHtml(formatDateTime(row.created_at))}</td>
-      <td>${active ? `<button class="personal-fill-remove personal-tracker-remove" type="button" data-personal-fill-remove="${escapeHtml(row.fill_id)}" aria-label="Remove ${escapeHtml(row.selection || "personal trade")}" title="Remove this open personal trade"><i class="ph ph-trash" aria-hidden="true"></i></button>` : '<span class="muted">Settled</span>'}</td>
+      <td data-label="Event / Market">${eventMarkup}</td>
+      <td data-label="Selection"><strong>${escapeHtml(row.selection || "Selection")}</strong></td>
+      <td data-label="Sharp">${sharpCell(row.sharp_snapshot || {})}</td>
+      <td data-label="Shares" class="mono">${escapeHtml(formatShares(row.shares))}</td>
+      <td data-label="Entry" class="mono">${escapeHtml(formatCents(row.entry_price))}</td>
+      <td data-label="Position Cost" class="mono">${escapeHtml(formatMoney(row.position_cost))}</td>
+      <td data-label="Fees" class="mono">${escapeHtml(formatMoney(row.fees))}</td>
+      <td data-label="Status"><span class="status-label ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
+      <td data-label="P&amp;L" class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : escapeHtml(formatMoney(pnl))}</td>
+      <td data-label="Entry CLV">${clvCell(row)}</td>
+      <td data-label="Tracked">${escapeHtml(formatDateTime(row.created_at))}</td>
+      <td data-label="Action">${active ? `<button class="personal-fill-remove personal-tracker-remove" type="button" data-personal-fill-remove="${escapeHtml(row.fill_id)}" aria-label="Remove ${escapeHtml(row.selection || "personal trade")}" title="Remove this open personal trade"><i class="ph ph-trash" aria-hidden="true"></i></button>` : '<span class="muted">Settled</span>'}</td>
     </tr>
   `;
 }
@@ -2524,6 +2570,13 @@ function renderPersonalTrackerFilters(options = {}) {
   const selectedTag = tag.value;
   setSelectOptions(sportsbook, options.sportsbooks || [], selectedSportsbook, "All books");
   setSelectOptions(tag, options.tags || [], selectedTag, "All tags");
+  renderSharpTrackerFilter(options);
+}
+
+function renderSharpTrackerFilter(options = {}) {
+  const select = document.getElementById("tracker-sharp-wallet");
+  const selected = select.value;
+  setSelectOptions(select, options.sharps || [], selected, "All Sharps");
 }
 
 function drawPersonalTrackerChart(graph, hasTrackedBets) {
@@ -2542,6 +2595,9 @@ function renderModelTracker(payload) {
   if (appState.trackerView !== "model") return;
   const summary = payload.summary || {};
   appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
+  appState.sharpSources = {};
+  appState.sharpSourceSequence = 0;
+  renderSharpTrackerFilter(payload.filter_options || {});
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
   document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   renderTrackerState(payload.tracking || {});
@@ -2567,6 +2623,8 @@ function renderPersonalTracker(payload) {
   if (appState.trackerView !== "personal") return;
   const summary = payload.summary || {};
   appState.personalTrackerBankroll = payload.bankroll?.personal_tracker_bankroll ?? summary.starting_bankroll;
+  appState.sharpSources = {};
+  appState.sharpSourceSequence = 0;
   renderPersonalTrackerFilters(payload.filter_options || {});
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
   document.getElementById("personal-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
@@ -2614,6 +2672,7 @@ function trackerRequestParams(view) {
     min_clv: document.getElementById("tracker-clv-min").value,
     max_clv: document.getElementById("tracker-clv-max").value,
     clv_sort: document.getElementById("tracker-clv-sort").value,
+    sharp: document.getElementById("tracker-sharp-wallet").value,
   };
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
@@ -2689,7 +2748,7 @@ function configureTrackerShell(view) {
   document.querySelector('#tracker-result option[value="canceled"]').hidden = model;
   if (model && document.getElementById("tracker-status").value === "canceled") document.getElementById("tracker-status").value = "";
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
-  document.getElementById("tracker-search").placeholder = model ? "Search event, market, trader" : "Search event, market, selection";
+  document.getElementById("tracker-search").placeholder = model ? "Search event, market, Sharp" : "Search event, selection, Sharp";
   document.getElementById("tracker-table-head").innerHTML = model
     ? "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Bankroll</th>"
     : "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
@@ -2784,7 +2843,7 @@ async function initializeTrackerView() {
 
 function bindTracker() {
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
-  ["tracker-status", "tracker-sharps", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
   ["tracker-clv-min", "tracker-clv-max"].forEach((id) => document.getElementById(id).addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); })));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
@@ -2804,6 +2863,12 @@ function bindTracker() {
   });
   document.getElementById("tracker-body").addEventListener("click", (event) => {
     if (event.target.closest(".tracker-retry")) loadTrackerView();
+    const sourceButton = event.target.closest("[data-sharp-source-id]");
+    if (sourceButton) openSharpSourceDialog(sourceButton.dataset.sharpSourceId);
+  });
+  document.getElementById("sharp-source-close")?.addEventListener("click", closeSharpSourceDialog);
+  document.getElementById("sharp-source-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closeSharpSourceDialog();
   });
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
   document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);

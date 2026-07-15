@@ -124,9 +124,41 @@ def _attach_historical_personal_sharps(
                 )
                 or datetime.min.replace(tzinfo=timezone.utc),
             )
-            item["sharp_snapshot"] = sharp_snapshot_from_model(selected)
+            backfilled = sharp_snapshot_from_model(selected)
+            backfilled["sharp_source_status"] = "historical_signal_backfill"
+            item["sharp_snapshot"] = backfilled
         enriched.append(item)
     return enriched
+
+
+def _agreeing_sharp_values(snapshot: dict) -> list[str]:
+    values: list[str] = []
+    for wallet in snapshot.get("agreeing_sharps") or []:
+        for value in (wallet.get("display_name"), wallet.get("wallet_address")):
+            text = str(value or "").strip()
+            if text and text.casefold() not in {item.casefold() for item in values}:
+                values.append(text)
+    return values
+
+
+def _sharp_search_blob(snapshot: dict) -> str:
+    return " ".join(_agreeing_sharp_values(snapshot)).casefold()
+
+
+def _sharp_filter_matches(snapshot: dict, selected: str) -> bool:
+    target = selected.strip().casefold()
+    return not target or target in {
+        value.casefold() for value in _agreeing_sharp_values(snapshot)
+    }
+
+
+def _sharp_filter_options(snapshots: list[dict]) -> list[str]:
+    names = {
+        str(wallet.get("display_name") or wallet.get("wallet_address") or "").strip()
+        for snapshot in snapshots
+        for wallet in snapshot.get("agreeing_sharps") or []
+    }
+    return sorted((name for name in names if name), key=str.casefold)
 
 
 def _filter_sort_clv_rows(rows: list[dict]) -> list[dict]:
@@ -187,6 +219,9 @@ def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
         "sportsbooks": sorted(used_sportsbooks, key=str.casefold),
         "sportsbook_choices": sportsbook_choices,
         "tags": sorted(tags, key=str.casefold),
+        "sharps": _sharp_filter_options(
+            [sharp_snapshot_from_fill(fill) for fill in fills]
+        ),
     }
 UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
 MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
@@ -1411,6 +1446,7 @@ def create_app(start_background: bool = True) -> Flask:
         result_filter = request.args.get("result", "").strip().lower()
         sportsbook_filter = request.args.get("sportsbook", "").strip().lower()
         tag_filter = request.args.get("tag", "").strip().lower()
+        sharp_filter = request.args.get("sharp", "").strip()
         fills = all_fills
         if query:
             fills = [
@@ -1429,6 +1465,7 @@ def create_app(start_background: bool = True) -> Flask:
                             )
                         ),
                         *(tag.lower() for tag in personal_tags_from_fill(fill)),
+                        _sharp_search_blob(sharp_snapshot_from_fill(fill)),
                     ]
                 )
             ]
@@ -1457,6 +1494,14 @@ def create_app(start_background: bool = True) -> Flask:
                 for fill in fills
                 if tag_filter
                 in {tag.lower() for tag in personal_tags_from_fill(fill)}
+            ]
+        if sharp_filter:
+            fills = [
+                fill
+                for fill in fills
+                if _sharp_filter_matches(
+                    sharp_snapshot_from_fill(fill), sharp_filter
+                )
             ]
 
         replay = replay_personal_tracker(
@@ -1761,12 +1806,16 @@ def create_app(start_background: bool = True) -> Flask:
         rows = replay["rows"]
         for row in rows:
             row["sharp_snapshot"] = sharp_snapshot_from_model(row.get("snapshot") or {})
+        sharp_options = _sharp_filter_options(
+            [row["sharp_snapshot"] for row in rows]
+        )
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         sport = request.args.get("sport", "").strip().lower()
         league = request.args.get("league", "").strip().lower()
         result = request.args.get("result", "").strip().lower()
         min_sharps = max(request.args.get("min_sharps", 0, type=int) or 0, 0)
+        sharp_filter = request.args.get("sharp", "").strip()
         if query:
             rows = [
                 row
@@ -1780,7 +1829,7 @@ def create_app(start_background: bool = True) -> Flask:
                         "recommended_side",
                         "agreeing_wallet_labels",
                     )
-                )
+                ) + " " + _sharp_search_blob(row.get("sharp_snapshot") or {})
             ]
         if status_filter:
             rows = [
@@ -1812,6 +1861,14 @@ def create_app(start_background: bool = True) -> Flask:
                 for row in rows
                 if int((row.get("snapshot") or {}).get("sharps_count") or 0)
                 >= min_sharps
+            ]
+        if sharp_filter:
+            rows = [
+                row
+                for row in rows
+                if _sharp_filter_matches(
+                    row.get("sharp_snapshot") or {}, sharp_filter
+                )
             ]
         rows = _attach_clv(
             rows,
@@ -1857,6 +1914,7 @@ def create_app(start_background: bool = True) -> Flask:
                     ).items()
                     if key != "rejections"
                 },
+                "filter_options": {"sharps": sharp_options},
                 "pagination": {
                     "page": page,
                     "per_page": per_page,

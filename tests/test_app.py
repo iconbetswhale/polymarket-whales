@@ -61,6 +61,30 @@ def test_historical_personal_sharp_backfill_requires_exact_earlier_snapshot():
     )
 
     assert result[0]["sharp_snapshot"]["primary_sharp"]["display_name"] == "Bagwell306"
+    assert result[0]["sharp_snapshot"]["sharp_source_status"] == "historical_signal_backfill"
+
+
+def test_historical_personal_sharp_backfill_never_guesses_without_exact_identity():
+    fill = {
+        "canonical_event_id": "event-1",
+        "canonical_market_id": "market-1",
+        "market_line": "2.5",
+        "canonical_outcome_id": "yes-token",
+        "created_at": "2026-07-14T16:00:00+00:00",
+        "sharp_snapshot_json": "{}",
+    }
+    unrelated = {
+        "canonical_event_id": "event-1",
+        "canonical_market_id": "different-market",
+        "market_line": 2.5,
+        "outcome_id": "yes-token",
+        "recommendation_timestamp": "2026-07-14T15:00:00+00:00",
+        "primary_sharp": {"display_name": "Wrong Sharp", "wallet_address": "0xwrong"},
+    }
+
+    result = _attach_historical_personal_sharps([fill], [{"snapshot": unrelated}])
+
+    assert "sharp_snapshot" not in result[0]
 
 
 def test_wallet_cards_show_complete_category_and_profile_fields():
@@ -412,6 +436,159 @@ def test_model_tracker_history_is_shared_across_browser_users(app_client):
     assert second_payload["pagination"]["total"] == 1
     assert first_payload["data"][0]["snapshot"]["event_title"] == "Shared tennis match"
     assert second_payload["data"][0]["snapshot_id"] == "shared-snapshot"
+
+
+def test_model_tracker_search_filter_and_closed_rows_use_frozen_sharps(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    dedupe = "sharp-event::sharp-market::::sharp-outcome::v2"
+    frozen = {
+        "primary_sharp": {
+            "display_name": "Bagwell306",
+            "wallet_address": "0xlead",
+            "role": "Lead Sharp",
+            "is_lead_sharp": True,
+            "top_category": "Tennis",
+            "amount": 3400,
+            "units": 1.36,
+            "average_entry": 0.4,
+        },
+        "agreeing_sharps": [
+            {
+                "display_name": "Bagwell306",
+                "wallet_address": "0xlead",
+                "role": "Lead Sharp",
+                "is_lead_sharp": True,
+            },
+            {
+                "display_name": "Wordylittleneck",
+                "wallet_address": "0xsupport",
+                "role": "Supporting Sharp",
+                "is_lead_sharp": False,
+            },
+        ],
+        "sharp_source_status": "recommendation_snapshot",
+        "sharp_count_snapshot": 2,
+    }
+    assert service.database.insert_tracker_snapshot(
+        MODEL_TRACKER_USER_ID,
+        {
+            "snapshot_id": "sharp-snapshot",
+            "dedupe_key": dedupe,
+            "recommendation_version": "v2",
+            "recommendation_timestamp": "2026-07-14T15:00:00+00:00",
+            "event_title": "Frozen Sharp match",
+            "market_title": "Match winner",
+            "recommended_side": "Player A",
+            "effective_entry_price": 0.4,
+            "final_recommended_fraction": 0.01,
+            "original_displayed_amount": 100,
+            "original_recommended_units": 1,
+            "estimated_win_probability": 0.55,
+            "sharps_count": 2,
+            "sharp_snapshot": frozen,
+        },
+    )
+    service.database.update_tracker_status(
+        MODEL_TRACKER_USER_ID,
+        dedupe,
+        "won",
+        "Won",
+        "2026-07-15T01:00:00+00:00",
+    )
+
+    searched = app_client.get("/api/model-tracker?q=Bagwell306").get_json()
+    filtered = app_client.get(
+        "/api/model-tracker?sharp=Wordylittleneck"
+    ).get_json()
+
+    assert searched["pagination"]["total"] == 1
+    assert searched["data"][0]["status"] == "won"
+    returned_snapshot = searched["data"][0]["sharp_snapshot"]
+    assert returned_snapshot["primary_sharp"] == frozen["primary_sharp"]
+    assert returned_snapshot["agreeing_sharps"] == frozen["agreeing_sharps"]
+    assert returned_snapshot["sharp_source_status"] == "recommendation_snapshot"
+    assert returned_snapshot["lead_sharp_wallet_ids"] == ["0xlead"]
+    assert returned_snapshot["supporting_sharp_wallet_ids"] == ["0xsupport"]
+    assert filtered["pagination"]["total"] == 1
+    assert filtered["filter_options"]["sharps"] == [
+        "Bagwell306",
+        "Wordylittleneck",
+    ]
+
+
+def test_personal_tracker_search_filter_manual_source_and_privacy(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    app_client.set_cookie("iconbets_user", "sharp-owner")
+    frozen = {
+        "primary_sharp": {
+            "display_name": "Bagwell306",
+            "wallet_address": "0xlead",
+            "role": "Lead Sharp",
+        },
+        "agreeing_sharps": [
+            {
+                "display_name": "Bagwell306",
+                "wallet_address": "0xlead",
+                "role": "Lead Sharp",
+            },
+            {
+                "display_name": "Wordylittleneck",
+                "wallet_address": "0xsupport",
+                "role": "Supporting Sharp",
+            },
+        ],
+        "sharp_source_status": "recommendation_snapshot",
+    }
+    base_fill = {
+        "fill_id": "sharp-personal-fill",
+        "canonical_event_id": "personal-event",
+        "canonical_market_id": "personal-market",
+        "market_line": "",
+        "canonical_outcome_id": "personal-outcome",
+        "event_title": "Personal Sharp match",
+        "market_title": "Winner",
+        "selection": "Player A",
+        "entry_price": 0.4,
+        "shares": 100,
+        "position_cost": 40,
+        "fees": 0,
+        "total_paid": 40,
+        "sharp_snapshot": frozen,
+    }
+    service.database.insert_personal_bet_fill("sharp-owner", base_fill)
+    service.database.insert_personal_bet_fill(
+        "sharp-owner",
+        {
+            **base_fill,
+            "fill_id": "manual-personal-fill",
+            "canonical_event_id": "manual-event",
+            "canonical_market_id": "manual-market",
+            "canonical_outcome_id": "manual-outcome",
+            "event_title": "Manual bet",
+            "sharp_snapshot": {"sharp_source_status": "manual_entry"},
+        },
+    )
+
+    searched = app_client.get("/api/personal-tracker?q=Wordylittleneck").get_json()
+    filtered = app_client.get(
+        "/api/personal-tracker?sharp=Bagwell306"
+    ).get_json()
+    all_rows = app_client.get("/api/personal-tracker").get_json()
+
+    assert searched["pagination"]["total"] == 1
+    assert filtered["pagination"]["total"] == 1
+    assert filtered["filter_options"]["sharps"] == [
+        "Bagwell306",
+        "Wordylittleneck",
+    ]
+    manual = next(row for row in all_rows["data"] if row["fill_id"] == "manual-personal-fill")
+    assert manual["sharp_snapshot"]["sharp_source_status"] == "manual_entry"
+
+    other_user = app_client.application.test_client()
+    other_user.set_cookie("iconbets_user", "sharp-other-user")
+    assert other_user.get("/api/personal-tracker?q=Bagwell306").get_json()[
+        "pagination"
+    ]["total"] == 0
 
 
 def test_model_tracker_api_joins_immutable_clv_and_period_analytics(app_client):
