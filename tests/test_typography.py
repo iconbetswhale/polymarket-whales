@@ -84,13 +84,30 @@ def test_readability_refinement_enlarges_dense_trade_microcopy():
     assert "font-size: 10px" in orderbook_rule
 
 
-def test_depth_refinement_uses_neutral_dimension_and_restrained_green():
+def test_depth_refinement_uses_warm_neutral_dimension():
     css = STYLE_PATH.read_text(encoding="utf-8")
     root_rule = _rule(css, ":root")
     trades_rule = _rule(css, 'body[data-page="trades"]')
 
-    assert "--muted: #96a8b0" in root_rule
-    assert "rgba(215, 174, 102, 0.16)" in root_rule
-    assert "--trade-score: #ddb86e" in trades_rule
+    assert "--muted: #a9a59b" in root_rule
+    assert "rgba(255, 255, 255, 0.1)" in root_rule
+    assert "--trade-score: #e1b55d" in trades_rule
     assert "repeating-linear-gradient" in trades_rule
     assert "background-attachment: fixed" in trades_rule
+
+
+def test_black_gold_white_theme_controls_primary_visual_tokens():
+    css = STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    root_rule = _rule(css, ":root")
+    trades_rule = _rule(css, 'body[data-page="trades"]')
+
+    assert "/* Black, gold, and white theme */" in css
+    assert "--bg: #030303" in root_rule
+    assert "--text: #faf9f5" in root_rule
+    assert "--cyan: #d6aa50" in root_rule
+    assert "--green: #d6aa50" in root_rule
+    assert "--trade-border-active: #d8ad55" in trades_rule
+    assert "--trade-accent: #d6aa50" in trades_rule
+    assert 'options.color || "#d8ad55"' in script
+    assert "rgba(214, 170, 80, 0.26)" in script

@@ -1317,15 +1317,15 @@ function drawLineChart(container, points, options = {}) {
   if (min === max) { min -= 0.01; max += 0.01; }
   const x = (index) => pad + (index / Math.max(1, points.length - 1)) * (width - pad * 1.5);
   const y = (value) => height - pad - ((value - min) / (max - min)) * (height - pad * 1.7);
-  ctx.strokeStyle = "rgba(120, 153, 165, 0.15)";
+  ctx.strokeStyle = "rgba(184, 169, 137, 0.15)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
     const lineY = pad + (i / 3) * (height - pad * 1.7);
     ctx.beginPath(); ctx.moveTo(pad, lineY); ctx.lineTo(width - pad / 2, lineY); ctx.stroke();
   }
   const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
-  gradient.addColorStop(0, "rgba(46, 235, 154, 0.26)");
-  gradient.addColorStop(1, "rgba(46, 235, 154, 0)");
+  gradient.addColorStop(0, "rgba(214, 170, 80, 0.26)");
+  gradient.addColorStop(1, "rgba(214, 170, 80, 0)");
   ctx.beginPath();
   points.forEach((point, index) => {
     const px = x(index); const py = y(point.value);
@@ -1341,10 +1341,10 @@ function drawLineChart(container, points, options = {}) {
     const px = x(index); const py = y(point.value);
     if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   });
-  ctx.strokeStyle = options.color || "#35e39a";
+  ctx.strokeStyle = options.color || "#d8ad55";
   ctx.lineWidth = 2.5 * window.devicePixelRatio;
   ctx.stroke();
-  ctx.fillStyle = "#8da0a8";
+  ctx.fillStyle = "#aaa69d";
   ctx.font = `${11 * window.devicePixelRatio}px "Roboto Condensed"`;
   ctx.fillText(options.format ? options.format(max) : String(max), 4, pad);
   ctx.fillText(options.format ? options.format(min) : String(min), 4, height - pad);

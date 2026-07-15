@@ -6684,3 +6684,320 @@ body[data-page="trades"] .status-chip {
 .supporter-row strong {
   font-size: 11px;
 }
+
+/* Black, gold, and white theme */
+:root {
+  --bg: #030303;
+  --bg-elevated: #080808;
+  --nav: #050505;
+  --panel: #0a0a0a;
+  --panel-strong: #10100f;
+  --panel-soft: #151411;
+  --panel-raised: #1a1813;
+  --panel-hover: #181611;
+  --border: #2d2920;
+  --border-strong: #66512d;
+  --border-soft: rgba(216, 174, 88, 0.18);
+  --text: #faf9f5;
+  --muted: #a9a59b;
+  --muted-strong: #d8d4ca;
+  --green: #d6aa50;
+  --green-bright: #f1cd7a;
+  --green-deep: #3a2b12;
+  --green-soft: rgba(214, 170, 80, 0.1);
+  --cyan: #d6aa50;
+  --cyan-bright: #f3d58c;
+  --cyan-soft: rgba(214, 170, 80, 0.1);
+  --amber: #e0b35a;
+  --yellow-green: #cba75d;
+  --edge-gradient: linear-gradient(135deg, rgba(242, 205, 127, 0.58), rgba(101, 80, 43, 0.38) 58%, rgba(255, 255, 255, 0.1));
+  --edge-gradient-active: linear-gradient(135deg, rgba(255, 226, 159, 0.94), rgba(214, 170, 80, 0.58) 62%, rgba(255, 255, 255, 0.18));
+  --inner-highlight: inset 0 1px 0 rgba(255, 248, 231, 0.075);
+}
+
+html {
+  background: #030303;
+}
+
+body {
+  background:
+    radial-gradient(ellipse at 10% -10%, rgba(214, 170, 80, 0.14), transparent 38rem),
+    radial-gradient(ellipse at 90% 7%, rgba(255, 246, 223, 0.045), transparent 30rem),
+    repeating-linear-gradient(0deg, rgba(232, 210, 164, 0.014) 0, rgba(232, 210, 164, 0.014) 1px, transparent 1px, transparent 52px),
+    repeating-linear-gradient(90deg, rgba(232, 210, 164, 0.012) 0, rgba(232, 210, 164, 0.012) 1px, transparent 1px, transparent 52px),
+    linear-gradient(155deg, #090806 0%, #030303 48%, #080705 100%);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgba(214, 170, 80, 0.34);
+  color: #fffdf7;
+}
+
+.app-nav,
+body[data-page="trades"] .app-nav {
+  border-bottom-color: rgba(214, 170, 80, 0.24);
+  background: rgba(4, 4, 4, 0.95);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.52), var(--inner-highlight);
+}
+
+.status-chip {
+  border-color: rgba(214, 185, 123, 0.2);
+  background: linear-gradient(180deg, rgba(20, 18, 14, 0.94), rgba(8, 8, 8, 0.94));
+  box-shadow: var(--inner-highlight);
+}
+
+.brand-icon,
+.metric-icon {
+  border-color: rgba(230, 187, 98, 0.48);
+  background: linear-gradient(145deg, rgba(214, 170, 80, 0.2), rgba(255, 255, 255, 0.025));
+  color: #f3d58c;
+  box-shadow: var(--inner-highlight), 0 10px 26px rgba(214, 170, 80, 0.1);
+}
+
+.nav-links a:hover {
+  border-color: rgba(214, 170, 80, 0.22);
+  background: linear-gradient(180deg, rgba(29, 26, 20, 0.94), rgba(12, 11, 9, 0.94));
+  color: #fffdf7;
+}
+
+.nav-links a[aria-current="page"] {
+  border-color: rgba(230, 187, 98, 0.62);
+  background: linear-gradient(180deg, rgba(214, 170, 80, 0.18), rgba(214, 170, 80, 0.055));
+  box-shadow: var(--inner-highlight), 0 8px 20px rgba(214, 170, 80, 0.09);
+  color: #f3d58c;
+}
+
+.button,
+.icon-button {
+  border-color: rgba(216, 205, 181, 0.2);
+  background: linear-gradient(180deg, #1a1916, #0c0c0b);
+}
+
+.button:hover,
+.icon-button:hover {
+  border-color: rgba(230, 187, 98, 0.58);
+  background: linear-gradient(180deg, #242018, #12100d);
+  color: #f3d58c;
+}
+
+.button.primary {
+  border-color: rgba(230, 187, 98, 0.7);
+  background: linear-gradient(180deg, #8e6828, #5d431a);
+  box-shadow: var(--inner-highlight), 0 10px 26px rgba(214, 170, 80, 0.18);
+  color: #fff9e9;
+}
+
+.button.primary:hover {
+  border-color: #f0ce82;
+  background: linear-gradient(180deg, #aa7d31, #705020);
+  color: #ffffff;
+}
+
+.panel,
+.toolbar,
+.more-filters,
+.bankroll-strip,
+.wallet-card,
+.metric-card {
+  background:
+    linear-gradient(145deg, rgba(16, 15, 13, 0.99), rgba(7, 7, 7, 0.99)) padding-box,
+    var(--edge-gradient) border-box;
+  box-shadow: var(--inner-highlight), 0 1px 0 rgba(255, 234, 190, 0.035), var(--shadow-low);
+}
+
+.panel-header {
+  border-bottom-color: rgba(214, 174, 88, 0.18);
+  background: linear-gradient(180deg, rgba(19, 17, 13, 0.99), rgba(9, 9, 8, 0.99));
+}
+
+.metric-card {
+  background:
+    linear-gradient(145deg, rgba(18, 17, 14, 0.98), rgba(8, 8, 8, 0.99)) padding-box,
+    linear-gradient(135deg, rgba(214, 170, 80, 0.34), rgba(70, 60, 42, 0.28) 58%, rgba(255, 255, 255, 0.07)) border-box;
+}
+
+.toolbar input,
+.toolbar select,
+.more-filters input,
+.more-filters select,
+.money-input,
+.personal-tracking-meta select,
+.personal-tag-controls input,
+.personal-tag-controls select {
+  border-color: rgba(216, 205, 181, 0.2);
+  background: linear-gradient(180deg, #11110f, #080808);
+  color: var(--muted-strong);
+}
+
+.toolbar input:focus,
+.toolbar select:focus,
+.more-filters input:focus,
+.more-filters select:focus,
+.money-input:focus-within,
+.personal-tracking-meta select:focus,
+.personal-tag-controls input:focus {
+  border-color: rgba(230, 187, 98, 0.74);
+  box-shadow: 0 0 0 3px rgba(214, 170, 80, 0.1), var(--inner-highlight);
+}
+
+.bankroll-strip {
+  background:
+    linear-gradient(90deg, rgba(27, 23, 15, 0.99), rgba(10, 10, 9, 0.99)) padding-box,
+    linear-gradient(110deg, rgba(230, 187, 98, 0.58), rgba(106, 82, 40, 0.3), rgba(255, 255, 255, 0.1)) border-box;
+}
+
+.tracker-view-toggle {
+  border-color: rgba(214, 170, 80, 0.3);
+  background: linear-gradient(180deg, rgba(20, 18, 14, 0.97), rgba(8, 8, 8, 0.98));
+}
+
+.tracker-view-toggle button[aria-selected="true"] {
+  border-color: rgba(230, 187, 98, 0.76);
+  background: linear-gradient(145deg, rgba(214, 170, 80, 0.2), rgba(255, 255, 255, 0.035));
+  box-shadow: 0 0 0 1px rgba(214, 170, 80, 0.12), 0 9px 24px rgba(0, 0, 0, 0.34), var(--inner-highlight);
+}
+
+.personal-selected-tags button,
+.personal-book-badge,
+.personal-tag-badge {
+  border-color: rgba(214, 170, 80, 0.32);
+  background: rgba(214, 170, 80, 0.1);
+  color: #efd18f;
+}
+
+.segmented button.active,
+.price-range-controls button.active {
+  background: rgba(214, 170, 80, 0.16);
+  color: #f5d994;
+}
+
+body[data-page="trades"] {
+  --trade-canvas: #030303;
+  --trade-surface: #0c0c0b;
+  --trade-surface-raised: #15130f;
+  --trade-surface-selected: #1b160c;
+  --trade-border: #302b20;
+  --trade-border-soft: rgba(214, 185, 123, 0.2);
+  --trade-border-active: #d8ad55;
+  --trade-text: #faf9f5;
+  --trade-muted: #aaa69d;
+  --trade-score: #e1b55d;
+  --trade-accent: #d6aa50;
+  --trade-positive: #d6aa50;
+  background:
+    radial-gradient(ellipse at 12% -10%, rgba(214, 170, 80, 0.13), transparent 40rem),
+    radial-gradient(ellipse at 88% 8%, rgba(255, 250, 236, 0.04), transparent 30rem),
+    repeating-linear-gradient(90deg, rgba(232, 210, 164, 0.012) 0, rgba(232, 210, 164, 0.012) 1px, transparent 1px, transparent 54px),
+    linear-gradient(155deg, #090806 0%, #030303 52%, #080705 100%);
+  background-attachment: fixed;
+}
+
+.trades-command-primary .result-badge,
+.compact-search,
+.compact-search input,
+.model-status-pill {
+  border-color: #3a3223;
+  background: #11100d;
+  color: #d8d4ca;
+}
+
+.model-status-pill {
+  border-color: rgba(214, 170, 80, 0.38);
+  background: rgba(214, 170, 80, 0.07);
+}
+
+.trade-card {
+  border-color: var(--trade-border);
+  background: linear-gradient(180deg, #11100e 0%, #0a0a09 100%);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42), var(--inner-highlight);
+}
+
+.trade-card:hover {
+  border-color: #66532e;
+  background: linear-gradient(180deg, #19160f 0%, #0d0c0a 100%);
+}
+
+.trade-card.selected {
+  border-color: var(--trade-border-active);
+  background: linear-gradient(180deg, #1b160c 0%, #100e09 100%);
+  box-shadow: 0 0 0 1px rgba(216, 173, 85, 0.14), 0 10px 24px rgba(0, 0, 0, 0.46), var(--inner-highlight);
+}
+
+.trade-metric-chip,
+.trades-command-actions .icon-button,
+.toolbar-bankroll,
+.trade-card-actions .tracker-quick-action,
+.trade-card-actions .trade-hide-action,
+.trade-card-actions .trade-restore-action,
+.detail-header-actions .tracker-quick-action,
+.detail-header-actions .trade-hide-action {
+  border-color: #342f24;
+  background: #11110f;
+  color: #c9c4b8;
+}
+
+.trade-card-actions .tracker-quick-action,
+.detail-header-actions .tracker-quick-action {
+  border-color: #7c602b;
+  color: #e8bd66;
+}
+
+.trade-selection {
+  border-color: #383126;
+  background: #17140f;
+}
+
+.trade-card.selected .trade-selection {
+  border-color: #9a7838;
+  background: #211a0e;
+}
+
+.trade-selection .execution-option,
+.detail-selection-panel .execution-option {
+  border-color: rgba(230, 187, 98, 0.7);
+  background: linear-gradient(180deg, rgba(151, 108, 37, 0.94), rgba(91, 64, 24, 0.96));
+  box-shadow: var(--inner-highlight), 0 8px 18px rgba(214, 170, 80, 0.14), inset 0 -2px 0 rgba(0, 0, 0, 0.22);
+}
+
+.trade-selection .execution-option:hover,
+.trade-selection .execution-option:focus-visible,
+.detail-selection-panel .execution-option:hover,
+.detail-selection-panel .execution-option:focus-visible {
+  border-color: #f0ce82;
+  background: linear-gradient(180deg, rgba(174, 127, 47, 0.98), rgba(108, 76, 28, 0.98));
+  box-shadow: var(--inner-highlight), 0 11px 24px rgba(214, 170, 80, 0.2);
+}
+
+.execution-option > span small {
+  color: rgba(255, 244, 218, 0.72);
+}
+
+.execution-option > span strong {
+  color: #fff6dd;
+}
+
+.execution-option-tooltip {
+  border-color: rgba(230, 187, 98, 0.42);
+  background: rgba(8, 7, 5, 0.98);
+}
+
+.trade-detail {
+  border-color: #9a7838;
+  background: #050505;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5), var(--inner-highlight);
+}
+
+.detail-selection-panel,
+.detail-strip-card,
+.detail-section,
+.detail-accordion,
+.calculation-details {
+  border-color: var(--trade-border);
+  background: linear-gradient(180deg, #11100e, #0a0a09);
+}
+
+.price-legend .recommended-entry::before,
+.orderbook-row.bid .orderbook-depth i {
+  background: #d6aa50;
+}
