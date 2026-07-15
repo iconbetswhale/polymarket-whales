@@ -1290,7 +1290,9 @@ class TrackerService:
                         "top_category": wallet.top_category,
                         "top_category_display": wallet.top_category_display,
                         "top_categories": list(wallet.top_categories),
+                        "sub_top_categories": list(wallet.sub_top_categories),
                         "top_category_ids": list(wallet.top_category_ids),
+                        "sub_top_category_ids": list(wallet.sub_top_category_ids),
                         "primary_top_category_id": wallet.primary_top_category_id,
                         "top_category_source": wallet.top_category_source,
                         "top_category_verified_at": wallet.top_category_verified_at,
@@ -1342,7 +1344,9 @@ class TrackerService:
                         "top_category": raw_entry.get("top_category"),
                         "top_category_display": raw_entry.get("top_category_display"),
                         "top_categories": raw_entry.get("top_categories") or [],
+                        "sub_top_categories": raw_entry.get("sub_top_categories") or [],
                         "top_category_ids": raw_entry.get("topCategoryIds") or [],
+                        "sub_top_category_ids": raw_entry.get("subTopCategoryIds") or [],
                         "primary_top_category_id": raw_entry.get(
                             "primary_top_category"
                         )
@@ -1464,6 +1468,12 @@ class TrackerService:
                 None,
             )
             wallet["top_category_stats"] = category_stats
+            sub_top_category_ids = set(wallet.get("sub_top_category_ids") or [])
+            wallet["sub_top_category_stats"] = [
+                {"category": category, **metric}
+                for category, metric in (category_profile.get("categories") or {}).items()
+                if canonical_category_id(category) in sub_top_category_ids
+            ]
             wallet["historical_position_count"] = history_counts.get(address, 0)
             if wallet.get("status") == "invalid":
                 wallet["sync_status"] = "failed"
@@ -1753,6 +1763,7 @@ class TrackerService:
                 "wallet_top_category": wallet.top_category,
                 "wallet_top_category_display": wallet.top_category_display,
                 "wallet_top_categories": list(wallet.top_categories),
+                "wallet_sub_top_categories": list(wallet.sub_top_categories),
                 "wallet_bettor_type": wallet.bettor_type,
                 "wallet_trader_type": wallet.trader_type,
                 "wallet_selectivity": wallet.selectivity,
@@ -1827,7 +1838,11 @@ class TrackerService:
                 "top_category": wallet_category_metrics.get("top_category"),
                 "configured_top_category": wallet.top_category,
                 "configured_top_categories": list(wallet.top_categories),
+                "configured_sub_top_categories": list(wallet.sub_top_categories),
                 "configured_top_category_ids": configured_top_category_ids,
+                "configured_sub_top_category_ids": list(
+                    wallet.sub_top_category_ids
+                ),
                 "top_category_ids": effective_top_category_ids,
                 "primary_top_category_id": (
                     effective_top_category_ids[0]
@@ -2346,7 +2361,9 @@ class TrackerService:
                     "top_category": wallet.top_category,
                     "top_category_display": wallet.top_category_display,
                     "top_categories": list(wallet.top_categories),
+                    "sub_top_categories": list(wallet.sub_top_categories),
                     "top_category_ids": list(wallet.top_category_ids),
+                    "sub_top_category_ids": list(wallet.sub_top_category_ids),
                     "primary_top_category_id": wallet.primary_top_category_id,
                     "top_category_source": wallet.top_category_source,
                     "top_category_verified_at": wallet.top_category_verified_at,

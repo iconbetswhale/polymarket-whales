@@ -67,6 +67,8 @@ def test_wallet_cards_show_complete_category_and_profile_fields():
     script = Path("static/app.js").read_text(encoding="utf-8")
 
     for label in (
+        "Sub-top categories",
+        "Sub-category record",
         "Category record",
         "Adjusted hit rate",
         "Category P/L",

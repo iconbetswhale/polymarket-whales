@@ -2131,6 +2131,10 @@ function walletCard(wallet) {
   const categoryRecord = categorySample === null
     ? "Awaiting settled history"
     : `${categoryStats.wins || 0}-${categoryStats.losses || 0} | ${categorySample} settled`;
+  const subCategoryStats = wallet.sub_top_category_stats || [];
+  const subCategoryRecord = subCategoryStats.length
+    ? subCategoryStats.map((stats) => `${stats.category} ${stats.wins || 0}-${stats.losses || 0} | ${stats.sample_size || 0} settled`).join(" · ")
+    : "Awaiting settled history";
   return `
     <article class="wallet-card">
       <div class="wallet-card-head"><span class="wallet-avatar"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><h2>${escapeHtml(wallet.label)}</h2><span class="status-label ${escapeHtml(sync)}">${escapeHtml(sync)}</span></div></div>
@@ -2138,6 +2142,8 @@ function walletCard(wallet) {
       <div class="wallet-stats"><div><span>Open positions</span><strong>${wallet.open_position_count ?? 0}</strong></div><div><span>History events</span><strong>${wallet.historical_position_count ?? 0}</strong></div><div><span>Base unit</span><strong>${wallet.base_unit ? formatMoney(wallet.base_unit) : "Estimating"}</strong></div></div>
       <div class="wallet-sync wallet-meta">${[
         walletMeta("Top category", wallet.top_category_display || wallet.top_category || "Awaiting classification"),
+        walletMeta("Sub-top categories", (wallet.sub_top_categories || []).join(", ") || "None configured"),
+        walletMeta("Sub-category record", subCategoryRecord),
         walletMeta("Category record", categoryRecord),
         walletMeta("Adjusted hit rate", number(categoryStats.adjusted_hit_rate) === null ? "Awaiting settled history" : formatPercent(categoryStats.adjusted_hit_rate)),
         walletMeta("Category P/L", number(categoryStats.profit_loss) === null ? "Awaiting settled history" : formatMoney(categoryStats.profit_loss)),
@@ -2296,7 +2302,7 @@ function sharpCell(snapshot = {}) {
     return `<span class="sharp-wallet-detail">
       <strong>${escapeHtml(wallet.display_name || wallet.wallet_address || "Unknown Sharp")}</strong>
       <code>${escapeHtml(wallet.wallet_address || "Address unavailable")}</code>
-      <em>${escapeHtml(wallet.role || "Supporting Sharp")}${wallet.top_category ? ` | ${escapeHtml(wallet.top_category)}` : ""}</em>
+      <em>${escapeHtml(wallet.role || "Supporting Sharp")}${wallet.top_category ? ` | ${escapeHtml(wallet.top_category)} primary` : ""}${(wallet.sub_top_categories || []).length ? ` | ${escapeHtml(wallet.sub_top_categories.join(", "))} secondary` : ""}</em>
       <span><b>Amount</b>${escapeHtml(number(wallet.amount) === null ? "Unavailable" : formatMoney(wallet.amount))}</span>
       <span><b>Units</b>${escapeHtml(units === null ? "Unavailable" : formatUnits(units))}</span>
       <span><b>Average entry</b>${escapeHtml(number(wallet.average_entry) === null ? "Unavailable" : formatCents(wallet.average_entry))}</span>

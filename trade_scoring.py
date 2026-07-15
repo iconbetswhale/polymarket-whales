@@ -1098,7 +1098,16 @@ def build_trades_to_play(
                     "signal_tier": position.get("signal_tier"),
                     "top_category": position.get("configured_top_category")
                     or position.get("top_category"),
+                    "sub_top_categories": position.get(
+                        "configured_sub_top_categories"
+                    )
+                    or position.get("wallet_sub_top_categories")
+                    or [],
                     "top_category_ids": profile["top_category_ids"],
+                    "sub_top_category_ids": position.get(
+                        "configured_sub_top_category_ids"
+                    )
+                    or [],
                     "primary_top_category_id": profile[
                         "primary_top_category_id"
                     ],

@@ -24,6 +24,7 @@ def _wallet_detail(entry: dict[str, Any]) -> dict[str, Any]:
         "top_category": entry.get("top_category")
         or entry.get("primary_top_category_id")
         or (top_categories[0] if top_categories else None),
+        "sub_top_categories": entry.get("sub_top_categories") or [],
         "amount": entry.get("amount"),
         "units": entry.get("relative_units"),
         "average_entry": entry.get("average_entry_price"),

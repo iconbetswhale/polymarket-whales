@@ -772,6 +772,62 @@ def test_complete_raw_agreement_scores_one_hundred_when_a_lead_exists():
     assert play["score_breakdown"]["category_composition"] == 0.75
 
 
+@pytest.mark.parametrize(
+    ("category", "league"),
+    (("MLB", "MLB"), ("Soccer", "Premier League")),
+)
+def test_primary_and_sub_top_categories_are_full_weight_lead_sharps(
+    category, league
+):
+    wallet = "0xf1528f12e645462c344799b62b1b421a6a4c64aa"
+    position = _position(
+        wallet,
+        "phonesculptor",
+        category=category,
+        league=league,
+        configured_top_category="MLB",
+        configured_top_category_ids=["MLB", "Soccer"],
+        configured_sub_top_categories=["Soccer"],
+        configured_sub_top_category_ids=["Soccer"],
+    )
+
+    play = build_trades_to_play(
+        [position], unit_map=_unit_map(wallet), now=_now()
+    )[0]
+    sharp = play["supporting_wallets"][0]
+
+    assert play["lead_sharp_count"] == 1
+    assert play["supporting_sharp_count"] == 0
+    assert sharp["is_lead_sharp"] is True
+    assert sharp["sharp_role"] == "Lead Sharp"
+    assert sharp["category_weight"] == 1.0
+    assert sharp["top_category"] == "MLB"
+    assert sharp["sub_top_categories"] == ["Soccer"]
+
+
+def test_unconfigured_category_does_not_become_a_phonesculptor_lead():
+    wallet = "0xf1528f12e645462c344799b62b1b421a6a4c64aa"
+    position = _position(
+        wallet,
+        "phonesculptor",
+        category="Tennis",
+        league="ATP",
+        configured_top_category="MLB",
+        configured_top_category_ids=["MLB", "Soccer"],
+        configured_sub_top_categories=["Soccer"],
+        configured_sub_top_category_ids=["Soccer"],
+    )
+    diagnostics = []
+
+    assert build_trades_to_play(
+        [position],
+        unit_map=_unit_map(wallet),
+        now=_now(),
+        diagnostics=diagnostics,
+    ) == []
+    assert diagnostics[0]["reason"] == "SINGLE_NON_CATEGORY_WALLET"
+
+
 def test_0x4f2_is_mlb_lead_but_never_a_tennis_lead():
     wallet = "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e"
     mlb = _position(

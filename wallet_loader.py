@@ -22,7 +22,9 @@ class WalletEntry:
     top_category: str | None
     top_category_display: str | None
     top_categories: tuple[str, ...]
+    sub_top_categories: tuple[str, ...]
     top_category_ids: tuple[str, ...]
+    sub_top_category_ids: tuple[str, ...]
     primary_top_category_id: str | None
     top_category_source: str | None
     top_category_verified_at: str | None
@@ -272,6 +274,13 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 item.get("top_categories") or item.get("topCategoryIds")
             )
         )
+        configured_sub_top_categories = list(
+            _parse_optional_text_list(
+                item.get("sub_top_categories")
+                or item.get("subTopCategories")
+                or item.get("secondary_top_categories")
+            )
+        )
         configured_primary_category = _parse_optional_text(
             item.get("primary_top_category")
             or item.get("primaryTopCategoryId")
@@ -282,9 +291,27 @@ def load_wallets(path: Path) -> WalletLoadResult:
             and configured_primary_category not in configured_top_categories
         ):
             configured_top_categories.insert(0, configured_primary_category)
-        top_category_ids = canonical_category_ids(configured_top_categories)
+        combined_top_categories = [
+            *configured_top_categories,
+            *(
+                category
+                for category in configured_sub_top_categories
+                if category not in configured_top_categories
+            ),
+        ]
+        top_category_ids = canonical_category_ids(combined_top_categories)
         primary_top_category_ids = canonical_category_ids(
             [configured_primary_category]
+        )
+        primary_top_category_id = (
+            primary_top_category_ids[0] if primary_top_category_ids else None
+        )
+        sub_top_category_ids = canonical_category_ids(
+            configured_sub_top_categories
+        ) or tuple(
+            category_id
+            for category_id in top_category_ids
+            if category_id != primary_top_category_id
         )
         top_category_source = _parse_optional_text(
             item.get("top_category_source") or item.get("topCategorySource")
@@ -303,11 +330,11 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 top_category_display=_parse_optional_text(
                     item.get("top_category_display")
                 ),
-                top_categories=tuple(configured_top_categories),
+                top_categories=tuple(combined_top_categories),
+                sub_top_categories=tuple(configured_sub_top_categories),
                 top_category_ids=top_category_ids,
-                primary_top_category_id=(
-                    primary_top_category_ids[0] if primary_top_category_ids else None
-                ),
+                sub_top_category_ids=sub_top_category_ids,
+                primary_top_category_id=primary_top_category_id,
                 top_category_source=top_category_source,
                 top_category_verified_at=_parse_optional_text(
                     item.get("top_category_verified_at")

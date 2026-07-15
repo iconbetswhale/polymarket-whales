@@ -27,7 +27,7 @@ EXPECTED_TOP_CATEGORIES = {
     "Weflyhigh": "nba",
     "sportmaster777": "mlb",
     "Wordylittleneck": "mlb",
-    "phonesculptor": "soccer",
+    "phonesculptor": "mlb",
     "Surfandturf": "nba",
     "Bagwell306": "tennis",
     "ferrariChampions2026": "mlb",
@@ -130,6 +130,15 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert ferrari.minimum_actionable_exposure_dollars == 2500
     assert ferrari.requires_fill_aggregation is True
 
+    phonesculptor = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "phonesculptor"
+    )
+    assert phonesculptor.top_category == "MLB"
+    assert phonesculptor.primary_top_category_id == "mlb"
+    assert phonesculptor.sub_top_categories == ("Soccer",)
+    assert phonesculptor.sub_top_category_ids == ("soccer",)
+    assert phonesculptor.top_category_ids == ("mlb", "soccer")
+
 
 def test_every_enabled_wallet_has_an_authoritative_top_category():
     result = load_wallets(Path("wallets.json"))
@@ -144,11 +153,11 @@ def test_every_enabled_wallet_has_an_authoritative_top_category():
         assert wallet.top_category_verified_at
 
 
-def test_wallet_payload_includes_live_stats_for_configured_top_category(tmp_path):
+def test_wallet_payload_includes_live_stats_for_primary_and_sub_top_categories(tmp_path):
     wallet = next(
         item
         for item in load_wallets(Path("wallets.json")).enabled_wallets
-        if item.label == "Weflyhigh"
+        if item.label == "phonesculptor"
     )
     service = object.__new__(TrackerService)
     service.database = TrackerDatabase(tmp_path / "tracker.db")
@@ -158,23 +167,32 @@ def test_wallet_payload_includes_live_stats_for_configured_top_category(tmp_path
             "address": wallet.address,
             "label": wallet.label,
             "status": "enabled",
-            "top_category": "NBA",
-            "primary_top_category_id": "nba",
+            "top_category": "MLB",
+            "primary_top_category_id": "mlb",
+            "sub_top_category_ids": ["soccer"],
         }
     ]
     category_metrics = {
         wallet.address: {
-            "top_category": "NBA",
+            "top_category": "MLB",
             "top_category_source": "statistically_verified",
             "categories": {
-                "NBA": {
+                "MLB": {
                     "sample_size": 24,
                     "wins": 17,
                     "losses": 7,
                     "raw_hit_rate": 17 / 24,
                     "adjusted_hit_rate": 69 / 124,
                     "profit_loss": 1250,
-                }
+                },
+                "Soccer": {
+                    "sample_size": 18,
+                    "wins": 12,
+                    "losses": 6,
+                    "raw_hit_rate": 2 / 3,
+                    "adjusted_hit_rate": 62 / 118,
+                    "profit_loss": 740,
+                },
             },
         }
     }
@@ -190,9 +208,20 @@ def test_wallet_payload_includes_live_stats_for_configured_top_category(tmp_path
         category_metrics,
     )
 
-    assert payload[0]["top_category_stats"]["category"] == "NBA"
+    assert payload[0]["top_category_stats"]["category"] == "MLB"
     assert payload[0]["top_category_stats"]["sample_size"] == 24
     assert payload[0]["top_category_stats"]["profit_loss"] == 1250
+    assert payload[0]["sub_top_category_stats"] == [
+        {
+            "category": "Soccer",
+            "sample_size": 18,
+            "wins": 12,
+            "losses": 6,
+            "raw_hit_rate": 2 / 3,
+            "adjusted_hit_rate": 62 / 118,
+            "profit_loss": 740,
+        }
+    ]
 
 
 def test_case_insensitive_duplicate_request_is_rejected(tmp_path):

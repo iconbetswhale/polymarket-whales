@@ -144,3 +144,31 @@ def test_wallet_loader_supports_multiple_verified_top_categories(tmp_path):
     assert wallet.primary_top_category_id == "mlb"
     assert wallet.top_category_source == "manually_reviewed_locked"
     assert wallet.top_category_verified_at == "2026-07-13T12:00:00Z"
+
+
+def test_wallet_loader_keeps_primary_and_sub_top_categories_distinct(tmp_path):
+    wallet_file = tmp_path / "wallets.json"
+    wallet_file.write_text(
+        """
+[
+  {
+    "address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    "label": "Primary and secondary",
+    "enabled": true,
+    "top_category": "MLB",
+    "top_categories": ["MLB"],
+    "sub_top_categories": ["Soccer"],
+    "primary_top_category": "MLB"
+  }
+]
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    wallet = load_wallets(wallet_file).valid_wallets[0]
+
+    assert wallet.top_category == "MLB"
+    assert wallet.primary_top_category_id == "mlb"
+    assert wallet.sub_top_categories == ("Soccer",)
+    assert wallet.sub_top_category_ids == ("soccer",)
+    assert wallet.top_category_ids == ("mlb", "soccer")
