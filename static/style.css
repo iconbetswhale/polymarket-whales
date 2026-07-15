@@ -36,7 +36,7 @@
   --edge-gradient-active: linear-gradient(135deg, rgba(91, 215, 255, 0.95), rgba(37, 184, 236, 0.38) 55%, rgba(81, 223, 137, 0.5));
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "DM Sans", sans-serif;
-  --font-data: "Sometype Mono", monospace;
+  --font-data: "Chivo Mono", monospace;
   --font-mono: var(--font-data);
   --motion-fast: 140ms;
   --motion-base: 210ms;
@@ -6511,6 +6511,28 @@ td small,
 .section-label small,
 .event-type {
   font-family: var(--font-body);
+}
+
+.status-chip strong,
+.bankroll-inline strong,
+.money-input,
+.unit-readout strong,
+.metric-card > strong,
+.preview-price strong,
+.score-badge,
+.price-pill strong,
+.live-price strong,
+.detail-metric strong,
+.calculation-grid strong,
+.mono,
+.wallet-stats strong,
+.trade-metric-chip strong,
+.execution-option > span strong,
+.toolbar-bankroll,
+.trade-current-price,
+.orderbook-row,
+.orderbook-summary {
+  text-rendering: geometricPrecision;
 }
 
 .personal-tag-heading,
