@@ -64,6 +64,7 @@ jobs:
               "Discord Model Tracker: "
               f"enabled={bool(discord.get('enabled'))} "
               f"configured={bool(discord.get('configured'))} "
+              f"status={discord.get('status', 'unknown')} "
               f"delivered={int(discord.get('delivered') or 0)} "
               f"retrying={int(discord.get('retrying') or 0)} "
               f"failed={int(discord.get('failed') or 0)}"

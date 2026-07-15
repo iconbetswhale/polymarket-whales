@@ -128,6 +128,13 @@ class ModelTrackerDiscordBot:
         self.enabled = enabled
         self.timeout = timeout
         self._channel_validated = False
+        self._connection_status = (
+            "disabled"
+            if not enabled
+            else "configured"
+            if self.configured
+            else "not configured"
+        )
 
     @classmethod
     def from_settings(cls, settings: Settings) -> "ModelTrackerDiscordBot":
@@ -143,8 +150,26 @@ class ModelTrackerDiscordBot:
     def configured(self) -> bool:
         return bool(self._token and self._guild_id and self._channel_id)
 
-    def safe_configuration(self) -> dict[str, bool]:
-        return {"enabled": self.enabled, "configured": self.configured}
+    def safe_configuration(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "configured": self.configured,
+            "status": self._connection_status,
+        }
+
+    def _record_connection_failure(
+        self, result: DiscordDeliveryResult
+    ) -> DiscordDeliveryResult:
+        if result.error_code in {
+            "unauthorized",
+            "forbidden",
+            "channel_not_found",
+            "guild_mismatch",
+        }:
+            self._connection_status = "unauthorized"
+        else:
+            self._connection_status = "connection failed"
+        return result
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -194,26 +219,36 @@ class ModelTrackerDiscordBot:
                 timeout=self.timeout,
             )
         except requests.RequestException:
-            return DiscordDeliveryResult(False, error_code="connection_failed")
+            return self._record_connection_failure(
+                DiscordDeliveryResult(False, error_code="connection_failed")
+            )
         if response.status_code != 200:
-            return self._failure(response)
+            return self._record_connection_failure(self._failure(response))
         try:
             channel_guild_id = str(response.json().get("guild_id") or "")
         except ValueError:
-            return DiscordDeliveryResult(False, error_code="invalid_channel_response")
+            return self._record_connection_failure(
+                DiscordDeliveryResult(False, error_code="invalid_channel_response")
+            )
         if channel_guild_id != str(self._guild_id):
-            return DiscordDeliveryResult(False, error_code="guild_mismatch")
+            return self._record_connection_failure(
+                DiscordDeliveryResult(False, error_code="guild_mismatch")
+            )
         self._channel_validated = True
+        self._connection_status = "authenticated"
         return None
 
-    def send(self, payload: dict[str, Any]) -> DiscordDeliveryResult:
+    def validate_connection(self) -> DiscordDeliveryResult | None:
         if not self.enabled:
+            self._connection_status = "disabled"
             return DiscordDeliveryResult(False, error_code="disabled", terminal=True)
         if not self.configured:
-            return DiscordDeliveryResult(
-                False, error_code="not_configured", terminal=False
-            )
-        validation_failure = self._validate_channel()
+            self._connection_status = "not configured"
+            return DiscordDeliveryResult(False, error_code="not_configured")
+        return self._validate_channel()
+
+    def send(self, payload: dict[str, Any]) -> DiscordDeliveryResult:
+        validation_failure = self.validate_connection()
         if validation_failure:
             return validation_failure
         try:
@@ -253,6 +288,10 @@ class DiscordNotificationDispatcher:
     def dispatch_pending(self) -> dict[str, Any]:
         result = {"claimed": 0, "delivered": 0, "failed": 0, "retrying": 0}
         if not self.bot.enabled or not self.bot.configured:
+            return result
+        validation_failure = self.bot.validate_connection()
+        if validation_failure:
+            result["connection_failed"] = 1
             return result
         try:
             jobs = self.database.claim_discord_notifications(self.batch_size)

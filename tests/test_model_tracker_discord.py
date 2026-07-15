@@ -55,6 +55,9 @@ class FakeBot:
     def safe_configuration(self) -> dict[str, bool]:
         return {"enabled": True, "configured": True}
 
+    def validate_connection(self):
+        return None
+
     def send(self, payload: dict) -> DiscordDeliveryResult:
         self.payloads.append(payload)
         return self.results.pop(0)
@@ -134,7 +137,11 @@ def test_bot_validates_guild_and_posts_with_mentions_disabled(monkeypatch):
     assert calls["post"]["json"]["enforce_nonce"] is True
     assert calls["get"]["url"].endswith("/channels/channel-1")
     assert calls["post"]["url"].endswith("/channels/channel-1/messages")
-    assert bot.safe_configuration() == {"enabled": True, "configured": True}
+    assert bot.safe_configuration() == {
+        "enabled": True,
+        "configured": True,
+        "status": "authenticated",
+    }
 
 
 def test_bot_refuses_channel_from_another_guild(monkeypatch):
@@ -160,6 +167,7 @@ def test_bot_refuses_channel_from_another_guild(monkeypatch):
     assert result.delivered is False
     assert result.error_code == "guild_mismatch"
     assert result.terminal is False
+    assert bot.safe_configuration()["status"] == "unauthorized"
 
 
 def test_dispatcher_stores_delivery_and_retry_results(tmp_path):
