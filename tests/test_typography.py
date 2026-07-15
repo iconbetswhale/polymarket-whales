@@ -36,11 +36,12 @@ def test_typography_uses_warm_display_and_readable_tabular_data_fonts():
 
     assert '--font-display: "Fraunces", Georgia, serif' in css
     assert '--font-body: "DM Sans", sans-serif' in css
-    assert '--font-data: "DM Sans", sans-serif' in css
+    assert '--font-data: "Sometype Mono", monospace' in css
     assert "font-variant-numeric: tabular-nums lining-nums" in css
     assert "family=DM+Sans" in template
     assert "family=Fraunces" in template
-    assert '"DM Sans"' in script
+    assert "family=Sometype+Mono" in template
+    assert '"Sometype Mono"' in script
     assert "IBM Plex Sans" not in template + css + script
     assert "JetBrains Mono" not in template + css + script
     assert "League Spartan" not in template + css + script

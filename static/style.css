@@ -36,7 +36,7 @@
   --edge-gradient-active: linear-gradient(135deg, rgba(91, 215, 255, 0.95), rgba(37, 184, 236, 0.38) 55%, rgba(81, 223, 137, 0.5));
   --font-display: "Fraunces", Georgia, serif;
   --font-body: "DM Sans", sans-serif;
-  --font-data: "DM Sans", sans-serif;
+  --font-data: "Sometype Mono", monospace;
   --font-mono: var(--font-data);
   --motion-fast: 140ms;
   --motion-base: 210ms;
@@ -6505,6 +6505,12 @@ td small,
 .mobile-result-card dt,
 .tracker-view-toggle small {
   font-size: 10px;
+}
+
+.eyebrow,
+.section-label small,
+.event-type {
+  font-family: var(--font-body);
 }
 
 .personal-tag-heading,
