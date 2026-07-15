@@ -13,6 +13,7 @@ import app as app_module
 from execution_providers import NOVIG_LOGO_URL, POLYMARKET_LOGO_URL
 from flask import redirect
 from personal_tracker import personal_fill_snapshot
+from position_tracker import MODEL_TRACKER_USER_ID
 
 
 def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
@@ -244,6 +245,7 @@ def build_app():
     registry.attach_options = attach_options
 
     qa_user = "visual-qa-user"
+    clv_values = (25.3644314869, -8.0, 6.25, None)
     for index, trade in enumerate(trades):
         fill = personal_fill_snapshot(
             trade,
@@ -257,6 +259,107 @@ def build_app():
             stored = tracker.database.insert_personal_bet_fill(qa_user, fill)
         except Exception:
             continue
+        model_dedupe = f"qa-model-clv-{index}"
+        tracker.database.insert_tracker_snapshot(
+            MODEL_TRACKER_USER_ID,
+            {
+                "snapshot_id": f"qa-model-snapshot-{index}",
+                "dedupe_key": model_dedupe,
+                "recommendation_version": "v2",
+                "canonical_event_id": trade["event_slug"],
+                "canonical_event_slug": trade["event_slug"],
+                "canonical_market_id": trade["condition_id"],
+                "outcome_id": trade["clob_token_id"],
+                "event_title": trade["event_title"],
+                "market_title": trade["market_title"],
+                "recommended_side": trade["outcome"],
+                "event_start_time": trade["event_date_et"],
+                "recommendation_timestamp": (now - timedelta(hours=3)).isoformat(),
+                "effective_entry_price": trade["_qa_recommendation"]["effective_entry_price"],
+                "original_displayed_amount": 100 + index * 75,
+                "original_recommended_units": 1 + index * 0.5,
+                "final_recommended_fraction": 0.01,
+                "estimated_win_probability": 0.55,
+                "confidence_score": trade["confidence_score"],
+                "sharps_count": trade["agreeing_wallet_count"],
+            },
+        )
+        if clv_values[index] is not None:
+            model_entry = 0.343 if index == 0 else trade["_qa_recommendation"]["effective_entry_price"]
+            model_close = 0.43 if index == 0 else model_entry * (1 + clv_values[index] / 100)
+            tracker.database.insert_closing_line(
+                {
+                    "tracker_type": "model",
+                    "tracker_record_id": model_dedupe,
+                    "user_id": MODEL_TRACKER_USER_ID,
+                    "provider": "polymarket",
+                    "provider_event_id": trade["event_slug"],
+                    "provider_market_id": trade["condition_id"],
+                    "provider_selection_id": trade["clob_token_id"],
+                    "entry_price": model_entry,
+                    "entry_implied_probability": model_entry,
+                    "entry_stake": 100 + index * 75,
+                    "closing_snapshot_timestamp": (now - timedelta(days=3 - index)).isoformat(),
+                    "official_event_start_timestamp": (now - timedelta(days=3 - index) + timedelta(seconds=42)).isoformat(),
+                    "closing_effective_price": model_close,
+                    "closing_midpoint": model_close - 0.004,
+                    "clv_cents": (model_close - model_entry) * 100,
+                    "clv_probability_points": (model_close - model_entry) * 100,
+                    "clv_pct": clv_values[index],
+                    "midpoint_clv_pct": (((model_close - 0.004) / model_entry) - 1) * 100,
+                    "clv_status": "captured",
+                    "clv_unavailable_reason": None,
+                    "comparison_stake": 100 + index * 75,
+                    "quote_age_ms": 42000,
+                    "liquidity_quality": "full",
+                    "provider_close_source": "POLYMARKET_CLOB_ORDER_BOOK",
+                    "calculation_version": "clv-v1",
+                }
+            )
+        elif index == 3:
+            tracker.database.insert_closing_line(
+                {
+                    "tracker_type": "model",
+                    "tracker_record_id": model_dedupe,
+                    "user_id": MODEL_TRACKER_USER_ID,
+                    "provider": "polymarket",
+                    "provider_event_id": trade["event_slug"],
+                    "provider_market_id": trade["condition_id"],
+                    "provider_selection_id": trade["clob_token_id"],
+                    "entry_price": trade["_qa_recommendation"]["effective_entry_price"],
+                    "entry_implied_probability": trade["_qa_recommendation"]["effective_entry_price"],
+                    "entry_stake": 325,
+                    "clv_status": "stale_quote",
+                    "clv_unavailable_reason": "NO_FRESH_CLOSING_QUOTE",
+                    "calculation_version": "clv-v1",
+                }
+            )
+        personal_entry = float(stored["entry_price"])
+        personal_pct = clv_values[index]
+        if personal_pct is not None:
+            personal_close = personal_entry * (1 + personal_pct / 100)
+            tracker.database.insert_closing_line(
+                {
+                    "tracker_type": "personal", "tracker_record_id": stored["fill_id"],
+                    "user_id": qa_user, "provider": "polymarket",
+                    "provider_event_id": stored["canonical_event_id"],
+                    "provider_market_id": stored["canonical_market_id"],
+                    "provider_selection_id": stored["canonical_outcome_id"],
+                    "entry_price": personal_entry, "entry_implied_probability": personal_entry,
+                    "entry_stake": stored["position_cost"],
+                    "closing_snapshot_timestamp": (now - timedelta(days=3 - index)).isoformat(),
+                    "official_event_start_timestamp": (now - timedelta(days=3 - index) + timedelta(seconds=40)).isoformat(),
+                    "closing_effective_price": personal_close, "closing_midpoint": personal_close - 0.003,
+                    "clv_cents": (personal_close - personal_entry) * 100,
+                    "clv_probability_points": (personal_close - personal_entry) * 100,
+                    "clv_pct": personal_pct,
+                    "midpoint_clv_pct": (((personal_close - 0.003) / personal_entry) - 1) * 100,
+                    "clv_status": "captured", "clv_unavailable_reason": None,
+                    "comparison_stake": stored["position_cost"], "quote_age_ms": 40000,
+                    "liquidity_quality": "full", "provider_close_source": "POLYMARKET_CLOB_ORDER_BOOK",
+                    "calculation_version": "clv-v1",
+                }
+            )
         if index == 2:
             tracker.database.insert_personal_position_exit(
                 qa_user,

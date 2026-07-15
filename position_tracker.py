@@ -19,6 +19,20 @@ from classification import (
     classify_market,
     is_sports_category,
 )
+from clv import (
+    CAPTURED,
+    CLV_CALCULATION_VERSION,
+    CLV_FRESHNESS_SECONDS,
+    MARKET_MAPPING_ERROR,
+    STALE_QUOTE,
+    UNAVAILABLE,
+    VOID,
+    book_effective_ask,
+    calculate_clv,
+    normalized_provider,
+    parse_timestamp,
+    select_last_fresh_quote,
+)
 from bet_sizing import SizingConfig
 from bet_tracker import tracker_status_from_event
 from config import Settings
@@ -387,6 +401,7 @@ class TrackerService:
 
         if not loader.enabled_wallets:
             self.reconcile_model_tracker([])
+            self._update_tracker_statuses({})
             snapshot = {
                 "positions": [],
                 "trades": self.database.get_recent_events(),
@@ -894,10 +909,33 @@ class TrackerService:
                 )
             except ValueError:
                 status = "stale"
+        upcoming_starts = sorted(
+            {
+                str(value)
+                for value in [
+                    *(
+                        row["snapshot"].get("event_start_time")
+                        for row in self.database.get_active_tracker_records()
+                    ),
+                    *(
+                        row.get("event_start_time")
+                        for row in self.database.get_all_active_personal_bet_fills()
+                    ),
+                ]
+                if parse_timestamp(value) is not None
+            }
+        )[:10]
         return {
             **state,
             "status": status,
             "rejections": self.database.get_tracking_rejections(user_id),
+            "clv": {
+                **self.database.clv_diagnostics(),
+                "last_successful_clv_job_run": last_success,
+                "freshness_threshold_seconds": CLV_FRESHNESS_SECONDS,
+                "calculation_version": CLV_CALCULATION_VERSION,
+                "next_expected_event_starts": upcoming_starts,
+            },
             "discord_notifications": {
                 **state.get("discord_notifications", {}),
                 **self.discord_dispatcher.safe_status(),
@@ -912,6 +950,7 @@ class TrackerService:
         missing_slugs = [slug for slug in slugs if slug and slug not in events]
         if missing_slugs:
             events = {**events, **self.client.get_events(missing_slugs)}
+        self._capture_closing_lines(records, personal_fills, events)
         for record in records:
             snapshot = record["snapshot"]
             event = events.get(snapshot.get("canonical_event_slug"))
@@ -953,6 +992,283 @@ class TrackerService:
                 update.get("result"),
                 update.get("settled_at"),
             )
+
+    @staticmethod
+    def _provider_quote_timestamp(value: Any) -> str:
+        if value is not None:
+            try:
+                numeric = float(value)
+                if numeric > 10_000_000_000:
+                    numeric /= 1000
+                return datetime.fromtimestamp(numeric, tz=timezone.utc).isoformat()
+            except (TypeError, ValueError, OSError):
+                parsed = parse_timestamp(value)
+                if parsed is not None:
+                    return parsed.isoformat()
+        return _iso_now()
+
+    @staticmethod
+    def _official_event_start(event: dict, fallback: Any) -> str | None:
+        for field in ("actualStartTime", "startTime", "gameStartTime", "scheduledStartTime"):
+            parsed = parse_timestamp(event.get(field))
+            if parsed is not None:
+                return parsed.isoformat()
+        parsed = parse_timestamp(fallback)
+        return parsed.isoformat() if parsed is not None else None
+
+    @staticmethod
+    def _event_status_update(reference: dict, event: dict) -> dict:
+        return tracker_status_from_event(
+            {
+                "canonical_market_id": reference.get("provider_market_id"),
+                "recommended_side": reference.get("selection"),
+                "event_start_time": reference.get("event_start_time"),
+            },
+            event,
+        )
+
+    def _capture_closing_lines(
+        self,
+        records: list[dict],
+        personal_fills: list[dict],
+        events: dict[str, dict],
+    ) -> None:
+        references: list[dict[str, Any]] = []
+        for record in records:
+            snapshot = record["snapshot"]
+            references.append(
+                {
+                    "tracker_type": "model",
+                    "tracker_record_id": record["dedupe_key"],
+                    "user_id": record["user_id"],
+                    "provider": "polymarket",
+                    "provider_event_id": str(snapshot.get("canonical_event_id") or ""),
+                    "provider_event_slug": snapshot.get("canonical_event_slug"),
+                    "provider_market_id": str(snapshot.get("canonical_market_id") or ""),
+                    "provider_selection_id": str(snapshot.get("outcome_id") or ""),
+                    "selection": snapshot.get("recommended_side"),
+                    "event_start_time": snapshot.get("event_start_time"),
+                    "entry_price": snapshot.get("effective_entry_price")
+                    or snapshot.get("current_executable_entry_price"),
+                    "entry_stake": snapshot.get("original_displayed_amount"),
+                    "entry_timestamp": snapshot.get("recommendation_timestamp"),
+                }
+            )
+        for fill in personal_fills:
+            references.append(
+                {
+                    "tracker_type": "personal",
+                    "tracker_record_id": fill["fill_id"],
+                    "user_id": fill["user_id"],
+                    "provider": normalized_provider(fill.get("sportsbook")),
+                    "provider_event_id": str(fill.get("canonical_event_id") or ""),
+                    "provider_event_slug": fill.get("canonical_event_slug"),
+                    "provider_market_id": str(fill.get("canonical_market_id") or ""),
+                    "provider_selection_id": str(fill.get("canonical_outcome_id") or ""),
+                    "selection": fill.get("selection"),
+                    "event_start_time": fill.get("event_start_time"),
+                    "entry_price": fill.get("entry_price"),
+                    "entry_stake": fill.get("position_cost"),
+                    "entry_timestamp": fill.get("created_at"),
+                }
+            )
+        existing = {
+            (row["tracker_type"], row["tracker_record_id"])
+            for kind, user in {(row["tracker_type"], row["user_id"]) for row in references}
+            for row in self.database.get_closing_lines(kind, user)
+        }
+        pending = [
+            reference
+            for reference in references
+            if (reference["tracker_type"], reference["tracker_record_id"]) not in existing
+        ]
+        polymarket = [
+            reference
+            for reference in pending
+            if reference["provider"] == "polymarket"
+            and reference["provider_market_id"]
+            and reference["provider_selection_id"]
+        ]
+        try:
+            books = self.client.get_order_books(
+                [reference["provider_selection_id"] for reference in polymarket]
+            )
+        except Exception as exc:
+            LOGGER.warning("CLV order-book snapshot failed: %s", exc)
+            books = {}
+        for reference in polymarket:
+            book = books.get(reference["provider_selection_id"])
+            if not book:
+                continue
+            event = events.get(reference["provider_event_slug"]) or {}
+            market = next(
+                (
+                    item
+                    for item in event.get("markets") or []
+                    if str(item.get("conditionId") or "")
+                    == reference["provider_market_id"]
+                ),
+                {},
+            )
+            bids = book.get("bids") or []
+            asks = book.get("asks") or []
+            best_bid = _safe_float(bids[0].get("price")) if bids else None
+            best_ask = _safe_float(asks[0].get("price")) if asks else None
+            midpoint = (
+                (best_bid + best_ask) / 2
+                if best_bid and best_ask
+                else None
+            )
+            self.database.insert_clv_quote(
+                {
+                    "provider": "polymarket",
+                    "provider_event_id": reference["provider_event_id"],
+                    "provider_market_id": reference["provider_market_id"],
+                    "provider_selection_id": reference["provider_selection_id"],
+                    "quote_timestamp": self._provider_quote_timestamp(book.get("timestamp")),
+                    "provider_status": (
+                        "closed"
+                        if market.get("closed") is True
+                        or market.get("acceptingOrders") is False
+                        else "open"
+                    ),
+                    "best_bid": best_bid,
+                    "best_ask": best_ask,
+                    "midpoint": midpoint,
+                    "last_trade": _safe_float(book.get("last_trade_price")) or None,
+                    "depth": asks,
+                    "source": "POLYMARKET_CLOB_ORDER_BOOK",
+                }
+            )
+        for reference in pending:
+            event = events.get(reference["provider_event_slug"])
+            if not event:
+                continue
+            official_start = self._official_event_start(event, reference["event_start_time"])
+            update = self._event_status_update(reference, event)
+            status = str(update.get("status") or "scheduled")
+            if status in {"void", "canceled"}:
+                self._freeze_unavailable_clv(reference, VOID, status.upper(), official_start)
+                continue
+            status_text = " ".join(
+                str(value or "").lower()
+                for value in (
+                    event.get("gameStatus"),
+                    event.get("status"),
+                    event.get("eventStatus"),
+                )
+            )
+            official_start_time = parse_timestamp(official_start)
+            if any(term in status_text for term in ("delayed", "postponed", "rescheduled")):
+                continue
+            if official_start_time is None or official_start_time > _utc_now():
+                continue
+            if status == "scheduled":
+                continue
+            if parse_timestamp(reference.get("entry_timestamp")) and official_start and parse_timestamp(reference["entry_timestamp"]) >= parse_timestamp(official_start):
+                self._freeze_unavailable_clv(reference, UNAVAILABLE, "LATE_ENTRY_NO_PREGAME_CLV", official_start)
+                continue
+            if reference["provider"] != "polymarket":
+                self._freeze_unavailable_clv(reference, MARKET_MAPPING_ERROR, "CLV_MARKET_MAPPING_ERROR", official_start)
+                continue
+            quotes = self.database.get_clv_quotes(
+                reference["provider"], reference["provider_market_id"], reference["provider_selection_id"]
+            )
+            quote, reason = select_last_fresh_quote(quotes, official_start, CLV_FRESHNESS_SECONDS)
+            if quote is None:
+                self._freeze_unavailable_clv(
+                    reference,
+                    STALE_QUOTE if reason == "NO_FRESH_CLOSING_QUOTE" else UNAVAILABLE,
+                    reason or "NO_FRESH_CLOSING_QUOTE",
+                    official_start,
+                )
+                continue
+            market = next(
+                (
+                    item
+                    for item in event.get("markets") or []
+                    if str(item.get("conditionId") or "")
+                    == reference["provider_market_id"]
+                ),
+                {},
+            )
+            provider_closed_at = (
+                market.get("closedTime")
+                or market.get("acceptingOrdersTimestamp")
+                or event.get("closedTime")
+            )
+            parsed_provider_close = parse_timestamp(provider_closed_at)
+            if (
+                (market.get("closed") is True or market.get("acceptingOrders") is False)
+                and parsed_provider_close is not None
+                and parsed_provider_close <= official_start_time
+            ):
+                quote = {
+                    **quote,
+                    "source": "MARKET_CLOSED_PRE_EVENT",
+                    "provider_close_timestamp": parsed_provider_close.isoformat(),
+                }
+            self._freeze_captured_clv(reference, quote, official_start)
+
+    def _freeze_unavailable_clv(
+        self, reference: dict, status: str, reason: str, official_start: str | None
+    ) -> None:
+        self.database.insert_closing_line(
+            {
+                **reference,
+                "entry_implied_probability": reference.get("entry_price"),
+                "closing_snapshot_timestamp": None,
+                "official_event_start_timestamp": official_start,
+                "clv_status": status,
+                "clv_unavailable_reason": reason,
+                "provider_close_source": None,
+                "calculation_version": CLV_CALCULATION_VERSION,
+            }
+        )
+
+    def _freeze_captured_clv(
+        self, reference: dict, quote: dict, official_start: str | None
+    ) -> None:
+        execution = book_effective_ask(quote.get("depth") or [], reference.get("entry_stake"))
+        effective = execution.get("effective_price")
+        if effective is None:
+            self._freeze_unavailable_clv(reference, UNAVAILABLE, "NO_EXECUTABLE_CLOSING_LIQUIDITY", official_start)
+            return
+        try:
+            metrics = calculate_clv(reference.get("entry_price"), effective)
+            midpoint_metrics = calculate_clv(reference.get("entry_price"), quote.get("midpoint")) if quote.get("midpoint") else None
+        except ValueError:
+            self._freeze_unavailable_clv(reference, UNAVAILABLE, "INVALID_ENTRY_OR_CLOSING_PRICE", official_start)
+            return
+        start = parse_timestamp(official_start)
+        captured = parse_timestamp(quote.get("quote_timestamp"))
+        self.database.insert_closing_line(
+            {
+                **reference,
+                "entry_implied_probability": reference.get("entry_price"),
+                "closing_snapshot_timestamp": quote.get("quote_timestamp"),
+                "official_event_start_timestamp": official_start,
+                "closing_best_bid": quote.get("best_bid"),
+                "closing_best_ask": quote.get("best_ask"),
+                "closing_midpoint": quote.get("midpoint"),
+                "closing_last_trade": quote.get("last_trade"),
+                "closing_effective_price": effective,
+                "closing_executable_amount": execution["executable_amount"],
+                "closing_unfilled_amount": execution["unfilled_amount"],
+                "comparison_stake": reference.get("entry_stake"),
+                "order_book_depth": execution["levels_used"],
+                "liquidity_quality": execution["liquidity_quality"],
+                "quote_age_ms": int((start - captured).total_seconds() * 1000) if start and captured else None,
+                "quote_freshness_status": "fresh",
+                **metrics,
+                "midpoint_clv_pct": midpoint_metrics["clv_pct"] if midpoint_metrics else None,
+                "clv_status": CAPTURED,
+                "clv_unavailable_reason": None,
+                "provider_close_source": quote.get("source"),
+                "provider_market_close_timestamp": quote.get("provider_close_timestamp"),
+                "calculation_version": CLV_CALCULATION_VERSION,
+            }
+        )
 
     def _build_wallet_payload(self, loader) -> list[dict]:
         payload: list[dict] = []

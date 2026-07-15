@@ -334,6 +334,62 @@ class TrackerDatabase:
                         user_id, canonical_event_id, canonical_market_id,
                         market_line, canonical_outcome_id, sportsbook
                     );
+
+                CREATE TABLE IF NOT EXISTS clv_quote_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    provider TEXT NOT NULL,
+                    provider_event_id TEXT NOT NULL,
+                    provider_market_id TEXT NOT NULL,
+                    provider_selection_id TEXT NOT NULL,
+                    quote_timestamp TEXT NOT NULL,
+                    provider_status TEXT,
+                    best_bid REAL,
+                    best_ask REAL,
+                    midpoint REAL,
+                    last_trade REAL,
+                    depth_json TEXT NOT NULL DEFAULT '[]',
+                    source TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(provider, provider_market_id, provider_selection_id, quote_timestamp)
+                );
+                CREATE INDEX IF NOT EXISTS idx_clv_quotes_selection_time
+                    ON clv_quote_snapshots(
+                        provider, provider_market_id, provider_selection_id,
+                        quote_timestamp DESC
+                    );
+
+                CREATE TABLE IF NOT EXISTS closing_line_snapshots (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    tracker_type TEXT NOT NULL,
+                    tracker_record_id TEXT NOT NULL,
+                    user_id TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    provider_event_id TEXT NOT NULL,
+                    provider_market_id TEXT NOT NULL,
+                    provider_selection_id TEXT NOT NULL,
+                    entry_price REAL,
+                    entry_native_odds TEXT,
+                    entry_implied_probability REAL,
+                    entry_stake REAL,
+                    closing_snapshot_timestamp TEXT,
+                    official_event_start_timestamp TEXT,
+                    closing_effective_price REAL,
+                    closing_midpoint REAL,
+                    clv_cents REAL,
+                    clv_probability_points REAL,
+                    clv_pct REAL,
+                    midpoint_clv_pct REAL,
+                    clv_status TEXT NOT NULL,
+                    clv_unavailable_reason TEXT,
+                    snapshot_json TEXT NOT NULL,
+                    calculation_version TEXT NOT NULL,
+                    created_at TEXT NOT NULL,
+                    UNIQUE(tracker_type, tracker_record_id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_closing_lines_tracker_time
+                    ON closing_line_snapshots(
+                        tracker_type, user_id, closing_snapshot_timestamp DESC
+                    );
                 """
             )
             settings_columns = {
@@ -1837,6 +1893,131 @@ class TrackerDatabase:
                     fill_id,
                 ),
             )
+
+    def insert_clv_quote(self, quote: dict) -> bool:
+        if self.user_store:
+            return self.user_store.insert_clv_quote(quote)
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO clv_quote_snapshots (
+                    provider, provider_event_id, provider_market_id,
+                    provider_selection_id, quote_timestamp, provider_status,
+                    best_bid, best_ask, midpoint, last_trade, depth_json,
+                    source, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    quote["provider"], quote["provider_event_id"],
+                    quote["provider_market_id"], quote["provider_selection_id"],
+                    quote["quote_timestamp"], quote.get("provider_status"),
+                    quote.get("best_bid"), quote.get("best_ask"),
+                    quote.get("midpoint"), quote.get("last_trade"),
+                    json.dumps(quote.get("depth") or []), quote["source"],
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        return cursor.rowcount > 0
+
+    def get_clv_quotes(
+        self, provider: str, market_id: str, selection_id: str
+    ) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_clv_quotes(provider, market_id, selection_id)
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM clv_quote_snapshots
+                   WHERE provider = ? AND provider_market_id = ?
+                     AND provider_selection_id = ?
+                   ORDER BY quote_timestamp ASC""",
+                (provider, market_id, selection_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["depth"] = json.loads(row.pop("depth_json"))
+        return result
+
+    def insert_closing_line(self, snapshot: dict) -> bool:
+        if self.user_store:
+            return self.user_store.insert_closing_line(snapshot)
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO closing_line_snapshots (
+                    tracker_type, tracker_record_id, user_id, provider,
+                    provider_event_id, provider_market_id, provider_selection_id,
+                    entry_price, entry_native_odds, entry_implied_probability,
+                    entry_stake, closing_snapshot_timestamp,
+                    official_event_start_timestamp, closing_effective_price,
+                    closing_midpoint, clv_cents, clv_probability_points, clv_pct,
+                    midpoint_clv_pct, clv_status, clv_unavailable_reason,
+                    snapshot_json, calculation_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                self._closing_line_values(snapshot),
+            )
+        return cursor.rowcount > 0
+
+    def get_closing_lines(self, tracker_type: str, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_closing_lines(tracker_type, user_id)
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM closing_line_snapshots
+                   WHERE tracker_type = ? AND user_id = ?
+                   ORDER BY created_at ASC""",
+                (tracker_type, user_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row.update(json.loads(row.pop("snapshot_json")))
+        return result
+
+    def clv_diagnostics(self) -> dict:
+        if self.user_store:
+            return self.user_store.clv_diagnostics()
+        with self.connection() as conn:
+            monitored = conn.execute(
+                """SELECT COUNT(*) AS count FROM bet_tracker
+                   WHERE status IN ('scheduled', 'live', 'unresolved')"""
+            ).fetchone()["count"] + conn.execute(
+                """SELECT COUNT(*) AS count FROM personal_bet_fills
+                   WHERE status IN ('scheduled', 'live', 'unresolved')"""
+            ).fetchone()["count"]
+            quote = conn.execute(
+                "SELECT MAX(quote_timestamp) AS timestamp FROM clv_quote_snapshots"
+            ).fetchone()["timestamp"]
+            counts = conn.execute(
+                """SELECT clv_status, COUNT(*) AS count
+                   FROM closing_line_snapshots GROUP BY clv_status"""
+            ).fetchall()
+        by_status = {row["clv_status"]: row["count"] for row in counts}
+        return {
+            "markets_currently_monitored": monitored,
+            "last_snapshot_time": quote,
+            "closing_snapshots_captured": by_status.get("captured", 0),
+            "failed_captures": sum(value for key, value in by_status.items() if key not in {"captured", "pending"}),
+            "stale_quotes": by_status.get("stale_quote", 0),
+            "missing_provider_mappings": by_status.get("market_mapping_error", 0),
+        }
+
+    @staticmethod
+    def _closing_line_values(snapshot: dict) -> tuple:
+        return (
+            snapshot["tracker_type"], snapshot["tracker_record_id"],
+            snapshot["user_id"], snapshot["provider"],
+            snapshot["provider_event_id"], snapshot["provider_market_id"],
+            snapshot["provider_selection_id"], snapshot.get("entry_price"),
+            snapshot.get("entry_native_odds"), snapshot.get("entry_implied_probability"),
+            snapshot.get("entry_stake"), snapshot.get("closing_snapshot_timestamp"),
+            snapshot.get("official_event_start_timestamp"),
+            snapshot.get("closing_effective_price"), snapshot.get("closing_midpoint"),
+            snapshot.get("clv_cents"), snapshot.get("clv_probability_points"),
+            snapshot.get("clv_pct"), snapshot.get("midpoint_clv_pct"),
+            snapshot["clv_status"], snapshot.get("clv_unavailable_reason"),
+            json.dumps(snapshot), snapshot["calculation_version"],
+            datetime.now(timezone.utc).isoformat(),
+        )
 
     def health(self) -> dict[str, object]:
         payload: dict[str, object] = {

@@ -2224,6 +2224,52 @@ async function bindHistory() {
   loadHistory();
 }
 
+function formatClvPercent(value) {
+  const parsed = number(value);
+  if (parsed === null) return "Unavailable";
+  return `${parsed > 0 ? "+" : ""}${parsed.toFixed(2)}%`;
+}
+
+function formatClvCents(value) {
+  const parsed = number(value);
+  if (parsed === null) return "Unavailable";
+  return `${parsed > 0 ? "+" : ""}${parsed.toFixed(1)}\u00a2`;
+}
+
+function clvCell(row) {
+  const clv = row.clv || {};
+  const status = String(clv.clv_status || "pending").toLowerCase();
+  if (status !== "captured") {
+    const labels = {
+      pending: "CLV Pending",
+      unavailable: "CLV Unavailable",
+      void: "CLV Void",
+      stale_quote: "Stale quote",
+      market_mapping_error: "Mapping error",
+    };
+    return `<span class="clv-status neutral" title="${escapeHtml(clv.clv_unavailable_reason || "Closing line has not been captured")}">${escapeHtml(labels[status] || "CLV Unavailable")}</span>`;
+  }
+  const pct = number(clv.clv_pct);
+  const tone = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
+  const entryMarker = Math.max(1, Math.min(99, (number(clv.entry_price) || 0) * 100));
+  const closeMarker = Math.max(1, Math.min(99, (number(clv.closing_effective_price) || 0) * 100));
+  return `<details class="clv-details ${tone}">
+    <summary><strong>${escapeHtml(formatClvPercent(pct))} CLV</strong><small>${escapeHtml(formatClvCents(clv.clv_cents))}</small></summary>
+    <span><b>Provider</b>${escapeHtml(clv.provider || "Polymarket")}</span>
+    <span><b>Entry</b>${escapeHtml(formatCents(clv.entry_price))}</span>
+    <span><b>Executable close</b>${escapeHtml(formatCents(clv.closing_effective_price))}</span>
+    <span><b>Closing midpoint</b>${escapeHtml(formatCents(clv.closing_midpoint))}</span>
+    <span><b>Midpoint CLV</b>${escapeHtml(formatClvPercent(clv.midpoint_clv_pct))}</span>
+    <span><b>Closing snapshot</b>${escapeHtml(formatDateTime(clv.closing_snapshot_timestamp))}</span>
+    <span><b>Event start</b>${escapeHtml(formatDateTime(clv.official_event_start_timestamp))}</span>
+    <span><b>Settlement</b>${escapeHtml(formatDateTime(row.settled_at, "Pending"))}</span>
+    <span><b>Quote freshness</b>${escapeHtml(clv.quote_age_ms === null || clv.quote_age_ms === undefined ? "Unavailable" : `${(Number(clv.quote_age_ms) / 1000).toFixed(0)}s`)}</span>
+    <span><b>Comparison stake</b>${escapeHtml(formatMoney(clv.comparison_stake || clv.entry_stake))}</span>
+    <span><b>Liquidity</b>${escapeHtml(clv.liquidity_quality || "Unavailable")}</span>
+    <span class="clv-marker-chart"><b>Price markers</b><i class="entry" style="left:${entryMarker}%">Entry</i><i class="close" style="left:${closeMarker}%">Close</i></span>
+  </details>`;
+}
+
 function trackerRow(row) {
   const snapshot = row.snapshot || {};
   const pnl = number(row.profit_loss);
@@ -2238,6 +2284,7 @@ function trackerRow(row) {
       <td><strong>${formatMoney(row.recommended_amount)}</strong><small>${formatPercent(snapshot.final_recommended_fraction)} · ${formatUnits(row.recommended_units)}</small></td>
       <td><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td>
       <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
+      <td>${clvCell(row)}</td>
       <td class="mono">${formatMoney(row.running_bankroll)}</td>
     </tr>
   `;
@@ -2246,6 +2293,29 @@ function trackerRow(row) {
 function drawTrackerChart(graph) {
   const points = (graph || []).map((point, index) => ({ timestamp: point.timestamp || index, value: Number(point.bankroll) })).filter((point) => Number.isFinite(point.value));
   drawLineChart(document.getElementById("tracker-chart"), points, { format: (value) => formatCompactMoney(value) });
+}
+
+function renderClvAnalytics(payload = {}) {
+  const analytics = payload.clv || {};
+  const periods = analytics.periods || {};
+  const all = periods.all || {};
+  const cards = [
+    ["Stake-weighted CLV", formatClvPercent(all.stake_weighted_clv_pct), "Original stake weighted"],
+    ["Average CLV", formatClvPercent(all.average_clv_pct), "Simple average"],
+    ["Median CLV", formatClvPercent(all.median_clv_pct), "Measured bets"],
+    ["Positive CLV Rate", all.positive_clv_rate === null || all.positive_clv_rate === undefined ? "Unavailable" : formatPercent(all.positive_clv_rate), `${all.positive_clv_count || 0} positive`],
+    ["Bets Measured", String(all.bets_measured || 0), formatMoney(all.total_stake_represented || 0)],
+    ["CLV Unavailable", String(all.missing_clv_count || 0), "Excluded from CLV averages"],
+  ];
+  const metrics = document.getElementById("tracker-metrics");
+  metrics.insertAdjacentHTML("beforeend", cards.map(([label, value, note]) => metricCard(label, value, note, "ph-crosshair")).join(""));
+  document.getElementById("clv-period-strip").innerHTML = [
+    ["Today", periods.today], ["Past 7 Days", periods["7d"]], ["This Week", periods.week],
+    ["This Month", periods.month], ["This Year", periods.year], ["All Time", periods.all],
+  ].map(([label, value]) => `<span><small>${escapeHtml(label)}</small><strong class="${number(value?.stake_weighted_clv_pct) > 0 ? "positive" : number(value?.stake_weighted_clv_pct) < 0 ? "negative" : ""}">${escapeHtml(formatClvPercent(value?.stake_weighted_clv_pct))}</strong><em>${value?.bets_measured || 0} bets | ${escapeHtml(formatMoney(value?.total_stake_represented || 0))}</em></span>`).join("");
+  const trend = (analytics.trend || []).map((point) => ({ timestamp: point.date, value: Number(point.stake_weighted_clv_pct) })).filter((point) => Number.isFinite(point.value));
+  if (trend.length) drawLineChart(document.getElementById("clv-chart"), trend, { format: (value) => formatClvPercent(value) });
+  else document.getElementById("clv-chart").innerHTML = emptyState("CLV capture is pending", "Reliable provider-specific pregame closes will appear here after monitored events begin.");
 }
 
 function renderTrackerState(tracking = {}) {
@@ -2263,6 +2333,7 @@ function renderTrackerDiagnostics(diagnostics = {}) {
   const panel = document.getElementById("tracker-diagnostics");
   if (!panel) return;
   panel.hidden = appState.trackerView !== "model";
+  const clv = diagnostics.clv || {};
   document.getElementById("tracker-diagnostic-grid").innerHTML = [
     metricCard("Last successful run", formatDateTime(diagnostics.last_successful_run, "Never"), "Most recent completed backend job", "ph-check-circle"),
     metricCard("Evaluated", String(diagnostics.recommendations_evaluated || 0), "Today recommendations checked", "ph-magnifying-glass"),
@@ -2270,6 +2341,12 @@ function renderTrackerDiagnostics(diagnostics = {}) {
     metricCard("Duplicates", String(diagnostics.records_skipped_duplicates || 0), "Existing canonical records", "ph-copy"),
     metricCard("Rejected", String(diagnostics.records_rejected || 0), "Explicit eligibility failures", "ph-funnel-x"),
     metricCard("Errors", String(diagnostics.errors || 0), `Next run ${formatDateTime(diagnostics.next_scheduled_run, "Paused")}`, "ph-warning-circle"),
+    metricCard("CLV markets monitored", String(clv.markets_currently_monitored || 0), `${(clv.next_expected_event_starts || []).length} upcoming starts`, "ph-radar"),
+    metricCard("Last CLV quote", formatDateTime(clv.last_snapshot_time, "None yet"), "Persistent provider snapshot", "ph-clock-counter-clockwise"),
+    metricCard("Closing lines captured", String(clv.closing_snapshots_captured || 0), `Version ${clv.calculation_version || "clv-v1"}`, "ph-crosshair"),
+    metricCard("Stale CLV quotes", String(clv.stale_quotes || 0), `${clv.freshness_threshold_seconds || 300}s freshness threshold`, "ph-hourglass"),
+    metricCard("CLV mapping errors", String(clv.missing_provider_mappings || 0), "No cross-provider substitution", "ph-link-break"),
+    metricCard("Failed CLV captures", String(clv.failed_captures || 0), `Last job ${formatDateTime(clv.last_successful_clv_job_run, "Never")}`, "ph-warning"),
   ].join("");
   const pause = document.getElementById("tracker-pause-job");
   pause.textContent = diagnostics.paused ? "Resume tracking" : "Pause tracking";
@@ -2386,6 +2463,7 @@ function personalTrackerRow(row) {
       <td class="mono">${escapeHtml(formatMoney(row.fees))}</td>
       <td><span class="status-label ${escapeHtml(status)}">${escapeHtml(status)}</span></td>
       <td class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : escapeHtml(formatMoney(pnl))}</td>
+      <td>${clvCell(row)}</td>
       <td>${escapeHtml(formatDateTime(row.created_at))}</td>
       <td>${active ? `<button class="personal-fill-remove personal-tracker-remove" type="button" data-personal-fill-remove="${escapeHtml(row.fill_id)}" aria-label="Remove ${escapeHtml(row.selection || "personal trade")}" title="Remove this open personal trade"><i class="ph ph-trash" aria-hidden="true"></i></button>` : '<span class="muted">Settled</span>'}</td>
     </tr>
@@ -2431,8 +2509,9 @@ function renderModelTracker(payload) {
     metricCard("Open Exposure", formatMoney(summary.open_exposure), "Not included in realized P/L", "ph-lock-open"),
     metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough replay decline", "ph-trend-down"),
   ].join("");
+  renderClvAnalytics(payload);
   const body = document.getElementById("tracker-body");
-  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="10">${trackerEmptyState()}</td></tr>`;
+  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="11">${trackerEmptyState()}</td></tr>`;
   drawTrackerChart(payload.graph);
   renderTrackerPagination(payload.pagination, "model");
 }
@@ -2455,10 +2534,11 @@ function renderPersonalTracker(payload) {
     metricCard("Open Exposure", formatMoney(summary.open_exposure), "Amount paid on unresolved trades", "ph-lock-open"),
     metricCard("Max Drawdown", formatPercent(summary.maximum_drawdown), "Peak-to-trough personal decline", "ph-trend-down"),
   ].join("");
+  renderClvAnalytics(payload);
   const body = document.getElementById("tracker-body");
   body.innerHTML = payload.data.length
     ? payload.data.map(personalTrackerRow).join("")
-    : `<tr><td colspan="10"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Trades to Play card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Trades to Play</a></div></td></tr>`;
+    : `<tr><td colspan="11"><div class="empty-state"><i class="ph ph-user-plus" aria-hidden="true"></i><h2>No personal trades match</h2><p>Use the Track button on a Trades to Play card to add a confirmed purchase.</p><a class="button primary compact" href="/trades"><i class="ph ph-plus" aria-hidden="true"></i>Browse Trades to Play</a></div></td></tr>`;
   body.querySelectorAll("[data-personal-fill-remove]").forEach((button) => {
     button.addEventListener("click", () => removePersonalFill(button.dataset.personalFillRemove));
   });
@@ -2483,6 +2563,10 @@ function trackerRequestParams(view) {
     graph_range: appState.graphRange,
     page: String(appState.trackerPage[view]),
     per_page: "50",
+    clv_status: document.getElementById("tracker-clv-status").value,
+    min_clv: document.getElementById("tracker-clv-min").value,
+    max_clv: document.getElementById("tracker-clv-max").value,
+    clv_sort: document.getElementById("tracker-clv-sort").value,
   };
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
@@ -2499,7 +2583,7 @@ async function loadTracker() {
     renderModelTracker(payload);
     if (appState.trackerView === "model" && !document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
   } catch (error) {
-    if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="10">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
+    if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="11">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
   }
 }
 
@@ -2512,7 +2596,7 @@ async function loadPersonalTracker() {
     appState.trackerCache.personal = payload;
     renderPersonalTracker(payload);
   } catch (error) {
-    if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="10">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
+    if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="11">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
   }
 }
 
@@ -2560,8 +2644,8 @@ function configureTrackerShell(view) {
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
   document.getElementById("tracker-search").placeholder = model ? "Search event, market, trader" : "Search event, market, selection";
   document.getElementById("tracker-table-head").innerHTML = model
-    ? "<th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Bankroll</th>"
-    : "<th>Event / Market</th><th>Selection</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Tracked</th><th>Action</th>";
+    ? "<th>Event / Market</th><th>Selection</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Bankroll</th>"
+    : "<th>Event / Market</th><th>Selection</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
   document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
     const selected = button.dataset.trackerView === view;
@@ -2585,7 +2669,7 @@ async function selectTrackerView(view, { persist = true } = {}) {
     document.getElementById("tracker-result-count").textContent = "Loading";
     document.getElementById("tracker-metrics").innerHTML = '<div class="tracker-loading-state metric-loading"><span></span><span></span><span></span></div>';
     document.getElementById("tracker-chart").innerHTML = '<div class="tracker-loading-state"><span></span><span></span><span></span></div>';
-    document.getElementById("tracker-body").innerHTML = '<tr><td colspan="10"><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr>';
+    document.getElementById("tracker-body").innerHTML = '<tr><td colspan="11"><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr>';
   }
   loadTrackerView();
   if (persist) {
@@ -2653,7 +2737,8 @@ async function initializeTrackerView() {
 
 function bindTracker() {
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
-  ["tracker-status", "tracker-sharps", "tracker-result", "tracker-sportsbook", "tracker-tag"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-clv-min", "tracker-clv-max"].forEach((id) => document.getElementById(id).addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); })));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
     button.classList.add("active");

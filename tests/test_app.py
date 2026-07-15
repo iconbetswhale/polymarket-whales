@@ -303,6 +303,10 @@ def test_tracker_page_uses_one_shared_shell_for_both_trackers(app_client):
     assert html.count('href="/tracker"') == 1
     assert 'id="tracker-metrics"' in html
     assert 'id="tracker-chart"' in html
+    assert 'id="clv-chart"' in html
+    assert 'id="clv-period-strip"' in html
+    assert 'id="tracker-clv-status"' in html
+    assert 'id="tracker-clv-sort"' in html
     assert 'id="tracker-body"' in html
     assert 'id="personal-bankroll-control"' in html
     assert 'id="model-bankroll-control"' in html
@@ -342,6 +346,59 @@ def test_model_tracker_history_is_shared_across_browser_users(app_client):
     assert second_payload["pagination"]["total"] == 1
     assert first_payload["data"][0]["snapshot"]["event_title"] == "Shared tennis match"
     assert second_payload["data"][0]["snapshot_id"] == "shared-snapshot"
+
+
+def test_model_tracker_api_joins_immutable_clv_and_period_analytics(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    dedupe = "clv-event::clv-market::::clv-token::v2"
+    assert service.database.insert_tracker_snapshot(
+        MODEL_TRACKER_USER_ID,
+        {
+            "snapshot_id": "clv-snapshot",
+            "dedupe_key": dedupe,
+            "recommendation_version": "v2",
+            "recommendation_timestamp": datetime.now(timezone.utc).isoformat(),
+            "event_title": "CLV test match",
+            "market_title": "Match winner",
+            "recommended_side": "Player A",
+            "effective_entry_price": 0.343,
+            "final_recommended_fraction": 0.01,
+            "original_displayed_amount": 100,
+            "original_recommended_units": 1,
+            "estimated_win_probability": 0.5,
+            "sharps_count": 1,
+        },
+    )
+    assert service.database.insert_closing_line(
+        {
+            "tracker_type": "model",
+            "tracker_record_id": dedupe,
+            "user_id": MODEL_TRACKER_USER_ID,
+            "provider": "polymarket",
+            "provider_event_id": "clv-event",
+            "provider_market_id": "clv-market",
+            "provider_selection_id": "clv-token",
+            "entry_price": 0.343,
+            "entry_implied_probability": 0.343,
+            "entry_stake": 100,
+            "closing_snapshot_timestamp": datetime.now(timezone.utc).isoformat(),
+            "official_event_start_timestamp": datetime.now(timezone.utc).isoformat(),
+            "closing_effective_price": 0.43,
+            "closing_midpoint": 0.426,
+            "clv_cents": 8.7,
+            "clv_probability_points": 8.7,
+            "clv_pct": 25.3644314869,
+            "midpoint_clv_pct": 24.1982507289,
+            "clv_status": "captured",
+            "clv_unavailable_reason": None,
+            "calculation_version": "clv-v1",
+        }
+    )
+
+    payload = app_client.get("/api/model-tracker?clv_status=positive").get_json()
+    assert payload["data"][0]["clv"]["provider"] == "polymarket"
+    assert payload["data"][0]["clv"]["clv_pct"] == pytest.approx(25.3644314869)
+    assert payload["clv"]["periods"]["all"]["stake_weighted_clv_pct"] == pytest.approx(25.3644314869)
 
 
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):

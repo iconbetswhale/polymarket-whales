@@ -274,6 +274,68 @@ class PostgresUserStore:
                     market_line, canonical_outcome_id, sportsbook
                 )
             """,
+            """
+            CREATE TABLE IF NOT EXISTS clv_quote_snapshots (
+                id BIGSERIAL PRIMARY KEY,
+                provider TEXT NOT NULL,
+                provider_event_id TEXT NOT NULL,
+                provider_market_id TEXT NOT NULL,
+                provider_selection_id TEXT NOT NULL,
+                quote_timestamp TEXT NOT NULL,
+                provider_status TEXT,
+                best_bid DOUBLE PRECISION,
+                best_ask DOUBLE PRECISION,
+                midpoint DOUBLE PRECISION,
+                last_trade DOUBLE PRECISION,
+                depth_json TEXT NOT NULL DEFAULT '[]',
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(provider, provider_market_id, provider_selection_id, quote_timestamp)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_clv_quotes_selection_time
+                ON clv_quote_snapshots(
+                    provider, provider_market_id, provider_selection_id,
+                    quote_timestamp DESC
+                )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS closing_line_snapshots (
+                id BIGSERIAL PRIMARY KEY,
+                tracker_type TEXT NOT NULL,
+                tracker_record_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                provider TEXT NOT NULL,
+                provider_event_id TEXT NOT NULL,
+                provider_market_id TEXT NOT NULL,
+                provider_selection_id TEXT NOT NULL,
+                entry_price DOUBLE PRECISION,
+                entry_native_odds TEXT,
+                entry_implied_probability DOUBLE PRECISION,
+                entry_stake DOUBLE PRECISION,
+                closing_snapshot_timestamp TEXT,
+                official_event_start_timestamp TEXT,
+                closing_effective_price DOUBLE PRECISION,
+                closing_midpoint DOUBLE PRECISION,
+                clv_cents DOUBLE PRECISION,
+                clv_probability_points DOUBLE PRECISION,
+                clv_pct DOUBLE PRECISION,
+                midpoint_clv_pct DOUBLE PRECISION,
+                clv_status TEXT NOT NULL,
+                clv_unavailable_reason TEXT,
+                snapshot_json TEXT NOT NULL,
+                calculation_version TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                UNIQUE(tracker_type, tracker_record_id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_closing_lines_tracker_time
+                ON closing_line_snapshots(
+                    tracker_type, user_id, closing_snapshot_timestamp DESC
+                )
+            """,
         )
         with self.connection() as conn:
             for statement in statements:
@@ -1242,6 +1304,110 @@ class PostgresUserStore:
                     fill_id,
                 ),
             )
+
+    def insert_clv_quote(self, quote: dict) -> bool:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO clv_quote_snapshots (
+                    provider, provider_event_id, provider_market_id,
+                    provider_selection_id, quote_timestamp, provider_status,
+                    best_bid, best_ask, midpoint, last_trade, depth_json,
+                    source, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING
+                """,
+                (
+                    quote["provider"], quote["provider_event_id"],
+                    quote["provider_market_id"], quote["provider_selection_id"],
+                    quote["quote_timestamp"], quote.get("provider_status"),
+                    quote.get("best_bid"), quote.get("best_ask"),
+                    quote.get("midpoint"), quote.get("last_trade"),
+                    json.dumps(quote.get("depth") or []), quote["source"],
+                    datetime.now(timezone.utc).isoformat(),
+                ),
+            )
+        return cursor.rowcount > 0
+
+    def get_clv_quotes(self, provider: str, market_id: str, selection_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM clv_quote_snapshots
+                   WHERE provider = %s AND provider_market_id = %s
+                     AND provider_selection_id = %s
+                   ORDER BY quote_timestamp ASC""",
+                (provider, market_id, selection_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["depth"] = json.loads(row.pop("depth_json"))
+        return result
+
+    def insert_closing_line(self, snapshot: dict) -> bool:
+        values = (
+            snapshot["tracker_type"], snapshot["tracker_record_id"], snapshot["user_id"],
+            snapshot["provider"], snapshot["provider_event_id"], snapshot["provider_market_id"],
+            snapshot["provider_selection_id"], snapshot.get("entry_price"),
+            snapshot.get("entry_native_odds"), snapshot.get("entry_implied_probability"),
+            snapshot.get("entry_stake"), snapshot.get("closing_snapshot_timestamp"),
+            snapshot.get("official_event_start_timestamp"), snapshot.get("closing_effective_price"),
+            snapshot.get("closing_midpoint"), snapshot.get("clv_cents"),
+            snapshot.get("clv_probability_points"), snapshot.get("clv_pct"),
+            snapshot.get("midpoint_clv_pct"), snapshot["clv_status"],
+            snapshot.get("clv_unavailable_reason"), json.dumps(snapshot),
+            snapshot["calculation_version"], datetime.now(timezone.utc).isoformat(),
+        )
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """INSERT INTO closing_line_snapshots (
+                    tracker_type, tracker_record_id, user_id, provider,
+                    provider_event_id, provider_market_id, provider_selection_id,
+                    entry_price, entry_native_odds, entry_implied_probability,
+                    entry_stake, closing_snapshot_timestamp,
+                    official_event_start_timestamp, closing_effective_price,
+                    closing_midpoint, clv_cents, clv_probability_points, clv_pct,
+                    midpoint_clv_pct, clv_status, clv_unavailable_reason,
+                    snapshot_json, calculation_version, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT DO NOTHING""",
+                values,
+            )
+        return cursor.rowcount > 0
+
+    def get_closing_lines(self, tracker_type: str, user_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM closing_line_snapshots
+                   WHERE tracker_type = %s AND user_id = %s
+                   ORDER BY created_at ASC""",
+                (tracker_type, user_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row.update(json.loads(row.pop("snapshot_json")))
+        return result
+
+    def clv_diagnostics(self) -> dict:
+        with self.connection() as conn:
+            monitored = conn.execute(
+                """SELECT
+                    (SELECT COUNT(*) FROM bet_tracker WHERE status IN ('scheduled','live','unresolved')) +
+                    (SELECT COUNT(*) FROM personal_bet_fills WHERE status IN ('scheduled','live','unresolved')) AS count"""
+            ).fetchone()["count"]
+            quote = conn.execute("SELECT MAX(quote_timestamp) AS timestamp FROM clv_quote_snapshots").fetchone()["timestamp"]
+            counts = conn.execute(
+                "SELECT clv_status, COUNT(*) AS count FROM closing_line_snapshots GROUP BY clv_status"
+            ).fetchall()
+        by_status = {row["clv_status"]: row["count"] for row in counts}
+        return {
+            "markets_currently_monitored": monitored,
+            "last_snapshot_time": quote,
+            "closing_snapshots_captured": by_status.get("captured", 0),
+            "failed_captures": sum(value for key, value in by_status.items() if key not in {"captured", "pending"}),
+            "stale_quotes": by_status.get("stale_quote", 0),
+            "missing_provider_mappings": by_status.get("market_mapping_error", 0),
+        }
 
     def health(self) -> dict[str, str | bool]:
         try:

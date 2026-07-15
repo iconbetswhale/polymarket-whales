@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 from bet_tracker import replay_tracker
+from clv import clv_period_analytics, clv_trend, safe_float as clv_float
 from config import get_settings
 from database import SettingsVersionConflict
 from execution_providers import (
@@ -62,6 +63,62 @@ PASSWORD_ITERATIONS = 310_000
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
+
+
+def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> list[dict]:
+    by_record = {str(item.get("tracker_record_id")): item for item in snapshots}
+    for row in rows:
+        record_id = str(row.get(record_key) or "")
+        row["clv"] = by_record.get(record_id) or {
+            "tracker_record_id": record_id,
+            "entry_price": (row.get("snapshot") or {}).get("effective_entry_price")
+            if record_key == "dedupe_key"
+            else row.get("entry_price"),
+            "entry_stake": row.get("recommended_amount")
+            if record_key == "dedupe_key"
+            else row.get("position_cost"),
+            "clv_status": "pending",
+            "clv_pct": None,
+            "clv_cents": None,
+        }
+    return rows
+
+
+def _filter_sort_clv_rows(rows: list[dict]) -> list[dict]:
+    status_filter = request.args.get("clv_status", "").strip().lower()
+    minimum = clv_float(request.args.get("min_clv"))
+    maximum = clv_float(request.args.get("max_clv"))
+    if status_filter == "positive":
+        rows = [row for row in rows if (clv_float(row["clv"].get("clv_pct")) or 0) > 0]
+    elif status_filter == "negative":
+        rows = [row for row in rows if (clv_float(row["clv"].get("clv_pct")) or 0) < 0]
+    elif status_filter:
+        rows = [row for row in rows if str(row["clv"].get("clv_status") or "").lower() == status_filter]
+    if minimum is not None:
+        rows = [row for row in rows if clv_float(row["clv"].get("clv_pct")) is not None and float(row["clv"]["clv_pct"]) >= minimum]
+    if maximum is not None:
+        rows = [row for row in rows if clv_float(row["clv"].get("clv_pct")) is not None and float(row["clv"]["clv_pct"]) <= maximum]
+    sort = request.args.get("clv_sort", "").strip().lower()
+    sorters = {
+        "highest_pct": (lambda row: clv_float(row["clv"].get("clv_pct")) or -float("inf"), True),
+        "lowest_pct": (lambda row: clv_float(row["clv"].get("clv_pct")) or float("inf"), False),
+        "highest_cents": (lambda row: clv_float(row["clv"].get("clv_cents")) or -float("inf"), True),
+        "closing_date": (lambda row: str(row["clv"].get("closing_snapshot_timestamp") or ""), True),
+        "entry_price": (lambda row: clv_float(row["clv"].get("entry_price")) or float("inf"), False),
+        "closing_price": (lambda row: clv_float(row["clv"].get("closing_effective_price")) or float("inf"), False),
+    }
+    if sort in sorters:
+        key, reverse = sorters[sort]
+        rows = sorted(rows, key=key, reverse=reverse)
+    return rows
+
+
+def _clv_analytics(rows: list[dict]) -> dict:
+    values = [row["clv"] for row in rows]
+    return {
+        "periods": clv_period_analytics(values),
+        "trend": clv_trend(values),
+    }
 
 
 def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
@@ -1413,6 +1470,13 @@ def create_app(start_background: bool = True) -> Flask:
                 ),
             ]
         rows = replay["rows"]
+        rows = _attach_clv(
+            rows,
+            tracker.database.get_closing_lines("personal", g.iconbets_user_id),
+            "fill_id",
+        )
+        rows = _filter_sort_clv_rows(rows)
+        clv_analytics = _clv_analytics(rows)
 
         graph_range = request.args.get("graph_range", "month")
         now = datetime.now(timezone.utc)
@@ -1441,6 +1505,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": list(reversed(rows))[start : start + per_page],
                 "summary": replay["summary"],
                 "graph": graph,
+                "clv": clv_analytics,
                 "bankroll": current_settings,
                 "filter_options": filter_options,
                 "pagination": {
@@ -1697,6 +1762,13 @@ def create_app(start_background: bool = True) -> Flask:
                 if int((row.get("snapshot") or {}).get("sharps_count") or 0)
                 >= min_sharps
             ]
+        rows = _attach_clv(
+            rows,
+            tracker.database.get_closing_lines("model", MODEL_TRACKER_USER_ID),
+            "dedupe_key",
+        )
+        rows = _filter_sort_clv_rows(rows)
+        clv_analytics = _clv_analytics(rows)
 
         graph_range = request.args.get("graph_range", "month")
         now = datetime.now(timezone.utc)
@@ -1725,6 +1797,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": list(reversed(rows))[start : start + per_page],
                 "summary": replay["summary"],
                 "graph": graph,
+                "clv": clv_analytics,
                 "bankroll": current_settings,
                 "tracking": {
                     key: value
