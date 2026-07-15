@@ -286,8 +286,7 @@ class ProphetXProvider(ExecutionProvider):
         with self._health_lock:
             if not self._bearer_token:
                 raise ValueError("ProphetX authentication unavailable")
-            # The affiliate market-data contract uses the raw session token.
-            return self._bearer_token
+            return f"Bearer {self._bearer_token}"
 
     def health_status(self, *, authenticate: bool = False) -> ProviderHealthStatus:
         if not self._access_key or not self._secret_key:

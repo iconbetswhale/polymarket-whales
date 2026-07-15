@@ -487,7 +487,10 @@ def test_prophetx_exact_market_adds_live_execution_option() -> None:
     assert [call[0] for call in session.calls] == ["POST", "GET", "GET", "GET"]
     market_call = session.calls[-1]
     assert market_call[2]["params"] == [("event_ids", "101")]
-    assert market_call[2]["headers"]["Authorization"] == "temporary-session-token"
+    assert (
+        market_call[2]["headers"]["Authorization"]
+        == "Bearer temporary-session-token"
+    )
 
 
 def test_prophetx_feed_is_cached_for_all_visible_trades() -> None:
