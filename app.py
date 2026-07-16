@@ -53,6 +53,7 @@ from learning_system import (
     violation_analytics,
 )
 from measurement_foundation import stable_hash
+from completion_system import explainability_trace
 from sharp_tracking import (
     sharp_snapshot_from_fill,
     sharp_snapshot_from_model,
@@ -98,6 +99,30 @@ def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> lis
             "clv_pct": None,
             "clv_cents": None,
         }
+    return rows
+
+
+def _attach_dual_clv(rows: list[dict], measurements: list[dict]) -> list[dict]:
+    by_record = {str(item.get("tracker_record_id") or ""): item for item in measurements}
+    for row in rows:
+        snapshot = row.get("snapshot") or {}
+        identifiers = (
+            row.get("dedupe_key"),
+            row.get("snapshot_id"),
+            snapshot.get("candidate_id"),
+            snapshot.get("snapshot_id"),
+        )
+        row["dual_clv"] = next(
+            (by_record[str(value)] for value in identifiers if value and str(value) in by_record),
+            {
+                "exchange_clv_status": "PENDING",
+                "composite_clv_status": "UNAVAILABLE",
+                "composite_missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+                "composite_closing_probability": None,
+                "composite_probability_point_clv": None,
+                "execution_loss": None,
+            },
+        )
     return rows
 
 
@@ -681,6 +706,10 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/edge-map")
     def edge_map_page():
         return render_template("edge_map.html", title="IconBets Reece Edge Map", page="edge-map")
+
+    @app.route("/intelligence")
+    def intelligence_page():
+        return render_template("intelligence.html", title="IconBets Intelligence", page="intelligence")
 
     @app.route("/model-tracker")
     def model_tracker_page():
@@ -1842,6 +1871,9 @@ def create_app(start_background: bool = True) -> Flask:
         result = request.args.get("result", "").strip().lower()
         min_sharps = max(request.args.get("min_sharps", 0, type=int) or 0, 0)
         sharp_filter = request.args.get("sharp", "").strip()
+        grade_filter = request.args.get("grade", "").strip().upper()
+        liquidity_filter = request.args.get("liquidity_grade", "").strip().upper()
+        execution_filter = request.args.get("execution_method", "").strip().upper()
         if query:
             rows = [
                 row
@@ -1896,10 +1928,20 @@ def create_app(start_background: bool = True) -> Flask:
                     row.get("sharp_snapshot") or {}, sharp_filter
                 )
             ]
+        if grade_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("trade_grade") or "UNAVAILABLE").upper() == grade_filter]
+        if liquidity_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("liquidity_grade") or "UNAVAILABLE").upper() == liquidity_filter]
+        if execution_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("execution_method") or "UNAVAILABLE").upper() == execution_filter]
         rows = _attach_clv(
             rows,
             tracker.database.get_closing_lines("model", MODEL_TRACKER_USER_ID),
             "dedupe_key",
+        )
+        rows = _attach_dual_clv(
+            rows,
+            tracker.database.get_dual_clv_measurements("model", MODEL_TRACKER_USER_ID),
         )
         rows = _filter_sort_clv_rows(rows)
         clv_analytics = _clv_analytics(rows)
@@ -2092,6 +2134,7 @@ def create_app(start_background: bool = True) -> Flask:
         }
         if persist:
             tracker.database.record_edge_map(run, segments)
+            tracker.database.record_post_change_monitoring(run["run_id"], segments)
         return {"run": run, "segments": segments}
 
     @app.route("/api/edge-map")
@@ -2138,6 +2181,13 @@ def create_app(start_background: bool = True) -> Flask:
         except KeyError as exc:
             return jsonify({"error": str(exc)}), 404
         return jsonify({"data": row})
+
+    @app.route("/api/admin/rule-violations")
+    def api_admin_rule_violations():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        rows = tracker.database.list_rule_violations()
+        return jsonify({"data": rows, "analytics": violation_analytics(rows)})
 
     @app.route("/api/admin/learning-system/recalculate", methods=["POST"])
     def api_admin_learning_recalculate():
@@ -2200,6 +2250,40 @@ def create_app(start_background: bool = True) -> Flask:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"data": row, "live_configuration_changed": False})
+
+    @app.route("/api/admin/configuration-proposals/<proposal_id>/apply", methods=["POST"])
+    def api_admin_configuration_apply(proposal_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        try:
+            row = tracker.database.apply_configuration_proposal(proposal_id, "admin")
+        except KeyError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"data": row, "live_configuration_changed": True, "risk_increase_allowed": False})
+
+    @app.route("/api/admin/explainability/<candidate_id>")
+    def api_admin_explainability(candidate_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        measurements = tracker.database.get_candidate_measurements(candidate_id)
+        if not measurements:
+            return jsonify({"error": "Candidate not found."}), 404
+        return jsonify({"data": explainability_trace(measurements)})
+
+    @app.route("/api/tracker/advanced-analytics")
+    def api_tracker_advanced_analytics():
+        rows = tracker.database.learning_candidate_rows()
+        segments = build_edge_map(rows, learning_config())
+        wanted = {"wallet", "sport", "time_to_event_bucket", "trade_grade", "liquidity_grade", "execution_method", "decision_class"}
+        return jsonify({"data": {"segments": [row for row in segments if row["dimension"] in wanted], "played_vs_passed": {"played": sum(str(row.get("current_decision", "")).startswith("APPROVED") for row in rows), "passed": sum(row.get("current_decision") == "PASSED" for row in rows), "research_only": sum(row.get("current_decision") == "RESEARCH_ONLY" for row in rows)}, "calculation_version": EDGE_MAP_VERSION, "fabricated_data": False}})
+
+    @app.route("/api/admin/completion/diagnostics")
+    def api_admin_completion_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify({"data": {**tracker.database.completion_diagnostics(), "measurement": tracker.database.measurement_diagnostics(), "decision": tracker.database.decision_engine_diagnostics(), "execution_risk": tracker.database.release3_diagnostics(), "learning": tracker.database.release4_diagnostics(), "release": "release-5-completion"}})
 
     @app.route("/api/admin/risk/kill-switch", methods=["POST"])
     def api_admin_risk_kill_switch():

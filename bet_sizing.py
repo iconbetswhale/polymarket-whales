@@ -552,6 +552,19 @@ def build_recommendation(
     )
     pre_risk_amount = final_amount
     final_amount = portfolio_risk["final_capped_stake"]
+    segment_policy = risk_context.get("segment_policy") or {
+        "stake_multiplier": 1.0,
+        "matched_policies": [],
+        "calculation_version": "segment-policy-v5",
+    }
+    amount_before_segment_policy = final_amount
+    final_amount *= max(
+        0.0,
+        min(1.0, _safe_float(segment_policy.get("stake_multiplier"), 1.0)),
+    )
+    portfolio_risk["final_capped_stake_before_segment_policy"] = amount_before_segment_policy
+    portfolio_risk["final_capped_stake"] = round(final_amount, 8)
+    portfolio_risk["applied_segment_policy"] = segment_policy
     final_fraction = final_amount / bankroll if bankroll > 0 else 0.0
     final_fill = volume_weighted_entry(valid_asks, final_amount) if final_amount > 0 else None
     if final_fill:
@@ -600,6 +613,7 @@ def build_recommendation(
         "maximum_adjustment": adjustment_cap,
         "estimated_win_probability": estimated_probability,
         "raw_fair_probability": fair_probability,
+        "composite_fair_probability": fair_probability,
         "fee_adjusted_fair_probability": fee_adjusted_fair_probability,
         "fair_price_status": fair_price.get("status"),
         "fair_price_source_count": fair_price.get("source_count"),
@@ -643,6 +657,7 @@ def build_recommendation(
         "expected_fee_fraction": expected_fee_fraction,
         "fees_included": True,
         "portfolio_risk": portfolio_risk,
+        "applied_segment_policy": segment_policy,
         "execution_plan": execution_plan,
         "config": asdict(config),
     }

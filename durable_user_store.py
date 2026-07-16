@@ -28,6 +28,7 @@ from release4_foundation import (
     migration_sql as release4_migration_sql,
     model_version_rows as release4_model_version_rows,
 )
+from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
 
 
 class PostgresUserStore:
@@ -561,6 +562,11 @@ class PostgresUserStore:
                     """,
                     (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]),
                 )
+            for statement in release5_migration_sql("postgres").split(";"):
+                if statement.strip(): conn.execute(statement)
+            conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING", (RELEASE5_MIGRATION_VERSION, now))
+            for row in release5_model_version_rows():
+                conn.execute("INSERT INTO model_versions(version_key, component, version, status, description, registered_at) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT(version_key) DO NOTHING", (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]))
 
     def get_or_create_user_settings(
         self, user_id: str, default_bankroll: float, unit_percentage: float
@@ -1681,6 +1687,19 @@ class PostgresUserStore:
                 ),
             )
 
+    def get_dual_clv_measurements(self, tracker_type: str, user_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM dual_clv_measurements
+                   WHERE tracker_type = %s AND user_id = %s
+                   ORDER BY created_at ASC""",
+                (tracker_type, user_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return result
+
     def record_candidate_price_observation(
         self,
         candidate_id: str,
@@ -2317,6 +2336,36 @@ class PostgresUserStore:
             statuses = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM edge_map_segment_snapshots GROUP BY status")]
             proposals = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM configuration_proposals GROUP BY status")]
         return {"table_counts": counts, "segment_status_counts": statuses, "proposal_status_counts": proposals, "production_weights_auto_changed": False, "fabricated_data": False}
+
+    def active_segment_policies(self) -> list[dict]:
+        with self.connection() as conn: return [dict(row) for row in conn.execute("SELECT * FROM segment_policy_assignments WHERE status = 'ACTIVE' ORDER BY created_at")]
+
+    def apply_configuration_proposal(self, proposal_id: str, actor: str) -> dict:
+        proposal = self.get_configuration_proposal(proposal_id)
+        if not proposal: raise KeyError("Proposal not found.")
+        if proposal["status"] != "APPROVED": raise ValueError("Only an approved proposal can be applied.")
+        multiplier = float((proposal.get("proposed_config") or {}).get("stake_multiplier", -1))
+        if not 0 <= multiplier <= 1: raise ValueError("Applied stake_multiplier must be between 0 and 1; Release 5 cannot increase risk.")
+        now = datetime.now(timezone.utc).isoformat(); version = proposal.get("config_version_after") or stable_hash(proposal_id, "applied"); policy_id = stable_hash(version, proposal["segment_dimension"], proposal["segment_value"])
+        with self.connection() as conn:
+            conn.execute("UPDATE segment_policy_assignments SET status = 'SUPERSEDED' WHERE status = 'ACTIVE' AND segment_dimension = %s AND segment_value = %s", (proposal["segment_dimension"], proposal["segment_value"]))
+            conn.execute("INSERT INTO production_configuration_versions(config_version, proposal_id, config_json, activated_by, activated_at, status, calculation_version) VALUES (%s, %s, %s, %s, %s, 'ACTIVE', 'segment-policy-v5') ON CONFLICT(config_version) DO UPDATE SET status = 'ACTIVE'", (version, proposal_id, json.dumps(proposal["proposed_config"], sort_keys=True), actor, now))
+            conn.execute("INSERT INTO segment_policy_assignments(policy_id, config_version, segment_dimension, segment_value, stake_multiplier, status, rationale, created_at) VALUES (%s, %s, %s, %s, %s, 'ACTIVE', %s, %s) ON CONFLICT(policy_id) DO UPDATE SET status = 'ACTIVE', stake_multiplier = EXCLUDED.stake_multiplier", (policy_id, version, proposal["segment_dimension"], proposal["segment_value"], multiplier, json.dumps(proposal.get("evidence") or {}, sort_keys=True), now))
+            conn.execute("UPDATE configuration_proposals SET status = 'APPLIED', applied_at = %s, updated_at = %s WHERE proposal_id = %s", (now, now, proposal_id))
+        return {"config_version": version, "policy_id": policy_id, "stake_multiplier": multiplier, "status": "ACTIVE", "activated_at": now}
+
+    def record_post_change_monitoring(self, edge_map_run_id: str | None, segments: list[dict]) -> int:
+        policies = self.active_segment_policies(); now = datetime.now(timezone.utc).isoformat(); by_key = {(r["dimension"], r["segment_value"]): r for r in segments}
+        with self.connection() as conn:
+            for policy in policies:
+                metrics = by_key.get((policy["segment_dimension"], policy["segment_value"]), {"candidate_count": 0}); mid = stable_hash(policy["config_version"], edge_map_run_id, now)
+                conn.execute("INSERT INTO post_change_monitoring_runs(monitoring_id, config_version, edge_map_run_id, segment_dimension, segment_value, metrics_json, status, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, 'post-change-monitor-v5', %s) ON CONFLICT(monitoring_id) DO NOTHING", (mid, policy["config_version"], edge_map_run_id, policy["segment_dimension"], policy["segment_value"], json.dumps(metrics, sort_keys=True), metrics.get("status", "INSUFFICIENT_SAMPLE"), now))
+        return len(policies)
+
+    def completion_diagnostics(self) -> dict:
+        tables = ("production_configuration_versions", "segment_policy_assignments", "post_change_monitoring_runs")
+        with self.connection() as conn: counts = {table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"] for table in tables}
+        return {"table_counts": counts, "active_policies": self.active_segment_policies(), "risk_increasing_policies_allowed": False, "fabricated_data": False}
 
     @staticmethod
     def _proposal_row(row: dict) -> dict:

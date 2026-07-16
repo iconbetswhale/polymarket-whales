@@ -62,6 +62,7 @@ from recommendation_service import (
     evaluate_trade_recommendation,
 )
 from risk_engine import RiskConfig, normalize_exposure
+from completion_system import matching_policy
 from scoring import hours_until_resolution, score_position
 from trade_scoring import build_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
@@ -674,6 +675,9 @@ class TrackerService:
     ) -> dict:
         risk_context = self.build_risk_context(
             bankroll, user_id=user_id, include_personal=include_personal
+        )
+        risk_context["segment_policy"] = matching_policy(
+            play, self.database.active_segment_policies()
         )
         return evaluate_trade_recommendation(
             play, bankroll, self.sizing_config, now=now, risk_context=risk_context

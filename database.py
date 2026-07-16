@@ -31,6 +31,7 @@ from release4_foundation import (
     migration_sql as release4_migration_sql,
     model_version_rows as release4_model_version_rows,
 )
+from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
 
 
 class SettingsVersionConflict(RuntimeError):
@@ -561,6 +562,9 @@ class TrackerDatabase:
                 """,
                 [(row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]) for row in release4_model_version_rows()],
             )
+            conn.executescript(release5_migration_sql("sqlite"))
+            conn.execute("INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)", (RELEASE5_MIGRATION_VERSION, now))
+            conn.executemany("INSERT OR IGNORE INTO model_versions(version_key, component, version, status, description, registered_at) VALUES (?, ?, ?, ?, ?, ?)", [(row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]) for row in release5_model_version_rows()])
             conn.executescript(release2_migration_sql("sqlite"))
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
@@ -2278,6 +2282,21 @@ class TrackerDatabase:
                 ),
             )
 
+    def get_dual_clv_measurements(self, tracker_type: str, user_id: str) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_dual_clv_measurements(tracker_type, user_id)
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM dual_clv_measurements
+                   WHERE tracker_type = ? AND user_id = ?
+                   ORDER BY created_at ASC""",
+                (tracker_type, user_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return result
+
     def record_candidate_price_observation(
         self,
         candidate_id: str,
@@ -2882,6 +2901,47 @@ class TrackerDatabase:
             statuses = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM edge_map_segment_snapshots GROUP BY status")]
             proposals = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM configuration_proposals GROUP BY status")]
         return {"table_counts": counts, "segment_status_counts": statuses, "proposal_status_counts": proposals, "production_weights_auto_changed": False, "fabricated_data": False}
+
+    def active_segment_policies(self) -> list[dict]:
+        if self.user_store: return self.user_store.active_segment_policies()
+        with self.connection() as conn:
+            return [dict(row) for row in conn.execute("SELECT * FROM segment_policy_assignments WHERE status = 'ACTIVE' ORDER BY created_at")]
+
+    def apply_configuration_proposal(self, proposal_id: str, actor: str) -> dict:
+        if self.user_store: return self.user_store.apply_configuration_proposal(proposal_id, actor)
+        proposal = self.get_configuration_proposal(proposal_id)
+        if not proposal: raise KeyError("Proposal not found.")
+        if proposal["status"] != "APPROVED": raise ValueError("Only an approved proposal can be applied.")
+        multiplier = float((proposal.get("proposed_config") or {}).get("stake_multiplier", -1))
+        if not 0 <= multiplier <= 1:
+            raise ValueError("Applied stake_multiplier must be between 0 and 1; Release 5 cannot increase risk.")
+        now = datetime.now(timezone.utc).isoformat()
+        version = proposal.get("config_version_after") or stable_hash(proposal_id, "applied")
+        policy_id = stable_hash(version, proposal["segment_dimension"], proposal["segment_value"])
+        with self.connection() as conn:
+            conn.execute("UPDATE segment_policy_assignments SET status = 'SUPERSEDED' WHERE status = 'ACTIVE' AND segment_dimension = ? AND segment_value = ?", (proposal["segment_dimension"], proposal["segment_value"]))
+            conn.execute("INSERT OR REPLACE INTO production_configuration_versions(config_version, proposal_id, config_json, activated_by, activated_at, status, calculation_version) VALUES (?, ?, ?, ?, ?, 'ACTIVE', 'segment-policy-v5')", (version, proposal_id, json.dumps(proposal["proposed_config"], sort_keys=True), actor, now))
+            conn.execute("INSERT OR REPLACE INTO segment_policy_assignments(policy_id, config_version, segment_dimension, segment_value, stake_multiplier, status, rationale, created_at) VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)", (policy_id, version, proposal["segment_dimension"], proposal["segment_value"], multiplier, json.dumps(proposal.get("evidence") or {}, sort_keys=True), now))
+            conn.execute("UPDATE configuration_proposals SET status = 'APPLIED', applied_at = ?, updated_at = ? WHERE proposal_id = ?", (now, now, proposal_id))
+        return {"config_version": version, "policy_id": policy_id, "stake_multiplier": multiplier, "status": "ACTIVE", "activated_at": now}
+
+    def record_post_change_monitoring(self, edge_map_run_id: str | None, segments: list[dict]) -> int:
+        if self.user_store: return self.user_store.record_post_change_monitoring(edge_map_run_id, segments)
+        policies = self.active_segment_policies(); now = datetime.now(timezone.utc).isoformat(); count = 0
+        by_key = {(row["dimension"], row["segment_value"]): row for row in segments}
+        with self.connection() as conn:
+            for policy in policies:
+                metrics = by_key.get((policy["segment_dimension"], policy["segment_value"]), {"candidate_count": 0})
+                monitoring_id = stable_hash(policy["config_version"], edge_map_run_id, now)
+                conn.execute("INSERT OR IGNORE INTO post_change_monitoring_runs(monitoring_id, config_version, edge_map_run_id, segment_dimension, segment_value, metrics_json, status, calculation_version, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, 'post-change-monitor-v5', ?)", (monitoring_id, policy["config_version"], edge_map_run_id, policy["segment_dimension"], policy["segment_value"], json.dumps(metrics, sort_keys=True), metrics.get("status", "INSUFFICIENT_SAMPLE"), now)); count += 1
+        return count
+
+    def completion_diagnostics(self) -> dict:
+        if self.user_store: return self.user_store.completion_diagnostics()
+        with self.connection() as conn:
+            tables = ("production_configuration_versions", "segment_policy_assignments", "post_change_monitoring_runs")
+            counts = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
+        return {"table_counts": counts, "active_policies": self.active_segment_policies(), "risk_increasing_policies_allowed": False, "fabricated_data": False}
 
     @staticmethod
     def _proposal_row(row: dict) -> dict:

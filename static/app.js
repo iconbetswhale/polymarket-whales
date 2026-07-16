@@ -34,6 +34,7 @@ const appState = {
   closureFilter: "all",
   pnlPeriod: "week",
   sellPosition: null,
+  intelligence: { candidates: [], proposals: [], violations: [], diagnostics: null },
 };
 
 function researchBadges(trade) {
@@ -683,13 +684,17 @@ function executionOptionButton(trade, option) {
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
   const classes = `execution-option execution-option--${providerKey}${polymarketClass} ${movement}`.trim();
   const tooltip = option.tooltip || `${providerName} Current Best Price`;
+  const plan = trade.recommendation?.execution_plan || {};
+  const effective = number(plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
+  const maximum = number(plan.maximum_average_price);
+  const aboveMaximum = effective !== null && maximum !== null && effective > maximum;
   const content = `
     <img src="${escapeHtml(option.logoUrl || "")}" alt="" aria-hidden="true" width="18" height="18">
     <span><small>${escapeHtml(providerName)}</small><strong>${escapeHtml(displayOdds)}</strong></span>
     <span class="execution-option-tooltip" role="tooltip">${escapeHtml(tooltip)}</span>
   `;
-  if (!option.isAvailable || !option.deepLink) {
-    return `<button class="${escapeHtml(classes)}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(providerName)} is unavailable">${content}</button>`;
+  if (!option.isAvailable || !option.deepLink || aboveMaximum) {
+    return `<button class="${escapeHtml(classes)} ${aboveMaximum ? "above-maximum" : ""}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(aboveMaximum ? "Above maximum approved price" : `${providerName} is unavailable`)}">${content}${aboveMaximum ? '<em>Above maximum approved price</em>' : ""}</button>`;
   }
   return `
     <a class="${escapeHtml(classes)}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" data-execution-trade-id="${escapeHtml(trade.id)}" aria-label="Open ${escapeHtml(trade.outcome)} on ${escapeHtml(providerName)} at ${escapeHtml(displayOdds)}">
@@ -802,7 +807,7 @@ function tradeCard(trade) {
   return `
     <article class="trade-card ${selected ? "selected" : ""} ${trade.isHidden ? "hidden-trade" : ""}" role="button" tabindex="0" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
       <span class="trade-identity">
-        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Trade Quality</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
+        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>${escapeHtml(trade.trade_quality?.grade || recommendation.trade_grade || "Trade Quality")}</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
         <span class="trade-event-copy">
           <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</span>
           <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
@@ -822,7 +827,7 @@ function tradeCard(trade) {
         </span>
         <span class="trade-selection">
           <span class="trade-pick"><small>Pick · ${escapeHtml(sharpLabel)}</small><strong>${escapeHtml(trade.outcome)}</strong></span>
-          <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em><em>${escapeHtml(executionPlan.recommended_execution_method || "Execution unavailable")} · Max ${escapeHtml(formatOptionalCents(executionPlan.maximum_average_price))} · ${escapeHtml(portfolioRisk.risk_state?.state || "Risk unavailable")}</em></span>
+          <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em><em>${escapeHtml(executionPlan.recommended_execution_method || "Execution unavailable")} · Max ${escapeHtml(formatOptionalCents(executionPlan.maximum_average_price))} · ${escapeHtml(portfolioRisk.risk_state?.state || "Risk unavailable")}</em><em>Fair ${escapeHtml(formatOptionalCents(recommendation.raw_fair_probability))} · Edge ${escapeHtml(formatPercent(recommendation.calculated_edge))} · Liquidity ${escapeHtml(trade.liquidity_quality?.grade || trade.liquidity_quality?.status || "Unavailable")}</em></span>
           ${executionToolbar(trade)}
           <span class="trade-card-actions">
             <button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" data-pin-id="${escapeHtml(trade.whiteboardPinId || "")}" title="${trade.isPinnedByCurrentUser ? "Unpin from Whiteboard" : "Pin to Whiteboard"}" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from your Whiteboard" : "Pin this trade to your Whiteboard"}"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button>
@@ -1156,6 +1161,31 @@ function executionRiskDetails(recommendation) {
   return `<details class="detail-accordion execution-risk-panel" open><summary><span><i class="ph ph-shield-check" aria-hidden="true"></i>Execution and portfolio risk</span><small>${escapeHtml(execution.recommended_execution_method || "Unavailable")}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><p class="calculation-note">${escapeHtml(execution.execution_explanation || "A verified execution plan is unavailable.")}</p></details>`;
 }
 
+function completionTradeDetails(trade, recommendation) {
+  const fair = trade.fair_price || {};
+  const liquidity = trade.liquidity_quality || {};
+  const policy = recommendation.applied_segment_policy || {};
+  const sections = [
+    ["Trade decision", [["Quality / grade", `${trade.confidence_score ?? "Unavailable"} / ${trade.trade_quality?.grade || recommendation.trade_grade || "Unavailable"}`], ["Action", recommendation.execution_plan?.recommended_execution_method || "Unavailable"], ["Model Tracker", trade.modelTrackerEligible ? "Eligible" : "Excluded"], ["Primary reason", trade.modelTrackerRejectionReason || recommendation.reason || "Approved"]]],
+    ["Price validation", [["Sharp entry", formatOptionalCents(recommendation.sharp_average_entry_price)], ["Executable entry", formatOptionalCents(recommendation.current_user_entry_price)], ["Composite fair", formatOptionalCents(fair.fair_probability)], ["Fee-adjusted edge", formatPercent(recommendation.calculated_edge)], ["Source count", String(fair.source_count ?? 0)], ["Dispersion", fair.source_dispersion === null || fair.source_dispersion === undefined ? "Unavailable" : formatPercent(fair.source_dispersion)]]],
+    ["Liquidity", [["Quality score", String(liquidity.score ?? "Unavailable")], ["Grade", liquidity.grade || liquidity.status || "Unavailable"], ["Top-of-book", String(liquidity.components?.top_of_book ?? "Unavailable")], ["Ladder", String(liquidity.components?.ladder ?? "Unavailable")], ["Stability", String(liquidity.components?.stability ?? "Unavailable")], ["Cross-market", String(liquidity.components?.cross_market ?? "Unavailable")]]],
+    ["Context", [["Time to event", trade.event_time_et || "Unavailable"], ["News status", trade.news_status || "Unavailable"], ["Mapping confidence", fair.mapping_confidence || trade.mapping_confidence || "Unavailable"], ["Settlement rules", trade.settlement_rules || "Unavailable"], ["Applied policy", policy.stake_multiplier === undefined ? "None" : `${formatPercent(policy.stake_multiplier)} multiplier`]]],
+  ];
+  return `${sections.map(([title, rows]) => `<details class="detail-accordion"><summary><span>${escapeHtml(title)}</span><i class="ph ph-caret-down"></i></summary><div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div></details>`).join("")}<details class="detail-accordion"><summary><span>Tracker evidence</span><small>Similar segment history</small><i class="ph ph-caret-down"></i></summary><div id="trade-edge-evidence"><div class="chart-loading">Loading Edge Map evidence…</div></div></details>`;
+}
+
+async function loadTradeEdgeEvidence(trade) {
+  const target = document.getElementById("trade-edge-evidence");
+  if (!target) return;
+  try {
+    const payload = await fetchJson("/api/edge-map?dimension=sport");
+    const row = (payload.data?.segments || []).find((item) => String(item.segment_value).toLowerCase() === String(trade.category || "").toLowerCase());
+    target.innerHTML = row ? `<div class="calculation-grid"><div><span>Status</span><strong>${escapeHtml(row.status.replaceAll("_", " "))}</strong></div><div><span>Candidate sample</span><strong>${row.candidate_count}</strong></div><div><span>Played / Passed</span><strong>${row.played_count} / ${row.passed_count}</strong></div><div><span>Exchange CLV</span><strong>${edgeMetric(row.stake_weighted_exchange_clv)}</strong></div><div><span>Composite CLV</span><strong>${edgeMetric(row.stake_weighted_composite_clv)}</strong></div><div><span>Reliability</span><strong>${formatPercent(row.statistical_reliability)}</strong></div></div>` : '<p class="calculation-note">No comparable Edge Map segment exists yet.</p>';
+  } catch (error) {
+    target.innerHTML = `<p class="calculation-note">${escapeHtml(error.message)}</p>`;
+  }
+}
+
 function whyScore(trade, recommendation) {
   const breakdown = trade.score_breakdown || {};
   const slippage = slippageComparison(
@@ -1301,6 +1331,7 @@ function renderTradeDetail(trade) {
     ${whyScore(trade, recommendation)}
     ${whySizing(recommendation, trade)}
     ${executionRiskDetails(recommendation)}
+    ${completionTradeDetails(trade, recommendation)}
     <details class="detail-accordion personal-exposure-section"><summary><span><i class="ph ph-user-focus" aria-hidden="true"></i>Personal exposure</span><small>Confirmed fills only</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div></details>
     <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
   `;
@@ -1320,6 +1351,7 @@ function renderTradeDetail(trade) {
   }));
   loadPriceHistory(trade.clob_token_id, currentPrice);
   loadPersonalExposureDetails(trade.id);
+  loadTradeEdgeEvidence(trade);
 }
 
 function personalExposureGroup(title, group, tone = "") {
@@ -2398,20 +2430,28 @@ function closeSharpSourceDialog() {
 
 function trackerRow(row) {
   const snapshot = row.snapshot || {};
+  const dual = row.dual_clv || {};
   const pnl = number(row.profit_loss);
+  const compositeClv = number(dual.composite_probability_point_clv);
+  const intended = number(snapshot.intended_entry_price ?? snapshot.current_executable_entry_price);
+  const actual = number(snapshot.actual_weighted_entry_price ?? snapshot.effective_entry_price);
+  const correlation = number(snapshot.correlation_multiplier);
   return `
     <tr>
       <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
       <td data-label="Selection"><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
+      <td data-label="Grade / Score"><strong>${escapeHtml(snapshot.trade_grade || "Unavailable")}</strong><small>${snapshot.trade_quality_score ?? snapshot.confidence_score ?? "n/a"} score</small></td>
       <td data-label="Sharp">${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
-      <td data-label="Sharps" class="mono">${snapshot.sharps_count ?? 0}</td>
-      <td data-label="Score" class="mono">${snapshot.confidence_score ?? "n/a"}</td>
-      <td data-label="User Entry" class="mono">${formatCents(snapshot.effective_entry_price)}</td>
-      <td data-label="Est. Win" class="mono">${formatPercent(snapshot.estimated_win_probability)}</td>
+      <td data-label="Entry"><strong>${intended === null ? "Unavailable" : formatCents(intended)}</strong><small>Actual ${actual === null ? "Unavailable" : formatCents(actual)}</small></td>
+      <td data-label="Fair / Edge"><strong>${number(snapshot.composite_fair_probability) === null ? "Unavailable" : formatPercent(snapshot.composite_fair_probability)}</strong><small>Edge ${number(snapshot.calculated_edge) === null ? "Unavailable" : formatPercent(snapshot.calculated_edge)}</small></td>
+      <td data-label="Liquidity / Execution"><strong>${escapeHtml(snapshot.liquidity_grade || "Unavailable")}</strong><small>${escapeHtml(String(snapshot.execution_method || "Unavailable").replaceAll("_", " "))}</small></td>
+      <td data-label="Max / Correlation"><strong>${number(snapshot.maximum_average_price) === null ? "Unavailable" : formatCents(snapshot.maximum_average_price)}</strong><small>${correlation === null ? "Correlation unavailable" : `${correlation.toFixed(2)}x correlation`}</small></td>
       <td><strong>${formatMoney(row.recommended_amount)}</strong><small>${formatPercent(snapshot.final_recommended_fraction)} · ${formatUnits(row.recommended_units)}</small></td>
-      <td data-label="Status"><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(row.status)}</span></td>
+      <td data-label="Decision"><span class="status-label ${escapeHtml(row.status)}">${escapeHtml(snapshot.decision_class || "PLAYED")}</span><small>${escapeHtml(snapshot.decision_reason || row.status)}</small></td>
       <td data-label="P&amp;L" class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
-      <td data-label="Entry CLV">${clvCell(row)}</td>
+      <td data-label="Exchange CLV">${clvCell(row)}</td>
+      <td data-label="Composite CLV"><strong>${compositeClv === null ? "Unavailable" : formatPercent(compositeClv)}</strong><small>${escapeHtml(String(dual.composite_clv_status || "UNAVAILABLE").replaceAll("_", " "))}</small></td>
+      <td data-label="Execution Loss" class="mono">${number(dual.execution_loss) === null ? "Unavailable" : formatMoney(dual.execution_loss)}</td>
       <td data-label="Bankroll" class="mono">${formatMoney(row.running_bankroll)}</td>
     </tr>
   `;
@@ -2452,6 +2492,20 @@ function renderTrackerState(tracking = {}) {
   const labels = { running: "Tracking: Active", paused: "Tracking: Paused", failed: "Tracking: Failed", stale: "Tracking: Stale" };
   badge.textContent = labels[state] || "Tracking: Stale";
   badge.className = `status-label ${state === "running" ? "ready" : state}`;
+}
+
+async function loadTrackerAdvancedAnalytics() {
+  try {
+    const payload = await fetchJson("/api/tracker/advanced-analytics");
+    const data = payload.data || {};
+    const dimension = document.getElementById("tracker-analytics-dimension")?.value || "sport";
+    const rows = (data.segments || []).filter((row) => row.dimension === dimension);
+    const counts = data.played_vs_passed || {};
+    document.getElementById("tracker-analytics-summary").innerHTML = [["Played", counts.played || 0], ["Passed", counts.passed || 0], ["Research only", counts.research_only || 0]].map(([label, value]) => `<span><small>${label}</small><strong>${value}</strong></span>`).join("");
+    document.getElementById("tracker-analytics-body").innerHTML = rows.length ? rows.map((row) => `<tr><td><strong>${escapeHtml(row.segment_value)}</strong></td><td>${escapeHtml(row.status.replaceAll("_", " "))}</td><td>${row.candidate_count}</td><td>${row.played_count}</td><td>${row.passed_count}</td><td>${row.settled_count}</td><td>${edgeMetric(row.roi)}</td><td>${edgeMetric(row.stake_weighted_composite_clv)}</td><td>${formatMoney(row.execution_loss || 0)}</td></tr>`).join("") : `<tr><td colspan="9">${emptyState("No segment observations", "Candidate Ledger records will appear here without fabricated metrics.")}</td></tr>`;
+  } catch (error) {
+    document.getElementById("tracker-analytics-body").innerHTML = `<tr><td colspan="9">${errorState(error.message)}</td></tr>`;
+  }
 }
 
 function renderTrackerDiagnostics(diagnostics = {}) {
@@ -2649,9 +2703,10 @@ function renderModelTracker(payload) {
   ].join("");
   renderClvAnalytics(payload);
   const body = document.getElementById("tracker-body");
-  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="12">${trackerEmptyState()}</td></tr>`;
+  body.innerHTML = payload.data.length ? payload.data.map(trackerRow).join("") : `<tr><td colspan="15">${trackerEmptyState()}</td></tr>`;
   drawTrackerChart(payload.graph);
   renderTrackerPagination(payload.pagination, "model");
+  loadTrackerAdvancedAnalytics();
 }
 
 function renderPersonalTracker(payload) {
@@ -2708,6 +2763,9 @@ function trackerRequestParams(view) {
     max_clv: document.getElementById("tracker-clv-max").value,
     clv_sort: document.getElementById("tracker-clv-sort").value,
     sharp: document.getElementById("tracker-sharp-wallet").value,
+    grade: document.getElementById("tracker-grade").value,
+    liquidity_grade: document.getElementById("tracker-liquidity-grade").value,
+    execution_method: document.getElementById("tracker-execution-method").value,
   };
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
@@ -2779,13 +2837,14 @@ function configureTrackerShell(view) {
   document.getElementById("tracker-sharps").hidden = !model;
   document.getElementById("tracker-sportsbook").hidden = model;
   document.getElementById("tracker-tag").hidden = model;
+  document.querySelectorAll(".model-tracker-filter").forEach((element) => { element.hidden = !model; });
   document.querySelector('#tracker-status option[value="canceled"]').hidden = model;
   document.querySelector('#tracker-result option[value="canceled"]').hidden = model;
   if (model && document.getElementById("tracker-status").value === "canceled") document.getElementById("tracker-status").value = "";
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
   document.getElementById("tracker-search").placeholder = model ? "Search event, market, Sharp" : "Search event, selection, Sharp";
   document.getElementById("tracker-table-head").innerHTML = model
-    ? "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Sharps</th><th>Score</th><th>User Entry</th><th>Est. Win</th><th>Bet</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Bankroll</th>"
+    ? "<th>Event / Market</th><th>Selection</th><th>Grade / Score</th><th>Sharp</th><th>Intended / Actual</th><th>Composite Fair / Edge</th><th>Liquidity / Execution</th><th>Max Avg / Correlation</th><th>Bet</th><th>Decision</th><th>P&amp;L</th><th>Exchange CLV</th><th>Composite CLV</th><th>Execution Loss</th><th>Bankroll</th>"
     : "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
   document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
@@ -2877,8 +2936,9 @@ async function initializeTrackerView() {
 }
 
 function bindTracker() {
+  document.getElementById("tracker-analytics-dimension")?.addEventListener("change", loadTrackerAdvancedAnalytics);
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
-  ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-grade", "tracker-liquidity-grade", "tracker-execution-method", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
   ["tracker-clv-min", "tracker-clv-max"].forEach((id) => document.getElementById(id).addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); })));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));
@@ -3070,6 +3130,64 @@ function bindEdgeMap() {
   loadEdgeMap();
 }
 
+function intelCandidateRow(row) {
+  const reasons = row.reason_codes || [];
+  return `<article class="intel-row"><span><strong>${escapeHtml(row.event_title || row.market_title || "Candidate")}</strong><small>${escapeHtml(row.market_title || "Market")} · ${escapeHtml(row.selection || "Selection unavailable")}</small></span><span><b>${escapeHtml(row.current_decision)}</b><small>${escapeHtml(reasons.join(", ") || "No rejection reason")}</small></span><span><small>${escapeHtml(formatDateTime(row.last_seen_at))}</small><button class="button ghost compact" data-intel-trace="${escapeHtml(row.candidate_id)}">Explain</button></span></article>`;
+}
+
+function intelProposalRow(row) {
+  const multiplier = number(row.proposed_config?.stake_multiplier);
+  return `<article class="intel-row"><span><strong>${escapeHtml(row.segment_value)}</strong><small>${escapeHtml(row.segment_dimension.replaceAll("_", " "))} · ${escapeHtml(row.proposal_type)}</small></span><span><b>${escapeHtml(row.status)}</b><small>${multiplier === null ? "No stake multiplier" : `${(multiplier * 100).toFixed(0)}% stake multiplier`}</small></span><span><small>${escapeHtml(formatDateTime(row.updated_at))}</small>${row.status === "APPROVED" ? `<button class="button primary compact" data-intel-apply="${escapeHtml(row.proposal_id)}">Apply safely</button>` : ""}</span></article>`;
+}
+
+function intelViolationRow(row) {
+  return `<article class="intel-row"><span><strong>${escapeHtml(row.warning_code.replaceAll("_", " "))}</strong><small>${escapeHtml(row.trade_id)} · ${escapeHtml(row.confirmed_action)}</small></span><span><b>${row.profit_loss === null ? "Unsettled" : formatMoney(row.profit_loss)}</b><small>Composite CLV ${escapeHtml(formatClvPercent(row.composite_clv))}</small></span><span><small>${escapeHtml(formatDateTime(row.created_at))}</small></span></article>`;
+}
+
+function renderIntelligence() {
+  const data = appState.intelligence;
+  const counts = data.diagnostics?.measurement?.candidate_counts || {};
+  document.getElementById("intel-summary").innerHTML = [
+    ["Candidates", Object.values(counts).reduce((sum,value)=>sum+Number(value||0),0)],
+    ["Passed", counts.PASSED || 0], ["Research only", counts.RESEARCH_ONLY || 0],
+    ["Active policies", data.diagnostics?.active_policies?.length || 0],
+    ["Violations", data.violations.length], ["Proposals", data.proposals.length],
+  ].map(([label,value])=>`<article><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></article>`).join("");
+  const decision = document.getElementById("intel-candidate-filter").value;
+  const candidates = decision ? data.candidates.filter(row=>row.current_decision===decision) : data.candidates;
+  document.getElementById("intel-candidates").innerHTML = candidates.length ? candidates.map(intelCandidateRow).join("") : emptyState("No candidates match", "Change the decision filter.");
+  document.getElementById("intel-proposals").innerHTML = data.proposals.length ? data.proposals.map(intelProposalRow).join("") : emptyState("No configuration proposals", "Edge Map evidence can support a versioned proposal.");
+  document.getElementById("intel-violations").innerHTML = data.violations.length ? data.violations.map(intelViolationRow).join("") : emptyState("No confirmed rule violations", "Warnings remain enforced and auditable.");
+  document.getElementById("intel-diagnostics").textContent = JSON.stringify(data.diagnostics, null, 2);
+}
+
+async function loadIntelligence() {
+  const [candidates, proposals, violations, diagnostics] = await Promise.all([
+    fetchJson("/api/admin/candidate-ledger?limit=500"), fetchJson("/api/admin/configuration-proposals"),
+    fetchJson("/api/admin/rule-violations"), fetchJson("/api/admin/completion/diagnostics"),
+  ]);
+  appState.intelligence = {candidates:candidates.data||[], proposals:proposals.data||[], violations:violations.data||[], diagnostics:diagnostics.data||{}};
+  document.getElementById("intel-login").hidden = true;
+  document.getElementById("intel-workspace").hidden = false;
+  document.getElementById("intel-access-state").textContent = "Authorized";
+  renderIntelligence();
+}
+
+async function openIntelTrace(candidateId) {
+  const payload = await fetchJson(`/api/admin/explainability/${encodeURIComponent(candidateId)}`);
+  document.getElementById("intel-trace").innerHTML = payload.data.stages.map((row,index)=>`<article class="trace-stage"><span>${index+1}</span><div><strong>${escapeHtml(row.stage.replaceAll("_", " "))}</strong><small>${escapeHtml(row.status)}</small><pre>${escapeHtml(JSON.stringify(row.data, null, 2))}</pre></div></article>`).join("");
+  document.getElementById("intel-trace-dialog").showModal();
+}
+
+function bindIntelligence() {
+  document.getElementById("intel-login-form")?.addEventListener("submit", async(event)=>{event.preventDefault();try{await fetchJson("/api/admin/login",{method:"POST",body:JSON.stringify({password:document.getElementById("intel-password").value})});await loadIntelligence();}catch(error){document.getElementById("intel-login-error").textContent=error.message;}});
+  document.getElementById("intel-candidate-filter")?.addEventListener("change",renderIntelligence);
+  document.querySelectorAll("[data-intel-tab]").forEach(button=>button.addEventListener("click",()=>{document.querySelectorAll("[data-intel-tab]").forEach(item=>item.classList.toggle("active",item===button));document.querySelectorAll("[data-intel-panel]").forEach(panel=>panel.hidden=panel.dataset.intelPanel!==button.dataset.intelTab);}));
+  document.getElementById("intel-workspace")?.addEventListener("click",async(event)=>{const trace=event.target.closest("[data-intel-trace]");if(trace)await openIntelTrace(trace.dataset.intelTrace);const apply=event.target.closest("[data-intel-apply]");if(apply){try{await fetchJson(`/api/admin/configuration-proposals/${encodeURIComponent(apply.dataset.intelApply)}/apply`,{method:"POST"});showToast("Risk-reducing segment policy activated","success");await loadIntelligence();}catch(error){showToast(error.message,"error");}}});
+  document.getElementById("intel-trace-close")?.addEventListener("click",()=>document.getElementById("intel-trace-dialog").close());
+  loadIntelligence().catch(()=>{});
+}
+
 function refreshCurrentPage() {
   if (appState.paused) return;
   if (page === "overview") loadOverview();
@@ -3084,6 +3202,7 @@ function refreshCurrentPage() {
   if (page === "position-history") loadHistory();
   if (page === "tracker") loadTrackerView();
   if (page === "edge-map") loadEdgeMap();
+  if (page === "intelligence") loadIntelligence().catch(()=>{});
   loadGlobalStatus();
 }
 
@@ -3098,6 +3217,7 @@ function initialize() {
   if (page === "position-history") bindHistory();
   if (page === "tracker") bindTracker();
   if (page === "edge-map") bindEdgeMap();
+  if (page === "intelligence") bindIntelligence();
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
 }
 

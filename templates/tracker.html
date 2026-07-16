@@ -45,6 +45,12 @@
   <div class="tracker-chart" id="clv-chart" role="img" aria-label="Daily stake-weighted closing line value"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
 </section>
 
+<section class="panel tracker-advanced-panel" id="tracker-advanced-panel">
+  <div class="panel-header"><div><p class="eyebrow">PLAYED VERSUS PASSED</p><h2>Model evidence by segment</h2><p>Composite CLV, execution, grade, sport, timing, and Sharp attribution from immutable Candidate Ledger records.</p></div><select id="tracker-analytics-dimension" aria-label="Analytics dimension"><option value="sport">Sport</option><option value="wallet">Sharp</option><option value="time_to_event_bucket">Timing</option><option value="trade_grade">Trade grade</option><option value="liquidity_grade">Liquidity</option><option value="execution_method">Execution method</option><option value="decision_class">Played versus passed</option></select></div>
+  <div class="tracker-analytics-summary" id="tracker-analytics-summary"></div>
+  <div class="responsive-table"><table class="tracker-analytics-table"><thead><tr><th>Segment</th><th>Status</th><th>Candidates</th><th>Played</th><th>Passed</th><th>Settled</th><th>ROI</th><th>Composite CLV</th><th>Execution loss</th></tr></thead><tbody id="tracker-analytics-body"><tr><td colspan="9">Loading analytics…</td></tr></tbody></table></div>
+</section>
+
 <section class="toolbar tracker-toolbar">
   <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-search" type="search" placeholder="Search event, market, trader"></label>
   <select id="tracker-sportsbook" class="personal-tracker-filter" aria-label="Sportsbook" hidden><option value="">All books</option></select>
@@ -52,6 +58,9 @@
   <select id="tracker-sharp-wallet" aria-label="Sharp wallet"><option value="">All Sharps</option></select>
   <select id="tracker-status" aria-label="Tracker status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option><option value="canceled">Canceled</option></select>
   <select id="tracker-sharps" aria-label="Sharps count"><option value="0">Any Sharp count</option><option value="1">1+ Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option></select>
+  <select id="tracker-grade" class="model-tracker-filter" aria-label="Trade grade"><option value="">All grades</option><option value="A">Grade A</option><option value="B">Grade B</option><option value="C">Grade C</option><option value="PASS">Pass</option><option value="UNAVAILABLE">Grade unavailable</option></select>
+  <select id="tracker-liquidity-grade" class="model-tracker-filter" aria-label="Liquidity grade"><option value="">All liquidity</option><option value="EXCELLENT">Excellent</option><option value="GOOD">Good</option><option value="LIMITED">Limited</option><option value="UNAVAILABLE">Unavailable</option></select>
+  <select id="tracker-execution-method" class="model-tracker-filter" aria-label="Execution method"><option value="">All execution</option><option value="TAKE_NOW">Take now</option><option value="LIMIT_ORDER">Limit order</option><option value="SPLIT_ORDER">Split order</option><option value="WAIT">Wait</option><option value="UNAVAILABLE">Unavailable</option></select>
   <select id="tracker-result" aria-label="Result"><option value="">All results</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="canceled">Canceled</option></select>
   <select id="tracker-clv-status" aria-label="CLV status"><option value="">Any CLV</option><option value="positive">Positive CLV</option><option value="negative">Negative CLV</option><option value="pending">CLV Pending</option><option value="unavailable">CLV Unavailable</option><option value="stale_quote">Stale quote</option><option value="market_mapping_error">Mapping error</option><option value="void">CLV Void</option></select>
   <label class="compact-number-filter">Min CLV%<input id="tracker-clv-min" type="number" step="0.01" inputmode="decimal"></label>
