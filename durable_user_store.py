@@ -2279,7 +2279,7 @@ class PostgresUserStore:
         return {"run": run_row, "segments": segments}
 
     def create_configuration_proposal(self, values: dict, actor: str) -> dict:
-        now = datetime.now(timezone.utc).isoformat(); proposal_id = stable_hash(values["segment_dimension"], values["segment_value"], values["proposal_type"], now)
+        now = datetime.now(timezone.utc).isoformat(); proposal_id = stable_hash(values["segment_dimension"], values["segment_value"], values["proposal_type"], json.dumps(values.get("proposed_config") or {}, sort_keys=True), now)
         with self.connection() as conn:
             conn.execute("""INSERT INTO configuration_proposals(proposal_id, segment_dimension, segment_value, proposal_type, old_config_json, proposed_config_json, evidence_snapshot_json, status, created_by, created_at, updated_at, config_version_before) VALUES (%s, %s, %s, %s, %s, %s, %s, 'PROPOSED', %s, %s, %s, %s)""", (proposal_id, values["segment_dimension"], values["segment_value"], values["proposal_type"], json.dumps(values.get("old_config") or {}, sort_keys=True), json.dumps(values.get("proposed_config") or {}, sort_keys=True), json.dumps(values.get("evidence") or {}, sort_keys=True), actor, now, now, values.get("config_version_before")))
         return self.get_configuration_proposal(proposal_id)

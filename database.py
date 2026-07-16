@@ -2806,7 +2806,13 @@ class TrackerDatabase:
         if self.user_store:
             return self.user_store.create_configuration_proposal(values, actor)
         now = datetime.now(timezone.utc).isoformat()
-        proposal_id = stable_hash(values["segment_dimension"], values["segment_value"], values["proposal_type"], now)
+        proposal_id = stable_hash(
+            values["segment_dimension"],
+            values["segment_value"],
+            values["proposal_type"],
+            json.dumps(values.get("proposed_config") or {}, sort_keys=True),
+            now,
+        )
         with self.connection() as conn:
             conn.execute(
                 """INSERT INTO configuration_proposals(proposal_id, segment_dimension, segment_value,
