@@ -1142,6 +1142,55 @@ def test_confirmed_personal_fill_warns_and_duplicate_requires_confirmation(
     assert other_user.get("/api/personal-tracker").get_json()["pagination"]["total"] == 0
 
 
+def test_manual_personal_bet_is_saved_without_model_recommendation(app_client):
+    app_client.set_cookie("iconbets_user", "manual-personal-user")
+    response = app_client.post(
+        "/api/personal-bets/manual",
+        json={
+            "event_title": "New York Mets vs. Philadelphia Phillies",
+            "market_title": "New York Mets vs. Philadelphia Phillies",
+            "selection": "Philadelphia Phillies",
+            "entry_price": 0.665,
+            "stake": 250,
+            "fees": 0,
+            "sportsbook": "Polymarket",
+            "tags": ["Legacy 3-0 Sharp simulation"],
+            "status": "live",
+            "market_url": "https://polymarket.com/event/mlb-nym-phi-2026-07-16",
+            "canonical_event_id": "687903",
+            "canonical_market_id": "0xmarket",
+            "canonical_outcome_id": "phillies-token",
+        },
+    )
+
+    assert response.status_code == 201
+    saved = response.get_json()["data"]
+    assert saved["position_cost"] == pytest.approx(250)
+    assert saved["shares"] == pytest.approx(250 / 0.665)
+    assert saved["status"] == "live"
+    assert json.loads(saved["tags_json"]) == [
+        "Legacy 3-0 Sharp simulation",
+        "Manual Entry",
+    ]
+    tracker = app_client.get("/api/personal-tracker").get_json()
+    assert tracker["pagination"]["total"] == 1
+    assert tracker["data"][0]["position_cost"] == pytest.approx(250)
+
+
+def test_manual_personal_bet_rejects_invalid_price(app_client):
+    response = app_client.post(
+        "/api/personal-bets/manual",
+        json={
+            "event_title": "Example",
+            "selection": "Selection",
+            "entry_price": 1,
+            "stake": 250,
+        },
+    )
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "Entry price must be between 0 and 1."
+
+
 def test_personal_tracker_filters_books_and_tags_with_separate_stats(
     app_client, monkeypatch
 ):
