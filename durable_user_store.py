@@ -23,6 +23,11 @@ from release3_foundation import (
     migration_sql as release3_migration_sql,
     model_version_rows as release3_model_version_rows,
 )
+from release4_foundation import (
+    RELEASE4_MIGRATION_VERSION,
+    migration_sql as release4_migration_sql,
+    model_version_rows as release4_model_version_rows,
+)
 
 
 class PostgresUserStore:
@@ -535,6 +540,26 @@ class PostgresUserStore:
                         row["version_key"], row["component"], row["version"],
                         row["status"], row["description"], row["registered_at"],
                     ),
+                )
+            for statement in release4_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE4_MIGRATION_VERSION, now),
+            )
+            for row in release4_model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]),
                 )
 
     def get_or_create_user_settings(
@@ -2187,6 +2212,116 @@ class PostgresUserStore:
             "composite_price_snapshots": snapshots,
             "composite_source_contributions": contributions,
         }
+
+    def learning_candidate_rows(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute("""SELECT c.*, m.result, m.hypothetical_stake AS stake,
+                m.hypothetical_profit_loss AS profit_loss,
+                d.exchange_probability_point_clv AS exchange_clv,
+                d.composite_probability_point_clv AS composite_clv, d.execution_loss,
+                e.execution_method, e.snapshot_json AS execution_plan_json,
+                q.grade AS trade_grade, l.status AS liquidity_grade
+                FROM candidate_ledger c
+                LEFT JOIN candidate_monitoring m ON m.candidate_id = c.candidate_id
+                LEFT JOIN dual_clv_measurements d ON d.candidate_id = c.candidate_id
+                LEFT JOIN execution_plan_snapshots e ON e.snapshot_id = (SELECT e2.snapshot_id FROM execution_plan_snapshots e2 WHERE e2.candidate_id = c.candidate_id ORDER BY e2.created_at DESC LIMIT 1)
+                LEFT JOIN trade_quality_snapshots q ON q.snapshot_id = (SELECT q2.snapshot_id FROM trade_quality_snapshots q2 WHERE q2.candidate_id = c.candidate_id ORDER BY q2.created_at DESC LIMIT 1)
+                LEFT JOIN liquidity_quality_snapshots l ON l.snapshot_id = (SELECT l2.snapshot_id FROM liquidity_quality_snapshots l2 WHERE l2.candidate_id = c.candidate_id ORDER BY l2.created_at DESC LIMIT 1)
+                ORDER BY c.detected_at""").fetchall()
+        output = []
+        for source in rows:
+            row = self._candidate_row(dict(source))
+            execution = json.loads(row.pop("execution_plan_json") or "{}")
+            row["execution_plan"] = execution
+            row["fees"] = execution.get("expected_fees")
+            row["entry_price"] = execution.get("effective_price_for_executable_amount")
+            output.append(row)
+        return output
+
+    def record_edge_map(self, run: dict, segments: list[dict]) -> None:
+        with self.connection() as conn:
+            conn.execute("""INSERT INTO edge_map_runs(run_id, window_start, window_end, candidate_count, config_json, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT(run_id) DO NOTHING""", (run["run_id"], run.get("window_start"), run.get("window_end"), run["candidate_count"], json.dumps(run["config"], sort_keys=True), run["calculation_version"], run["created_at"]))
+            for row in segments:
+                snapshot_id = stable_hash(run["run_id"], row["dimension"], row["segment_value"])
+                conn.execute("""INSERT INTO edge_map_segment_snapshots(snapshot_id, run_id, dimension, segment_value, candidate_count, played_count, passed_count, settled_count, stake, roi, stake_weighted_exchange_clv, stake_weighted_composite_clv, positive_composite_clv_rate, median_clv, execution_loss, average_fees, maximum_drawdown, statistical_reliability, status, snapshot_json, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT(snapshot_id) DO UPDATE SET snapshot_json = EXCLUDED.snapshot_json, status = EXCLUDED.status""", (snapshot_id, run["run_id"], row["dimension"], row["segment_value"], row["candidate_count"], row["played_count"], row["passed_count"], row["settled_count"], row["stake"], row.get("roi"), row.get("stake_weighted_exchange_clv"), row.get("stake_weighted_composite_clv"), row.get("positive_composite_clv_rate"), row.get("median_clv"), row["execution_loss"], row.get("average_fees"), row.get("maximum_drawdown"), row["statistical_reliability"], row["status"], json.dumps(row, sort_keys=True), row["calculation_version"], run["created_at"]))
+
+    def latest_edge_map(self, dimension: str | None = None) -> dict:
+        with self.connection() as conn:
+            run = conn.execute("SELECT * FROM edge_map_runs ORDER BY created_at DESC LIMIT 1").fetchone()
+            if not run:
+                return {"run": None, "segments": []}
+            query, params = "SELECT * FROM edge_map_segment_snapshots WHERE run_id = %s", [run["run_id"]]
+            if dimension:
+                query, params = query + " AND dimension = %s", [*params, dimension]
+            rows = conn.execute(query + " ORDER BY candidate_count DESC, dimension, segment_value", params).fetchall()
+        run_row = dict(run); run_row["config"] = json.loads(run_row.pop("config_json") or "{}")
+        segments = [dict(row) for row in rows]
+        for row in segments: row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return {"run": run_row, "segments": segments}
+
+    def create_configuration_proposal(self, values: dict, actor: str) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); proposal_id = stable_hash(values["segment_dimension"], values["segment_value"], values["proposal_type"], now)
+        with self.connection() as conn:
+            conn.execute("""INSERT INTO configuration_proposals(proposal_id, segment_dimension, segment_value, proposal_type, old_config_json, proposed_config_json, evidence_snapshot_json, status, created_by, created_at, updated_at, config_version_before) VALUES (%s, %s, %s, %s, %s, %s, %s, 'PROPOSED', %s, %s, %s, %s)""", (proposal_id, values["segment_dimension"], values["segment_value"], values["proposal_type"], json.dumps(values.get("old_config") or {}, sort_keys=True), json.dumps(values.get("proposed_config") or {}, sort_keys=True), json.dumps(values.get("evidence") or {}, sort_keys=True), actor, now, now, values.get("config_version_before")))
+        return self.get_configuration_proposal(proposal_id)
+
+    def get_configuration_proposal(self, proposal_id: str) -> dict | None:
+        with self.connection() as conn: row = conn.execute("SELECT * FROM configuration_proposals WHERE proposal_id = %s", (proposal_id,)).fetchone()
+        return self._proposal_row(dict(row)) if row else None
+
+    def list_configuration_proposals(self) -> list[dict]:
+        with self.connection() as conn: rows = conn.execute("SELECT * FROM configuration_proposals ORDER BY created_at DESC").fetchall()
+        return [self._proposal_row(dict(row)) for row in rows]
+
+    def review_configuration_proposal(self, proposal_id: str, status: str, actor: str, reason: str | None = None) -> dict:
+        if status not in {"APPROVED", "REJECTED", "HOLDOUT_PENDING", "HOLDOUT_PASSED", "HOLDOUT_FAILED"}: raise ValueError("Invalid proposal status.")
+        current = self.get_configuration_proposal(proposal_id)
+        if not current: raise KeyError("Proposal not found.")
+        if status == "APPROVED" and current["status"] != "HOLDOUT_PASSED": raise ValueError("A proposal requires a passed holdout before approval.")
+        now = datetime.now(timezone.utc).isoformat()
+        next_version = stable_hash(proposal_id, current.get("config_version_before"), "approved") if status == "APPROVED" else current.get("config_version_after")
+        with self.connection() as conn: conn.execute("UPDATE configuration_proposals SET status = %s, approved_by = %s, rejection_reason = %s, approved_at = %s, config_version_after = %s, updated_at = %s WHERE proposal_id = %s", (status, actor if status == "APPROVED" else None, reason, now if status == "APPROVED" else None, next_version, now, proposal_id))
+        return self.get_configuration_proposal(proposal_id)
+
+    def record_holdout(self, proposal_id: str, dimension: str, value: str, baseline: dict, holdout: dict, evaluation: dict, window: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); evaluation_id = stable_hash(proposal_id, window["holdout_start"], window["holdout_end"])
+        with self.connection() as conn: conn.execute("""INSERT INTO holdout_evaluations(evaluation_id, proposal_id, segment_dimension, segment_value, baseline_start, baseline_end, holdout_start, holdout_end, baseline_metrics_json, holdout_metrics_json, status, sample_sufficient, calculation_version, evaluated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT(evaluation_id) DO UPDATE SET status = EXCLUDED.status, holdout_metrics_json = EXCLUDED.holdout_metrics_json""", (evaluation_id, proposal_id, dimension, value, window.get("baseline_start"), window.get("baseline_end"), window["holdout_start"], window["holdout_end"], json.dumps(baseline, sort_keys=True), json.dumps(holdout, sort_keys=True), evaluation["status"], evaluation["sample_sufficient"], evaluation["calculation_version"], now))
+        self.review_configuration_proposal(proposal_id, evaluation["status"], "holdout-engine")
+        return {"evaluation_id": evaluation_id, **evaluation}
+
+    def record_rule_violation(self, user_id: str, values: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); violation_id = stable_hash(user_id, values["trade_id"], values["warning_code"], now)
+        with self.connection() as conn: conn.execute("""INSERT INTO rule_violations(violation_id, user_id, trade_id, candidate_id, warning_code, confirmed_action, confirmation_text, entry_price, outcome, profit_loss, exchange_clv, composite_clv, context_json, calculation_version, created_at, settled_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", (violation_id, user_id, values["trade_id"], values.get("candidate_id"), values["warning_code"], values["confirmed_action"], values["confirmation_text"], values.get("entry_price"), values.get("outcome"), values.get("profit_loss"), values.get("exchange_clv"), values.get("composite_clv"), json.dumps(values.get("context") or {}, sort_keys=True), values["calculation_version"], now, now if values.get("profit_loss") is not None else None))
+        return {"violation_id": violation_id, "user_id": user_id, **values, "created_at": now}
+
+    def list_rule_violations(self, user_id: str | None = None) -> list[dict]:
+        query, params = "SELECT * FROM rule_violations", []
+        if user_id: query, params = query + " WHERE user_id = %s", [user_id]
+        with self.connection() as conn: rows = conn.execute(query + " ORDER BY created_at DESC", params).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result: row["context"] = json.loads(row.pop("context_json") or "{}")
+        return result
+
+    def settle_rule_violation(self, violation_id: str, values: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute("UPDATE rule_violations SET outcome = %s, profit_loss = %s, exchange_clv = %s, composite_clv = %s, settled_at = %s WHERE violation_id = %s RETURNING *", (values.get("outcome"), values.get("profit_loss"), values.get("exchange_clv"), values.get("composite_clv"), now, violation_id)).fetchone()
+        if not row: raise KeyError("Violation not found.")
+        result = dict(row); result["context"] = json.loads(result.pop("context_json") or "{}")
+        return result
+
+    def release4_diagnostics(self) -> dict:
+        tables = ("edge_map_runs", "edge_map_segment_snapshots", "holdout_evaluations", "configuration_proposals", "rule_violations")
+        with self.connection() as conn:
+            counts = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()["count"] for table in tables}
+            statuses = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM edge_map_segment_snapshots GROUP BY status")]
+            proposals = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM configuration_proposals GROUP BY status")]
+        return {"table_counts": counts, "segment_status_counts": statuses, "proposal_status_counts": proposals, "production_weights_auto_changed": False, "fabricated_data": False}
+
+    @staticmethod
+    def _proposal_row(row: dict) -> dict:
+        for source, target in (("old_config_json", "old_config"), ("proposed_config_json", "proposed_config"), ("evidence_snapshot_json", "evidence")): row[target] = json.loads(row.pop(source) or "{}")
+        return row
 
     @staticmethod
     def _candidate_row(row: dict) -> dict:

@@ -99,6 +99,10 @@ class Settings:
     max_daily_exposure_fraction: float = 0.06
     max_correlated_cluster_fraction: float = 0.04
     max_provider_exposure_fraction: float = 0.10
+    edge_map_insufficient_sample_count: int = 25
+    edge_map_moderate_sample_count: int = 100
+    edge_map_strong_sample_count: int = 250
+    edge_map_minimum_holdout_count: int = 50
 
 
 def get_settings() -> Settings:
@@ -129,6 +133,10 @@ def get_settings() -> Settings:
         max_daily_exposure_fraction=_get_float("MAX_DAILY_EXPOSURE_FRACTION", 0.06),
         max_correlated_cluster_fraction=_get_float("MAX_CORRELATED_CLUSTER_FRACTION", 0.04),
         max_provider_exposure_fraction=_get_float("MAX_PROVIDER_EXPOSURE_FRACTION", 0.10),
+        edge_map_insufficient_sample_count=_get_int("EDGE_MAP_INSUFFICIENT_SAMPLE_COUNT", 25),
+        edge_map_moderate_sample_count=_get_int("EDGE_MAP_MODERATE_SAMPLE_COUNT", 100),
+        edge_map_strong_sample_count=_get_int("EDGE_MAP_STRONG_SAMPLE_COUNT", 250),
+        edge_map_minimum_holdout_count=_get_int("EDGE_MAP_MINIMUM_HOLDOUT_COUNT", 50),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
         discord_alert_types=_get_csv(
             "DISCORD_ALERT_TYPES", ("new_entry", "size_increase", "full_exit")

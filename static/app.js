@@ -692,7 +692,7 @@ function executionOptionButton(trade, option) {
     return `<button class="${escapeHtml(classes)}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(providerName)} is unavailable">${content}</button>`;
   }
   return `
-    <a class="${escapeHtml(classes)}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(trade.outcome)} on ${escapeHtml(providerName)} at ${escapeHtml(displayOdds)}">
+    <a class="${escapeHtml(classes)}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" data-execution-trade-id="${escapeHtml(trade.id)}" aria-label="Open ${escapeHtml(trade.outcome)} on ${escapeHtml(providerName)} at ${escapeHtml(displayOdds)}">
       ${content}
     </a>
   `;
@@ -1982,6 +1982,12 @@ function bindTrades() {
   const list = document.getElementById("trade-list");
   list.addEventListener("click", (event) => {
     const target = event.target;
+    const executionLink = target.closest("[data-execution-trade-id]");
+    if (executionLink) {
+      const trade = appState.trades.find((item) => String(item.id) === executionLink.dataset.executionTradeId);
+      if (trade && !confirmExecutionViolations(executionLink, trade)) event.preventDefault();
+      return;
+    }
     const tracker = target.closest(".tracker-quick-action");
     if (tracker) {
       const trade = appState.trades.find((item) => String(item.id) === tracker.dataset.tradeId);
@@ -2987,6 +2993,83 @@ function bindNavigation() {
   }
 }
 
+function executionViolationWarnings(trade) {
+  const recommendation = trade.recommendation || {};
+  const plan = recommendation.execution_plan || trade.execution_plan || {};
+  const risk = recommendation.portfolio_risk || {};
+  const warnings = [];
+  const effective = number(plan.effective_price_for_executable_amount ?? recommendation.current_user_entry_price);
+  const maximum = number(plan.maximum_average_price);
+  if (effective !== null && maximum !== null && effective > maximum) warnings.push("ABOVE_MAXIMUM_PRICE");
+  if ((number(recommendation.price_slippage_fraction) || 0) > 0.05) warnings.push("ABOVE_FIVE_PERCENT_SLIPPAGE");
+  const riskReasons = risk.reason_codes || [];
+  if (riskReasons.some((reason) => String(reason).includes("CORRELATION") || String(reason).includes("PORTFOLIO_RISK_CAP"))) warnings.push("CORRELATION_CAP_EXCEEDED");
+  if (riskReasons.some((reason) => String(reason).includes("DAILY_EXPOSURE"))) warnings.push("DAILY_EXPOSURE_CAP_EXCEEDED");
+  if ((trade.reason_codes || []).some((reason) => String(reason).includes("OPPOSING_SPECIALIST")) || trade.hasContradictingSharps) warnings.push("STRONG_OPPOSING_SPECIALIST");
+  if ((trade.reason_codes || []).some((reason) => String(reason).includes("MAPPING_UNCERTAIN"))) warnings.push("MAPPING_UNCERTAINTY");
+  if (String(trade.fair_price?.status || recommendation.fair_price_status || "").toUpperCase() !== "AVAILABLE") warnings.push("NO_FAIR_PRICE_CONFIRMATION");
+  if ((number(trade.liquidity_quality?.score) ?? 100) < 40) warnings.push("POOR_LIQUIDITY");
+  if (String(risk.risk_state?.state || "").toUpperCase() === "STRATEGY_STOP") warnings.push("STRATEGY_STOP_ACTIVE");
+  return [...new Set(warnings)];
+}
+
+function confirmExecutionViolations(link, trade) {
+  const warnings = executionViolationWarnings(trade);
+  if (!warnings.length) return true;
+  const message = `This action proceeds despite: ${warnings.map((warning) => warning.replaceAll("_", " ")).join(", ")}. Confirm that you understand these warnings.`;
+  if (!window.confirm(message)) return false;
+  warnings.forEach((warning) => {
+    fetchJson("/api/rule-violations", {method:"POST", body:JSON.stringify({trade_id:String(trade.id), candidate_id:trade.candidate_id || null, warning_code:warning, confirmed_action:`OPEN_${link.hostname || "EXECUTION_VENUE"}`, confirmed:true, confirmation_text:message, entry_price:number(trade.recommendation?.current_user_entry_price), outcome:trade.outcome, context:{execution_method:trade.recommendation?.execution_plan?.recommended_execution_method || null}})}).catch((error) => showToast(`Warning audit failed: ${error.message}`, "error"));
+  });
+  return true;
+}
+
+function edgeMetric(value, style = "percent") {
+  const parsed = number(value);
+  if (parsed === null) return '<span class="metric-unavailable">Unavailable</span>';
+  if (style === "count") return String(Math.round(parsed));
+  return `${parsed >= 0 ? "+" : ""}${(parsed * 100).toFixed(2)}%`;
+}
+
+function renderEdgeMap(payload) {
+  const run = payload.run || {};
+  const rows = payload.segments || [];
+  document.getElementById("edge-map-run-time").textContent = run.created_at ? formatDateTime(run.created_at) : "Live preview";
+  document.getElementById("edge-map-candidate-count").textContent = `${run.candidate_count || 0} candidates`;
+  const counts = rows.reduce((result, row) => ({ ...result, [row.status]: (result[row.status] || 0) + 1 }), {});
+  document.getElementById("edge-map-validated").textContent = counts.VALIDATED || 0;
+  document.getElementById("edge-map-promising").textContent = counts.PROMISING || 0;
+  document.getElementById("edge-map-discovery").textContent = counts.DISCOVERY || 0;
+  document.getElementById("edge-map-insufficient").textContent = counts.INSUFFICIENT_SAMPLE || 0;
+  const body = document.getElementById("edge-map-body");
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="9" class="edge-map-empty"><strong>No measured segments yet</strong><span>Candidate Ledger observations will appear here without fabricated CLV.</span></td></tr>';
+    return;
+  }
+  body.innerHTML = rows.map((row) => `<tr>
+    <td><strong>${escapeHtml(row.segment_value)}</strong><span>${escapeHtml(row.dimension.replaceAll("_", " "))}</span></td>
+    <td><span class="edge-status" data-status="${escapeHtml(row.status)}">${escapeHtml(row.status.replaceAll("_", " "))}</span></td>
+    <td>${row.candidate_count}</td><td>${row.played_count} / ${row.passed_count}</td><td>${row.settled_count}</td>
+    <td>${edgeMetric(row.roi)}</td><td>${edgeMetric(row.stake_weighted_exchange_clv)}</td><td>${edgeMetric(row.stake_weighted_composite_clv)}</td>
+    <td><div class="reliability-meter"><span style="width:${Math.max(0, Math.min(100, Number(row.statistical_reliability || 0) * 100))}%"></span></div><small>${(Number(row.statistical_reliability || 0) * 100).toFixed(0)}%</small></td>
+  </tr>`).join("");
+}
+
+async function loadEdgeMap() {
+  const dimension = document.getElementById("edge-map-dimension")?.value || "";
+  try {
+    const payload = await fetchJson(`/api/edge-map${dimension ? `?dimension=${encodeURIComponent(dimension)}` : ""}`);
+    renderEdgeMap(payload.data);
+  } catch (error) {
+    document.getElementById("edge-map-body").innerHTML = `<tr><td colspan="9" class="edge-map-empty"><strong>Edge Map unavailable</strong><span>${escapeHtml(error.message)}</span></td></tr>`;
+  }
+}
+
+function bindEdgeMap() {
+  document.getElementById("edge-map-dimension")?.addEventListener("change", loadEdgeMap);
+  loadEdgeMap();
+}
+
 function refreshCurrentPage() {
   if (appState.paused) return;
   if (page === "overview") loadOverview();
@@ -3000,6 +3083,7 @@ function refreshCurrentPage() {
   if (page === "wallets") loadWallets();
   if (page === "position-history") loadHistory();
   if (page === "tracker") loadTrackerView();
+  if (page === "edge-map") loadEdgeMap();
   loadGlobalStatus();
 }
 
@@ -3013,6 +3097,7 @@ function initialize() {
   if (page === "wallets") bindWallets();
   if (page === "position-history") bindHistory();
   if (page === "tracker") bindTracker();
+  if (page === "edge-map") bindEdgeMap();
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
 }
 
