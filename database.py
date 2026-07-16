@@ -21,6 +21,11 @@ from release2_foundation import (
     migration_sql as release2_migration_sql,
     model_version_rows as release2_model_version_rows,
 )
+from release3_foundation import (
+    RELEASE3_MIGRATION_VERSION,
+    migration_sql as release3_migration_sql,
+    model_version_rows as release3_model_version_rows,
+)
 
 
 class SettingsVersionConflict(RuntimeError):
@@ -517,6 +522,25 @@ class TrackerDatabase:
                         row["status"], row["description"], row["registered_at"],
                     )
                     for row in model_version_rows()
+                ],
+            )
+            conn.executescript(release3_migration_sql("sqlite"))
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (RELEASE3_MIGRATION_VERSION, now),
+            )
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO model_versions(
+                    version_key, component, version, status, description, registered_at
+                ) VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        row["version_key"], row["component"], row["version"],
+                        row["status"], row["description"], row["registered_at"],
+                    )
+                    for row in release3_model_version_rows()
                 ],
             )
             conn.executescript(release2_migration_sql("sqlite"))
@@ -2457,6 +2481,190 @@ class TrackerDatabase:
             "migrations": migrations,
             "fabricated_provider_data": False,
         }
+
+    def get_bankroll_bucket_config(self, user_id: str) -> dict:
+        if self.user_store:
+            return self.user_store.get_bankroll_bucket_config(user_id)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO bankroll_bucket_configs(
+                    user_id, core_allocation, discovery_allocation,
+                    liquidity_reserve_allocation, operational_buffer_allocation,
+                    combine_model_and_personal, config_version, updated_at
+                ) VALUES (?, 0.70, 0.10, 0.15, 0.05, 1, 'bankroll-buckets-v3', ?)
+                """,
+                (user_id, now),
+            )
+            row = conn.execute(
+                "SELECT * FROM bankroll_bucket_configs WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        result = dict(row)
+        result["combine_model_and_personal"] = bool(result["combine_model_and_personal"])
+        return result
+
+    def update_bankroll_bucket_config(self, user_id: str, values: dict) -> dict:
+        if self.user_store:
+            return self.user_store.update_bankroll_bucket_config(user_id, values)
+        keys = (
+            "core_allocation", "discovery_allocation",
+            "liquidity_reserve_allocation", "operational_buffer_allocation",
+        )
+        allocations = {key: float(values[key]) for key in keys}
+        if any(value < 0 or value > 1 for value in allocations.values()) or abs(sum(allocations.values()) - 1.0) > 1e-6:
+            raise ValueError("Bankroll bucket allocations must be between zero and one and total 1.0.")
+        self.get_bankroll_bucket_config(user_id)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE bankroll_bucket_configs
+                SET core_allocation = ?, discovery_allocation = ?,
+                    liquidity_reserve_allocation = ?, operational_buffer_allocation = ?,
+                    combine_model_and_personal = ?, config_version = 'bankroll-buckets-v3',
+                    updated_at = ? WHERE user_id = ?
+                """,
+                (
+                    allocations["core_allocation"], allocations["discovery_allocation"],
+                    allocations["liquidity_reserve_allocation"], allocations["operational_buffer_allocation"],
+                    int(bool(values.get("combine_model_and_personal", True))), now, user_id,
+                ),
+            )
+        return self.get_bankroll_bucket_config(user_id)
+
+    def get_risk_account_state(self, user_id: str, bankroll: float) -> dict:
+        if self.user_store:
+            return self.user_store.get_risk_account_state(user_id, bankroll)
+        bankroll = max(0.0, float(bankroll))
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO risk_account_state(
+                    user_id, current_bankroll, high_water_mark, state_version, updated_at
+                ) VALUES (?, ?, ?, 'drawdown-protocol-v3', ?)
+                """,
+                (user_id, bankroll, bankroll, now),
+            )
+            row = conn.execute(
+                "SELECT * FROM risk_account_state WHERE user_id = ?", (user_id,)
+            ).fetchone()
+        result = dict(row)
+        for key in ("wallet_data_invalid", "provider_unreliable", "manual_kill_switch"):
+            result[key] = bool(result[key])
+        return result
+
+    def update_risk_account_state(self, user_id: str, bankroll: float, values: dict) -> dict:
+        if self.user_store:
+            return self.user_store.update_risk_account_state(user_id, bankroll, values)
+        current = self.get_risk_account_state(user_id, bankroll)
+        current_bankroll = max(0.0, float(values.get("current_bankroll", current["current_bankroll"])))
+        high_water = max(current_bankroll, float(values.get("high_water_mark", current["high_water_mark"])))
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE risk_account_state SET current_bankroll = ?, high_water_mark = ?,
+                    recent_stake_weighted_composite_clv = ?, recent_valid_trade_count = ?,
+                    material_error_count_7d = ?, wallet_data_invalid = ?, provider_unreliable = ?,
+                    state_version = 'drawdown-protocol-v3', updated_at = ? WHERE user_id = ?
+                """,
+                (
+                    current_bankroll, high_water,
+                    values.get("recent_stake_weighted_composite_clv", current.get("recent_stake_weighted_composite_clv")),
+                    int(values.get("recent_valid_trade_count", current.get("recent_valid_trade_count") or 0)),
+                    int(values.get("material_error_count_7d", current.get("material_error_count_7d") or 0)),
+                    int(bool(values.get("wallet_data_invalid", current.get("wallet_data_invalid")))),
+                    int(bool(values.get("provider_unreliable", current.get("provider_unreliable")))),
+                    now, user_id,
+                ),
+            )
+        return self.get_risk_account_state(user_id, bankroll)
+
+    def set_manual_kill_switch(
+        self, user_id: str, enabled: bool, reason: str, actor: str, override: bool = False
+    ) -> dict:
+        if self.user_store:
+            return self.user_store.set_manual_kill_switch(user_id, enabled, reason, actor, override)
+        current = self.get_risk_account_state(user_id, 0)
+        now = datetime.now(timezone.utc).isoformat()
+        new_state = {**current, "manual_kill_switch": bool(enabled), "manual_reason": reason if enabled else None}
+        audit_id = stable_hash(user_id, enabled, reason, actor, now)
+        with self.connection() as conn:
+            conn.execute(
+                "UPDATE risk_account_state SET manual_kill_switch = ?, manual_reason = ?, updated_at = ? WHERE user_id = ?",
+                (int(bool(enabled)), reason if enabled else None, now, user_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO kill_switch_audit(
+                    audit_id, user_id, enabled, reason_code, actor, override,
+                    prior_state_json, new_state_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (audit_id, user_id, int(bool(enabled)), reason, actor, int(bool(override)), json.dumps(current, sort_keys=True), json.dumps(new_state, sort_keys=True), now),
+            )
+        return self.get_risk_account_state(user_id, current["current_bankroll"])
+
+    def record_release3_snapshots(
+        self, user_id: str, candidate_id: str | None, correlation_id: str | None,
+        recommendation_snapshot_id: str | None, execution: dict, risk: dict, created_at: str,
+    ) -> None:
+        if self.user_store:
+            self.user_store.record_release3_snapshots(user_id, candidate_id, correlation_id, recommendation_snapshot_id, execution, risk, created_at)
+            return
+        execution_id = stable_hash(candidate_id, recommendation_snapshot_id, execution.get("calculation_version"), created_at)
+        risk_id = stable_hash(user_id, candidate_id, recommendation_snapshot_id, risk.get("calculation_version"), created_at)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO execution_plan_snapshots(
+                    snapshot_id, candidate_id, correlation_id, recommendation_snapshot_id,
+                    recommended_stake, maximum_average_price, effective_price,
+                    amount_executable_below_max, unfilled_amount, execution_method,
+                    reason_code, quote_timestamp, quote_fresh, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    execution_id, candidate_id, correlation_id, recommendation_snapshot_id,
+                    execution.get("recommended_stake", 0), execution.get("maximum_average_price"),
+                    execution.get("effective_price_for_executable_amount"), execution.get("amount_executable_below_max", 0),
+                    execution.get("unfilled_amount", 0), execution.get("recommended_execution_method", "PASS"),
+                    execution.get("execution_reason_code", "UNKNOWN"), execution.get("quote_timestamp"),
+                    int(bool(execution.get("quote_fresh"))), execution.get("calculation_version", "execution-engine-v3"),
+                    json.dumps(execution, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT OR IGNORE INTO portfolio_risk_snapshots(
+                    snapshot_id, user_id, candidate_id, recommendation_snapshot_id,
+                    bucket, risk_state, proposed_stake, final_capped_stake,
+                    correlation_multiplier, reason_codes_json, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    risk_id, user_id, candidate_id, recommendation_snapshot_id,
+                    risk.get("bucket", "CORE"), (risk.get("risk_state") or {}).get("state", "NORMAL"),
+                    risk.get("recommended_before_risk", 0), risk.get("final_capped_stake", 0),
+                    risk.get("correlation_multiplier", 0), json.dumps(risk.get("reason_codes") or []),
+                    risk.get("calculation_version", "portfolio-risk-v3"), json.dumps(risk, sort_keys=True), created_at,
+                ),
+            )
+
+    def release3_diagnostics(self) -> dict:
+        if self.user_store:
+            return self.user_store.release3_diagnostics()
+        tables = ("execution_plan_snapshots", "portfolio_risk_snapshots", "bankroll_bucket_configs", "risk_account_state", "kill_switch_audit")
+        with self.connection() as conn:
+            counts = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in tables}
+            methods = [dict(row) for row in conn.execute("SELECT execution_method, COUNT(*) count FROM execution_plan_snapshots GROUP BY execution_method")]
+            states = [dict(row) for row in conn.execute("SELECT risk_state, COUNT(*) count FROM portfolio_risk_snapshots GROUP BY risk_state")]
+            migrations = [dict(row) for row in conn.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version")]
+        return {"table_counts": counts, "execution_method_counts": methods, "risk_state_counts": states, "migrations": migrations, "fabricated_data": False}
 
     def list_candidates(
         self, decision: str | None = None, limit: int = 100, offset: int = 0

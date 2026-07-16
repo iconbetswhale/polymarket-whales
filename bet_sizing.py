@@ -5,6 +5,8 @@ from typing import Any
 
 from config import MAX_UNFAVORABLE_SLIPPAGE_PCT
 from decision_engine import uncertainty_adjusted_kelly
+from execution_engine import ExecutionConfig, build_execution_plan
+from risk_engine import RiskConfig, evaluate_portfolio_risk
 from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS, STANDARD
 
 
@@ -27,7 +29,7 @@ class SizingConfig:
     consensus_count_target: int = 4
     consensus_count_weight: float = 0.60
     consensus_percentage_weight: float = 0.40
-    recommendation_version: str = "v3"
+    recommendation_version: str = "v4"
 
 
 DEFAULT_SIZING_CONFIG = SizingConfig()
@@ -294,6 +296,7 @@ def build_recommendation(
     play: dict[str, Any],
     bankroll: float,
     config: SizingConfig = DEFAULT_SIZING_CONFIG,
+    risk_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     bankroll = _safe_float(bankroll)
     if bankroll <= 0:
@@ -529,6 +532,46 @@ def build_recommendation(
         final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
     )
 
+    risk_context = risk_context or {}
+    risk_config_value = risk_context.get("config")
+    risk_config = (
+        risk_config_value
+        if isinstance(risk_config_value, RiskConfig)
+        else RiskConfig(**(risk_config_value or {}))
+    )
+    portfolio_risk = evaluate_portfolio_risk(
+        play,
+        final_amount,
+        bankroll,
+        risk_context.get("exposures") or [],
+        risk_context.get("account_state") or {
+            "current_bankroll": bankroll,
+            "high_water_mark": bankroll,
+        },
+        risk_config,
+    )
+    pre_risk_amount = final_amount
+    final_amount = portfolio_risk["final_capped_stake"]
+    final_fraction = final_amount / bankroll if bankroll > 0 else 0.0
+    final_fill = volume_weighted_entry(valid_asks, final_amount) if final_amount > 0 else None
+    if final_fill:
+        fill = final_fill
+        entry_price = final_fill["effective_entry_price"]
+    units = final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
+    execution_plan = build_execution_plan(
+        play,
+        final_amount,
+        min(0.99, estimated_probability + expected_fee_fraction),
+        trade_grade,
+        expected_fee_fraction=expected_fee_fraction,
+        now=risk_context.get("evaluation_now"),
+        config=(
+            risk_context.get("execution_config")
+            if isinstance(risk_context.get("execution_config"), ExecutionConfig)
+            else ExecutionConfig(**(risk_context.get("execution_config") or {}))
+        ),
+    )
+
     return {
         "available": True,
         "reason": None,
@@ -574,6 +617,7 @@ def build_recommendation(
         "risk_cap_applied": min(sharp_cap, grade_risk_cap, config.global_risk_cap),
         "final_recommended_fraction": final_fraction,
         "recommended_amount": final_amount,
+        "recommended_amount_before_portfolio_risk": pre_risk_amount,
         "recommended_shares": (fill or {}).get("shares", 0.0)
         if final_fraction > 0
         else 0.0,
@@ -598,5 +642,7 @@ def build_recommendation(
         "minimum_executable_amount": max(0.01, minimum_order_shares * entry_price),
         "expected_fee_fraction": expected_fee_fraction,
         "fees_included": True,
+        "portfolio_risk": portfolio_risk,
+        "execution_plan": execution_plan,
         "config": asdict(config),
     }

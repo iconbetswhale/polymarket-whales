@@ -86,6 +86,10 @@ def _play(
             "asks": asks if asks is not None else [{"price": 0.4, "size": 10000}],
             "bids": [{"price": 0.39, "size": 10000}],
             "min_order_size": 1,
+            "timestamp": (
+                NOW if abs((start - NOW).total_seconds()) < 86400
+                else start - timedelta(minutes=5)
+            ).isoformat(),
         },
     }
 

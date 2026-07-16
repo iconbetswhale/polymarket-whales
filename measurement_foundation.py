@@ -16,9 +16,9 @@ CANDIDATE_LEDGER_VERSION = "candidate-ledger-v1"
 TRADE_SCORING_VERSION = "trade-quality-v2"
 FAIR_PRICE_VERSION = "fair-price-v2"
 KELLY_VERSION = "uncertainty-kelly-v2"
-RISK_POLICY_VERSION = "risk-policy-v1-legacy"
+RISK_POLICY_VERSION = "portfolio-risk-v3"
 WALLET_REGISTRY_VERSION = "wallet-registry-v1"
-EXECUTION_PLAN_VERSION = "execution-snapshot-v1"
+EXECUTION_PLAN_VERSION = "execution-engine-v3"
 COMPOSITE_CLV_VERSION = "composite-clv-v1-unavailable"
 STANDARDIZED_PASSED_STAKE = 100.0
 
@@ -42,6 +42,12 @@ class CandidateReason(str, Enum):
     MULTIPLE_OPPOSING_SPECIALISTS = "MULTIPLE_OPPOSING_SPECIALISTS"
     CORRELATION_CAP_EXCEEDED = "CORRELATION_CAP_EXCEEDED"
     DAILY_EXPOSURE_CAP_EXCEEDED = "DAILY_EXPOSURE_CAP_EXCEEDED"
+    BANKROLL_BUCKET_EXHAUSTED = "BANKROLL_BUCKET_EXHAUSTED"
+    DISCOVERY_FROZEN_BY_RISK_STATE = "DISCOVERY_FROZEN_BY_RISK_STATE"
+    STRATEGY_STOP = "STRATEGY_STOP"
+    EXECUTION_PLAN_NOT_ACTIONABLE = "EXECUTION_PLAN_NOT_ACTIONABLE"
+    STALE_ORDER_BOOK = "STALE_ORDER_BOOK"
+    KILL_SWITCH_ACTIVE = "KILL_SWITCH_ACTIVE"
     MARKET_MAPPING_UNCERTAIN = "MARKET_MAPPING_UNCERTAIN"
     SETTLEMENT_RULES_UNCERTAIN = "SETTLEMENT_RULES_UNCERTAIN"
     MATERIAL_NEWS_UNRESOLVED = "MATERIAL_NEWS_UNRESOLVED"
@@ -206,6 +212,8 @@ def execution_snapshot(play: dict[str, Any], recommendation: dict[str, Any]) -> 
         "recommended_shares": recommendation.get("recommended_shares"),
         "quote_timestamp": orderbook.get("timestamp"),
         "fees_included": recommendation.get("fees_included"),
+        "execution_plan": recommendation.get("execution_plan"),
+        "portfolio_risk": recommendation.get("portfolio_risk"),
     }
 
 
@@ -280,7 +288,7 @@ def build_exclusion_record(exclusion: dict[str, Any], detected_at: str | None = 
     if not complete_identity(identity):
         return None
     reason = normalize_reason(exclusion.get("reason"))
-    recommendation_version = "v3"
+    recommendation_version = "v4"
     cid = candidate_id(identity, recommendation_version)
     corr = correlation_id(identity)
     if reason == CandidateReason.MARKET_MAPPING_UNCERTAIN.value:
@@ -334,7 +342,7 @@ def build_exclusion_record(exclusion: dict[str, Any], detected_at: str | None = 
     }
 
 
-def version_registry(recommendation_version: str = "v3") -> dict[str, str]:
+def version_registry(recommendation_version: str = "v4") -> dict[str, str]:
     return {
         "candidate_ledger": CANDIDATE_LEDGER_VERSION,
         "trade_scoring": TRADE_SCORING_VERSION,

@@ -41,6 +41,7 @@ from personal_positions import (
     personal_realized_pnl_summary,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from risk_engine import bankroll_buckets, risk_state
 from sharp_tracking import (
     sharp_snapshot_from_fill,
     sharp_snapshot_from_model,
@@ -502,7 +503,12 @@ def create_app(start_background: bool = True) -> Flask:
         )
 
     def public_trade(play: dict, bankroll: float) -> dict:
-        evaluation = tracker.evaluate_recommendation(play, bankroll)
+        evaluation = tracker.evaluate_recommendation(
+            play,
+            bankroll,
+            user_id=g.iconbets_user_id,
+            include_personal=True,
+        )
         recommendation = evaluation["recommendation"]
         payload = json.loads(json.dumps(play))
         orderbook = payload.pop("orderbook", {}) or {}
@@ -1731,6 +1737,11 @@ def create_app(start_background: bool = True) -> Flask:
                     settings.unit_percentage,
                     expected_version,
                 )
+                tracker.database.update_risk_account_state(
+                    g.iconbets_user_id,
+                    bankroll,
+                    {"current_bankroll": bankroll, "high_water_mark": bankroll},
+                )
             except SettingsVersionConflict as exc:
                 latest = present_user_settings(exc.current)
                 latest["unit_value"] = _safe_float(
@@ -1993,6 +2004,82 @@ def create_app(start_background: bool = True) -> Flask:
                 }
             }
         )
+
+    @app.route("/api/risk/bankroll-buckets", methods=["GET", "PUT"])
+    def api_bankroll_buckets():
+        if request.method == "PUT":
+            payload = request.get_json(silent=True) or {}
+            try:
+                config_row = tracker.database.update_bankroll_bucket_config(
+                    g.iconbets_user_id, payload
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                return jsonify({"error": str(exc)}), 400
+        else:
+            config_row = tracker.database.get_bankroll_bucket_config(g.iconbets_user_id)
+        current = user_settings()
+        bankroll = _safe_float(current["trades_to_play_bankroll"])
+        context = tracker.build_risk_context(
+            bankroll, user_id=g.iconbets_user_id, include_personal=True
+        )
+        return jsonify(
+            {
+                "data": {
+                    "config": config_row,
+                    "state": risk_state(
+                        context["account_state"]["current_bankroll"],
+                        context["account_state"]["high_water_mark"],
+                        manual_kill_switch=bool(context["account_state"].get("manual_kill_switch")),
+                        manual_reason=context["account_state"].get("manual_reason"),
+                    ),
+                    "allocation": bankroll_buckets(
+                        bankroll, context["exposures"], context["config"]
+                    ),
+                }
+            }
+        )
+
+    @app.route("/api/admin/execution-risk/diagnostics")
+    def api_execution_risk_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify(
+            {
+                "data": {
+                    **tracker.database.release3_diagnostics(),
+                    "release": "release-3-execution-and-risk",
+                    "automatic_model_tracker_honors_kill_switch": True,
+                    "personal_positions_private": True,
+                    "fabricated_data": False,
+                }
+            }
+        )
+
+    @app.route("/api/admin/risk/kill-switch", methods=["POST"])
+    def api_admin_risk_kill_switch():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        enabled = bool(payload.get("enabled"))
+        reason = str(payload.get("reason") or "MANUAL_ADMIN_KILL_SWITCH").strip().upper()
+        user_id = str(payload.get("user_id") or MODEL_TRACKER_USER_ID)
+        state = tracker.database.set_manual_kill_switch(
+            user_id, enabled, reason, "admin", override=not enabled
+        )
+        return jsonify({"data": state})
+
+    @app.route("/api/admin/risk/state", methods=["POST"])
+    def api_admin_risk_state():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        user_id = str(payload.pop("user_id", MODEL_TRACKER_USER_ID))
+        bankroll = _safe_float(payload.get("current_bankroll"), settings.default_bankroll)
+        try:
+            state = tracker.database.update_risk_account_state(user_id, bankroll, payload)
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"data": state})
 
     @app.route("/api/admin/candidate-ledger/<candidate_id>")
     def api_candidate_ledger_record(candidate_id: str):

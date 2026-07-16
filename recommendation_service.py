@@ -11,6 +11,7 @@ from bet_sizing import (
     build_recommendation,
 )
 from bet_tracker import recommendation_snapshot
+from execution_engine import PASS as EXECUTION_PASS, WAIT as EXECUTION_WAIT
 from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS
 
 
@@ -30,6 +31,9 @@ MISSING_LEAD_SHARP = "MISSING_LEAD_SHARP"
 NO_INDEPENDENT_FAIR_PRICE = "NO_INDEPENDENT_FAIR_PRICE"
 TRADE_QUALITY_NOT_ACTIONABLE = "TRADE_QUALITY_NOT_ACTIONABLE"
 EXPECTED_FEES_UNAVAILABLE = "EXPECTED_FEES_UNAVAILABLE"
+STRATEGY_STOP = "STRATEGY_STOP"
+EXECUTION_PLAN_NOT_ACTIONABLE = "EXECUTION_PLAN_NOT_ACTIONABLE"
+CORRELATION_CAP_EXCEEDED = "CORRELATION_CAP_EXCEEDED"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -74,6 +78,7 @@ def evaluate_trade_recommendation(
     bankroll: float,
     config: SizingConfig,
     now: datetime | None = None,
+    risk_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Return the one canonical sizing and Model Tracker eligibility decision."""
     now = now or datetime.now(timezone.utc)
@@ -81,7 +86,8 @@ def evaluate_trade_recommendation(
         now = now.replace(tzinfo=timezone.utc)
     now = now.astimezone(timezone.utc)
 
-    recommendation = build_recommendation(play, bankroll, config)
+    risk_context = {**(risk_context or {}), "evaluation_now": now}
+    recommendation = build_recommendation(play, bankroll, config, risk_context)
     snapshot = recommendation_snapshot(play, recommendation, bankroll, now)
     event_start = parse_event_start(play.get("event_date_et"))
     rejection_reason: str | None = None
@@ -133,6 +139,23 @@ def evaluate_trade_recommendation(
             )
         elif not 0 < estimated_probability < 1:
             rejection_reason = INVALID_PROBABILITY_INPUT
+        elif _safe_float(recommendation.get("recommended_amount_before_portfolio_risk")) <= 0:
+            rejection_reason = ZERO_KELLY
+        elif (
+            (recommendation.get("portfolio_risk") or {}).get("risk_state") or {}
+        ).get("automatic_recommendations_allowed") is False:
+            rejection_reason = STRATEGY_STOP
+        elif (recommendation.get("execution_plan") or {}).get(
+            "recommended_execution_method"
+        ) in {EXECUTION_PASS, EXECUTION_WAIT, None}:
+            rejection_reason = EXECUTION_PLAN_NOT_ACTIONABLE
+        elif (recommendation.get("execution_plan") or {}).get("maximum_average_price") is None:
+            rejection_reason = EXECUTION_PLAN_NOT_ACTIONABLE
+        elif (
+            (recommendation.get("portfolio_risk") or {}).get("final_capped_stake", 0) <= 0
+            and _safe_float(recommendation.get("recommended_amount_before_portfolio_risk")) > 0
+        ):
+            rejection_reason = CORRELATION_CAP_EXCEEDED
         elif final_fraction <= 0 or recommended_amount <= 0:
             rejection_reason = ZERO_KELLY
 

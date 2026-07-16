@@ -90,7 +90,7 @@ def test_realistic_one_sharp_evidence_produces_bounded_positive_size():
 
     recommendation = build_recommendation(play, 10000)
 
-    assert recommendation["recommendation_version"] == "v3"
+    assert recommendation["recommendation_version"] == "v4"
     assert recommendation["evidence_score"] > 0.5
     assert recommendation["uncertainty_haircut"] < 1
     assert recommendation["estimated_win_probability"] > 0.469

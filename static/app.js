@@ -788,6 +788,8 @@ function tradeCard(trade) {
   const recommendedAmount = card.recommended_amount ?? recommendation.recommended_amount;
   const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
   const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
+  const executionPlan = recommendation.execution_plan || {};
+  const portfolioRisk = recommendation.portfolio_risk || {};
   const eventTime = card.event_time || "Time unavailable";
   const sharpLabel = `${trade.agreeing_wallet_count} Sharp${trade.agreeing_wallet_count === 1 ? "" : "s"}`;
   const amountTooltip = number(betAmount) === null
@@ -800,7 +802,7 @@ function tradeCard(trade) {
   return `
     <article class="trade-card ${selected ? "selected" : ""} ${trade.isHidden ? "hidden-trade" : ""}" role="button" tabindex="0" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
       <span class="trade-identity">
-        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
+        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Trade Quality</small></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
         <span class="trade-event-copy">
           <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</span>
           <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
@@ -820,7 +822,7 @@ function tradeCard(trade) {
         </span>
         <span class="trade-selection">
           <span class="trade-pick"><small>Pick · ${escapeHtml(sharpLabel)}</small><strong>${escapeHtml(trade.outcome)}</strong></span>
-          <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em></span>
+          <span class="trade-recommendation"><small>Recommended</small><strong>${escapeHtml(formatShares(recommendedShares))} shares</strong><em>${escapeHtml(formatOptionalMoney(recommendedAmount))} · ${escapeHtml(formatUnits(recommendedUnits))}</em><em>${escapeHtml(executionPlan.recommended_execution_method || "Execution unavailable")} · Max ${escapeHtml(formatOptionalCents(executionPlan.maximum_average_price))} · ${escapeHtml(portfolioRisk.risk_state?.state || "Risk unavailable")}</em></span>
           ${executionToolbar(trade)}
           <span class="trade-card-actions">
             <button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" data-pin-id="${escapeHtml(trade.whiteboardPinId || "")}" title="${trade.isPinnedByCurrentUser ? "Unpin from Whiteboard" : "Pin to Whiteboard"}" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from your Whiteboard" : "Pin this trade to your Whiteboard"}"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button>
@@ -1101,14 +1103,15 @@ function whySizing(recommendation, trade) {
   }
   const rows = [
     ["Current User Entry", formatCents(recommendation.current_user_entry_price)],
-    ["Baseline Probability", formatPercent(recommendation.baseline_probability)],
+    ["Independent Fair Probability", formatPercent(recommendation.raw_fair_probability)],
+    ["Fee-adjusted Fair Probability", formatPercent(recommendation.fee_adjusted_fair_probability)],
     ["Raw Sharps", String(trade.raw_sharp_count ?? trade.agreeing_wallet_count)],
     ["Lead Sharps", String(trade.lead_sharp_count ?? 0)],
     ["Supporting Sharps", String(trade.supporting_sharp_count ?? 0)],
     ["Weighted Consensus", weightedSharpLabel(trade.weighted_sharp_count)],
     ["Category Weighting", (trade.supporting_sharp_count || 0) > 0 ? "Supporting counted at 0.5x" : "All Sharps counted at 1.0x"],
     ["Sharp Evidence Score", Number(recommendation.evidence_score).toFixed(3)],
-    ["Evidence Adjustment", `+${formatPercent(recommendation.evidence_adjustment)}`],
+    ["Edge Reliability", formatPercent(recommendation.edge_reliability_factor)],
     ["Estimated Win Probability", formatPercent(recommendation.estimated_win_probability)],
     ["Calculated Edge", formatPercent(recommendation.calculated_edge)],
     ["Full Kelly", formatPercent(recommendation.full_kelly_fraction)],
@@ -1123,9 +1126,34 @@ function whySizing(recommendation, trade) {
     <details class="calculation-details">
       <summary><span><i class="ph ph-function" aria-hidden="true"></i>Why this bet size?</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
       <div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div>
-      <p class="calculation-note">The executable CLOB entry is the baseline probability. Lead Sharps contribute 1.0x and Supporting Sharps contribute 0.5x to evidence before the probability adjustment, Half Kelly, and risk caps are applied.</p>
+      <p class="calculation-note">Kelly uses the independently sourced, no-vig fair probability after verified fees and an uncertainty haircut. The final amount is then capped by bankroll bucket, drawdown, correlation, provider exposure, and executable depth.</p>
     </details>
   `;
+}
+
+function executionRiskDetails(recommendation) {
+  const execution = recommendation.execution_plan || {};
+  const risk = recommendation.portfolio_risk || {};
+  const related = risk.existing_related_exposure || {};
+  const remaining = risk.remaining_capacity || {};
+  const state = risk.risk_state || {};
+  const rows = [
+    ["Execution method", execution.recommended_execution_method || "Unavailable"],
+    ["Execution reason", execution.execution_reason_code || "Unavailable"],
+    ["Maximum average price", formatOptionalCents(execution.maximum_average_price)],
+    ["Effective executable price", formatOptionalCents(execution.effective_price_for_executable_amount)],
+    ["Executable below max", formatOptionalMoney(execution.amount_executable_below_max)],
+    ["Unfilled amount", formatOptionalMoney(execution.unfilled_amount)],
+    ["Quote freshness", execution.quote_fresh ? `${Number(execution.quote_age_seconds || 0).toFixed(0)}s` : "Unavailable / stale"],
+    ["Before portfolio risk", formatOptionalMoney(risk.recommended_before_risk)],
+    ["Same-game exposure", formatOptionalMoney(related.same_game)],
+    ["Same-game capacity", formatOptionalMoney(remaining.same_game)],
+    ["Correlation multiplier", formatPercent(risk.correlation_multiplier)],
+    ["Bankroll bucket", risk.bucket || "Unavailable"],
+    ["Risk state", state.state || "Unavailable"],
+    ["Drawdown", formatPercent(state.drawdown_fraction)],
+  ];
+  return `<details class="detail-accordion execution-risk-panel" open><summary><span><i class="ph ph-shield-check" aria-hidden="true"></i>Execution and portfolio risk</span><small>${escapeHtml(execution.recommended_execution_method || "Unavailable")}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><p class="calculation-note">${escapeHtml(execution.execution_explanation || "A verified execution plan is unavailable.")}</p></details>`;
 }
 
 function whyScore(trade, recommendation) {
@@ -1272,6 +1300,7 @@ function renderTradeDetail(trade) {
     ${contradictorsMarkup(trade)}
     ${whyScore(trade, recommendation)}
     ${whySizing(recommendation, trade)}
+    ${executionRiskDetails(recommendation)}
     <details class="detail-accordion personal-exposure-section"><summary><span><i class="ph ph-user-focus" aria-hidden="true"></i>Personal exposure</span><small>Confirmed fills only</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div></details>
     <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
   `;

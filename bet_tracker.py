@@ -155,6 +155,13 @@ def recommendation_snapshot(
         "orderbook_levels_used": recommendation.get("orderbook_levels_used"),
         "liquidity_limited": recommendation.get("liquidity_limited"),
         "fees_included": recommendation.get("fees_included"),
+        "execution_plan": recommendation.get("execution_plan"),
+        "portfolio_risk": recommendation.get("portfolio_risk"),
+        "maximum_average_price": (recommendation.get("execution_plan") or {}).get("maximum_average_price"),
+        "execution_method": (recommendation.get("execution_plan") or {}).get("recommended_execution_method"),
+        "correlation_multiplier": (recommendation.get("portfolio_risk") or {}).get("correlation_multiplier"),
+        "bankroll_bucket": (recommendation.get("portfolio_risk") or {}).get("bucket"),
+        "risk_state": ((recommendation.get("portfolio_risk") or {}).get("risk_state") or {}).get("state"),
     }
 
 
