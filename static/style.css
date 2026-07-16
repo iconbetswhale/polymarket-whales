@@ -442,7 +442,8 @@ h2 {
 }
 
 .tracker-admin-password input,
-.tracker-dialog-field input {
+.tracker-dialog-field input,
+.tracker-dialog-field select {
   min-height: 42px;
   padding: 0 12px;
   border: 1px solid var(--border);
@@ -454,7 +455,8 @@ h2 {
 }
 
 .tracker-admin-password input:focus,
-.tracker-dialog-field input:focus {
+.tracker-dialog-field input:focus,
+.tracker-dialog-field select:focus {
   border-color: var(--cyan);
   box-shadow: 0 0 0 3px rgba(37, 190, 224, 0.1);
 }
@@ -4148,6 +4150,21 @@ tbody tr:hover {
   gap: 8px;
 }
 
+.personal-manual-dialog {
+  width: min(660px, calc(100vw - 28px));
+}
+
+#personal-manual-form {
+  display: grid;
+  gap: 13px;
+}
+
+.tracker-dialog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 13px;
+}
+
 @media (max-width: 1500px) {
   .trade-workspace {
     grid-template-columns: minmax(690px, 1.45fr) minmax(390px, 0.8fr);
@@ -4387,6 +4404,10 @@ tbody tr:hover {
   }
 
   .tracker-dialog-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .tracker-dialog-grid {
     grid-template-columns: 1fr;
   }
 

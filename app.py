@@ -1310,6 +1310,111 @@ def create_app(start_background: bool = True) -> Flask:
             {"data": public_fill, "personalExposureSummary": updated_exposure}
         ), 201
 
+    @app.route("/api/personal-bets/manual", methods=["POST"])
+    def api_manual_personal_bet():
+        payload = request.get_json(silent=True) or {}
+        event_title = " ".join(str(payload.get("event_title") or "").split())
+        market_title = " ".join(
+            str(payload.get("market_title") or event_title).split()
+        )
+        selection = " ".join(str(payload.get("selection") or "").split())
+        if not event_title or not selection:
+            return jsonify({"error": "Event and selection are required."}), 400
+        if max(len(event_title), len(market_title), len(selection)) > 200:
+            return jsonify({"error": "Event, market, and selection must be 200 characters or fewer."}), 400
+
+        entry_price = _safe_float(payload.get("entry_price"), -1)
+        stake = _safe_float(payload.get("stake"), -1)
+        fees = _safe_float(payload.get("fees"), 0)
+        if not 0 < entry_price < 1:
+            return jsonify({"error": "Entry price must be between 0 and 1."}), 400
+        if stake <= 0:
+            return jsonify({"error": "Stake must be greater than zero."}), 400
+        if fees < 0:
+            return jsonify({"error": "Fees cannot be negative."}), 400
+
+        market_url = str(payload.get("market_url") or "").strip()
+        if market_url and not re.fullmatch(r"https://[^\s]+", market_url):
+            return jsonify({"error": "Market URL must be a valid HTTPS URL."}), 400
+        try:
+            sportsbook = normalize_sportsbook(payload.get("sportsbook"))
+            tags = normalize_personal_tags(payload.get("tags"))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        if not any(tag.casefold() == "manual entry" for tag in tags):
+            tags.append("Manual Entry")
+
+        identity_seed = stable_hash(event_title, market_title, selection, market_url)
+        event_id = str(payload.get("canonical_event_id") or "").strip()
+        market_id = str(payload.get("canonical_market_id") or "").strip()
+        outcome_id = str(payload.get("canonical_outcome_id") or "").strip()
+        event_id = event_id or f"manual-event-{identity_seed[:24]}"
+        market_id = market_id or f"manual-market-{identity_seed[:24]}"
+        outcome_id = outcome_id or f"manual-outcome-{identity_seed[:24]}"
+        event_slug = str(payload.get("event_slug") or "").strip() or None
+        market_slug = str(payload.get("market_slug") or "").strip() or None
+        event_start_time = str(payload.get("event_start_time") or "").strip() or None
+        status = str(payload.get("status") or "scheduled").strip().lower()
+        if status not in {"scheduled", "live", "unresolved"}:
+            return jsonify({"error": "Status must be scheduled, live, or unresolved."}), 400
+
+        trade = {
+            "event_title": event_title,
+            "market_title": market_title,
+            "outcome": selection,
+            "event_slug": event_slug,
+            "event_date_et": event_start_time,
+            "market_url": market_url or None,
+            "entry_source": "manual",
+            "sharp_source_status": "manual_entry",
+            "validation_ids": {
+                "event_id": event_id,
+                "event_slug": event_slug,
+                "condition_id": market_id,
+                "market_slug": market_slug,
+                "outcome_token_id": outcome_id,
+            },
+        }
+        identity = canonical_trade_identity(trade)
+        if not has_complete_identity(identity):
+            return jsonify({"error": "Manual bet is missing a canonical identity."}), 409
+
+        active_fills = tracker.database.get_personal_bet_fills(
+            g.iconbets_user_id, active_only=True
+        )
+        exposure = personal_exposure_for_trade(trade, active_fills)
+        if exposure["hasOpposingPersonalPosition"] and not bool(
+            payload.get("confirm_conflict")
+        ):
+            return jsonify({
+                "error": "You already hold the opposing outcome in this market.",
+                "confirmationRequired": "conflict",
+                "personalExposureSummary": exposure,
+            }), 409
+        if exposure["hasExactPersonalPosition"] and not bool(
+            payload.get("confirm_duplicate")
+        ):
+            return jsonify({
+                "error": "You already have a personal position on this exact selection.",
+                "confirmationRequired": "duplicate",
+                "personalExposureSummary": exposure,
+            }), 409
+
+        fill = personal_fill_snapshot(
+            trade,
+            fill_id=secrets.token_urlsafe(18),
+            entry_price=entry_price,
+            shares=stake / entry_price,
+            fees=fees,
+            sportsbook=sportsbook,
+            tags=tags,
+        )
+        stored = tracker.database.insert_personal_bet_fill(
+            g.iconbets_user_id, fill, status=status
+        )
+        public_fill = {key: value for key, value in stored.items() if key != "user_id"}
+        return jsonify({"data": public_fill, "source": "manual_entry"}), 201
+
     @app.route("/api/personal-bets/<fill_id>", methods=["DELETE"])
     def api_delete_personal_bet(fill_id: str):
         if not tracker.database.cancel_personal_bet_fill(g.iconbets_user_id, fill_id):

@@ -10,6 +10,7 @@
     <div class="bankroll-inline" id="model-bankroll-control">Model Replay Bankroll <strong id="tracker-starting-bankroll">Loading</strong><button class="bankroll-edit" id="tracker-bankroll-edit" type="button">Edit</button></div>
     <div class="bankroll-inline" id="personal-bankroll-control" hidden>Personal Tracker Starting Bankroll <strong id="personal-starting-bankroll">Loading</strong><button class="bankroll-edit" id="personal-bankroll-edit" type="button">Edit</button></div>
     <button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button>
+    <button class="button primary compact" id="personal-manual-action" type="button" hidden><i class="ph ph-pencil-simple-line" aria-hidden="true"></i>Add manual bet</button>
     <a class="button primary compact" id="personal-track-action" href="/trades" hidden><i class="ph ph-plus" aria-hidden="true"></i>Track a trade</a>
   </div>
 </header>
@@ -103,6 +104,39 @@
       <label class="tracker-dialog-field">Personal Tracker Starting Bankroll<input id="personal-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
       <p class="tracker-admin-error" id="personal-bankroll-error" role="alert" aria-live="polite"></p>
       <div class="tracker-dialog-actions"><button class="button ghost" id="personal-bankroll-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Save starting bankroll</button></div>
+    </form>
+  </div>
+</dialog>
+
+<dialog class="tracker-dialog personal-manual-dialog" id="personal-manual-dialog" aria-labelledby="personal-manual-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="personal-manual-close" type="button" aria-label="Close manual bet form"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">PERSONAL TRACKER ONLY</p>
+    <h2 id="personal-manual-title">Add a manual bet</h2>
+    <p class="tracker-dialog-note">This records an actual or simulated personal position. It never creates or changes a Model Tracker recommendation.</p>
+    <form id="personal-manual-form">
+      <label class="tracker-dialog-field">Event<input id="personal-manual-event" maxlength="200" required></label>
+      <label class="tracker-dialog-field">Market<input id="personal-manual-market" maxlength="200" required></label>
+      <label class="tracker-dialog-field">Selection<input id="personal-manual-selection" maxlength="200" required></label>
+      <div class="tracker-dialog-grid">
+        <label class="tracker-dialog-field">Entry price (cents)<input id="personal-manual-entry" type="number" min="0.1" max="99.9" step="0.1" inputmode="decimal" required></label>
+        <label class="tracker-dialog-field">Stake ($)<input id="personal-manual-stake" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
+        <label class="tracker-dialog-field">Fees ($)<input id="personal-manual-fees" type="number" min="0" step="0.01" inputmode="decimal" value="0"></label>
+        <label class="tracker-dialog-field">Status<select id="personal-manual-status"><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="unresolved">Unresolved</option></select></label>
+      </div>
+      <label class="tracker-dialog-field">Sportsbook<input id="personal-manual-sportsbook" maxlength="64" value="Polymarket" required></label>
+      <label class="tracker-dialog-field">Tags (comma-separated)<input id="personal-manual-tags" placeholder="Example: Legacy simulation"></label>
+      <label class="tracker-dialog-field">Market URL<input id="personal-manual-url" type="url" placeholder="https://..."></label>
+      <details class="detail-accordion"><summary><span>Advanced market identity</span><small>Optional</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="tracker-dialog-grid">
+        <label class="tracker-dialog-field">Event ID<input id="personal-manual-event-id"></label>
+        <label class="tracker-dialog-field">Market ID<input id="personal-manual-market-id"></label>
+        <label class="tracker-dialog-field">Outcome token ID<input id="personal-manual-outcome-id"></label>
+        <label class="tracker-dialog-field">Event slug<input id="personal-manual-event-slug"></label>
+        <label class="tracker-dialog-field">Market slug<input id="personal-manual-market-slug"></label>
+        <label class="tracker-dialog-field">Event start<input id="personal-manual-start" type="datetime-local"></label>
+      </div></details>
+      <p class="tracker-admin-error" id="personal-manual-error" role="alert" aria-live="polite"></p>
+      <div class="tracker-dialog-actions"><button class="button ghost" id="personal-manual-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Save personal bet</button></div>
     </form>
   </div>
 </dialog>

@@ -2832,6 +2832,7 @@ function configureTrackerShell(view) {
   document.getElementById("model-bankroll-control").hidden = !model;
   document.getElementById("personal-bankroll-control").hidden = model;
   document.getElementById("tracker-admin-open").hidden = !model;
+  document.getElementById("personal-manual-action").hidden = model;
   document.getElementById("personal-track-action").hidden = model;
   document.getElementById("tracker-job-state").hidden = !model;
   document.getElementById("tracker-sharps").hidden = !model;
@@ -2920,6 +2921,63 @@ async function savePersonalTrackerBankroll(event) {
   }
 }
 
+function openPersonalManualDialog() {
+  const dialog = document.getElementById("personal-manual-dialog");
+  document.getElementById("personal-manual-error").textContent = "";
+  if (typeof dialog.showModal === "function") dialog.showModal();
+  else dialog.setAttribute("open", "");
+  document.getElementById("personal-manual-event").focus();
+}
+
+function closePersonalManualDialog() {
+  const dialog = document.getElementById("personal-manual-dialog");
+  document.getElementById("personal-manual-form")?.reset();
+  document.getElementById("personal-manual-fees").value = "0";
+  document.getElementById("personal-manual-sportsbook").value = "Polymarket";
+  if (typeof dialog.close === "function") dialog.close();
+  else dialog.removeAttribute("open");
+}
+
+async function saveManualPersonalBet(event) {
+  event.preventDefault();
+  const form = document.getElementById("personal-manual-form");
+  const submit = form.querySelector('button[type="submit"]');
+  const error = document.getElementById("personal-manual-error");
+  submit.disabled = true;
+  error.textContent = "";
+  try {
+    await fetchJson("/api/personal-bets/manual", {
+      method: "POST",
+      body: JSON.stringify({
+        event_title: document.getElementById("personal-manual-event").value,
+        market_title: document.getElementById("personal-manual-market").value,
+        selection: document.getElementById("personal-manual-selection").value,
+        entry_price: Number(document.getElementById("personal-manual-entry").value) / 100,
+        stake: Number(document.getElementById("personal-manual-stake").value),
+        fees: Number(document.getElementById("personal-manual-fees").value || 0),
+        status: document.getElementById("personal-manual-status").value,
+        sportsbook: document.getElementById("personal-manual-sportsbook").value,
+        tags: document.getElementById("personal-manual-tags").value.split(",").map((tag) => tag.trim()).filter(Boolean),
+        market_url: document.getElementById("personal-manual-url").value,
+        canonical_event_id: document.getElementById("personal-manual-event-id").value,
+        canonical_market_id: document.getElementById("personal-manual-market-id").value,
+        canonical_outcome_id: document.getElementById("personal-manual-outcome-id").value,
+        event_slug: document.getElementById("personal-manual-event-slug").value,
+        market_slug: document.getElementById("personal-manual-market-slug").value,
+        event_start_time: document.getElementById("personal-manual-start").value,
+      }),
+    });
+    closePersonalManualDialog();
+    appState.trackerCache.personal = null;
+    await loadPersonalTracker();
+    showToast("Manual personal bet saved", "success");
+  } catch (requestError) {
+    error.textContent = requestError.message;
+  } finally {
+    submit.disabled = false;
+  }
+}
+
 async function initializeTrackerView() {
   let settings = {};
   try {
@@ -2979,6 +3037,13 @@ function bindTracker() {
   document.getElementById("personal-bankroll-dismiss")?.addEventListener("click", closePersonalBankrollDialog);
   document.getElementById("personal-bankroll-dialog")?.addEventListener("click", (event) => {
     if (event.target === event.currentTarget) closePersonalBankrollDialog();
+  });
+  document.getElementById("personal-manual-action")?.addEventListener("click", openPersonalManualDialog);
+  document.getElementById("personal-manual-form")?.addEventListener("submit", saveManualPersonalBet);
+  document.getElementById("personal-manual-close")?.addEventListener("click", closePersonalManualDialog);
+  document.getElementById("personal-manual-dismiss")?.addEventListener("click", closePersonalManualDialog);
+  document.getElementById("personal-manual-dialog")?.addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) closePersonalManualDialog();
   });
   document.getElementById("tracker-admin-form")?.addEventListener("submit", async (event) => {
     event.preventDefault();
