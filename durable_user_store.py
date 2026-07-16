@@ -13,6 +13,11 @@ from measurement_foundation import (
     model_version_rows,
     stable_hash,
 )
+from release2_foundation import (
+    RELEASE2_MIGRATION_VERSION,
+    migration_sql as release2_migration_sql,
+    model_version_rows as release2_model_version_rows,
+)
 
 
 class PostgresUserStore:
@@ -468,6 +473,29 @@ class PostgresUserStore:
                 (RELEASE1_MIGRATION_VERSION, now),
             )
             for row in model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (
+                        row["version_key"], row["component"], row["version"],
+                        row["status"], row["description"], row["registered_at"],
+                    ),
+                )
+            for statement in release2_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE2_MIGRATION_VERSION, now),
+            )
+            for row in release2_model_version_rows():
                 conn.execute(
                     """
                     INSERT INTO model_versions(
@@ -1705,6 +1733,108 @@ class PostgresUserStore:
                     ),
                 )
         return inserted
+
+    def record_decision_engine_snapshot(
+        self, candidate_id: str, correlation_id: str, play: dict, created_at: str
+    ) -> None:
+        quality = play.get("trade_quality") or {}
+        components = quality.get("components") or {}
+        liquidity = play.get("liquidity_quality") or {}
+        opposition = play.get("weighted_opposition") or {}
+        independence = play.get("independent_sharp_signal") or {}
+        quality_id = stable_hash(candidate_id, quality.get("calculation_version"), created_at)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO trade_quality_snapshots(
+                    snapshot_id, candidate_id, correlation_id, score, grade,
+                    uncapped_grade, signal_points, price_points, liquidity_points,
+                    context_points, fair_price_status, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    quality_id, candidate_id, correlation_id, quality.get("score", 0),
+                    quality.get("grade", "PASS"), quality.get("uncapped_grade", "PASS"),
+                    components.get("signal", 0), components.get("price", 0),
+                    components.get("liquidity", 0), components.get("context", 0),
+                    (play.get("fair_price") or {}).get("status", "UNAVAILABLE"),
+                    quality.get("calculation_version", "trade-quality-v2"),
+                    json.dumps(quality, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO liquidity_quality_snapshots(
+                    snapshot_id, candidate_id, status, score, spread,
+                    top_depth_dollars, ladder_depth_dollars, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    stable_hash(quality_id, "liquidity"), candidate_id,
+                    liquidity.get("status", "UNAVAILABLE"), liquidity.get("score", 0),
+                    liquidity.get("spread"), liquidity.get("top_depth_dollars"),
+                    liquidity.get("ladder_depth_dollars"),
+                    liquidity.get("calculation_version", "liquidity-quality-v2"),
+                    json.dumps(liquidity, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO opposition_snapshots(
+                    snapshot_id, candidate_id, raw_count, weighted_opposition,
+                    penalty, action, calculation_version, snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    stable_hash(quality_id, "opposition"), candidate_id,
+                    opposition.get("raw_count", 0), opposition.get("weighted_opposition", 0),
+                    opposition.get("penalty", 0), opposition.get("action", "NOTE_ONLY"),
+                    opposition.get("calculation_version", "weighted-opposition-v2"),
+                    json.dumps(opposition, sort_keys=True), created_at,
+                ),
+            )
+            for detail in independence.get("details") or []:
+                dependency = detail.get("dependency") or {}
+                conn.execute(
+                    """
+                    INSERT INTO wallet_dependency_edges(
+                        edge_id, candidate_id, source_wallet_id, target_wallet_id,
+                        dependency_type, dependency_weight, evidence_json,
+                        calculation_version, observed_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(edge_id) DO NOTHING
+                    """,
+                    (
+                        stable_hash(quality_id, detail.get("wallet_id"), dependency),
+                        candidate_id, detail.get("wallet_id"), dependency.get("target_wallet_id"),
+                        dependency.get("type") or ("INDEPENDENT" if not dependency else "OBSERVED_DEPENDENCY"),
+                        detail.get("weight", 0), json.dumps(dependency, sort_keys=True),
+                        independence.get("calculation_version", "sharp-independence-v2"), created_at,
+                    ),
+                )
+
+    def decision_engine_diagnostics(self) -> dict:
+        tables = (
+            "trade_quality_snapshots", "liquidity_quality_snapshots",
+            "wallet_dependency_edges", "opposition_snapshots",
+        )
+        with self.connection() as conn:
+            counts = {
+                table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"]
+                for table in tables
+            }
+            grades = [dict(row) for row in conn.execute(
+                "SELECT grade, COUNT(*) count FROM trade_quality_snapshots GROUP BY grade"
+            ).fetchall()]
+            migrations = [dict(row) for row in conn.execute(
+                "SELECT version, applied_at FROM schema_migrations ORDER BY version"
+            ).fetchall()]
+        return {"table_counts": counts, "grade_counts": grades, "migrations": migrations, "fabricated_provider_data": False}
 
     def list_candidates(self, decision: str | None = None, limit: int = 100, offset: int = 0) -> list[dict]:
         query = "SELECT * FROM candidate_ledger"

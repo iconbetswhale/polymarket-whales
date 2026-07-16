@@ -49,7 +49,23 @@ def play(*, classification: str = "STANDARD", event_id: str = "event-1") -> dict
         "supporting_wallet_ids": [] if classification == "STANDARD" else ["0xsupport1", "0xsupport2"],
         "tracked_wallet_count": 2,
         "confidence_score": 82 if classification == "STANDARD" else 58,
+        "fair_price": {
+            "status": "AVAILABLE",
+            "fair_probability": 0.44,
+            "source_count": 2,
+            "source_dispersion": 0.01,
+        },
+        "trade_quality": {
+            "score": 72 if classification == "STANDARD" else 58,
+            "grade": "B" if classification == "STANDARD" else "DISCOVERY",
+            "components": {},
+            "caps": [] if classification == "STANDARD" else ["RESEARCH_CLASSIFICATION"],
+            "pass_reasons": [],
+            "calculation_version": "trade-quality-v2",
+        },
+        "liquidity_quality": {"score": 100},
         "combined_exposure_exact": 2000.0,
+        "expected_fee_fraction": 0.0,
         "average_entry_price": 0.4,
         "tradeClassification": classification,
         "supporting_wallets": [],
@@ -145,8 +161,8 @@ def test_approved_candidate_is_persisted_without_changing_live_decision(
     assert evaluation["model_tracker_eligible"] is True
     assert evaluation["recommendation"]["final_recommended_fraction"] == original_fraction
     assert stored["current_decision"] == CandidateDecision.APPROVED_STANDARD.value
-    assert stored["snapshot"]["versions"]["trade_scoring"] == "confidence-v2-legacy"
-    assert stored["snapshot"]["versions"]["fair_price"].endswith("unavailable")
+    assert stored["snapshot"]["versions"]["trade_scoring"] == "trade-quality-v2"
+    assert stored["snapshot"]["versions"]["fair_price"] == "fair-price-v2"
     assert stored["correlation_id"].startswith("corr_")
 
 

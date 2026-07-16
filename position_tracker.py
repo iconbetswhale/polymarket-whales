@@ -38,6 +38,9 @@ from bet_tracker import tracker_status_from_event
 from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
+from decision_engine import enrich_trade_decision
+from execution_providers import build_execution_provider_registry
+from fair_price_engine import FairPriceEngine, composite_snapshot
 from model_tracker_discord import (
     DiscordNotificationDispatcher,
     ModelTrackerDiscordBot,
@@ -283,6 +286,8 @@ class TrackerService:
         )
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self.composite_price_providers = CompositePriceProviderRegistry.release1_default()
+        self.execution_providers = build_execution_provider_registry(settings)
+        self.fair_price_engine = FairPriceEngine()
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
         self._refresh_lock = threading.Lock()
@@ -575,6 +580,14 @@ class TrackerService:
             tracked_wallet_count=synced_wallet_count,
             diagnostics=trade_exclusions,
         )
+        self.execution_providers.attach_options(trades_to_play)
+        provider_quotes = self.execution_providers.fair_price_quotes(trades_to_play)
+        for play in trades_to_play:
+            play["decision_bankroll"] = self.settings.default_bankroll
+            fair_price = self.fair_price_engine.calculate(
+                provider_quotes.get(str(play.get("id") or ""), [])
+            ).to_dict()
+            enrich_trade_decision(play, fair_price)
         measurement = self._record_candidate_measurements(
             trades_to_play, trade_exclusions, _utc_now()
         )
@@ -724,6 +737,28 @@ class TrackerService:
                 result["eligible"] += 1
                 dedupe_key = evaluation["recommendation_idempotency_key"]
                 existing = self.database.get_tracker_record(user_id, dedupe_key)
+                if existing is None:
+                    snapshot = evaluation["snapshot"]
+                    identity = (
+                        snapshot.get("canonical_event_id"),
+                        snapshot.get("canonical_market_id"),
+                        str(snapshot.get("market_line") or ""),
+                        snapshot.get("outcome_id"),
+                    )
+                    existing = next(
+                        (
+                            row
+                            for row in self.database.get_tracker_records(user_id)
+                            if (
+                                (row.get("snapshot") or {}).get("canonical_event_id"),
+                                (row.get("snapshot") or {}).get("canonical_market_id"),
+                                str((row.get("snapshot") or {}).get("market_line") or ""),
+                                (row.get("snapshot") or {}).get("outcome_id"),
+                            )
+                            == identity
+                        ),
+                        None,
+                    )
                 if existing:
                     result["existing"] += 1
                     LOGGER.info(
@@ -904,10 +939,17 @@ class TrackerService:
                 )
                 record = build_candidate_record(play, evaluation, timestamp)
                 self.database.record_candidate(record)
-                self.database.insert_composite_price_snapshot(
-                    unavailable_composite_snapshot(
+                fair_price = play.get("fair_price") or {}
+                snapshot = (
+                    composite_snapshot(record, fair_price)
+                    if fair_price
+                    else unavailable_composite_snapshot(
                         record, self.composite_price_providers.health()
                     )
+                )
+                self.database.insert_composite_price_snapshot(snapshot)
+                self.database.record_decision_engine_snapshot(
+                    record["candidate_id"], record["correlation_id"], play, timestamp
                 )
                 counts["recorded"] += 1
                 counts[record["decision"].lower()] = (

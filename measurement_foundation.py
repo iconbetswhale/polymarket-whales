@@ -13,9 +13,9 @@ from typing import Any, Iterable
 
 RELEASE1_MIGRATION_VERSION = "001_release1_measurement_foundation"
 CANDIDATE_LEDGER_VERSION = "candidate-ledger-v1"
-TRADE_SCORING_VERSION = "confidence-v2-legacy"
-FAIR_PRICE_VERSION = "fair-price-interface-v1-unavailable"
-KELLY_VERSION = "kelly-v1-legacy"
+TRADE_SCORING_VERSION = "trade-quality-v2"
+FAIR_PRICE_VERSION = "fair-price-v2"
+KELLY_VERSION = "uncertainty-kelly-v2"
 RISK_POLICY_VERSION = "risk-policy-v1-legacy"
 WALLET_REGISTRY_VERSION = "wallet-registry-v1"
 EXECUTION_PLAN_VERSION = "execution-snapshot-v1"
@@ -62,6 +62,10 @@ class CandidateReason(str, Enum):
     RESEARCH_CLASSIFICATION = "RESEARCH_CLASSIFICATION"
     LEGACY_FILTER_REJECTION = "LEGACY_FILTER_REJECTION"
     APPROVED_BY_LEGACY_MODEL = "APPROVED_BY_LEGACY_MODEL"
+    APPROVED_BY_TRADE_QUALITY_V2 = "APPROVED_BY_TRADE_QUALITY_V2"
+    DISCOVERY_ONLY = "DISCOVERY_ONLY"
+    TRADE_QUALITY_BELOW_B = "TRADE_QUALITY_BELOW_B"
+    EXPECTED_FEES_UNAVAILABLE = "EXPECTED_FEES_UNAVAILABLE"
 
 
 KNOWN_REASONS = {item.value for item in CandidateReason}
@@ -161,8 +165,16 @@ def decision_for_evaluation(play: dict[str, Any], evaluation: dict[str, Any]) ->
             else CandidateReason.RESEARCH_ONLY_NON_CATEGORY.value
         ]
         return CandidateDecision.RESEARCH_ONLY, reasons
+    quality = play.get("trade_quality") or {}
+    grade = str(quality.get("grade") or "")
+    quality_reasons = [normalize_reason(item) for item in quality.get("pass_reasons") or []]
+    if grade == "PASS":
+        return CandidateDecision.PASSED, quality_reasons or [CandidateReason.TRADE_QUALITY_BELOW_B.value]
+    if grade == "DISCOVERY":
+        reasons = list(quality.get("caps") or [])
+        return CandidateDecision.APPROVED_DISCOVERY, reasons or [CandidateReason.DISCOVERY_ONLY.value]
     if evaluation.get("model_tracker_eligible") is True:
-        return CandidateDecision.APPROVED_STANDARD, [CandidateReason.APPROVED_BY_LEGACY_MODEL.value]
+        return CandidateDecision.APPROVED_STANDARD, [CandidateReason.APPROVED_BY_TRADE_QUALITY_V2.value]
     reason = normalize_reason(rejection)
     invalid = reason in {
         CandidateReason.INVALID_EVENT_TIME.value,
@@ -233,12 +245,13 @@ def build_candidate_record(play: dict[str, Any], evaluation: dict[str, Any], det
         "contradicting_sharp_count": play.get("rawContradictingSharpCount"),
         "wallet_positions": play.get("supporting_wallets") or [],
         "trader_category_statistics": (play.get("evidence_inputs") or {}).get("category_details") or [],
+        "trade_quality": play.get("trade_quality") or {},
         "initial_trade_quality_components": play.get("score_breakdown") or {},
         "decision": decision.value,
         "reason_codes": reasons,
         "execution_snapshot": execution,
         "versions": version_registry(recommendation_version),
-        "composite_price": {"status": "UNAVAILABLE", "missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER"},
+        "composite_price": play.get("fair_price") or {"status": "UNAVAILABLE", "missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER"},
     }
     return {
         "candidate_id": cid,
@@ -256,8 +269,8 @@ def build_candidate_record(play: dict[str, Any], evaluation: dict[str, Any], det
         "execution_snapshot": execution,
         "candidate_snapshot": snapshot,
         "versions": version_registry(recommendation_version),
-        "composite_price_status": "UNAVAILABLE",
-        "composite_price_missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+        "composite_price_status": (play.get("fair_price") or {}).get("status", "UNAVAILABLE"),
+        "composite_price_missing_reason": (play.get("fair_price") or {}).get("missing_reason"),
     }
 
 
@@ -267,7 +280,7 @@ def build_exclusion_record(exclusion: dict[str, Any], detected_at: str | None = 
     if not complete_identity(identity):
         return None
     reason = normalize_reason(exclusion.get("reason"))
-    recommendation_version = "v2"
+    recommendation_version = "v3"
     cid = candidate_id(identity, recommendation_version)
     corr = correlation_id(identity)
     if reason == CandidateReason.MARKET_MAPPING_UNCERTAIN.value:
@@ -321,7 +334,7 @@ def build_exclusion_record(exclusion: dict[str, Any], detected_at: str | None = 
     }
 
 
-def version_registry(recommendation_version: str = "v2") -> dict[str, str]:
+def version_registry(recommendation_version: str = "v3") -> dict[str, str]:
     return {
         "candidate_ledger": CANDIDATE_LEDGER_VERSION,
         "trade_scoring": TRADE_SCORING_VERSION,

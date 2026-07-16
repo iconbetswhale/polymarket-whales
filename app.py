@@ -393,7 +393,7 @@ def _trade_card_view(
 def create_app(start_background: bool = True) -> Flask:
     settings = get_settings()
     tracker = TrackerService(settings, auto_start=False)
-    execution_providers = build_execution_provider_registry(settings)
+    execution_providers = tracker.execution_providers
 
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
@@ -1974,6 +1974,25 @@ def create_app(start_background: bool = True) -> Flask:
         offset = max(request.args.get("offset", 0, type=int) or 0, 0)
         rows = tracker.database.list_candidates(decision, limit, offset)
         return jsonify({"data": rows, "count": len(rows), "limit": limit, "offset": offset})
+
+    @app.route("/api/admin/decision-engine/diagnostics")
+    def api_decision_engine_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify(
+            {
+                "data": {
+                    **tracker.database.decision_engine_diagnostics(),
+                    "release": "release-2-decision-engine",
+                    "provider_health": tracker.composite_price_providers.health(),
+                    "connected_provider_health": tracker.execution_providers.fair_price_provider_health(),
+                    "fair_price_weights": tracker.fair_price_engine.provider_weights,
+                    "max_quote_age_seconds": tracker.fair_price_engine.max_quote_age_seconds,
+                    "automatic_model_tracker_requires_independent_fair_price": True,
+                    "fabricated_provider_data": False,
+                }
+            }
+        )
 
     @app.route("/api/admin/candidate-ledger/<candidate_id>")
     def api_candidate_ledger_record(candidate_id: str):

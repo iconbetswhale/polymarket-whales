@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
@@ -55,7 +56,16 @@ def _play(
         "has_lead_sharp": True,
         "tracked_wallet_count": 2,
         "confidence_score": 82,
+        "fair_price": {
+            "status": "AVAILABLE",
+            "fair_probability": 0.41 if strong_evidence else 0.4,
+            "source_count": 2,
+            "source_dispersion": 0.01,
+        },
+        "trade_quality": {"score": 72, "grade": "B"},
+        "liquidity_quality": {"score": 100},
         "combined_exposure_exact": 2000.0,
+        "expected_fee_fraction": 0.0,
         "average_entry_price": 0.4,
         "supporting_wallets": [],
         "evidence_inputs": {
@@ -209,6 +219,20 @@ def test_repeated_backend_runs_insert_once_without_opening_a_page(
     records = db.get_tracker_records(MODEL_TRACKER_USER_ID)
     assert len(records) == 1
     assert records[0]["status"] == "scheduled"
+
+
+def test_recommendation_version_upgrade_does_not_duplicate_same_market(
+    temp_settings, db
+):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    service.sizing_config = replace(service.sizing_config, recommendation_version="v2")
+    first = service.reconcile_model_tracker([_play()], NOW)
+    service.sizing_config = replace(service.sizing_config, recommendation_version="v3")
+    second = service.reconcile_model_tracker([_play()], NOW + timedelta(seconds=5))
+    assert first["records_inserted"] == 1
+    assert second["records_inserted"] == 0
+    assert second["records_skipped_duplicates"] == 1
+    assert len(db.get_tracker_records(MODEL_TRACKER_USER_ID)) == 1
 
 
 def test_model_tracker_rejects_excess_slippage_without_deleting_history(

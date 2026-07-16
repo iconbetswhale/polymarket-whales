@@ -11,7 +11,7 @@ from bet_sizing import (
 )
 
 
-def _play(*, entry=0.5, reference=0.44, sharps=3, tracked=7, evidence=1.0):
+def _play(*, entry=0.5, reference=0.44, sharps=3, tracked=7, evidence=1.0, fair=0.54):
     return {
         "id": "event::market::yes",
         "agreeing_wallet_count": sharps,
@@ -22,12 +22,20 @@ def _play(*, entry=0.5, reference=0.44, sharps=3, tracked=7, evidence=1.0):
         "has_lead_sharp": True,
         "tracked_wallet_count": tracked,
         "current_price": 0.91,
+        "expected_fee_fraction": 0.0,
         "average_entry_price": reference,
         "sharp_reference_entry_price": reference,
         "orderbook": {
             "asks": [{"price": str(entry), "size": "100000"}],
             "bids": [{"price": str(entry - 0.01), "size": "100000"}],
         },
+        "fair_price": {
+            "status": "AVAILABLE",
+            "fair_probability": fair,
+            "source_count": 2,
+            "source_dispersion": 0.01,
+        },
+        "liquidity_quality": {"score": 100},
         "evidence_inputs": {
             "combined_amount": evidence,
             "relative_size": evidence,
@@ -38,12 +46,12 @@ def _play(*, entry=0.5, reference=0.44, sharps=3, tracked=7, evidence=1.0):
     }
 
 
-def test_current_executable_ask_is_probability_baseline_not_confidence_or_snapshot_price():
+def test_independent_fair_price_is_probability_baseline_not_entry_or_snapshot_price():
     recommendation = build_recommendation(_play(entry=0.42), 10000)
 
     assert recommendation["available"] is True
     assert recommendation["current_user_entry_price"] == pytest.approx(0.42)
-    assert recommendation["baseline_probability"] == pytest.approx(0.42)
+    assert recommendation["baseline_probability"] == pytest.approx(0.54)
     assert recommendation["baseline_probability"] != pytest.approx(0.91)
     assert recommendation["price_slippage_fraction"] == pytest.approx(
         (0.42 - 0.44) / 0.44
@@ -51,13 +59,9 @@ def test_current_executable_ask_is_probability_baseline_not_confidence_or_snapsh
 
 
 def test_weak_evidence_produces_zero_kelly_and_no_forced_bet():
-    recommendation = build_recommendation(_play(sharps=1, evidence=0.0), 10000)
+    recommendation = build_recommendation(_play(sharps=1, evidence=0.0, fair=0.5), 10000)
 
-    assert recommendation["evidence_adjustment"] == 0
-    assert (
-        recommendation["estimated_win_probability"]
-        == recommendation["baseline_probability"]
-    )
+    assert recommendation["calculated_edge"] == 0
     assert recommendation["full_kelly_fraction"] == 0
     assert recommendation["final_recommended_fraction"] == 0
     assert recommendation["recommended_amount"] == 0
@@ -71,7 +75,7 @@ def test_one_verified_sharp_is_neutral_before_other_real_evidence():
 
     assert evidence["components"]["sharps_consensus"] == pytest.approx(0.5)
     assert evidence["score"] == pytest.approx(0.5)
-    assert recommendation["evidence_adjustment"] == 0
+    assert recommendation["raw_fair_probability"] == pytest.approx(0.54)
 
 
 def test_realistic_one_sharp_evidence_produces_bounded_positive_size():
@@ -86,9 +90,9 @@ def test_realistic_one_sharp_evidence_produces_bounded_positive_size():
 
     recommendation = build_recommendation(play, 10000)
 
-    assert recommendation["recommendation_version"] == "v2"
+    assert recommendation["recommendation_version"] == "v3"
     assert recommendation["evidence_score"] > 0.5
-    assert 0 < recommendation["evidence_adjustment"] <= 0.02
+    assert recommendation["uncertainty_haircut"] < 1
     assert recommendation["estimated_win_probability"] > 0.469
     assert recommendation["recommended_amount"] > 0
     assert recommendation["recommended_shares"] == pytest.approx(
@@ -106,7 +110,7 @@ def test_half_kelly_and_three_sharp_cap_are_applied():
         recommendation["full_kelly_fraction"] * 0.5
     )
     assert recommendation["final_recommended_fraction"] <= 0.03
-    assert recommendation["global_risk_cap"] == 0.05
+    assert recommendation["global_risk_cap"] == 0.02
 
 
 def test_volume_weighted_entry_walks_multiple_ask_levels():
@@ -145,7 +149,7 @@ def test_missing_orderbook_never_creates_fake_recommendation():
 
 
 def test_bet_below_clob_minimum_is_not_recommended():
-    play = _play(entry=0.94, sharps=1, evidence=0.501)
+    play = _play(entry=0.94, sharps=1, evidence=0.501, fair=0.94002)
     play["orderbook"]["min_order_size"] = "5"
 
     recommendation = build_recommendation(play, 10000)
@@ -157,7 +161,7 @@ def test_bet_below_clob_minimum_is_not_recommended():
     assert recommendation["minimum_executable_amount"] == pytest.approx(4.70)
 
 
-def test_supporting_sharp_is_half_weighted_before_probability_and_kelly():
+def test_supporting_sharp_is_half_weighted_for_risk_cap_not_fair_probability():
     single = _play(entry=0.5, sharps=1, tracked=7, evidence=1.0)
     mixed = _play(entry=0.5, sharps=2, tracked=7, evidence=1.0)
     mixed.update(
@@ -185,13 +189,9 @@ def test_supporting_sharp_is_half_weighted_before_probability_and_kelly():
         > mixed_evidence["components"]["sharps_consensus"]
         > single_evidence["components"]["sharps_consensus"]
     )
-    assert mixed_recommendation["maximum_adjustment"] == pytest.approx(0.03)
     assert mixed_recommendation["sharp_risk_cap"] == pytest.approx(0.015)
-    assert (
-        full_recommendation["recommended_amount"]
-        > mixed_recommendation["recommended_amount"]
-        > single_recommendation["recommended_amount"]
-    )
+    assert full_recommendation["raw_fair_probability"] == mixed_recommendation["raw_fair_probability"]
+    assert mixed_recommendation["recommended_amount"] >= single_recommendation["recommended_amount"]
 
 
 def test_recommendation_rejects_trade_without_a_lead_sharp():

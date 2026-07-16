@@ -27,6 +27,9 @@ ZERO_KELLY = "ZERO_KELLY"
 DUPLICATE_RECOMMENDATION = "DUPLICATE_RECOMMENDATION"
 SYNC_INCOMPLETE = "SYNC_INCOMPLETE"
 MISSING_LEAD_SHARP = "MISSING_LEAD_SHARP"
+NO_INDEPENDENT_FAIR_PRICE = "NO_INDEPENDENT_FAIR_PRICE"
+TRADE_QUALITY_NOT_ACTIONABLE = "TRADE_QUALITY_NOT_ACTIONABLE"
+EXPECTED_FEES_UNAVAILABLE = "EXPECTED_FEES_UNAVAILABLE"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -61,6 +64,8 @@ def _unavailable_reason(recommendation: dict[str, Any]) -> str:
         return MISSING_BANKROLL
     if "ask" in reason or "order-book" in reason or "depth" in reason:
         return MISSING_EXECUTABLE_PRICE
+    if "fee" in reason:
+        return EXPECTED_FEES_UNAVAILABLE
     return SYNC_INCOMPLETE
 
 
@@ -84,6 +89,14 @@ def evaluate_trade_recommendation(
 
     if classification in RESEARCH_CLASSIFICATIONS:
         rejection_reason = POLICIES[classification].model_tracker_rejection_reason
+    elif (play.get("fair_price") or {}).get("status") != "AVAILABLE":
+        rejection_reason = NO_INDEPENDENT_FAIR_PRICE
+    elif str((play.get("trade_quality") or {}).get("grade") or "") in {
+        "PASS",
+        "DISCOVERY",
+        "",
+    }:
+        rejection_reason = TRADE_QUALITY_NOT_ACTIONABLE
     elif event_start is None:
         rejection_reason = INVALID_EVENT_TIME
     elif event_start <= now:
