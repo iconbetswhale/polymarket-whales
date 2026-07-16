@@ -13,6 +13,22 @@ from measurement_foundation import (
     model_version_rows,
     stable_hash,
 )
+from release2_foundation import (
+    RELEASE2_MIGRATION_VERSION,
+    migration_sql as release2_migration_sql,
+    model_version_rows as release2_model_version_rows,
+)
+from release3_foundation import (
+    RELEASE3_MIGRATION_VERSION,
+    migration_sql as release3_migration_sql,
+    model_version_rows as release3_model_version_rows,
+)
+from release4_foundation import (
+    RELEASE4_MIGRATION_VERSION,
+    migration_sql as release4_migration_sql,
+    model_version_rows as release4_model_version_rows,
+)
+from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
 
 
 class PostgresUserStore:
@@ -480,6 +496,77 @@ class PostgresUserStore:
                         row["status"], row["description"], row["registered_at"],
                     ),
                 )
+            for statement in release2_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE2_MIGRATION_VERSION, now),
+            )
+            for row in release2_model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (
+                        row["version_key"], row["component"], row["version"],
+                        row["status"], row["description"], row["registered_at"],
+                    ),
+                )
+            for statement in release3_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE3_MIGRATION_VERSION, now),
+            )
+            for row in release3_model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (
+                        row["version_key"], row["component"], row["version"],
+                        row["status"], row["description"], row["registered_at"],
+                    ),
+                )
+            for statement in release4_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE4_MIGRATION_VERSION, now),
+            )
+            for row in release4_model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]),
+                )
+            for statement in release5_migration_sql("postgres").split(";"):
+                if statement.strip(): conn.execute(statement)
+            conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING", (RELEASE5_MIGRATION_VERSION, now))
+            for row in release5_model_version_rows():
+                conn.execute("INSERT INTO model_versions(version_key, component, version, status, description, registered_at) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT(version_key) DO NOTHING", (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]))
 
     def get_or_create_user_settings(
         self, user_id: str, default_bankroll: float, unit_percentage: float
@@ -1600,6 +1687,19 @@ class PostgresUserStore:
                 ),
             )
 
+    def get_dual_clv_measurements(self, tracker_type: str, user_id: str) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM dual_clv_measurements
+                   WHERE tracker_type = %s AND user_id = %s
+                   ORDER BY created_at ASC""",
+                (tracker_type, user_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return result
+
     def record_candidate_price_observation(
         self,
         candidate_id: str,
@@ -1705,6 +1805,258 @@ class PostgresUserStore:
                     ),
                 )
         return inserted
+
+    def record_decision_engine_snapshot(
+        self, candidate_id: str, correlation_id: str, play: dict, created_at: str
+    ) -> None:
+        quality = play.get("trade_quality") or {}
+        components = quality.get("components") or {}
+        liquidity = play.get("liquidity_quality") or {}
+        opposition = play.get("weighted_opposition") or {}
+        independence = play.get("independent_sharp_signal") or {}
+        quality_id = stable_hash(candidate_id, quality.get("calculation_version"), created_at)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO trade_quality_snapshots(
+                    snapshot_id, candidate_id, correlation_id, score, grade,
+                    uncapped_grade, signal_points, price_points, liquidity_points,
+                    context_points, fair_price_status, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    quality_id, candidate_id, correlation_id, quality.get("score", 0),
+                    quality.get("grade", "PASS"), quality.get("uncapped_grade", "PASS"),
+                    components.get("signal", 0), components.get("price", 0),
+                    components.get("liquidity", 0), components.get("context", 0),
+                    (play.get("fair_price") or {}).get("status", "UNAVAILABLE"),
+                    quality.get("calculation_version", "trade-quality-v2"),
+                    json.dumps(quality, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO liquidity_quality_snapshots(
+                    snapshot_id, candidate_id, status, score, spread,
+                    top_depth_dollars, ladder_depth_dollars, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    stable_hash(quality_id, "liquidity"), candidate_id,
+                    liquidity.get("status", "UNAVAILABLE"), liquidity.get("score", 0),
+                    liquidity.get("spread"), liquidity.get("top_depth_dollars"),
+                    liquidity.get("ladder_depth_dollars"),
+                    liquidity.get("calculation_version", "liquidity-quality-v2"),
+                    json.dumps(liquidity, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO opposition_snapshots(
+                    snapshot_id, candidate_id, raw_count, weighted_opposition,
+                    penalty, action, calculation_version, snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    stable_hash(quality_id, "opposition"), candidate_id,
+                    opposition.get("raw_count", 0), opposition.get("weighted_opposition", 0),
+                    opposition.get("penalty", 0), opposition.get("action", "NOTE_ONLY"),
+                    opposition.get("calculation_version", "weighted-opposition-v2"),
+                    json.dumps(opposition, sort_keys=True), created_at,
+                ),
+            )
+            for detail in independence.get("details") or []:
+                dependency = detail.get("dependency") or {}
+                conn.execute(
+                    """
+                    INSERT INTO wallet_dependency_edges(
+                        edge_id, candidate_id, source_wallet_id, target_wallet_id,
+                        dependency_type, dependency_weight, evidence_json,
+                        calculation_version, observed_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(edge_id) DO NOTHING
+                    """,
+                    (
+                        stable_hash(quality_id, detail.get("wallet_id"), dependency),
+                        candidate_id, detail.get("wallet_id"), dependency.get("target_wallet_id"),
+                        dependency.get("type") or ("INDEPENDENT" if not dependency else "OBSERVED_DEPENDENCY"),
+                        detail.get("weight", 0), json.dumps(dependency, sort_keys=True),
+                        independence.get("calculation_version", "sharp-independence-v2"), created_at,
+                    ),
+                )
+
+    def decision_engine_diagnostics(self) -> dict:
+        tables = (
+            "trade_quality_snapshots", "liquidity_quality_snapshots",
+            "wallet_dependency_edges", "opposition_snapshots",
+        )
+        with self.connection() as conn:
+            counts = {
+                table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"]
+                for table in tables
+            }
+            grades = [dict(row) for row in conn.execute(
+                "SELECT grade, COUNT(*) count FROM trade_quality_snapshots GROUP BY grade"
+            ).fetchall()]
+            migrations = [dict(row) for row in conn.execute(
+                "SELECT version, applied_at FROM schema_migrations ORDER BY version"
+            ).fetchall()]
+        return {"table_counts": counts, "grade_counts": grades, "migrations": migrations, "fabricated_provider_data": False}
+
+    def get_bankroll_bucket_config(self, user_id: str) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO bankroll_bucket_configs(
+                    user_id, core_allocation, discovery_allocation,
+                    liquidity_reserve_allocation, operational_buffer_allocation,
+                    combine_model_and_personal, config_version, updated_at
+                ) VALUES (%s, 0.70, 0.10, 0.15, 0.05, TRUE, 'bankroll-buckets-v3', %s)
+                ON CONFLICT(user_id) DO NOTHING
+                """,
+                (user_id, now),
+            )
+            row = conn.execute("SELECT * FROM bankroll_bucket_configs WHERE user_id = %s", (user_id,)).fetchone()
+        return dict(row)
+
+    def update_bankroll_bucket_config(self, user_id: str, values: dict) -> dict:
+        keys = ("core_allocation", "discovery_allocation", "liquidity_reserve_allocation", "operational_buffer_allocation")
+        allocations = {key: float(values[key]) for key in keys}
+        if any(value < 0 or value > 1 for value in allocations.values()) or abs(sum(allocations.values()) - 1.0) > 1e-6:
+            raise ValueError("Bankroll bucket allocations must be between zero and one and total 1.0.")
+        self.get_bankroll_bucket_config(user_id)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE bankroll_bucket_configs SET core_allocation = %s,
+                    discovery_allocation = %s, liquidity_reserve_allocation = %s,
+                    operational_buffer_allocation = %s, combine_model_and_personal = %s,
+                    config_version = 'bankroll-buckets-v3', updated_at = %s WHERE user_id = %s
+                """,
+                (
+                    allocations["core_allocation"], allocations["discovery_allocation"],
+                    allocations["liquidity_reserve_allocation"], allocations["operational_buffer_allocation"],
+                    bool(values.get("combine_model_and_personal", True)), datetime.now(timezone.utc).isoformat(), user_id,
+                ),
+            )
+        return self.get_bankroll_bucket_config(user_id)
+
+    def get_risk_account_state(self, user_id: str, bankroll: float) -> dict:
+        bankroll = max(0.0, float(bankroll))
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO risk_account_state(user_id, current_bankroll, high_water_mark, state_version, updated_at)
+                VALUES (%s, %s, %s, 'drawdown-protocol-v3', %s)
+                ON CONFLICT(user_id) DO NOTHING
+                """,
+                (user_id, bankroll, bankroll, now),
+            )
+            row = conn.execute("SELECT * FROM risk_account_state WHERE user_id = %s", (user_id,)).fetchone()
+        return dict(row)
+
+    def update_risk_account_state(self, user_id: str, bankroll: float, values: dict) -> dict:
+        current = self.get_risk_account_state(user_id, bankroll)
+        current_bankroll = max(0.0, float(values.get("current_bankroll", current["current_bankroll"])))
+        high_water = max(current_bankroll, float(values.get("high_water_mark", current["high_water_mark"])))
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE risk_account_state SET current_bankroll = %s, high_water_mark = %s,
+                    recent_stake_weighted_composite_clv = %s, recent_valid_trade_count = %s,
+                    material_error_count_7d = %s, wallet_data_invalid = %s, provider_unreliable = %s,
+                    state_version = 'drawdown-protocol-v3', updated_at = %s WHERE user_id = %s
+                """,
+                (
+                    current_bankroll, high_water,
+                    values.get("recent_stake_weighted_composite_clv", current.get("recent_stake_weighted_composite_clv")),
+                    int(values.get("recent_valid_trade_count", current.get("recent_valid_trade_count") or 0)),
+                    int(values.get("material_error_count_7d", current.get("material_error_count_7d") or 0)),
+                    bool(values.get("wallet_data_invalid", current.get("wallet_data_invalid"))),
+                    bool(values.get("provider_unreliable", current.get("provider_unreliable"))),
+                    datetime.now(timezone.utc).isoformat(), user_id,
+                ),
+            )
+        return self.get_risk_account_state(user_id, bankroll)
+
+    def set_manual_kill_switch(self, user_id: str, enabled: bool, reason: str, actor: str, override: bool = False) -> dict:
+        current = self.get_risk_account_state(user_id, 0)
+        now = datetime.now(timezone.utc).isoformat()
+        new_state = {**current, "manual_kill_switch": bool(enabled), "manual_reason": reason if enabled else None}
+        with self.connection() as conn:
+            conn.execute(
+                "UPDATE risk_account_state SET manual_kill_switch = %s, manual_reason = %s, updated_at = %s WHERE user_id = %s",
+                (bool(enabled), reason if enabled else None, now, user_id),
+            )
+            conn.execute(
+                """
+                INSERT INTO kill_switch_audit(
+                    audit_id, user_id, enabled, reason_code, actor, override,
+                    prior_state_json, new_state_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """,
+                (stable_hash(user_id, enabled, reason, actor, now), user_id, bool(enabled), reason, actor, bool(override), json.dumps(current, sort_keys=True), json.dumps(new_state, sort_keys=True), now),
+            )
+        return self.get_risk_account_state(user_id, current["current_bankroll"])
+
+    def record_release3_snapshots(self, user_id: str, candidate_id: str | None, correlation_id: str | None, recommendation_snapshot_id: str | None, execution: dict, risk: dict, created_at: str) -> None:
+        execution_id = stable_hash(candidate_id, recommendation_snapshot_id, execution.get("calculation_version"), created_at)
+        risk_id = stable_hash(user_id, candidate_id, recommendation_snapshot_id, risk.get("calculation_version"), created_at)
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO execution_plan_snapshots(
+                    snapshot_id, candidate_id, correlation_id, recommendation_snapshot_id,
+                    recommended_stake, maximum_average_price, effective_price,
+                    amount_executable_below_max, unfilled_amount, execution_method,
+                    reason_code, quote_timestamp, quote_fresh, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    execution_id, candidate_id, correlation_id, recommendation_snapshot_id,
+                    execution.get("recommended_stake", 0), execution.get("maximum_average_price"),
+                    execution.get("effective_price_for_executable_amount"), execution.get("amount_executable_below_max", 0),
+                    execution.get("unfilled_amount", 0), execution.get("recommended_execution_method", "PASS"),
+                    execution.get("execution_reason_code", "UNKNOWN"), execution.get("quote_timestamp"), bool(execution.get("quote_fresh")),
+                    execution.get("calculation_version", "execution-engine-v3"), json.dumps(execution, sort_keys=True), created_at,
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO portfolio_risk_snapshots(
+                    snapshot_id, user_id, candidate_id, recommendation_snapshot_id,
+                    bucket, risk_state, proposed_stake, final_capped_stake,
+                    correlation_multiplier, reason_codes_json, calculation_version,
+                    snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    risk_id, user_id, candidate_id, recommendation_snapshot_id,
+                    risk.get("bucket", "CORE"), (risk.get("risk_state") or {}).get("state", "NORMAL"),
+                    risk.get("recommended_before_risk", 0), risk.get("final_capped_stake", 0),
+                    risk.get("correlation_multiplier", 0), json.dumps(risk.get("reason_codes") or []),
+                    risk.get("calculation_version", "portfolio-risk-v3"), json.dumps(risk, sort_keys=True), created_at,
+                ),
+            )
+
+    def release3_diagnostics(self) -> dict:
+        tables = ("execution_plan_snapshots", "portfolio_risk_snapshots", "bankroll_bucket_configs", "risk_account_state", "kill_switch_audit")
+        with self.connection() as conn:
+            counts = {table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"] for table in tables}
+            methods = [dict(row) for row in conn.execute("SELECT execution_method, COUNT(*) count FROM execution_plan_snapshots GROUP BY execution_method").fetchall()]
+            states = [dict(row) for row in conn.execute("SELECT risk_state, COUNT(*) count FROM portfolio_risk_snapshots GROUP BY risk_state").fetchall()]
+            migrations = [dict(row) for row in conn.execute("SELECT version, applied_at FROM schema_migrations ORDER BY version").fetchall()]
+        return {"table_counts": counts, "execution_method_counts": methods, "risk_state_counts": states, "migrations": migrations, "fabricated_data": False}
 
     def list_candidates(self, decision: str | None = None, limit: int = 100, offset: int = 0) -> list[dict]:
         query = "SELECT * FROM candidate_ledger"
@@ -1879,6 +2231,146 @@ class PostgresUserStore:
             "composite_price_snapshots": snapshots,
             "composite_source_contributions": contributions,
         }
+
+    def learning_candidate_rows(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute("""SELECT c.*, m.result, m.hypothetical_stake AS stake,
+                m.hypothetical_profit_loss AS profit_loss,
+                d.exchange_probability_point_clv AS exchange_clv,
+                d.composite_probability_point_clv AS composite_clv, d.execution_loss,
+                e.execution_method, e.snapshot_json AS execution_plan_json,
+                q.grade AS trade_grade, l.status AS liquidity_grade
+                FROM candidate_ledger c
+                LEFT JOIN candidate_monitoring m ON m.candidate_id = c.candidate_id
+                LEFT JOIN dual_clv_measurements d ON d.candidate_id = c.candidate_id
+                LEFT JOIN execution_plan_snapshots e ON e.snapshot_id = (SELECT e2.snapshot_id FROM execution_plan_snapshots e2 WHERE e2.candidate_id = c.candidate_id ORDER BY e2.created_at DESC LIMIT 1)
+                LEFT JOIN trade_quality_snapshots q ON q.snapshot_id = (SELECT q2.snapshot_id FROM trade_quality_snapshots q2 WHERE q2.candidate_id = c.candidate_id ORDER BY q2.created_at DESC LIMIT 1)
+                LEFT JOIN liquidity_quality_snapshots l ON l.snapshot_id = (SELECT l2.snapshot_id FROM liquidity_quality_snapshots l2 WHERE l2.candidate_id = c.candidate_id ORDER BY l2.created_at DESC LIMIT 1)
+                ORDER BY c.detected_at""").fetchall()
+        output = []
+        for source in rows:
+            row = self._candidate_row(dict(source))
+            execution = json.loads(row.pop("execution_plan_json") or "{}")
+            row["execution_plan"] = execution
+            row["fees"] = execution.get("expected_fees")
+            row["entry_price"] = execution.get("effective_price_for_executable_amount")
+            output.append(row)
+        return output
+
+    def record_edge_map(self, run: dict, segments: list[dict]) -> None:
+        with self.connection() as conn:
+            conn.execute("""INSERT INTO edge_map_runs(run_id, window_start, window_end, candidate_count, config_json, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s) ON CONFLICT(run_id) DO NOTHING""", (run["run_id"], run.get("window_start"), run.get("window_end"), run["candidate_count"], json.dumps(run["config"], sort_keys=True), run["calculation_version"], run["created_at"]))
+            for row in segments:
+                snapshot_id = stable_hash(run["run_id"], row["dimension"], row["segment_value"])
+                conn.execute("""INSERT INTO edge_map_segment_snapshots(snapshot_id, run_id, dimension, segment_value, candidate_count, played_count, passed_count, settled_count, stake, roi, stake_weighted_exchange_clv, stake_weighted_composite_clv, positive_composite_clv_rate, median_clv, execution_loss, average_fees, maximum_drawdown, statistical_reliability, status, snapshot_json, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT(snapshot_id) DO UPDATE SET snapshot_json = EXCLUDED.snapshot_json, status = EXCLUDED.status""", (snapshot_id, run["run_id"], row["dimension"], row["segment_value"], row["candidate_count"], row["played_count"], row["passed_count"], row["settled_count"], row["stake"], row.get("roi"), row.get("stake_weighted_exchange_clv"), row.get("stake_weighted_composite_clv"), row.get("positive_composite_clv_rate"), row.get("median_clv"), row["execution_loss"], row.get("average_fees"), row.get("maximum_drawdown"), row["statistical_reliability"], row["status"], json.dumps(row, sort_keys=True), row["calculation_version"], run["created_at"]))
+
+    def latest_edge_map(self, dimension: str | None = None) -> dict:
+        with self.connection() as conn:
+            run = conn.execute("SELECT * FROM edge_map_runs ORDER BY created_at DESC LIMIT 1").fetchone()
+            if not run:
+                return {"run": None, "segments": []}
+            query, params = "SELECT * FROM edge_map_segment_snapshots WHERE run_id = %s", [run["run_id"]]
+            if dimension:
+                query, params = query + " AND dimension = %s", [*params, dimension]
+            rows = conn.execute(query + " ORDER BY candidate_count DESC, dimension, segment_value", params).fetchall()
+        run_row = dict(run); run_row["config"] = json.loads(run_row.pop("config_json") or "{}")
+        segments = [dict(row) for row in rows]
+        for row in segments: row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return {"run": run_row, "segments": segments}
+
+    def create_configuration_proposal(self, values: dict, actor: str) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); proposal_id = stable_hash(values["segment_dimension"], values["segment_value"], values["proposal_type"], json.dumps(values.get("proposed_config") or {}, sort_keys=True), now)
+        with self.connection() as conn:
+            conn.execute("""INSERT INTO configuration_proposals(proposal_id, segment_dimension, segment_value, proposal_type, old_config_json, proposed_config_json, evidence_snapshot_json, status, created_by, created_at, updated_at, config_version_before) VALUES (%s, %s, %s, %s, %s, %s, %s, 'PROPOSED', %s, %s, %s, %s)""", (proposal_id, values["segment_dimension"], values["segment_value"], values["proposal_type"], json.dumps(values.get("old_config") or {}, sort_keys=True), json.dumps(values.get("proposed_config") or {}, sort_keys=True), json.dumps(values.get("evidence") or {}, sort_keys=True), actor, now, now, values.get("config_version_before")))
+        return self.get_configuration_proposal(proposal_id)
+
+    def get_configuration_proposal(self, proposal_id: str) -> dict | None:
+        with self.connection() as conn: row = conn.execute("SELECT * FROM configuration_proposals WHERE proposal_id = %s", (proposal_id,)).fetchone()
+        return self._proposal_row(dict(row)) if row else None
+
+    def list_configuration_proposals(self) -> list[dict]:
+        with self.connection() as conn: rows = conn.execute("SELECT * FROM configuration_proposals ORDER BY created_at DESC").fetchall()
+        return [self._proposal_row(dict(row)) for row in rows]
+
+    def review_configuration_proposal(self, proposal_id: str, status: str, actor: str, reason: str | None = None) -> dict:
+        if status not in {"APPROVED", "REJECTED", "HOLDOUT_PENDING", "HOLDOUT_PASSED", "HOLDOUT_FAILED"}: raise ValueError("Invalid proposal status.")
+        current = self.get_configuration_proposal(proposal_id)
+        if not current: raise KeyError("Proposal not found.")
+        if status == "APPROVED" and current["status"] != "HOLDOUT_PASSED": raise ValueError("A proposal requires a passed holdout before approval.")
+        now = datetime.now(timezone.utc).isoformat()
+        next_version = stable_hash(proposal_id, current.get("config_version_before"), "approved") if status == "APPROVED" else current.get("config_version_after")
+        with self.connection() as conn: conn.execute("UPDATE configuration_proposals SET status = %s, approved_by = %s, rejection_reason = %s, approved_at = %s, config_version_after = %s, updated_at = %s WHERE proposal_id = %s", (status, actor if status == "APPROVED" else None, reason, now if status == "APPROVED" else None, next_version, now, proposal_id))
+        return self.get_configuration_proposal(proposal_id)
+
+    def record_holdout(self, proposal_id: str, dimension: str, value: str, baseline: dict, holdout: dict, evaluation: dict, window: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); evaluation_id = stable_hash(proposal_id, window["holdout_start"], window["holdout_end"])
+        with self.connection() as conn: conn.execute("""INSERT INTO holdout_evaluations(evaluation_id, proposal_id, segment_dimension, segment_value, baseline_start, baseline_end, holdout_start, holdout_end, baseline_metrics_json, holdout_metrics_json, status, sample_sufficient, calculation_version, evaluated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) ON CONFLICT(evaluation_id) DO UPDATE SET status = EXCLUDED.status, holdout_metrics_json = EXCLUDED.holdout_metrics_json""", (evaluation_id, proposal_id, dimension, value, window.get("baseline_start"), window.get("baseline_end"), window["holdout_start"], window["holdout_end"], json.dumps(baseline, sort_keys=True), json.dumps(holdout, sort_keys=True), evaluation["status"], evaluation["sample_sufficient"], evaluation["calculation_version"], now))
+        self.review_configuration_proposal(proposal_id, evaluation["status"], "holdout-engine")
+        return {"evaluation_id": evaluation_id, **evaluation}
+
+    def record_rule_violation(self, user_id: str, values: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat(); violation_id = stable_hash(user_id, values["trade_id"], values["warning_code"], now)
+        with self.connection() as conn: conn.execute("""INSERT INTO rule_violations(violation_id, user_id, trade_id, candidate_id, warning_code, confirmed_action, confirmation_text, entry_price, outcome, profit_loss, exchange_clv, composite_clv, context_json, calculation_version, created_at, settled_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", (violation_id, user_id, values["trade_id"], values.get("candidate_id"), values["warning_code"], values["confirmed_action"], values["confirmation_text"], values.get("entry_price"), values.get("outcome"), values.get("profit_loss"), values.get("exchange_clv"), values.get("composite_clv"), json.dumps(values.get("context") or {}, sort_keys=True), values["calculation_version"], now, now if values.get("profit_loss") is not None else None))
+        return {"violation_id": violation_id, "user_id": user_id, **values, "created_at": now}
+
+    def list_rule_violations(self, user_id: str | None = None) -> list[dict]:
+        query, params = "SELECT * FROM rule_violations", []
+        if user_id: query, params = query + " WHERE user_id = %s", [user_id]
+        with self.connection() as conn: rows = conn.execute(query + " ORDER BY created_at DESC", params).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result: row["context"] = json.loads(row.pop("context_json") or "{}")
+        return result
+
+    def settle_rule_violation(self, violation_id: str, values: dict) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute("UPDATE rule_violations SET outcome = %s, profit_loss = %s, exchange_clv = %s, composite_clv = %s, settled_at = %s WHERE violation_id = %s RETURNING *", (values.get("outcome"), values.get("profit_loss"), values.get("exchange_clv"), values.get("composite_clv"), now, violation_id)).fetchone()
+        if not row: raise KeyError("Violation not found.")
+        result = dict(row); result["context"] = json.loads(result.pop("context_json") or "{}")
+        return result
+
+    def release4_diagnostics(self) -> dict:
+        tables = ("edge_map_runs", "edge_map_segment_snapshots", "holdout_evaluations", "configuration_proposals", "rule_violations")
+        with self.connection() as conn:
+            counts = {table: conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()["count"] for table in tables}
+            statuses = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM edge_map_segment_snapshots GROUP BY status")]
+            proposals = [dict(row) for row in conn.execute("SELECT status, COUNT(*) count FROM configuration_proposals GROUP BY status")]
+        return {"table_counts": counts, "segment_status_counts": statuses, "proposal_status_counts": proposals, "production_weights_auto_changed": False, "fabricated_data": False}
+
+    def active_segment_policies(self) -> list[dict]:
+        with self.connection() as conn: return [dict(row) for row in conn.execute("SELECT * FROM segment_policy_assignments WHERE status = 'ACTIVE' ORDER BY created_at")]
+
+    def apply_configuration_proposal(self, proposal_id: str, actor: str) -> dict:
+        proposal = self.get_configuration_proposal(proposal_id)
+        if not proposal: raise KeyError("Proposal not found.")
+        if proposal["status"] != "APPROVED": raise ValueError("Only an approved proposal can be applied.")
+        multiplier = float((proposal.get("proposed_config") or {}).get("stake_multiplier", -1))
+        if not 0 <= multiplier <= 1: raise ValueError("Applied stake_multiplier must be between 0 and 1; Release 5 cannot increase risk.")
+        now = datetime.now(timezone.utc).isoformat(); version = proposal.get("config_version_after") or stable_hash(proposal_id, "applied"); policy_id = stable_hash(version, proposal["segment_dimension"], proposal["segment_value"])
+        with self.connection() as conn:
+            conn.execute("UPDATE segment_policy_assignments SET status = 'SUPERSEDED' WHERE status = 'ACTIVE' AND segment_dimension = %s AND segment_value = %s", (proposal["segment_dimension"], proposal["segment_value"]))
+            conn.execute("INSERT INTO production_configuration_versions(config_version, proposal_id, config_json, activated_by, activated_at, status, calculation_version) VALUES (%s, %s, %s, %s, %s, 'ACTIVE', 'segment-policy-v5') ON CONFLICT(config_version) DO UPDATE SET status = 'ACTIVE'", (version, proposal_id, json.dumps(proposal["proposed_config"], sort_keys=True), actor, now))
+            conn.execute("INSERT INTO segment_policy_assignments(policy_id, config_version, segment_dimension, segment_value, stake_multiplier, status, rationale, created_at) VALUES (%s, %s, %s, %s, %s, 'ACTIVE', %s, %s) ON CONFLICT(policy_id) DO UPDATE SET status = 'ACTIVE', stake_multiplier = EXCLUDED.stake_multiplier", (policy_id, version, proposal["segment_dimension"], proposal["segment_value"], multiplier, json.dumps(proposal.get("evidence") or {}, sort_keys=True), now))
+            conn.execute("UPDATE configuration_proposals SET status = 'APPLIED', applied_at = %s, updated_at = %s WHERE proposal_id = %s", (now, now, proposal_id))
+        return {"config_version": version, "policy_id": policy_id, "stake_multiplier": multiplier, "status": "ACTIVE", "activated_at": now}
+
+    def record_post_change_monitoring(self, edge_map_run_id: str | None, segments: list[dict]) -> int:
+        policies = self.active_segment_policies(); now = datetime.now(timezone.utc).isoformat(); by_key = {(r["dimension"], r["segment_value"]): r for r in segments}
+        with self.connection() as conn:
+            for policy in policies:
+                metrics = by_key.get((policy["segment_dimension"], policy["segment_value"]), {"candidate_count": 0}); mid = stable_hash(policy["config_version"], edge_map_run_id, now)
+                conn.execute("INSERT INTO post_change_monitoring_runs(monitoring_id, config_version, edge_map_run_id, segment_dimension, segment_value, metrics_json, status, calculation_version, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, 'post-change-monitor-v5', %s) ON CONFLICT(monitoring_id) DO NOTHING", (mid, policy["config_version"], edge_map_run_id, policy["segment_dimension"], policy["segment_value"], json.dumps(metrics, sort_keys=True), metrics.get("status", "INSUFFICIENT_SAMPLE"), now))
+        return len(policies)
+
+    def completion_diagnostics(self) -> dict:
+        tables = ("production_configuration_versions", "segment_policy_assignments", "post_change_monitoring_runs")
+        with self.connection() as conn: counts = {table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"] for table in tables}
+        return {"table_counts": counts, "active_policies": self.active_segment_policies(), "risk_increasing_policies_allowed": False, "fabricated_data": False}
+
+    @staticmethod
+    def _proposal_row(row: dict) -> dict:
+        for source, target in (("old_config_json", "old_config"), ("proposed_config_json", "proposed_config"), ("evidence_snapshot_json", "evidence")): row[target] = json.loads(row.pop(source) or "{}")
+        return row
 
     @staticmethod
     def _candidate_row(row: dict) -> dict:

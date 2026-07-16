@@ -16,6 +16,8 @@ from urllib.parse import urlparse
 
 import requests
 
+from fair_price_engine import no_vig_probabilities
+
 LOGGER = logging.getLogger(__name__)
 
 POLYMARKET_LOGO_URL = "https://polymarket.com/icons/favicon-32x32.png"
@@ -85,6 +87,10 @@ class ExecutionProvider(ABC):
     @abstractmethod
     def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
         raise NotImplementedError
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
+        """Return independently sourced no-vig quotes when supported."""
+        return {}
 
 
 class PolymarketProvider(ExecutionProvider):
@@ -209,6 +215,20 @@ class ProphetXProvider(ExecutionProvider):
         with self._health_lock:
             self._last_matches.update(options)
         return options
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
+        if not self._access_key or not self._secret_key or not trades:
+            return {}
+        canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
+        if not canonical:
+            return {}
+        try:
+            return _fair_quotes_from_index(
+                canonical, self._prophetx_market_index(), self.provider_key
+            )
+        except (requests.RequestException, ValueError, TypeError):
+            LOGGER.warning("ProphetX fair-price refresh failed")
+            return {}
 
     def _unavailable_last_matches(
         self, trades: list[CanonicalTrade]
@@ -385,10 +405,11 @@ class NormalizedProviderMarket:
 
 class ProviderMarketIndex:
     def __init__(self, markets: Iterable[NormalizedProviderMarket]) -> None:
+        self.markets = tuple(markets)
         self._by_sport_and_time: dict[
             tuple[str, int], list[NormalizedProviderMarket]
         ] = defaultdict(list)
-        for market in markets:
+        for market in self.markets:
             self._by_sport_and_time[
                 (market.sport_id, _time_bucket(market.start_at))
             ].append(market)
@@ -401,6 +422,83 @@ class ProviderMarketIndex:
                 self._by_sport_and_time.get((trade.sport_id, bucket + offset), [])
             )
         return candidates
+
+
+def _equivalent_market_key(market: NormalizedProviderMarket) -> tuple:
+    return (
+        market.event_id,
+        market.sport_id,
+        market.league_id,
+        market.market_name,
+        market.stat_id,
+        market.stat_entity_id,
+        market.period_id,
+        market.bet_type_id,
+        market.line,
+        market.is_alternative,
+        market.settlement_rules,
+    )
+
+
+def _fair_quotes_from_index(
+    trades: list[CanonicalTrade], index: ProviderMarketIndex, provider_key: str
+) -> dict[str, dict]:
+    results: dict[str, dict] = {}
+    for trade in trades:
+        confidence, matched = _match_exact_trade(trade, index)
+        if confidence is not MatchConfidence.EXACT or matched is None:
+            continue
+        siblings = [
+            row
+            for row in index.markets
+            if _equivalent_market_key(row) == _equivalent_market_key(matched)
+            and row.is_available
+            and row.american_odds is not None
+        ]
+        probabilities = no_vig_probabilities(row.american_odds for row in siblings)
+        if probabilities is None:
+            continue
+        selected_index = next(
+            (position for position, row in enumerate(siblings) if row.selection_id == matched.selection_id),
+            None,
+        )
+        if selected_index is None:
+            continue
+        results[trade.trade_id] = {
+            "provider": provider_key,
+            "status": "AVAILABLE",
+            "quote_timestamp": matched.last_updated,
+            "mapping_confidence": "EXACT",
+            "provider_event_id": matched.event_id,
+            "provider_market_id": "::".join(str(item) for item in _equivalent_market_key(matched)),
+            "provider_selection_id": matched.selection_id,
+            "sport": matched.sport_id,
+            "league": matched.league_id,
+            "start_time": matched.start_at.isoformat(),
+            "home_participant": matched.home_names[0] if matched.home_names else None,
+            "away_participant": matched.away_names[0] if matched.away_names else None,
+            "market_type": matched.market_name,
+            "period": matched.period_id,
+            "line": matched.line,
+            "selection": matched.side_id,
+            "settlement_rules": matched.settlement_rules,
+            "native_odds": matched.display_odds,
+            "american_odds": matched.american_odds,
+            "raw_implied_probability": american_to_probability(matched.american_odds),
+            "no_vig_probability": probabilities[selected_index],
+            "outcome_count": len(siblings),
+            "liquidity": None,
+            "limits": None,
+            "quality_metadata": {"liquidity_status": "UNAVAILABLE"},
+            "fabricated_data": False,
+        }
+    return results
+
+
+def american_to_probability(value: int | None) -> float | None:
+    if value is None or value == 0:
+        return None
+    return value / (value + 100.0) if value > 0 else -value / (-value + 100.0)
 
 
 @dataclass
@@ -457,6 +555,20 @@ class NoVIGProvider(ExecutionProvider):
             for trade_id, option in options.items():
                 self._last_matches[trade_id] = option
         return options
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
+        if not self.api_key or not trades:
+            return {}
+        canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
+        if not canonical:
+            return {}
+        try:
+            return _fair_quotes_from_index(
+                canonical, self._market_index(canonical), self.provider_key
+            )
+        except (requests.RequestException, ValueError, TypeError):
+            LOGGER.warning("NoVIG fair-price refresh failed")
+            return {}
 
     def match_trade(
         self, trade: CanonicalTrade, index: ProviderMarketIndex
@@ -576,6 +688,42 @@ class ExecutionProviderRegistry:
                 and option.matching_confidence is MatchConfidence.EXACT
             ]
         return trades
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
+        quotes: dict[str, list[dict]] = defaultdict(list)
+        for provider in self.providers:
+            if provider.provider_key == "polymarket":
+                continue
+            try:
+                rows = provider.fair_price_quotes(trades)
+            except Exception:
+                LOGGER.exception("Fair-price provider %s failed", provider.provider_key)
+                rows = {}
+            for trade_id, quote in rows.items():
+                quotes[trade_id].append(quote)
+        return dict(quotes)
+
+    def fair_price_provider_health(self) -> list[dict]:
+        rows = []
+        for provider in self.providers:
+            if provider.provider_key == "polymarket":
+                continue
+            checker = getattr(provider, "health_status", None)
+            if callable(checker):
+                status = checker(authenticate=False).value
+            elif provider.provider_key == "novig":
+                status = "configured" if bool(getattr(provider, "api_key", None)) else "unavailable"
+            else:
+                status = "unavailable"
+            rows.append(
+                {
+                    "provider": provider.provider_key,
+                    "status": status,
+                    "supports_fair_price": True,
+                    "fabricated_data": False,
+                }
+            )
+        return rows
 
     def provider_health(
         self, provider_key: str, *, authenticate: bool = False

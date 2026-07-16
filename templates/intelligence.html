@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="intel-page">
+  <header class="intel-hero"><div><p class="eyebrow">CONTROL PLANE · ADMINISTRATOR</p><h1>IconBets Intelligence</h1><p>Candidate decisions, explainability, learning proposals, rule violations, and system diagnostics in one auditable workspace.</p></div><span class="intel-security"><i class="ph ph-lock-key" aria-hidden="true"></i><strong id="intel-access-state">Restricted</strong><small>No provider credentials are exposed</small></span></header>
+  <section class="intel-login" id="intel-login"><form id="intel-login-form"><label>Administrator password<input id="intel-password" type="password" autocomplete="current-password" required></label><button class="button primary" type="submit">Open Intelligence</button><p id="intel-login-error" role="alert"></p></form></section>
+  <div id="intel-workspace" hidden>
+    <section class="intel-summary" id="intel-summary"></section>
+    <div class="intel-tabs" role="tablist"><button class="active" data-intel-tab="candidates">Candidate Ledger</button><button data-intel-tab="proposals">Configuration Proposals</button><button data-intel-tab="violations">Rule Violations</button><button data-intel-tab="diagnostics">Diagnostics</button></div>
+    <section class="intel-panel" data-intel-panel="candidates"><div class="intel-panel-head"><div><h2>Candidate Ledger</h2><p>Every approved, passed, research-only, and invalid candidate.</p></div><select id="intel-candidate-filter"><option value="">All decisions</option><option>APPROVED_STANDARD</option><option>APPROVED_DISCOVERY</option><option>PASSED</option><option>RESEARCH_ONLY</option><option>INVALID</option></select></div><div class="intel-list" id="intel-candidates"></div></section>
+    <section class="intel-panel" data-intel-panel="proposals" hidden><div class="intel-panel-head"><div><h2>Configuration Proposals</h2><p>Holdout validation and explicit approval are required before safe application.</p></div></div><div class="intel-list" id="intel-proposals"></div></section>
+    <section class="intel-panel" data-intel-panel="violations" hidden><div class="intel-panel-head"><div><h2>Rule Violations</h2><p>Confirmed decisions that proceeded despite an active warning.</p></div></div><div class="intel-list" id="intel-violations"></div></section>
+    <section class="intel-panel" data-intel-panel="diagnostics" hidden><div class="intel-panel-head"><div><h2>Consolidated Diagnostics</h2><p>Measurement, decision, execution, risk, and learning health.</p></div></div><pre class="intel-diagnostics" id="intel-diagnostics"></pre></section>
+  </div>
+  <dialog class="intel-trace-dialog" id="intel-trace-dialog"><button class="icon-button" id="intel-trace-close" aria-label="Close explainability trace"><i class="ph ph-x"></i></button><p class="eyebrow">END-TO-END TRACE</p><h2>Recommendation explainability</h2><div id="intel-trace"></div></dialog>
+</section>
+{% endblock %}

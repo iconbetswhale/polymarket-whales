@@ -34,10 +34,14 @@ from clv import (
     select_last_fresh_quote,
 )
 from bet_sizing import SizingConfig
-from bet_tracker import tracker_status_from_event
+from bet_tracker import replay_tracker, tracker_status_from_event
 from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
+from decision_engine import enrich_trade_decision
+from execution_providers import build_execution_provider_registry
+from execution_engine import ExecutionConfig
+from fair_price_engine import FairPriceEngine, composite_snapshot
 from model_tracker_discord import (
     DiscordNotificationDispatcher,
     ModelTrackerDiscordBot,
@@ -57,6 +61,8 @@ from recommendation_service import (
     SYNC_INCOMPLETE,
     evaluate_trade_recommendation,
 )
+from risk_engine import RiskConfig, normalize_exposure
+from completion_system import matching_policy
 from scoring import hours_until_resolution, score_position
 from trade_scoring import build_trades_to_play
 from unit_analysis import amount_to_units, estimate_unit_size
@@ -283,6 +289,16 @@ class TrackerService:
         )
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self.composite_price_providers = CompositePriceProviderRegistry.release1_default()
+        self.execution_providers = build_execution_provider_registry(settings)
+        self.fair_price_engine = FairPriceEngine()
+        self.execution_config = ExecutionConfig(
+            max_quote_age_seconds=settings.execution_quote_max_age_seconds,
+            wide_spread_fraction=settings.execution_wide_spread_fraction,
+            minimum_edge_discovery=settings.minimum_edge_discovery,
+            minimum_edge_b=settings.minimum_edge_b,
+            minimum_edge_a=settings.minimum_edge_a,
+            minimum_edge_a_plus=settings.minimum_edge_a_plus,
+        )
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
         self._refresh_lock = threading.Lock()
@@ -575,6 +591,14 @@ class TrackerService:
             tracked_wallet_count=synced_wallet_count,
             diagnostics=trade_exclusions,
         )
+        self.execution_providers.attach_options(trades_to_play)
+        provider_quotes = self.execution_providers.fair_price_quotes(trades_to_play)
+        for play in trades_to_play:
+            play["decision_bankroll"] = self.settings.default_bankroll
+            fair_price = self.fair_price_engine.calculate(
+                provider_quotes.get(str(play.get("id") or ""), [])
+            ).to_dict()
+            enrich_trade_decision(play, fair_price)
         measurement = self._record_candidate_measurements(
             trades_to_play, trade_exclusions, _utc_now()
         )
@@ -646,10 +670,73 @@ class TrackerService:
         play: dict,
         bankroll: float,
         now: datetime | None = None,
+        user_id: str = MODEL_TRACKER_USER_ID,
+        include_personal: bool = False,
     ) -> dict:
-        return evaluate_trade_recommendation(
-            play, bankroll, self.sizing_config, now=now
+        risk_context = self.build_risk_context(
+            bankroll, user_id=user_id, include_personal=include_personal
         )
+        risk_context["segment_policy"] = matching_policy(
+            play, self.database.active_segment_policies()
+        )
+        return evaluate_trade_recommendation(
+            play, bankroll, self.sizing_config, now=now, risk_context=risk_context
+        )
+
+    def build_risk_context(
+        self, bankroll: float, *, user_id: str, include_personal: bool
+    ) -> dict[str, Any]:
+        bucket = self.database.get_bankroll_bucket_config(user_id)
+        config = RiskConfig(
+            max_single_position_fraction=self.settings.max_single_position_fraction,
+            max_game_exposure_fraction=self.settings.max_game_exposure_fraction,
+            max_team_day_exposure_fraction=self.settings.max_team_day_exposure_fraction,
+            max_daily_exposure_fraction=self.settings.max_daily_exposure_fraction,
+            max_correlated_cluster_fraction=self.settings.max_correlated_cluster_fraction,
+            max_provider_exposure_fraction=self.settings.max_provider_exposure_fraction,
+            core_allocation=float(bucket["core_allocation"]),
+            discovery_allocation=float(bucket["discovery_allocation"]),
+            liquidity_reserve_allocation=float(bucket["liquidity_reserve_allocation"]),
+            operational_buffer_allocation=float(bucket["operational_buffer_allocation"]),
+            combine_model_and_personal=bool(bucket["combine_model_and_personal"]),
+        )
+        model_records = [
+            row
+            for row in self.database.get_active_tracker_records()
+            if row.get("user_id") == MODEL_TRACKER_USER_ID
+        ]
+        exposures = [normalize_exposure(row, "MODEL_TRACKER") for row in model_records]
+        if include_personal and config.combine_model_and_personal:
+            exposures.extend(
+                normalize_exposure(row, "PERSONAL_TRACKER")
+                for row in self.database.get_personal_bet_fills(user_id, active_only=True)
+            )
+        current_bankroll = bankroll
+        if user_id == MODEL_TRACKER_USER_ID:
+            replay = replay_tracker(
+                self.database.get_tracker_records(MODEL_TRACKER_USER_ID), bankroll
+            )
+            current_bankroll = replay["summary"]["current_bankroll"]
+        state = self.database.get_risk_account_state(user_id, current_bankroll)
+        if user_id == MODEL_TRACKER_USER_ID:
+            replay_high = max(
+                [current_bankroll]
+                + [float(point.get("bankroll") or 0) for point in replay.get("graph") or []]
+            )
+            state = self.database.update_risk_account_state(
+                user_id,
+                current_bankroll,
+                {
+                    "current_bankroll": current_bankroll,
+                    "high_water_mark": max(float(state["high_water_mark"]), replay_high),
+                },
+            )
+        return {
+            "exposures": exposures,
+            "account_state": state,
+            "config": config,
+            "execution_config": self.execution_config,
+        }
 
     @staticmethod
     def _rejection_row(evaluation: dict, evaluated_at: str) -> dict:
@@ -703,7 +790,15 @@ class TrackerService:
         }
         for play in plays:
             try:
-                evaluation = self.evaluate_recommendation(play, bankroll, run_now)
+                try:
+                    evaluation = self.evaluate_recommendation(
+                        play, bankroll, run_now, user_id=user_id,
+                        include_personal=user_id != MODEL_TRACKER_USER_ID,
+                    )
+                except TypeError as exc:
+                    if "unexpected keyword argument" not in str(exc):
+                        raise
+                    evaluation = self.evaluate_recommendation(play, bankroll, run_now)
                 reason = evaluation.get("model_tracker_rejection_reason")
                 if reason == NOT_TODAY:
                     continue
@@ -724,6 +819,28 @@ class TrackerService:
                 result["eligible"] += 1
                 dedupe_key = evaluation["recommendation_idempotency_key"]
                 existing = self.database.get_tracker_record(user_id, dedupe_key)
+                if existing is None:
+                    snapshot = evaluation["snapshot"]
+                    identity = (
+                        snapshot.get("canonical_event_id"),
+                        snapshot.get("canonical_market_id"),
+                        str(snapshot.get("market_line") or ""),
+                        snapshot.get("outcome_id"),
+                    )
+                    existing = next(
+                        (
+                            row
+                            for row in self.database.get_tracker_records(user_id)
+                            if (
+                                (row.get("snapshot") or {}).get("canonical_event_id"),
+                                (row.get("snapshot") or {}).get("canonical_market_id"),
+                                str((row.get("snapshot") or {}).get("market_line") or ""),
+                                (row.get("snapshot") or {}).get("outcome_id"),
+                            )
+                            == identity
+                        ),
+                        None,
+                    )
                 if existing:
                     result["existing"] += 1
                     LOGGER.info(
@@ -904,11 +1021,29 @@ class TrackerService:
                 )
                 record = build_candidate_record(play, evaluation, timestamp)
                 self.database.record_candidate(record)
-                self.database.insert_composite_price_snapshot(
-                    unavailable_composite_snapshot(
+                fair_price = play.get("fair_price") or {}
+                snapshot = (
+                    composite_snapshot(record, fair_price)
+                    if fair_price
+                    else unavailable_composite_snapshot(
                         record, self.composite_price_providers.health()
                     )
                 )
+                self.database.insert_composite_price_snapshot(snapshot)
+                self.database.record_decision_engine_snapshot(
+                    record["candidate_id"], record["correlation_id"], play, timestamp
+                )
+                recommendation = evaluation.get("recommendation") or {}
+                if recommendation.get("execution_plan") and recommendation.get("portfolio_risk"):
+                    self.database.record_release3_snapshots(
+                        MODEL_TRACKER_USER_ID,
+                        record["candidate_id"],
+                        record["correlation_id"],
+                        evaluation.get("recommendation_snapshot_id"),
+                        recommendation["execution_plan"],
+                        recommendation["portfolio_risk"],
+                        timestamp,
+                    )
                 counts["recorded"] += 1
                 counts[record["decision"].lower()] = (
                     counts.get(record["decision"].lower(), 0) + 1

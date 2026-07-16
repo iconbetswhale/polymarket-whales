@@ -105,6 +105,36 @@ def test_opposite_sides_are_excluded_before_scoring():
     assert plays == []
 
 
+def test_same_wallet_is_netted_to_one_direction_before_consensus_scoring():
+    positions = [
+        _position("0xa", "Lead A", outcome="Phillies", amount=12500),
+        _position("0xb", "Lead B", outcome="Phillies", amount=14693),
+        _position("0xnet", "Net Sharp", outcome="Phillies", amount=3390),
+        _position("0xnet", "Net Sharp", outcome="Mets", amount=2458),
+    ]
+
+    plays = build_trades_to_play(
+        positions,
+        unit_map=_unit_map("0xa", "0xb", "0xnet", base=100),
+        now=_now(),
+    )
+
+    assert len(plays) == 1
+    play = plays[0]
+    net_sharp = next(
+        row for row in play["supporting_wallets"] if row["wallet_label"] == "Net Sharp"
+    )
+    assert play["outcome"] == "Phillies"
+    assert play["rawAgreeingSharpCount"] == 3
+    assert play["rawContradictingSharpCount"] == 0
+    assert play["contradicting_wallets"] == []
+    assert net_sharp["amount"] == pytest.approx(932)
+    assert net_sharp["gross_amount"] == pytest.approx(3390)
+    assert net_sharp["opposing_amount"] == pytest.approx(2458)
+    assert net_sharp["wallet_hedge_status"] == "directional_after_market_netting"
+    assert play["agreeingExposureDollars"] == pytest.approx(28125)
+
+
 def test_unrelated_markets_same_event_do_not_conflict():
     positions = [
         _position("0xa", "A", outcome="Yankees", condition_id="0xmoneyline"),

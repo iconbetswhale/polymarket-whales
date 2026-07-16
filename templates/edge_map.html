@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="edge-map-page">
+  <header class="edge-map-hero">
+    <div><p class="eyebrow">LEARNING SYSTEM · OBSERVATIONAL</p><h1>Reece Edge Map</h1><p>Played-versus-passed evidence across repeatable market segments. No segment can change production weights automatically.</p></div>
+    <div class="edge-map-run"><span>Latest calculation</span><strong id="edge-map-run-time">Loading</strong><small id="edge-map-candidate-count">— candidates</small></div>
+  </header>
+  <section class="edge-map-summary" aria-label="Edge Map summary">
+    <article><span>Validated</span><strong id="edge-map-validated">0</strong></article>
+    <article><span>Promising</span><strong id="edge-map-promising">0</strong></article>
+    <article><span>Discovery</span><strong id="edge-map-discovery">0</strong></article>
+    <article><span>Insufficient sample</span><strong id="edge-map-insufficient">0</strong></article>
+  </section>
+  <section class="edge-map-panel">
+    <div class="edge-map-toolbar"><div><h2>Segment evidence</h2><p>CLV values remain unavailable until valid closing observations exist.</p></div><label>Dimension<select id="edge-map-dimension"><option value="">All dimensions</option><option value="wallet">Wallet</option><option value="wallet_type">Wallet type</option><option value="sport">Sport</option><option value="league">League</option><option value="market_type">Market type</option><option value="provider">Provider</option><option value="entry_price_range">Entry price</option><option value="time_to_event_bucket">Time to event</option><option value="trade_grade">Trade grade</option><option value="liquidity_grade">Liquidity</option><option value="execution_method">Execution method</option><option value="decision_class">Standard / research</option></select></label></div>
+    <div class="edge-map-table-wrap"><table class="edge-map-table"><thead><tr><th>Segment</th><th>Status</th><th>Candidates</th><th>Played / Passed</th><th>Settled</th><th>ROI</th><th>Exchange CLV</th><th>Composite CLV</th><th>Reliability</th></tr></thead><tbody id="edge-map-body"><tr><td colspan="9" class="edge-map-empty">Calculating segment evidence…</td></tr></tbody></table></div>
+  </section>
+</section>
+{% endblock %}

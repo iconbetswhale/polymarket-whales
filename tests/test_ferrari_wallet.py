@@ -290,7 +290,8 @@ def test_same_wallet_opposing_exposure_is_netted_before_signal_scoring():
     )
     assert len(plays) == 1
     assert plays[0]["agreeing_wallet_count"] == 1
-    assert plays[0]["primary_trader"]["amount"] == pytest.approx(3200)
+    # Consensus scoring uses universal dollar-exposure netting: $4,000 - $1,200.
+    assert plays[0]["primary_trader"]["amount"] == pytest.approx(2800)
     assert any(row["reason"] == "HEDGED_WALLET_POSITION" for row in diagnostics)
 
 

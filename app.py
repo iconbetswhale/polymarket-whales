@@ -41,6 +41,19 @@ from personal_positions import (
     personal_realized_pnl_summary,
 )
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from risk_engine import bankroll_buckets, risk_state
+from learning_system import (
+    EDGE_MAP_VERSION,
+    RULE_VIOLATION_VERSION,
+    VIOLATION_WARNINGS,
+    LearningConfig,
+    build_edge_map,
+    compare_holdout,
+    config_dict,
+    violation_analytics,
+)
+from measurement_foundation import stable_hash
+from completion_system import explainability_trace
 from sharp_tracking import (
     sharp_snapshot_from_fill,
     sharp_snapshot_from_model,
@@ -86,6 +99,30 @@ def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> lis
             "clv_pct": None,
             "clv_cents": None,
         }
+    return rows
+
+
+def _attach_dual_clv(rows: list[dict], measurements: list[dict]) -> list[dict]:
+    by_record = {str(item.get("tracker_record_id") or ""): item for item in measurements}
+    for row in rows:
+        snapshot = row.get("snapshot") or {}
+        identifiers = (
+            row.get("dedupe_key"),
+            row.get("snapshot_id"),
+            snapshot.get("candidate_id"),
+            snapshot.get("snapshot_id"),
+        )
+        row["dual_clv"] = next(
+            (by_record[str(value)] for value in identifiers if value and str(value) in by_record),
+            {
+                "exchange_clv_status": "PENDING",
+                "composite_clv_status": "UNAVAILABLE",
+                "composite_missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+                "composite_closing_probability": None,
+                "composite_probability_point_clv": None,
+                "execution_loss": None,
+            },
+        )
     return rows
 
 
@@ -393,7 +430,7 @@ def _trade_card_view(
 def create_app(start_background: bool = True) -> Flask:
     settings = get_settings()
     tracker = TrackerService(settings, auto_start=False)
-    execution_providers = build_execution_provider_registry(settings)
+    execution_providers = tracker.execution_providers
 
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
@@ -502,7 +539,12 @@ def create_app(start_background: bool = True) -> Flask:
         )
 
     def public_trade(play: dict, bankroll: float) -> dict:
-        evaluation = tracker.evaluate_recommendation(play, bankroll)
+        evaluation = tracker.evaluate_recommendation(
+            play,
+            bankroll,
+            user_id=g.iconbets_user_id,
+            include_personal=True,
+        )
         recommendation = evaluation["recommendation"]
         payload = json.loads(json.dumps(play))
         orderbook = payload.pop("orderbook", {}) or {}
@@ -660,6 +702,14 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/tracker")
     def tracker_page():
         return render_template("tracker.html", title="IconBets Tracker", page="tracker")
+
+    @app.route("/edge-map")
+    def edge_map_page():
+        return render_template("edge_map.html", title="IconBets Reece Edge Map", page="edge-map")
+
+    @app.route("/intelligence")
+    def intelligence_page():
+        return render_template("intelligence.html", title="IconBets Intelligence", page="intelligence")
 
     @app.route("/model-tracker")
     def model_tracker_page():
@@ -1731,6 +1781,11 @@ def create_app(start_background: bool = True) -> Flask:
                     settings.unit_percentage,
                     expected_version,
                 )
+                tracker.database.update_risk_account_state(
+                    g.iconbets_user_id,
+                    bankroll,
+                    {"current_bankroll": bankroll, "high_water_mark": bankroll},
+                )
             except SettingsVersionConflict as exc:
                 latest = present_user_settings(exc.current)
                 latest["unit_value"] = _safe_float(
@@ -1816,6 +1871,9 @@ def create_app(start_background: bool = True) -> Flask:
         result = request.args.get("result", "").strip().lower()
         min_sharps = max(request.args.get("min_sharps", 0, type=int) or 0, 0)
         sharp_filter = request.args.get("sharp", "").strip()
+        grade_filter = request.args.get("grade", "").strip().upper()
+        liquidity_filter = request.args.get("liquidity_grade", "").strip().upper()
+        execution_filter = request.args.get("execution_method", "").strip().upper()
         if query:
             rows = [
                 row
@@ -1870,10 +1928,20 @@ def create_app(start_background: bool = True) -> Flask:
                     row.get("sharp_snapshot") or {}, sharp_filter
                 )
             ]
+        if grade_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("trade_grade") or "UNAVAILABLE").upper() == grade_filter]
+        if liquidity_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("liquidity_grade") or "UNAVAILABLE").upper() == liquidity_filter]
+        if execution_filter:
+            rows = [row for row in rows if str((row.get("snapshot") or {}).get("execution_method") or "UNAVAILABLE").upper() == execution_filter]
         rows = _attach_clv(
             rows,
             tracker.database.get_closing_lines("model", MODEL_TRACKER_USER_ID),
             "dedupe_key",
+        )
+        rows = _attach_dual_clv(
+            rows,
+            tracker.database.get_dual_clv_measurements("model", MODEL_TRACKER_USER_ID),
         )
         rows = _filter_sort_clv_rows(rows)
         clv_analytics = _clv_analytics(rows)
@@ -1974,6 +2042,274 @@ def create_app(start_background: bool = True) -> Flask:
         offset = max(request.args.get("offset", 0, type=int) or 0, 0)
         rows = tracker.database.list_candidates(decision, limit, offset)
         return jsonify({"data": rows, "count": len(rows), "limit": limit, "offset": offset})
+
+    @app.route("/api/admin/decision-engine/diagnostics")
+    def api_decision_engine_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify(
+            {
+                "data": {
+                    **tracker.database.decision_engine_diagnostics(),
+                    "release": "release-2-decision-engine",
+                    "provider_health": tracker.composite_price_providers.health(),
+                    "connected_provider_health": tracker.execution_providers.fair_price_provider_health(),
+                    "fair_price_weights": tracker.fair_price_engine.provider_weights,
+                    "max_quote_age_seconds": tracker.fair_price_engine.max_quote_age_seconds,
+                    "automatic_model_tracker_requires_independent_fair_price": True,
+                    "fabricated_provider_data": False,
+                }
+            }
+        )
+
+    @app.route("/api/risk/bankroll-buckets", methods=["GET", "PUT"])
+    def api_bankroll_buckets():
+        if request.method == "PUT":
+            payload = request.get_json(silent=True) or {}
+            try:
+                config_row = tracker.database.update_bankroll_bucket_config(
+                    g.iconbets_user_id, payload
+                )
+            except (KeyError, TypeError, ValueError) as exc:
+                return jsonify({"error": str(exc)}), 400
+        else:
+            config_row = tracker.database.get_bankroll_bucket_config(g.iconbets_user_id)
+        current = user_settings()
+        bankroll = _safe_float(current["trades_to_play_bankroll"])
+        context = tracker.build_risk_context(
+            bankroll, user_id=g.iconbets_user_id, include_personal=True
+        )
+        return jsonify(
+            {
+                "data": {
+                    "config": config_row,
+                    "state": risk_state(
+                        context["account_state"]["current_bankroll"],
+                        context["account_state"]["high_water_mark"],
+                        manual_kill_switch=bool(context["account_state"].get("manual_kill_switch")),
+                        manual_reason=context["account_state"].get("manual_reason"),
+                    ),
+                    "allocation": bankroll_buckets(
+                        bankroll, context["exposures"], context["config"]
+                    ),
+                }
+            }
+        )
+
+    @app.route("/api/admin/execution-risk/diagnostics")
+    def api_execution_risk_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify(
+            {
+                "data": {
+                    **tracker.database.release3_diagnostics(),
+                    "release": "release-3-execution-and-risk",
+                    "automatic_model_tracker_honors_kill_switch": True,
+                    "personal_positions_private": True,
+                    "fabricated_data": False,
+                }
+            }
+        )
+
+    def learning_config() -> LearningConfig:
+        return LearningConfig(
+            insufficient_sample_count=settings.edge_map_insufficient_sample_count,
+            moderate_sample_count=settings.edge_map_moderate_sample_count,
+            strong_sample_count=settings.edge_map_strong_sample_count,
+            minimum_holdout_count=settings.edge_map_minimum_holdout_count,
+        )
+
+    def calculate_edge_map(persist: bool = False) -> dict:
+        rows = tracker.database.learning_candidate_rows()
+        config = learning_config()
+        segments = build_edge_map(rows, config)
+        now = datetime.now(timezone.utc).isoformat()
+        run = {
+            "run_id": stable_hash(EDGE_MAP_VERSION, now, len(rows)),
+            "window_start": min((row.get("detected_at") for row in rows if row.get("detected_at")), default=None),
+            "window_end": max((row.get("detected_at") for row in rows if row.get("detected_at")), default=None),
+            "candidate_count": len(rows), "config": config_dict(config),
+            "calculation_version": EDGE_MAP_VERSION, "created_at": now,
+        }
+        if persist:
+            tracker.database.record_edge_map(run, segments)
+            tracker.database.record_post_change_monitoring(run["run_id"], segments)
+        return {"run": run, "segments": segments}
+
+    @app.route("/api/edge-map")
+    def api_edge_map():
+        dimension = request.args.get("dimension", "").strip() or None
+        result = tracker.database.latest_edge_map(dimension)
+        if result["run"] is None:
+            result = calculate_edge_map(persist=False)
+            if dimension:
+                result["segments"] = [row for row in result["segments"] if row["dimension"] == dimension]
+        return jsonify({"data": result, "production_weights_auto_changed": False})
+
+    @app.route("/api/rule-violations", methods=["GET", "POST"])
+    def api_rule_violations():
+        if request.method == "GET":
+            rows = tracker.database.list_rule_violations(g.iconbets_user_id)
+            return jsonify({"data": rows, "analytics": violation_analytics(rows)})
+        payload = request.get_json(silent=True) or {}
+        warning = str(payload.get("warning_code") or "").strip().upper()
+        if warning not in VIOLATION_WARNINGS:
+            return jsonify({"error": "Unknown rule-violation warning."}), 400
+        if payload.get("confirmed") is not True or not str(payload.get("confirmation_text") or "").strip():
+            return jsonify({"error": "Explicit confirmation text is required."}), 400
+        if not str(payload.get("trade_id") or "").strip() or not str(payload.get("confirmed_action") or "").strip():
+            return jsonify({"error": "Trade ID and confirmed action are required."}), 400
+        values = {
+            "trade_id": str(payload["trade_id"]), "candidate_id": payload.get("candidate_id"),
+            "warning_code": warning, "confirmed_action": str(payload["confirmed_action"]),
+            "confirmation_text": str(payload["confirmation_text"]),
+            "entry_price": payload.get("entry_price"), "outcome": payload.get("outcome"),
+            "profit_loss": None, "exchange_clv": None,
+            "composite_clv": None, "context": payload.get("context") or {},
+            "calculation_version": RULE_VIOLATION_VERSION,
+        }
+        return jsonify({"data": tracker.database.record_rule_violation(g.iconbets_user_id, values)}), 201
+
+    @app.route("/api/admin/rule-violations/<violation_id>/settle", methods=["POST"])
+    def api_admin_settle_rule_violation(violation_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        try:
+            row = tracker.database.settle_rule_violation(violation_id, payload)
+        except KeyError as exc:
+            return jsonify({"error": str(exc)}), 404
+        return jsonify({"data": row})
+
+    @app.route("/api/admin/rule-violations")
+    def api_admin_rule_violations():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        rows = tracker.database.list_rule_violations()
+        return jsonify({"data": rows, "analytics": violation_analytics(rows)})
+
+    @app.route("/api/admin/learning-system/recalculate", methods=["POST"])
+    def api_admin_learning_recalculate():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify({"data": calculate_edge_map(persist=True)})
+
+    @app.route("/api/admin/learning-system/diagnostics")
+    def api_admin_learning_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        violations = tracker.database.list_rule_violations()
+        return jsonify({"data": {**tracker.database.release4_diagnostics(), "release": "release-4-learning-system", "config": config_dict(learning_config()), "rule_violation_analytics": violation_analytics(violations), "provider_data_fabricated": False}})
+
+    @app.route("/api/admin/configuration-proposals", methods=["GET", "POST"])
+    def api_admin_configuration_proposals():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        if request.method == "GET":
+            return jsonify({"data": tracker.database.list_configuration_proposals()})
+        payload = request.get_json(silent=True) or {}
+        required = ("segment_dimension", "segment_value", "proposal_type", "proposed_config")
+        if any(key not in payload for key in required):
+            return jsonify({"error": "Segment, proposal type, and proposed configuration are required."}), 400
+        proposal = tracker.database.create_configuration_proposal(payload, "admin")
+        return jsonify({"data": proposal, "live_configuration_changed": False}), 201
+
+    @app.route("/api/admin/configuration-proposals/<proposal_id>/holdout", methods=["POST"])
+    def api_admin_configuration_holdout(proposal_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        proposal = tracker.database.get_configuration_proposal(proposal_id)
+        if not proposal:
+            return jsonify({"error": "Proposal not found."}), 404
+        payload = request.get_json(silent=True) or {}
+        required = ("baseline_start", "baseline_end", "holdout_start", "holdout_end")
+        if any(not payload.get(key) for key in required):
+            return jsonify({"error": "Baseline and holdout date windows are required."}), 400
+        if not (payload["baseline_start"] <= payload["baseline_end"] < payload["holdout_start"] <= payload["holdout_end"]):
+            return jsonify({"error": "Holdout must be a later, non-overlapping period."}), 400
+        rows = tracker.database.learning_candidate_rows()
+        def metrics(start, end):
+            selected = [row for row in rows if start <= str(row.get("detected_at") or "") <= end]
+            return next((row for row in build_edge_map(selected, learning_config()) if row["dimension"] == proposal["segment_dimension"] and row["segment_value"] == proposal["segment_value"]), {"candidate_count": 0})
+        baseline = metrics(payload["baseline_start"], payload["baseline_end"])
+        holdout = metrics(payload["holdout_start"], payload["holdout_end"])
+        evaluation = compare_holdout(baseline, holdout, learning_config())
+        stored = tracker.database.record_holdout(proposal_id, proposal["segment_dimension"], proposal["segment_value"], baseline, holdout, evaluation, payload)
+        return jsonify({"data": stored, "live_configuration_changed": False})
+
+    @app.route("/api/admin/configuration-proposals/<proposal_id>/review", methods=["POST"])
+    def api_admin_configuration_review(proposal_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        try:
+            row = tracker.database.review_configuration_proposal(proposal_id, str(payload.get("status") or "").upper(), "admin", payload.get("reason"))
+        except KeyError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"data": row, "live_configuration_changed": False})
+
+    @app.route("/api/admin/configuration-proposals/<proposal_id>/apply", methods=["POST"])
+    def api_admin_configuration_apply(proposal_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        try:
+            row = tracker.database.apply_configuration_proposal(proposal_id, "admin")
+        except KeyError as exc:
+            return jsonify({"error": str(exc)}), 404
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"data": row, "live_configuration_changed": True, "risk_increase_allowed": False})
+
+    @app.route("/api/admin/explainability/<candidate_id>")
+    def api_admin_explainability(candidate_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        measurements = tracker.database.get_candidate_measurements(candidate_id)
+        if not measurements:
+            return jsonify({"error": "Candidate not found."}), 404
+        return jsonify({"data": explainability_trace(measurements)})
+
+    @app.route("/api/tracker/advanced-analytics")
+    def api_tracker_advanced_analytics():
+        rows = tracker.database.learning_candidate_rows()
+        segments = build_edge_map(rows, learning_config())
+        wanted = {"wallet", "sport", "time_to_event_bucket", "trade_grade", "liquidity_grade", "execution_method", "decision_class"}
+        return jsonify({"data": {"segments": [row for row in segments if row["dimension"] in wanted], "played_vs_passed": {"played": sum(str(row.get("current_decision", "")).startswith("APPROVED") for row in rows), "passed": sum(row.get("current_decision") == "PASSED" for row in rows), "research_only": sum(row.get("current_decision") == "RESEARCH_ONLY" for row in rows)}, "calculation_version": EDGE_MAP_VERSION, "fabricated_data": False}})
+
+    @app.route("/api/admin/completion/diagnostics")
+    def api_admin_completion_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify({"data": {**tracker.database.completion_diagnostics(), "measurement": tracker.database.measurement_diagnostics(), "decision": tracker.database.decision_engine_diagnostics(), "execution_risk": tracker.database.release3_diagnostics(), "learning": tracker.database.release4_diagnostics(), "release": "release-5-completion"}})
+
+    @app.route("/api/admin/risk/kill-switch", methods=["POST"])
+    def api_admin_risk_kill_switch():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        enabled = bool(payload.get("enabled"))
+        reason = str(payload.get("reason") or "MANUAL_ADMIN_KILL_SWITCH").strip().upper()
+        user_id = str(payload.get("user_id") or MODEL_TRACKER_USER_ID)
+        state = tracker.database.set_manual_kill_switch(
+            user_id, enabled, reason, "admin", override=not enabled
+        )
+        return jsonify({"data": state})
+
+    @app.route("/api/admin/risk/state", methods=["POST"])
+    def api_admin_risk_state():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        payload = request.get_json(silent=True) or {}
+        user_id = str(payload.pop("user_id", MODEL_TRACKER_USER_ID))
+        bankroll = _safe_float(payload.get("current_bankroll"), settings.default_bankroll)
+        try:
+            state = tracker.database.update_risk_account_state(user_id, bankroll, payload)
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify({"data": state})
 
     @app.route("/api/admin/candidate-ledger/<candidate_id>")
     def api_candidate_ledger_record(candidate_id: str):

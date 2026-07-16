@@ -87,6 +87,22 @@ class Settings:
     prophetx_api_base_url: str = "https://api-ss-sandbox.betprophet.co/partner"
     prophetx_trade_url: str | None = None
     prophetx_cache_ttl_seconds: int = 30
+    execution_quote_max_age_seconds: int = 60
+    execution_wide_spread_fraction: float = 0.03
+    minimum_edge_discovery: float = 0.01
+    minimum_edge_b: float = 0.015
+    minimum_edge_a: float = 0.02
+    minimum_edge_a_plus: float = 0.025
+    max_single_position_fraction: float = 0.02
+    max_game_exposure_fraction: float = 0.025
+    max_team_day_exposure_fraction: float = 0.04
+    max_daily_exposure_fraction: float = 0.06
+    max_correlated_cluster_fraction: float = 0.04
+    max_provider_exposure_fraction: float = 0.10
+    edge_map_insufficient_sample_count: int = 25
+    edge_map_moderate_sample_count: int = 100
+    edge_map_strong_sample_count: int = 250
+    edge_map_minimum_holdout_count: int = 50
 
 
 def get_settings() -> Settings:
@@ -105,6 +121,22 @@ def get_settings() -> Settings:
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
         default_bankroll=_get_float("DEFAULT_BANKROLL", 10000.0),
         unit_percentage=_get_float("UNIT_PERCENTAGE", 0.01),
+        execution_quote_max_age_seconds=_get_int("EXECUTION_QUOTE_MAX_AGE_SECONDS", 60),
+        execution_wide_spread_fraction=_get_float("EXECUTION_WIDE_SPREAD_FRACTION", 0.03),
+        minimum_edge_discovery=_get_float("MINIMUM_EDGE_DISCOVERY", 0.01),
+        minimum_edge_b=_get_float("MINIMUM_EDGE_B", 0.015),
+        minimum_edge_a=_get_float("MINIMUM_EDGE_A", 0.02),
+        minimum_edge_a_plus=_get_float("MINIMUM_EDGE_A_PLUS", 0.025),
+        max_single_position_fraction=_get_float("MAX_SINGLE_POSITION_FRACTION", 0.02),
+        max_game_exposure_fraction=_get_float("MAX_GAME_EXPOSURE_FRACTION", 0.025),
+        max_team_day_exposure_fraction=_get_float("MAX_TEAM_DAY_EXPOSURE_FRACTION", 0.04),
+        max_daily_exposure_fraction=_get_float("MAX_DAILY_EXPOSURE_FRACTION", 0.06),
+        max_correlated_cluster_fraction=_get_float("MAX_CORRELATED_CLUSTER_FRACTION", 0.04),
+        max_provider_exposure_fraction=_get_float("MAX_PROVIDER_EXPOSURE_FRACTION", 0.10),
+        edge_map_insufficient_sample_count=_get_int("EDGE_MAP_INSUFFICIENT_SAMPLE_COUNT", 25),
+        edge_map_moderate_sample_count=_get_int("EDGE_MAP_MODERATE_SAMPLE_COUNT", 100),
+        edge_map_strong_sample_count=_get_int("EDGE_MAP_STRONG_SAMPLE_COUNT", 250),
+        edge_map_minimum_holdout_count=_get_int("EDGE_MAP_MINIMUM_HOLDOUT_COUNT", 50),
         discord_webhook_url=os.getenv("DISCORD_WEBHOOK_URL") or None,
         discord_alert_types=_get_csv(
             "DISCORD_ALERT_TYPES", ("new_entry", "size_increase", "full_exit")

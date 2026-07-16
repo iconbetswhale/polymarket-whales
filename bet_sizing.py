@@ -4,6 +4,9 @@ from dataclasses import asdict, dataclass
 from typing import Any
 
 from config import MAX_UNFAVORABLE_SLIPPAGE_PCT
+from decision_engine import uncertainty_adjusted_kelly
+from execution_engine import ExecutionConfig, build_execution_plan
+from risk_engine import RiskConfig, evaluate_portfolio_risk
 from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS, STANDARD
 
 
@@ -16,7 +19,7 @@ MISSING_SHARP_REFERENCE_PRICE = "MISSING_SHARP_REFERENCE_PRICE"
 class SizingConfig:
     unit_percentage: float = 0.01
     neutral_threshold: float = 0.50
-    global_risk_cap: float = 0.05
+    global_risk_cap: float = 0.02
     consensus_weight: float = 0.45
     combined_amount_weight: float = 0.20
     relative_size_weight: float = 0.15
@@ -26,10 +29,24 @@ class SizingConfig:
     consensus_count_target: int = 4
     consensus_count_weight: float = 0.60
     consensus_percentage_weight: float = 0.40
-    recommendation_version: str = "v2"
+    recommendation_version: str = "v4"
 
 
 DEFAULT_SIZING_CONFIG = SizingConfig()
+GRADE_RISK_CAPS = {
+    "PASS": 0.0,
+    "DISCOVERY": 0.0025,
+    "B": 0.006,
+    "A": 0.01,
+    "A_PLUS": 0.015,
+}
+GRADE_EDGE_RELIABILITY = {
+    "PASS": 0.0,
+    "DISCOVERY": 0.25,
+    "B": 0.35,
+    "A": 0.50,
+    "A_PLUS": 0.60,
+}
 
 
 def clamp(value: float, lower: float, upper: float) -> float:
@@ -279,6 +296,7 @@ def build_recommendation(
     play: dict[str, Any],
     bankroll: float,
     config: SizingConfig = DEFAULT_SIZING_CONFIG,
+    risk_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     bankroll = _safe_float(bankroll)
     if bankroll <= 0:
@@ -314,6 +332,34 @@ def build_recommendation(
                 None,
             ),
         )
+
+    fair_price = play.get("fair_price") or {}
+    fair_probability = _safe_float(fair_price.get("fair_probability"), -1.0)
+    if fair_price.get("status") != "AVAILABLE" or not 0 < fair_probability < 1:
+        return unavailable_recommendation(
+            "An independent fair price is required before Kelly sizing.",
+            config,
+            fair_price_status=fair_price.get("status", "UNAVAILABLE"),
+            fair_price_missing_reason=fair_price.get("missing_reason")
+            or "NO_INDEPENDENT_FAIR_PRICE",
+            estimated_win_probability=None,
+            full_kelly_fraction=None,
+            half_kelly_fraction=None,
+        )
+    if play.get("expected_fee_fraction") is None:
+        return unavailable_recommendation(
+            "Expected execution fees must be verified before Kelly sizing.",
+            config,
+            fair_price_status=fair_price.get("status"),
+            fair_price_missing_reason="EXPECTED_FEES_UNAVAILABLE",
+            estimated_win_probability=None,
+            full_kelly_fraction=None,
+            half_kelly_fraction=None,
+        )
+    expected_fee_fraction = max(0.0, _safe_float(play.get("expected_fee_fraction")))
+    fee_adjusted_fair_probability = clamp(
+        fair_probability - expected_fee_fraction, 0.01, 0.99
+    )
 
     evidence = calculate_evidence_score(play, config)
     sharps = max(1, int(play.get("agreeing_wallet_count") or 1))
@@ -355,6 +401,11 @@ def build_recommendation(
         if classification in RESEARCH_CLASSIFICATIONS
         else stake_risk_cap(weighted_sharps, full_weight_unanimous)
     )
+    trade_grade = str((play.get("trade_quality") or {}).get("grade") or "B")
+    grade_risk_cap = GRADE_RISK_CAPS.get(trade_grade, GRADE_RISK_CAPS["B"])
+    edge_reliability = GRADE_EDGE_RELIABILITY.get(
+        trade_grade, GRADE_EDGE_RELIABILITY["B"]
+    ) * clamp(_safe_float(fair_price.get("reliability"), 1.0), 0.0, 1.0)
 
     current_top_ask_price = _safe_float(valid_asks[0].get("price"))
     entry_price = current_top_ask_price
@@ -366,15 +417,24 @@ def build_recommendation(
     full_kelly = 0.0
     half_kelly = 0.0
     odds_b = 0.0
-    estimated_probability = entry_price
+    estimated_probability = fair_probability
+    kelly_result: dict[str, Any] = {}
 
     for _ in range(8):
-        baseline_probability = entry_price
-        estimated_probability = clamp(
-            baseline_probability + evidence_adjustment, 0.01, 0.99
+        kelly_result = uncertainty_adjusted_kelly(
+            fee_adjusted_fair_probability,
+            entry_price,
+            reliability=edge_reliability,
+            source_dispersion=_safe_float(fair_price.get("source_dispersion")),
+            liquidity_score=_safe_float((play.get("liquidity_quality") or {}).get("score"), 50.0),
         )
-        odds_b, full_kelly, half_kelly = _kelly(entry_price, estimated_probability)
-        final_fraction = min(half_kelly, sharp_cap, config.global_risk_cap)
+        estimated_probability = _safe_float(kelly_result.get("adjusted_probability"))
+        odds_b = (1.0 - entry_price) / entry_price
+        full_kelly = _safe_float(kelly_result.get("full_kelly_fraction"))
+        half_kelly = _safe_float(kelly_result.get("half_kelly_fraction"))
+        final_fraction = min(
+            half_kelly, sharp_cap, grade_risk_cap, config.global_risk_cap
+        )
         if final_fraction <= 0:
             break
         requested_stake = bankroll * final_fraction
@@ -422,10 +482,20 @@ def build_recommendation(
         final_amount = fill["executable_amount"]
         final_fraction = min(final_fraction, final_amount / bankroll)
         entry_price = fill["effective_entry_price"]
-        estimated_probability = clamp(entry_price + evidence_adjustment, 0.01, 0.99)
-        odds_b, full_kelly, half_kelly = _kelly(entry_price, estimated_probability)
+        kelly_result = uncertainty_adjusted_kelly(
+            fee_adjusted_fair_probability,
+            entry_price,
+            reliability=edge_reliability,
+            source_dispersion=_safe_float(fair_price.get("source_dispersion")),
+            liquidity_score=_safe_float((play.get("liquidity_quality") or {}).get("score"), 50.0),
+        )
+        estimated_probability = _safe_float(kelly_result.get("adjusted_probability"))
+        odds_b = (1.0 - entry_price) / entry_price
+        full_kelly = _safe_float(kelly_result.get("full_kelly_fraction"))
+        half_kelly = _safe_float(kelly_result.get("half_kelly_fraction"))
         final_fraction = min(
-            final_fraction, half_kelly, sharp_cap, config.global_risk_cap
+            final_fraction, half_kelly, sharp_cap, grade_risk_cap,
+            config.global_risk_cap
         )
         final_amount = bankroll * final_fraction
         fill = volume_weighted_entry(valid_asks, final_amount)
@@ -449,11 +519,8 @@ def build_recommendation(
             else "No recommended bet at the current entry"
         )
 
-    baseline_probability = entry_price
-    estimated_probability = clamp(
-        baseline_probability + evidence_adjustment, 0.01, 0.99
-    )
-    edge = max(0.0, estimated_probability - baseline_probability)
+    baseline_probability = fair_probability
+    edge = max(0.0, estimated_probability - entry_price)
     sharp_average_entry_price = _safe_float(
         play.get("sharp_reference_entry_price") or play.get("average_entry_price")
     )
@@ -463,6 +530,59 @@ def build_recommendation(
     price_movement = entry_price - sharp_average_entry_price
     units = (
         final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
+    )
+
+    risk_context = risk_context or {}
+    risk_config_value = risk_context.get("config")
+    risk_config = (
+        risk_config_value
+        if isinstance(risk_config_value, RiskConfig)
+        else RiskConfig(**(risk_config_value or {}))
+    )
+    portfolio_risk = evaluate_portfolio_risk(
+        play,
+        final_amount,
+        bankroll,
+        risk_context.get("exposures") or [],
+        risk_context.get("account_state") or {
+            "current_bankroll": bankroll,
+            "high_water_mark": bankroll,
+        },
+        risk_config,
+    )
+    pre_risk_amount = final_amount
+    final_amount = portfolio_risk["final_capped_stake"]
+    segment_policy = risk_context.get("segment_policy") or {
+        "stake_multiplier": 1.0,
+        "matched_policies": [],
+        "calculation_version": "segment-policy-v5",
+    }
+    amount_before_segment_policy = final_amount
+    final_amount *= max(
+        0.0,
+        min(1.0, _safe_float(segment_policy.get("stake_multiplier"), 1.0)),
+    )
+    portfolio_risk["final_capped_stake_before_segment_policy"] = amount_before_segment_policy
+    portfolio_risk["final_capped_stake"] = round(final_amount, 8)
+    portfolio_risk["applied_segment_policy"] = segment_policy
+    final_fraction = final_amount / bankroll if bankroll > 0 else 0.0
+    final_fill = volume_weighted_entry(valid_asks, final_amount) if final_amount > 0 else None
+    if final_fill:
+        fill = final_fill
+        entry_price = final_fill["effective_entry_price"]
+    units = final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
+    execution_plan = build_execution_plan(
+        play,
+        final_amount,
+        min(0.99, estimated_probability + expected_fee_fraction),
+        trade_grade,
+        expected_fee_fraction=expected_fee_fraction,
+        now=risk_context.get("evaluation_now"),
+        config=(
+            risk_context.get("execution_config")
+            if isinstance(risk_context.get("execution_config"), ExecutionConfig)
+            else ExecutionConfig(**(risk_context.get("execution_config") or {}))
+        ),
     )
 
     return {
@@ -492,16 +612,26 @@ def build_recommendation(
         "evidence_adjustment": evidence_adjustment,
         "maximum_adjustment": adjustment_cap,
         "estimated_win_probability": estimated_probability,
+        "raw_fair_probability": fair_probability,
+        "composite_fair_probability": fair_probability,
+        "fee_adjusted_fair_probability": fee_adjusted_fair_probability,
+        "fair_price_status": fair_price.get("status"),
+        "fair_price_source_count": fair_price.get("source_count"),
+        "uncertainty_haircut": kelly_result.get("uncertainty_haircut"),
         "calculated_edge": edge,
         "decimal_odds": 1.0 / entry_price if entry_price > 0 else None,
         "net_odds_b": odds_b,
         "full_kelly_fraction": full_kelly,
         "half_kelly_fraction": half_kelly,
         "sharp_risk_cap": sharp_cap,
+        "trade_grade": trade_grade,
+        "trade_grade_risk_cap": grade_risk_cap,
+        "edge_reliability_factor": edge_reliability,
         "global_risk_cap": config.global_risk_cap,
-        "risk_cap_applied": min(sharp_cap, config.global_risk_cap),
+        "risk_cap_applied": min(sharp_cap, grade_risk_cap, config.global_risk_cap),
         "final_recommended_fraction": final_fraction,
         "recommended_amount": final_amount,
+        "recommended_amount_before_portfolio_risk": pre_risk_amount,
         "recommended_shares": (fill or {}).get("shares", 0.0)
         if final_fraction > 0
         else 0.0,
@@ -524,6 +654,10 @@ def build_recommendation(
         "unfilled_amount": largest_unfilled_amount,
         "minimum_order_shares": minimum_order_shares,
         "minimum_executable_amount": max(0.01, minimum_order_shares * entry_price),
-        "fees_included": False,
+        "expected_fee_fraction": expected_fee_fraction,
+        "fees_included": True,
+        "portfolio_risk": portfolio_risk,
+        "applied_segment_policy": segment_policy,
+        "execution_plan": execution_plan,
         "config": asdict(config),
     }

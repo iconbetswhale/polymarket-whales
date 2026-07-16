@@ -78,6 +78,8 @@ def recommendation_snapshot(
             "current_user_entry_price"
         ),
         "effective_entry_price": recommendation.get("effective_entry_price"),
+        "intended_entry_price": recommendation.get("current_user_entry_price"),
+        "actual_weighted_entry_price": recommendation.get("effective_entry_price"),
         "entry_price_source": recommendation.get("entry_price_source"),
         "sharp_average_entry_price": recommendation.get("sharp_average_entry_price"),
         "sharp_reference_entry_price": recommendation.get(
@@ -102,11 +104,21 @@ def recommendation_snapshot(
         "evidence_adjustment": recommendation.get("evidence_adjustment"),
         "estimated_win_probability": recommendation.get("estimated_win_probability"),
         "calculated_edge": recommendation.get("calculated_edge"),
+        "composite_fair_probability": recommendation.get("composite_fair_probability"),
         "full_kelly_fraction": recommendation.get("full_kelly_fraction"),
         "half_kelly_fraction": recommendation.get("half_kelly_fraction"),
         "final_recommended_fraction": recommendation.get("final_recommended_fraction"),
         "risk_cap_applied": recommendation.get("risk_cap_applied"),
         "confidence_score": play.get("confidence_score"),
+        "trade_quality_score": play.get("trade_quality_score"),
+        "trade_grade": (play.get("trade_quality") or {}).get("grade")
+        or recommendation.get("trade_grade"),
+        "liquidity_grade": (play.get("liquidity_quality") or {}).get("grade")
+        or (play.get("liquidity_quality") or {}).get("status"),
+        "decision_reason": play.get("decision_reason")
+        or recommendation.get("decision_reason")
+        or "APPROVED_RECOMMENDATION",
+        "decision_class": "PLAYED",
         "score_breakdown": play.get("score_breakdown"),
         "sharps_count": play.get("agreeing_wallet_count"),
         "raw_sharp_count": play.get("raw_sharp_count"),
@@ -155,6 +167,13 @@ def recommendation_snapshot(
         "orderbook_levels_used": recommendation.get("orderbook_levels_used"),
         "liquidity_limited": recommendation.get("liquidity_limited"),
         "fees_included": recommendation.get("fees_included"),
+        "execution_plan": recommendation.get("execution_plan"),
+        "portfolio_risk": recommendation.get("portfolio_risk"),
+        "maximum_average_price": (recommendation.get("execution_plan") or {}).get("maximum_average_price"),
+        "execution_method": (recommendation.get("execution_plan") or {}).get("recommended_execution_method"),
+        "correlation_multiplier": (recommendation.get("portfolio_risk") or {}).get("correlation_multiplier"),
+        "bankroll_bucket": (recommendation.get("portfolio_risk") or {}).get("bucket"),
+        "risk_state": ((recommendation.get("portfolio_risk") or {}).get("risk_state") or {}).get("state"),
     }
 
 

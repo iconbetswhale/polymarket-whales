@@ -50,6 +50,7 @@ TRADER_STATS = {
 EASTERN = ZoneInfo("America/New_York")
 MIN_PLAYABLE_UNITS = 0.2
 PRIMARY_AMOUNT_SIMILARITY_RATIO = 0.02
+WALLET_MARKET_NETTING_VERSION = "wallet-market-netting-v1"
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
 TOP_CATEGORY_MISMATCH = "TOP_CATEGORY_MISMATCH"
@@ -628,6 +629,81 @@ def _collapse_unique_wallets(group: list[dict[str, Any]]) -> list[dict[str, Any]
     return list(by_wallet.values())
 
 
+def _net_wallet_market_positions(
+    positions: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Reduce a wallet's opposing positions to one directional market signal."""
+    normalized = [dict(position) for position in positions]
+    groups: dict[tuple[str, str], list[dict[str, Any]]] = {}
+    for position in normalized:
+        side = canonical_side(position)
+        wallet = str(position.get("wallet_address") or "").strip().lower()
+        if not wallet or not side.market_key:
+            continue
+        groups.setdefault((wallet, side.market_key), []).append(position)
+
+    for group in groups.values():
+        representatives: dict[str, dict[str, Any]] = {}
+        for position in group:
+            side_key = canonical_side(position).side_key
+            existing = representatives.get(side_key)
+            gross = max(0.0, _safe_float(position.get("position_size_usd")))
+            existing_gross = max(
+                0.0, _safe_float((existing or {}).get("position_size_usd"))
+            )
+            if existing is None or gross > existing_gross:
+                representatives[side_key] = position
+        if len(representatives) < 2:
+            continue
+
+        ranked = sorted(
+            representatives.items(),
+            key=lambda item: (
+                -max(0.0, _safe_float(item[1].get("position_size_usd"))),
+                item[0],
+            ),
+        )
+        leader_side, leader = ranked[0]
+        leader_gross = max(0.0, _safe_float(leader.get("position_size_usd")))
+        opposing_gross = sum(
+            max(0.0, _safe_float(position.get("position_size_usd")))
+            for side_key, position in ranked[1:]
+            if side_key != leader_side
+        )
+        net_exposure = max(0.0, leader_gross - opposing_gross)
+
+        for position in group:
+            gross = max(0.0, _safe_float(position.get("position_size_usd")))
+            position["gross_position_size_usd"] = round(gross, 6)
+            position["wallet_market_gross_exposure_usd"] = round(
+                leader_gross + opposing_gross, 6
+            )
+            position["opposing_exposure_usd"] = round(
+                opposing_gross if position is leader else leader_gross, 6
+            )
+            position["wallet_position_netting_version"] = (
+                WALLET_MARKET_NETTING_VERSION
+            )
+            if position is leader and net_exposure > 0:
+                position["signal_position_size_usd"] = round(net_exposure, 6)
+                position["net_directional_exposure_usd"] = round(net_exposure, 6)
+                position["wallet_hedge_status"] = "directional_after_market_netting"
+                if position.get("signal_rejection_reason") in {
+                    "HEDGED_WALLET_POSITION",
+                    "NO_CLEAR_DIRECTIONAL_EXPOSURE",
+                }:
+                    position.pop("signal_rejection_reason", None)
+            else:
+                position["signal_position_size_usd"] = 0.0
+                position["net_directional_exposure_usd"] = 0.0
+                position["wallet_hedge_status"] = "netted_to_opposing_position"
+                position["signal_rejection_reason"] = (
+                    position.get("signal_rejection_reason")
+                    or "HEDGED_WALLET_POSITION"
+                )
+    return normalized
+
+
 def _search_blob(play: dict[str, Any]) -> str:
     values = [
         play.get("event_title"),
@@ -766,6 +842,7 @@ def build_trades_to_play(
         now = now.replace(tzinfo=timezone.utc)
     unit_map = {str(key).lower(): value for key, value in (unit_map or {}).items()}
     trades = trades or []
+    positions = _net_wallet_market_positions(positions)
     events_by_wallet: dict[str, list[dict[str, Any]]] = {}
     for event in trades:
         events_by_wallet.setdefault(
@@ -1095,6 +1172,16 @@ def build_trades_to_play(
                     "wallet_label": position.get("wallet_label"),
                     "amount": _position_signal_amount(position),
                     "gross_amount": _safe_float(position.get("position_size_usd")),
+                    "opposing_amount": _safe_float(
+                        position.get("opposing_exposure_usd")
+                    ),
+                    "net_directional_amount": _safe_float(
+                        position.get("net_directional_exposure_usd")
+                    ),
+                    "wallet_hedge_status": position.get("wallet_hedge_status"),
+                    "wallet_position_netting_version": position.get(
+                        "wallet_position_netting_version"
+                    ),
                     "relative_units": units,
                     "average_entry_price": position.get("average_entry_price"),
                     "current_price": position.get("current_price"),
@@ -1183,6 +1270,7 @@ def build_trades_to_play(
             "canonical_market_key": canonical.market_key,
             "canonical_side_key": canonical.side_key,
             "source": "active_position_snapshot",
+            "walletPositionNettingVersion": WALLET_MARKET_NETTING_VERSION,
             "validation_ids": {
                 "event_id": primary.get("event_id"),
                 "event_slug": primary.get("event_slug"),
