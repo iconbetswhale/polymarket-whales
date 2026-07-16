@@ -1949,6 +1949,41 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Administrator access required."}), 403
         return jsonify({"data": tracker.tracking_diagnostics(MODEL_TRACKER_USER_ID)})
 
+    @app.route("/api/admin/measurement-foundation/diagnostics")
+    def api_measurement_foundation_diagnostics():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        return jsonify(
+            {
+                "data": {
+                    **tracker.database.measurement_diagnostics(),
+                    "composite_price_providers": tracker.composite_price_providers.health(),
+                    "release": "release-1-measurement-foundation",
+                    "live_decision_logic_changed": False,
+                    "fabricated_provider_data": False,
+                }
+            }
+        )
+
+    @app.route("/api/admin/candidate-ledger")
+    def api_candidate_ledger():
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        decision = request.args.get("decision", "").strip().upper() or None
+        limit = max(1, min(request.args.get("limit", 100, type=int) or 100, 500))
+        offset = max(request.args.get("offset", 0, type=int) or 0, 0)
+        rows = tracker.database.list_candidates(decision, limit, offset)
+        return jsonify({"data": rows, "count": len(rows), "limit": limit, "offset": offset})
+
+    @app.route("/api/admin/candidate-ledger/<candidate_id>")
+    def api_candidate_ledger_record(candidate_id: str):
+        if not is_admin():
+            return jsonify({"error": "Administrator access required."}), 403
+        row = tracker.database.get_candidate_measurements(candidate_id)
+        if row is None:
+            return jsonify({"error": "Candidate not found."}), 404
+        return jsonify({"data": row})
+
     @app.route("/api/admin/model-tracker/pause", methods=["POST"])
     def api_model_tracker_pause():
         if not is_admin():

@@ -44,6 +44,12 @@ from model_tracker_discord import (
     build_model_tracker_discord_payload,
 )
 from market_lifecycle import classify_lifecycle
+from measurement_foundation import (
+    CompositePriceProviderRegistry,
+    build_candidate_record,
+    build_exclusion_record,
+    unavailable_composite_snapshot,
+)
 from polymarket_client import PolymarketClient
 from recommendation_service import (
     DUPLICATE_RECOMMENDATION,
@@ -276,6 +282,7 @@ class TrackerService:
             settings.discord_notification_batch_size,
         )
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
+        self.composite_price_providers = CompositePriceProviderRegistry.release1_default()
         self._lock = threading.Lock()
         self._start_lock = threading.Lock()
         self._refresh_lock = threading.Lock()
@@ -568,6 +575,9 @@ class TrackerService:
             tracked_wallet_count=synced_wallet_count,
             diagnostics=trade_exclusions,
         )
+        measurement = self._record_candidate_measurements(
+            trades_to_play, trade_exclusions, _utc_now()
+        )
         self.reconcile_model_tracker(trades_to_play)
         self._update_tracker_statuses(events)
         success_time = _iso_now()
@@ -598,6 +608,7 @@ class TrackerService:
         status["overview"] = overview
         status["app_status"] = "ok" if status["api_status"] != "error" else "degraded"
         status["database"] = self.database.health()
+        status["measurement_foundation"] = measurement
 
         self.database.set_refresh_state("last_refresh_attempt", attempt_time)
         self.database.set_refresh_state("last_successful_refresh", success_time)
@@ -868,6 +879,71 @@ class TrackerService:
         self.database.set_tracking_job_state(state)
         return state
 
+    def _record_candidate_measurements(
+        self,
+        plays: list[dict[str, Any]],
+        exclusions: list[dict[str, Any]],
+        observed_at: datetime,
+    ) -> dict[str, Any]:
+        timestamp = observed_at.astimezone(timezone.utc).isoformat()
+        counts = {
+            "observed": 0,
+            "recorded": 0,
+            "approved_standard": 0,
+            "research_only": 0,
+            "passed": 0,
+            "invalid": 0,
+            "skipped_invalid_identity": 0,
+            "errors": 0,
+        }
+        for play in plays:
+            counts["observed"] += 1
+            try:
+                evaluation = self.evaluate_recommendation(
+                    play, self.settings.default_bankroll, observed_at
+                )
+                record = build_candidate_record(play, evaluation, timestamp)
+                self.database.record_candidate(record)
+                self.database.insert_composite_price_snapshot(
+                    unavailable_composite_snapshot(
+                        record, self.composite_price_providers.health()
+                    )
+                )
+                counts["recorded"] += 1
+                counts[record["decision"].lower()] = (
+                    counts.get(record["decision"].lower(), 0) + 1
+                )
+            except Exception:
+                LOGGER.exception(
+                    "Candidate Ledger recording failed for trade=%s",
+                    play.get("id") or play.get("event_title"),
+                )
+                counts["errors"] += 1
+        for exclusion in exclusions:
+            counts["observed"] += 1
+            try:
+                record = build_exclusion_record(exclusion, timestamp)
+                if record is None:
+                    counts["skipped_invalid_identity"] += 1
+                    continue
+                self.database.record_candidate(record)
+                self.database.insert_composite_price_snapshot(
+                    unavailable_composite_snapshot(
+                        record, self.composite_price_providers.health()
+                    )
+                )
+                counts["recorded"] += 1
+                counts[record["decision"].lower()] = (
+                    counts.get(record["decision"].lower(), 0) + 1
+                )
+            except Exception:
+                LOGGER.exception(
+                    "Candidate Ledger recording failed for exclusion=%s",
+                    exclusion.get("reason"),
+                )
+                counts["errors"] += 1
+        return counts
+
     def reconcile_all_user_trackers(
         self,
         plays: list[dict] | None = None,
@@ -946,8 +1022,13 @@ class TrackerService:
     def _update_tracker_statuses(self, events: dict[str, dict]) -> None:
         records = self.database.get_active_tracker_records()
         personal_fills = self.database.get_all_active_personal_bet_fills()
+        candidates = self.database.get_monitorable_candidates()
         slugs = [record["snapshot"].get("canonical_event_slug") for record in records]
         slugs.extend(fill.get("canonical_event_slug") for fill in personal_fills)
+        slugs.extend(
+            (candidate.get("snapshot") or {}).get("provider_event_slug")
+            for candidate in candidates
+        )
         missing_slugs = [slug for slug in slugs if slug and slug not in events]
         if missing_slugs:
             events = {**events, **self.client.get_events(missing_slugs)}
@@ -992,6 +1073,47 @@ class TrackerService:
                 update["status"],
                 update.get("result"),
                 update.get("settled_at"),
+            )
+        for candidate in candidates:
+            snapshot = candidate.get("snapshot") or {}
+            event = events.get(snapshot.get("provider_event_slug"))
+            if not event:
+                continue
+            update = tracker_status_from_event(
+                {
+                    "canonical_market_id": candidate.get("canonical_market_id"),
+                    "recommended_side": candidate.get("selection"),
+                    "event_start_time": candidate.get("event_start_time"),
+                },
+                event,
+            )
+            status = str(update.get("status") or "unresolved")
+            if status not in {"won", "lost", "push", "void", "canceled"}:
+                continue
+            values: dict[str, Any] = {
+                "monitoring_status": "COMPLETE",
+                "result": update.get("result"),
+            }
+            entry = _safe_float(
+                (candidate.get("execution_snapshot") or {}).get(
+                    "current_executable_entry"
+                )
+            )
+            if status == "won" and 0 < entry < 1:
+                values["hypothetical_profit_loss"] = (
+                    100.0 * ((1.0 / entry) - 1.0)
+                )
+            elif status == "lost":
+                values["hypothetical_profit_loss"] = -100.0
+            elif status in {"push", "void", "canceled"}:
+                values["hypothetical_profit_loss"] = 0.0
+            if candidate.get("current_decision") == "PASSED":
+                if status == "lost":
+                    values["pass_reason_justified"] = True
+                elif status == "won":
+                    values["pass_reason_justified"] = False
+            self.database.update_candidate_monitoring(
+                candidate["candidate_id"], values
             )
 
     @staticmethod
@@ -1073,6 +1195,26 @@ class TrackerService:
                     "entry_timestamp": fill.get("created_at"),
                 }
             )
+        for candidate in self.database.get_monitorable_candidates():
+            frozen = candidate.get("snapshot") or {}
+            execution = candidate.get("execution_snapshot") or {}
+            references.append(
+                {
+                    "tracker_type": "candidate",
+                    "tracker_record_id": candidate["candidate_id"],
+                    "user_id": MODEL_TRACKER_USER_ID,
+                    "provider": candidate.get("provider") or "polymarket",
+                    "provider_event_id": candidate.get("canonical_event_id") or "",
+                    "provider_event_slug": frozen.get("provider_event_slug"),
+                    "provider_market_id": candidate.get("canonical_market_id") or "",
+                    "provider_selection_id": candidate.get("canonical_outcome_id") or "",
+                    "selection": candidate.get("selection"),
+                    "event_start_time": candidate.get("event_start_time"),
+                    "entry_price": execution.get("current_executable_entry"),
+                    "entry_stake": 100.0,
+                    "entry_timestamp": candidate.get("detected_at"),
+                }
+            )
         existing = {
             (row["tracker_type"], row["tracker_record_id"])
             for kind, user in {(row["tracker_type"], row["user_id"]) for row in references}
@@ -1141,6 +1283,16 @@ class TrackerService:
                     "source": "POLYMARKET_CLOB_ORDER_BOOK",
                 }
             )
+            if reference.get("tracker_type") == "candidate":
+                observation = book_effective_ask(
+                    asks, reference.get("entry_stake")
+                ).get("effective_price")
+                if observation is not None:
+                    self.database.record_candidate_price_observation(
+                        reference["tracker_record_id"],
+                        reference.get("entry_price"),
+                        observation,
+                    )
         for reference in pending:
             event = events.get(reference["provider_event_slug"])
             if not event:
@@ -1226,6 +1378,37 @@ class TrackerService:
                 "calculation_version": CLV_CALCULATION_VERSION,
             }
         )
+        self.database.upsert_dual_clv(
+            {
+                "tracker_type": reference["tracker_type"],
+                "tracker_record_id": reference["tracker_record_id"],
+                "user_id": reference["user_id"],
+                "candidate_id": reference["tracker_record_id"] if reference.get("tracker_type") == "candidate" else None,
+                "entry_price": reference.get("entry_price"),
+                "exchange_clv_status": status,
+                "composite_clv_status": "UNAVAILABLE",
+                "exchange_missing_reason": reason,
+                "composite_missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+                "closing_timestamp": official_start,
+                "exchange_calculation_version": CLV_CALCULATION_VERSION,
+                "snapshot": {"exchange_status": status, "composite_status": "UNAVAILABLE"},
+            }
+        )
+        if reference.get("tracker_type") == "candidate":
+            self.database.update_candidate_monitoring(
+                reference["tracker_record_id"],
+                {
+                    "monitoring_status": (
+                        "COMPLETE"
+                        if reason in {"VOID", "CANCELED", "CANCELLED"}
+                        else "MONITORING"
+                    ),
+                    "exchange_clv_status": status,
+                    "composite_clv_status": "UNAVAILABLE",
+                    "missing_reason": reason,
+                    "closing_timestamp": official_start,
+                },
+            )
 
     def _freeze_captured_clv(
         self, reference: dict, quote: dict, official_start: str | None
@@ -1270,6 +1453,44 @@ class TrackerService:
                 "calculation_version": CLV_CALCULATION_VERSION,
             }
         )
+        self.database.upsert_dual_clv(
+            {
+                "tracker_type": reference["tracker_type"],
+                "tracker_record_id": reference["tracker_record_id"],
+                "user_id": reference["user_id"],
+                "candidate_id": reference["tracker_record_id"] if reference.get("tracker_type") == "candidate" else None,
+                "entry_price": reference.get("entry_price"),
+                "exchange_closing_price": effective,
+                "exchange_probability_point_clv": metrics["clv_probability_points"],
+                "exchange_stake_return_clv": metrics["clv_pct"] / 100.0,
+                "exchange_clv_status": CAPTURED,
+                "composite_clv_status": "UNAVAILABLE",
+                "exchange_missing_reason": None,
+                "composite_missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+                "closing_timestamp": quote.get("quote_timestamp"),
+                "exchange_calculation_version": CLV_CALCULATION_VERSION,
+                "snapshot": {"exchange_quote": quote, "composite_status": "UNAVAILABLE"},
+            }
+        )
+        if reference.get("tracker_type") == "candidate":
+            entry = _safe_float(reference.get("entry_price"))
+            hypothetical_pnl = None
+            if entry > 0:
+                hypothetical_pnl = 100.0 * metrics["clv_pct"] / 100.0
+            self.database.update_candidate_monitoring(
+                reference["tracker_record_id"],
+                {
+                    "monitoring_status": "MONITORING",
+                    "exchange_clv_status": CAPTURED,
+                    "composite_clv_status": "UNAVAILABLE",
+                    "exchange_closing_price": effective,
+                    "exchange_probability_point_clv": metrics["clv_probability_points"],
+                    "exchange_stake_return_clv": metrics["clv_pct"] / 100.0,
+                    "closing_timestamp": quote.get("quote_timestamp"),
+                    "hypothetical_profit_loss": hypothetical_pnl,
+                    "missing_reason": "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER",
+                },
+            )
 
     def _build_wallet_payload(self, loader) -> list[dict]:
         payload: list[dict] = []

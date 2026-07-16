@@ -5,6 +5,15 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
 
+from measurement_foundation import (
+    COMPOSITE_CLV_VERSION,
+    RELEASE1_MIGRATION_VERSION,
+    decision_id,
+    migration_sql,
+    model_version_rows,
+    stable_hash,
+)
+
 
 class PostgresUserStore:
     """Durable storage for user-owned state in serverless deployments."""
@@ -446,6 +455,30 @@ class PostgresUserStore:
                 conn.executemany(
                     "DELETE FROM bet_tracker WHERE user_id = %s AND dedupe_key = %s",
                     invalid_rows,
+                )
+            for statement in migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            now = datetime.now(timezone.utc).isoformat()
+            conn.execute(
+                """
+                INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s)
+                ON CONFLICT(version) DO NOTHING
+                """,
+                (RELEASE1_MIGRATION_VERSION, now),
+            )
+            for row in model_version_rows():
+                conn.execute(
+                    """
+                    INSERT INTO model_versions(
+                        version_key, component, version, status, description, registered_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(version_key) DO NOTHING
+                    """,
+                    (
+                        row["version_key"], row["component"], row["version"],
+                        row["status"], row["description"], row["registered_at"],
+                    ),
                 )
 
     def get_or_create_user_settings(
@@ -1416,6 +1449,449 @@ class PostgresUserStore:
             "stale_quotes": by_status.get("stale_quote", 0),
             "missing_provider_mappings": by_status.get("market_mapping_error", 0),
         }
+
+    def record_candidate(self, record: dict) -> dict:
+        now = record["detected_at"]
+        versions = record["versions"]
+        reasons_json = json.dumps(record["reason_codes"], sort_keys=True)
+        decision_snapshot = {
+            "candidate_id": record["candidate_id"],
+            "correlation_id": record["correlation_id"],
+            "decision": record["decision"],
+            "reason_codes": record["reason_codes"],
+            "execution_snapshot": record["execution_snapshot"],
+            "versions": versions,
+        }
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO candidate_ledger(
+                    candidate_id, correlation_id, canonical_event_id,
+                    canonical_market_id, canonical_outcome_id, period,
+                    market_line, provider, settlement_scope, settlement_rules,
+                    detected_at, first_seen_at, last_seen_at, event_start_time,
+                    sport, league, event_title, market_title, selection,
+                    current_decision, current_reason_codes_json,
+                    execution_snapshot_json, candidate_snapshot_json,
+                    trade_scoring_version, recommendation_version,
+                    fair_price_version, kelly_version, risk_policy_version,
+                    wallet_registry_version, execution_plan_version,
+                    composite_price_status, composite_price_missing_reason
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT(candidate_id) DO UPDATE SET
+                    last_seen_at = EXCLUDED.last_seen_at,
+                    current_decision = EXCLUDED.current_decision,
+                    current_reason_codes_json = EXCLUDED.current_reason_codes_json
+                """,
+                (
+                    record["candidate_id"], record["correlation_id"],
+                    record["canonical_event_id"], record["canonical_market_id"],
+                    record["canonical_outcome_id"], record["period"],
+                    record["market_line"], record["provider"],
+                    record["settlement_scope"], record["settlement_rules"],
+                    now, now, now, record.get("event_start_time"),
+                    record.get("sport"), record.get("league"),
+                    record.get("event_title"), record.get("market_title"),
+                    record.get("selection"), record["decision"], reasons_json,
+                    json.dumps(record["execution_snapshot"], sort_keys=True),
+                    json.dumps(record["candidate_snapshot"], sort_keys=True),
+                    versions["trade_scoring"], versions["recommendation"],
+                    versions["fair_price"], versions["kelly"],
+                    versions["risk_policy"], versions["wallet_registry"],
+                    versions["execution_plan"], record["composite_price_status"],
+                    record.get("composite_price_missing_reason"),
+                ),
+            )
+            conn.execute(
+                """
+                INSERT INTO candidate_decisions(
+                    decision_id, candidate_id, correlation_id, decision,
+                    reason_codes_json, primary_reason_code, decided_at,
+                    decision_snapshot_json, recommendation_version,
+                    calculation_version
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(decision_id) DO NOTHING
+                """,
+                (
+                    decision_id(record), record["candidate_id"],
+                    record["correlation_id"], record["decision"], reasons_json,
+                    record["reason_codes"][0] if record["reason_codes"] else None,
+                    now, json.dumps(decision_snapshot, sort_keys=True),
+                    versions["recommendation"], versions["candidate_ledger"],
+                ),
+            )
+            if record["decision"] in {"PASSED", "RESEARCH_ONLY"}:
+                conn.execute(
+                    """
+                    INSERT INTO candidate_monitoring(
+                        candidate_id, monitoring_status, exchange_clv_status,
+                        composite_clv_status, hypothetical_stake, missing_reason,
+                        snapshot_json, updated_at
+                    ) VALUES (%s, 'MONITORING', 'PENDING', 'UNAVAILABLE', %s, %s, '{}', %s)
+                    ON CONFLICT(candidate_id) DO NOTHING
+                    """,
+                    (
+                        record["candidate_id"], 100.0,
+                        "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER", now,
+                    ),
+                )
+        return self.get_candidate(record["candidate_id"]) or {}
+
+    def upsert_dual_clv(self, measurement: dict) -> None:
+        now = datetime.now(timezone.utc).isoformat()
+        measurement_id = stable_hash(measurement["tracker_type"], measurement["tracker_record_id"])
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO dual_clv_measurements(
+                    measurement_id, tracker_type, tracker_record_id, user_id,
+                    candidate_id, entry_price, exchange_closing_price,
+                    composite_closing_probability, exchange_probability_point_clv,
+                    exchange_stake_return_clv, composite_probability_point_clv,
+                    composite_stake_return_clv, execution_loss, fee_adjusted_clv,
+                    exchange_clv_status, composite_clv_status,
+                    exchange_missing_reason, composite_missing_reason,
+                    closing_timestamp, exchange_calculation_version,
+                    composite_calculation_version, snapshot_json, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                    %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s
+                )
+                ON CONFLICT(tracker_type, tracker_record_id) DO UPDATE SET
+                    exchange_closing_price = EXCLUDED.exchange_closing_price,
+                    composite_closing_probability = EXCLUDED.composite_closing_probability,
+                    exchange_probability_point_clv = EXCLUDED.exchange_probability_point_clv,
+                    exchange_stake_return_clv = EXCLUDED.exchange_stake_return_clv,
+                    composite_probability_point_clv = EXCLUDED.composite_probability_point_clv,
+                    composite_stake_return_clv = EXCLUDED.composite_stake_return_clv,
+                    execution_loss = EXCLUDED.execution_loss,
+                    fee_adjusted_clv = EXCLUDED.fee_adjusted_clv,
+                    exchange_clv_status = EXCLUDED.exchange_clv_status,
+                    composite_clv_status = EXCLUDED.composite_clv_status,
+                    exchange_missing_reason = EXCLUDED.exchange_missing_reason,
+                    composite_missing_reason = EXCLUDED.composite_missing_reason,
+                    closing_timestamp = EXCLUDED.closing_timestamp,
+                    snapshot_json = EXCLUDED.snapshot_json,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (
+                    measurement_id, measurement["tracker_type"],
+                    measurement["tracker_record_id"], measurement["user_id"],
+                    measurement.get("candidate_id"), measurement.get("entry_price"),
+                    measurement.get("exchange_closing_price"),
+                    measurement.get("composite_closing_probability"),
+                    measurement.get("exchange_probability_point_clv"),
+                    measurement.get("exchange_stake_return_clv"),
+                    measurement.get("composite_probability_point_clv"),
+                    measurement.get("composite_stake_return_clv"),
+                    measurement.get("execution_loss"), measurement.get("fee_adjusted_clv"),
+                    measurement.get("exchange_clv_status", "PENDING"),
+                    measurement.get("composite_clv_status", "UNAVAILABLE"),
+                    measurement.get("exchange_missing_reason"),
+                    measurement.get("composite_missing_reason", "NO_CONNECTED_INDEPENDENT_COMPOSITE_PROVIDER"),
+                    measurement.get("closing_timestamp"),
+                    measurement.get("exchange_calculation_version", "clv-v1"),
+                    measurement.get("composite_calculation_version", COMPOSITE_CLV_VERSION),
+                    json.dumps(measurement.get("snapshot") or {}, sort_keys=True), now, now,
+                ),
+            )
+
+    def record_candidate_price_observation(
+        self,
+        candidate_id: str,
+        entry_price: float | None,
+        observed_price: float | None,
+    ) -> None:
+        try:
+            entry = float(entry_price)
+            observed = float(observed_price)
+        except (TypeError, ValueError):
+            return
+        if not (0 < entry < 1 and 0 < observed < 1):
+            return
+        movement = observed - entry
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT maximum_favorable_movement, maximum_adverse_movement
+                FROM candidate_monitoring WHERE candidate_id = %s
+                """,
+                (candidate_id,),
+            ).fetchone()
+            if row is None:
+                return
+            favorable = max(
+                0.0,
+                float(row["maximum_favorable_movement"] or 0.0),
+                movement,
+            )
+            adverse = min(
+                0.0,
+                float(row["maximum_adverse_movement"] or 0.0),
+                movement,
+            )
+            conn.execute(
+                """
+                UPDATE candidate_monitoring
+                SET maximum_favorable_movement = %s,
+                    maximum_adverse_movement = %s, updated_at = %s
+                WHERE candidate_id = %s
+                """,
+                (
+                    favorable,
+                    adverse,
+                    datetime.now(timezone.utc).isoformat(),
+                    candidate_id,
+                ),
+            )
+
+    def get_candidate(self, candidate_id: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM candidate_ledger WHERE candidate_id = %s",
+                (candidate_id,),
+            ).fetchone()
+        return self._candidate_row(dict(row)) if row else None
+
+    def insert_composite_price_snapshot(self, snapshot: dict) -> bool:
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO composite_price_snapshots(
+                    snapshot_id, candidate_id, correlation_id, quote_timestamp,
+                    composite_fair_probability, source_count, source_dispersion,
+                    mapping_confidence, status, missing_reason,
+                    calculation_version, snapshot_json, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_id) DO NOTHING
+                """,
+                (
+                    snapshot["snapshot_id"], snapshot.get("candidate_id"),
+                    snapshot["correlation_id"], snapshot["quote_timestamp"],
+                    snapshot.get("composite_fair_probability"),
+                    snapshot.get("source_count", 0), snapshot.get("source_dispersion"),
+                    snapshot["mapping_confidence"], snapshot["status"],
+                    snapshot.get("missing_reason"), snapshot["calculation_version"],
+                    json.dumps(snapshot.get("snapshot") or {}, sort_keys=True),
+                    snapshot["created_at"],
+                ),
+            )
+            inserted = cursor.rowcount > 0
+            for item in snapshot.get("contributions") or []:
+                conn.execute(
+                    """
+                    INSERT INTO composite_source_contributions(
+                        snapshot_id, provider, provider_event_id, provider_market_id,
+                        provider_selection_id, native_odds, decimal_odds,
+                        raw_implied_probability, no_vig_probability,
+                        contribution_weight, quote_timestamp, quote_freshness,
+                        included, exclusion_reason, source_snapshot_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(snapshot_id, provider) DO NOTHING
+                    """,
+                    (
+                        snapshot["snapshot_id"], item["provider"],
+                        item.get("provider_event_id"), item.get("provider_market_id"),
+                        item.get("provider_selection_id"), item.get("native_odds"),
+                        item.get("decimal_odds"), item.get("raw_implied_probability"),
+                        item.get("no_vig_probability"), item.get("contribution_weight"),
+                        item.get("quote_timestamp"), item.get("quote_freshness"),
+                        bool(item.get("included")), item.get("exclusion_reason"),
+                        json.dumps(item.get("source_snapshot") or {}, sort_keys=True),
+                    ),
+                )
+        return inserted
+
+    def list_candidates(self, decision: str | None = None, limit: int = 100, offset: int = 0) -> list[dict]:
+        query = "SELECT * FROM candidate_ledger"
+        params: list[object] = []
+        if decision:
+            query += " WHERE current_decision = %s"
+            params.append(decision)
+        query += " ORDER BY last_seen_at DESC LIMIT %s OFFSET %s"
+        params.extend([max(1, min(int(limit), 500)), max(0, int(offset))])
+        with self.connection() as conn:
+            rows = conn.execute(query, params).fetchall()
+        return [self._candidate_row(dict(row)) for row in rows]
+
+    def get_monitorable_candidates(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.*, m.monitoring_status
+                FROM candidate_ledger c
+                JOIN candidate_monitoring m ON m.candidate_id = c.candidate_id
+                WHERE m.monitoring_status = 'MONITORING'
+                ORDER BY c.event_start_time
+                """
+            ).fetchall()
+        return [self._candidate_row(dict(row)) for row in rows]
+
+    def update_candidate_monitoring(self, candidate_id: str, values: dict) -> None:
+        allowed = {
+            "monitoring_status", "exchange_clv_status", "composite_clv_status",
+            "exchange_closing_price", "composite_closing_probability",
+            "exchange_probability_point_clv", "exchange_stake_return_clv",
+            "composite_probability_point_clv", "composite_stake_return_clv",
+            "execution_loss", "fee_adjusted_clv", "closing_timestamp", "result",
+            "hypothetical_profit_loss", "maximum_favorable_movement",
+            "maximum_adverse_movement", "pass_reason_justified", "missing_reason",
+        }
+        selected = {key: value for key, value in values.items() if key in allowed}
+        if not selected:
+            return
+        selected["updated_at"] = datetime.now(timezone.utc).isoformat()
+        assignments = ", ".join(f"{key} = %s" for key in selected)
+        with self.connection() as conn:
+            conn.execute(
+                f"UPDATE candidate_monitoring SET {assignments} WHERE candidate_id = %s",
+                [*selected.values(), candidate_id],
+            )
+
+    def measurement_diagnostics(self) -> dict:
+        with self.connection() as conn:
+            decisions = conn.execute(
+                "SELECT current_decision, COUNT(*) count FROM candidate_ledger GROUP BY current_decision"
+            ).fetchall()
+            reasons = conn.execute(
+                "SELECT primary_reason_code, COUNT(*) count FROM candidate_decisions GROUP BY primary_reason_code ORDER BY count DESC"
+            ).fetchall()
+            monitoring = conn.execute(
+                "SELECT monitoring_status, exchange_clv_status, composite_clv_status, COUNT(*) count FROM candidate_monitoring GROUP BY monitoring_status, exchange_clv_status, composite_clv_status"
+            ).fetchall()
+            versions = conn.execute(
+                "SELECT component, version, status FROM model_versions ORDER BY component"
+            ).fetchall()
+            migrations = conn.execute(
+                "SELECT version, applied_at FROM schema_migrations ORDER BY version"
+            ).fetchall()
+            dual_clv = conn.execute(
+                """
+                SELECT tracker_type, exchange_clv_status, composite_clv_status,
+                       COUNT(*) count
+                FROM dual_clv_measurements
+                GROUP BY tracker_type, exchange_clv_status, composite_clv_status
+                """
+            ).fetchall()
+            composite = conn.execute(
+                """
+                SELECT status, missing_reason, COUNT(*) count
+                FROM composite_price_snapshots
+                GROUP BY status, missing_reason
+                """
+            ).fetchall()
+            table_counts = {
+                table: conn.execute(f"SELECT COUNT(*) count FROM {table}").fetchone()["count"]
+                for table in (
+                    "candidate_ledger", "candidate_decisions",
+                    "candidate_monitoring", "dual_clv_measurements",
+                    "composite_price_snapshots",
+                    "composite_source_contributions",
+                )
+            }
+        return {
+            "candidate_counts": {row["current_decision"]: row["count"] for row in decisions},
+            "reason_counts": {row["primary_reason_code"]: row["count"] for row in reasons},
+            "monitoring": [dict(row) for row in monitoring],
+            "versions": [dict(row) for row in versions],
+            "migrations": [dict(row) for row in migrations],
+            "dual_clv": [dict(row) for row in dual_clv],
+            "composite_prices": [dict(row) for row in composite],
+            "table_counts": table_counts,
+        }
+
+    def get_candidate_measurements(self, candidate_id: str) -> dict | None:
+        candidate = self.get_candidate(candidate_id)
+        if candidate is None:
+            return None
+        with self.connection() as conn:
+            decisions = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT * FROM candidate_decisions
+                    WHERE candidate_id = %s ORDER BY decided_at, decision_id
+                    """,
+                    (candidate_id,),
+                ).fetchall()
+            ]
+            monitoring_row = conn.execute(
+                "SELECT * FROM candidate_monitoring WHERE candidate_id = %s",
+                (candidate_id,),
+            ).fetchone()
+            dual_clv_row = conn.execute(
+                "SELECT * FROM dual_clv_measurements WHERE candidate_id = %s",
+                (candidate_id,),
+            ).fetchone()
+            snapshots = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT * FROM composite_price_snapshots
+                    WHERE candidate_id = %s ORDER BY quote_timestamp
+                    """,
+                    (candidate_id,),
+                ).fetchall()
+            ]
+            contributions = [
+                dict(row)
+                for row in conn.execute(
+                    """
+                    SELECT sc.* FROM composite_source_contributions sc
+                    JOIN composite_price_snapshots ps
+                      ON ps.snapshot_id = sc.snapshot_id
+                    WHERE ps.candidate_id = %s
+                    ORDER BY ps.quote_timestamp, sc.provider
+                    """,
+                    (candidate_id,),
+                ).fetchall()
+            ]
+        for row in decisions:
+            row["reason_codes"] = json.loads(row.pop("reason_codes_json") or "[]")
+            row["decision_snapshot"] = json.loads(
+                row.pop("decision_snapshot_json") or "{}"
+            )
+        monitoring = dict(monitoring_row) if monitoring_row else None
+        if monitoring:
+            monitoring["snapshot"] = json.loads(
+                monitoring.pop("snapshot_json") or "{}"
+            )
+        dual_clv = dict(dual_clv_row) if dual_clv_row else None
+        if dual_clv:
+            dual_clv["snapshot"] = json.loads(
+                dual_clv.pop("snapshot_json") or "{}"
+            )
+        for row in snapshots:
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        for row in contributions:
+            row["source_snapshot"] = json.loads(
+                row.pop("source_snapshot_json") or "{}"
+            )
+        return {
+            "candidate": candidate,
+            "decisions": decisions,
+            "monitoring": monitoring,
+            "dual_clv": dual_clv,
+            "composite_price_snapshots": snapshots,
+            "composite_source_contributions": contributions,
+        }
+
+    @staticmethod
+    def _candidate_row(row: dict) -> dict:
+        for source, target in (
+            ("current_reason_codes_json", "reason_codes"),
+            ("execution_snapshot_json", "execution_snapshot"),
+            ("candidate_snapshot_json", "snapshot"),
+        ):
+            try:
+                row[target] = json.loads(row.get(source) or "{}")
+            except (TypeError, json.JSONDecodeError):
+                row[target] = [] if target == "reason_codes" else {}
+        return row
 
     def health(self) -> dict[str, str | bool]:
         try:
