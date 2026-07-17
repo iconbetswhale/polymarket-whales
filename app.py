@@ -936,6 +936,58 @@ def create_app(start_background: bool = True) -> Flask:
         snapshot = tracker.get_snapshot()
         return jsonify({"data": snapshot["trades"], "status": snapshot["status"]})
 
+    @app.route("/api/odds-screen")
+    def api_odds_screen():
+        """Live read-only odds universe, independent of recommendation eligibility."""
+        snapshot = tracker.get_snapshot()
+        date_range = request.args.get("date_range", "today")
+        if date_range not in {"today", "next24", "next7"}:
+            return jsonify({"error": "Unsupported date range"}), 400
+        now = datetime.now(timezone.utc)
+        maximum = now + timedelta(days=7 if date_range == "next7" else 1)
+        if date_range == "today":
+            eastern_now = now.astimezone(EASTERN)
+            maximum = eastern_now.replace(hour=23, minute=59, second=59).astimezone(timezone.utc)
+
+        unique: dict[tuple, dict] = {}
+        for source in snapshot.get("positions", []):
+            if not source.get("is_sports") or source.get("market_closed") or source.get("event_closed"):
+                continue
+            starts_at = _parse_datetime(source.get("resolution_time"))
+            if starts_at and (starts_at < now - timedelta(hours=6) or starts_at > maximum):
+                continue
+            key = (
+                str(source.get("condition_id") or source.get("market_id") or source.get("event_id") or ""),
+                str(source.get("outcome") or "").lower(),
+                str(source.get("sports_market_type") or "").lower(),
+                source.get("market_line"),
+            )
+            if not key[0] or not key[1]:
+                continue
+            row = dict(source)
+            row["id"] = "odds::" + stable_hash(key)[:24]
+            row["event_date_et"] = source.get("resolution_time")
+            executable = source.get("executable_ask_price")
+            current = executable if executable is not None else source.get("current_price")
+            row["card"] = {"current_actionable_price": current, "recommended_amount": 0}
+            row["recommendation"] = {"current_user_entry_price": current, "recommended_amount": 0}
+            row.pop("orderbook", None)
+            unique[key] = row
+
+        rows = sorted(
+            unique.values(),
+            key=lambda row: str(row.get("resolution_time") or "~"),
+        )[:250]
+        execution_providers.attach_options(rows)
+        return jsonify(
+            {
+                "data": rows,
+                "pagination": {"total": len(rows), "page": 1, "per_page": 250},
+                "status": snapshot["status"],
+                "source": "active_sports_positions",
+            }
+        )
+
     @app.route("/api/trades-to-play")
     def api_trades_to_play():
         snapshot = tracker.get_snapshot()

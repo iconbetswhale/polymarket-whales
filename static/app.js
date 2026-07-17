@@ -3334,7 +3334,7 @@ async function loadOddsScreen() {
   const started = performance.now();
   try {
     const range = document.getElementById("odds-window")?.value || "today";
-    const payload = await fetchJson(`/api/trades-to-play?date_range=${encodeURIComponent(range)}&per_page=100`);
+    const payload = await fetchJson(`/api/odds-screen?date_range=${encodeURIComponent(range)}`);
     oddsState.rows = payload.data || [];
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;
     document.getElementById("odds-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
