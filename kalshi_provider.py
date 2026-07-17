@@ -8,7 +8,7 @@ import requests
 
 from execution_providers import (
     ExecutionOption, ExecutionProvider, MatchConfidence, NormalizedProviderMarket,
-    ProviderMarketIndex, _fair_quotes_from_index, _match_exact_trade, _normalize_name,
+    ProviderMarketIndex, _fair_quotes_from_index, _match_exact_trade, _name_matches, _normalize_name,
     _parse_datetime, american_to_probability, canonicalize_trade,
 )
 
@@ -51,12 +51,12 @@ class KalshiProvider(ExecutionProvider):
         originals = {str(row.get("id") or ""): row for row in trades}
         result = {}
         for trade in canonical:
-            confidence, market = _match_exact_trade(trade, index)
+            confidence, market = _match_exact_trade(trade, index, allow_same_day=True)
             if confidence is not MatchConfidence.EXACT or market is None:
                 continue
             stake = _stake(originals.get(trade.trade_id) or {})
             liquidity = _liquidity_from_selection(market.selection_id)
-            price = american_to_probability(market.american_odds)
+            price = _price_from_selection(market.selection_id)
             fillable = liquidity >= stake if stake > 0 else liquidity > 0
             available = bool(market.is_available and price is not None and fillable)
             result[trade.trade_id] = ExecutionOption(
@@ -128,20 +128,22 @@ def _normalize_market(market, sport, league):
     yes_name = _normalize_name(market.get("yes_sub_title") or market.get("subtitle"))
     if not yes_name:
         return []
-    yes_is_first = yes_name in participants[0] or participants[0] in yes_name
-    yes_side, no_side = ("away", "home") if yes_is_first else ("home", "away")
+    yes_is_first = _name_matches(yes_name, (participants[0],))
+    yes_side = "away" if yes_is_first else "home"
     updated = str(market.get("updated_time") or "") or None
     available = str(market.get("status") or "").lower() in {"open", "active"}
     result = []
+    # Kalshi publishes one binary contract per team. Its YES ask is the direct
+    # sportsbook-equivalent moneyline for that team; emitting NO as the opponent
+    # creates duplicate ambiguous matches when the opponent contract also exists.
     for outcome, side, price_key, size_key in (
         ("yes", yes_side, "yes_ask_dollars", "yes_ask_size_fp"),
-        ("no", no_side, "no_ask_dollars", "no_ask_size_fp"),
     ):
         price = _float(market.get(price_key))
         size = _float(market.get(size_key)) or 0
         american = _probability_to_american(price)
         result.append(NormalizedProviderMarket(
-            event_id=event_id, selection_id=f"{ticker}|{outcome}|{size:g}", sport_id=sport,
+            event_id=event_id, selection_id=f"{ticker}|{outcome}|{size:g}|{price:g}", sport_id=sport,
             league_id=league, start_at=start, home_names=(participants[1],), away_names=(participants[0],),
             market_name="moneyline", stat_id="points", stat_entity_id="all", period_id="game",
             bet_type_id="ml", side_id=side, line=None, is_alternative=False,
@@ -154,6 +156,7 @@ def _normalize_market(market, sport, league):
 
 def _participants(title):
     clean = _normalize_name(title)
+    clean = __import__("re").sub(r"\s+winner$", "", clean).strip()
     for token in (" vs ", " versus ", " at "):
         if token in clean:
             left, right = clean.split(token, 1)
@@ -169,9 +172,16 @@ def _probability_to_american(price):
 
 def _liquidity_from_selection(selection_id):
     try:
-        return float(selection_id.rsplit("|", 1)[1])
+        return float(selection_id.rsplit("|", 2)[1])
     except (ValueError, IndexError):
         return 0.0
+
+
+def _price_from_selection(selection_id):
+    try:
+        return float(selection_id.rsplit("|", 1)[1])
+    except (ValueError, IndexError):
+        return None
 
 
 def _float(value):

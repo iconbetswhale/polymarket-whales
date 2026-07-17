@@ -13,6 +13,7 @@ from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Iterable
 from urllib.parse import urlparse
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -32,6 +33,7 @@ PROPHETX_PRODUCTION_TRADE_URL = "https://www.prophetx.co/lobby/"
 PROPHETX_LOGO_URL = "https://www.prophetx.co/favicon.ico"
 PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
+EASTERN = ZoneInfo("America/New_York")
 MAX_PROVIDER_PAGES = 10
 
 
@@ -126,6 +128,7 @@ class PolymarketProvider(ExecutionProvider):
                 else recommendation.get("current_user_entry_price")
             )
             display_odds = _format_cents(current_price)
+            american_odds = probability_to_american(current_price)
             options[trade_id] = ExecutionOption(
                 provider_name=self.provider_name,
                 provider_key=self.provider_key,
@@ -146,6 +149,9 @@ class PolymarketProvider(ExecutionProvider):
                 matching_confidence=MatchConfidence.EXACT,
                 logo_url=POLYMARKET_LOGO_URL,
                 tooltip="Polymarket Current Best Price",
+                american_odds=american_odds,
+                contract_price=current_price,
+                effective_price=current_price,
             )
         return options
 
@@ -423,19 +429,23 @@ class ProviderMarketIndex:
         self._by_sport_and_time: dict[
             tuple[str, int], list[NormalizedProviderMarket]
         ] = defaultdict(list)
+        self._by_sport_and_day: dict[tuple[str, object], list[NormalizedProviderMarket]] = defaultdict(list)
         for market in self.markets:
             self._by_sport_and_time[
                 (market.sport_id, _time_bucket(market.start_at))
             ].append(market)
+            self._by_sport_and_day[(market.sport_id, market.start_at.astimezone(EASTERN).date())].append(market)
 
-    def candidates(self, trade: CanonicalTrade) -> list[NormalizedProviderMarket]:
+    def candidates(self, trade: CanonicalTrade, *, allow_same_day: bool = False) -> list[NormalizedProviderMarket]:
         bucket = _time_bucket(trade.start_at)
         candidates: list[NormalizedProviderMarket] = []
         for offset in (-1, 0, 1):
             candidates.extend(
                 self._by_sport_and_time.get((trade.sport_id, bucket + offset), [])
             )
-        return candidates
+        if allow_same_day:
+            candidates.extend(self._by_sport_and_day.get((trade.sport_id, trade.start_at.astimezone(EASTERN).date()), []))
+        return list(dict.fromkeys(candidates))
 
 
 def _equivalent_market_key(market: NormalizedProviderMarket) -> tuple:
@@ -512,7 +522,7 @@ def _fair_quotes_from_index(
 def american_to_probability(value: int | None) -> float | None:
     if value is None or value == 0:
         return None
-    return value / (value + 100.0) if value > 0 else -value / (-value + 100.0)
+    return 100.0 / (value + 100.0) if value > 0 else -value / (-value + 100.0)
 
 
 @dataclass
@@ -1210,12 +1220,13 @@ def _default_prophetx_trade_url(base_url: str) -> str:
 
 
 def _event_is_exact(
-    trade: CanonicalTrade, market: NormalizedProviderMarket
+    trade: CanonicalTrade, market: NormalizedProviderMarket, *, allow_same_day: bool = False
 ) -> bool:
     if trade.sport_id != market.sport_id:
         return False
     if abs(trade.start_at - market.start_at) > EVENT_TIME_TOLERANCE:
-        return False
+        if not (allow_same_day and trade.start_at.astimezone(EASTERN).date() == market.start_at.astimezone(EASTERN).date()):
+            return False
     if not _league_matches(trade.league_id, market.league_id, trade.sport_id):
         return False
     first, second = trade.participants
@@ -1229,12 +1240,12 @@ def _event_is_exact(
 
 
 def _match_exact_trade(
-    trade: CanonicalTrade, index: ProviderMarketIndex
+    trade: CanonicalTrade, index: ProviderMarketIndex, *, allow_same_day: bool = False
 ) -> tuple[MatchConfidence, NormalizedProviderMarket | None]:
     probable = False
     exact_matches: list[NormalizedProviderMarket] = []
-    for market in index.candidates(trade):
-        if not _event_is_exact(trade, market):
+    for market in index.candidates(trade, allow_same_day=allow_same_day):
+        if not _event_is_exact(trade, market, allow_same_day=allow_same_day):
             continue
         probable = True
         if _market_is_exact(trade, market):
@@ -1474,8 +1485,54 @@ def _selection_name(value: str) -> str:
 
 
 def _name_matches(value: object, aliases: Iterable[str]) -> bool:
+    normalized = _canonical_team_name(value)
+    return bool(normalized and normalized in {_canonical_team_name(alias) for alias in aliases})
+
+
+MLB_TEAM_ALIASES = {
+    "arizona diamondbacks": "ari", "diamondbacks": "ari", "arizona": "ari",
+    "atlanta braves": "atl", "braves": "atl", "atlanta": "atl",
+    "baltimore orioles": "bal", "orioles": "bal", "baltimore": "bal",
+    "boston red sox": "bos", "red sox": "bos", "boston": "bos",
+    "chicago cubs": "chc", "cubs": "chc", "chicago c": "chc",
+    "chicago white sox": "chw", "white sox": "chw", "chicago w": "chw",
+    "cincinnati reds": "cin", "reds": "cin", "cincinnati": "cin",
+    "cleveland guardians": "cle", "guardians": "cle", "cleveland": "cle",
+    "colorado rockies": "col", "rockies": "col", "colorado": "col",
+    "detroit tigers": "det", "tigers": "det", "detroit": "det",
+    "houston astros": "hou", "astros": "hou", "houston": "hou",
+    "kansas city royals": "kc", "royals": "kc", "kansas city": "kc",
+    "los angeles angels": "laa", "angels": "laa", "los angeles a": "laa",
+    "los angeles dodgers": "lad", "dodgers": "lad", "los angeles d": "lad",
+    "miami marlins": "mia", "marlins": "mia", "miami": "mia",
+    "milwaukee brewers": "mil", "brewers": "mil", "milwaukee": "mil",
+    "minnesota twins": "min", "twins": "min", "minnesota": "min",
+    "new york mets": "nym", "mets": "nym", "new york m": "nym",
+    "new york yankees": "nyy", "yankees": "nyy", "new york y": "nyy",
+    "athletics": "ath", "oakland athletics": "ath", "a s": "ath",
+    "philadelphia phillies": "phi", "phillies": "phi", "philadelphia": "phi",
+    "pittsburgh pirates": "pit", "pirates": "pit", "pittsburgh": "pit",
+    "san diego padres": "sd", "padres": "sd", "san diego": "sd",
+    "san francisco giants": "sf", "giants": "sf", "san francisco": "sf",
+    "seattle mariners": "sea", "mariners": "sea", "seattle": "sea",
+    "st louis cardinals": "stl", "cardinals": "stl", "st louis": "stl",
+    "tampa bay rays": "tb", "rays": "tb", "tampa bay": "tb",
+    "texas rangers": "tex", "rangers": "tex", "texas": "tex",
+    "toronto blue jays": "tor", "blue jays": "tor", "toronto": "tor",
+    "washington nationals": "wsh", "nationals": "wsh", "washington": "wsh",
+}
+
+
+def _canonical_team_name(value: object) -> str:
     normalized = _normalize_name(value)
-    return bool(normalized and normalized in set(aliases))
+    return MLB_TEAM_ALIASES.get(normalized, normalized)
+
+
+def probability_to_american(price: object) -> int | None:
+    probability = _float_or_none(price)
+    if probability is None or probability <= 0 or probability >= 1:
+        return None
+    return round(-100 * probability / (1 - probability)) if probability >= 0.5 else round(100 * (1 - probability) / probability)
 
 
 def _league_matches(source: str, provider: str, sport_id: str) -> bool:

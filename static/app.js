@@ -3264,8 +3264,11 @@ function oddsPriceCell(option, provider) {
   if (!option || option.matchingConfidence !== "Exact" || !option.isAvailable) return `<span class="odds-price empty" data-provider="${provider}">—<small>No exact market</small></span>`;
   const liquidity = number(option.availableLiquidity);
   const price = number(option.contractPrice);
+  const american = number(option.americanOdds);
+  const contractAndAmerican = [price === null ? null : formatCents(price), american === null ? null : (american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`)].filter(Boolean).join(" / ");
+  const headline = ["polymarket", "kalshi"].includes(provider) ? (contractAndAmerican || option.displayOdds || "—") : (option.displayOdds || contractAndAmerican || "—");
   return `<a class="odds-price ${option.isBestPrice ? "best" : ""}" data-provider="${provider}" href="${escapeHtml(option.deepLink || "#")}" ${option.deepLink ? 'target="_blank" rel="noopener noreferrer"' : ""}>
-    <strong>${escapeHtml(option.displayOdds || "—")}</strong><small>${price === null ? "Live" : formatCents(price)}${liquidity === null ? "" : ` · $${Math.round(liquidity).toLocaleString()}`}</small>
+    <strong>${escapeHtml(headline)}</strong><small>${liquidity === null ? "Live price" : `$${Math.round(liquidity).toLocaleString()} available`}</small>
   </a>`;
 }
 
@@ -3278,10 +3281,28 @@ function oddsRow(row) {
   const start = new Date(row.event_date_et || row.resolution_time || row.event_start_time || 0);
   return `<article class="odds-market-row" data-odds-id="${escapeHtml(id)}">
     <span class="odds-start"><b>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b><small>${Number.isNaN(start.getTime()) ? "" : start.toLocaleDateString([], {month:"short", day:"numeric"})}</small><button data-odds-star="${escapeHtml(id)}" class="${isFavorite ? "active" : ""}" aria-label="Favorite"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button></span>
-    <span class="odds-team"><strong>${escapeHtml(row.outcome || "Selection")}</strong><small>${escapeHtml(row.event_title || row.market_title || "Live event")} · ${escapeHtml(row.sports_market_type || "Market")}</small></span>
+    <span class="odds-team"><strong>${escapeHtml(oddsSelectionLabel(row))}</strong><small>${escapeHtml(row.event_title || row.market_title || "Live event")} · ${escapeHtml(oddsMarketLabel(row))}</small></span>
     ${oddsState.providers.map((provider, index) => oddsPriceCell(options[index], provider)).join("")}
     <span class="odds-best">${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>
   </article>`;
+}
+
+const mlbSportsbookNames = {"arizona diamondbacks":"Diamondbacks","atlanta braves":"Braves","baltimore orioles":"Orioles","boston red sox":"Red Sox","chicago cubs":"Cubs","chicago white sox":"White Sox","cincinnati reds":"Reds","cleveland guardians":"Guardians","colorado rockies":"Rockies","detroit tigers":"Tigers","houston astros":"Astros","kansas city royals":"Royals","los angeles angels":"Angels","los angeles dodgers":"Dodgers","miami marlins":"Marlins","milwaukee brewers":"Brewers","minnesota twins":"Twins","new york mets":"Mets","new york yankees":"Yankees","athletics":"Athletics","oakland athletics":"Athletics","philadelphia phillies":"Phillies","pittsburgh pirates":"Pirates","san diego padres":"Padres","san francisco giants":"Giants","seattle mariners":"Mariners","st. louis cardinals":"Cardinals","st louis cardinals":"Cardinals","tampa bay rays":"Rays","texas rangers":"Rangers","toronto blue jays":"Blue Jays","washington nationals":"Nationals"};
+
+function oddsSelectionLabel(row) {
+  const outcome = String(row.outcome || "Selection").trim();
+  const normalized = outcome.toLowerCase();
+  const kind = oddsMarketKind(row);
+  if (normalized === "yes" || normalized === "no") return normalized === "yes" ? "Yes" : "No";
+  const team = mlbSportsbookNames[normalized] || outcome;
+  if (kind === "moneyline") return `${team} ML`;
+  if (kind === "spread") return `${team} ${number(row.market_line) !== null && number(row.market_line) > 0 ? "+" : ""}${row.market_line ?? ""}`.trim();
+  if (kind === "game_total") return `${team} ${row.market_line ?? ""}`.trim();
+  return team;
+}
+
+function oddsMarketLabel(row) {
+  return ({moneyline:"Moneyline",spread:"Run Line",game_total:"Total",yes_no:"Yes / No"})[oddsMarketKind(row)] || String(row.sports_market_type || "Market");
 }
 
 function renderOddsScreen() {

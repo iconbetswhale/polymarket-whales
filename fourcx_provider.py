@@ -140,7 +140,7 @@ class FourCXProvider(ExecutionProvider):
         results: dict[str, ExecutionOption] = {}
         mapping_failures = 0
         for trade in canonical:
-            confidence, market = _match_exact_trade(trade, cache.index)
+            confidence, market = _match_exact_trade(trade, cache.index, allow_same_day=True)
             if confidence is not MatchConfidence.EXACT or market is None:
                 if confidence is MatchConfidence.PROBABLE:
                     mapping_failures += 1
@@ -189,7 +189,7 @@ class FourCXProvider(ExecutionProvider):
             return {}
         results: dict[str, dict] = {}
         for trade in canonical:
-            confidence, matched = _match_exact_trade(trade, cache.index)
+            confidence, matched = _match_exact_trade(trade, cache.index, allow_same_day=True)
             if confidence is MatchConfidence.PROBABLE:
                 results[trade.trade_id] = {
                     "provider": self.provider_key, "status": "UNAVAILABLE",
@@ -381,7 +381,7 @@ def _participant_names(row: dict) -> tuple[str, ...]:
 
 def _fourcx_period(value: object) -> str | None:
     name = str(value or "").strip().lower()
-    return {"full time": "game", "game": "game", "first half": "1h", "1st half": "1h", "second half": "2h", "2nd half": "2h", "first quarter": "1q", "1st quarter": "1q", "first 5 innings": "1h"}.get(name)
+    return {"full time": "game", "full game": "game", "game": "game", "match": "game", "first half": "1h", "1st half": "1h", "second half": "2h", "2nd half": "2h", "first quarter": "1q", "1st quarter": "1q", "first 5 innings": "1h"}.get(name)
 
 
 def _int_odds(value: object) -> int | None:

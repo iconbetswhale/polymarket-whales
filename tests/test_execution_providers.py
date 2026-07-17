@@ -12,8 +12,13 @@ from execution_providers import (
     NoVIGProvider,
     PolymarketProvider,
     ProphetXProvider,
+    ProviderMarketIndex,
     ProviderHealthStatus,
+    _match_exact_trade,
+    american_to_probability,
+    canonicalize_trade,
 )
+from kalshi_provider import _normalize_market
 
 
 class FakeResponse:
@@ -180,8 +185,42 @@ def test_polymarket_provider_preserves_existing_price_and_link() -> None:
 
     assert option.provider_name == "Polymarket"
     assert option.display_odds == "50.7\u00a2"
+    assert option.contract_price == 0.507
+    assert option.american_odds == -103
     assert option.deep_link == "https://polymarket.com/event/yankees-red-sox"
     assert option.matching_confidence is MatchConfidence.EXACT
+
+
+def test_positive_american_odds_convert_to_correct_contract_probability() -> None:
+    assert american_to_probability(104) == pytest.approx(100 / 204)
+    assert american_to_probability(-122) == pytest.approx(122 / 222)
+
+
+def test_kalshi_abbreviated_mlb_binary_maps_to_team_moneyline_once() -> None:
+    markets = _normalize_market(
+        {
+            "ticker": "KXMLBGAME-26JUL171910LADNYY-LAD",
+            "event_ticker": "KXMLBGAME-26JUL171910LADNYY",
+            "title": "Los Angeles D vs New York Y Winner?",
+            "yes_sub_title": "Los Angeles D",
+            "occurrence_datetime": "2026-07-17T23:00:00Z",
+            "yes_ask_dollars": "0.4100",
+            "yes_ask_size_fp": "250",
+            "status": "open",
+        },
+        "BASEBALL",
+        "MLB",
+    )
+    source = canonicalize_trade(trade(
+        event_title="Los Angeles Dodgers vs New York Yankees",
+        outcome="Los Angeles Dodgers",
+        event_date_et="2026-07-17T19:00:00-04:00",
+    ))
+    confidence, matched = _match_exact_trade(source, ProviderMarketIndex(markets))
+
+    assert len(markets) == 1
+    assert confidence is MatchConfidence.EXACT
+    assert matched.side_id == "away"
 
 
 def test_registry_returns_ordered_generic_provider_contract() -> None:
