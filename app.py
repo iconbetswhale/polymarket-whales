@@ -53,6 +53,7 @@ from learning_system import (
     violation_analytics,
 )
 from measurement_foundation import stable_hash
+from odds_schedule import PolymarketScheduleFeed
 from completion_system import explainability_trace
 from sharp_tracking import (
     sharp_snapshot_from_fill,
@@ -435,6 +436,7 @@ def create_app(start_background: bool = True) -> Flask:
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
     app.extensions["execution_providers"] = execution_providers
+    app.extensions["polymarket_schedule_feed"] = PolymarketScheduleFeed(timeout=settings.request_timeout)
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
     app.jinja_env.globals["asset_version"] = (
@@ -940,21 +942,26 @@ def create_app(start_background: bool = True) -> Flask:
     def api_odds_screen():
         """Live read-only odds universe, independent of recommendation eligibility."""
         snapshot = tracker.get_snapshot()
-        date_range = request.args.get("date_range", "today")
-        if date_range not in {"today", "next24", "next7"}:
-            return jsonify({"error": "Unsupported date range"}), 400
         now = datetime.now(timezone.utc)
-        maximum = now + timedelta(days=7 if date_range == "next7" else 1)
-        if date_range == "today":
-            eastern_now = now.astimezone(EASTERN)
-            maximum = eastern_now.replace(hour=23, minute=59, second=59).astimezone(timezone.utc)
+        eastern_today = now.astimezone(EASTERN).date()
+        allowed_days = {eastern_today, eastern_today + timedelta(days=1)}
 
         unique: dict[tuple, dict] = {}
+        try:
+            schedule_rows = app.extensions["polymarket_schedule_feed"].today_and_tomorrow(now)
+        except Exception as exc:
+            LOGGER.warning("Polymarket schedule feed unavailable: %s", exc)
+            schedule_rows = []
+        for row in schedule_rows:
+            unique[(row["id"],)] = row
+
         for source in snapshot.get("positions", []):
             if not source.get("is_sports") or source.get("market_closed") or source.get("event_closed"):
                 continue
             starts_at = _parse_datetime(source.get("resolution_time"))
-            if starts_at and (starts_at < now - timedelta(hours=6) or starts_at > maximum):
+            if starts_at and starts_at.astimezone(EASTERN).date() not in allowed_days:
+                continue
+            if str(source.get("canonical_league_id") or source.get("league") or "").lower() == "mlb":
                 continue
             key = (
                 str(source.get("condition_id") or source.get("market_id") or source.get("event_id") or ""),
@@ -967,6 +974,7 @@ def create_app(start_background: bool = True) -> Flask:
             row = dict(source)
             row["id"] = "odds::" + stable_hash(key)[:24]
             row["event_date_et"] = source.get("resolution_time")
+            row["schedule_date_et"] = starts_at.astimezone(EASTERN).date().isoformat() if starts_at else ""
             executable = source.get("executable_ask_price")
             current = executable if executable is not None else source.get("current_price")
             row["card"] = {"current_actionable_price": current, "recommended_amount": 0}
@@ -976,15 +984,15 @@ def create_app(start_background: bool = True) -> Flask:
 
         rows = sorted(
             unique.values(),
-            key=lambda row: str(row.get("resolution_time") or "~"),
-        )[:250]
+            key=lambda row: (str(row.get("schedule_date_et") or "~"), str(row.get("resolution_time") or "~")),
+        )[:500]
         execution_providers.attach_options(rows)
         return jsonify(
             {
                 "data": rows,
-                "pagination": {"total": len(rows), "page": 1, "per_page": 250},
+                "pagination": {"total": len(rows), "page": 1, "per_page": 500},
                 "status": snapshot["status"],
-                "source": "active_sports_positions",
+                "source": "polymarket_schedule_and_active_sports_positions",
             }
         )
 
