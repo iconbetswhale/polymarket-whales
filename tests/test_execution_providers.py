@@ -116,6 +116,7 @@ def trade(**overrides) -> dict:
         "recommendation": {"current_user_entry_price": 0.507},
         "card": {"current_actionable_price": 0.507},
         "orderbook_summary": {"timestamp": "2026-07-14T20:00:00Z"},
+        "polymarket_available_liquidity": 880.25,
     }
     value.update(overrides)
     return value
@@ -187,6 +188,7 @@ def test_polymarket_provider_preserves_existing_price_and_link() -> None:
     assert option.display_odds == "50.7\u00a2"
     assert option.contract_price == 0.507
     assert option.american_odds == -103
+    assert option.available_liquidity == 880.25
     assert option.deep_link == "https://polymarket.com/event/yankees-red-sox"
     assert option.matching_confidence is MatchConfidence.EXACT
 

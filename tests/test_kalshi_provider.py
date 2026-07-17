@@ -19,10 +19,10 @@ def market():
     }
 
 
-def test_public_market_normalizes_both_executable_sides():
+def test_public_market_normalizes_direct_yes_moneyline_only():
     rows = _normalize_market(market(), "BASEBALL", "MLB")
-    assert len(rows) == 2
-    assert {row.side_id for row in rows} == {"home", "away"}
+    assert len(rows) == 1
+    assert {row.side_id for row in rows} == {"home"}
     assert all(row.is_available for row in rows)
 
 

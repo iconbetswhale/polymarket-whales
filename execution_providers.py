@@ -152,6 +152,7 @@ class PolymarketProvider(ExecutionProvider):
                 american_odds=american_odds,
                 contract_price=current_price,
                 effective_price=current_price,
+                available_liquidity=_float_or_none(trade.get("polymarket_available_liquidity")),
             )
         return options
 

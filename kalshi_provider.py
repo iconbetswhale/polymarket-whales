@@ -55,8 +55,8 @@ class KalshiProvider(ExecutionProvider):
             if confidence is not MatchConfidence.EXACT or market is None:
                 continue
             stake = _stake(originals.get(trade.trade_id) or {})
-            liquidity = _liquidity_from_selection(market.selection_id)
             price = _price_from_selection(market.selection_id)
+            liquidity = _liquidity_from_selection(market.selection_id) * price if price is not None else 0
             fillable = liquidity >= stake if stake > 0 else liquidity > 0
             available = bool(market.is_available and price is not None and fillable)
             result[trade.trade_id] = ExecutionOption(

@@ -986,6 +986,32 @@ def create_app(start_background: bool = True) -> Flask:
             unique.values(),
             key=lambda row: (str(row.get("schedule_date_et") or "~"), str(row.get("resolution_time") or "~")),
         )[:500]
+        token_ids = [str(row.get("clob_token_id") or "") for row in rows if row.get("clob_token_id")]
+        try:
+            live_books = tracker.client.get_order_books(token_ids) if token_ids else {}
+        except Exception as exc:
+            LOGGER.warning("Live odds-screen CLOB depth unavailable: %s", exc)
+            live_books = {}
+        for row in rows:
+            book = live_books.get(str(row.get("clob_token_id") or "")) or {}
+            asks = book.get("asks") or []
+            if not asks:
+                continue
+            try:
+                best_ask = float(asks[0].get("price"))
+                top_size = sum(
+                    float(level.get("size") or 0)
+                    for level in asks
+                    if abs(float(level.get("price") or 0) - best_ask) < 1e-9
+                )
+            except (TypeError, ValueError):
+                continue
+            row["executable_ask_price"] = best_ask
+            row["current_price"] = best_ask
+            row["polymarket_available_liquidity"] = round(top_size * best_ask, 2)
+            row["orderbook_summary"] = {"timestamp": book.get("timestamp")}
+            row["card"]["current_actionable_price"] = best_ask
+            row["recommendation"]["current_user_entry_price"] = best_ask
         execution_providers.attach_options(rows)
         return jsonify(
             {
