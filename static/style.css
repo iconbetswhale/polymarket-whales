@@ -7938,6 +7938,10 @@ body[data-page="trades"] {
   background: rgba(7, 12, 15, 0.98);
 }
 
+.execution-toolbar--best { flex-direction:column; align-items:stretch; gap:4px; }
+.execution-toolbar--best .line-shop-status { display:flex; align-items:center; justify-content:center; gap:4px; color:#79a990; font-size:8px; line-height:1.2; white-space:nowrap; }
+.execution-toolbar--best .line-shop-status i { color:#5fd479; font-size:10px; }
+
 .trade-detail {
   border-color: rgba(19, 183, 237, 0.7);
   background: #070b0e;

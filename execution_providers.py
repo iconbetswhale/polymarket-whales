@@ -122,8 +122,11 @@ class PolymarketProvider(ExecutionProvider):
                 continue
             recommendation = trade.get("recommendation") or {}
             card = trade.get("card") or {}
+            live_quote = trade.get("execution_quote") or {}
             current_price = _float_or_none(
-                card.get("current_actionable_price")
+                live_quote.get("best_ask")
+                if live_quote.get("best_ask") is not None
+                else card.get("current_actionable_price")
                 if card.get("current_actionable_price") is not None
                 else recommendation.get("current_user_entry_price")
             )
@@ -145,14 +148,16 @@ class PolymarketProvider(ExecutionProvider):
                 display_odds=display_odds,
                 deep_link=deep_link,
                 is_available=display_odds != "Unavailable",
-                last_updated=(trade.get("orderbook_summary") or {}).get("timestamp"),
+                last_updated=live_quote.get("timestamp") or (trade.get("orderbook_summary") or {}).get("timestamp"),
                 matching_confidence=MatchConfidence.EXACT,
                 logo_url=POLYMARKET_LOGO_URL,
                 tooltip="Polymarket Current Best Price",
                 american_odds=american_odds,
                 contract_price=current_price,
-                effective_price=current_price,
-                available_liquidity=_float_or_none(trade.get("polymarket_available_liquidity")),
+                effective_price=_float_or_none(live_quote.get("effective_price")) or current_price,
+                available_liquidity=_float_or_none(live_quote.get("available_liquidity")) if live_quote else _float_or_none(trade.get("polymarket_available_liquidity")),
+                can_fill_recommended_stake=live_quote.get("can_fill_recommended_stake") if live_quote else None,
+                quote_status="OPEN" if live_quote.get("can_fill_recommended_stake") is not False else "INSUFFICIENT_DEPTH",
             )
         return options
 

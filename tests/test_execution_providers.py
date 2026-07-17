@@ -189,6 +189,23 @@ def test_polymarket_provider_preserves_existing_price_and_link() -> None:
     assert option.contract_price == 0.507
     assert option.american_odds == -103
     assert option.available_liquidity == 880.25
+
+
+def test_polymarket_provider_prefers_live_line_shop_quote_without_resizing_trade() -> None:
+    value = trade(execution_quote={
+        "best_ask": 0.49,
+        "effective_price": 0.495,
+        "available_liquidity": 125.0,
+        "can_fill_recommended_stake": True,
+        "timestamp": "2026-07-17T12:00:00Z",
+    })
+    option = PolymarketProvider().options_for_trades([value])["trade-1"]
+
+    assert option.contract_price == 0.49
+    assert option.effective_price == 0.495
+    assert option.available_liquidity == 125.0
+    assert option.can_fill_recommended_stake is True
+    assert value["recommendation"]["current_user_entry_price"] == 0.507
     assert option.deep_link == "https://polymarket.com/event/yankees-red-sox"
     assert option.matching_confidence is MatchConfidence.EXACT
 

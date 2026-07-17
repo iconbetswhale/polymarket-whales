@@ -679,14 +679,17 @@ function executionOptionButton(trade, option) {
   if (option.matchingConfidence !== "Exact") return "";
   const providerName = option.providerName || "Exchange";
   const providerKey = String(option.providerKey || "provider").toLowerCase();
-  const displayOdds = option.isAvailable ? option.displayOdds : "Unavailable";
+  const contractPrice = number(option.contractPrice);
+  const americanOdds = number(option.americanOdds);
+  const dualOdds = [contractPrice === null ? null : formatCents(contractPrice), americanOdds === null ? null : (americanOdds > 0 ? `+${Math.round(americanOdds)}` : `${Math.round(americanOdds)}`)].filter(Boolean).join(" / ");
+  const displayOdds = option.isAvailable ? (["polymarket", "kalshi"].includes(providerKey) ? (dualOdds || option.displayOdds) : option.displayOdds) : "Unavailable";
   const movement = option.priceMovement || "";
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
   const bestClass = option.isBestPrice ? " best-execution-price" : "";
   const classes = `execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement}`.trim();
   const tooltip = option.tooltip || `${providerName} Current Best Price`;
   const plan = trade.recommendation?.execution_plan || {};
-  const effective = number(plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
+  const effective = number(option.effectivePrice ?? option.contractPrice ?? plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
   const maximum = number(plan.maximum_average_price);
   const aboveMaximum = effective !== null && maximum !== null && effective > maximum;
   const content = `
@@ -706,7 +709,13 @@ function executionOptionButton(trade, option) {
 
 function executionToolbar(trade) {
   const options = (trade.executionOptions || []).filter((option) => option.matchingConfidence === "Exact");
-  return `<span class="execution-toolbar" aria-label="Execution options">${options.map((option) => executionOptionButton(trade, option)).join("")}</span>`;
+  const executable = options.filter(option => option.isAvailable && option.deepLink && option.canFillRecommendedStake !== false);
+  const selected = executable.find(option => option.isBestPrice)
+    || executable.find(option => String(option.providerKey || "").toLowerCase() === "polymarket")
+    || executable[0]
+    || options.find(option => String(option.providerKey || "").toLowerCase() === "polymarket")
+    || options[0];
+  return `<span class="execution-toolbar execution-toolbar--best" aria-label="Best line-shopped execution option">${selected ? executionOptionButton(trade, selected) : ""}<small class="line-shop-status"><i class="ph ph-check-circle"></i> Best exact price across live feeds</small></span>`;
 }
 
 function applyClientTradeFilters(trades, filters) {
