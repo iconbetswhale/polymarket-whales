@@ -3322,7 +3322,7 @@ function oddsPriceCell(option, provider) {
   const contractAndAmerican = [price === null ? null : formatCents(price), american === null ? null : (american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`)].filter(Boolean).join(" / ");
   const headline = ["polymarket", "kalshi"].includes(provider) ? (contractAndAmerican || option.displayOdds || "—") : (option.displayOdds || contractAndAmerican || "—");
   return `<a class="odds-price ${option.isBestPrice ? "best" : ""}" data-provider="${provider}" href="${escapeHtml(option.deepLink || "#")}" ${option.deepLink ? 'target="_blank" rel="noopener noreferrer"' : ""}>
-    <strong>${escapeHtml(headline)}</strong><small>${liquidity === null ? "Depth unavailable" : `$${Math.round(liquidity).toLocaleString()} at this price`}</small>
+    <strong>${escapeHtml(headline)}</strong><small>${liquidity === null ? "Depth unavailable" : `$${Math.round(liquidity).toLocaleString()}`}</small>
   </a>`;
 }
 
