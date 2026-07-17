@@ -8052,6 +8052,12 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 .odds-grid-head>span { display:flex; align-items:center; justify-content:center; gap:7px; border-right:1px solid #22343e; color:#78909c; font-size:9px; font-weight:700; letter-spacing:.08em; }
 .odds-grid-head>span:nth-child(2) { justify-content:flex-start; padding-left:14px; }
 .book-head img { width:21px; height:21px; border-radius:5px; object-fit:contain; background:#0e1b22; }
+.book-head[data-book-column] { position:relative; cursor:grab; user-select:none; transition:opacity .15s ease,background .15s ease,box-shadow .15s ease; }
+.book-head[data-book-column]:active { cursor:grabbing; }
+.book-head[data-book-column]:hover { background:#10232d; color:#eaf5f9; }
+.book-head[data-book-column].dragging { opacity:.38; }
+.book-head[data-book-column].drop-before { box-shadow:inset 3px 0 #06b9ef; background:#12303d; }
+.book-head[data-book-column].drop-after { box-shadow:inset -3px 0 #06b9ef; background:#12303d; }
 .odds-market-row { min-height:72px; border-bottom:1px solid #2a3c47; background:#152029; }
 .odds-market-row:nth-child(even) { background:#1b2a35; }
 .odds-market-row>span,.odds-market-row>a { border-right:1px solid #2a414e; }
