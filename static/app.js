@@ -3254,7 +3254,7 @@ function bindIntelligence() {
   loadIntelligence().catch(()=>{});
 }
 
-const oddsState = { rows: [], sport: "", kind: "", search: "", favoritesOnly: false, loading: false, timer: null };
+const oddsState = { rows: [], sport: "", league: "", kind: "", search: "", favoritesOnly: false, providers: ["polymarket", "kalshi", "4cx"], loading: false, timer: null };
 
 function oddsProvider(row, key) {
   return (row.executionOptions || []).find(option => String(option.providerKey || "").toLowerCase() === key);
@@ -3273,13 +3273,13 @@ function oddsRow(row) {
   const id = String(row.id || "");
   const favorites = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]");
   const isFavorite = favorites.includes(id);
-  const options = [oddsProvider(row, "polymarket"), oddsProvider(row, "kalshi"), oddsProvider(row, "4cx")];
+  const options = oddsState.providers.map(provider => oddsProvider(row, provider));
   const best = options.find(option => option?.isBestPrice && option.isAvailable);
   const start = new Date(row.event_date_et || row.resolution_time || row.event_start_time || 0);
   return `<article class="odds-market-row" data-odds-id="${escapeHtml(id)}">
     <span class="odds-start"><b>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b><small>${Number.isNaN(start.getTime()) ? "" : start.toLocaleDateString([], {month:"short", day:"numeric"})}</small><button data-odds-star="${escapeHtml(id)}" class="${isFavorite ? "active" : ""}" aria-label="Favorite"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button></span>
     <span class="odds-team"><strong>${escapeHtml(row.outcome || "Selection")}</strong><small>${escapeHtml(row.event_title || row.market_title || "Live event")} · ${escapeHtml(row.sports_market_type || "Market")}</small></span>
-    ${oddsPriceCell(options[0], "polymarket")}${oddsPriceCell(options[1], "kalshi")}${oddsPriceCell(options[2], "4cx")}
+    ${oddsState.providers.map((provider, index) => oddsPriceCell(options[index], provider)).join("")}
     <span class="odds-best">${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>
   </article>`;
 }
@@ -3287,14 +3287,45 @@ function oddsRow(row) {
 function renderOddsScreen() {
   const favorites = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]");
   const rows = oddsState.rows.filter(row => {
-    if (oddsState.sport && String(row.category || row.canonical_sport_id || "").toLowerCase() !== oddsState.sport.toLowerCase()) return false;
-    if (oddsState.kind && String(row.sports_market_type || "").toLowerCase().replaceAll(" ", "_") !== oddsState.kind) return false;
+    if (oddsState.sport && String(row.canonical_sport_id || row.category || "").toLowerCase() !== oddsState.sport.toLowerCase()) return false;
+    if (oddsState.league && String(row.canonical_league_id || row.league || "").toLowerCase() !== oddsState.league.toLowerCase()) return false;
+    if (oddsState.kind && oddsMarketKind(row) !== oddsState.kind) return false;
     if (oddsState.favoritesOnly && !favorites.includes(String(row.id || ""))) return false;
     const text = `${row.outcome || ""} ${row.event_title || ""} ${row.market_title || ""}`.toLowerCase();
     return !oddsState.search || text.includes(oddsState.search);
   });
   const grid = document.getElementById("odds-grid");
+  document.querySelector(".odds-screen-page")?.style.setProperty("--book-count", oddsState.providers.length);
+  document.querySelectorAll("[data-book-column]").forEach(column => { column.hidden = !oddsState.providers.includes(column.dataset.bookColumn); });
   grid.innerHTML = rows.length ? rows.map(oddsRow).join("") : `<div class="odds-loading">No exact markets match these filters.</div>`;
+}
+
+function oddsMarketKind(row) {
+  const raw = `${row.sports_market_type || ""} ${row.market_title || ""}`.toLowerCase();
+  if (raw.includes("first half") || raw.includes("1st half")) {
+    if (raw.includes("moneyline") || raw.includes("winner")) return "first_half_moneyline";
+    if (raw.includes("spread") || raw.includes("handicap")) return "first_half_spread";
+    if (raw.includes("total")) return "first_half_total";
+  }
+  if (raw.includes("first period") || raw.includes("1st period")) return raw.includes("total") ? "first_period_total" : "first_period_moneyline";
+  if (raw.includes("team total")) return "team_total";
+  if (raw.includes("spread") || raw.includes("run line") || raw.includes("handicap")) return "spread";
+  if (raw.includes("total")) return "game_total";
+  if (raw.includes("moneyline") || raw.includes("winner")) return "moneyline";
+  if (raw.includes("yes") || raw.includes("no")) return "yes_no";
+  return String(row.sports_market_type || "").toLowerCase().replaceAll(" ", "_");
+}
+
+function closeOddsMenus(except = null) {
+  document.querySelectorAll("#odds-league-menu,#odds-market-menu,#odds-books-menu").forEach(menu => { if (menu !== except) menu.hidden = true; });
+  document.querySelectorAll("#odds-league-trigger,#odds-market-trigger,#odds-books-trigger").forEach(trigger => trigger.setAttribute("aria-expanded", String(except && trigger.getAttribute("aria-controls") === except.id)));
+}
+
+function toggleOddsMenu(trigger, menu) {
+  const opening = menu.hidden;
+  closeOddsMenus(opening ? menu : null);
+  menu.hidden = !opening;
+  trigger.setAttribute("aria-expanded", String(opening));
 }
 
 async function loadOddsScreen() {
@@ -3305,11 +3336,6 @@ async function loadOddsScreen() {
     const range = document.getElementById("odds-window")?.value || "today";
     const payload = await fetchJson(`/api/trades-to-play?date_range=${encodeURIComponent(range)}&per_page=100`);
     oddsState.rows = payload.data || [];
-    const sports = [...new Set(oddsState.rows.map(row => row.category || row.canonical_sport_id).filter(Boolean))].sort();
-    const select = document.getElementById("odds-sport");
-    const current = select.value;
-    select.innerHTML = `<option value="">All sports</option>${sports.map(sport => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`).join("")}`;
-    select.value = current;
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;
     document.getElementById("odds-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
     renderOddsScreen();
@@ -3320,14 +3346,30 @@ async function loadOddsScreen() {
 }
 
 function bindOddsScreen() {
-  document.getElementById("odds-sport").addEventListener("change", event => { oddsState.sport = event.target.value; renderOddsScreen(); });
-  document.getElementById("odds-market").addEventListener("change", event => { oddsState.kind = event.target.value; renderOddsScreen(); });
+  const leagueTrigger = document.getElementById("odds-league-trigger");
+  const leagueMenu = document.getElementById("odds-league-menu");
+  const marketTrigger = document.getElementById("odds-market-trigger");
+  const marketMenu = document.getElementById("odds-market-menu");
+  const booksTrigger = document.getElementById("odds-books-trigger");
+  const booksMenu = document.getElementById("odds-books-menu");
+  leagueTrigger.addEventListener("click", () => toggleOddsMenu(leagueTrigger, leagueMenu));
+  marketTrigger.addEventListener("click", () => toggleOddsMenu(marketTrigger, marketMenu));
+  booksTrigger.addEventListener("click", () => toggleOddsMenu(booksTrigger, booksMenu));
+  document.querySelectorAll("[data-close-menu]").forEach(button => button.addEventListener("click", () => closeOddsMenus()));
+  leagueMenu.addEventListener("click", event => { const choice = event.target.closest("[data-odds-sport]"); if (!choice) return; oddsState.sport = choice.dataset.oddsSport || ""; oddsState.league = choice.dataset.oddsLeague || ""; document.getElementById("odds-league-label").textContent = oddsState.league || oddsState.sport || "All Leagues"; closeOddsMenus(); renderOddsScreen(); });
+  marketMenu.addEventListener("click", event => { const choice = event.target.closest("[data-market-kind]"); if (!choice) return; oddsState.kind = choice.dataset.marketKind || ""; document.getElementById("odds-market-label").textContent = choice.childNodes[0].textContent.trim() || "All Markets"; closeOddsMenus(); document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.toggle("active", item.dataset.oddsKind === oddsState.kind)); renderOddsScreen(); });
   document.getElementById("odds-window").addEventListener("change", loadOddsScreen);
   document.getElementById("odds-search").addEventListener("input", event => { oddsState.search = event.target.value.trim().toLowerCase(); renderOddsScreen(); });
   document.getElementById("odds-refresh").addEventListener("click", loadOddsScreen);
-  document.querySelectorAll("[data-odds-kind]").forEach(button => button.addEventListener("click", () => { document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.toggle("active", item === button)); oddsState.kind = button.dataset.oddsKind; document.getElementById("odds-market").value = oddsState.kind; renderOddsScreen(); }));
+  document.querySelectorAll("[data-odds-kind]").forEach(button => button.addEventListener("click", () => { document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.toggle("active", item === button)); oddsState.kind = button.dataset.oddsKind; document.getElementById("odds-market-label").textContent = button.textContent.trim(); renderOddsScreen(); }));
+  document.querySelector("[data-odds-all]").addEventListener("click", () => { oddsState.sport = ""; oddsState.league = ""; oddsState.kind = ""; oddsState.favoritesOnly = false; document.getElementById("odds-league-label").textContent = "All Leagues"; document.getElementById("odds-market-label").textContent = "All Markets"; document.querySelector("[data-odds-favorite]").classList.remove("active"); renderOddsScreen(); });
   document.querySelector("[data-odds-favorite]").addEventListener("click", event => { oddsState.favoritesOnly = !oddsState.favoritesOnly; event.currentTarget.classList.toggle("active", oddsState.favoritesOnly); renderOddsScreen(); });
   document.getElementById("odds-grid").addEventListener("click", event => { const star = event.target.closest("[data-odds-star]"); if (!star) return; event.preventDefault(); const values = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]"); const next = values.includes(star.dataset.oddsStar) ? values.filter(id => id !== star.dataset.oddsStar) : [...values, star.dataset.oddsStar]; localStorage.setItem("iconbets_odds_favorites", JSON.stringify(next)); renderOddsScreen(); });
+  document.getElementById("odds-books-all").addEventListener("click", () => { booksMenu.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = true; }); document.getElementById("odds-books-count").textContent = "3 selected"; });
+  booksMenu.addEventListener("change", () => { const count = booksMenu.querySelectorAll('input[type="checkbox"]:checked').length; document.getElementById("odds-books-count").textContent = `${count} selected`; });
+  document.getElementById("odds-books-search").addEventListener("input", event => { const query = event.target.value.trim().toLowerCase(); booksMenu.querySelectorAll(".odds-book-list label").forEach(label => { label.hidden = query && !label.textContent.toLowerCase().includes(query); }); });
+  document.getElementById("odds-books-apply").addEventListener("click", () => { const selected = [...booksMenu.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value); if (!selected.length) return showToast("Select at least one exchange", "error"); oddsState.providers = selected; closeOddsMenus(); renderOddsScreen(); });
+  document.addEventListener("click", event => { if (!event.target.closest(".odds-menu-shell")) closeOddsMenus(); });
   loadOddsScreen();
   oddsState.timer = window.setInterval(loadOddsScreen, 2000);
 }
