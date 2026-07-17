@@ -58,10 +58,10 @@
   <div class="odds-grid-shell">
     <div class="odds-grid-head">
       <span>START</span><span>TEAM / SELECTION</span>
-      <span class="book-head poly" data-book-column="polymarket" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Polymarket column. Drag to reorder."><img src="https://polymarket.com/icons/favicon-32x32.png" alt="Polymarket"><small>POLYMARKET</small></span>
-      <span class="book-head kalshi" data-book-column="kalshi" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Kalshi column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="Kalshi"><small>KALSHI</small></span>
-      <span class="book-head fourcx" data-book-column="4cx" draggable="true" title="Drag to reorder sportsbook columns" aria-label="4CX column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="4CX"><small>4CX</small></span>
-      <span data-odds-best-column>BEST</span>
+      <span class="book-head poly" data-odds-column="polymarket" data-book-column="polymarket" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Polymarket column. Drag to reorder."><img src="https://polymarket.com/icons/favicon-32x32.png" alt="Polymarket"><small>POLYMARKET</small></span>
+      <span class="book-head kalshi" data-odds-column="kalshi" data-book-column="kalshi" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Kalshi column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="Kalshi"><small>KALSHI</small></span>
+      <span class="book-head fourcx" data-odds-column="4cx" data-book-column="4cx" draggable="true" title="Drag to reorder sportsbook columns" aria-label="4CX column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="4CX"><small>4CX</small></span>
+      <span class="book-head best-column-head" data-odds-column="best" draggable="true" title="Drag to reorder the best-price column" aria-label="Best price column. Drag to reorder."><i class="ph ph-trophy"></i><small>BEST</small></span>
     </div>
     <div id="odds-grid" class="odds-grid-body" aria-live="polite"><div class="odds-loading">Loading exact live markets…</div></div>
   </div>

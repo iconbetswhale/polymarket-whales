@@ -3280,28 +3280,28 @@ function bindIntelligence() {
 }
 
 const ODDS_PROVIDER_KEYS = ["polymarket", "kalshi", "4cx"];
+const ODDS_COLUMN_KEYS = [...ODDS_PROVIDER_KEYS, "best"];
 const ODDS_PROVIDER_ORDER_KEY = "iconbets_odds_provider_order";
 
 function savedOddsProviderOrder() {
   try {
     const saved = JSON.parse(localStorage.getItem(ODDS_PROVIDER_ORDER_KEY) || "[]");
-    const valid = Array.isArray(saved) ? saved.filter((key, index) => ODDS_PROVIDER_KEYS.includes(key) && saved.indexOf(key) === index) : [];
-    return [...valid, ...ODDS_PROVIDER_KEYS.filter(key => !valid.includes(key))];
+    const valid = Array.isArray(saved) ? saved.filter((key, index) => ODDS_COLUMN_KEYS.includes(key) && saved.indexOf(key) === index) : [];
+    return [...valid, ...ODDS_COLUMN_KEYS.filter(key => !valid.includes(key))];
   } catch (_) {
-    return [...ODDS_PROVIDER_KEYS];
+    return [...ODDS_COLUMN_KEYS];
   }
 }
 
 const initialOddsProviderOrder = savedOddsProviderOrder();
-const oddsState = { rows: [], sport: "", league: "", kind: "", search: "", favoritesOnly: false, providerOrder: initialOddsProviderOrder, providers: [...initialOddsProviderOrder], draggedProvider: "", loading: false, timer: null };
+const oddsState = { rows: [], sport: "", league: "", kind: "", search: "", favoritesOnly: false, providerOrder: initialOddsProviderOrder, providers: initialOddsProviderOrder.filter(key => ODDS_PROVIDER_KEYS.includes(key)), draggedProvider: "", loading: false, timer: null };
 
 function applyOddsProviderOrder() {
   const header = document.querySelector(".odds-grid-head");
-  const bestColumn = header?.querySelector("[data-odds-best-column]");
-  if (!header || !bestColumn) return;
+  if (!header) return;
   oddsState.providerOrder.forEach(key => {
-    const column = header.querySelector(`[data-book-column="${key}"]`);
-    if (column) header.insertBefore(column, bestColumn);
+    const column = header.querySelector(`[data-odds-column="${key}"]`);
+    if (column) header.appendChild(column);
   });
   header.querySelectorAll("[data-book-column]").forEach(column => { column.hidden = !oddsState.providers.includes(column.dataset.bookColumn); });
 }
@@ -3321,7 +3321,7 @@ function oddsPriceCell(option, provider) {
   const american = number(option.americanOdds);
   const contractAndAmerican = [price === null ? null : formatCents(price), american === null ? null : (american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`)].filter(Boolean).join(" / ");
   const headline = ["polymarket", "kalshi"].includes(provider) ? (contractAndAmerican || option.displayOdds || "—") : (option.displayOdds || contractAndAmerican || "—");
-  return `<a class="odds-price ${option.isBestPrice ? "best" : ""}" data-provider="${provider}" href="${escapeHtml(option.deepLink || "#")}" ${option.deepLink ? 'target="_blank" rel="noopener noreferrer"' : ""}>
+  return `<a class="odds-price" data-provider="${provider}" href="${escapeHtml(option.deepLink || "#")}" ${option.deepLink ? 'target="_blank" rel="noopener noreferrer"' : ""}>
     <strong>${escapeHtml(headline)}</strong><small>${liquidity === null ? "Depth unavailable" : `$${Math.round(liquidity).toLocaleString()}`}</small>
   </a>`;
 }
@@ -3336,8 +3336,7 @@ function oddsGameRow(inputRows) {
   return `<article class="odds-market-row" data-odds-id="${escapeHtml(id)}">
     <span class="odds-start"><b>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b><small>${Number.isNaN(start.getTime()) ? "" : start.toLocaleDateString([], {month:"short", day:"numeric"})}</small><button data-odds-star="${escapeHtml(id)}" class="${isFavorite ? "active" : ""}" aria-label="Favorite"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button></span>
     <span class="odds-team odds-team-stack">${rows.map(row => `<span class="odds-team-selection"><strong>${escapeHtml(oddsSelectionLabel(row))}</strong><small>${escapeHtml(oddsMarketLabel(row))}</small></span>`).join("")}</span>
-    ${oddsState.providers.map(provider => `<span class="odds-price-stack" data-provider-stack="${provider}">${rows.map(row => oddsPriceCell(oddsProvider(row, provider), provider)).join("")}</span>`).join("")}
-    <span class="odds-best odds-best-stack">${rows.map(oddsBestLine).join("")}</span>
+    ${oddsState.providerOrder.filter(key => key === "best" || oddsState.providers.includes(key)).map(key => key === "best" ? `<span class="odds-best odds-best-stack" data-provider-stack="best">${rows.map(oddsBestLine).join("")}</span>` : `<span class="odds-price-stack" data-provider-stack="${key}">${rows.map(row => oddsPriceCell(oddsProvider(row, key), key)).join("")}</span>`).join("")}
   </article>`;
 }
 
@@ -3390,7 +3389,7 @@ function renderOddsScreen() {
     return !oddsState.search || text.includes(oddsState.search);
   });
   const grid = document.getElementById("odds-grid");
-  document.querySelector(".odds-screen-page")?.style.setProperty("--book-count", oddsState.providers.length);
+  document.querySelector(".odds-screen-page")?.style.setProperty("--odds-column-count", oddsState.providers.length + 1);
   applyOddsProviderOrder();
   const groups = new Map();
   rows.forEach(row => {
@@ -3471,7 +3470,7 @@ function bindOddsScreen() {
   const marketMenu = document.getElementById("odds-market-menu");
   const booksTrigger = document.getElementById("odds-books-trigger");
   const booksMenu = document.getElementById("odds-books-menu");
-  const bookHeaders = document.querySelectorAll("[data-book-column]");
+  const bookHeaders = document.querySelectorAll("[data-odds-column]");
   leagueTrigger.addEventListener("click", () => toggleOddsMenu(leagueTrigger, leagueMenu));
   marketTrigger.addEventListener("click", () => toggleOddsMenu(marketTrigger, marketMenu));
   booksTrigger.addEventListener("click", () => toggleOddsMenu(booksTrigger, booksMenu));
@@ -3490,13 +3489,13 @@ function bindOddsScreen() {
   document.getElementById("odds-books-apply").addEventListener("click", () => { const selected = new Set([...booksMenu.querySelectorAll('input[type="checkbox"]:checked')].map(input => input.value)); if (!selected.size) return showToast("Select at least one exchange", "error"); oddsState.providers = oddsState.providerOrder.filter(key => selected.has(key)); closeOddsMenus(); renderOddsScreen(); });
   bookHeaders.forEach(header => {
     header.addEventListener("dragstart", event => {
-      oddsState.draggedProvider = header.dataset.bookColumn;
+      oddsState.draggedProvider = header.dataset.oddsColumn;
       header.classList.add("dragging");
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", oddsState.draggedProvider);
     });
     header.addEventListener("dragover", event => {
-      if (!oddsState.draggedProvider || oddsState.draggedProvider === header.dataset.bookColumn) return;
+      if (!oddsState.draggedProvider || oddsState.draggedProvider === header.dataset.oddsColumn) return;
       event.preventDefault();
       event.dataTransfer.dropEffect = "move";
       const after = event.clientX > header.getBoundingClientRect().left + (header.getBoundingClientRect().width / 2);
@@ -3507,7 +3506,7 @@ function bindOddsScreen() {
     header.addEventListener("drop", event => {
       event.preventDefault();
       const source = oddsState.draggedProvider || event.dataTransfer.getData("text/plain");
-      const target = header.dataset.bookColumn;
+      const target = header.dataset.oddsColumn;
       const after = event.clientX > header.getBoundingClientRect().left + (header.getBoundingClientRect().width / 2);
       if (source && target && source !== target) {
         const next = oddsState.providerOrder.filter(key => key !== source);
