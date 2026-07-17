@@ -3272,19 +3272,39 @@ function oddsPriceCell(option, provider) {
   </a>`;
 }
 
-function oddsRow(row) {
-  const id = String(row.id || "");
+function oddsGameRow(inputRows) {
+  const rows = orderedOddsSelections(inputRows);
+  const primary = rows[0] || {};
+  const id = String(primary.id || "");
   const favorites = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]");
   const isFavorite = favorites.includes(id);
-  const options = oddsState.providers.map(provider => oddsProvider(row, provider));
-  const best = options.find(option => option?.isBestPrice && option.isAvailable);
-  const start = new Date(row.event_date_et || row.resolution_time || row.event_start_time || 0);
+  const start = new Date(primary.event_date_et || primary.resolution_time || primary.event_start_time || 0);
   return `<article class="odds-market-row" data-odds-id="${escapeHtml(id)}">
     <span class="odds-start"><b>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b><small>${Number.isNaN(start.getTime()) ? "" : start.toLocaleDateString([], {month:"short", day:"numeric"})}</small><button data-odds-star="${escapeHtml(id)}" class="${isFavorite ? "active" : ""}" aria-label="Favorite"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button></span>
-    <span class="odds-team"><strong>${escapeHtml(oddsSelectionLabel(row))}</strong><small>${escapeHtml(row.event_title || row.market_title || "Live event")} · ${escapeHtml(oddsMarketLabel(row))}</small></span>
-    ${oddsState.providers.map((provider, index) => oddsPriceCell(options[index], provider)).join("")}
-    <span class="odds-best">${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>
+    <span class="odds-team odds-team-stack">${rows.map(row => `<span class="odds-team-selection"><strong>${escapeHtml(oddsSelectionLabel(row))}</strong><small>${escapeHtml(oddsMarketLabel(row))}</small></span>`).join("")}</span>
+    ${oddsState.providers.map(provider => `<span class="odds-price-stack" data-provider-stack="${provider}">${rows.map(row => oddsPriceCell(oddsProvider(row, provider), provider)).join("")}</span>`).join("")}
+    <span class="odds-best odds-best-stack">${rows.map(oddsBestLine).join("")}</span>
   </article>`;
+}
+
+function oddsBestLine(row) {
+  const best = (row.executionOptions || []).find(option => option?.isBestPrice && option.isAvailable);
+  return `<span>${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>`;
+}
+
+function orderedOddsSelections(rows) {
+  const participants = String(rows[0]?.event_title || "").split(/\s+(?:vs\.?|versus|@)\s+/i).map(value => value.trim().toLowerCase());
+  return [...rows].sort((a, b) => {
+    const ai = participants.indexOf(String(a.outcome || "").toLowerCase());
+    const bi = participants.indexOf(String(b.outcome || "").toLowerCase());
+    if (ai >= 0 || bi >= 0) return (ai < 0 ? 99 : ai) - (bi < 0 ? 99 : bi);
+    const order = {yes:0, over:0, no:1, under:1};
+    return (order[String(a.outcome || "").toLowerCase()] ?? 2) - (order[String(b.outcome || "").toLowerCase()] ?? 2);
+  });
+}
+
+function oddsMarketGroupKey(row) {
+  return String(row.market_id || row.condition_id || `${row.event_id || row.event_title}|${oddsMarketKind(row)}|${row.market_line ?? ""}`);
 }
 
 const mlbSportsbookNames = {"arizona diamondbacks":"Diamondbacks","atlanta braves":"Braves","baltimore orioles":"Orioles","boston red sox":"Red Sox","chicago cubs":"Cubs","chicago white sox":"White Sox","cincinnati reds":"Reds","cleveland guardians":"Guardians","colorado rockies":"Rockies","detroit tigers":"Tigers","houston astros":"Astros","kansas city royals":"Royals","los angeles angels":"Angels","los angeles dodgers":"Dodgers","miami marlins":"Marlins","milwaukee brewers":"Brewers","minnesota twins":"Twins","new york mets":"Mets","new york yankees":"Yankees","athletics":"Athletics","oakland athletics":"Athletics","philadelphia phillies":"Phillies","pittsburgh pirates":"Pirates","san diego padres":"Padres","san francisco giants":"Giants","seattle mariners":"Mariners","st. louis cardinals":"Cardinals","st louis cardinals":"Cardinals","tampa bay rays":"Rays","texas rangers":"Rangers","toronto blue jays":"Blue Jays","washington nationals":"Nationals"};
@@ -3325,7 +3345,11 @@ function renderOddsScreen() {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(row);
   });
-  grid.innerHTML = rows.length ? [...groups.entries()].map(([date, group]) => `${oddsDateDivider(date)}${group.map(oddsRow).join("")}`).join("") : `<div class="odds-loading">No exact markets match these filters.</div>`;
+  grid.innerHTML = rows.length ? [...groups.entries()].map(([date, group]) => {
+    const markets = new Map();
+    group.forEach(row => { const key = oddsMarketGroupKey(row); if (!markets.has(key)) markets.set(key, []); markets.get(key).push(row); });
+    return `${oddsDateDivider(date)}${[...markets.values()].map(oddsGameRow).join("")}`;
+  }).join("") : `<div class="odds-loading">No exact markets match these filters.</div>`;
 }
 
 function canonicalOddsSport(value) {
