@@ -379,6 +379,36 @@ def _parse_datetime(value: str | None) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+def _tracker_date_bounds(args, now: datetime | None = None) -> tuple[datetime | None, datetime | None, str]:
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    preset = str(args.get("tracker_range") or "28").strip().lower()
+    if preset in {"7", "28", "90"}:
+        return current - timedelta(days=int(preset)), current, preset
+    if preset == "all":
+        return None, None, preset
+    if preset != "custom":
+        raise ValueError("Unsupported tracker date range")
+    start_text = str(args.get("tracker_start") or "").strip()
+    end_text = str(args.get("tracker_end") or "").strip()
+    if not start_text or not end_text:
+        raise ValueError("Custom tracker dates require both a start and end date")
+    try:
+        start = datetime.fromisoformat(start_text).replace(tzinfo=EASTERN).astimezone(timezone.utc)
+        end = (datetime.fromisoformat(end_text).replace(tzinfo=EASTERN) + timedelta(days=1)).astimezone(timezone.utc)
+    except ValueError as exc:
+        raise ValueError("Invalid custom tracker date") from exc
+    if start >= end:
+        raise ValueError("Custom tracker start date must be on or before the end date")
+    return start, end, preset
+
+
+def _within_tracker_dates(value: str | None, start: datetime | None, end: datetime | None) -> bool:
+    timestamp = _parse_datetime(value)
+    if timestamp is None:
+        return start is None and end is None
+    return (start is None or timestamp >= start) and (end is None or timestamp < end)
+
+
 def _format_event_start(value: str | None, now: datetime | None = None) -> str:
     parsed = _parse_datetime(value)
     if parsed is None:
@@ -1740,13 +1770,20 @@ def create_app(start_background: bool = True) -> Flask:
             tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID),
         )
         filter_options = _personal_tracker_filter_options(all_fills)
+        try:
+            tracker_start, tracker_end, tracker_range = _tracker_date_bounds(request.args)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         result_filter = request.args.get("result", "").strip().lower()
         sportsbook_filter = request.args.get("sportsbook", "").strip().lower()
         tag_filter = request.args.get("tag", "").strip().lower()
         sharp_filter = request.args.get("sharp", "").strip()
-        fills = all_fills
+        fills = [
+            fill for fill in all_fills
+            if _within_tracker_dates(fill.get("created_at"), tracker_start, tracker_end)
+        ]
         if query:
             fills = [
                 fill
@@ -1901,6 +1938,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "clv": clv_analytics,
                 "bankroll": current_settings,
                 "filter_options": filter_options,
+                "trackerDateRange": {"preset": tracker_range, "start": request.args.get("tracker_start", ""), "end": request.args.get("tracker_end", "")},
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
@@ -2103,8 +2141,21 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/bet-tracker")
     def api_bet_tracker():
         current_settings = user_settings()
+        try:
+            tracker_start, tracker_end, tracker_range = _tracker_date_bounds(request.args)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        tracker_records = tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID)
+        tracker_records = [
+            record for record in tracker_records
+            if _within_tracker_dates(
+                (record.get("snapshot") or {}).get("recommendation_timestamp") or record.get("created_at"),
+                tracker_start,
+                tracker_end,
+            )
+        ]
         replay = replay_tracker(
-            tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID),
+            tracker_records,
             _safe_float(current_settings["tracker_bankroll"]),
         )
         rows = replay["rows"]
@@ -2232,6 +2283,7 @@ def create_app(start_background: bool = True) -> Flask:
                     if key != "rejections"
                 },
                 "filter_options": {"sharps": sharp_options},
+                "trackerDateRange": {"preset": tracker_range, "start": request.args.get("tracker_start", ""), "end": request.args.get("tracker_end", "")},
                 "pagination": {
                     "page": page,
                     "per_page": per_page,

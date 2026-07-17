@@ -214,8 +214,9 @@ def test_repeated_backend_runs_insert_once_without_opening_a_page(
 ):
     service = TrackerService(temp_settings, database=db, auto_start=False)
 
-    first = service.reconcile_model_tracker([_play()], NOW)
-    second = service.reconcile_model_tracker([_play()], NOW + timedelta(seconds=5))
+    play = _play(start=NOW + timedelta(minutes=30))
+    first = service.reconcile_model_tracker([play], NOW)
+    second = service.reconcile_model_tracker([play], NOW + timedelta(seconds=5))
 
     assert first["records_inserted"] == 1
     assert second["records_inserted"] == 0
@@ -230,9 +231,10 @@ def test_recommendation_version_upgrade_does_not_duplicate_same_market(
 ):
     service = TrackerService(temp_settings, database=db, auto_start=False)
     service.sizing_config = replace(service.sizing_config, recommendation_version="v2")
-    first = service.reconcile_model_tracker([_play()], NOW)
+    play = _play(start=NOW + timedelta(minutes=30))
+    first = service.reconcile_model_tracker([play], NOW)
     service.sizing_config = replace(service.sizing_config, recommendation_version="v3")
-    second = service.reconcile_model_tracker([_play()], NOW + timedelta(seconds=5))
+    second = service.reconcile_model_tracker([play], NOW + timedelta(seconds=5))
     assert first["records_inserted"] == 1
     assert second["records_inserted"] == 0
     assert second["records_skipped_duplicates"] == 1
@@ -243,8 +245,8 @@ def test_model_tracker_rejects_excess_slippage_without_deleting_history(
     temp_settings, db
 ):
     service = TrackerService(temp_settings, database=db, auto_start=False)
-    accepted = service.reconcile_model_tracker([_play()], NOW)
-    excessive = _play(asks=[{"price": 0.421, "size": 10000}])
+    accepted = service.reconcile_model_tracker([_play(start=NOW + timedelta(minutes=30))], NOW)
+    excessive = _play(start=NOW + timedelta(minutes=30), asks=[{"price": 0.421, "size": 10000}])
     rejected = service.reconcile_model_tracker(
         [excessive], NOW + timedelta(seconds=5)
     )
@@ -255,6 +257,22 @@ def test_model_tracker_rejects_excess_slippage_without_deleting_history(
         "rejection_reason"
     ] == SLIPPAGE_ABOVE_MAX
     assert len(db.get_tracker_records(MODEL_TRACKER_USER_ID)) == 1
+
+
+def test_model_tracker_defers_until_final_hour_and_requires_play_to_remain_present(temp_settings, db):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    start = NOW + timedelta(hours=3)
+    play = _play(start=start)
+    play["orderbook"]["timestamp"] = (start - timedelta(minutes=59)).isoformat()
+
+    early = service.reconcile_model_tracker([play], NOW)
+    missing_at_gate = service.reconcile_model_tracker([], start - timedelta(hours=1))
+    eligible = service.reconcile_model_tracker([play], start - timedelta(minutes=59))
+
+    assert early["records_inserted"] == 0
+    assert early["deferred_until_pregame"] == 1
+    assert missing_at_gate["records_inserted"] == 0
+    assert eligible["records_inserted"] == 1
 
 
 def test_one_failed_trade_does_not_stop_the_batch(temp_settings, db, monkeypatch):

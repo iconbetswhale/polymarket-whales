@@ -2776,6 +2776,9 @@ function trackerRequestParams(view) {
     grade: document.getElementById("tracker-grade").value,
     liquidity_grade: document.getElementById("tracker-liquidity-grade").value,
     execution_method: document.getElementById("tracker-execution-method").value,
+    tracker_range: document.getElementById("tracker-date-range").value,
+    tracker_start: document.getElementById("tracker-custom-start").value,
+    tracker_end: document.getElementById("tracker-custom-end").value,
   };
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
@@ -3007,6 +3010,19 @@ function bindTracker() {
   document.getElementById("tracker-analytics-dimension")?.addEventListener("change", loadTrackerAdvancedAnalytics);
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
   ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-grade", "tracker-liquidity-grade", "tracker-execution-method", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  document.getElementById("tracker-date-range").addEventListener("change", event => {
+    const custom = event.target.value === "custom";
+    document.getElementById("tracker-custom-start-wrap").hidden = !custom;
+    document.getElementById("tracker-custom-end-wrap").hidden = !custom;
+    appState.trackerPage[appState.trackerView] = 1;
+    if (!custom || (document.getElementById("tracker-custom-start").value && document.getElementById("tracker-custom-end").value)) loadTrackerView();
+  });
+  ["tracker-custom-start", "tracker-custom-end"].forEach(id => document.getElementById(id).addEventListener("change", () => {
+    if (document.getElementById("tracker-custom-start").value && document.getElementById("tracker-custom-end").value) {
+      appState.trackerPage[appState.trackerView] = 1;
+      loadTrackerView();
+    }
+  }));
   ["tracker-clv-min", "tracker-clv-max"].forEach((id) => document.getElementById(id).addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); })));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("#graph-range button").forEach((item) => item.classList.remove("active"));

@@ -8109,4 +8109,7 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 .odds-book-list input { accent-color:#09aee5; }.odds-book-list img { width:20px; height:20px; border-radius:4px; object-fit:contain; }
 .odds-books-menu>small { color:#6f8792; font-size:9px; }
 [data-book-column][hidden] { display:none; }
+.tracker-custom-date { min-height:34px; display:flex; align-items:center; gap:6px; padding:0 8px; border:1px solid #304650; border-radius:5px; background:#101a20; color:#7f969f; font-size:9px; font-weight:700; text-transform:uppercase; }
+.tracker-custom-date input { border:0; outline:0; background:transparent; color:#eef5f7; font:600 10px "DM Sans",sans-serif; color-scheme:dark; }
+.tracker-custom-date[hidden] { display:none; }
 @media(max-width:900px){ body[data-page="odds-screen"]{overflow:auto}.odds-screen-page{height:auto;min-height:calc(100vh - 50px)}.odds-filter-row{flex-wrap:wrap}.odds-live-state{margin-left:0}.odds-search{margin-left:auto}.odds-market-tabs span{display:none} }

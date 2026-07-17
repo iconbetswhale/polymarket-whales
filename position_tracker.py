@@ -784,12 +784,24 @@ class TrackerService:
             "inserted": 0,
             "rejected": 0,
             "errors": 0,
+            "deferred_until_pregame": 0,
             "accepted": [],
             "rejections": [],
             "error_details": [],
         }
         for play in plays:
             try:
+                if user_id == MODEL_TRACKER_USER_ID:
+                    event_start = parse_timestamp(
+                        play.get("event_date_et")
+                        or play.get("resolution_time")
+                        or play.get("event_start_time")
+                    )
+                    if event_start is not None:
+                        time_to_start = event_start - run_now.astimezone(timezone.utc)
+                        if not (timedelta(0) < time_to_start <= timedelta(hours=1)):
+                            result["deferred_until_pregame"] += 1
+                            continue
                 try:
                     evaluation = self.evaluate_recommendation(
                         play, bankroll, run_now, user_id=user_id,
@@ -943,6 +955,7 @@ class TrackerService:
             "records_inserted": 0,
             "records_skipped_duplicates": 0,
             "records_rejected": 0,
+            "deferred_until_pregame": 0,
             "errors": 0,
             "error_details": [],
             "user_configurations": 1,
@@ -966,6 +979,7 @@ class TrackerService:
             state["records_inserted"] = tracker_result["inserted"]
             state["records_skipped_duplicates"] = tracker_result["existing"]
             state["records_rejected"] = tracker_result["rejected"]
+            state["deferred_until_pregame"] = tracker_result["deferred_until_pregame"]
             state["errors"] = tracker_result["errors"]
             state["error_details"] = tracker_result["error_details"]
             if state["errors"]:

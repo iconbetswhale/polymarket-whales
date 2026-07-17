@@ -438,6 +438,40 @@ def test_model_tracker_history_is_shared_across_browser_users(app_client):
     assert second_payload["data"][0]["snapshot_id"] == "shared-snapshot"
 
 
+def test_model_tracker_date_presets_and_custom_range(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    now = datetime.now(timezone.utc)
+    for label, age in (("recent", 3), ("month-old", 35), ("older", 120)):
+        timestamp = (now - timedelta(days=age)).isoformat()
+        assert service.database.insert_tracker_snapshot(
+            MODEL_TRACKER_USER_ID,
+            {
+                "snapshot_id": f"date-{label}",
+                "dedupe_key": f"date-event::{label}::::outcome::v2",
+                "recommendation_version": "v2",
+                "recommendation_timestamp": timestamp,
+                "event_title": label,
+                "market_title": "Moneyline",
+                "recommended_side": "Example",
+                "effective_entry_price": 0.5,
+                "final_recommended_fraction": 0.005,
+                "original_displayed_amount": 50,
+                "original_recommended_units": 0.5,
+                "estimated_win_probability": 0.55,
+                "sharps_count": 1,
+            },
+        )
+
+    assert app_client.get("/api/model-tracker?tracker_range=7").get_json()["pagination"]["total"] == 1
+    assert app_client.get("/api/model-tracker?tracker_range=90").get_json()["pagination"]["total"] == 2
+    start = (now - timedelta(days=40)).date().isoformat()
+    end = (now - timedelta(days=30)).date().isoformat()
+    custom = app_client.get(f"/api/model-tracker?tracker_range=custom&tracker_start={start}&tracker_end={end}")
+    assert custom.status_code == 200
+    assert custom.get_json()["data"][0]["snapshot"]["event_title"] == "month-old"
+    assert app_client.get("/api/model-tracker?tracker_range=custom").status_code == 400
+
+
 def test_model_tracker_search_filter_and_closed_rows_use_frozen_sharps(app_client):
     service = app_client.application.extensions["tracker_service"]
     dedupe = "sharp-event::sharp-market::::sharp-outcome::v2"

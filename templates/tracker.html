@@ -54,6 +54,9 @@
 
 <section class="toolbar tracker-toolbar">
   <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-search" type="search" placeholder="Search event, market, trader"></label>
+  <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 days</option><option value="28" selected>Last 28 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option><option value="all">All time</option></select>
+  <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
+  <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
   <select id="tracker-sportsbook" class="personal-tracker-filter" aria-label="Sportsbook" hidden><option value="">All books</option></select>
   <select id="tracker-tag" class="personal-tracker-filter" aria-label="Personal bet tag" hidden><option value="">All tags</option></select>
   <select id="tracker-sharp-wallet" aria-label="Sharp wallet"><option value="">All Sharps</option></select>
