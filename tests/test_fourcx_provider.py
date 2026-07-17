@@ -56,6 +56,7 @@ def test_normalization_and_exact_matching():
     confidence, matched = _match_exact_trade(trade, ProviderMarketIndex(markets))
     assert confidence is MatchConfidence.EXACT
     assert matched.selection_id == "phl-2"
+    assert matched.deep_link == "https://4cx.io/exchange-single/game-1"
     assert depth["phl-2"][0]["remaining"] == 50
 
 

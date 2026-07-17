@@ -32,6 +32,32 @@ def test_mlb_schedule_uses_slug_date_and_normalizes_main_markets():
     assert rows[0]["canonical_league_id"] == "mlb"
     assert rows[0]["sports_market_type"] == "moneyline"
     assert rows[0]["current_price"] == 0.515
+    assert rows[0]["market_url"] == "https://polymarket.com/event/mlb-lad-nyy-2026-07-17"
+
+
+def test_mlb_schedule_links_to_exact_child_market_when_slugs_differ():
+    events = [{
+        "slug": "mlb-lad-nyy-2026-07-17",
+        "title": "Los Angeles Dodgers vs New York Yankees",
+        "markets": [{
+            "slug": "mlb-lad-nyy-2026-07-17-lad",
+            "conditionId": "condition-1",
+            "sportsMarketType": "moneyline",
+            "outcomes": '["Los Angeles Dodgers", "New York Yankees"]',
+            "outcomePrices": '["0.51", "0.49"]',
+            "clobTokenIds": '["lad", "nyy"]',
+            "endDate": "2026-07-24T23:05:00Z",
+            "active": True,
+            "closed": False,
+        }],
+    }]
+
+    rows = PolymarketScheduleFeed._normalize(events, datetime(2026, 7, 16, 16, tzinfo=timezone.utc))
+
+    assert rows[0]["market_url"] == (
+        "https://polymarket.com/event/mlb-lad-nyy-2026-07-17/"
+        "mlb-lad-nyy-2026-07-17-lad"
+    )
 
 
 def test_mlb_schedule_excludes_dates_outside_today_and_tomorrow():

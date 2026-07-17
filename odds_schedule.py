@@ -9,6 +9,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 import requests
+from urllib.parse import quote
 
 from measurement_foundation import stable_hash
 
@@ -32,6 +33,13 @@ def _list(value: Any) -> list:
 def _market_kind(value: Any) -> str:
     raw = str(value or "").lower()
     return {"moneyline": "moneyline", "spreads": "spread", "totals": "game_total"}.get(raw, raw)
+
+
+def _polymarket_market_url(event_slug: Any, market_slug: Any) -> str:
+    event_value = str(event_slug or "").strip()
+    market_value = str(market_slug or "").strip()
+    url = f"https://polymarket.com/event/{quote(event_value, safe='-')}"
+    return f"{url}/{quote(market_value, safe='-')}" if market_value and market_value != event_value else url
 
 
 class PolymarketScheduleFeed:
@@ -115,7 +123,7 @@ class PolymarketScheduleFeed:
                         "event_date_et": starts_at,
                         "resolution_time": starts_at,
                         "schedule_date_et": event_day.isoformat(),
-                        "market_url": f"https://polymarket.com/event/{slug}",
+                        "market_url": _polymarket_market_url(slug, market.get("slug")),
                         "card": {"current_actionable_price": price, "recommended_amount": 0},
                         "recommendation": {"current_user_entry_price": price, "recommended_amount": 0},
                         "validation_ids": {"condition_id": market.get("conditionId"), "clob_token_id": token},

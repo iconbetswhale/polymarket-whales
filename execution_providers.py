@@ -12,7 +12,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 from typing import Iterable
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 from zoneinfo import ZoneInfo
 
 import requests
@@ -117,7 +117,7 @@ class PolymarketProvider(ExecutionProvider):
         options: dict[str, ExecutionOption] = {}
         for trade in trades:
             trade_id = str(trade.get("id") or "").strip()
-            deep_link = str(trade.get("market_url") or "").strip()
+            deep_link = _exact_polymarket_link(trade)
             if not trade_id or not _valid_deep_link(deep_link):
                 continue
             recommendation = trade.get("recommendation") or {}
@@ -160,6 +160,17 @@ class PolymarketProvider(ExecutionProvider):
                 quote_status="OPEN" if live_quote.get("can_fill_recommended_stake") is not False else "INSUFFICIENT_DEPTH",
             )
         return options
+
+
+def _exact_polymarket_link(trade: dict) -> str:
+    event_slug = str(trade.get("event_slug") or "").strip()
+    market_slug = str(trade.get("market_slug") or "").strip()
+    if event_slug and market_slug:
+        link = f"https://polymarket.com/event/{quote(event_slug, safe='-')}"
+        if market_slug != event_slug:
+            link += f"/{quote(market_slug, safe='-')}"
+        return link
+    return str(trade.get("market_url") or "").strip()
 
 
 class ProphetXProvider(ExecutionProvider):

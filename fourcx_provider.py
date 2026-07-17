@@ -31,6 +31,11 @@ FOURCX_LOGO_URL = "https://4cx.io/favicon.ico"
 FOURCX_TRADE_URL = "https://4cx.io/"
 
 
+def _fourcx_event_url(game_id: object) -> str:
+    value = str(game_id or "").strip()
+    return f"https://4cx.io/exchange-single/{value}" if value else FOURCX_TRADE_URL
+
+
 class FourCXHealthStatus(str, Enum):
     NOT_CONFIGURED = "NOT_CONFIGURED"
     AUTHENTICATING = "AUTHENTICATING"
@@ -157,7 +162,7 @@ class FourCXProvider(ExecutionProvider):
                 market_id=market.event_id,
                 selection_id=market.selection_id,
                 display_odds=market.display_odds if available else "Unavailable",
-                deep_link=FOURCX_TRADE_URL if available else None,
+                deep_link=_fourcx_event_url(market.event_id) if available else None,
                 is_available=available,
                 last_updated=market.last_updated,
                 matching_confidence=MatchConfidence.EXACT,
@@ -358,7 +363,7 @@ def normalize_fourcx_game(game: dict, fetched_at: datetime) -> tuple[list[Normal
                 market_name=market_name, stat_id="points", stat_entity_id="all",
                 period_id=period, bet_type_id=bet_type, side_id=side, line=line,
                 is_alternative=False, display_odds=f"{odds:+d}" if odds else "Unavailable",
-                american_odds=odds, deep_link=FOURCX_TRADE_URL,
+                american_odds=odds, deep_link=_fourcx_event_url(event_id),
                 is_available=available and bool(odds) and bool(depths[selection_id]),
                 last_updated=fetched_at.isoformat(), settlement_rules=rules,
             ))

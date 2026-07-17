@@ -210,6 +210,17 @@ def test_polymarket_provider_prefers_live_line_shop_quote_without_resizing_trade
     assert option.matching_confidence is MatchConfidence.EXACT
 
 
+def test_polymarket_provider_links_to_exact_child_market_when_identifiers_exist() -> None:
+    option = PolymarketProvider().options_for_trades([trade(
+        event_slug="yankees-red-sox",
+        market_slug="yankees-red-sox-yankees",
+    )])["trade-1"]
+
+    assert option.deep_link == (
+        "https://polymarket.com/event/yankees-red-sox/yankees-red-sox-yankees"
+    )
+
+
 def test_positive_american_odds_convert_to_correct_contract_probability() -> None:
     assert american_to_probability(104) == pytest.approx(100 / 204)
     assert american_to_probability(-122) == pytest.approx(122 / 222)
