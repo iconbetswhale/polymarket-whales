@@ -16,6 +16,8 @@ DEFAULT_PROVIDER_WEIGHTS = {
     "betonline": 0.10,
     "novig": 0.05,
     "prophetx": 0.05,
+    "4cx": 0.05,
+    "kalshi": 0.05,
 }
 
 

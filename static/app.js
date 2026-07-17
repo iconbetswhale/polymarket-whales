@@ -682,7 +682,8 @@ function executionOptionButton(trade, option) {
   const displayOdds = option.isAvailable ? option.displayOdds : "Unavailable";
   const movement = option.priceMovement || "";
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
-  const classes = `execution-option execution-option--${providerKey}${polymarketClass} ${movement}`.trim();
+  const bestClass = option.isBestPrice ? " best-execution-price" : "";
+  const classes = `execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement}`.trim();
   const tooltip = option.tooltip || `${providerName} Current Best Price`;
   const plan = trade.recommendation?.execution_plan || {};
   const effective = number(plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
@@ -690,7 +691,7 @@ function executionOptionButton(trade, option) {
   const aboveMaximum = effective !== null && maximum !== null && effective > maximum;
   const content = `
     <img src="${escapeHtml(option.logoUrl || "")}" alt="" aria-hidden="true" width="18" height="18">
-    <span><small>${escapeHtml(providerName)}</small><strong>${escapeHtml(displayOdds)}</strong></span>
+    <span><small>${escapeHtml(providerName)}${option.isBestPrice ? " · BEST" : ""}</small><strong>${escapeHtml(displayOdds)}</strong></span>
     <span class="execution-option-tooltip" role="tooltip">${escapeHtml(tooltip)}</span>
   `;
   if (!option.isAvailable || !option.deepLink || aboveMaximum) {
@@ -3253,6 +3254,84 @@ function bindIntelligence() {
   loadIntelligence().catch(()=>{});
 }
 
+const oddsState = { rows: [], sport: "", kind: "", search: "", favoritesOnly: false, loading: false, timer: null };
+
+function oddsProvider(row, key) {
+  return (row.executionOptions || []).find(option => String(option.providerKey || "").toLowerCase() === key);
+}
+
+function oddsPriceCell(option, provider) {
+  if (!option || option.matchingConfidence !== "Exact" || !option.isAvailable) return `<span class="odds-price empty" data-provider="${provider}">—<small>No exact market</small></span>`;
+  const liquidity = number(option.availableLiquidity);
+  const price = number(option.contractPrice);
+  return `<a class="odds-price ${option.isBestPrice ? "best" : ""}" data-provider="${provider}" href="${escapeHtml(option.deepLink || "#")}" ${option.deepLink ? 'target="_blank" rel="noopener noreferrer"' : ""}>
+    <strong>${escapeHtml(option.displayOdds || "—")}</strong><small>${price === null ? "Live" : formatCents(price)}${liquidity === null ? "" : ` · $${Math.round(liquidity).toLocaleString()}`}</small>
+  </a>`;
+}
+
+function oddsRow(row) {
+  const id = String(row.id || "");
+  const favorites = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]");
+  const isFavorite = favorites.includes(id);
+  const options = [oddsProvider(row, "polymarket"), oddsProvider(row, "kalshi"), oddsProvider(row, "4cx")];
+  const best = options.find(option => option?.isBestPrice && option.isAvailable);
+  const start = new Date(row.event_date_et || row.resolution_time || row.event_start_time || 0);
+  return `<article class="odds-market-row" data-odds-id="${escapeHtml(id)}">
+    <span class="odds-start"><b>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</b><small>${Number.isNaN(start.getTime()) ? "" : start.toLocaleDateString([], {month:"short", day:"numeric"})}</small><button data-odds-star="${escapeHtml(id)}" class="${isFavorite ? "active" : ""}" aria-label="Favorite"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button></span>
+    <span class="odds-team"><strong>${escapeHtml(row.outcome || "Selection")}</strong><small>${escapeHtml(row.event_title || row.market_title || "Live event")} · ${escapeHtml(row.sports_market_type || "Market")}</small></span>
+    ${oddsPriceCell(options[0], "polymarket")}${oddsPriceCell(options[1], "kalshi")}${oddsPriceCell(options[2], "4cx")}
+    <span class="odds-best">${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>
+  </article>`;
+}
+
+function renderOddsScreen() {
+  const favorites = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]");
+  const rows = oddsState.rows.filter(row => {
+    if (oddsState.sport && String(row.category || row.canonical_sport_id || "").toLowerCase() !== oddsState.sport.toLowerCase()) return false;
+    if (oddsState.kind && String(row.sports_market_type || "").toLowerCase().replaceAll(" ", "_") !== oddsState.kind) return false;
+    if (oddsState.favoritesOnly && !favorites.includes(String(row.id || ""))) return false;
+    const text = `${row.outcome || ""} ${row.event_title || ""} ${row.market_title || ""}`.toLowerCase();
+    return !oddsState.search || text.includes(oddsState.search);
+  });
+  const grid = document.getElementById("odds-grid");
+  grid.innerHTML = rows.length ? rows.map(oddsRow).join("") : `<div class="odds-loading">No exact markets match these filters.</div>`;
+}
+
+async function loadOddsScreen() {
+  if (oddsState.loading || document.hidden) return;
+  oddsState.loading = true;
+  const started = performance.now();
+  try {
+    const range = document.getElementById("odds-window")?.value || "today";
+    const payload = await fetchJson(`/api/trades-to-play?date_range=${encodeURIComponent(range)}&per_page=100`);
+    oddsState.rows = payload.data || [];
+    const sports = [...new Set(oddsState.rows.map(row => row.category || row.canonical_sport_id).filter(Boolean))].sort();
+    const select = document.getElementById("odds-sport");
+    const current = select.value;
+    select.innerHTML = `<option value="">All sports</option>${sports.map(sport => `<option value="${escapeHtml(sport)}">${escapeHtml(sport)}</option>`).join("")}`;
+    select.value = current;
+    document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;
+    document.getElementById("odds-updated").textContent = `Updated ${new Date().toLocaleTimeString()}`;
+    renderOddsScreen();
+  } catch (error) {
+    document.getElementById("odds-latency").textContent = "Feed degraded";
+    if (!oddsState.rows.length) document.getElementById("odds-grid").innerHTML = `<div class="odds-loading">${escapeHtml(error.message)}</div>`;
+  } finally { oddsState.loading = false; }
+}
+
+function bindOddsScreen() {
+  document.getElementById("odds-sport").addEventListener("change", event => { oddsState.sport = event.target.value; renderOddsScreen(); });
+  document.getElementById("odds-market").addEventListener("change", event => { oddsState.kind = event.target.value; renderOddsScreen(); });
+  document.getElementById("odds-window").addEventListener("change", loadOddsScreen);
+  document.getElementById("odds-search").addEventListener("input", event => { oddsState.search = event.target.value.trim().toLowerCase(); renderOddsScreen(); });
+  document.getElementById("odds-refresh").addEventListener("click", loadOddsScreen);
+  document.querySelectorAll("[data-odds-kind]").forEach(button => button.addEventListener("click", () => { document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.toggle("active", item === button)); oddsState.kind = button.dataset.oddsKind; document.getElementById("odds-market").value = oddsState.kind; renderOddsScreen(); }));
+  document.querySelector("[data-odds-favorite]").addEventListener("click", event => { oddsState.favoritesOnly = !oddsState.favoritesOnly; event.currentTarget.classList.toggle("active", oddsState.favoritesOnly); renderOddsScreen(); });
+  document.getElementById("odds-grid").addEventListener("click", event => { const star = event.target.closest("[data-odds-star]"); if (!star) return; event.preventDefault(); const values = JSON.parse(localStorage.getItem("iconbets_odds_favorites") || "[]"); const next = values.includes(star.dataset.oddsStar) ? values.filter(id => id !== star.dataset.oddsStar) : [...values, star.dataset.oddsStar]; localStorage.setItem("iconbets_odds_favorites", JSON.stringify(next)); renderOddsScreen(); });
+  loadOddsScreen();
+  oddsState.timer = window.setInterval(loadOddsScreen, 2000);
+}
+
 function refreshCurrentPage() {
   if (appState.paused) return;
   if (page === "overview") loadOverview();
@@ -3268,6 +3347,7 @@ function refreshCurrentPage() {
   if (page === "tracker") loadTrackerView();
   if (page === "edge-map") loadEdgeMap();
   if (page === "intelligence") loadIntelligence().catch(()=>{});
+  if (page === "odds-screen") loadOddsScreen();
   loadGlobalStatus();
 }
 
@@ -3283,6 +3363,7 @@ function initialize() {
   if (page === "tracker") bindTracker();
   if (page === "edge-map") bindEdgeMap();
   if (page === "intelligence") bindIntelligence();
+  if (page === "odds-screen") bindOddsScreen();
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);
 }
 

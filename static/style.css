@@ -8007,3 +8007,61 @@ body[data-page="trades"] {
 .intel-page{display:grid;gap:16px;max-width:1600px;margin:auto}.intel-hero{display:flex;justify-content:space-between;align-items:center;gap:30px;padding:26px;border:1px solid #183548;border-radius:14px;background:radial-gradient(circle at 80% 0,rgba(0,174,239,.14),transparent 38%),#081015}.intel-hero h1{font:700 34px Fraunces,serif;margin:3px 0 7px}.intel-hero p{color:#8fa0aa;max-width:780px;margin:0}.intel-security{display:grid;grid-template-columns:auto 1fr;gap:2px 9px;align-items:center;padding:13px 16px;border:1px solid #24506a;border-radius:9px;background:#091820}.intel-security i{grid-row:1/3;color:#38bdf8;font-size:22px}.intel-security small{color:#728692}.intel-login{padding:55px;border:1px solid #182d39;border-radius:12px;background:#080d11}.intel-login form{max-width:430px;margin:auto;display:grid;gap:12px}.intel-login label{display:grid;gap:6px;color:#93a3ad}.intel-login input{padding:11px;background:#0b141a;border:1px solid #254151;border-radius:7px;color:#fff}.intel-login p{color:#ff8992;margin:0}.intel-summary{display:grid;grid-template-columns:repeat(6,1fr);gap:9px}.intel-summary article{padding:15px;border:1px solid #172c38;border-radius:9px;background:#091116;display:flex;justify-content:space-between;align-items:center}.intel-summary span{color:#71838e;font-size:11px}.intel-summary strong{font:700 22px Roboto Condensed,sans-serif}.intel-tabs{display:flex;gap:5px;padding:5px;border:1px solid #152a36;border-radius:10px;background:#070c10;overflow:auto}.intel-tabs button{border:0;background:transparent;color:#778994;padding:9px 13px;border-radius:7px;white-space:nowrap}.intel-tabs button.active{background:#102532;color:#6fd5ff}.intel-panel{border:1px solid #172d39;border-radius:12px;background:#070c10;overflow:hidden}.intel-panel-head{display:flex;justify-content:space-between;align-items:center;padding:18px 20px;border-bottom:1px solid #14252f}.intel-panel-head h2{margin:0 0 3px;font-size:18px}.intel-panel-head p{margin:0;color:#71828d;font-size:12px}.intel-panel-head select{background:#0b151b;color:#d8e5ea;border:1px solid #254353;border-radius:7px;padding:8px}.intel-list{display:grid}.intel-row{display:grid;grid-template-columns:minmax(280px,2fr) minmax(220px,1fr) minmax(170px,.7fr);gap:14px;align-items:center;padding:14px 18px;border-bottom:1px solid #101f27}.intel-row>span{display:grid;gap:3px}.intel-row>span:last-child{justify-items:end}.intel-row strong{color:#e8f3f7}.intel-row b{font-size:10px;letter-spacing:.05em;color:#6fd5ff}.intel-row small{color:#687b86}.intel-diagnostics{padding:20px;margin:0;max-height:640px;overflow:auto;color:#8ec7df;background:#05090c;font-size:11px}.intel-trace-dialog{width:min(900px,92vw);max-height:88vh;padding:24px;background:#071016;color:#dbe9ee;border:1px solid #24516a;border-radius:13px}.intel-trace-dialog>.icon-button{position:absolute;right:15px;top:15px}.trace-stage{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:12px 0;border-bottom:1px solid #132832}.trace-stage>span{width:25px;height:25px;display:grid;place-items:center;border-radius:50%;background:#0c3042;color:#65d0ff}.trace-stage div{min-width:0}.trace-stage strong,.trace-stage small{display:block}.trace-stage strong{text-transform:capitalize}.trace-stage small{color:#65808d;font-size:10px}.trace-stage pre{max-height:150px;overflow:auto;padding:9px;background:#050a0d;color:#85a9ba;border-radius:6px;font-size:10px}@media(max-width:950px){.intel-summary{grid-template-columns:repeat(2,1fr)}.intel-row{grid-template-columns:1fr}.intel-row>span:last-child{justify-items:start}.intel-hero{align-items:stretch;flex-direction:column}}
 .tracker-advanced-panel{overflow:hidden}.tracker-advanced-panel .panel-header select{background:#0b151b;color:#d8e5ea;border:1px solid #254353;border-radius:7px;padding:8px}.tracker-analytics-summary{display:flex;gap:10px;padding:12px 18px;border-bottom:1px solid #152731}.tracker-analytics-summary span{min-width:110px;padding:9px 12px;border:1px solid #18313f;border-radius:7px;background:#081218;display:flex;justify-content:space-between;align-items:center}.tracker-analytics-summary small{color:#71838e}.tracker-analytics-summary strong{color:#e6f6fc}.tracker-analytics-table td strong{color:#e6f6fc}
 .execution-option.above-maximum{opacity:.48;border-color:#6e3b42!important;cursor:not-allowed}.execution-option.above-maximum>em{position:absolute;left:0;right:0;bottom:-17px;color:#ff8b94;font-size:8px;font-style:normal;white-space:nowrap}.execution-toolbar{position:relative}
+.execution-option--4cx {
+  border-color: rgba(55, 207, 255, .36);
+  background: linear-gradient(145deg, rgba(9, 33, 44, .96), rgba(7, 18, 25, .96));
+}
+
+.execution-option.best-execution-price {
+  box-shadow: 0 0 0 1px rgba(70, 220, 160, .48), 0 8px 24px rgba(18, 190, 130, .12);
+}
+
+/* Live multi-exchange odds screen */
+body[data-page="odds-screen"] { background:#060a0d; color:#eaf2f6; font-family:"Roboto Condensed",sans-serif; overflow:hidden; }
+body[data-page="odds-screen"] .app-nav { min-height:50px; padding:0 14px; background:#05090c; border-color:#17252d; }
+body[data-page="odds-screen"] .brand { min-width:205px; }
+body[data-page="odds-screen"] .brand-icon { width:31px; height:31px; border-radius:9px; font-size:12px; }
+body[data-page="odds-screen"] .brand-copy strong { font-size:14px; }
+body[data-page="odds-screen"] .brand-copy small { display:none; }
+body[data-page="odds-screen"] .nav-links { gap:3px; }
+body[data-page="odds-screen"] .nav-links a { padding:7px 9px; font-size:11px; }
+body[data-page="odds-screen"] .nav-status { font-size:10px; }
+body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0; height:calc(100vh - 50px); }
+.odds-screen-page { height:100%; display:grid; grid-template-rows:auto minmax(0,1fr) 32px; background:#11171c; }
+.odds-screen-toolbar { padding:10px 15px 0; background:#0c151a; border-bottom:1px solid #2a3c47; }
+.odds-filter-row { display:flex; align-items:center; gap:7px; min-height:34px; }
+.odds-pill,.odds-filter-row select,.odds-market-tabs button,.odds-refresh { height:31px; border:1px solid #29404d; border-radius:5px; background:#101b22; color:#eaf2f6; font:600 11px "Roboto Condensed",sans-serif; padding:0 12px; }
+.odds-pill.active,.odds-market-tabs button.active { border-color:#03b7ef; box-shadow:inset 0 0 0 1px rgba(3,183,239,.24); background:#0c2834; color:#fff; }
+.odds-live-state { margin-left:auto; display:flex; align-items:center; gap:5px; color:#5bd75b; font-size:10px; }
+.odds-live-state i { width:6px; height:6px; border-radius:50%; background:#50dc57; box-shadow:0 0 8px #50dc57; }
+.odds-live-state small { color:#78909c; margin-left:3px; }
+.odds-search { width:190px; height:31px; display:flex; align-items:center; gap:7px; border:1px solid #29404d; border-radius:5px; padding:0 9px; background:#13232e; }
+.odds-search input { width:100%; border:0; outline:0; background:transparent; color:#eef6f9; font:500 11px "Roboto Condensed",sans-serif; }
+.odds-refresh { width:31px; padding:0; }
+.odds-market-tabs { height:40px; display:flex; align-items:center; gap:6px; }
+.odds-market-tabs button { height:25px; border-radius:14px; padding:0 10px; }
+.odds-market-tabs span { margin-left:auto; color:#718994; font-size:10px; letter-spacing:.02em; }
+.odds-grid-shell { overflow:auto; background:#141a20; }
+.odds-grid-head,.odds-market-row { display:grid; grid-template-columns:92px minmax(260px,1.7fr) repeat(3,minmax(112px,.55fr)) minmax(96px,.45fr); min-width:930px; }
+.odds-grid-head { position:sticky; top:0; z-index:4; min-height:39px; background:#091116; border-bottom:1px solid #2a414e; }
+.odds-grid-head>span { display:flex; align-items:center; justify-content:center; gap:7px; border-right:1px solid #22343e; color:#78909c; font-size:9px; font-weight:700; letter-spacing:.08em; }
+.odds-grid-head>span:nth-child(2) { justify-content:flex-start; padding-left:14px; }
+.book-head img { width:21px; height:21px; border-radius:5px; object-fit:contain; background:#0e1b22; }
+.odds-market-row { min-height:57px; border-bottom:1px solid #2a3c47; background:#152029; }
+.odds-market-row:nth-child(even) { background:#1b2a35; }
+.odds-market-row>span,.odds-market-row>a { border-right:1px solid #2a414e; }
+.odds-start { position:relative; display:flex; flex-direction:column; justify-content:center; padding:7px 28px 7px 10px; }
+.odds-start b { font-size:11px; }.odds-start small { color:#8499a4; font-size:9px; }
+.odds-start button { position:absolute; right:7px; top:18px; border:0; background:none; color:#6f8793; padding:0; }.odds-start button.active { color:#f1c74d; }
+.odds-team { display:flex; flex-direction:column; justify-content:center; padding:7px 14px; min-width:0; }
+.odds-team strong { font:700 13px "DM Sans",sans-serif; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.odds-team small { margin-top:3px; color:#7e949f; font-size:9px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.odds-price { position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#eef5f7; text-decoration:none; }
+.odds-price strong { font-size:14px; line-height:1; }.odds-price small { margin-top:4px; color:#8ba1ac; font-size:9px; }
+.odds-price:hover { background:#213945; }.odds-price.best { background:#183f2a; box-shadow:inset 0 0 0 1px #3b9f54; }.odds-price.empty { color:#607782; }
+.odds-best { display:flex; flex-direction:column; align-items:center; justify-content:center; background:#0f181d; }
+.odds-best strong { color:#6ddd65; font-size:11px; }.odds-best small { color:#dce8ec; font-size:10px; margin-top:3px; }
+.odds-loading { padding:48px; color:#7f959f; text-align:center; font-size:12px; }
+.odds-footer { display:flex; align-items:center; justify-content:space-between; padding:0 15px; border-top:1px solid #263943; background:#091116; color:#778d98; font-size:10px; }
+.odds-footer span { display:flex; align-items:center; gap:6px; }
+@media(max-width:900px){ body[data-page="odds-screen"]{overflow:auto}.odds-screen-page{height:auto;min-height:calc(100vh - 50px)}.odds-filter-row{flex-wrap:wrap}.odds-live-state{margin-left:0}.odds-search{margin-left:auto}.odds-market-tabs span{display:none} }

@@ -459,6 +459,7 @@ def create_app(start_background: bool = True) -> Flask:
         if request.endpoint in {
             "api_model_tracker_reconcile",
             "api_prophetx_health",
+            "api_fourcx_health",
         }:
             return
         if (
@@ -679,6 +680,10 @@ def create_app(start_background: bool = True) -> Flask:
             "trades.html", title="IconBets Trades to Play", page="trades"
         )
 
+    @app.route("/odds-screen")
+    def odds_screen_page():
+        return render_template("odds_screen.html", title="IconBets Live Odds Screen", page="odds-screen")
+
     @app.route("/live-positions")
     def live_positions_page():
         return render_template(
@@ -762,6 +767,14 @@ def create_app(start_background: bool = True) -> Flask:
             "prophetx", authenticate=request.method == "POST"
         )
         return jsonify({"status": status.value})
+
+    @app.route("/api/provider-health/4cx", methods=["GET", "POST"])
+    def api_fourcx_health():
+        if not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        return jsonify(execution_providers.provider_diagnostics(
+            "4cx", authenticate=request.method == "POST"
+        ))
 
     @app.route("/api/admin/discord-notifications/test", methods=["POST"])
     def api_discord_notification_test():

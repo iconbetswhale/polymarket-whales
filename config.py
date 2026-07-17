@@ -87,6 +87,15 @@ class Settings:
     prophetx_api_base_url: str = "https://api-ss-sandbox.betprophet.co/partner"
     prophetx_trade_url: str | None = None
     prophetx_cache_ttl_seconds: int = 30
+    fourcx_username: str | None = field(default=None, repr=False)
+    fourcx_password: str | None = field(default=None, repr=False)
+    fourcx_api_base_url: str = "https://api.4cx.io"
+    fourcx_enabled: bool = False
+    fourcx_trading_enabled: bool = False
+    fourcx_cache_ttl_seconds: int = 30
+    kalshi_enabled: bool = True
+    kalshi_api_base_url: str = "https://external-api.kalshi.com/trade-api/v2"
+    kalshi_cache_ttl_seconds: int = 1
     execution_quote_max_age_seconds: int = 60
     execution_wide_spread_fraction: float = 0.03
     minimum_edge_discovery: float = 0.01
@@ -179,4 +188,13 @@ def get_settings() -> Settings:
         ),
         prophetx_trade_url=os.getenv("PROPHETX_TRADE_URL") or None,
         prophetx_cache_ttl_seconds=_get_int("PROPHETX_CACHE_TTL_SECONDS", 30),
+        fourcx_username=os.getenv("FOURCX_USERNAME") or None,
+        fourcx_password=os.getenv("FOURCX_PASSWORD") or None,
+        fourcx_api_base_url=os.getenv("FOURCX_API_BASE_URL", "https://api.4cx.io"),
+        fourcx_enabled=_get_bool("FOURCX_ENABLED", False),
+        fourcx_trading_enabled=_get_bool("FOURCX_TRADING_ENABLED", False),
+        fourcx_cache_ttl_seconds=_get_int("FOURCX_CACHE_TTL_SECONDS", 30),
+        kalshi_enabled=_get_bool("KALSHI_ENABLED", True),
+        kalshi_api_base_url=os.getenv("KALSHI_API_BASE_URL", "https://external-api.kalshi.com/trade-api/v2"),
+        kalshi_cache_ttl_seconds=_get_int("KALSHI_CACHE_TTL_SECONDS", 1),
     )

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="odds-screen-page">
+  <header class="odds-screen-toolbar">
+    <div class="odds-filter-row">
+      <button class="odds-pill active" data-odds-sport="">All</button>
+      <button class="odds-pill" data-odds-favorite>Favorites</button>
+      <select id="odds-sport"><option value="">All sports</option></select>
+      <select id="odds-market"><option value="">All markets</option><option value="moneyline">Moneyline</option><option value="spread">Spread</option><option value="game_total">Total</option></select>
+      <select id="odds-window"><option value="today">Today</option><option value="next24">Next 24 hours</option><option value="next7">Next 7 days</option></select>
+      <span class="odds-live-state"><i></i><strong>LIVE</strong><small id="odds-latency">Connecting</small></span>
+      <label class="odds-search"><i class="ph ph-magnifying-glass"></i><input id="odds-search" type="search" placeholder="Search teams"></label>
+      <button class="odds-refresh" id="odds-refresh" title="Refresh now"><i class="ph ph-arrows-clockwise"></i></button>
+    </div>
+    <div class="odds-market-tabs">
+      <button class="active" data-odds-kind="">Main Markets</button>
+      <button data-odds-kind="moneyline">Moneyline</button>
+      <button data-odds-kind="spread">Run Line / Spread</button>
+      <button data-odds-kind="game_total">Game Totals</button>
+      <span>Exact markets only · read-only feeds</span>
+    </div>
+  </header>
+  <div class="odds-grid-shell">
+    <div class="odds-grid-head">
+      <span>START</span><span>TEAM / SELECTION</span>
+      <span class="book-head poly"><img src="https://polymarket.com/icons/favicon-32x32.png" alt=""><small>POLYMARKET</small></span>
+      <span class="book-head kalshi"><img src="https://kalshi.com/favicon.ico" alt=""><small>KALSHI</small></span>
+      <span class="book-head fourcx"><img src="https://4cx.io/favicon.ico" alt=""><small>4CX</small></span>
+      <span>BEST</span>
+    </div>
+    <div id="odds-grid" class="odds-grid-body" aria-live="polite"><div class="odds-loading">Loading exact live markets…</div></div>
+  </div>
+  <footer class="odds-footer"><span><i class="status-dot"></i> Three read-only exchange feeds</span><span id="odds-updated">Waiting for first update</span></footer>
+</section>
+{% endblock %}

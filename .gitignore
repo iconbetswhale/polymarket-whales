@@ -25,6 +25,9 @@ top_wallets.json
 .DS_Store
 Thumbs.db
 
+# Local visual QA evidence
+qa/
+
 # IDE
 .vscode/
 .idea/

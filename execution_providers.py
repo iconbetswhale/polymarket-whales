@@ -62,6 +62,13 @@ class ExecutionOption:
     logo_url: str
     tooltip: str
     american_odds: int | None = None
+    contract_price: float | None = None
+    effective_price: float | None = None
+    available_liquidity: float | None = None
+    can_fill_recommended_stake: bool | None = None
+    fee_rate: float | None = None
+    is_best_price: bool = False
+    quote_status: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -77,6 +84,13 @@ class ExecutionOption:
             "logoUrl": self.logo_url,
             "tooltip": self.tooltip,
             "americanOdds": self.american_odds,
+            "contractPrice": self.contract_price,
+            "effectivePrice": self.effective_price,
+            "availableLiquidity": self.available_liquidity,
+            "canFillRecommendedStake": self.can_fill_recommended_stake,
+            "feeRate": self.fee_rate,
+            "isBestPrice": self.is_best_price,
+            "quoteStatus": self.quote_status,
         }
 
 
@@ -681,12 +695,17 @@ class ExecutionProviderRegistry:
 
         for trade in trades:
             trade_id = str(trade.get("id") or "")
-            trade["executionOptions"] = [
-                option.to_dict()
+            found = [
+                option
                 for options in by_provider
                 if (option := options.get(trade_id)) is not None
                 and option.matching_confidence is MatchConfidence.EXACT
             ]
+            executable = [item for item in found if item.is_available and item.can_fill_recommended_stake is not False and (item.effective_price or item.contract_price or american_to_probability(item.american_odds)) is not None]
+            if executable:
+                best = min(executable, key=lambda item: item.effective_price or item.contract_price or american_to_probability(item.american_odds))
+                found = [replace(item, is_best_price=item is best) for item in found]
+            trade["executionOptions"] = [item.to_dict() for item in found]
         return trades
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
@@ -744,8 +763,21 @@ class ExecutionProviderRegistry:
         except Exception:
             return ProviderHealthStatus.CONNECTION_FAILED
 
+    def provider_diagnostics(self, provider_key: str, *, authenticate: bool = False) -> dict:
+        provider = next((item for item in self.providers if item.provider_key == str(provider_key or "").strip().lower()), None)
+        diagnostics = getattr(provider, "diagnostics", None)
+        if not callable(diagnostics):
+            return {"provider": provider_key, "status": "NOT_CONFIGURED"}
+        try:
+            return diagnostics(authenticate=authenticate)
+        except Exception:
+            return {"provider": provider_key, "status": "ERROR", "last_error_code": "DIAGNOSTIC_FAILED"}
+
 
 def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
+    from fourcx_provider import FourCXProvider
+    from kalshi_provider import KalshiProvider
+
     return ExecutionProviderRegistry(
         (
             PolymarketProvider(),
@@ -771,6 +803,22 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 cache_ttl_seconds=getattr(
                     settings, "prophetx_cache_ttl_seconds", 30
                 ),
+                request_timeout=getattr(settings, "request_timeout", 15),
+            ),
+            FourCXProvider(
+                getattr(settings, "fourcx_username", None),
+                getattr(settings, "fourcx_password", None),
+                enabled=getattr(settings, "fourcx_enabled", False),
+                trading_enabled=getattr(settings, "fourcx_trading_enabled", False),
+                base_url=getattr(settings, "fourcx_api_base_url", "https://api.4cx.io"),
+                cache_ttl_seconds=getattr(settings, "fourcx_cache_ttl_seconds", 30),
+                request_timeout=getattr(settings, "request_timeout", 15),
+                max_quote_age_seconds=getattr(settings, "execution_quote_max_age_seconds", 60),
+            ),
+            KalshiProvider(
+                enabled=getattr(settings, "kalshi_enabled", True),
+                base_url=getattr(settings, "kalshi_api_base_url", "https://external-api.kalshi.com/trade-api/v2"),
+                cache_ttl_seconds=getattr(settings, "kalshi_cache_ttl_seconds", 1),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
         )
