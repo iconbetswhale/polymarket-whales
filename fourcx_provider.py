@@ -98,6 +98,7 @@ class FourCXProvider(ExecutionProvider):
         self._active_event_count = 0
         self._exact_market_matches = 0
         self._mapping_failures = 0
+        self.failure_reasons: dict[str, str] = {}
 
     def __repr__(self) -> str:
         return f"<FourCXProvider enabled={self.enabled} configured={self._configured} trading_enabled={self.trading_enabled}>"
@@ -135,20 +136,27 @@ class FourCXProvider(ExecutionProvider):
 
     def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
         canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
+        self.failure_reasons = {}
         if not self._configured or not canonical:
+            if canonical and not self._configured:
+                self.failure_reasons = {trade.trade_id: "PROVIDER_NOT_CONFIGURED" for trade in canonical}
             return {}
         try:
             cache = self._market_index(canonical)
         except (requests.RequestException, ValueError, TypeError):
+            self.failure_reasons = {trade.trade_id: "PROVIDER_UNAVAILABLE" for trade in canonical}
             return {}
         originals = {str(row.get("id") or ""): row for row in trades}
         results: dict[str, ExecutionOption] = {}
         mapping_failures = 0
         for trade in canonical:
-            confidence, market = _match_exact_trade(trade, cache.index, allow_same_day=True)
+            confidence, market = _match_exact_trade(trade, cache.index)
             if confidence is not MatchConfidence.EXACT or market is None:
                 if confidence is MatchConfidence.PROBABLE:
                     mapping_failures += 1
+                    self.failure_reasons[trade.trade_id] = FOURCX_MAPPING_UNCERTAIN
+                else:
+                    self.failure_reasons[trade.trade_id] = "MARKET_NOT_FOUND"
                 continue
             stake = _recommended_stake(originals.get(trade.trade_id) or {})
             effective, liquidity, fillable = _effective_price(
@@ -175,6 +183,8 @@ class FourCXProvider(ExecutionProvider):
                 can_fill_recommended_stake=fillable,
                 fee_rate=0.0,
                 quote_status="OPEN" if available else "INSUFFICIENT_DEPTH",
+                provider_event_id=market.event_id,
+                native_price_format="AMERICAN",
             )
         self._exact_market_matches = len(results)
         self._mapping_failures = mapping_failures

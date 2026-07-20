@@ -1,5 +1,6 @@
 const page = document.body.dataset.page;
-const AUTO_REFRESH_MS = 15000;
+const LINE_SHOP_REFRESH_MS = Math.max(2000, (number(document.body.dataset.lineShopRefreshSeconds) || 5) * 1000);
+const AUTO_REFRESH_MS = page === "trades" ? LINE_SHOP_REFRESH_MS : 15000;
 const appState = {
   paused: localStorage.getItem("iconbets-refresh-paused") === "true",
   selectedTradeId: null,
@@ -681,20 +682,32 @@ function executionOptionButton(trade, option) {
   const providerKey = String(option.providerKey || "provider").toLowerCase();
   const contractPrice = number(option.contractPrice);
   const americanOdds = number(option.americanOdds);
-  const dualOdds = [contractPrice === null ? null : formatCents(contractPrice), americanOdds === null ? null : (americanOdds > 0 ? `+${Math.round(americanOdds)}` : `${Math.round(americanOdds)}`)].filter(Boolean).join(" / ");
-  const displayOdds = option.isAvailable ? (["polymarket", "kalshi"].includes(providerKey) ? (dualOdds || option.displayOdds) : option.displayOdds) : "Unavailable";
+  const nativeOdds = ["polymarket", "kalshi"].includes(providerKey)
+    ? (contractPrice === null ? option.displayOdds : formatCents(contractPrice))
+    : (americanOdds === null ? option.displayOdds : (americanOdds > 0 ? `+${Math.round(americanOdds)}` : `${Math.round(americanOdds)}`));
+  const displayOdds = option.isAvailable ? nativeOdds : "Unavailable";
   const movement = option.priceMovement || "";
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
   const bestClass = option.isBestPrice ? " best-execution-price" : "";
   const classes = `execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement}`.trim();
-  const tooltip = option.tooltip || `${providerName} Current Best Price`;
+  const age = number(option.quoteAgeSeconds);
+  const details = [
+    `Top ${nativeOdds || "Unavailable"}`,
+    `Effective ${formatOptionalCents(option.effectiveEntryPrice ?? option.effectivePrice)}`,
+    `Liquidity ${formatOptionalMoney(option.availableLiquidity)}`,
+    `Stake ${formatOptionalMoney(option.recommendedStake)}`,
+    `Fees ${number(option.estimatedFees) === null ? "Unavailable" : formatMoney(option.estimatedFees)}`,
+    `Age ${age === null ? "Unknown" : `${Math.round(age)}s`}`,
+  ].join(" · ");
+  const tooltip = `${option.tooltip || `${providerName} executable quote`} · ${details}`;
   const plan = trade.recommendation?.execution_plan || {};
-  const effective = number(option.effectivePrice ?? option.contractPrice ?? plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
+  const effective = number(option.effectiveEntryPrice ?? option.effectivePrice ?? option.contractPrice ?? plan.effective_price_for_executable_amount ?? trade.recommendation?.current_user_entry_price);
   const maximum = number(plan.maximum_average_price);
   const aboveMaximum = effective !== null && maximum !== null && effective > maximum;
   const content = `
     <img src="${escapeHtml(option.logoUrl || "")}" alt="" aria-hidden="true" width="18" height="18">
-    <span><small>${escapeHtml(providerName)}${option.isBestPrice ? " · BEST" : ""}</small><strong>${escapeHtml(displayOdds)}</strong></span>
+    <span><small>${escapeHtml(providerName)}</small><strong>${escapeHtml(displayOdds)}</strong></span>
+    ${option.isBestPrice ? '<em class="best-price-label">Best Price</em>' : ""}
     <span class="execution-option-tooltip" role="tooltip">${escapeHtml(tooltip)}</span>
   `;
   if (!option.isAvailable || !option.deepLink || aboveMaximum) {
@@ -708,14 +721,13 @@ function executionOptionButton(trade, option) {
 }
 
 function executionToolbar(trade) {
-  const options = (trade.executionOptions || []).filter((option) => option.matchingConfidence === "Exact");
-  const executable = options.filter(option => option.isAvailable && option.deepLink && option.canFillRecommendedStake !== false);
-  const selected = executable.find(option => option.isBestPrice)
-    || executable.find(option => String(option.providerKey || "").toLowerCase() === "polymarket")
-    || executable[0]
-    || options.find(option => String(option.providerKey || "").toLowerCase() === "polymarket")
-    || options[0];
-  return `<span class="execution-toolbar execution-toolbar--best" aria-label="Best line-shopped execution option">${selected ? executionOptionButton(trade, selected) : ""}<small class="line-shop-status"><i class="ph ph-check-circle"></i> Best exact price across live feeds</small></span>`;
+  const supported = new Set(["polymarket", "kalshi", "fourcx"]);
+  const options = (trade.executionOptions || []).filter((option) => option.matchingConfidence === "Exact" && supported.has(String(option.providerKey || "").toLowerCase()));
+  const ordered = [...options].sort((a, b) => Number(Boolean(b.isBestPrice)) - Number(Boolean(a.isBestPrice)));
+  if (!ordered.length) return '<span class="execution-toolbar execution-toolbar--empty"><small class="line-shop-status"><i class="ph ph-warning-circle"></i>No exact provider market</small></span>';
+  const hasBest = ordered.some(option => option.isBestPrice);
+  const hasStale = ordered.some(option => option.isStale);
+  return `<span class="execution-toolbar execution-toolbar--best" aria-label="Line-shopped execution options"><span class="execution-options-scroll">${ordered.map(option => executionOptionButton(trade, option)).join("")}</span><small class="line-shop-status ${hasBest ? "ready" : "waiting"}"><i class="ph ${hasBest ? "ph-check-circle" : "ph-clock"}"></i>${hasBest ? "Best executable exact price" : (hasStale ? "Quotes stale · waiting for refresh" : "No provider can fill this stake")}</small></span>`;
 }
 
 function applyClientTradeFilters(trades, filters) {
@@ -3117,10 +3129,24 @@ function bindTracker() {
 
 function bindNavigation() {
   const toggle = document.getElementById("mobile-nav-toggle");
+  const links = document.getElementById("primary-links");
+  const closeMobileNavigation = () => {
+    links?.classList.remove("open");
+    document.body.classList.remove("mobile-nav-open");
+    toggle?.setAttribute("aria-expanded", "false");
+  };
   toggle?.addEventListener("click", () => {
-    const links = document.getElementById("primary-links");
-    links.classList.toggle("open");
-    toggle.setAttribute("aria-expanded", String(links.classList.contains("open")));
+    const isOpen = !links?.classList.contains("open");
+    links?.classList.toggle("open", isOpen);
+    document.body.classList.toggle("mobile-nav-open", isOpen);
+    toggle.setAttribute("aria-expanded", String(isOpen));
+  });
+  links?.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMobileNavigation));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") closeMobileNavigation();
+  });
+  window.addEventListener("resize", () => {
+    if (window.innerWidth > 900) closeMobileNavigation();
   });
   const pauseControls = document.querySelectorAll("[data-refresh-toggle]");
   if (pauseControls.length) {

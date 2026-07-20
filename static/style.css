@@ -7942,6 +7942,93 @@ body[data-page="trades"] {
 .execution-toolbar--best .line-shop-status { display:flex; align-items:center; justify-content:center; gap:4px; color:#79a990; font-size:8px; line-height:1.2; white-space:nowrap; }
 .execution-toolbar--best .line-shop-status i { color:#5fd479; font-size:10px; }
 
+.trade-selection > .execution-toolbar {
+  display: flex;
+  min-width: 0;
+  max-width: 390px;
+}
+
+.execution-options-scroll {
+  display: flex;
+  min-width: 0;
+  gap: 5px;
+  overflow-x: auto;
+  padding: 7px 2px 2px;
+  scrollbar-width: thin;
+  overscroll-behavior-inline: contain;
+}
+
+.trade-selection .execution-options-scroll .execution-option,
+.detail-selection-panel .execution-options-scroll .execution-option {
+  width: auto;
+  min-width: 92px;
+  min-height: 39px;
+  flex: 0 0 100px;
+  padding: 5px 8px;
+  border-color: #344a55;
+  background: linear-gradient(180deg, #17252c, #111c22);
+  box-shadow: var(--inner-highlight), 0 5px 12px rgba(0, 0, 0, 0.26);
+}
+
+.trade-selection .execution-options-scroll .execution-option.best-execution-price,
+.detail-selection-panel .execution-options-scroll .execution-option.best-execution-price {
+  border-color: rgba(44, 202, 255, 0.85);
+  background: linear-gradient(180deg, #173541, #10262f);
+  box-shadow: var(--inner-highlight), 0 0 0 1px rgba(44, 202, 255, 0.14), 0 7px 18px rgba(0, 174, 232, 0.16);
+}
+
+.execution-option .best-price-label {
+  position: absolute;
+  top: -8px;
+  right: 5px;
+  padding: 1px 4px;
+  border: 1px solid rgba(44, 202, 255, 0.55);
+  border-radius: 3px;
+  background: #07141a;
+  color: #77dcff;
+  font-family: var(--font-mono);
+  font-size: 6px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.execution-options-scroll .execution-option:disabled {
+  border-color: #263841;
+  background: #10191e;
+  box-shadow: none;
+  opacity: 0.58;
+}
+
+.execution-toolbar--best .line-shop-status.waiting,
+.execution-toolbar--empty .line-shop-status {
+  color: #8ea0a9;
+}
+
+.execution-toolbar--best .line-shop-status.waiting i,
+.execution-toolbar--empty .line-shop-status i {
+  color: #8ea0a9;
+}
+
+@media (max-width: 760px) {
+  .trade-selection > .execution-toolbar,
+  .detail-selection-panel > .execution-toolbar {
+    width: 100%;
+    max-width: none;
+  }
+
+  .execution-options-scroll {
+    width: 100%;
+    scroll-snap-type: inline proximity;
+  }
+
+  .execution-options-scroll .execution-option {
+    scroll-snap-align: start;
+  }
+}
+
 .trade-detail {
   border-color: rgba(19, 183, 237, 0.7);
   background: #070b0e;
@@ -8124,4 +8211,1315 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 /* Slightly larger desktop reading scale across every workspace. */
 @media (min-width: 901px) {
   html { zoom: 1.075; }
+}
+
+/* Odds-screen-inspired visual system: shared shell, data surfaces, and density. */
+:root {
+  --bg: #05080b;
+  --text: #f4f7f8;
+  --cyan: #13b7ed;
+  --green: #6fd34a;
+  --muted: #83949e;
+  --legacy-surface-highlight: rgba(255, 255, 255, 0.06);
+  --oj-black:#03070a;
+  --oj-canvas:#05090c;
+  --oj-sidebar:#070c10;
+  --oj-panel:#111f2a;
+  --oj-panel-2:#162837;
+  --oj-panel-3:#1c3243;
+  --oj-line:#294453;
+  --oj-line-soft:#1c303b;
+  --oj-text:#f4f8fa;
+  --oj-muted:#8fa2ad;
+  --oj-cyan:#08b8ef;
+  --oj-green:#74d83d;
+  --oj-red:#f16468;
+  --oj-radius:6px;
+  --font-display:"Inter",sans-serif;
+  --font-body:"Inter",sans-serif;
+  --font-data:"Roboto Condensed",sans-serif;
+}
+
+@media (min-width:901px) {
+  html { zoom:1; }
+}
+
+html,body { background:var(--oj-canvas); }
+body {
+  color:var(--oj-text);
+  background:var(--oj-canvas);
+  font-family:var(--font-body);
+  font-size:13px;
+  line-height:1.35;
+}
+
+body::before { content:none; }
+
+.app-nav {
+  position:fixed;
+  inset:0 auto 0 0;
+  z-index:60;
+  width:156px;
+  height:100vh;
+  min-height:0;
+  padding:8px 8px 14px;
+  border:0;
+  border-right:1px solid #14252e;
+  background:var(--oj-sidebar);
+  box-shadow:4px 0 18px rgba(0,0,0,.22);
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:7px;
+}
+
+.brand {
+  min-width:0;
+  height:34px;
+  padding:0 4px;
+  display:flex;
+  align-items:center;
+  gap:7px;
+}
+
+.brand-icon {
+  width:25px;
+  height:25px;
+  border:0;
+  border-radius:8px;
+  color:#021016;
+  background:var(--oj-cyan);
+  box-shadow:0 0 16px rgba(8,184,239,.2);
+  display:grid;
+  place-items:center;
+  font-size:16px;
+}
+
+.brand-copy { min-width:0; display:block; }
+.brand-copy strong { display:block; font:800 15px/1 var(--font-body); letter-spacing:-.04em; color:#f8fbfc; }
+.brand-copy small { display:none; }
+
+.product-mode {
+  height:29px;
+  padding:3px;
+  border:1px solid #263b47;
+  border-radius:7px;
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:2px;
+  color:#7e919c;
+  font:700 8px/1 var(--font-body);
+  letter-spacing:.04em;
+}
+.product-mode span { display:flex; align-items:center; justify-content:center; gap:4px; border-radius:4px; }
+.product-mode .active { color:#4bd2ff; background:#0b2935; box-shadow:inset 0 0 0 1px #057fa8; }
+.product-mode i { color:#8ade65; font-size:10px; }
+
+.nav-links {
+  min-width:0;
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:3px;
+  overflow:auto;
+  padding:3px 0 10px;
+  scrollbar-width:none;
+}
+.nav-links::-webkit-scrollbar { display:none; }
+.nav-links a {
+  min-height:34px;
+  padding:0 9px;
+  border:1px solid transparent;
+  border-radius:5px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  color:#a5b5be;
+  font:500 10px/1 var(--font-body);
+  white-space:nowrap;
+}
+.nav-links a i { width:14px; color:#90a2ac; font-size:15px; }
+.nav-links a:hover { color:#eaf7fb; background:#0e1b23; }
+.nav-links a[aria-current="page"] {
+  color:#10c4f7;
+  border-color:#068bb8;
+  background:#0a3342;
+  box-shadow:inset 3px 0 #09b9ee,0 4px 16px rgba(0,0,0,.18);
+}
+.nav-links a[aria-current="page"] i { color:#10c4f7; }
+.nav-section-label {
+  margin:8px 8px 2px;
+  padding-top:9px;
+  border-top:1px solid #213946;
+  color:#607681;
+  font:700 8px/1 var(--font-body);
+  letter-spacing:.1em;
+  text-transform:uppercase;
+}
+.mobile-nav-pause { display:none!important; }
+
+.nav-status {
+  position:fixed;
+  z-index:55;
+  top:0;
+  left:156px;
+  right:0;
+  height:42px;
+  padding:0 14px;
+  border-bottom:1px solid #172a34;
+  background:#05090c;
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:5px;
+}
+.status-chip {
+  min-height:25px;
+  padding:0 8px;
+  border:1px solid #20333e;
+  border-radius:5px;
+  color:#7f939e;
+  background:#091116;
+  font:600 9px/1 var(--font-body);
+  box-shadow:none;
+}
+.status-chip strong { color:#dce8ed; font-size:9px; }
+.status-chip.pause-chip span { display:none; }
+.wallet-link { color:#93a7b1; }
+.account-chip { border-radius:99px; }
+
+.app-shell {
+  width:auto;
+  max-width:none;
+  min-height:100vh;
+  margin:0 0 0 156px;
+  padding:56px 22px 28px;
+  background:var(--oj-canvas);
+}
+
+h1,h2,h3,.page-header h1,.panel-header h2 { font-family:var(--font-body); color:var(--oj-text); letter-spacing:-.025em; }
+h1,.page-header h1 { font-size:18px; font-weight:700; }
+h2,.panel-header h2 { font-size:14px; font-weight:700; }
+.eyebrow { color:#6f8691; font:700 8px/1 var(--font-body); letter-spacing:.1em; }
+.button,.icon-button,select,input,.search-control { border-radius:5px; }
+.button,.icon-button { border-color:#2a4350; background:#101c24; color:#e8f2f6; box-shadow:none; }
+.button.primary { border-color:#0797c5; background:#06afe3; color:#031118; box-shadow:0 5px 16px rgba(0,174,229,.13); }
+.button:hover,.icon-button:hover { border-color:#426171; background:#162833; }
+.button.primary:hover { background:#13bbed; color:#021016; }
+select,input,.search-control { border-color:#263e4b; background:#0b151b; color:#e5eff3; }
+
+.panel,.toolbar,.metric-card,.bankroll-strip,.wallet-card {
+  border:1px solid var(--oj-line);
+  border-radius:var(--oj-radius);
+  background:var(--oj-panel);
+  box-shadow:0 12px 30px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.018);
+}
+.panel-header { min-height:52px; padding:12px 16px; border-bottom:1px solid var(--oj-line); }
+
+/* Prediction Traders */
+body[data-page="trades"] { --trade-score: #73d247; --trade-border-active: #13b7ed; --trade-accent: #13b7ed; background:var(--oj-canvas); overflow:hidden; }
+body[data-page="trades"] .app-shell { width:auto; max-width:none; height:100vh; margin-left:156px; padding:52px 16px 12px; }
+.trades-page { height:100%; width: min(100%, 1520px); max-width:1160px; margin:0 auto; margin-inline: auto; display:grid; grid-template-rows:40px minmax(0,1fr); gap:4px; }
+.trades-command-bar {
+  min-height:40px;
+  padding:0;
+  border:0;
+  background:transparent;
+  box-shadow:none;
+  display:flex;
+  align-items:center;
+}
+.trades-command-primary h1 { margin:0 10px 0 0; font-size:17px; }
+.workspace-tabs { height:27px; padding:2px; border:1px solid #223a46; border-radius:5px; background:#081116; gap:1px; }
+.workspace-tabs button { min-height:21px; padding:0 8px; border:0; border-radius:3px; color:#7f929d; background:transparent; font-size:8px; }
+.workspace-tabs button.active { color:#f4f9fb; background:#19303d; box-shadow:inset 0 0 0 1px #344f5d; }
+.result-badge,.model-status-pill { min-height:23px; border-radius:4px; font-size:8px; }
+.model-status-pill { color:#88d957; border-color:#31551f; background:#0b160d; }
+.trades-command-actions { gap:5px; margin-left:auto; }
+.compact-search { width:160px; min-height:27px; }
+.compact-search input { font-size:9px; }
+.toolbar-bankroll,.personal-pnl-summary,.trades-command-actions>.icon-button { height:27px; min-height:27px; font-size:9px; }
+.personal-pnl-summary { max-width:115px; }
+.personal-pnl-summary span,.personal-pnl-summary em { display:none; }
+.trade-workspace { min-height:0; grid-template-columns:minmax(0,2.6fr) minmax(300px,1fr); gap:8px; }
+.trade-list-panel { border:0; background:transparent; box-shadow:none; }
+.trade-list { gap:6px; padding:0 4px 18px 0; }
+.trade-card {
+  min-height:78px;
+  border:1px solid #233a45;
+  border-radius:5px;
+  background:#101d25;
+  box-shadow:0 5px 14px rgba(0,0,0,.2),inset 0 1px rgba(255,255,255,.018);
+  grid-template-columns:minmax(260px,1fr) minmax(430px,1.35fr);
+  overflow:hidden;
+}
+.trade-card:hover { border-color:#365866; background:#14242d; transform:none; }
+.trade-card.selected { border-color:#00a5d7; background:#0d2630; box-shadow:inset 3px 0 #03b7eb,0 7px 18px rgba(0,0,0,.25); }
+.trade-identity { padding:8px 10px; gap:9px; }
+.trade-score { min-width:34px; }
+.trade-score strong { color:var(--oj-green); font:700 18px/1 var(--font-data); }
+.trade-score small { display:none; }
+.trade-kicker { color:#7f949f; font-size:8px; }
+.trade-event { margin-top:3px; color:#f7fbfc; font-size:11px; line-height:1.15; }
+.trade-market { margin-top:2px; color:#edf4f6; font-size:8px; font-weight:600; }
+.research-badges { gap:3px; }
+.research-badges>* { padding:1px 4px; border-radius:3px; font-size:7px; }
+.trade-decision { grid-template-rows:25px minmax(50px,1fr); }
+.trade-metrics-row { min-height:25px; padding:3px 8px; border-bottom:1px solid #1e333d; justify-content:flex-end; gap:3px; }
+.trade-metric-chip { min-height:18px; padding:0 5px; border:1px solid #28404c; border-radius:9px; background:#0c171d; color:#8ba0aa; }
+.trade-metric-chip i,.trade-metric-chip strong { font-size:7px; }
+.trade-current-price { font-size:8px; }
+.trade-selection { min-height:50px; height:auto; padding:5px 7px; gap:6px; background:#172934; }
+.trade-pick { min-width:150px; }
+.trade-pick small { display:none; }
+.trade-pick strong { font-size:10px; }
+.trade-recommendation { min-width:62px; text-align:right; }
+.trade-recommendation small,.trade-recommendation em:nth-of-type(n+2) { display:none; }
+.trade-recommendation strong { font-size:10px; }
+.trade-recommendation em { color:#93a6af; font-size:8px; }
+.execution-toolbar { min-width:78px; }
+.execution-option { min-height:32px; padding:3px 5px; border-radius:4px; }
+.execution-option>span strong { font-size:9px; }
+.trade-card-actions { gap:2px; }
+.trade-card-actions button { width:23px; height:23px; padding:0; }
+.tracker-quick-action span { display:none; }
+.trade-caret { display:none; }
+.trade-detail {
+  border:1px solid #006f91;
+  border-radius:6px;
+  background:#0d1820;
+  box-shadow:0 12px 28px rgba(0,0,0,.28);
+}
+.detail-hero,.detail-header { background:#10212b; }
+.detail-header { padding:10px 12px; border-bottom-color:#27414d; }
+.detail-header h2 { font-size:12px; }
+.detail-tabs,.detail-accordion,.detail-panel { border-color:#263f4b; background:#111f28; }
+
+/* Bet Tracker */
+body[data-page="tracker"] .app-shell { padding-top:58px; }
+.tracker-page-header { max-width:1500px; margin:0 auto 10px; align-items:flex-end; }
+.tracker-page-header .title-line { gap:7px; }
+.tracker-page-header h1 { font-size:20px; }
+.tracker-subtitle { color:#788e99; font-size:10px; }
+.tracker-header-actions { gap:6px; }
+.bankroll-inline { min-height:29px; padding:0 9px; border:1px solid #294451; border-radius:5px; background:#0d1820; font-size:9px; }
+.tracker-switcher-shell { max-width:1500px; margin:0 auto 10px; padding:0; border:0; background:transparent; }
+.tracker-view-toggle { width:auto; display:inline-flex; padding:3px; border:1px solid #294451; border-radius:6px; background:#081116; }
+.tracker-view-toggle button { min-width:170px; padding:6px 10px; border-radius:4px; }
+.tracker-view-toggle button[aria-selected="true"] { background:#213747; color:#fff; box-shadow:inset 0 0 0 1px #3b5968; }
+.tracker-view-toggle button i { color:#00b8ef; }
+.tracker-view-toggle small { color:#78909b; }
+.tracker-context { max-width:1500px; margin:0 auto 10px; min-height:46px; padding:9px 14px; background:#122330; }
+.tracker-context i { width:26px; height:26px; border-radius:50%; background:#0a3344; color:#32cfff; }
+.tracker-context strong { font-size:10px; }
+.tracker-context p { color:#879ba5; font-size:9px; }
+.tracker-metrics { max-width:1500px; margin:0 auto 10px; grid-template-columns:repeat(6,minmax(0,1fr)); gap:7px; }
+.tracker-metrics .metric-card { min-height:76px; padding:10px 12px; border-radius:5px; background:#132532; }
+.tracker-metrics .metric-card>span { color:#78909b; font-size:8px; text-transform:uppercase; letter-spacing:.06em; }
+.tracker-metrics .metric-card>strong { font-size:20px; }
+.chart-panel,.tracker-advanced-panel,.tracker-toolbar,.table-panel { max-width:1500px; margin-left:auto; margin-right:auto; }
+.chart-panel { margin-bottom:10px; border-radius:6px; background:#122330; }
+.tracker-chart { min-height:235px; background:#11222e; }
+.tracker-chart svg { filter:saturate(1.05); }
+.segmented { padding:2px; border:1px solid #2c4653; border-radius:5px; background:#0a141a; }
+.segmented button { min-height:24px; padding:0 8px; color:#82959f; font-size:8px; }
+.segmented button.active { color:#f2f8fa; background:#2b4352; }
+.clv-panel { background:#0e1c25; }
+.tracker-advanced-panel { margin-bottom:10px; }
+.tracker-toolbar { padding:8px; gap:5px; border-radius:6px 6px 0 0; background:#0e1b23; }
+.tracker-toolbar select,.tracker-toolbar input,.tracker-toolbar .search-control { min-height:29px; font-size:9px; }
+.table-panel { border-radius:0 0 6px 6px; overflow:hidden; }
+.responsive-table table { background:#111f2a; }
+.responsive-table thead { background:#0b151b; }
+.responsive-table th { height:34px; color:#8599a4; font-size:8px; letter-spacing:.06em; border-color:#2a4350; }
+.responsive-table td { padding:9px 10px; color:#dce7eb; font-size:10px; border-color:#233a46; }
+.responsive-table tbody tr:nth-child(even) { background:#142633; }
+.responsive-table tbody tr:hover { background:#1a3040; }
+
+/* Sportsbook Screen */
+body[data-page="odds-screen"] { overflow:hidden; background:#151c23; }
+body[data-page="odds-screen"] .app-nav { min-height:0; padding:8px 8px 14px; background:var(--oj-sidebar); }
+body[data-page="odds-screen"] .brand { min-width:0; }
+body[data-page="odds-screen"] .brand-icon { width:25px; height:25px; border-radius:8px; font-size:16px; }
+body[data-page="odds-screen"] .nav-links { gap:3px; }
+body[data-page="odds-screen"] .nav-links a { padding:0 9px; font-size:10px; }
+body[data-page="odds-screen"] .nav-status { font-size:9px; }
+body[data-page="odds-screen"] .app-shell { width:auto; height:100vh; margin-left:156px; padding:42px 0 0; }
+.odds-screen-page { background:#171e25; grid-template-rows:auto minmax(0,1fr) 28px; }
+.odds-screen-toolbar { padding:12px 16px 0; border-color:#2c4654; background:#0f1920; }
+.odds-filter-row { min-height:36px; gap:7px; }
+.odds-pill,.odds-filter-row select,.odds-menu-trigger,.odds-market-tabs button,.odds-refresh { height:32px; border-color:#365361; background:#13232d; font-size:11px; }
+.odds-market-tabs { height:43px; }
+.odds-market-tabs button { height:28px; color:#f1f6f8; }
+.odds-grid-shell { background:#181f27; }
+.odds-grid-head { min-height:40px; background:#0a1319; }
+.odds-grid-head>span { color:#eef4f6; font-size:9px; border-color:#2b4552; }
+.odds-date-divider { top:40px; background:#101920; }
+.odds-market-row { min-height:72px; background:#1b2b38; }
+.odds-market-row:nth-child(even) { background:#22384a; }
+.odds-market-row>span,.odds-price-stack { border-color:#35515f; }
+.odds-start b { padding:2px 6px; border:1px solid #6b8694; border-radius:4px; background:#2c4555; font-size:10px; }
+.odds-start small { display:none; }
+.odds-team-selection strong { font-size:12px; }
+.odds-team-selection small { display:none; }
+.odds-price strong { color:#f7fafb; font-size:12px; }
+.odds-price small { color:#94a8b2; font-size:8px; }
+.odds-best { background:#15232d; }
+.odds-best strong { color:#f2f7f9; }
+.book-head img { width:23px; height:23px; }
+.best-column-head i { color:#f0c45b; }
+.odds-footer { background:#091116; }
+
+/* Remaining workspaces inherit the same visual language. */
+.overview-page,.wallets-page,.positions-page,.history-page,.edge-map-page,.intel-page { max-width:1500px; margin-left:auto; margin-right:auto; }
+.page-header { margin-bottom:12px; }
+.metric-grid { gap:8px; }
+.metric-card { background:#132532; }
+.toolbar { background:#0e1b23; }
+.pagination { border-top-color:#263f4b; background:#0b151b; }
+.toast { border-color:#2d4b59; background:#12232c; box-shadow:0 14px 40px rgba(0,0,0,.4); }
+.tracker-dialog::backdrop { background:rgba(0,4,7,.78); }
+.tracker-dialog-shell { border-color:#31515f; border-radius:7px; background:#101e27; box-shadow:0 28px 70px rgba(0,0,0,.55); }
+
+@media(max-width:1100px) {
+  .app-nav { width:132px; }
+  .nav-status { left:132px; }
+  .app-shell,body[data-page="trades"] .app-shell,body[data-page="odds-screen"] .app-shell { margin-left:132px; }
+  .brand-copy strong { font-size:13px; }
+  .nav-links a { padding-inline:7px; font-size:9px; }
+  .trade-workspace { grid-template-columns:minmax(0,1fr) 300px; }
+}
+
+@media(max-width:900px) {
+  .app-nav { position:sticky; width:100%; height:auto; min-height:48px; padding:6px 10px; flex-direction:row; align-items:center; }
+  .brand { width:auto; }
+  .product-mode { display:none; }
+  .mobile-nav-toggle { display:grid; margin-left:auto; }
+  .nav-links { position:absolute; top:48px; left:0; right:0; padding:8px; background:#071016; border-bottom:1px solid #294451; }
+  .nav-section-label { display:none; }
+  .nav-status { display:none; }
+  .app-shell,body[data-page="trades"] .app-shell,body[data-page="odds-screen"] .app-shell { width:100%; height:auto; margin-left:0; padding:14px; }
+  body[data-page="trades"] { overflow:auto; }
+  .trades-page { height:auto; display:block; }
+  .trades-command-bar { margin-bottom:8px; flex-wrap:wrap; height:auto; }
+  .trades-command-actions { width:100%; margin-top:6px; overflow:auto; }
+  .trade-workspace { grid-template-columns:1fr; }
+  .trade-detail { position:static; min-height:320px; }
+  .tracker-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* OddsJam fidelity pass 2: scale, rhythm, hierarchy, and dashboard composition. */
+:root {
+  --bg: #05080b;
+  --text: #f4f7f8;
+  --cyan: #13b7ed;
+  --green: #6fd34a;
+  --muted: #83949e;
+  --legacy-surface-highlight: rgba(255, 255, 255, 0.06);
+  --oj-sidebar-width:120px;
+  --oj-content-line:#294654;
+  --oj-surface-deep:#0a141a;
+  --oj-surface:#10212b;
+  --oj-surface-raised:#142836;
+  --oj-surface-active:#1c3546;
+}
+
+html { -webkit-text-size-adjust:100%; }
+body {
+  font-size:14px;
+  line-height:1.4;
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+}
+
+.app-nav {
+  width:var(--oj-sidebar-width);
+  padding:7px 7px 12px;
+  gap:6px;
+  background:#060b0f;
+  border-right-color:#1d333e;
+  box-shadow:3px 0 18px rgba(0,0,0,.28);
+}
+.brand { height:32px; padding:0 2px; gap:6px; }
+.brand-icon { width:23px; height:23px; border-radius:7px; font-size:14px; }
+.brand-copy strong { font-size:14px; letter-spacing:-.035em; }
+.product-mode { height:27px; font-size:7.5px; border-color:#29414d; }
+.nav-links {
+  justify-content:flex-start;
+  gap:2px;
+  padding-top:5px;
+}
+.nav-links a {
+  min-height:32px;
+  padding:0 7px;
+  gap:7px;
+  border-radius:4px;
+  font-size:10px;
+  font-weight:500;
+}
+.nav-links a i { font-size:14px; }
+.nav-links a.active {
+  background:#0e2a36;
+  border-color:#00aee6;
+  box-shadow:inset 3px 0 0 #05bdf4,0 5px 16px rgba(0,0,0,.2);
+}
+.nav-section-label {
+  margin:7px 6px 2px;
+  padding-top:8px;
+  font-size:7px;
+  letter-spacing:.14em;
+}
+.nav-status {
+  left:var(--oj-sidebar-width);
+  height:42px;
+  padding:0 12px;
+  border-bottom-color:#1c303b;
+  background:#070c10;
+  box-shadow:0 5px 16px rgba(0,0,0,.18);
+}
+.status-chip { min-height:29px; padding:0 10px; font-size:9.5px; }
+.status-chip strong { font-size:10px; }
+
+.app-shell,
+body[data-page="trades"] .app-shell,
+body[data-page="odds-screen"] .app-shell {
+  margin-left:var(--oj-sidebar-width);
+}
+.app-shell { padding:58px 24px 28px; }
+h1,h2,h3,.metric-card>strong { font-family:Inter,"DM Sans",sans-serif; }
+h1 { letter-spacing:-.035em; }
+h2 { font-weight: 800; line-height: 1.12; letter-spacing:-.022em; }
+.eyebrow { font-size:9.5px; line-height:1.2; letter-spacing:.11em; }
+.panel,
+.metric-card,
+.toolbar {
+  border-color:var(--oj-content-line);
+  box-shadow:0 10px 25px rgba(0,0,0,.16);
+}
+.panel-header { min-height:60px; padding:14px 18px; }
+.panel-header h2 { font-size:15px; }
+.panel-header p { font-size:10.5px; line-height:1.45; }
+.button,.icon-button,select,input { font-family:Inter,"DM Sans",sans-serif; }
+
+/* Prediction Traders fidelity */
+body[data-page="trades"] .app-shell { padding:54px 18px 12px; }
+.trades-page { width: min(100%, 1520px); max-width:1160px; margin-inline: auto; grid-template-rows:42px minmax(0,1fr); gap:6px; }
+.trades-command-bar { min-height:42px; }
+.trades-command-title h1 { font-size:18px; font-weight:700; }
+.trades-tabs button,.trades-filter-chip { min-height:27px; font-size:9.5px; }
+.trades-search { height:32px; }
+.trades-search input { font-size:10.5px; }
+.trade-workspace { grid-template-columns:minmax(0,1fr) 316px; gap:8px; }
+.trade-list-panel { padding-right:2px; }
+.trade-card { min-height:72px; margin-bottom:7px; border-color:#243d49; background:#101d25; }
+.trade-card:hover { border-color:#3b5c6c; background:#13242e; }
+.trade-card.active { border-color:#00aee6; background:#0d2934; }
+.trade-score { font-size:16px; line-height:1; }
+.trade-context { font-size:9px; }
+.trade-event { font-size:11px; line-height:1.3; }
+.trade-market { font-size:9px; }
+.trade-metric-chip { min-height:20px; padding:0 6px; }
+.trade-metric-chip i,.trade-metric-chip strong { font-size:8.5px; }
+.trade-current-price { font-size:9px; }
+.trade-pick strong,.trade-recommendation strong { font-size:11px; }
+.trade-recommendation em { font-size:9px; }
+.execution-option>span strong { font-size:10px; }
+.trade-detail { border-color:#008ab2; background:#0d1b23; box-shadow:0 16px 34px rgba(0,0,0,.32); }
+.detail-header h2 { font-size:14px; }
+.empty-state h2,.empty-detail h2 { font-size:23px; letter-spacing:-.035em; }
+.empty-state p,.empty-detail p { font-size:11.5px; line-height:1.45; }
+
+/* Bet Tracker fidelity */
+body[data-page="tracker"] .app-shell { padding:58px 24px 32px; }
+.tracker-page-header,
+.tracker-switcher-shell {
+  max-width:1180px;
+}
+.tracker-page-header { min-height:48px; margin-bottom:0; }
+.tracker-page-header h1 { font-size:23px; }
+.tracker-subtitle { display:none; }
+.bankroll-inline { min-height:32px; font-size:10px; }
+.tracker-switcher-shell { display:flex; justify-content:flex-start; margin:6px auto 10px; position:relative; z-index:2; }
+.tracker-view-toggle { padding:4px; pointer-events:auto; }
+.tracker-view-toggle button { min-width:180px; min-height:38px; padding:5px 10px; }
+.tracker-view-toggle strong { font-size:13px; }
+.tracker-view-toggle small { font-size:9.5px; }
+.tracker-context,
+.tracker-diagnostics,
+.tracker-dashboard-grid,
+.tracker-advanced-panel,
+.tracker-toolbar,
+.table-panel {
+  width:100%;
+  max-width:none;
+}
+.tracker-context {
+  min-height:64px;
+  margin-bottom:12px;
+  padding:11px 16px;
+  background:#142837;
+}
+.tracker-context strong { font-size:11.5px; }
+.tracker-context p { font-size:10px; }
+.tracker-dashboard-grid {
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 420px;
+  gap:12px;
+  margin:0 auto 12px;
+  align-items:stretch;
+}
+.tracker-dashboard-main { min-width:0; display:flex; flex-direction:column; gap:12px; }
+.tracker-dashboard-main .tracker-metrics {
+  max-width:none;
+  margin:0;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:9px;
+}
+.tracker-metrics .metric-card {
+  min-height:92px;
+  padding:12px 14px;
+  border-color:#2b4b5a;
+  background:#142836;
+  box-shadow:0 8px 22px rgba(0,0,0,.18);
+}
+.tracker-metrics .metric-card>span { font-size:9px; letter-spacing:.08em; }
+.tracker-metrics .metric-card>strong { font-size:19px; line-height:1.1; }
+.tracker-metrics .metric-card>small { font-size:10px; line-height:1.35; }
+.tracker-bankroll-panel { flex:1; margin:0; }
+.tracker-bankroll-panel .tracker-chart { min-height:315px; }
+.tracker-clv-panel {
+  min-width:0;
+  height:100%;
+  margin:0;
+  display:grid;
+  grid-template-rows:auto auto minmax(300px,1fr);
+  background:#10212b;
+}
+.tracker-clv-panel .panel-header { align-items:flex-start; }
+.tracker-clv-panel .clv-period-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.tracker-clv-panel .tracker-chart { min-height:300px; height:100%; }
+.chart-panel { border-radius:7px; background:#122632; }
+.tracker-chart { background:#122a38; }
+.segmented button { min-height:27px; padding:0 10px; font-size:9px; }
+.tracker-advanced-panel { margin-bottom:12px; }
+.tracker-advanced-panel .panel-header select { min-width:150px; }
+.tracker-analytics-summary { padding:12px 16px; }
+.tracker-toolbar { padding:10px; gap:7px; }
+.tracker-toolbar select,.tracker-toolbar input,.tracker-toolbar .search-control { min-height:32px; font-size:10px; }
+.responsive-table th { height:38px; font-size:9px; }
+.responsive-table td { padding:10px 11px; font-size:11px; line-height:1.4; }
+.table-panel { min-height:360px; }
+
+/* Dashboard and remaining workspaces */
+.overview-page,.wallets-page,.positions-page,.history-page,.edge-map-page,.intel-page {
+  width:100%;
+  max-width:none;
+}
+.overview-page>.page-header { max-width:1120px; margin:0 auto 18px; }
+.overview-page>.page-header h1 { font-size:22px; }
+.overview-page .metric-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.overview-page .metric-card { min-height:112px; padding:16px; background:#142836; }
+.overview-page .metric-card>span { font-size:9.5px; }
+.overview-page .metric-card>strong { font-size:24px; }
+.overview-page .preview-list { background:#10212b; }
+
+/* Sportsbook Screen fidelity */
+body[data-page="odds-screen"] .app-shell { height:100vh; padding:42px 0 0; }
+body[data-page="odds-screen"] .nav-links a { padding:0 7px; font-size:10px; }
+.odds-screen-toolbar { padding:13px 15px 0; background:#101b22; }
+.odds-pill,.odds-filter-row select,.odds-menu-trigger,.odds-market-tabs button,.odds-refresh { font-size:11.5px; }
+.odds-market-tabs { height:44px; }
+.odds-grid-head { min-height:42px; }
+.odds-grid-head>span { font-size:9.5px; letter-spacing:.045em; }
+.odds-date-divider { top:42px; height:29px; font-size:10px; }
+.odds-market-row { min-height:56px; }
+.odds-start b { font-size:10.5px; }
+.odds-team-selection strong { font-size:12.5px; line-height:1.25; }
+.odds-price strong { font-size:12.5px; }
+.odds-price small { font-size:9px; }
+.odds-provider-empty { font-size:9px; }
+.odds-footer { height:30px; font-size:9.5px; }
+
+@media(max-width:1350px) {
+  :root { --oj-sidebar-width:172px; }
+  .mobile-nav-toggle { display:none; }
+  .nav-links {
+    position:static;
+    inset:auto;
+    width:auto;
+    height:auto;
+    display:flex;
+    padding:5px 0 10px;
+    border:0;
+    border-radius:0;
+    background:transparent;
+    box-shadow:none;
+  }
+  .nav-links a,.mobile-nav-pause { min-height:34px; height:auto; padding:0 8px; }
+  .nav-status { height:62px; }
+  body[data-page="odds-screen"] .app-shell { padding-top:62px; }
+  .tracker-dashboard-grid { grid-template-columns:1fr; }
+  .tracker-clv-panel { min-height:420px; }
+  .tracker-dashboard-main .tracker-metrics { grid-template-columns:repeat(3,minmax(0,1fr)); }
+}
+
+@media(max-width:900px) {
+  :root { --oj-sidebar-width:0px; }
+  .app-nav { width:100%; }
+  .tracker-dashboard-grid { display:block; }
+  .tracker-dashboard-main .tracker-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .tracker-clv-panel { margin-top:12px; }
+  .overview-page .metric-grid { grid-template-columns:1fr; }
+}
+
+/* Mobile experience: phone-first navigation, touch targets, cards, and data density. */
+@media (max-width: 900px) {
+  :root {
+    --mobile-gutter: 14px;
+    --mobile-header-height: 56px;
+    --oj-sidebar-width: 0px;
+  }
+
+  html { overflow-x:hidden; scroll-padding-top:calc(var(--mobile-header-height) + 12px); }
+  body {
+    min-width:320px;
+    overflow-x:hidden;
+    font-size:14px;
+    background:#060b0f;
+  }
+  body.mobile-nav-open { overflow:hidden; }
+  button,
+  .button,
+  select,
+  input { touch-action:manipulation; }
+  button,
+  .button,
+  select { min-height:44px; }
+
+  .app-nav,
+  body[data-page="odds-screen"] .app-nav {
+    position:fixed;
+    inset:0 0 auto;
+    z-index:80;
+    width:100%;
+    height:var(--mobile-header-height);
+    min-height:var(--mobile-header-height);
+    padding:0 var(--mobile-gutter);
+    display:flex;
+    flex-direction:row;
+    align-items:center;
+    gap:10px;
+    border:0;
+    border-bottom:1px solid #203845;
+    background:rgba(5,10,14,.96);
+    box-shadow:0 8px 24px rgba(0,0,0,.34);
+    backdrop-filter:blur(18px);
+  }
+  .brand,
+  body[data-page="odds-screen"] .brand {
+    width:auto;
+    min-width:0;
+    height:40px;
+    padding:0;
+    gap:8px;
+  }
+  .brand-icon,
+  body[data-page="odds-screen"] .brand-icon {
+    width:30px;
+    height:30px;
+    border-radius:8px;
+    font-size:17px;
+  }
+  .brand-copy { display:block; }
+  .brand-copy strong { font-size:15px; }
+  .brand-copy small,
+  .product-mode,
+  .nav-status { display:none; }
+  .mobile-nav-toggle,
+  body[data-page="odds-screen"] .mobile-nav-toggle {
+    display:grid;
+    width:42px;
+    height:42px;
+    min-height:42px;
+    margin-left:auto;
+    padding:0;
+    place-items:center;
+    border:1px solid #284653;
+    border-radius:7px;
+    background:#0d1a21;
+    color:#e9f5f8;
+    font-size:22px;
+  }
+  .mobile-nav-toggle[aria-expanded="true"] { border-color:#08b7ee; background:#0b2936; color:#22c8fa; }
+  .mobile-nav-toggle i { transition:transform .18s ease; }
+  .mobile-nav-toggle[aria-expanded="true"] i { transform:rotate(90deg); }
+
+  .nav-links,
+  body[data-page="odds-screen"] .nav-links {
+    position:absolute;
+    top:100%;
+    right:0;
+    bottom:auto;
+    left:0;
+    z-index:79;
+    width:100vw;
+    height:calc(100dvh - var(--mobile-header-height));
+    max-height:calc(100dvh - var(--mobile-header-height));
+    padding:14px var(--mobile-gutter) 24px;
+    display:none;
+    flex-direction:column;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:5px;
+    overflow-y:auto;
+    border:0;
+    border-radius:0;
+    background:rgba(5,11,15,.985);
+    box-shadow:0 22px 44px rgba(0,0,0,.55);
+  }
+  .nav-links.open { display:flex; }
+  .nav-links a,
+  body[data-page="odds-screen"] .nav-links a {
+    width:100%;
+    min-height:48px;
+    padding:0 14px;
+    display:flex;
+    flex:none;
+    align-items:center;
+    justify-content:flex-start;
+    gap:12px;
+    border:1px solid transparent;
+    border-radius:7px;
+    color:#a9bbc4;
+    font-size:14px;
+  }
+  .nav-links a i { width:22px; font-size:20px; text-align:center; }
+  .nav-links a[aria-current="page"] {
+    border-color:#087da2;
+    background:#0d2b38;
+    color:#ecf8fb;
+    box-shadow:inset 3px 0 #10bfee;
+  }
+  .nav-section-label {
+    display:block;
+    margin:10px 4px 2px;
+    padding:12px 8px 0;
+    font-size:9px;
+  }
+  .mobile-nav-pause {
+    width:100%;
+    min-height:48px!important;
+    padding:0 14px!important;
+    display:flex!important;
+    align-items:center;
+    gap:12px;
+    border:1px solid #253d48;
+    border-radius:7px;
+    background:#0b161c;
+    color:#9fb1ba;
+    font-size:13px;
+  }
+
+  .app-shell,
+  body[data-page="trades"] .app-shell,
+  body[data-page="tracker"] .app-shell,
+  body[data-page="odds-screen"] .app-shell {
+    width:100%;
+    min-width:0;
+    height:auto;
+    min-height:100dvh;
+    margin:0;
+    padding:calc(var(--mobile-header-height) + 16px) var(--mobile-gutter) 28px;
+    overflow:visible;
+  }
+  body[data-page="trades"],
+  body[data-page="odds-screen"] { overflow:auto; }
+  .overview-page,
+  .wallets-page,
+  .positions-page,
+  .history-page,
+  .edge-map-page,
+  .intel-page { width:100%; min-width:0; padding:0; }
+
+  .page-header,
+  .compact-header,
+  .tracker-page-header {
+    min-height:0;
+    margin:0 0 14px;
+    align-items:flex-start;
+    flex-direction:column;
+    gap:12px;
+  }
+  .page-header h1,
+  .tracker-page-header h1,
+  .overview-page>.page-header h1 { font-size:24px; line-height:1.12; }
+  .page-header .title-line { flex-wrap:wrap; gap:7px; }
+  .page-header>.button,
+  .compact-header>.button { width:100%; justify-content:center; }
+  .panel-header { min-height:0; padding:14px; gap:10px; }
+  .panel-header h2 { font-size:16px; }
+  .panel-header p { font-size:11px; }
+  .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .metric-card,
+  .overview-page .metric-card {
+    min-height:104px;
+    padding:14px;
+  }
+  .metric-card>strong,
+  .overview-page .metric-card>strong { font-size:22px; overflow-wrap:anywhere; }
+
+  .toolbar,
+  .tracker-toolbar,
+  .history-toolbar {
+    width:100%;
+    padding:10px;
+    display:grid;
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:8px;
+    overflow:visible;
+    border-radius:8px 8px 0 0;
+  }
+  .toolbar .search-control,
+  .tracker-toolbar .search-control { grid-column:1 / -1; width:100%; min-width:0; }
+  .toolbar select,
+  .toolbar input,
+  .tracker-toolbar select,
+  .tracker-toolbar input,
+  .tracker-toolbar .search-control { width:100%; min-width:0; min-height:44px; font-size:13px; }
+  .tracker-custom-date,
+  .compact-number-filter { min-height:44px; }
+  .table-panel { border-radius:0 0 8px 8px; }
+  .responsive-table {
+    width:100%;
+    overflow-x:auto;
+    overscroll-behavior-inline:contain;
+    scrollbar-width:thin;
+    -webkit-overflow-scrolling:touch;
+  }
+  .responsive-table table { min-width:780px; }
+  .responsive-table th { height:42px; font-size:9px; }
+  .responsive-table td { padding:11px 10px; font-size:11px; }
+  .pagination { min-height:48px; padding:8px 10px; }
+
+  /* Dashboard */
+  .overview-page .metric-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .overview-page .preview-panel { margin-top:10px; }
+  .preview-row { min-height:74px; padding:12px; gap:10px; }
+  .preview-row>span:last-child { min-width:70px; }
+
+  /* Prediction Traders */
+  .trades-page { height:auto; display:block; }
+  .trades-command-bar {
+    position:relative;
+    min-height:0;
+    margin:0 0 12px;
+    display:grid;
+    gap:10px;
+  }
+  .trades-command-primary { min-width:0; display:flex; flex-wrap:wrap; gap:7px; }
+  .trades-command-title h1,
+  .trades-command-primary h1 { width:100%; margin:0; font-size:23px; }
+  .workspace-tabs {
+    order:3;
+    width:100%;
+    height:42px;
+    padding:3px;
+    overflow-x:auto;
+  }
+  .workspace-tabs button { min-width:max-content; min-height:34px; flex:1; padding:0 12px; font-size:11px; }
+  .trades-command-actions {
+    width:100%;
+    margin:0;
+    padding:0 0 2px;
+    display:flex;
+    gap:7px;
+    overflow-x:auto;
+    overscroll-behavior-inline:contain;
+    scrollbar-width:none;
+  }
+  .trades-command-actions::-webkit-scrollbar { display:none; }
+  .compact-search { width:min(52vw,220px); min-width:150px; height:44px; flex:0 0 auto; }
+  .toolbar-bankroll,
+  .personal-pnl-summary,
+  .trades-command-actions>.icon-button { min-width:44px; height:44px; min-height:44px; flex:0 0 auto; font-size:11px; }
+  .toolbar-bankroll { min-width:84px; }
+  .trade-workspace { display:block; }
+  .trade-list { padding:0 0 18px; gap:9px; overflow:visible; }
+  .trade-card {
+    min-height:0;
+    margin:0 0 9px;
+    display:grid;
+    grid-template-columns:1fr;
+    border-radius:8px;
+  }
+  .trade-identity { min-height:76px; padding:12px; align-items:flex-start; }
+  .trade-score { min-width:42px; }
+  .trade-score strong { font-size:22px; }
+  .trade-kicker,.trade-context { font-size:9px; }
+  .trade-event { font-size:14px; line-height:1.3; }
+  .trade-market { font-size:11px; }
+  .trade-decision { grid-template-rows:auto auto; border-top:1px solid #29434f; }
+  .trade-metrics-row { min-height:36px; padding:6px 9px; justify-content:flex-start; overflow-x:auto; }
+  .trade-metric-chip { min-height:24px; padding:0 8px; flex:0 0 auto; }
+  .trade-metric-chip i,.trade-metric-chip strong { font-size:9px; }
+  .trade-selection { min-height:64px; padding:8px 9px; display:grid; grid-template-columns:minmax(0,1fr) auto auto; }
+  .trade-pick { min-width:0; }
+  .trade-pick strong { font-size:12px; white-space:normal; }
+  .trade-recommendation { min-width:58px; }
+  .trade-recommendation strong { font-size:12px; }
+  .execution-toolbar { min-width:76px; }
+  .execution-option { min-height:42px; }
+  .trade-card-actions button { width:38px; height:38px; }
+  .trade-detail { position:static; min-height:0; margin-top:10px; border-radius:8px; }
+  .detail-header { padding:14px; }
+  .detail-header h2 { font-size:16px; }
+  .detail-tabs { overflow-x:auto; }
+  .detail-tabs button { min-width:max-content; min-height:42px; }
+  .bankroll-popover,
+  .personal-pnl-popover,
+  .trades-more-menu { position:fixed; left:var(--mobile-gutter); right:var(--mobile-gutter); top:calc(var(--mobile-header-height) + 10px); width:auto; max-width:none; }
+  .trades-settings-drawer { width:min(92vw,390px); }
+
+  /* Bet Tracker */
+  .tracker-page-header { width:100%; }
+  .tracker-page-header>div:first-child { width:100%; }
+  .tracker-header-actions { width:100%; display:grid; grid-template-columns:1fr; gap:8px; }
+  .bankroll-inline { width:100%; min-height:46px; padding:0 12px; justify-content:space-between; font-size:11px; }
+  .tracker-header-actions .button { width:100%; justify-content:center; }
+  .tracker-switcher-shell { width:100%; margin:0 0 10px; }
+  .tracker-view-toggle { width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .tracker-view-toggle button { min-width:0; min-height:54px; padding:7px; }
+  .tracker-view-toggle button i { font-size:19px; }
+  .tracker-view-toggle strong { font-size:12px; }
+  .tracker-view-toggle small { display:none; }
+  .tracker-context { min-height:0; padding:13px; align-items:flex-start; }
+  .tracker-context i { flex:0 0 30px; }
+  .tracker-context strong { font-size:12px; }
+  .tracker-context p { margin-top:3px; font-size:10.5px; line-height:1.45; }
+  .tracker-dashboard-grid { display:flex; flex-direction:column; gap:10px; }
+  .tracker-dashboard-main { display:contents; }
+  .tracker-bankroll-panel { order:1; }
+  .tracker-dashboard-main .tracker-metrics { order:2; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .tracker-clv-panel { order:3; min-height:0; margin:0; }
+  .tracker-metrics .metric-card { min-height:102px; padding:13px; }
+  .tracker-metrics .metric-card>span { font-size:8.5px; }
+  .tracker-metrics .metric-card>strong { font-size:20px; }
+  .tracker-metrics .metric-card>small { font-size:9.5px; }
+  .tracker-bankroll-panel .tracker-chart,
+  .tracker-clv-panel .tracker-chart,
+  .tracker-chart { min-height:220px; height:auto; }
+  .segmented { width:100%; max-width:100%; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); overflow:hidden; }
+  .segmented button { min-width:0; min-height:36px; padding-inline:5px; font-size:8.5px; }
+  .clv-period-strip { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .tracker-advanced-panel .panel-header { align-items:stretch; flex-direction:column; }
+  .tracker-advanced-panel .panel-header select { width:100%; min-height:44px; }
+  .tracker-analytics-summary { overflow-x:auto; }
+
+  /* Sportsbook Screen */
+  body[data-page="odds-screen"] .app-shell { padding:var(--mobile-header-height) 0 0; }
+  .odds-screen-page { min-width:0; min-height:calc(100dvh - var(--mobile-header-height)); grid-template-rows:auto minmax(0,1fr) 38px; overflow:hidden; }
+  .odds-screen-toolbar { position:sticky; top:var(--mobile-header-height); z-index:20; width:100%; min-width:0; padding:10px 10px 0; overflow:hidden; }
+  .odds-filter-row { display:flex; flex-wrap:nowrap; gap:7px; overflow-x:auto; scrollbar-width:none; }
+  .odds-filter-row::-webkit-scrollbar,.odds-market-tabs::-webkit-scrollbar { display:none; }
+  .odds-pill,
+  .odds-filter-row select,
+  .odds-menu-trigger,
+  .odds-refresh { min-width:max-content; height:42px; min-height:42px; padding-inline:12px; flex:0 0 auto; font-size:12px; }
+  .odds-live-state { order:-1; min-width:max-content; margin:0; }
+  .odds-books-shell { margin-left:0; }
+  .odds-search { width:170px; min-width:170px; height:42px; margin:0; flex:0 0 auto; }
+  .odds-market-tabs { height:46px; gap:6px; overflow-x:auto; }
+  .odds-market-tabs button { min-width:max-content; height:36px; min-height:36px; padding:0 12px; font-size:11px; }
+  .odds-mega-menu,
+  .odds-books-menu { position:fixed; inset:calc(var(--mobile-header-height) + 8px) 10px auto; width:auto; max-height:calc(100dvh - var(--mobile-header-height) - 18px); overflow:auto; }
+  .odds-market-menu { width:auto; }
+  .league-menu-grid,
+  .market-menu-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .odds-grid-shell { width:100%; min-width:0; overflow:auto; max-height:none; overscroll-behavior:contain; }
+  .odds-grid-head,
+  .odds-market-row {
+    grid-template-columns:72px minmax(178px,1fr) repeat(var(--odds-column-count,4),108px);
+    min-width:calc(250px + (var(--odds-column-count,4) * 108px));
+  }
+  .odds-grid-head { top:0; min-height:44px; }
+  .odds-grid-head>span:first-child,
+  .odds-market-row>.odds-start { position:sticky; left:0; z-index:5; }
+  .odds-grid-head>span:nth-child(2),
+  .odds-market-row>.odds-team { position:sticky; left:72px; z-index:5; box-shadow:8px 0 12px rgba(0,0,0,.16); }
+  .odds-grid-head>span:first-child,
+  .odds-grid-head>span:nth-child(2) { background:#0a1319; }
+  .odds-market-row>.odds-start,
+  .odds-market-row>.odds-team { background:inherit; }
+  .odds-date-divider { top:44px; text-align:left; padding-left:12px; }
+  .odds-market-row { min-height:68px; }
+  .odds-start { padding:6px 22px 6px 6px; }
+  .odds-start b { font-size:9px; }
+  .odds-start button { right:5px; }
+  .odds-team-selection { min-height:34px; padding:5px 9px; }
+  .odds-team-selection strong { font-size:11.5px; }
+  .book-head small { display:none; }
+  .book-head img { width:25px; height:25px; }
+  .odds-footer { width:100%; min-width:0; min-height:38px; padding:0 10px; gap:8px; font-size:9px; }
+  .odds-footer span:last-child { text-align:right; }
+
+  /* Wallets, positions, history, Edge Map, and Intelligence */
+  .wallet-grid { grid-template-columns:1fr; gap:10px; }
+  .wallet-card { padding:15px; }
+  body[data-page="live-positions"] .responsive-table { display:none; }
+  body[data-page="live-positions"] .card-results { display:grid; gap:9px; padding:10px; }
+  .edge-map-page,.intel-page { gap:10px; }
+  .edge-map-hero,.intel-hero { padding:17px; border-radius:9px; }
+  .edge-map-hero h1,.intel-hero h1 { font-family:Inter,"DM Sans",sans-serif; font-size:25px; }
+  .edge-map-run,.intel-security { width:100%; min-width:0; }
+  .edge-map-summary { grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .edge-map-summary article { min-height:76px; padding:12px; align-items:flex-start; flex-direction:column; }
+  .edge-map-summary strong { font-size:23px; }
+  .edge-map-toolbar,.intel-panel-head { padding:14px; align-items:stretch; flex-direction:column; gap:12px; }
+  .edge-map-toolbar select,.intel-panel-head select { width:100%; min-height:44px; }
+  .edge-map-table-wrap { overflow-x:auto; }
+  .intel-login { padding:22px 14px; }
+  .intel-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .intel-summary article { min-height:74px; padding:12px; flex-direction:column; align-items:flex-start; }
+  .intel-tabs { position:sticky; top:calc(var(--mobile-header-height) + 6px); z-index:12; }
+  .intel-tabs button { min-height:42px; }
+  .intel-row { grid-template-columns:1fr; padding:14px; }
+  .intel-row>span:last-child { justify-items:start; }
+  .intel-trace-dialog,
+  .tracker-dialog { width:calc(100vw - 20px); max-width:none; max-height:calc(100dvh - 20px); margin:auto; }
+  .tracker-dialog-shell { max-height:calc(100dvh - 20px); padding:20px 14px; overflow-y:auto; }
+  .tracker-dialog-grid { grid-template-columns:1fr; }
+  .tracker-dialog-actions { position:sticky; bottom:-20px; padding:12px 0 0; background:#101e27; }
+}
+
+@media (max-width: 540px) {
+  :root { --mobile-gutter: 12px; }
+  .metric-grid,
+  .overview-page .metric-grid { grid-template-columns:1fr 1fr; }
+  .toolbar,
+  .tracker-toolbar,
+  .history-toolbar { grid-template-columns:1fr; }
+  .toolbar .search-control,
+  .tracker-toolbar .search-control { grid-column:auto; }
+  .trade-selection { grid-template-columns:minmax(0,1fr) auto; }
+  .execution-toolbar { grid-column:1 / -1; width:100%; }
+  .execution-option { width:100%; }
+  .tracker-page-header .title-line { align-items:flex-start; }
+  .tracker-dashboard-main .tracker-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  .tracker-metrics .metric-card { min-height:96px; }
+  .tracker-analytics-summary { display:flex; }
+  .tracker-analytics-summary>* { min-width:132px; }
+  .league-menu-grid,.market-menu-grid { grid-template-columns:1fr; }
+  .odds-live-state small { display:none; }
+  .edge-map-summary,.intel-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+
+/* OddsJam fidelity pass 3: compensate for ultra-wide / reduced browser-zoom density.
+   At the user's effective ~3150px CSS viewport, these values render at the same
+   physical scale as the 2048px OddsJam reference captures. */
+@media (min-width: 2200px) {
+  :root {
+    --oj-sidebar-width:172px;
+    --oj-content-line:#315160;
+  }
+
+  body { font-size:18px; line-height:1.42; }
+
+  .app-nav {
+    padding:11px 11px 18px;
+    gap:9px;
+    border-right-color:#223b48;
+  }
+  .brand { height:49px; padding:0 4px; gap:9px; }
+  .brand-icon { width:36px; height:36px; border-radius:10px; font-size:21px; }
+  .brand-copy strong { font-size:21px; }
+  .brand-copy small { font-size:11px; }
+  .product-mode { height:41px; font-size:11px; }
+  .nav-links { gap:3px; padding-top:8px; }
+  .nav-links a {
+    min-height:49px;
+    padding:0 11px;
+    gap:10px;
+    border-radius:6px;
+    font-size:15px;
+  }
+  .nav-links a i { font-size:20px; }
+  .nav-section-label { margin:10px 9px 3px; padding-top:12px; font-size:10px; }
+  .nav-status {
+    height:64px;
+    padding:0 19px;
+    gap:8px;
+  }
+  .status-chip { min-height:42px; padding:0 14px; border-radius:7px; font-size:13px; }
+  .status-chip strong { font-size:14px; }
+
+  .app-shell { padding:86px 36px 42px; }
+  h1,.page-header h1 { font-size:28px; }
+  h2,.panel-header h2 { font-size:21px; }
+  .eyebrow { font-size:13px; }
+  .panel,.toolbar,.metric-card,.bankroll-strip,.wallet-card { border-radius:8px; }
+  .panel-header { min-height:82px; padding:20px 24px; }
+  .panel-header h2 { font-size:21px; }
+  .panel-header p { font-size:14px; }
+  .button,.icon-button,select,input { font-size:14px; }
+  .button { min-height:39px; padding-inline:15px; }
+  .icon-button { min-width:39px; min-height:39px; }
+
+  /* Prediction Traders */
+  body[data-page="trades"] .app-shell { padding:78px 28px 18px; }
+  .trades-page {
+    width:min(100%,1780px);
+    max-width:1780px;
+    grid-template-rows:61px minmax(0,1fr);
+    gap:9px;
+  }
+  .trades-command-bar { min-height:61px; }
+  .trades-command-primary h1,.trades-command-title h1 { margin-right:15px; font-size:27px; }
+  .workspace-tabs { height:41px; padding:3px; border-radius:7px; }
+  .workspace-tabs button { min-height:33px; padding:0 12px; border-radius:5px; font-size:12px; }
+  .result-badge,.model-status-pill { min-height:34px; padding-inline:10px; font-size:12px; }
+  .trades-command-actions { gap:8px; }
+  .compact-search { width:235px; min-height:41px; }
+  .compact-search input,.trades-search input { font-size:14px; }
+  .toolbar-bankroll,.personal-pnl-summary,.trades-command-actions>.icon-button {
+    height:41px;
+    min-height:41px;
+    font-size:13px;
+  }
+  .trade-workspace { grid-template-columns:minmax(0,1fr) 472px; gap:12px; }
+  .trade-list { gap:9px; padding-right:5px; }
+  .trade-card { min-height:108px; margin-bottom:10px; border-radius:7px; }
+  .trade-identity { padding:12px 15px; gap:12px; }
+  .trade-score { min-width:48px; }
+  .trade-score strong { font-size:25px; }
+  .trade-kicker,.trade-context { font-size:12px; }
+  .trade-event { margin-top:4px; font-size:16px; }
+  .trade-market { margin-top:3px; font-size:12px; }
+  .trade-decision { grid-template-rows:37px minmax(70px,1fr); }
+  .trade-metrics-row { min-height:37px; padding:5px 11px; gap:5px; }
+  .trade-metric-chip { min-height:27px; padding:0 8px; }
+  .trade-metric-chip i,.trade-metric-chip strong { font-size:11px; }
+  .trade-current-price { font-size:12px; }
+  .trade-selection { min-height:70px; padding:8px 10px; gap:9px; }
+  .trade-pick { min-width:210px; }
+  .trade-pick strong,.trade-recommendation strong { font-size:15px; }
+  .trade-recommendation { min-width:86px; }
+  .trade-recommendation em { font-size:12px; }
+  .execution-toolbar { min-width:112px; }
+  .execution-option { min-height:48px; padding:5px 8px; }
+  .execution-option>span strong { font-size:13px; }
+  .trade-card-actions button { width:34px; height:34px; }
+  .trade-detail { border-radius:8px; }
+  .detail-header { padding:15px 18px; }
+  .detail-header h2 { font-size:19px; }
+  .empty-state h2,.empty-detail h2 { font-size:25px; }
+  .empty-state p,.empty-detail p { font-size:14px; }
+
+  /* Bet Tracker */
+  body[data-page="tracker"] .app-shell { padding:86px 36px 48px; }
+  .tracker-page-header,.tracker-switcher-shell { max-width:2200px; }
+  .tracker-page-header { min-height:72px; }
+  .tracker-page-header h1 { font-size:32px; }
+  .tracker-header-actions { gap:9px; }
+  .bankroll-inline { min-height:44px; padding-inline:13px; font-size:13px; }
+  .tracker-switcher-shell { margin:8px auto 14px; }
+  .tracker-view-toggle { padding:5px; border-radius:8px; }
+  .tracker-view-toggle button { min-width:260px; min-height:54px; padding:7px 14px; }
+  .tracker-view-toggle button i { font-size:22px; }
+  .tracker-view-toggle strong { font-size:17px; }
+  .tracker-view-toggle small { font-size:12px; }
+  .tracker-context { min-height:112px; margin-bottom:17px; padding:18px 22px; }
+  .tracker-context i { width:38px; height:38px; }
+  .tracker-context strong { font-size:16px; }
+  .tracker-context p { font-size:13px; }
+  .tracker-dashboard-grid { grid-template-columns:minmax(0,1fr) 640px; gap:18px; margin-bottom:18px; }
+  .tracker-dashboard-main { gap:18px; }
+  .tracker-bankroll-panel { width:100%; max-width:none!important; }
+  .tracker-bankroll-panel .tracker-chart { min-height:470px; }
+  .tracker-dashboard-main .tracker-metrics { grid-template-columns:repeat(8,minmax(0,1fr)); gap:10px; }
+  .tracker-metrics .metric-card { min-height:88px; padding:11px 13px; }
+  .tracker-metrics .metric-icon { width:24px; height:24px; margin-bottom:8px; }
+  .tracker-metrics .metric-card>span { font-size:10px; }
+  .tracker-metrics .metric-card>strong { font-size:21px; }
+  .tracker-metrics .metric-card>small { font-size:10px; }
+  .tracker-clv-panel { grid-template-rows:auto auto minmax(330px,1fr); }
+  .tracker-clv-panel .tracker-chart { min-height:330px; }
+  .clv-period-strip>div { min-height:82px; padding:14px 16px; }
+  .clv-period-strip span { font-size:12px; }
+  .clv-period-strip strong { font-size:21px; }
+  .clv-period-strip em { font-size:12px; }
+  .segmented { padding:3px; }
+  .segmented button { min-height:39px; padding:0 14px; font-size:12px; }
+  .tracker-advanced-panel { margin-bottom:18px; }
+  .tracker-analytics-summary { padding:17px 22px; }
+  .tracker-toolbar { padding:14px; gap:10px; }
+  .tracker-toolbar select,.tracker-toolbar input,.tracker-toolbar .search-control { min-height:44px; font-size:13px; }
+  .responsive-table th { height:50px; padding-inline:15px; font-size:11px; }
+  .responsive-table td { padding:14px 15px; font-size:13px; line-height:1.42; }
+  .table-panel { min-height:480px; }
+
+  /* Sportsbook Screen */
+  body[data-page="odds-screen"] .app-shell { padding-top:64px; }
+  body[data-page="odds-screen"] .app-nav { padding:11px 11px 18px; }
+  body[data-page="odds-screen"] .brand-icon { width:36px; height:36px; font-size:21px; }
+  body[data-page="odds-screen"] .nav-links { gap:3px; }
+  body[data-page="odds-screen"] .nav-links a { min-height:49px; padding:0 11px; font-size:15px; }
+  .odds-screen-toolbar { padding:18px 22px 0; }
+  .odds-filter-row { min-height:51px; gap:10px; }
+  .odds-pill,.odds-filter-row select,.odds-menu-trigger,.odds-market-tabs button,.odds-refresh {
+    height:46px;
+    min-height:46px;
+    padding-inline:14px;
+    font-size:15px;
+  }
+  .odds-live-state { font-size:13px; }
+  .odds-search { width:250px; height:46px; }
+  .odds-search input { font-size:14px; }
+  .odds-market-tabs { height:61px; gap:8px; }
+  .odds-market-tabs button { height:41px; min-height:41px; }
+  .odds-grid-head { min-height:58px; }
+  .odds-grid-head>span { font-size:13px; }
+  .odds-date-divider { top:58px; height:40px; padding-block:10px; font-size:13px; }
+  .odds-grid-head,.odds-market-row {
+    grid-template-columns:132px minmax(380px,1.7fr) repeat(var(--odds-column-count,4),minmax(166px,.55fr));
+    min-width:calc(512px + (var(--odds-column-count,4) * 166px));
+  }
+  .odds-market-row { min-height:82px; }
+  .odds-start { padding:10px 39px 10px 14px; }
+  .odds-start b { font-size:14px; }
+  .odds-start button { right:10px; top:27px; font-size:18px; }
+  .odds-team-selection { min-height:41px; padding:7px 18px; }
+  .odds-team-selection strong { font-size:17px; }
+  .odds-price-stack { grid-template-rows:repeat(2,minmax(41px,1fr)); }
+  .odds-price-stack .odds-price { min-height:41px; }
+  .odds-price strong,.odds-price-stack .odds-price strong { font-size:17px; }
+  .odds-price small,.odds-price-stack .odds-price small { font-size:12px; }
+  .odds-provider-empty { font-size:12px; }
+  .book-head img { width:32px; height:32px; }
+  .odds-footer { height:42px; padding-inline:20px; font-size:12px; }
+
+  /* Dashboard and supporting workspaces */
+  .overview-page>.page-header { max-width:1700px; margin-bottom:25px; }
+  .overview-page>.page-header h1 { font-size:31px; }
+  .overview-page .metric-grid { gap:17px; }
+  .overview-page .metric-card { min-height:160px; padding:22px; }
+  .overview-page .metric-card>span { font-size:13px; }
+  .overview-page .metric-card>strong { font-size:34px; }
+  .page-header { margin-bottom:18px; }
+  .toolbar { padding:14px; gap:10px; }
+  .toolbar select,.toolbar input,.toolbar .search-control { min-height:44px; font-size:13px; }
+  .wallet-grid { gap:15px; }
+  .wallet-card { padding:22px; }
+  .edge-map-page,.intel-page { gap:24px; }
+  .edge-map-hero,.intel-hero { padding:34px 38px; }
+  .edge-map-hero h1,.intel-hero h1 { font-size:46px; }
+  .edge-map-summary article,.intel-summary article { padding:22px 25px; }
+  .edge-map-summary span,.intel-summary span { font-size:15px; }
+  .edge-map-summary strong,.intel-summary strong { font-size:34px; }
+  .edge-map-toolbar,.intel-panel-head { padding:24px 28px; }
+  .edge-map-table th { padding:15px 19px; font-size:13px; }
+  .edge-map-table td { padding:18px 19px; font-size:15px; }
+  .intel-row { padding:19px 25px; }
+  .intel-row strong { font-size:15px; }
+  .intel-row small { font-size:13px; }
 }

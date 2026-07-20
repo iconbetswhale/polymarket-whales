@@ -7,30 +7,33 @@
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700;9..144,800&family=Roboto+Condensed:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=Roboto+Condensed:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
 </head>
-<body data-page="{{ page }}">
+<body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
   <nav class="app-nav" aria-label="Primary navigation">
     <a class="brand" href="/trades" aria-label="IconBets Trades to Play">
-      <span class="brand-icon" aria-hidden="true">IB</span>
-      <span class="brand-copy"><strong>IconBets</strong><small>Polymarket Intelligence</small></span>
+      <span class="brand-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
+      <span class="brand-copy"><strong>ICONBETS</strong><small>Trading Intelligence</small></span>
     </a>
+    <div class="product-mode" aria-label="Product mode"><span class="active"><i class="ph ph-money-wavy"></i>BETTING</span><span>ANALYTICS</span></div>
     <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links">
       <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
     </button>
     <div class="nav-links" id="primary-links">
-      <a href="/overview" {% if page == 'overview' %}aria-current="page"{% endif %}>Overview</a>
-      <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}>Trades to Play</a>
-      <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}>Odds Screen</a>
-      <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}>Live Positions</a>
-      <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}>Wallets</a>
-      <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}>Position History</a>
-      <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}>Tracker</a>
-      <a href="/edge-map" {% if page == 'edge-map' %}aria-current="page"{% endif %}>Reece Edge Map</a>
-      <a href="/intelligence" {% if page == 'intelligence' %}aria-current="page"{% endif %}>Intelligence</a>
+      <a href="/overview" {% if page == 'overview' %}aria-current="page"{% endif %}><i class="ph ph-squares-four"></i><span>Dashboard</span></a>
+      <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-fingerprint"></i><span>Prediction Traders</span></a>
+      <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-table"></i><span>Sportsbook Screen</span></a>
+      <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span>Bet Tracker</span></a>
+      <span class="nav-section-label">Portfolio</span>
+      <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity"></i><span>Live Positions</span></a>
+      <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span>Sharp Wallets</span></a>
+      <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span>Bet History</span></a>
+      <span class="nav-section-label">Intelligence</span>
+      <a href="/edge-map" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-crosshair"></i><span>Edge Map</span></a>
+      <a href="/intelligence" {% if page == 'intelligence' %}aria-current="page"{% endif %}><i class="ph ph-brain"></i><span>Intelligence</span></a>
       <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
     </div>
     <div class="nav-status" aria-label="System status">

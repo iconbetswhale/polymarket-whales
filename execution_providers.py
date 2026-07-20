@@ -50,6 +50,18 @@ class ProviderHealthStatus(str, Enum):
     CONNECTION_FAILED = "connection failed"
 
 
+PROVIDER_NOT_CONFIGURED = "PROVIDER_NOT_CONFIGURED"
+MARKET_NOT_FOUND = "MARKET_NOT_FOUND"
+MARKET_MAPPING_UNCERTAIN = "MARKET_MAPPING_UNCERTAIN"
+NO_LIQUIDITY = "NO_LIQUIDITY"
+INSUFFICIENT_LIQUIDITY = "INSUFFICIENT_LIQUIDITY"
+STALE_QUOTE = "STALE_QUOTE"
+MARKET_CLOSED = "MARKET_CLOSED"
+MARKET_SUSPENDED = "MARKET_SUSPENDED"
+PROVIDER_UNAVAILABLE = "PROVIDER_UNAVAILABLE"
+RATE_LIMITED = "RATE_LIMITED"
+
+
 @dataclass(frozen=True)
 class ExecutionOption:
     provider_name: str
@@ -71,6 +83,19 @@ class ExecutionOption:
     fee_rate: float | None = None
     is_best_price: bool = False
     quote_status: str | None = None
+    provider_event_id: str | None = None
+    selection: str | None = None
+    native_price_format: str | None = None
+    implied_probability: float | None = None
+    decimal_odds: float | None = None
+    best_executable_price: float | None = None
+    recommended_stake: float | None = None
+    estimated_fees: float | None = None
+    quote_age_seconds: float | None = None
+    market_status: str | None = None
+    is_exact_match: bool = True
+    is_stale: bool = False
+    failure_reason: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -93,6 +118,27 @@ class ExecutionOption:
             "feeRate": self.fee_rate,
             "isBestPrice": self.is_best_price,
             "quoteStatus": self.quote_status,
+            "providerEventId": self.provider_event_id or self.market_id,
+            "providerMarketId": self.market_id,
+            "providerOutcomeId": self.selection_id,
+            "selection": self.selection,
+            "nativePrice": self.display_odds,
+            "nativePriceFormat": self.native_price_format,
+            "impliedProbability": self.implied_probability,
+            "decimalOdds": self.decimal_odds,
+            "contractCents": None if self.contract_price is None else self.contract_price * 100,
+            "bestExecutablePrice": self.best_executable_price,
+            "effectiveEntryPrice": self.effective_price,
+            "recommendedStake": self.recommended_stake,
+            "estimatedFees": self.estimated_fees,
+            "quoteTimestamp": self.last_updated,
+            "quoteAgeSeconds": self.quote_age_seconds,
+            "marketStatus": self.market_status or self.quote_status,
+            "directMarketUrl": self.deep_link,
+            "mappingConfidence": self.matching_confidence.value,
+            "isExactMatch": self.is_exact_match,
+            "isStale": self.is_stale,
+            "failureReason": self.failure_reason,
         }
 
 
@@ -158,6 +204,8 @@ class PolymarketProvider(ExecutionProvider):
                 available_liquidity=_float_or_none(live_quote.get("available_liquidity")) if live_quote else _float_or_none(trade.get("polymarket_available_liquidity")),
                 can_fill_recommended_stake=live_quote.get("can_fill_recommended_stake") if live_quote else None,
                 quote_status="OPEN" if live_quote.get("can_fill_recommended_stake") is not False else "INSUFFICIENT_DEPTH",
+                provider_event_id=str(trade.get("event_slug") or (trade.get("validation_ids") or {}).get("condition_id") or trade_id),
+                native_price_format="CENTS",
             )
         return options
 
@@ -708,31 +756,79 @@ class NoVIGProvider(ExecutionProvider):
 
 
 class ExecutionProviderRegistry:
-    def __init__(self, providers: Iterable[ExecutionProvider]) -> None:
+    def __init__(
+        self,
+        providers: Iterable[ExecutionProvider],
+        *,
+        max_quote_age_seconds: int = 60,
+        min_liquidity: float = 0.0,
+        include_fees: bool = True,
+        comparison_provider_keys: Iterable[str] = ("polymarket", "kalshi", "fourcx"),
+    ) -> None:
         self.providers = tuple(providers)
+        self.max_quote_age_seconds = max(1, int(max_quote_age_seconds))
+        self.min_liquidity = max(0.0, float(min_liquidity))
+        self.include_fees = bool(include_fees)
+        self.comparison_provider_keys = frozenset(str(key).lower() for key in comparison_provider_keys)
 
     def attach_options(self, trades: list[dict]) -> list[dict]:
-        by_provider: list[dict[str, ExecutionOption]] = []
+        by_provider: list[tuple[ExecutionProvider, dict[str, ExecutionOption]]] = []
+        provider_failures: dict[str, str] = {}
         for provider in self.providers:
             try:
-                by_provider.append(provider.options_for_trades(trades))
+                by_provider.append((provider, provider.options_for_trades(trades)))
+            except requests.HTTPError as exc:
+                LOGGER.exception("Execution provider %s failed", provider.provider_key)
+                status = getattr(exc.response, "status_code", None)
+                provider_failures[provider.provider_key] = RATE_LIMITED if status == 429 else PROVIDER_UNAVAILABLE
+                by_provider.append((provider, {}))
             except Exception:
                 LOGGER.exception("Execution provider %s failed", provider.provider_key)
-                by_provider.append({})
+                provider_failures[provider.provider_key] = PROVIDER_UNAVAILABLE
+                by_provider.append((provider, {}))
 
         for trade in trades:
             trade_id = str(trade.get("id") or "")
-            found = [
-                option
-                for options in by_provider
-                if (option := options.get(trade_id)) is not None
-                and option.matching_confidence is MatchConfidence.EXACT
+            found: list[ExecutionOption] = []
+            failures: dict[str, str] = {}
+            for provider, options in by_provider:
+                option = options.get(trade_id)
+                if option is None:
+                    failures[provider.provider_key] = provider_failures.get(provider.provider_key) or getattr(provider, "failure_reasons", {}).get(trade_id, MARKET_NOT_FOUND)
+                    continue
+                if option.matching_confidence is not MatchConfidence.EXACT:
+                    failures[provider.provider_key] = MARKET_MAPPING_UNCERTAIN
+                    continue
+                finalized = (
+                    _finalize_execution_option(
+                        option,
+                        trade,
+                        max_quote_age_seconds=self.max_quote_age_seconds,
+                        min_liquidity=self.min_liquidity,
+                        include_fees=self.include_fees,
+                    )
+                    if option.provider_key in self.comparison_provider_keys
+                    else option
+                )
+                found.append(finalized)
+                if finalized.failure_reason:
+                    failures[provider.provider_key] = finalized.failure_reason
+            executable = [
+                item for item in found
+                if item.provider_key in self.comparison_provider_keys
+                and item.is_available
+                and item.is_exact_match
+                and not item.is_stale
+                and item.market_status == "OPEN"
+                and item.can_fill_recommended_stake is True
+                and item.best_executable_price is not None
+                and _valid_deep_link(item.deep_link)
             ]
-            executable = [item for item in found if item.is_available and item.can_fill_recommended_stake is not False and (item.effective_price or item.contract_price or american_to_probability(item.american_odds)) is not None]
             if executable:
-                best = min(executable, key=lambda item: item.effective_price or item.contract_price or american_to_probability(item.american_odds))
+                best = min(executable, key=lambda item: item.best_executable_price)
                 found = [replace(item, is_best_price=item is best) for item in found]
             trade["executionOptions"] = [item.to_dict() for item in found]
+            trade["lineShopFailures"] = failures
         return trades
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
@@ -801,6 +897,121 @@ class ExecutionProviderRegistry:
             return {"provider": provider_key, "status": "ERROR", "last_error_code": "DIAGNOSTIC_FAILED"}
 
 
+def _recommended_stake(trade: dict) -> float:
+    recommendation = trade.get("recommendation") or {}
+    card = trade.get("card") or {}
+    return max(
+        0.0,
+        _float_or_none(card.get("recommended_amount"))
+        or _float_or_none(recommendation.get("recommended_amount"))
+        or 0.0,
+    )
+
+
+def _quote_age_seconds(value: str | None, now: datetime) -> float | None:
+    parsed = _parse_datetime(value)
+    if parsed is None:
+        return None
+    return max(0.0, (now - parsed).total_seconds())
+
+
+def _finalize_execution_option(
+    option: ExecutionOption,
+    trade: dict,
+    *,
+    max_quote_age_seconds: int,
+    min_liquidity: float,
+    include_fees: bool,
+    now: datetime | None = None,
+) -> ExecutionOption:
+    now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    stake = _recommended_stake(trade)
+    age = _quote_age_seconds(option.last_updated, now)
+    stale = age is None or age > max_quote_age_seconds
+    market_status = str(option.quote_status or ("OPEN" if option.is_available else "UNAVAILABLE")).upper()
+    failure = option.failure_reason
+    liquidity = option.available_liquidity
+    can_fill = option.can_fill_recommended_stake
+    if stake <= 0 and can_fill is None:
+        can_fill = liquidity is not None and liquidity > 0
+
+    if market_status in {"CLOSED", MARKET_CLOSED}:
+        market_status, failure = "CLOSED", MARKET_CLOSED
+    elif market_status in {"SUSPENDED", MARKET_SUSPENDED}:
+        market_status, failure = "SUSPENDED", MARKET_SUSPENDED
+    elif stale:
+        failure = STALE_QUOTE
+    elif liquidity is not None and liquidity <= 0:
+        failure = NO_LIQUIDITY
+    elif liquidity is not None and liquidity < min_liquidity:
+        failure = INSUFFICIENT_LIQUIDITY
+    elif can_fill is False or (stake > 0 and can_fill is not True) or market_status == "INSUFFICIENT_DEPTH":
+        failure = INSUFFICIENT_LIQUIDITY
+    elif not option.is_available:
+        failure = failure or PROVIDER_UNAVAILABLE
+
+    raw_price = (
+        option.effective_price
+        if option.effective_price is not None
+        else option.contract_price
+        if option.contract_price is not None
+        else american_to_probability(option.american_odds)
+    )
+    estimated_fees = option.estimated_fees
+    if estimated_fees is None and option.fee_rate is not None and stake > 0:
+        estimated_fees = stake * max(0.0, option.fee_rate)
+    all_in_price = raw_price
+    if (
+        include_fees
+        and raw_price is not None
+        and estimated_fees is not None
+        and stake > 0
+    ):
+        all_in_price = raw_price * (1.0 + estimated_fees / stake)
+    if all_in_price is not None and not 0 < all_in_price < 1:
+        all_in_price = None
+
+    provider_key = option.provider_key.lower()
+    native_format = option.native_price_format or (
+        "CENTS" if provider_key in {"polymarket", "kalshi"} else "AMERICAN"
+    )
+    contract_price = option.contract_price
+    display = option.display_odds
+    if provider_key in {"polymarket", "kalshi"} and contract_price is not None:
+        display = _format_cents(contract_price)
+    elif provider_key == "fourcx" and option.american_odds is not None:
+        display = f"{option.american_odds:+d}"
+
+    executable = bool(
+        failure is None
+        and option.is_available
+        and option.matching_confidence is MatchConfidence.EXACT
+        and market_status == "OPEN"
+        and can_fill is True
+        and all_in_price is not None
+        and _valid_deep_link(option.deep_link)
+    )
+    return replace(
+        option,
+        display_odds=display,
+        is_available=executable,
+        selection=str(trade.get("outcome") or ""),
+        native_price_format=native_format,
+        implied_probability=all_in_price,
+        decimal_odds=(1.0 / all_in_price) if all_in_price else None,
+        best_executable_price=all_in_price,
+        recommended_stake=stake,
+        estimated_fees=estimated_fees,
+        quote_age_seconds=age,
+        market_status=market_status,
+        is_exact_match=option.matching_confidence is MatchConfidence.EXACT,
+        is_stale=stale,
+        can_fill_recommended_stake=can_fill,
+        failure_reason=failure,
+        is_best_price=False,
+    )
+
+
 def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
     from fourcx_provider import FourCXProvider
     from kalshi_provider import KalshiProvider
@@ -848,7 +1059,10 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 cache_ttl_seconds=getattr(settings, "kalshi_cache_ttl_seconds", 1),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
-        )
+        ),
+        max_quote_age_seconds=getattr(settings, "line_shop_max_quote_age_seconds", 60),
+        min_liquidity=getattr(settings, "line_shop_min_liquidity", 0.0),
+        include_fees=getattr(settings, "line_shop_include_fees", True),
     )
 
 
@@ -1604,6 +1818,14 @@ def _parse_datetime(value: object) -> datetime | None:
     text = str(value or "").strip()
     if not text:
         return None
+    if re.fullmatch(r"\d+(?:\.\d+)?", text):
+        try:
+            timestamp = float(text)
+            if timestamp > 10_000_000_000:
+                timestamp /= 1000.0
+            return datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        except (OSError, OverflowError, ValueError):
+            return None
     try:
         parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:

@@ -472,6 +472,7 @@ def create_app(start_background: bool = True) -> Flask:
     app.jinja_env.globals["asset_version"] = (
         os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("ASSET_VERSION") or "local"
     )
+    app.jinja_env.globals["line_shop_refresh_interval_seconds"] = settings.line_shop_refresh_interval_seconds
 
     def refresh_polymarket_execution_quotes(trades: list[dict]) -> None:
         """Attach current CLOB depth used only for provider line-shopping."""
@@ -483,6 +484,7 @@ def create_app(start_background: bool = True) -> Flask:
         except Exception as exc:
             LOGGER.warning("Live Polymarket execution depth unavailable: %s", exc)
             return
+        observed_at = datetime.now(timezone.utc).isoformat()
         for trade in trades:
             book = books.get(str(trade.get("clob_token_id") or "")) or {}
             levels: list[tuple[float, float]] = []
@@ -497,7 +499,7 @@ def create_app(start_background: bool = True) -> Flask:
                 continue
             levels.sort()
             best_ask = levels[0][0]
-            top_liquidity = sum(price * size for price, size in levels if abs(price - best_ask) < 1e-9)
+            total_liquidity = sum(price * size for price, size in levels)
             recommended = _safe_float((trade.get("card") or {}).get("recommended_amount") or (trade.get("recommendation") or {}).get("recommended_amount"))
             remaining, cost, shares = max(0.0, recommended), 0.0, 0.0
             for price, size in levels:
@@ -512,9 +514,9 @@ def create_app(start_background: bool = True) -> Flask:
             trade["execution_quote"] = {
                 "best_ask": best_ask,
                 "effective_price": (cost / shares) if shares and can_fill else best_ask,
-                "available_liquidity": round(top_liquidity, 2),
+                "available_liquidity": round(total_liquidity, 2),
                 "can_fill_recommended_stake": can_fill,
-                "timestamp": book.get("timestamp"),
+                "timestamp": book.get("timestamp") or observed_at,
             }
 
     @app.before_request
@@ -1163,6 +1165,10 @@ def create_app(start_background: bool = True) -> Flask:
         page_trades = visible[start : start + per_page]
         refresh_polymarket_execution_quotes(page_trades)
         execution_providers.attach_options(page_trades)
+        try:
+            tracker.database.record_line_shop_quotes(g.iconbets_user_id, page_trades)
+        except Exception as exc:
+            LOGGER.warning("Line-shop quote persistence unavailable: %s", exc)
         return jsonify(
             {
                 "data": page_trades,
@@ -1182,6 +1188,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "has_prev": page > 1,
                 },
                 "status": snapshot["status"],
+                "lineShopRefreshIntervalSeconds": settings.line_shop_refresh_interval_seconds,
             }
         )
 

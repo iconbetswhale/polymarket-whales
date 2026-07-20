@@ -32,6 +32,8 @@ from release4_foundation import (
     model_version_rows as release4_model_version_rows,
 )
 from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
+from line_shop_foundation import LINE_SHOP_MIGRATION_VERSION, migration_sql as line_shop_migration_sql
+from line_shop_persistence import persistence_records
 
 
 class SettingsVersionConflict(RuntimeError):
@@ -565,6 +567,11 @@ class TrackerDatabase:
             conn.executescript(release5_migration_sql("sqlite"))
             conn.execute("INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)", (RELEASE5_MIGRATION_VERSION, now))
             conn.executemany("INSERT OR IGNORE INTO model_versions(version_key, component, version, status, description, registered_at) VALUES (?, ?, ?, ?, ?, ?)", [(row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]) for row in release5_model_version_rows()])
+            conn.executescript(line_shop_migration_sql("sqlite"))
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (LINE_SHOP_MIGRATION_VERSION, now),
+            )
             conn.executescript(release2_migration_sql("sqlite"))
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
@@ -3138,6 +3145,63 @@ class TrackerDatabase:
             except (TypeError, json.JSONDecodeError):
                 row[target] = [] if target == "reason_codes" else {}
         return row
+
+    def record_line_shop_quotes(self, user_id: str, trades: list[dict]) -> dict:
+        if self.user_store:
+            return self.user_store.record_line_shop_quotes(user_id, trades)
+        initials, observations = persistence_records(user_id, trades)
+        with self.connection() as conn:
+            for row in initials:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO line_shop_initial_snapshots(
+                        user_id, recommendation_snapshot_id, trade_id, best_provider,
+                        best_provider_market_id, best_provider_outcome_id,
+                        best_executable_price, effective_entry_price, native_price,
+                        native_price_format, quote_timestamp, quotes_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    tuple(row[key] for key in (
+                        "user_id", "recommendation_snapshot_id", "trade_id", "best_provider",
+                        "best_provider_market_id", "best_provider_outcome_id",
+                        "best_executable_price", "effective_entry_price", "native_price",
+                        "native_price_format", "quote_timestamp", "quotes_json", "created_at",
+                    )),
+                )
+            for row in observations:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO line_shop_quote_observations(
+                        observation_id, user_id, recommendation_snapshot_id, trade_id,
+                        provider, provider_event_id, provider_market_id, provider_outcome_id,
+                        selection, native_price, native_price_format, implied_probability,
+                        best_executable_price, effective_entry_price, available_liquidity,
+                        recommended_stake, estimated_fees, quote_timestamp, quote_age_seconds,
+                        market_status, mapping_confidence, is_exact_match, is_stale,
+                        can_fill_recommended_stake, is_best_price, failure_reason,
+                        quote_json, captured_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    tuple(
+                        int(value) if key in {"is_exact_match", "is_stale", "is_best_price"} else value
+                        for key, value in row.items()
+                    ),
+                )
+        return {"initial_snapshots": len(initials), "quote_observations": len(observations)}
+
+    def get_line_shop_snapshot(self, user_id: str, recommendation_snapshot_id: str) -> dict | None:
+        if self.user_store:
+            return self.user_store.get_line_shop_snapshot(user_id, recommendation_snapshot_id)
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM line_shop_initial_snapshots WHERE user_id = ? AND recommendation_snapshot_id = ?",
+                (user_id, recommendation_snapshot_id),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        payload["quotes"] = json.loads(payload.pop("quotes_json") or "[]")
+        return payload
 
     def health(self) -> dict[str, object]:
         payload: dict[str, object] = {

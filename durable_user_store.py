@@ -29,6 +29,8 @@ from release4_foundation import (
     model_version_rows as release4_model_version_rows,
 )
 from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
+from line_shop_foundation import LINE_SHOP_MIGRATION_VERSION, migration_sql as line_shop_migration_sql
+from line_shop_persistence import persistence_records
 
 
 class PostgresUserStore:
@@ -567,6 +569,13 @@ class PostgresUserStore:
             conn.execute("INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING", (RELEASE5_MIGRATION_VERSION, now))
             for row in release5_model_version_rows():
                 conn.execute("INSERT INTO model_versions(version_key, component, version, status, description, registered_at) VALUES (%s, %s, %s, %s, %s, %s) ON CONFLICT(version_key) DO NOTHING", (row["version_key"], row["component"], row["version"], row["status"], row["description"], row["registered_at"]))
+            for statement in line_shop_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
+                (LINE_SHOP_MIGRATION_VERSION, now),
+            )
 
     def get_or_create_user_settings(
         self, user_id: str, default_bankroll: float, unit_percentage: float
@@ -2384,6 +2393,58 @@ class PostgresUserStore:
             except (TypeError, json.JSONDecodeError):
                 row[target] = [] if target == "reason_codes" else {}
         return row
+
+    def record_line_shop_quotes(self, user_id: str, trades: list[dict]) -> dict:
+        initials, observations = persistence_records(user_id, trades)
+        with self.connection() as conn:
+            for row in initials:
+                conn.execute(
+                    """
+                    INSERT INTO line_shop_initial_snapshots(
+                        user_id, recommendation_snapshot_id, trade_id, best_provider,
+                        best_provider_market_id, best_provider_outcome_id,
+                        best_executable_price, effective_entry_price, native_price,
+                        native_price_format, quote_timestamp, quotes_json, created_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(user_id, recommendation_snapshot_id) DO NOTHING
+                    """,
+                    tuple(row[key] for key in (
+                        "user_id", "recommendation_snapshot_id", "trade_id", "best_provider",
+                        "best_provider_market_id", "best_provider_outcome_id",
+                        "best_executable_price", "effective_entry_price", "native_price",
+                        "native_price_format", "quote_timestamp", "quotes_json", "created_at",
+                    )),
+                )
+            for row in observations:
+                conn.execute(
+                    """
+                    INSERT INTO line_shop_quote_observations(
+                        observation_id, user_id, recommendation_snapshot_id, trade_id,
+                        provider, provider_event_id, provider_market_id, provider_outcome_id,
+                        selection, native_price, native_price_format, implied_probability,
+                        best_executable_price, effective_entry_price, available_liquidity,
+                        recommended_stake, estimated_fees, quote_timestamp, quote_age_seconds,
+                        market_status, mapping_confidence, is_exact_match, is_stale,
+                        can_fill_recommended_stake, is_best_price, failure_reason,
+                        quote_json, captured_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(observation_id) DO NOTHING
+                    """,
+                    tuple(row.values()),
+                )
+        return {"initial_snapshots": len(initials), "quote_observations": len(observations)}
+
+    def get_line_shop_snapshot(self, user_id: str, recommendation_snapshot_id: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM line_shop_initial_snapshots WHERE user_id = %s AND recommendation_snapshot_id = %s",
+                (user_id, recommendation_snapshot_id),
+            ).fetchone()
+        if row is None:
+            return None
+        payload = dict(row)
+        payload["quotes"] = json.loads(payload.pop("quotes_json") or "[]")
+        return payload
 
     def health(self) -> dict[str, str | bool]:
         try:

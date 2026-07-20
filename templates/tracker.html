@@ -3,7 +3,7 @@
 <header class="page-header tracker-page-header">
   <div>
     <p class="eyebrow" id="tracker-eyebrow">PERFORMANCE TRACKING</p>
-    <div class="title-line"><h1>Tracker</h1><span class="result-badge" id="tracker-result-count">Loading</span><span class="status-label stale" id="tracker-job-state">Tracking: Loading</span></div>
+    <div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">Loading</span><span class="status-label stale" id="tracker-job-state">Tracking: Loading</span></div>
     <p class="tracker-subtitle" id="tracker-subtitle">Loading your selected tracker view.</p>
   </div>
   <div class="tracker-header-actions">
@@ -33,18 +33,22 @@
   <div class="diagnostic-rejections"><div class="panel-header"><div><p class="eyebrow">REJECTION LOG</p><h2>Today recommendations not tracked</h2></div></div><div class="responsive-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Event time</th><th>Entry</th><th>Fraction</th><th>Amount</th><th>Reason</th><th>Evaluated</th></tr></thead><tbody id="tracker-rejection-body"></tbody></table></div></div>
 </section>
 
-<section class="metric-grid tracker-metrics" id="tracker-metrics" aria-live="polite"></section>
+<div class="tracker-dashboard-grid">
+  <div class="tracker-dashboard-main">
+    <section class="panel chart-panel tracker-bankroll-panel">
+      <div class="panel-header"><div><p class="eyebrow" id="tracker-chart-eyebrow">BANKROLL REPLAY</p><h2 id="tracker-chart-title">Simulated bankroll</h2></div><div class="segmented" id="graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>
+      <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Tracker performance over time"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
+    </section>
 
-<section class="panel chart-panel">
-  <div class="panel-header"><div><p class="eyebrow" id="tracker-chart-eyebrow">BANKROLL REPLAY</p><h2 id="tracker-chart-title">Simulated bankroll</h2></div><div class="segmented" id="graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>
-  <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Tracker performance over time"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
-</section>
+    <section class="metric-grid tracker-metrics" id="tracker-metrics" aria-live="polite"></section>
+  </div>
 
-<section class="panel chart-panel clv-panel">
-  <div class="panel-header"><div><p class="eyebrow">CLOSING LINE VALUE</p><h2>Daily stake-weighted CLV</h2><p>Provider-specific entry quality at the pre-event close. This is separate from P&amp;L.</p></div></div>
-  <div class="clv-period-strip" id="clv-period-strip" aria-label="CLV period metrics"></div>
-  <div class="tracker-chart" id="clv-chart" role="img" aria-label="Daily stake-weighted closing line value"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
-</section>
+  <section class="panel chart-panel clv-panel tracker-clv-panel">
+    <div class="panel-header"><div><p class="eyebrow">CLOSING LINE VALUE</p><h2>Daily stake-weighted CLV</h2><p>Provider-specific entry quality at the pre-event close. This is separate from P&amp;L.</p></div></div>
+    <div class="clv-period-strip" id="clv-period-strip" aria-label="CLV period metrics"></div>
+    <div class="tracker-chart" id="clv-chart" role="img" aria-label="Daily stake-weighted closing line value"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
+  </section>
+</div>
 
 <section class="panel tracker-advanced-panel" id="tracker-advanced-panel">
   <div class="panel-header"><div><p class="eyebrow">PLAYED VERSUS PASSED</p><h2>Model evidence by segment</h2><p>Composite CLV, execution, grade, sport, timing, and Sharp attribution from immutable Candidate Ledger records.</p></div><select id="tracker-analytics-dimension" aria-label="Analytics dimension"><option value="sport">Sport</option><option value="wallet">Sharp</option><option value="time_to_event_bucket">Timing</option><option value="trade_grade">Trade grade</option><option value="liquidity_grade">Liquidity</option><option value="execution_method">Execution method</option><option value="decision_class">Played versus passed</option></select></div>

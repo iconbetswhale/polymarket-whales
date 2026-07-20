@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 import requests
 
@@ -36,43 +36,57 @@ class KalshiProvider(ExecutionProvider):
         self.session = session or requests.Session()
         self._lock = threading.RLock()
         self._cache = {}
+        self._depth_cache = {}
         self._last_success = None
         self._market_count = 0
         self._match_count = 0
+        self.failure_reasons = {}
 
     def __repr__(self):
         return f"<KalshiProvider enabled={self.enabled} read_only=True>"
 
     def options_for_trades(self, trades):
         canonical = [row for trade in trades if (row := canonicalize_trade(trade))]
+        self.failure_reasons = {}
         if not self.enabled or not canonical:
+            if canonical and not self.enabled:
+                self.failure_reasons = {trade.trade_id: "PROVIDER_NOT_CONFIGURED" for trade in canonical}
             return {}
         index = self._index(canonical)
         originals = {str(row.get("id") or ""): row for row in trades}
         result = {}
+        failures = {}
         for trade in canonical:
-            confidence, market = _match_exact_trade(trade, index, allow_same_day=True)
+            confidence, market = _match_exact_trade(trade, index)
             if confidence is not MatchConfidence.EXACT or market is None:
+                failures[trade.trade_id] = "MARKET_MAPPING_UNCERTAIN" if confidence is MatchConfidence.PROBABLE else "MARKET_NOT_FOUND"
                 continue
             stake = _stake(originals.get(trade.trade_id) or {})
-            price = _price_from_selection(market.selection_id)
-            liquidity = _liquidity_from_selection(market.selection_id) * price if price is not None else 0
-            fillable = liquidity >= stake if stake > 0 else liquidity > 0
+            ticker = market.selection_id.split("|", 1)[0]
+            summary_price = _price_from_selection(market.selection_id)
+            summary_size = _liquidity_from_selection(market.selection_id)
+            levels = self._ask_levels(ticker, summary_price, summary_size)
+            price = levels[0][0] if levels else summary_price
+            effective, liquidity, fillable = _effective_price(levels, stake)
             available = bool(market.is_available and price is not None and fillable)
             result[trade.trade_id] = ExecutionOption(
                 provider_name=self.provider_name, provider_key=self.provider_key,
-                market_id=market.event_id, selection_id=market.selection_id,
-                display_odds=market.display_odds if available else "Unavailable",
-                deep_link=f"https://kalshi.com/markets_by_ticker/{market.selection_id.split('|', 1)[0]}" if available else None,
-                is_available=available, last_updated=market.last_updated,
+                market_id=ticker, selection_id=f"{ticker}|yes",
+                display_odds=_format_cents(price) if available else "Unavailable",
+                deep_link=f"https://kalshi.com/markets_by_ticker/{ticker}" if market.is_available else None,
+                is_available=available, last_updated=market.last_updated or self._last_success,
                 matching_confidence=MatchConfidence.EXACT, logo_url=KALSHI_LOGO_URL,
                 tooltip="Kalshi public read-only executable ask",
-                american_odds=market.american_odds if available else None,
-                contract_price=price, effective_price=price,
+                american_odds=_probability_to_american(price) if price is not None else None,
+                contract_price=price, effective_price=effective,
                 available_liquidity=liquidity,
-                can_fill_recommended_stake=fillable, quote_status="OPEN" if available else "INSUFFICIENT_DEPTH",
+                can_fill_recommended_stake=fillable,
+                quote_status="OPEN" if market.is_available and fillable else "INSUFFICIENT_DEPTH",
+                provider_event_id=market.event_id,
+                native_price_format="CENTS",
             )
         self._match_count = len(result)
+        self.failure_reasons = failures
         return result
 
     def fair_price_quotes(self, trades):
@@ -113,8 +127,39 @@ class KalshiProvider(ExecutionProvider):
             rows.extend(_normalize_market(market, sport, league))
         with self._lock:
             self._cache[series] = (time.monotonic(), rows)
-            self._last_success = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+            self._last_success = datetime.now(timezone.utc).isoformat()
         return rows
+
+    def _ask_levels(self, ticker, summary_price, summary_size):
+        with self._lock:
+            cached = self._depth_cache.get(ticker)
+            if cached and time.monotonic() - cached[0] < self.cache_ttl_seconds:
+                return cached[1]
+        levels = []
+        try:
+            response = self.session.get(
+                f"{self.base_url}/markets/{ticker}/orderbook",
+                params={"depth": 100},
+                timeout=self.request_timeout,
+            )
+            response.raise_for_status()
+            book = response.json().get("orderbook_fp") or {}
+            # Kalshi returns bids only. A NO bid at x is an executable YES ask at 1-x.
+            for row in book.get("no_dollars") or []:
+                if not isinstance(row, (list, tuple)) or len(row) < 2:
+                    continue
+                no_bid, size = _float(row[0]), _float(row[1])
+                price = None if no_bid is None else 1.0 - no_bid
+                if price is not None and 0 < price < 1 and size and size > 0:
+                    levels.append((price, size))
+        except (requests.RequestException, ValueError, TypeError):
+            levels = []
+        if not levels and summary_price is not None and summary_size > 0:
+            levels = [(summary_price, summary_size)]
+        levels.sort(key=lambda row: row[0])
+        with self._lock:
+            self._depth_cache[ticker] = (time.monotonic(), levels)
+        return levels
 
 
 def _normalize_market(market, sport, league):
@@ -189,6 +234,31 @@ def _float(value):
         return float(value)
     except (TypeError, ValueError):
         return None
+
+
+def _format_cents(price):
+    if price is None:
+        return "Unavailable"
+    value = price * 100
+    return f"{value:.0f}\u00a2" if abs(value - round(value)) < 1e-9 else f"{value:.1f}\u00a2"
+
+
+def _effective_price(levels, stake):
+    liquidity = sum(price * size for price, size in levels)
+    if not levels:
+        return None, 0.0, False
+    if stake <= 0:
+        return levels[0][0], liquidity, True
+    remaining, cost, shares = stake, 0.0, 0.0
+    for price, size in levels:
+        fill_shares = min(size, remaining / price)
+        fill_cost = fill_shares * price
+        cost += fill_cost
+        shares += fill_shares
+        remaining -= fill_cost
+        if remaining <= 0.01:
+            return cost / shares, liquidity, True
+    return None, liquidity, False
 
 
 def _stake(trade):

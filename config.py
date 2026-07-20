@@ -97,6 +97,10 @@ class Settings:
     kalshi_api_base_url: str = "https://external-api.kalshi.com/trade-api/v2"
     kalshi_cache_ttl_seconds: int = 1
     execution_quote_max_age_seconds: int = 60
+    line_shop_max_quote_age_seconds: int = 60
+    line_shop_refresh_interval_seconds: int = 5
+    line_shop_min_liquidity: float = 0.0
+    line_shop_include_fees: bool = True
     execution_wide_spread_fraction: float = 0.03
     minimum_edge_discovery: float = 0.01
     minimum_edge_b: float = 0.015
@@ -131,6 +135,17 @@ def get_settings() -> Settings:
         default_bankroll=_get_float("DEFAULT_BANKROLL", 10000.0),
         unit_percentage=_get_float("UNIT_PERCENTAGE", 0.01),
         execution_quote_max_age_seconds=_get_int("EXECUTION_QUOTE_MAX_AGE_SECONDS", 60),
+        line_shop_max_quote_age_seconds=_get_int(
+            "LINE_SHOP_MAX_QUOTE_AGE_SECONDS",
+            _get_int("EXECUTION_QUOTE_MAX_AGE_SECONDS", 60),
+        ),
+        line_shop_refresh_interval_seconds=max(
+            2, _get_int("LINE_SHOP_REFRESH_INTERVAL_SECONDS", 5)
+        ),
+        line_shop_min_liquidity=max(
+            0.0, _get_float("LINE_SHOP_MIN_LIQUIDITY", 0.0)
+        ),
+        line_shop_include_fees=_get_bool("LINE_SHOP_INCLUDE_FEES", True),
         execution_wide_spread_fraction=_get_float("EXECUTION_WIDE_SPREAD_FRACTION", 0.03),
         minimum_edge_discovery=_get_float("MINIMUM_EDGE_DISCOVERY", 0.01),
         minimum_edge_b=_get_float("MINIMUM_EDGE_B", 0.015),
