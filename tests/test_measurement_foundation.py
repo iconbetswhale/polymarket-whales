@@ -162,7 +162,7 @@ def test_approved_candidate_is_persisted_without_changing_live_decision(
     assert evaluation["recommendation"]["final_recommended_fraction"] == original_fraction
     assert stored["current_decision"] == CandidateDecision.APPROVED_STANDARD.value
     assert stored["snapshot"]["versions"]["trade_scoring"] == "trade-quality-v2"
-    assert stored["snapshot"]["versions"]["fair_price"] == "fair-price-v2"
+    assert stored["snapshot"]["versions"]["fair_price"] == "fair-price-v3"
     assert stored["correlation_id"].startswith("corr_")
 
 

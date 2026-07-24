@@ -290,7 +290,7 @@ class TrackerService:
         self.sizing_config = SizingConfig(unit_percentage=settings.unit_percentage)
         self.composite_price_providers = CompositePriceProviderRegistry.release1_default()
         self.execution_providers = build_execution_provider_registry(settings)
-        self.fair_price_engine = FairPriceEngine()
+        self.fair_price_engine = FairPriceEngine(max_quote_age_seconds=600)
         self.execution_config = ExecutionConfig(
             max_quote_age_seconds=settings.execution_quote_max_age_seconds,
             wide_spread_fraction=settings.execution_wide_spread_fraction,

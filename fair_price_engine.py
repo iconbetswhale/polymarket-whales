@@ -7,17 +7,16 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 
-FAIR_PRICE_VERSION = "fair-price-v2"
-DEFAULT_MAX_QUOTE_AGE_SECONDS = 180
+FAIR_PRICE_VERSION = "fair-price-v3"
+DEFAULT_MAX_QUOTE_AGE_SECONDS = 600
 DEFAULT_PROVIDER_WEIGHTS = {
-    "pinnacle": 0.35,
-    "circa": 0.25,
-    "bookmaker": 0.20,
-    "betonline": 0.10,
-    "novig": 0.05,
-    "prophetx": 0.05,
-    "4cx": 0.05,
-    "kalshi": 0.05,
+    "pinnacle": 0.40,
+    "betonline": 0.20,
+    "novig": 0.10,
+    "prophetx": 0.10,
+    "4cx": 0.08,
+    "kalshi": 0.07,
+    "polymarket": 0.05,
 }
 
 
@@ -119,9 +118,7 @@ class FairPriceEngine:
             probability = _finite(source.get("no_vig_probability"))
             timestamp = _parse_timestamp(source.get("quote_timestamp"))
             reason: str | None = None
-            if provider == "polymarket":
-                reason = "DEPENDENT_EXECUTION_MARKET"
-            elif str(source.get("status") or "").upper() != "AVAILABLE":
+            if str(source.get("status") or "").upper() != "AVAILABLE":
                 reason = str(source.get("missing_reason") or "PROVIDER_UNAVAILABLE")
             elif str(source.get("mapping_confidence") or "").upper() != "EXACT":
                 reason = "MARKET_MAPPING_UNCERTAIN"

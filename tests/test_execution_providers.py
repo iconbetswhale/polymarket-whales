@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from datetime import datetime, timezone
 
 import pytest
 import requests
@@ -254,7 +255,13 @@ def test_kalshi_abbreviated_mlb_binary_maps_to_team_moneyline_once() -> None:
 
 
 def test_registry_returns_ordered_generic_provider_contract() -> None:
-    novig, _session = provider_for(event())
+    fresh_odd = odd()
+    fresh_odd["byBookmaker"]["novig"]["lastUpdatedAt"] = (
+        datetime.now(timezone.utc).isoformat()
+    )
+    novig, _session = provider_for(event(odds={
+        "points-home-game-ml-home": fresh_odd,
+    }))
     value = trade()
 
     ExecutionProviderRegistry((PolymarketProvider(), novig)).attach_options([value])

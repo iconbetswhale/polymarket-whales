@@ -35,6 +35,20 @@ PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
 EASTERN = ZoneInfo("America/New_York")
 MAX_PROVIDER_PAGES = 10
+EXCHANGE_EXECUTION_PROVIDER_KEYS = frozenset(
+    {
+        "polymarket",
+        "novig",
+        "prophetx",
+        "4cx",
+        "fourcx",
+        "kalshi",
+        "oddsapi__polymarket",
+        "oddsapi__novig",
+        "oddsapi__prophetx",
+        "oddsapi__kalshi",
+    }
+)
 
 
 class MatchConfidence(str, Enum):
@@ -154,7 +168,7 @@ class ExecutionProvider(ABC):
         raise NotImplementedError
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
-        """Return independently sourced no-vig quotes when supported."""
+        """Return exact market-implied or no-vig quotes when supported."""
         return {}
 
 
@@ -211,6 +225,54 @@ class PolymarketProvider(ExecutionProvider):
                 native_price_format="CENTS",
             )
         return options
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
+        observed_at = datetime.now(timezone.utc).isoformat()
+        results: dict[str, dict] = {}
+        for trade in trades:
+            trade_id = str(trade.get("id") or "").strip()
+            if not trade_id:
+                continue
+            recommendation = trade.get("recommendation") or {}
+            card = trade.get("card") or {}
+            live_quote = trade.get("execution_quote") or {}
+            probability = _float_or_none(
+                live_quote.get("best_ask")
+                if live_quote.get("best_ask") is not None
+                else card.get("current_actionable_price")
+                if card.get("current_actionable_price") is not None
+                else recommendation.get("current_user_entry_price")
+            )
+            if probability is None or not 0 < probability < 1:
+                continue
+            results[trade_id] = {
+                "provider": self.provider_key,
+                "status": "AVAILABLE",
+                "quote_timestamp": observed_at,
+                "mapping_confidence": "EXACT",
+                "provider_event_id": str(
+                    trade.get("event_slug")
+                    or (trade.get("validation_ids") or {}).get("condition_id")
+                    or trade_id
+                ),
+                "provider_market_id": str(
+                    (trade.get("validation_ids") or {}).get("condition_id")
+                    or trade.get("market_slug")
+                    or trade_id
+                ),
+                "provider_selection_id": str(
+                    trade.get("clob_token_id") or trade_id
+                ),
+                "selection": str(trade.get("outcome") or ""),
+                "native_odds": _format_cents(probability),
+                "raw_implied_probability": probability,
+                "no_vig_probability": probability,
+                "quality_metadata": {
+                    "probability_source": "live_selected_contract_ask",
+                },
+                "fabricated_data": False,
+            }
+        return results
 
 
 def _exact_polymarket_link(trade: dict) -> str:
@@ -517,16 +579,26 @@ class ProviderMarketIndex:
 
 
 def _equivalent_market_key(market: NormalizedProviderMarket) -> tuple:
+    team_market = market.market_name in {
+        "moneyline",
+        "spread",
+        "game_total",
+    }
+    grouped_line = (
+        abs(float(market.line))
+        if market.market_name == "spread" and market.line is not None
+        else market.line
+    )
     return (
         market.event_id,
         market.sport_id,
         market.league_id,
         market.market_name,
         market.stat_id,
-        market.stat_entity_id,
+        "" if team_market else market.stat_entity_id,
         market.period_id,
         market.bet_type_id,
-        market.line,
+        grouped_line,
         market.is_alternative,
         market.settlement_rules,
     )
@@ -767,11 +839,7 @@ class ExecutionProviderRegistry:
         min_liquidity: float = 0.0,
         include_fees: bool = True,
         comparison_provider_keys: Iterable[str] = (
-            "polymarket",
-            "kalshi",
-            "4cx",
-            "fourcx",
-            "the_odds_api",
+            *EXCHANGE_EXECUTION_PROVIDER_KEYS,
         ),
     ) -> None:
         self.providers = tuple(providers)
@@ -780,7 +848,13 @@ class ExecutionProviderRegistry:
         self.include_fees = bool(include_fees)
         self.comparison_provider_keys = frozenset(str(key).lower() for key in comparison_provider_keys)
 
-    def attach_options(self, trades: list[dict]) -> list[dict]:
+    def attach_options(
+        self,
+        trades: list[dict],
+        *,
+        compare_all: bool = False,
+        include_non_comparison: bool = False,
+    ) -> list[dict]:
         by_provider: list[
             tuple[
                 ExecutionProvider,
@@ -830,6 +904,12 @@ class ExecutionProviderRegistry:
                     if option.matching_confidence is not MatchConfidence.EXACT:
                         continue
                     exact_count += 1
+                    comparison_option = (
+                        compare_all
+                        or self._is_comparison_option(provider, option)
+                    )
+                    if not comparison_option and not include_non_comparison:
+                        continue
                     finalized = (
                         _finalize_execution_option(
                             option,
@@ -838,7 +918,7 @@ class ExecutionProviderRegistry:
                             min_liquidity=self.min_liquidity,
                             include_fees=self.include_fees,
                         )
-                        if self._is_comparison_option(provider, option)
+                        if comparison_option
                         else option
                     )
                     found.append(finalized)
@@ -848,7 +928,7 @@ class ExecutionProviderRegistry:
                     failures[provider.provider_key] = MARKET_MAPPING_UNCERTAIN
             executable = [
                 item for item in found
-                if self._is_comparison_key(item.provider_key)
+                if (compare_all or self._is_comparison_key(item.provider_key))
                 and item.is_available
                 and item.is_exact_match
                 and not item.is_stale
@@ -874,23 +954,25 @@ class ExecutionProviderRegistry:
 
     def _is_comparison_key(self, provider_key: str) -> bool:
         normalized = str(provider_key or "").strip().lower()
-        return (
-            normalized in self.comparison_provider_keys
-            or normalized.startswith("oddsapi__")
-        )
+        return normalized in self.comparison_provider_keys
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
         quotes: dict[str, list[dict]] = defaultdict(list)
+        seen_providers: dict[str, set[str]] = defaultdict(set)
         for provider in self.providers:
-            if provider.provider_key == "polymarket":
-                continue
             try:
                 rows = provider.fair_price_quotes(trades)
             except Exception:
                 LOGGER.exception("Fair-price provider %s failed", provider.provider_key)
                 rows = {}
             for trade_id, quote in rows.items():
-                quotes[trade_id].append(quote)
+                candidates = quote if isinstance(quote, list) else [quote]
+                for candidate in candidates:
+                    provider_key = str(candidate.get("provider") or "").lower()
+                    if not provider_key or provider_key in seen_providers[trade_id]:
+                        continue
+                    quotes[trade_id].append(candidate)
+                    seen_providers[trade_id].add(provider_key)
         return dict(quotes)
 
     def fair_price_provider_health(self) -> list[dict]:
@@ -984,7 +1066,7 @@ def _finalize_execution_option(
     liquidity = option.available_liquidity
     can_fill = option.can_fill_recommended_stake
     if stake <= 0 and can_fill is None:
-        can_fill = liquidity is not None and liquidity > 0
+        can_fill = option.is_available if liquidity is None else liquidity > 0
 
     if market_status in {"CLOSED", MARKET_CLOSED}:
         market_status, failure = "CLOSED", MARKET_CLOSED
@@ -1023,12 +1105,16 @@ def _finalize_execution_option(
         all_in_price = None
 
     provider_key = option.provider_key.lower()
+    native_provider_key = provider_key.removeprefix("oddsapi__")
     native_format = option.native_price_format or (
-        "CENTS" if provider_key in {"polymarket", "kalshi"} else "AMERICAN"
+        "CENTS"
+        if native_provider_key in {"polymarket", "kalshi"}
+        else "AMERICAN"
     )
     contract_price = option.contract_price
     display = option.display_odds
-    if provider_key in {"polymarket", "kalshi"} and contract_price is not None:
+    if native_provider_key in {"polymarket", "kalshi"} and raw_price is not None:
+        contract_price = contract_price if contract_price is not None else raw_price
         display = _format_cents(contract_price)
     elif (
         provider_key in {"4cx", "fourcx"} or provider_key.startswith("oddsapi__")
@@ -1047,6 +1133,7 @@ def _finalize_execution_option(
     return replace(
         option,
         display_odds=display,
+        contract_price=contract_price,
         is_available=executable,
         selection=str(trade.get("outcome") or ""),
         native_price_format=native_format,

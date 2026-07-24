@@ -14,7 +14,7 @@ from typing import Any, Iterable
 RELEASE1_MIGRATION_VERSION = "001_release1_measurement_foundation"
 CANDIDATE_LEDGER_VERSION = "candidate-ledger-v1"
 TRADE_SCORING_VERSION = "trade-quality-v2"
-FAIR_PRICE_VERSION = "fair-price-v2"
+FAIR_PRICE_VERSION = "fair-price-v3"
 KELLY_VERSION = "uncertainty-kelly-v2"
 RISK_POLICY_VERSION = "portfolio-risk-v3"
 WALLET_REGISTRY_VERSION = "wallet-registry-v1"

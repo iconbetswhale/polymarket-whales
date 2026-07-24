@@ -1188,7 +1188,11 @@ def create_app(start_background: bool = True) -> Flask:
             row["orderbook_summary"] = {"timestamp": book.get("timestamp")}
             row["card"]["current_actionable_price"] = best_ask
             row["recommendation"]["current_user_entry_price"] = best_ask
-        execution_providers.attach_options(rows)
+        execution_providers.attach_options(
+            rows,
+            compare_all=True,
+            include_non_comparison=True,
+        )
         provider_catalog: dict[str, dict] = {}
         if odds_api_provider is not None:
             provider_catalog.update(

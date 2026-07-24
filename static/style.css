@@ -8193,14 +8193,20 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 .market-menu-grid button { display:block; width:100%; }
 .market-menu-grid em { display:block; color:#6f8792; font-size:8px; font-style:normal; font-weight:500; }
 .odds-books-shell { margin-left:2px; }
-.odds-books-menu { left:auto; right:0; width:260px; }
+.odds-books-menu { left:auto; right:0; width:280px; max-height:min(650px,calc(100vh - 90px)); display:flex; flex-direction:column; overflow:hidden; }
+.odds-books-menu[hidden] { display:none; }
 .odds-books-summary { display:flex; justify-content:space-between; color:#8198a3; font-size:10px; }.odds-books-summary button { border:0; background:none; color:#9eb1ba; font-size:9px; }
 .odds-books-search { margin:9px 0 7px; height:30px; display:flex; align-items:center; gap:7px; padding:0 8px; border:1px solid #294452; background:#10222d; }
 .odds-books-search input { width:100%; border:0; outline:0; background:none; color:#fff; font-size:10px; }
-.odds-books-apply { width:100%; height:28px; border:0; border-radius:3px; background:#09aee5; color:#fff; font-size:10px; font-weight:700; }
-.odds-book-list { display:grid; gap:5px; margin:10px 0; }
+.odds-books-apply { flex:0 0 auto; width:100%; height:32px; border:0; border-radius:3px; background:#09aee5; color:#fff; font-size:10px; font-weight:700; }
+.odds-book-list { display:grid; gap:5px; min-height:80px; margin:10px -4px 10px 0; padding-right:6px; overflow-x:hidden; overflow-y:auto; overscroll-behavior:contain; scrollbar-gutter:stable; }
 .odds-book-list label { display:grid; grid-template-columns:15px 22px 1fr; align-items:center; gap:7px; color:#e7eff2; font-size:11px; }
 .odds-book-list input { accent-color:#09aee5; }.odds-book-list img { width:20px; height:20px; border-radius:4px; object-fit:contain; }
+.provider-logo-mark { display:inline-flex; width:22px; height:22px; flex:0 0 22px; align-items:center; justify-content:center; }
+.provider-logo-mark img { width:20px; height:20px; border-radius:4px; object-fit:contain; }
+.provider-logo-mark [hidden] { display:none; }
+.book-head .provider-logo-mark { width:24px; height:24px; flex-basis:24px; }
+.book-head .provider-logo-mark img { width:22px; height:22px; }
 .book-initials { display:inline-flex; width:21px; height:21px; align-items:center; justify-content:center; border:1px solid #315367; border-radius:5px; background:#102531; color:#e7f8ff; font-size:8px; font-weight:800; letter-spacing:.03em; }
 .odds-book-list .book-initials { width:20px; height:20px; }
 .odds-price.unavailable { opacity:.72; cursor:not-allowed; }

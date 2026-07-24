@@ -269,7 +269,7 @@ def test_returns_every_exact_bookmaker_and_ranks_best_american_price() -> None:
     )
     trade = _trade(start)
 
-    registry.attach_options([trade])
+    registry.attach_options([trade], compare_all=True)
 
     options = trade["executionOptions"]
     assert {item["providerName"] for item in options} == {
@@ -286,6 +286,33 @@ def test_returns_every_exact_bookmaker_and_ranks_best_american_price() -> None:
     assert next(
         item for item in options if item["providerName"] == "FanDuel"
     )["americanOdds"] == 110
+
+
+def test_fair_price_quotes_expose_pinnacle_and_betonline_no_vig_sources() -> None:
+    start = datetime.now(timezone.utc) + timedelta(hours=4)
+    event = _event(start)
+    event["bookmakers"][0]["key"] = "pinnacle"
+    event["bookmakers"][0]["title"] = "Pinnacle"
+    event["bookmakers"][1]["key"] = "betonlineag"
+    event["bookmakers"][1]["title"] = "BetOnline.ag"
+    session = FakeSession([event])
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=("us",),
+        markets=("h2h",),
+        session=session,
+    )
+
+    quotes = provider.fair_price_quotes([_trade(start)])
+
+    by_provider = {
+        row["provider"]: row
+        for row in quotes["trade-1"]
+    }
+    assert set(by_provider) == {"pinnacle", "betonline"}
+    assert all(row["mapping_confidence"] == "EXACT" for row in by_provider.values())
+    assert all(0 < row["no_vig_probability"] < 1 for row in by_provider.values())
+    assert all(row["fabricated_data"] is False for row in by_provider.values())
 
 
 def test_cache_prevents_frontend_polling_from_spending_more_credits() -> None:
@@ -312,7 +339,7 @@ def test_known_bet_limit_prevents_best_price_when_stake_is_too_large() -> None:
     )
     trade = _trade(start, stake=600)
 
-    registry.attach_options([trade])
+    registry.attach_options([trade], compare_all=True)
 
     draftkings = next(
         item
@@ -469,6 +496,7 @@ def test_default_catalog_covers_every_configured_region() -> None:
     assert catalog["oddsapi__svenskaspel_se"]["region"] == "se"
     assert catalog["oddsapi__winamax_fr"]["region"] == "fr"
     assert catalog["oddsapi__polymarket"]["name"] == "Polymarket (Odds API)"
+    assert all(item["logoUrl"] for item in catalog.values())
 
 
 def test_featured_markets_exclude_dfs_region() -> None:

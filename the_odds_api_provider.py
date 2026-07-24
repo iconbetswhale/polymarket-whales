@@ -24,6 +24,7 @@ from execution_providers import (
     NormalizedProviderMarket,
     ProviderHealthStatus,
     ProviderMarketIndex,
+    _fair_quotes_from_index,
     _match_exact_trade,
     american_to_probability,
     canonicalize_trade,
@@ -77,6 +78,14 @@ MARKET_KEY_BY_KIND = {
 FEATURED_MARKET_KEYS = {"h2h", "spreads", "totals"}
 ALTERNATE_MARKET_KEYS = {"alternate_spreads", "alternate_totals"}
 SUPPORTED_MARKET_KEYS = FEATURED_MARKET_KEYS | ALTERNATE_MARKET_KEYS
+FAIR_PRICE_BOOK_ALIASES = {
+    "pinnacle": "pinnacle",
+    "betonlineag": "betonline",
+    "novig": "novig",
+    "prophetx": "prophetx",
+    "kalshi": "kalshi",
+    "polymarket": "polymarket",
+}
 
 SPORT_ID_BY_PREFIX = {
     "americanfootball": "FOOTBALL",
@@ -208,6 +217,73 @@ KNOWN_SPORTSBOOKS.update(
         "unibet_se": ("Unibet (SE)", ""),
     }
 )
+
+BOOKMAKER_DOMAINS = {
+    "betanysports": "betanything.eu",
+    "betopenly": "app.betopenly.com",
+    "kalshi": "kalshi.com",
+    "novig": "novig.us",
+    "polymarket": "polymarket.com",
+    "prophetx": "prophetx.co",
+    "betr_us_dfs": "betr.app",
+    "pick6": "pick6.draftkings.com",
+    "prizepicks": "prizepicks.com",
+    "underdog": "underdogfantasy.com",
+    "sport888": "888sport.com",
+    "betfair_ex_uk": "betfair.com",
+    "betfair_sb_uk": "betfair.com",
+    "betfred_uk": "betfred.com",
+    "betvictor": "betvictor.com",
+    "betway": "betway.com",
+    "boylesports": "boylesports.com",
+    "casumo": "casumo.com",
+    "coral": "sports.coral.co.uk",
+    "grosvenor": "grosvenorcasinos.com",
+    "ladbrokes_uk": "ladbrokes.com",
+    "leovegas": "leovegas.com",
+    "livescorebet": "livescorebet.com",
+    "matchbook": "matchbook.com",
+    "paddypower": "paddypower.com",
+    "skybet": "skybet.com",
+    "smarkets": "smarkets.com",
+    "unibet_uk": "unibet.co.uk",
+    "virginbet": "virginbet.com",
+    "williamhill": "williamhill.com",
+    "betfair_ex_au": "betfair.com.au",
+    "betr_au": "betr.com.au",
+    "betright": "betright.com.au",
+    "bet365_au": "bet365.com.au",
+    "dabble_au": "dabble.com.au",
+    "ladbrokes_au": "ladbrokes.com.au",
+    "neds": "neds.com.au",
+    "playup": "playup.com.au",
+    "pointsbetau": "pointsbet.com.au",
+    "sportsbet": "sportsbet.com.au",
+    "tab": "tab.com.au",
+    "tabtouch": "tabtouch.mobi",
+    "unibet": "unibet.com.au",
+    "betclic_fr": "betclic.fr",
+    "netbet_fr": "netbet.fr",
+    "pmu_fr": "parisportif.pmu.fr",
+    "unibet_fr": "unibet.fr",
+    "winamax_fr": "winamax.fr",
+    "atg_se": "atg.se",
+    "betinia_se": "betinia.se",
+    "betmgm_se": "betmgm.se",
+    "betsson": "betsson.com",
+    "campobet_se": "campobet.se",
+    "expekt_se": "expekt.se",
+    "hajper_se": "hajper.com",
+    "leovegas_se": "leovegas.com",
+    "mrgreen_se": "mrgreen.se",
+    "nordicbet": "nordicbet.com",
+    "sport888_se": "888sport.se",
+    "svenskaspel_se": "svenskaspel.se",
+    "unibet_se": "unibet.se",
+    "pinnacle": "pinnacle.com",
+    "betano_uk": "betano.co.uk",
+    "coolbet": "coolbet.com",
+}
 
 BOOKMAKER_KEYS_BY_REGION = {
     "us": (
@@ -371,6 +447,13 @@ def _favicon_url(link: str | None) -> str:
     return urlunparse((parsed.scheme, parsed.netloc, "/favicon.ico", "", "", ""))
 
 
+def _catalog_logo(book_key: str, current: str = "") -> str:
+    domain = BOOKMAKER_DOMAINS.get(book_key)
+    if domain:
+        return f"https://www.google.com/s2/favicons?domain={domain}&sz=64"
+    return current
+
+
 def _bet_limit(*objects: object) -> float | None:
     for item in objects:
         if not isinstance(item, dict):
@@ -519,7 +602,13 @@ def normalize_the_odds_api_events(
                     metadata[selection_id] = _BookMetadata(
                         key=book_key,
                         name=book_name,
-                        logo_url=_favicon_url(direct_link),
+                        logo_url=(
+                            _catalog_logo(
+                                book_key,
+                                KNOWN_SPORTSBOOKS.get(book_key, ("", ""))[1],
+                            )
+                            or _favicon_url(direct_link)
+                        ),
                         direct_link=direct_link,
                         bet_limit=limit,
                     )
@@ -696,6 +785,46 @@ class TheOddsAPIProvider(ExecutionProvider):
                 self.failure_reasons.setdefault(trade.trade_id, MARKET_NOT_FOUND)
         return results
 
+    def fair_price_quotes(
+        self, trades: list[dict]
+    ) -> dict[str, list[dict]]:
+        if not self.api_key or not trades:
+            return {}
+        canonical = [
+            item for trade in trades if (item := canonicalize_trade(trade))
+        ]
+        grouped: dict[str, list[CanonicalTrade]] = {}
+        for trade in canonical:
+            sport_key = self._sport_key_for_trade(trade)
+            if sport_key:
+                grouped.setdefault(sport_key, []).append(trade)
+        results: dict[str, list[dict]] = {}
+        for sport_key, sport_trades in grouped.items():
+            requested_keys = {
+                self._market_key_for_trade(trade) for trade in sport_trades
+            }
+            market_keys = tuple(
+                key
+                for key in (*self.markets, *self.alternate_markets)
+                if key in requested_keys
+            )
+            if not market_keys:
+                continue
+            events = self._events(sport_key, market_keys)
+            by_book, _metadata = normalize_the_odds_api_events(events)
+            for book_key, provider_alias in FAIR_PRICE_BOOK_ALIASES.items():
+                markets = by_book.get(book_key)
+                if not markets:
+                    continue
+                quotes = _fair_quotes_from_index(
+                    sport_trades,
+                    ProviderMarketIndex(markets),
+                    provider_alias,
+                )
+                for trade_id, quote in quotes.items():
+                    results.setdefault(trade_id, []).append(quote)
+        return results
+
     def odds_screen_rows(
         self,
         *,
@@ -828,7 +957,7 @@ class TheOddsAPIProvider(ExecutionProvider):
             _provider_key(book_key): {
                 "key": _provider_key(book_key),
                 "name": name,
-                "logoUrl": logo_url,
+                "logoUrl": _catalog_logo(book_key, logo_url),
                 "source": self.provider_key,
                 "region": BOOKMAKER_REGION_BY_KEY.get(book_key, "us"),
             }
@@ -850,7 +979,10 @@ class TheOddsAPIProvider(ExecutionProvider):
                 catalog[provider_key] = {
                     "key": provider_key,
                     "name": known_name,
-                    "logoUrl": str(option.get("logoUrl") or known_logo),
+                    "logoUrl": str(
+                        option.get("logoUrl")
+                        or _catalog_logo(book_key, known_logo)
+                    ),
                     "source": self.provider_key,
                     "region": BOOKMAKER_REGION_BY_KEY.get(
                         book_key,

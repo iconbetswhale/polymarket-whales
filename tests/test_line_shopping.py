@@ -126,6 +126,41 @@ def test_positive_and_negative_american_odds_rank_in_probability_order():
     assert best["americanOdds"] == 120
 
 
+def test_prediction_trade_ranking_uses_exchanges_not_sportsbooks():
+    value = trade()
+    draftkings = ExecutionOption(
+        **{
+            **option("kalshi", 0.40).__dict__,
+            "provider_key": "oddsapi__draftkings",
+            "provider_name": "DraftKings",
+        }
+    )
+    kalshi = ExecutionOption(
+        **{
+            **option("kalshi", 0.47).__dict__,
+            "provider_key": "oddsapi__kalshi",
+            "provider_name": "Kalshi",
+        }
+    )
+    registry = ExecutionProviderRegistry(
+        (
+            Provider(draftkings),
+            Provider(kalshi),
+            Provider(option("polymarket", 0.49)),
+        )
+    )
+
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "oddsapi__kalshi"
+    assert best["nativePrice"] == "47\u00a2"
+    assert all(
+        row["providerKey"] != "oddsapi__draftkings"
+        for row in value["executionOptions"]
+    )
+
+
 @pytest.mark.parametrize("status", ["SUSPENDED", "MARKET_SUSPENDED"])
 def test_suspended_market_cannot_be_best(status):
     value = trade()

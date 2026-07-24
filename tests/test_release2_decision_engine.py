@@ -78,7 +78,6 @@ def test_fair_price_uses_only_fresh_exact_independent_sources():
         [
             _quote("pinnacle", 0.60),
             _quote("circa", 0.52),
-            _quote("polymarket", 0.99),
             _quote("pinnacle", 0.10, age=181),
             _quote("circa", 0.90, mapping="PROBABLE"),
         ],
@@ -89,8 +88,45 @@ def test_fair_price_uses_only_fresh_exact_independent_sources():
     assert result["source_count"] == 2
     assert result["fabricated_data"] is False
     assert {row["exclusion_reason"] for row in result["contributions"]} >= {
-        "DEPENDENT_EXECUTION_MARKET", "STALE_QUOTE", "MARKET_MAPPING_UNCERTAIN"
+        "STALE_QUOTE", "MARKET_MAPPING_UNCERTAIN"
     }
+
+
+def test_production_fair_price_uses_requested_seven_source_weights():
+    quotes = [
+        _quote("pinnacle", 0.60),
+        _quote("betonline", 0.58),
+        _quote("novig", 0.56),
+        _quote("prophetx", 0.55),
+        _quote("4cx", 0.54),
+        _quote("kalshi", 0.53),
+        _quote("polymarket", 0.52),
+    ]
+
+    result = FairPriceEngine().calculate(quotes, NOW).to_dict()
+
+    expected = (
+        0.60 * 0.40
+        + 0.58 * 0.20
+        + 0.56 * 0.10
+        + 0.55 * 0.10
+        + 0.54 * 0.08
+        + 0.53 * 0.07
+        + 0.52 * 0.05
+    )
+    assert result["status"] == "AVAILABLE"
+    assert result["fair_probability"] == pytest.approx(expected)
+    assert result["source_count"] == 7
+    assert result["source_weights"] == {
+        "pinnacle": 0.40,
+        "betonline": 0.20,
+        "novig": 0.10,
+        "prophetx": 0.10,
+        "4cx": 0.08,
+        "kalshi": 0.07,
+        "polymarket": 0.05,
+    }
+    assert result["calculation_version"] == "fair-price-v3"
 
 
 def test_missing_fair_price_stays_unavailable_and_never_creates_kelly():
