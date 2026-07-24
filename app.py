@@ -1202,15 +1202,25 @@ def create_app(start_background: bool = True) -> Flask:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
                 if not provider_key:
                     continue
+                existing_provider = provider_catalog.get(provider_key, {})
                 provider_catalog[provider_key] = {
                     "key": provider_key,
-                    "name": str(option.get("providerName") or provider_key),
-                    "logoUrl": str(option.get("logoUrl") or ""),
+                    "name": str(
+                        existing_provider.get("name")
+                        or option.get("providerName")
+                        or provider_key
+                    ),
+                    "logoUrl": str(
+                        option.get("logoUrl")
+                        or existing_provider.get("logoUrl")
+                        or ""
+                    ),
                     "source": (
                         "the_odds_api"
                         if provider_key.startswith("oddsapi__")
                         else "exchange"
                     ),
+                    "region": str(existing_provider.get("region") or ""),
                 }
         compact_option_keys = {
             "providerName",
@@ -1236,7 +1246,7 @@ def create_app(start_background: bool = True) -> Flask:
                 }
                 for option in row.get("executionOptions") or []
             ]
-        return jsonify(
+        response = jsonify(
             {
                 "data": rows,
                 "pagination": {"total": len(rows), "page": 1, "per_page": 2000},
@@ -1256,6 +1266,16 @@ def create_app(start_background: bool = True) -> Flask:
                 },
             }
         )
+        edge_ttl = (
+            1200
+            if requested_market in {"alternate_spread", "alternate_total"}
+            else 600
+        )
+        response.headers["Cache-Control"] = (
+            f"public, max-age=15, s-maxage={edge_ttl}, "
+            "stale-while-revalidate=60"
+        )
+        return response
 
     @app.route("/api/trades-to-play")
     def api_trades_to_play():

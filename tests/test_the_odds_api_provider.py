@@ -10,7 +10,7 @@ from execution_providers import (
     MatchConfidence,
     canonicalize_trade,
 )
-from the_odds_api_provider import TheOddsAPIProvider
+from the_odds_api_provider import DEFAULT_REGIONS, TheOddsAPIProvider
 
 
 class FakeResponse:
@@ -449,6 +449,73 @@ def test_quota_diagnostics_do_not_expose_api_key() -> None:
     assert "api_key" not in diagnostics
 
 
+def test_default_catalog_covers_every_configured_region() -> None:
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        session=FakeSession([]),
+    )
+
+    catalog = {
+        item["key"]: item
+        for item in provider.provider_catalog([])
+    }
+
+    assert tuple(provider.diagnostics()["regions"]) == DEFAULT_REGIONS
+    assert len(catalog) >= 78
+    assert catalog["oddsapi__kalshi"]["region"] == "us_ex"
+    assert catalog["oddsapi__prizepicks"]["region"] == "us_dfs"
+    assert catalog["oddsapi__williamhill"]["region"] == "uk"
+    assert catalog["oddsapi__sportsbet"]["region"] == "au"
+    assert catalog["oddsapi__svenskaspel_se"]["region"] == "se"
+    assert catalog["oddsapi__winamax_fr"]["region"] == "fr"
+    assert catalog["oddsapi__polymarket"]["name"] == "Polymarket (Odds API)"
+
+
+def test_featured_markets_exclude_dfs_region() -> None:
+    now = datetime.now(timezone.utc)
+    session = FakeSession([_event(now + timedelta(hours=4))])
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=DEFAULT_REGIONS,
+        markets=("h2h",),
+        session=session,
+    )
+
+    provider.odds_screen_rows(
+        league="MLB",
+        market_kind="moneyline",
+        now=now,
+    )
+
+    assert session.calls[0]["params"]["regions"] == (
+        "us,us2,us_ex,uk,au,se,fr"
+    )
+
+
+def test_alternate_markets_only_query_supported_us_book_regions() -> None:
+    now = datetime.now(timezone.utc)
+    session = AlternateSession(now + timedelta(hours=4))
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=DEFAULT_REGIONS,
+        default_sports=("basketball_wnba",),
+        session=session,
+    )
+
+    provider.odds_screen_rows(
+        league="WNBA",
+        market_kind="alternate_spread",
+        now=now,
+    )
+
+    event_call = next(
+        call
+        for call in session.calls
+        if "/events/alternate-event-1/odds" in call["url"]
+    )
+    assert event_call["params"]["regions"] == "us,us2"
+
+
 def test_missing_key_is_fail_closed_without_network_call() -> None:
     session = FakeSession([])
     provider = TheOddsAPIProvider(None, session=session)
@@ -512,6 +579,9 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
     )
 
     assert response.status_code == 200
+    assert response.headers["Cache-Control"] == (
+        "public, max-age=15, s-maxage=600, stale-while-revalidate=60"
+    )
     payload = response.get_json()
     assert payload["filters"] == {
         "sport": "",
@@ -522,6 +592,12 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
         item["key"] == "oddsapi__fanduel"
         and item["name"] == "FanDuel"
         and item["source"] == "the_odds_api"
+        and item["region"] == "us"
+        for item in payload["providers"]
+    )
+    assert any(
+        item["key"] == "oddsapi__prizepicks"
+        and item["region"] == "us_dfs"
         for item in payload["providers"]
     )
     assert any(

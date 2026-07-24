@@ -31,6 +31,17 @@ from execution_providers import (
 
 LOGGER = logging.getLogger(__name__)
 
+DEFAULT_REGIONS = (
+    "us",
+    "us2",
+    "us_ex",
+    "us_dfs",
+    "uk",
+    "au",
+    "se",
+    "fr",
+)
+
 SPORT_KEY_BY_LEAGUE = {
     "MLB": "baseball_mlb",
     "NFL": "americanfootball_nfl",
@@ -100,6 +111,14 @@ KNOWN_SPORTSBOOKS = {
     "fanduel": ("FanDuel", "https://sportsbook.fanduel.com/favicon.ico"),
     "fliff": ("Fliff", "https://sports.getfliff.com/favicon.ico"),
     "hardrockbet": ("Hard Rock Bet", "https://app.hardrock.bet/favicon.ico"),
+    "hardrockbet_az": (
+        "Hard Rock Bet (AZ)",
+        "https://app.hardrock.bet/favicon.ico",
+    ),
+    "hardrockbet_fl": (
+        "Hard Rock Bet (FL)",
+        "https://app.hardrock.bet/favicon.ico",
+    ),
     "hardrockbet_oh": (
         "Hard Rock Bet (OH)",
         "https://app.hardrock.bet/favicon.ico",
@@ -108,6 +127,174 @@ KNOWN_SPORTSBOOKS = {
     "mybookieag": ("MyBookie.ag", "https://www.mybookie.ag/favicon.ico"),
     "rebet": ("ReBet", "https://rebet.app/favicon.ico"),
     "espnbet": ("theScore Bet", "https://sportsbook.thescore.bet/favicon.ico"),
+}
+
+KNOWN_SPORTSBOOKS.update(
+    {
+        # US exchanges
+        "betopenly": ("BetOpenly", ""),
+        "kalshi": ("Kalshi", "https://kalshi.com/favicon.ico"),
+        "novig": ("Novig", "https://novig.us/favicon.ico"),
+        "polymarket": (
+            "Polymarket (Odds API)",
+            "https://polymarket.com/icons/favicon-32x32.png",
+        ),
+        "prophetx": ("ProphetX", "https://prophetx.co/favicon.ico"),
+        # US daily fantasy sports
+        "betr_us_dfs": ("Betr Picks", "https://www.betr.app/favicon.ico"),
+        "pick6": ("DraftKings Pick6", ""),
+        "prizepicks": (
+            "PrizePicks",
+            "https://www.prizepicks.com/favicon.ico",
+        ),
+        "underdog": (
+            "Underdog Fantasy",
+            "https://underdogfantasy.com/favicon.ico",
+        ),
+        # UK bookmakers
+        "sport888": ("888sport", ""),
+        "betfair_ex_uk": ("Betfair Exchange (UK)", ""),
+        "betfair_sb_uk": ("Betfair Sportsbook (UK)", ""),
+        "betfred_uk": ("Betfred (UK)", ""),
+        "betvictor": ("Bet Victor", ""),
+        "betway": ("Betway", ""),
+        "boylesports": ("BoyleSports", ""),
+        "casumo": ("Casumo", ""),
+        "coral": ("Coral", ""),
+        "grosvenor": ("Grosvenor", ""),
+        "ladbrokes_uk": ("Ladbrokes (UK)", ""),
+        "leovegas": ("LeoVegas", ""),
+        "livescorebet": ("LiveScore Bet", ""),
+        "matchbook": ("Matchbook", ""),
+        "paddypower": ("Paddy Power", ""),
+        "skybet": ("Sky Bet", ""),
+        "smarkets": ("Smarkets", ""),
+        "unibet_uk": ("Unibet (UK)", ""),
+        "virginbet": ("Virgin Bet", ""),
+        "williamhill": ("William Hill (UK)", ""),
+        # Australian bookmakers
+        "betfair_ex_au": ("Betfair Exchange (AU)", ""),
+        "betr_au": ("Betr (AU)", ""),
+        "betright": ("Bet Right", ""),
+        "bet365_au": ("Bet365 AU", ""),
+        "dabble_au": ("Dabble AU", ""),
+        "ladbrokes_au": ("Ladbrokes (AU)", ""),
+        "neds": ("Neds", ""),
+        "playup": ("PlayUp", ""),
+        "pointsbetau": ("PointsBet (AU)", ""),
+        "sportsbet": ("SportsBet", ""),
+        "tab": ("TAB", ""),
+        "tabtouch": ("TABtouch", ""),
+        "unibet": ("Unibet (AU)", ""),
+        # French bookmakers
+        "betclic_fr": ("Betclic (FR)", ""),
+        "netbet_fr": ("NetBet (FR)", ""),
+        "pmu_fr": ("PMU (FR)", ""),
+        "unibet_fr": ("Unibet (FR)", ""),
+        "winamax_fr": ("Winamax (FR)", ""),
+        # Swedish bookmakers
+        "atg_se": ("ATG (SE)", ""),
+        "betinia_se": ("Betinia (SE)", ""),
+        "betmgm_se": ("BetMGM (SE)", ""),
+        "betsson": ("Betsson", ""),
+        "campobet_se": ("CampoBet (SE)", ""),
+        "expekt_se": ("Nya Expekt (SE)", ""),
+        "hajper_se": ("Hajper (SE)", ""),
+        "leovegas_se": ("LeoVegas (SE)", ""),
+        "mrgreen_se": ("Mr Green (SE)", ""),
+        "nordicbet": ("NordicBet", ""),
+        "sport888_se": ("888sport (SE)", ""),
+        "svenskaspel_se": ("Svenska Spel (SE)", ""),
+        "unibet_se": ("Unibet (SE)", ""),
+    }
+)
+
+BOOKMAKER_KEYS_BY_REGION = {
+    "us": (
+        "betonlineag",
+        "betmgm",
+        "betrivers",
+        "betus",
+        "bovada",
+        "williamhill_us",
+        "draftkings",
+        "fanatics",
+        "fanduel",
+        "lowvig",
+        "mybookieag",
+    ),
+    "us2": (
+        "ballybet",
+        "betanysports",
+        "betparx",
+        "espnbet",
+        "fliff",
+        "hardrockbet",
+        "hardrockbet_az",
+        "hardrockbet_fl",
+        "hardrockbet_oh",
+        "rebet",
+    ),
+    "us_ex": ("betopenly", "kalshi", "novig", "polymarket", "prophetx"),
+    "us_dfs": ("betr_us_dfs", "pick6", "prizepicks", "underdog"),
+    "uk": (
+        "sport888",
+        "betfair_ex_uk",
+        "betfair_sb_uk",
+        "betfred_uk",
+        "betvictor",
+        "betway",
+        "boylesports",
+        "casumo",
+        "coral",
+        "grosvenor",
+        "ladbrokes_uk",
+        "leovegas",
+        "livescorebet",
+        "matchbook",
+        "paddypower",
+        "skybet",
+        "smarkets",
+        "unibet_uk",
+        "virginbet",
+        "williamhill",
+    ),
+    "au": (
+        "betfair_ex_au",
+        "betr_au",
+        "betright",
+        "bet365_au",
+        "dabble_au",
+        "ladbrokes_au",
+        "neds",
+        "playup",
+        "pointsbetau",
+        "sportsbet",
+        "tab",
+        "tabtouch",
+        "unibet",
+    ),
+    "fr": ("betclic_fr", "netbet_fr", "pmu_fr", "unibet_fr", "winamax_fr"),
+    "se": (
+        "atg_se",
+        "betinia_se",
+        "betmgm_se",
+        "betsson",
+        "campobet_se",
+        "expekt_se",
+        "hajper_se",
+        "leovegas_se",
+        "mrgreen_se",
+        "nordicbet",
+        "sport888_se",
+        "svenskaspel_se",
+        "unibet_se",
+    ),
+}
+BOOKMAKER_REGION_BY_KEY = {
+    book_key: region
+    for region, book_keys in BOOKMAKER_KEYS_BY_REGION.items()
+    for book_key in book_keys
 }
 
 
@@ -382,12 +569,12 @@ class TheOddsAPIProvider(ExecutionProvider):
         api_key: str | None,
         *,
         base_url: str = "https://api.the-odds-api.com/v4",
-        regions: Iterable[str] = ("us", "us2"),
+        regions: Iterable[str] = DEFAULT_REGIONS,
         markets: Iterable[str] = ("h2h", "spreads", "totals"),
         default_sports: Iterable[str] = ("baseball_mlb",),
-        cache_ttl_seconds: int = 300,
-        alternate_cache_ttl_seconds: int = 600,
-        max_quote_age_seconds: int = 900,
+        cache_ttl_seconds: int = 600,
+        alternate_cache_ttl_seconds: int = 1200,
+        max_quote_age_seconds: int = 1800,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -643,6 +830,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                 "name": name,
                 "logoUrl": logo_url,
                 "source": self.provider_key,
+                "region": BOOKMAKER_REGION_BY_KEY.get(book_key, "us"),
             }
             for book_key, (name, logo_url) in KNOWN_SPORTSBOOKS.items()
         }
@@ -651,11 +839,23 @@ class TheOddsAPIProvider(ExecutionProvider):
                 provider_key = str(option.get("providerKey") or "")
                 if not provider_key.startswith("oddsapi__"):
                     continue
+                book_key = provider_key.removeprefix("oddsapi__")
+                known_name, known_logo = KNOWN_SPORTSBOOKS.get(
+                    book_key,
+                    (
+                        str(option.get("providerName") or provider_key),
+                        "",
+                    ),
+                )
                 catalog[provider_key] = {
                     "key": provider_key,
-                    "name": str(option.get("providerName") or provider_key),
-                    "logoUrl": str(option.get("logoUrl") or ""),
+                    "name": known_name,
+                    "logoUrl": str(option.get("logoUrl") or known_logo),
                     "source": self.provider_key,
+                    "region": BOOKMAKER_REGION_BY_KEY.get(
+                        book_key,
+                        "us",
+                    ),
                 }
         return sorted(catalog.values(), key=lambda item: item["name"].casefold())
 
@@ -733,11 +933,12 @@ class TheOddsAPIProvider(ExecutionProvider):
     def _featured_events(
         self, sport_key: str, market_keys: tuple[str, ...]
     ) -> list[dict]:
+        request_regions = self._regions_for_market_keys(market_keys)
         response = self.session.get(
             f"{self.base_url}/sports/{sport_key}/odds/",
             params={
                 "apiKey": self.api_key,
-                "regions": ",".join(self.regions),
+                "regions": ",".join(request_regions),
                 "markets": ",".join(market_keys),
                 "oddsFormat": "american",
                 "dateFormat": "iso",
@@ -760,6 +961,7 @@ class TheOddsAPIProvider(ExecutionProvider):
     def _alternate_events(
         self, sport_key: str, market_keys: tuple[str, ...]
     ) -> list[dict]:
+        request_regions = self._regions_for_market_keys(market_keys)
         schedule = self.session.get(
             f"{self.base_url}/sports/{sport_key}/events",
             params={
@@ -808,7 +1010,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                 ),
                 params={
                     "apiKey": self.api_key,
-                    "regions": ",".join(self.regions),
+                    "regions": ",".join(request_regions),
                     "markets": ",".join(market_keys),
                     "oddsFormat": "american",
                     "dateFormat": "iso",
@@ -908,6 +1110,19 @@ class TheOddsAPIProvider(ExecutionProvider):
             return ()
         requested = MARKET_KEY_BY_KIND.get(normalized)
         return (requested,) if requested else self.markets
+
+    def _regions_for_market_keys(
+        self, market_keys: tuple[str, ...]
+    ) -> tuple[str, ...]:
+        if any(key in ALTERNATE_MARKET_KEYS for key in market_keys):
+            selected = tuple(
+                region for region in self.regions if region in {"us", "us2"}
+            )
+            return selected or self.regions
+        selected = tuple(
+            region for region in self.regions if region != "us_dfs"
+        )
+        return selected or self.regions
 
     @staticmethod
     def _market_key_for_trade(trade: CanonicalTrade) -> str | None:

@@ -1120,7 +1120,20 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     "the_odds_api_base_url",
                     "https://api.the-odds-api.com/v4",
                 ),
-                regions=getattr(settings, "the_odds_api_regions", ("us", "us2")),
+                regions=getattr(
+                    settings,
+                    "the_odds_api_regions",
+                    (
+                        "us",
+                        "us2",
+                        "us_ex",
+                        "us_dfs",
+                        "uk",
+                        "au",
+                        "se",
+                        "fr",
+                    ),
+                ),
                 markets=getattr(
                     settings,
                     "the_odds_api_markets",
@@ -1132,15 +1145,15 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     ("baseball_mlb",),
                 ),
                 cache_ttl_seconds=getattr(
-                    settings, "the_odds_api_cache_ttl_seconds", 300
+                    settings, "the_odds_api_cache_ttl_seconds", 600
                 ),
                 alternate_cache_ttl_seconds=getattr(
                     settings,
                     "the_odds_api_alternate_cache_ttl_seconds",
-                    600,
+                    1200,
                 ),
                 max_quote_age_seconds=getattr(
-                    settings, "the_odds_api_max_quote_age_seconds", 900
+                    settings, "the_odds_api_max_quote_age_seconds", 1800
                 ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),

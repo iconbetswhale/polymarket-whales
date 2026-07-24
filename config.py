@@ -98,12 +98,21 @@ class Settings:
     kalshi_cache_ttl_seconds: int = 1
     the_odds_api_key: str | None = field(default=None, repr=False)
     the_odds_api_base_url: str = "https://api.the-odds-api.com/v4"
-    the_odds_api_regions: tuple[str, ...] = ("us", "us2")
+    the_odds_api_regions: tuple[str, ...] = (
+        "us",
+        "us2",
+        "us_ex",
+        "us_dfs",
+        "uk",
+        "au",
+        "se",
+        "fr",
+    )
     the_odds_api_markets: tuple[str, ...] = ("h2h", "spreads", "totals")
     the_odds_api_default_sports: tuple[str, ...] = ("baseball_mlb",)
-    the_odds_api_cache_ttl_seconds: int = 300
-    the_odds_api_alternate_cache_ttl_seconds: int = 600
-    the_odds_api_max_quote_age_seconds: int = 900
+    the_odds_api_cache_ttl_seconds: int = 600
+    the_odds_api_alternate_cache_ttl_seconds: int = 1200
+    the_odds_api_max_quote_age_seconds: int = 1800
     execution_quote_max_age_seconds: int = 60
     line_shop_max_quote_age_seconds: int = 60
     line_shop_refresh_interval_seconds: int = 5
@@ -225,7 +234,8 @@ def get_settings() -> Settings:
             "THE_ODDS_API_BASE_URL", "https://api.the-odds-api.com/v4"
         ),
         the_odds_api_regions=_get_csv(
-            "THE_ODDS_API_REGIONS", ("us", "us2")
+            "THE_ODDS_API_REGIONS",
+            ("us", "us2", "us_ex", "us_dfs", "uk", "au", "se", "fr"),
         ),
         the_odds_api_markets=_get_csv(
             "THE_ODDS_API_MARKETS", ("h2h", "spreads", "totals")
@@ -234,13 +244,13 @@ def get_settings() -> Settings:
             "THE_ODDS_API_DEFAULT_SPORTS", ("baseball_mlb",)
         ),
         the_odds_api_cache_ttl_seconds=max(
-            60, _get_int("THE_ODDS_API_CACHE_TTL_SECONDS", 300)
+            60, _get_int("THE_ODDS_API_CACHE_TTL_SECONDS", 600)
         ),
         the_odds_api_alternate_cache_ttl_seconds=max(
             300,
-            _get_int("THE_ODDS_API_ALTERNATE_CACHE_TTL_SECONDS", 600),
+            _get_int("THE_ODDS_API_ALTERNATE_CACHE_TTL_SECONDS", 1200),
         ),
         the_odds_api_max_quote_age_seconds=max(
-            60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 900)
+            60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 1800)
         ),
     )
