@@ -1195,7 +1195,9 @@ def canonicalize_trade(trade: dict) -> CanonicalTrade | None:
         line=line,
         side_id=side_id,
         settlement_rules=settlement_rules,
-        is_alternative=bool(re.search(r"\b(?:alt|alternative)\b", title_blob, re.I)),
+        is_alternative=bool(
+            re.search(r"\b(?:alt|alternate|alternative)\b", title_blob, re.I)
+        ),
     )
 
 
@@ -1329,7 +1331,7 @@ def normalize_prophetx_markets(
             period_id = _prophetx_period_id(market)
             is_alternative = bool(market.get("is_alternative")) or bool(
                 re.search(
-                    r"\b(?:alt|alternative)\b",
+                    r"\b(?:alt|alternate|alternative)\b",
                     " ".join(
                         str(market.get(key) or "")
                         for key in ("name", "category_name", "sub_type")
@@ -1672,7 +1674,14 @@ def _canonical_market_kind(trade: dict) -> str | None:
         return "team_total"
     if "spread" in raw or "handicap" in raw:
         return "spread"
-    if raw in {"total", "game total", "over under", "overunder"}:
+    if raw in {
+        "total",
+        "game total",
+        "over under",
+        "overunder",
+        "alternate total",
+        "alt total",
+    }:
         return "game_total"
     if raw in {"moneyline", "money line", "match winner", "winner"}:
         return "moneyline"

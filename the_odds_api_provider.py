@@ -616,7 +616,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                     },
                     "odds_api_event": True,
                 }
-        return sorted(
+        rows = sorted(
             unique.values(),
             key=lambda row: (
                 str(row.get("resolution_time") or ""),
@@ -624,6 +624,17 @@ class TheOddsAPIProvider(ExecutionProvider):
                 str(row.get("outcome") or ""),
             ),
         )
+        LOGGER.info(
+            (
+                "The Odds API screen normalization sport=%s league=%s "
+                "market=%s rows=%d"
+            ),
+            sport,
+            league,
+            market_kind,
+            len(rows),
+        )
+        return rows
 
     def provider_catalog(self, trades: list[dict]) -> list[dict]:
         catalog: dict[str, dict] = {

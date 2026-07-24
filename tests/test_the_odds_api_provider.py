@@ -8,6 +8,7 @@ from execution_providers import (
     ExecutionOption,
     ExecutionProviderRegistry,
     MatchConfidence,
+    canonicalize_trade,
 )
 from the_odds_api_provider import TheOddsAPIProvider
 
@@ -381,6 +382,18 @@ def test_wnba_alternate_spreads_and_totals_use_event_level_endpoints() -> None:
     assert {row["outcome"] for row in total_rows} == {"Over", "Under"}
     assert all(
         row["sports_market_type"] == "Alternate Total"
+        for row in total_rows
+    )
+    assert all(
+        (canonical := canonicalize_trade(row))
+        and canonical.is_alternative
+        and canonical.market_kind == "spread"
+        for row in spread_rows
+    )
+    assert all(
+        (canonical := canonicalize_trade(row))
+        and canonical.is_alternative
+        and canonical.market_kind == "game_total"
         for row in total_rows
     )
     event_calls = [
