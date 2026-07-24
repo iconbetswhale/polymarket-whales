@@ -1140,7 +1140,7 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     600,
                 ),
                 max_quote_age_seconds=getattr(
-                    settings, "the_odds_api_max_quote_age_seconds", 180
+                    settings, "the_odds_api_max_quote_age_seconds", 900
                 ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),

@@ -103,7 +103,7 @@ class Settings:
     the_odds_api_default_sports: tuple[str, ...] = ("baseball_mlb",)
     the_odds_api_cache_ttl_seconds: int = 300
     the_odds_api_alternate_cache_ttl_seconds: int = 600
-    the_odds_api_max_quote_age_seconds: int = 180
+    the_odds_api_max_quote_age_seconds: int = 900
     execution_quote_max_age_seconds: int = 60
     line_shop_max_quote_age_seconds: int = 60
     line_shop_refresh_interval_seconds: int = 5
@@ -241,6 +241,6 @@ def get_settings() -> Settings:
             _get_int("THE_ODDS_API_ALTERNATE_CACHE_TTL_SECONDS", 600),
         ),
         the_odds_api_max_quote_age_seconds=max(
-            60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 180)
+            60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 900)
         ),
     )

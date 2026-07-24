@@ -387,7 +387,7 @@ class TheOddsAPIProvider(ExecutionProvider):
         default_sports: Iterable[str] = ("baseball_mlb",),
         cache_ttl_seconds: int = 300,
         alternate_cache_ttl_seconds: int = 600,
-        max_quote_age_seconds: int = 180,
+        max_quote_age_seconds: int = 900,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
