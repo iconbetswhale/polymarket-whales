@@ -3449,7 +3449,26 @@ function oddsGameRow(inputRows) {
 }
 
 function oddsBestLine(row) {
-  const best = (row.executionOptions || []).find(option => option?.isBestPrice && option.isAvailable);
+  const selected = new Set(oddsState.providers);
+  const best = (row.executionOptions || [])
+    .filter(option => {
+      const providerKey = String(option?.providerKey || "").toLowerCase();
+      const price = number(option?.bestExecutablePrice);
+      return selected.has(providerKey)
+        && option?.isAvailable
+        && option?.matchingConfidence === "Exact"
+        && option?.isStale !== true
+        && (!option?.marketStatus || option.marketStatus === "OPEN")
+        && price !== null
+        && price > 0
+        && price < 1;
+    })
+    .sort((left, right) => {
+      const priceDifference = number(left.bestExecutablePrice) - number(right.bestExecutablePrice);
+      if (priceDifference) return priceDifference;
+      return oddsState.providerOrder.indexOf(String(left.providerKey || "").toLowerCase())
+        - oddsState.providerOrder.indexOf(String(right.providerKey || "").toLowerCase());
+    })[0];
   return `<span>${best ? `<strong>${escapeHtml(best.providerName)}</strong><small>${escapeHtml(best.displayOdds)}</small>` : "<strong>—</strong><small>Waiting</small>"}</span>`;
 }
 
