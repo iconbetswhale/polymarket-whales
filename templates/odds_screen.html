@@ -35,7 +35,13 @@
       <div class="odds-menu-shell odds-books-shell">
         <button class="odds-menu-trigger" id="odds-books-trigger" type="button" aria-expanded="false" aria-controls="odds-books-menu"><span>Sportsbooks</span><i class="ph ph-caret-down"></i></button>
         <section class="odds-books-menu" id="odds-books-menu" hidden>
-          <div class="odds-books-summary"><strong id="odds-books-count">3 selected</strong><button type="button" id="odds-books-all">Select All</button></div>
+          <div class="odds-books-summary">
+            <strong id="odds-books-count">3 selected</strong>
+            <span class="odds-books-bulk-actions">
+              <button type="button" id="odds-books-none">Deselect All</button>
+              <button type="button" id="odds-books-all">Select All</button>
+            </span>
+          </div>
           <label class="odds-books-search"><i class="ph ph-magnifying-glass"></i><input id="odds-books-search" type="search" placeholder="Search"></label>
           <div class="odds-book-list">
             <label><input type="checkbox" value="polymarket" checked><img src="https://polymarket.com/icons/favicon-32x32.png" alt="">Polymarket</label>

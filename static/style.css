@@ -8195,7 +8195,10 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 .odds-books-shell { margin-left:2px; }
 .odds-books-menu { left:auto; right:0; width:280px; max-height:min(650px,calc(100vh - 90px)); display:flex; flex-direction:column; overflow:hidden; }
 .odds-books-menu[hidden] { display:none; }
-.odds-books-summary { display:flex; justify-content:space-between; color:#8198a3; font-size:10px; }.odds-books-summary button { border:0; background:none; color:#9eb1ba; font-size:9px; }
+.odds-books-summary { display:flex; align-items:center; justify-content:space-between; gap:10px; color:#8198a3; font-size:10px; }
+.odds-books-bulk-actions { display:flex; align-items:center; gap:9px; }
+.odds-books-summary button { padding:0; border:0; background:none; color:#9eb1ba; font-size:9px; cursor:pointer; }
+.odds-books-summary button:hover { color:#14bff4; }
 .odds-books-search { margin:9px 0 7px; height:30px; display:flex; align-items:center; gap:7px; padding:0 8px; border:1px solid #294452; background:#10222d; }
 .odds-books-search input { width:100%; border:0; outline:0; background:none; color:#fff; font-size:10px; }
 .odds-books-apply { flex:0 0 auto; width:100%; height:32px; border:0; border-radius:3px; background:#09aee5; color:#fff; font-size:10px; font-weight:700; }
