@@ -778,6 +778,15 @@ class TheOddsAPIProvider(ExecutionProvider):
             and start.astimezone(EASTERN).date() in allowed_days
         ][:40]
         if not events:
+            LOGGER.info(
+                (
+                    "The Odds API alternate refresh sport=%s markets=%s "
+                    "eligible_events=0 returned_events=0 bookmakers=0 "
+                    "market_groups=0"
+                ),
+                sport_key,
+                ",".join(market_keys),
+            )
             return []
 
         def fetch_event(event: dict) -> dict | None:
@@ -832,6 +841,27 @@ class TheOddsAPIProvider(ExecutionProvider):
                 item = future.result()
                 if item is not None:
                     results.append(item)
+        LOGGER.info(
+            (
+                "The Odds API alternate refresh sport=%s markets=%s "
+                "eligible_events=%d returned_events=%d bookmakers=%d "
+                "market_groups=%d"
+            ),
+            sport_key,
+            ",".join(market_keys),
+            len(events),
+            len(results),
+            sum(
+                len(item.get("bookmakers") or [])
+                for item in results
+            ),
+            sum(
+                len(bookmaker.get("markets") or [])
+                for item in results
+                for bookmaker in item.get("bookmakers") or []
+                if isinstance(bookmaker, dict)
+            ),
+        )
         return results
 
     def _capture_quota(self, response: requests.Response) -> None:
