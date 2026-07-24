@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
+import pytest
 import requests
 
 from execution_providers import (
@@ -633,3 +634,12 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
         for item in payload["data"]
         for option in item["executionOptions"]
     )
+    fanduel_option = next(
+        option
+        for item in payload["data"]
+        for option in item["executionOptions"]
+        if option["providerKey"] == "oddsapi__fanduel"
+    )
+    assert fanduel_option["bestExecutablePrice"] == pytest.approx(100 / 210)
+    assert fanduel_option["isStale"] is False
+    assert fanduel_option["marketStatus"] == "OPEN"

@@ -1240,6 +1240,9 @@ def create_app(start_background: bool = True) -> Flask:
             "isBestPrice",
             "lastUpdated",
             "quoteStatus",
+            "bestExecutablePrice",
+            "isStale",
+            "marketStatus",
         }
         for row in rows:
             row["executionOptions"] = [
