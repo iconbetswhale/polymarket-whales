@@ -2464,6 +2464,11 @@ function closeSharpSourceDialog() {
   document.getElementById("sharp-source-dialog")?.close();
 }
 
+function trackerSportsbookName(snapshot = {}) {
+  const raw = String(snapshot.sportsbook || snapshot.entry_price_source || "Polymarket").trim();
+  return raw.toLowerCase().includes("polymarket") ? "Polymarket" : raw.slice(0, 64);
+}
+
 function trackerRow(row) {
   const snapshot = row.snapshot || {};
   const dual = row.dual_clv || {};
@@ -2476,7 +2481,7 @@ function trackerRow(row) {
     <tr>
       <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
       <td data-label="Selection"><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
-      <td data-label="Book"><strong>${escapeHtml(snapshot.sportsbook || snapshot.entry_price_source || "Polymarket")}</strong><small>${escapeHtml(snapshot.provider_display_odds || formatCents(snapshot.provider_entry_price ?? intended))}</small></td>
+      <td data-label="Book"><strong>${escapeHtml(trackerSportsbookName(snapshot))}</strong><small>${escapeHtml(snapshot.provider_display_odds || formatCents(snapshot.provider_entry_price ?? intended))}</small></td>
       <td data-label="Grade / Score"><strong>${escapeHtml(snapshot.trade_grade || "Unavailable")}</strong><small>${snapshot.trade_quality_score ?? snapshot.confidence_score ?? "n/a"} score</small></td>
       <td data-label="Sharp">${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
       <td data-label="Entry"><strong>${intended === null ? "Unavailable" : formatCents(intended)}</strong><small>Actual ${actual === null ? "Unavailable" : formatCents(actual)}</small></td>
