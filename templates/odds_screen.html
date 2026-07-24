@@ -43,7 +43,7 @@
             <label><input type="checkbox" value="kalshi" checked><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="">Kalshi</label>
             <label><input type="checkbox" value="4cx" checked><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="">4CX</label>
           </div>
-          <small>Read-only exchange feeds</small>
+          <small>Read-only exchange and sportsbook feeds</small>
         </section>
       </div>
 
@@ -65,6 +65,6 @@
     </div>
     <div id="odds-grid" class="odds-grid-body" aria-live="polite"><div class="odds-loading">Loading exact live markets…</div></div>
   </div>
-  <footer class="odds-footer"><span><i class="status-dot"></i> Three read-only exchange feeds</span><span id="odds-updated">Waiting for first update</span></footer>
+  <footer class="odds-footer"><span><i class="status-dot"></i> Read-only exchange and sportsbook feeds</span><span id="odds-updated">Waiting for first update</span></footer>
 </section>
 {% endblock %}

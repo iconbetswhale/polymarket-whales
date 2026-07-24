@@ -12,6 +12,7 @@ from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import requests
 from flask import Flask, g, jsonify, redirect, render_template, request, url_for
 
 from bet_tracker import replay_tracker
@@ -21,6 +22,7 @@ from database import SettingsVersionConflict
 from execution_providers import (
     ProviderHealthStatus,
     build_execution_provider_registry,
+    canonicalize_trade,
 )
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
@@ -854,6 +856,16 @@ def create_app(start_background: bool = True) -> Flask:
             "4cx", authenticate=request.method == "POST"
         ))
 
+    @app.route("/api/provider-health/the-odds-api", methods=["GET", "POST"])
+    def api_the_odds_api_health():
+        if not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        return jsonify(
+            execution_providers.provider_diagnostics(
+                "the_odds_api", authenticate=request.method == "POST"
+            )
+        )
+
     @app.route("/api/admin/discord-notifications/test", methods=["POST"])
     def api_discord_notification_test():
         if not has_job_authorization():
@@ -1021,15 +1033,37 @@ def create_app(start_background: bool = True) -> Flask:
         now = datetime.now(timezone.utc)
         eastern_today = now.astimezone(EASTERN).date()
         allowed_days = {eastern_today, eastern_today + timedelta(days=1)}
+        requested_sport = request.args.get("sport", "").strip()
+        requested_league = request.args.get("league", "").strip()
+        requested_market = request.args.get("market", "").strip()
 
         unique: dict[tuple, dict] = {}
+
+        def odds_identity(row: dict) -> tuple:
+            canonical = canonicalize_trade(row)
+            if canonical is None:
+                return ("id", str(row.get("id") or stable_hash(row)))
+            start_bucket = int(canonical.start_at.timestamp() // (10 * 60))
+            return (
+                "canonical",
+                canonical.sport_id,
+                canonical.league_id,
+                start_bucket,
+                tuple(sorted(canonical.participants)),
+                canonical.market_kind,
+                canonical.period_id,
+                canonical.line,
+                canonical.side_id,
+                canonical.settlement_rules,
+            )
+
         try:
             schedule_rows = app.extensions["polymarket_schedule_feed"].today_and_tomorrow(now)
         except Exception as exc:
             LOGGER.warning("Polymarket schedule feed unavailable: %s", exc)
             schedule_rows = []
         for row in schedule_rows:
-            unique[(row["id"],)] = row
+            unique.setdefault(odds_identity(row), row)
 
         for source in snapshot.get("positions", []):
             if not source.get("is_sports") or source.get("market_closed") or source.get("event_closed"):
@@ -1056,7 +1090,36 @@ def create_app(start_background: bool = True) -> Flask:
             row["card"] = {"current_actionable_price": current, "recommended_amount": 0}
             row["recommendation"] = {"current_user_entry_price": current, "recommended_amount": 0}
             row.pop("orderbook", None)
-            unique[key] = row
+            unique.setdefault(odds_identity(row), row)
+
+        odds_api_provider = next(
+            (
+                provider
+                for provider in execution_providers.providers
+                if provider.provider_key == "the_odds_api"
+            ),
+            None,
+        )
+        if odds_api_provider is not None:
+            try:
+                sportsbook_rows = odds_api_provider.odds_screen_rows(
+                    sport=requested_sport,
+                    league=requested_league,
+                    market_kind=requested_market,
+                    now=now,
+                )
+            except requests.HTTPError as exc:
+                status = getattr(exc.response, "status_code", None)
+                LOGGER.warning(
+                    "The Odds API odds-screen refresh failed with status %s",
+                    status or "unknown",
+                )
+                sportsbook_rows = []
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                LOGGER.warning("The Odds API odds-screen refresh failed: %s", type(exc).__name__)
+                sportsbook_rows = []
+            for row in sportsbook_rows:
+                unique.setdefault(odds_identity(row), row)
 
         rows = sorted(
             unique.values(),
@@ -1089,12 +1152,40 @@ def create_app(start_background: bool = True) -> Flask:
             row["card"]["current_actionable_price"] = best_ask
             row["recommendation"]["current_user_entry_price"] = best_ask
         execution_providers.attach_options(rows)
+        provider_catalog: dict[str, dict] = {}
+        for row in rows:
+            for option in row.get("executionOptions") or []:
+                provider_key = str(option.get("providerKey") or "").strip().lower()
+                if not provider_key:
+                    continue
+                provider_catalog[provider_key] = {
+                    "key": provider_key,
+                    "name": str(option.get("providerName") or provider_key),
+                    "logoUrl": str(option.get("logoUrl") or ""),
+                    "source": (
+                        "the_odds_api"
+                        if provider_key.startswith("oddsapi__")
+                        else "exchange"
+                    ),
+                }
         return jsonify(
             {
                 "data": rows,
                 "pagination": {"total": len(rows), "page": 1, "per_page": 500},
                 "status": snapshot["status"],
-                "source": "polymarket_schedule_and_active_sports_positions",
+                "source": "polymarket_and_the_odds_api_read_only_feeds",
+                "providers": sorted(
+                    provider_catalog.values(),
+                    key=lambda item: (
+                        item["source"] != "exchange",
+                        item["name"].casefold(),
+                    ),
+                ),
+                "filters": {
+                    "sport": requested_sport,
+                    "league": requested_league,
+                    "market": requested_market,
+                },
             }
         )
 

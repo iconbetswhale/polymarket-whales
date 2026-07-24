@@ -96,6 +96,7 @@ class ExecutionOption:
     is_exact_match: bool = True
     is_stale: bool = False
     failure_reason: str | None = None
+    quote_max_age_seconds: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -147,7 +148,9 @@ class ExecutionProvider(ABC):
     provider_key: str
 
     @abstractmethod
-    def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
+    def options_for_trades(
+        self, trades: list[dict]
+    ) -> dict[str, ExecutionOption | list[ExecutionOption]]:
         raise NotImplementedError
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
@@ -763,7 +766,13 @@ class ExecutionProviderRegistry:
         max_quote_age_seconds: int = 60,
         min_liquidity: float = 0.0,
         include_fees: bool = True,
-        comparison_provider_keys: Iterable[str] = ("polymarket", "kalshi", "fourcx"),
+        comparison_provider_keys: Iterable[str] = (
+            "polymarket",
+            "kalshi",
+            "4cx",
+            "fourcx",
+            "the_odds_api",
+        ),
     ) -> None:
         self.providers = tuple(providers)
         self.max_quote_age_seconds = max(1, int(max_quote_age_seconds))
@@ -772,18 +781,33 @@ class ExecutionProviderRegistry:
         self.comparison_provider_keys = frozenset(str(key).lower() for key in comparison_provider_keys)
 
     def attach_options(self, trades: list[dict]) -> list[dict]:
-        by_provider: list[tuple[ExecutionProvider, dict[str, ExecutionOption]]] = []
+        by_provider: list[
+            tuple[
+                ExecutionProvider,
+                dict[str, ExecutionOption | list[ExecutionOption]],
+            ]
+        ] = []
         provider_failures: dict[str, str] = {}
         for provider in self.providers:
             try:
                 by_provider.append((provider, provider.options_for_trades(trades)))
             except requests.HTTPError as exc:
-                LOGGER.exception("Execution provider %s failed", provider.provider_key)
                 status = getattr(exc.response, "status_code", None)
+                LOGGER.warning(
+                    "Execution provider %s failed with HTTP status %s",
+                    provider.provider_key,
+                    status or "unknown",
+                )
                 provider_failures[provider.provider_key] = RATE_LIMITED if status == 429 else PROVIDER_UNAVAILABLE
                 by_provider.append((provider, {}))
             except Exception:
-                LOGGER.exception("Execution provider %s failed", provider.provider_key)
+                if provider.provider_key == "the_odds_api":
+                    LOGGER.warning(
+                        "Execution provider %s failed without exposing request details",
+                        provider.provider_key,
+                    )
+                else:
+                    LOGGER.exception("Execution provider %s failed", provider.provider_key)
                 provider_failures[provider.provider_key] = PROVIDER_UNAVAILABLE
                 by_provider.append((provider, {}))
 
@@ -792,30 +816,39 @@ class ExecutionProviderRegistry:
             found: list[ExecutionOption] = []
             failures: dict[str, str] = {}
             for provider, options in by_provider:
-                option = options.get(trade_id)
-                if option is None:
+                provider_options = options.get(trade_id)
+                if provider_options is None:
                     failures[provider.provider_key] = provider_failures.get(provider.provider_key) or getattr(provider, "failure_reasons", {}).get(trade_id, MARKET_NOT_FOUND)
                     continue
-                if option.matching_confidence is not MatchConfidence.EXACT:
-                    failures[provider.provider_key] = MARKET_MAPPING_UNCERTAIN
-                    continue
-                finalized = (
-                    _finalize_execution_option(
-                        option,
-                        trade,
-                        max_quote_age_seconds=self.max_quote_age_seconds,
-                        min_liquidity=self.min_liquidity,
-                        include_fees=self.include_fees,
-                    )
-                    if option.provider_key in self.comparison_provider_keys
-                    else option
+                candidates = (
+                    provider_options
+                    if isinstance(provider_options, list)
+                    else [provider_options]
                 )
-                found.append(finalized)
-                if finalized.failure_reason:
-                    failures[provider.provider_key] = finalized.failure_reason
+                exact_count = 0
+                for option in candidates:
+                    if option.matching_confidence is not MatchConfidence.EXACT:
+                        continue
+                    exact_count += 1
+                    finalized = (
+                        _finalize_execution_option(
+                            option,
+                            trade,
+                            max_quote_age_seconds=self.max_quote_age_seconds,
+                            min_liquidity=self.min_liquidity,
+                            include_fees=self.include_fees,
+                        )
+                        if self._is_comparison_option(provider, option)
+                        else option
+                    )
+                    found.append(finalized)
+                    if finalized.failure_reason:
+                        failures[option.provider_key] = finalized.failure_reason
+                if exact_count == 0:
+                    failures[provider.provider_key] = MARKET_MAPPING_UNCERTAIN
             executable = [
                 item for item in found
-                if item.provider_key in self.comparison_provider_keys
+                if self._is_comparison_key(item.provider_key)
                 and item.is_available
                 and item.is_exact_match
                 and not item.is_stale
@@ -830,6 +863,21 @@ class ExecutionProviderRegistry:
             trade["executionOptions"] = [item.to_dict() for item in found]
             trade["lineShopFailures"] = failures
         return trades
+
+    def _is_comparison_option(
+        self, provider: ExecutionProvider, option: ExecutionOption
+    ) -> bool:
+        return (
+            provider.provider_key in self.comparison_provider_keys
+            or self._is_comparison_key(option.provider_key)
+        )
+
+    def _is_comparison_key(self, provider_key: str) -> bool:
+        normalized = str(provider_key or "").strip().lower()
+        return (
+            normalized in self.comparison_provider_keys
+            or normalized.startswith("oddsapi__")
+        )
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
         quotes: dict[str, list[dict]] = defaultdict(list)
@@ -927,7 +975,10 @@ def _finalize_execution_option(
     now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     stake = _recommended_stake(trade)
     age = _quote_age_seconds(option.last_updated, now)
-    stale = age is None or age > max_quote_age_seconds
+    quote_age_limit = max(
+        1, int(option.quote_max_age_seconds or max_quote_age_seconds)
+    )
+    stale = age is None or age > quote_age_limit
     market_status = str(option.quote_status or ("OPEN" if option.is_available else "UNAVAILABLE")).upper()
     failure = option.failure_reason
     liquidity = option.available_liquidity
@@ -979,7 +1030,9 @@ def _finalize_execution_option(
     display = option.display_odds
     if provider_key in {"polymarket", "kalshi"} and contract_price is not None:
         display = _format_cents(contract_price)
-    elif provider_key == "fourcx" and option.american_odds is not None:
+    elif (
+        provider_key in {"4cx", "fourcx"} or provider_key.startswith("oddsapi__")
+    ) and option.american_odds is not None:
         display = f"{option.american_odds:+d}"
 
     executable = bool(
@@ -1015,6 +1068,7 @@ def _finalize_execution_option(
 def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
     from fourcx_provider import FourCXProvider
     from kalshi_provider import KalshiProvider
+    from the_odds_api_provider import TheOddsAPIProvider
 
     return ExecutionProviderRegistry(
         (
@@ -1057,6 +1111,32 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 enabled=getattr(settings, "kalshi_enabled", True),
                 base_url=getattr(settings, "kalshi_api_base_url", "https://external-api.kalshi.com/trade-api/v2"),
                 cache_ttl_seconds=getattr(settings, "kalshi_cache_ttl_seconds", 1),
+                request_timeout=getattr(settings, "request_timeout", 15),
+            ),
+            TheOddsAPIProvider(
+                getattr(settings, "the_odds_api_key", None),
+                base_url=getattr(
+                    settings,
+                    "the_odds_api_base_url",
+                    "https://api.the-odds-api.com/v4",
+                ),
+                regions=getattr(settings, "the_odds_api_regions", ("us", "us2")),
+                markets=getattr(
+                    settings,
+                    "the_odds_api_markets",
+                    ("h2h", "spreads", "totals"),
+                ),
+                default_sports=getattr(
+                    settings,
+                    "the_odds_api_default_sports",
+                    ("baseball_mlb",),
+                ),
+                cache_ttl_seconds=getattr(
+                    settings, "the_odds_api_cache_ttl_seconds", 300
+                ),
+                max_quote_age_seconds=getattr(
+                    settings, "the_odds_api_max_quote_age_seconds", 180
+                ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),
         ),

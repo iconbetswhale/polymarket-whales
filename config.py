@@ -96,6 +96,13 @@ class Settings:
     kalshi_enabled: bool = True
     kalshi_api_base_url: str = "https://external-api.kalshi.com/trade-api/v2"
     kalshi_cache_ttl_seconds: int = 1
+    the_odds_api_key: str | None = field(default=None, repr=False)
+    the_odds_api_base_url: str = "https://api.the-odds-api.com/v4"
+    the_odds_api_regions: tuple[str, ...] = ("us", "us2")
+    the_odds_api_markets: tuple[str, ...] = ("h2h", "spreads", "totals")
+    the_odds_api_default_sports: tuple[str, ...] = ("baseball_mlb",)
+    the_odds_api_cache_ttl_seconds: int = 300
+    the_odds_api_max_quote_age_seconds: int = 180
     execution_quote_max_age_seconds: int = 60
     line_shop_max_quote_age_seconds: int = 60
     line_shop_refresh_interval_seconds: int = 5
@@ -212,4 +219,23 @@ def get_settings() -> Settings:
         kalshi_enabled=_get_bool("KALSHI_ENABLED", True),
         kalshi_api_base_url=os.getenv("KALSHI_API_BASE_URL", "https://external-api.kalshi.com/trade-api/v2"),
         kalshi_cache_ttl_seconds=_get_int("KALSHI_CACHE_TTL_SECONDS", 1),
+        the_odds_api_key=os.getenv("THE_ODDS_API_KEY") or None,
+        the_odds_api_base_url=os.getenv(
+            "THE_ODDS_API_BASE_URL", "https://api.the-odds-api.com/v4"
+        ),
+        the_odds_api_regions=_get_csv(
+            "THE_ODDS_API_REGIONS", ("us", "us2")
+        ),
+        the_odds_api_markets=_get_csv(
+            "THE_ODDS_API_MARKETS", ("h2h", "spreads", "totals")
+        ),
+        the_odds_api_default_sports=_get_csv(
+            "THE_ODDS_API_DEFAULT_SPORTS", ("baseball_mlb",)
+        ),
+        the_odds_api_cache_ttl_seconds=max(
+            60, _get_int("THE_ODDS_API_CACHE_TTL_SECONDS", 300)
+        ),
+        the_odds_api_max_quote_age_seconds=max(
+            60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 180)
+        ),
     )
