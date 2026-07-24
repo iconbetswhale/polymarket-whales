@@ -3578,6 +3578,58 @@ async function loadOddsScreen() {
   } finally { oddsState.loading = false; }
 }
 
+let oddsDragScrollFrame = 0;
+let oddsDragScrollSpeed = 0;
+
+function stopOddsDragAutoScroll() {
+  if (oddsDragScrollFrame) cancelAnimationFrame(oddsDragScrollFrame);
+  oddsDragScrollFrame = 0;
+  oddsDragScrollSpeed = 0;
+  document.querySelector(".odds-grid-shell")?.classList.remove("auto-scroll-left", "auto-scroll-right");
+}
+
+function updateOddsDragAutoScroll(clientX) {
+  const shell = document.querySelector(".odds-grid-shell");
+  if (!shell || !oddsState.draggedProvider) return stopOddsDragAutoScroll();
+  const bounds = shell.getBoundingClientRect();
+  const edgeWidth = Math.min(130, Math.max(72, bounds.width * 0.12));
+  let direction = 0;
+  let intensity = 0;
+  if (clientX < bounds.left + edgeWidth) {
+    direction = -1;
+    intensity = Math.min(1, Math.max(0, (bounds.left + edgeWidth - clientX) / edgeWidth));
+  } else if (clientX > bounds.right - edgeWidth) {
+    direction = 1;
+    intensity = Math.min(1, Math.max(0, (clientX - (bounds.right - edgeWidth)) / edgeWidth));
+  }
+  if (!direction) return stopOddsDragAutoScroll();
+  oddsDragScrollSpeed = direction * Math.round(5 + (31 * intensity));
+  shell.classList.toggle("auto-scroll-left", direction < 0);
+  shell.classList.toggle("auto-scroll-right", direction > 0);
+  if (oddsDragScrollFrame) return;
+  const scrollStep = () => {
+    if (!oddsState.draggedProvider || !oddsDragScrollSpeed) return stopOddsDragAutoScroll();
+    const previous = shell.scrollLeft;
+    shell.scrollLeft += oddsDragScrollSpeed;
+    if (shell.scrollLeft === previous) return stopOddsDragAutoScroll();
+    oddsDragScrollFrame = requestAnimationFrame(scrollStep);
+  };
+  oddsDragScrollFrame = requestAnimationFrame(scrollStep);
+}
+
+function bindOddsDragAutoScroll() {
+  const shell = document.querySelector(".odds-grid-shell");
+  if (!shell || shell.dataset.dragScrollBound === "true") return;
+  shell.dataset.dragScrollBound = "true";
+  shell.addEventListener("dragover", event => {
+    if (!oddsState.draggedProvider) return;
+    event.preventDefault();
+    updateOddsDragAutoScroll(event.clientX);
+  });
+  shell.addEventListener("drop", stopOddsDragAutoScroll);
+  document.addEventListener("dragend", stopOddsDragAutoScroll);
+}
+
 function bindOddsColumnDrag(header) {
   if (!header || header.dataset.dragBound === "true") return;
   header.dataset.dragBound = "true";
@@ -3598,6 +3650,7 @@ function bindOddsColumnDrag(header) {
   header.addEventListener("dragleave", () => header.classList.remove("drop-before", "drop-after"));
   header.addEventListener("drop", event => {
     event.preventDefault();
+    stopOddsDragAutoScroll();
     const source = oddsState.draggedProvider || event.dataTransfer.getData("text/plain");
     const target = header.dataset.oddsColumn;
     const after = event.clientX > header.getBoundingClientRect().left + (header.getBoundingClientRect().width / 2);
@@ -3613,6 +3666,7 @@ function bindOddsColumnDrag(header) {
     document.querySelectorAll("[data-odds-column]").forEach(item => item.classList.remove("dragging", "drop-before", "drop-after"));
   });
   header.addEventListener("dragend", () => {
+    stopOddsDragAutoScroll();
     oddsState.draggedProvider = "";
     document.querySelectorAll("[data-odds-column]").forEach(item => item.classList.remove("dragging", "drop-before", "drop-after"));
   });
@@ -3626,6 +3680,7 @@ function bindOddsScreen() {
   const booksTrigger = document.getElementById("odds-books-trigger");
   const booksMenu = document.getElementById("odds-books-menu");
   const bookHeaders = document.querySelectorAll("[data-odds-column]");
+  bindOddsDragAutoScroll();
   leagueTrigger.addEventListener("click", () => toggleOddsMenu(leagueTrigger, leagueMenu));
   marketTrigger.addEventListener("click", () => toggleOddsMenu(marketTrigger, marketMenu));
   booksTrigger.addEventListener("click", () => toggleOddsMenu(booksTrigger, booksMenu));
