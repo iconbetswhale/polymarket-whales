@@ -32,6 +32,40 @@ def _json_list(value: Any) -> list[Any]:
     return []
 
 
+def _tracked_execution_option(play: dict[str, Any]) -> dict[str, Any]:
+    options = [
+        option
+        for option in (play.get("executionOptions") or [])
+        if isinstance(option, dict)
+    ]
+    best = next((option for option in options if option.get("isBestPrice")), None)
+    if best is None:
+        executable = [
+            option
+            for option in options
+            if option.get("isAvailable") is True
+            and option.get("matchingConfidence") == "Exact"
+            and option.get("isStale") is not True
+            and str(option.get("marketStatus") or "OPEN").upper() == "OPEN"
+            and option.get("bestExecutablePrice") is not None
+        ]
+        if executable:
+            best = min(
+                executable,
+                key=lambda option: _safe_float(
+                    option.get("bestExecutablePrice"), float("inf")
+                ),
+            )
+    return best or {}
+
+
+def _sportsbook_name(value: Any) -> str:
+    name = " ".join(str(value or "").split())
+    if not name or "polymarket" in name.casefold():
+        return "Polymarket"
+    return name[:64]
+
+
 def recommendation_snapshot(
     play: dict[str, Any],
     recommendation: dict[str, Any],
@@ -55,6 +89,18 @@ def recommendation_snapshot(
     snapshot_id = hashlib.sha256(dedupe_key.encode("utf-8")).hexdigest()
     timestamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
     sharp_snapshot = sharp_snapshot_from_trade(play)
+    execution_option = _tracked_execution_option(play)
+    tracked_sportsbook = _sportsbook_name(
+        execution_option.get("providerName")
+        or recommendation.get("entry_price_source")
+        or "Polymarket"
+    )
+    tracked_provider_key = str(
+        execution_option.get("providerKey") or tracked_sportsbook
+    ).strip().lower()
+    tracked_entry_price = execution_option.get("bestExecutablePrice")
+    if tracked_entry_price is None:
+        tracked_entry_price = recommendation.get("effective_entry_price")
     return {
         "snapshot_id": snapshot_id,
         "dedupe_key": dedupe_key,
@@ -74,13 +120,19 @@ def recommendation_snapshot(
         "canonical_league_id": play.get("canonical_league_id"),
         "canonical_category_id": play.get("canonical_category_id"),
         "market_url": play.get("market_url"),
-        "current_executable_entry_price": recommendation.get(
-            "current_user_entry_price"
-        ),
-        "effective_entry_price": recommendation.get("effective_entry_price"),
-        "intended_entry_price": recommendation.get("current_user_entry_price"),
-        "actual_weighted_entry_price": recommendation.get("effective_entry_price"),
-        "entry_price_source": recommendation.get("entry_price_source"),
+        "sportsbook": tracked_sportsbook,
+        "provider_key": tracked_provider_key,
+        "provider_logo_url": execution_option.get("logoUrl"),
+        "provider_deep_link": execution_option.get("deepLink")
+        or execution_option.get("directMarketUrl")
+        or play.get("market_url"),
+        "provider_display_odds": execution_option.get("displayOdds"),
+        "provider_entry_price": tracked_entry_price,
+        "current_executable_entry_price": tracked_entry_price,
+        "effective_entry_price": tracked_entry_price,
+        "intended_entry_price": tracked_entry_price,
+        "actual_weighted_entry_price": tracked_entry_price,
+        "entry_price_source": tracked_sportsbook,
         "sharp_average_entry_price": recommendation.get("sharp_average_entry_price"),
         "sharp_reference_entry_price": recommendation.get(
             "sharp_reference_entry_price"

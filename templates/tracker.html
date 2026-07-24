@@ -61,7 +61,14 @@
   <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 days</option><option value="28" selected>Last 28 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option><option value="all">All time</option></select>
   <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
   <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
-  <select id="tracker-sportsbook" class="personal-tracker-filter" aria-label="Sportsbook" hidden><option value="">All books</option></select>
+  <details class="tracker-book-filter" id="tracker-book-filter">
+    <summary><i class="ph ph-buildings" aria-hidden="true"></i><span id="tracker-book-filter-label">All books</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+    <div class="tracker-book-filter-popover">
+      <div class="tracker-book-filter-actions"><button type="button" data-tracker-books="all">Select all</button><button type="button" data-tracker-books="none">Deselect all</button></div>
+      <div class="tracker-book-filter-options" id="tracker-book-filter-options"></div>
+      <button class="button primary compact" id="tracker-book-filter-apply" type="button">Apply books</button>
+    </div>
+  </details>
   <select id="tracker-tag" class="personal-tracker-filter" aria-label="Personal bet tag" hidden><option value="">All tags</option></select>
   <select id="tracker-sharp-wallet" aria-label="Sharp wallet"><option value="">All Sharps</option></select>
   <select id="tracker-status" aria-label="Tracker status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option><option value="canceled">Canceled</option></select>
@@ -75,6 +82,8 @@
   <label class="compact-number-filter">Max CLV%<input id="tracker-clv-max" type="number" step="0.01" inputmode="decimal"></label>
   <select id="tracker-clv-sort" aria-label="Sort CLV"><option value="">Default order</option><option value="highest_pct">Highest CLV%</option><option value="lowest_pct">Lowest CLV%</option><option value="highest_cents">Highest CLV cents</option><option value="closing_date">Newest close</option><option value="entry_price">Entry price</option><option value="closing_price">Closing price</option></select>
 </section>
+
+<section class="tracker-book-summary" id="tracker-book-summary" aria-label="Sportsbook profit and loss"></section>
 
 <section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr id="tracker-table-head"></tr></thead><tbody id="tracker-body"><tr><td><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
 

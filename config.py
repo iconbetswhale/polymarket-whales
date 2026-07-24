@@ -79,6 +79,7 @@ class Settings:
     durable_database_url: str | None = None
     tracker_job_secret: str | None = None
     tracker_job_interval_seconds: int = 300
+    tracker_pregame_window_minutes: int = 120
     novig_api_key: str | None = None
     novig_api_base_url: str = "https://api.sportsgameodds.com/v2"
     novig_cache_ttl_seconds: int = 45
@@ -203,6 +204,9 @@ def get_settings() -> Settings:
         ),
         tracker_job_secret=os.getenv("TRACKER_JOB_SECRET") or None,
         tracker_job_interval_seconds=_get_int("TRACKER_JOB_INTERVAL_SECONDS", 300),
+        tracker_pregame_window_minutes=max(
+            1, _get_int("TRACKER_PREGAME_WINDOW_MINUTES", 120)
+        ),
         novig_api_key=(
             os.getenv("NOVIG_ODDS_API_KEY")
             or os.getenv("SPORTSGAMEODDS_API_KEY")

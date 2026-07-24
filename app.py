@@ -263,6 +263,50 @@ def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
             [sharp_snapshot_from_fill(fill) for fill in fills]
         ),
     }
+
+
+def _selected_sportsbooks(value: object) -> set[str]:
+    return {
+        normalize_sportsbook(item).casefold()
+        for item in str(value or "").split(",")
+        if item.strip()
+    }
+
+
+def _model_tracker_sportsbook(record: dict) -> str:
+    snapshot = record.get("snapshot") or {}
+    raw_name = str(
+        snapshot.get("sportsbook")
+        or snapshot.get("entry_price_source")
+        or "Polymarket"
+    )
+    if "polymarket" in raw_name.casefold():
+        return "Polymarket"
+    try:
+        return normalize_sportsbook(raw_name)
+    except ValueError:
+        return raw_name[:64]
+
+
+def _tracker_book_summaries(
+    records: list[dict], starting_bankroll: float
+) -> list[dict]:
+    books = sorted(
+        {_model_tracker_sportsbook(record) for record in records},
+        key=str.casefold,
+    )
+    summaries = []
+    for book in books:
+        replay = replay_tracker(
+            [
+                record
+                for record in records
+                if _model_tracker_sportsbook(record).casefold() == book.casefold()
+            ],
+            starting_bankroll,
+        )
+        summaries.append({"sportsbook": book, **replay["summary"]})
+    return summaries
 UNRESOLVED_TRADE_CATEGORY = "UNRESOLVED_TRADE_CATEGORY"
 MISSING_EXECUTABLE_PRICE = "MISSING_EXECUTABLE_PRICE"
 ZERO_KELLY = "ZERO_KELLY"
@@ -1970,7 +2014,9 @@ def create_app(start_background: bool = True) -> Flask:
         query = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         result_filter = request.args.get("result", "").strip().lower()
-        sportsbook_filter = request.args.get("sportsbook", "").strip().lower()
+        sportsbook_filters = _selected_sportsbooks(
+            request.args.get("sportsbook", "")
+        )
         tag_filter = request.args.get("tag", "").strip().lower()
         sharp_filter = request.args.get("sharp", "").strip()
         fills = [
@@ -2010,12 +2056,12 @@ def create_app(start_background: bool = True) -> Flask:
                 for fill in fills
                 if str(fill.get("result") or "").lower() == result_filter
             ]
-        if sportsbook_filter:
+        if sportsbook_filters:
             fills = [
                 fill
                 for fill in fills
-                if normalize_sportsbook(fill.get("sportsbook")).lower()
-                == sportsbook_filter
+                if normalize_sportsbook(fill.get("sportsbook")).casefold()
+                in sportsbook_filters
             ]
         if tag_filter:
             fills = [
@@ -2347,6 +2393,17 @@ def create_app(start_background: bool = True) -> Flask:
                 tracker_end,
             )
         ]
+        all_date_records = list(tracker_records)
+        sportsbook_filters = _selected_sportsbooks(
+            request.args.get("sportsbook", "")
+        )
+        if sportsbook_filters:
+            tracker_records = [
+                record
+                for record in tracker_records
+                if _model_tracker_sportsbook(record).casefold()
+                in sportsbook_filters
+            ]
         replay = replay_tracker(
             tracker_records,
             _safe_float(current_settings["tracker_bankroll"]),
@@ -2475,7 +2532,21 @@ def create_app(start_background: bool = True) -> Flask:
                     ).items()
                     if key != "rejections"
                 },
-                "filter_options": {"sharps": sharp_options},
+                "filter_options": {
+                    "sharps": sharp_options,
+                    "sportsbooks": sorted(
+                        {
+                            _model_tracker_sportsbook(record)
+                            for record in all_date_records
+                        },
+                        key=str.casefold,
+                    ),
+                },
+                "sportsbook_summaries": _tracker_book_summaries(
+                    all_date_records,
+                    _safe_float(current_settings["tracker_bankroll"]),
+                ),
+                "selected_sportsbooks": sorted(sportsbook_filters),
                 "trackerDateRange": {"preset": tracker_range, "start": request.args.get("tracker_start", ""), "end": request.args.get("tracker_end", "")},
                 "pagination": {
                     "page": page,

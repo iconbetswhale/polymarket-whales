@@ -100,6 +100,55 @@ def test_tracker_snapshot_insert_is_deduplicated_and_immutable(tmp_path):
     assert stored["effective_entry_price"] == 0.4
 
 
+def test_recommendation_snapshot_freezes_best_sportsbook_attribution():
+    play = {
+        "event_slug": "event-1",
+        "event_title": "Example",
+        "market_title": "Winner",
+        "outcome": "Home",
+        "clob_token_id": "home-token",
+        "validation_ids": {"condition_id": "market-1"},
+        "executionOptions": [
+            {
+                "providerName": "Polymarket",
+                "providerKey": "polymarket",
+                "bestExecutablePrice": 0.52,
+                "isAvailable": True,
+                "matchingConfidence": "Exact",
+                "marketStatus": "OPEN",
+                "isStale": False,
+                "isBestPrice": False,
+            },
+            {
+                "providerName": "FanDuel",
+                "providerKey": "oddsapi__fanduel",
+                "bestExecutablePrice": 0.48,
+                "displayOdds": "+108",
+                "deepLink": "https://sportsbook.fanduel.com/example",
+                "logoUrl": "https://example.com/fanduel.png",
+                "isAvailable": True,
+                "matchingConfidence": "Exact",
+                "marketStatus": "OPEN",
+                "isStale": False,
+                "isBestPrice": True,
+            },
+        ],
+    }
+    recommendation = {
+        "recommendation_version": "v1",
+        "entry_price_source": "Polymarket",
+        "current_user_entry_price": 0.48,
+        "effective_entry_price": 0.48,
+    }
+
+    snapshot = recommendation_snapshot(play, recommendation, 10000)
+
+    assert snapshot["sportsbook"] == "FanDuel"
+    assert snapshot["provider_key"] == "oddsapi__fanduel"
+    assert snapshot["provider_entry_price"] == pytest.approx(0.48)
+    assert snapshot["provider_display_odds"] == "+108"
+
+
 def test_tracker_rejects_near_zero_recommendation(tmp_path):
     database = TrackerDatabase(tmp_path / "tracker.db")
     snapshot = _snapshot(5e-17, 0.94)

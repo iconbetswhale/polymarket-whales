@@ -8511,6 +8511,23 @@ body[data-page="trades"] .app-shell { width:auto; max-width:none; height:100vh; 
 .detail-tabs,.detail-accordion,.detail-panel { border-color:#263f4b; background:#111f28; }
 
 /* Bet Tracker */
+.tracker-book-filter { position:relative; min-width:150px; }
+.tracker-book-filter>summary { display:flex; align-items:center; gap:8px; min-height:38px; padding:0 11px; border:1px solid var(--border); border-radius:6px; background:var(--panel); color:var(--text); cursor:pointer; list-style:none; }
+.tracker-book-filter>summary::-webkit-details-marker { display:none; }
+.tracker-book-filter>summary .ph-caret-down { margin-left:auto; }
+.tracker-book-filter-popover { position:absolute; z-index:80; top:calc(100% + 6px); left:0; width:260px; padding:10px; border:1px solid var(--border); border-radius:8px; background:#0d1b25; box-shadow:0 16px 36px rgba(0,0,0,.45); }
+.tracker-book-filter-actions { display:flex; justify-content:space-between; margin-bottom:8px; }
+.tracker-book-filter-actions button { border:0; background:none; color:var(--accent); font-size:11px; cursor:pointer; }
+.tracker-book-filter-options { display:grid; gap:3px; max-height:240px; overflow:auto; margin-bottom:9px; }
+.tracker-book-filter-options label { display:flex; align-items:center; gap:8px; padding:6px 7px; border-radius:5px; color:var(--text); cursor:pointer; }
+.tracker-book-filter-options label:hover { background:rgba(37,184,236,.1); }
+.tracker-book-filter-popover>.button { width:100%; justify-content:center; }
+.tracker-book-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:8px; margin:0 0 12px; }
+.tracker-book-summary[hidden] { display:none; }
+.tracker-book-summary article { display:grid; gap:3px; padding:10px 12px; border:1px solid var(--border); border-radius:7px; background:var(--panel); }
+.tracker-book-summary article span { color:var(--muted); font-size:10px; text-transform:uppercase; letter-spacing:.05em; }
+.tracker-book-summary article strong { font-size:16px; }
+.tracker-book-summary article small { color:var(--muted); }
 body[data-page="tracker"] .app-shell { padding-top:58px; }
 .tracker-page-header { max-width:1500px; margin:0 auto 10px; align-items:flex-end; }
 .tracker-page-header .title-line { gap:7px; }

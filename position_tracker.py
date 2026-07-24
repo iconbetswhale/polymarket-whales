@@ -799,7 +799,10 @@ class TrackerService:
                     )
                     if event_start is not None:
                         time_to_start = event_start - run_now.astimezone(timezone.utc)
-                        if not (timedelta(0) < time_to_start <= timedelta(hours=1)):
+                        pregame_window = timedelta(
+                            minutes=self.settings.tracker_pregame_window_minutes
+                        )
+                        if not (timedelta(0) < time_to_start <= pregame_window):
                             result["deferred_until_pregame"] += 1
                             continue
                 try:
@@ -961,6 +964,7 @@ class TrackerService:
             "user_configurations": 1,
             "tracker_scope": "global",
             "interval_seconds": self.settings.tracker_job_interval_seconds,
+            "pregame_window_minutes": self.settings.tracker_pregame_window_minutes,
         }
         try:
             if plays is None:

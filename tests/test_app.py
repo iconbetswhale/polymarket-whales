@@ -678,6 +678,57 @@ def test_model_tracker_api_joins_immutable_clv_and_period_analytics(app_client):
     assert payload["clv"]["periods"]["all"]["stake_weighted_clv_pct"] == pytest.approx(25.3644314869)
 
 
+def test_model_tracker_filters_multiple_books_and_recalculates_combined_pnl(app_client):
+    service = app_client.application.extensions["tracker_service"]
+    now = datetime.now(timezone.utc).isoformat()
+    for index, book in enumerate(("FanDuel", "DraftKings", "Polymarket"), start=1):
+        dedupe = f"book-event-{index}::book-market-{index}::::book-token-{index}::v2"
+        assert service.database.insert_tracker_snapshot(
+            MODEL_TRACKER_USER_ID,
+            {
+                "snapshot_id": f"book-snapshot-{index}",
+                "dedupe_key": dedupe,
+                "recommendation_version": "v2",
+                "recommendation_timestamp": now,
+                "event_title": f"Book test {index}",
+                "market_title": "Winner",
+                "recommended_side": "Home",
+                "sportsbook": book,
+                "effective_entry_price": 0.5,
+                "final_recommended_fraction": 0.01,
+                "original_displayed_amount": 100,
+                "original_recommended_units": 1,
+                "sharps_count": 1,
+            },
+        )
+        service.database.update_tracker_status(
+            MODEL_TRACKER_USER_ID,
+            dedupe,
+            "won" if book != "DraftKings" else "lost",
+            "Won" if book != "DraftKings" else "Lost",
+            now,
+        )
+
+    combined = app_client.get(
+        "/api/model-tracker?sportsbook=FanDuel,DraftKings"
+    ).get_json()
+
+    assert combined["pagination"]["total"] == 2
+    assert combined["summary"]["wins"] == 1
+    assert combined["summary"]["losses"] == 1
+    assert combined["filter_options"]["sportsbooks"] == [
+        "DraftKings",
+        "FanDuel",
+        "Polymarket",
+    ]
+    by_book = {
+        item["sportsbook"]: item for item in combined["sportsbook_summaries"]
+    }
+    assert by_book["FanDuel"]["wins"] == 1
+    assert by_book["DraftKings"]["losses"] == 1
+    assert combined["selected_sportsbooks"] == ["draftkings", "fanduel"]
+
+
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
     app_client.set_cookie("iconbets_user", "bankroll-user")
     trade_settings = app_client.get("/api/user-settings").get_json()["data"]

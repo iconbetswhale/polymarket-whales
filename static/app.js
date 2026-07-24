@@ -16,6 +16,8 @@ const appState = {
   trackerView: null,
   trackerCache: { model: null, personal: null },
   trackerPage: { model: 1, personal: 1 },
+  trackerSelectedBooks: { model: [], personal: [] },
+  trackerBookOptions: { model: [], personal: [] },
   sharpSources: {},
   sharpSourceSequence: 0,
   userSettings: null,
@@ -2474,6 +2476,7 @@ function trackerRow(row) {
     <tr>
       <td><strong>${escapeHtml(snapshot.event_title || snapshot.market_title)}</strong><small>${escapeHtml(snapshot.market_title)} · ${formatDateTime(snapshot.event_start_time)}</small></td>
       <td data-label="Selection"><strong>${escapeHtml(snapshot.recommended_side)}</strong><small>Sharp avg ${formatCents(snapshot.sharp_average_entry_price)}</small></td>
+      <td data-label="Book"><strong>${escapeHtml(snapshot.sportsbook || snapshot.entry_price_source || "Polymarket")}</strong><small>${escapeHtml(snapshot.provider_display_odds || formatCents(snapshot.provider_entry_price ?? intended))}</small></td>
       <td data-label="Grade / Score"><strong>${escapeHtml(snapshot.trade_grade || "Unavailable")}</strong><small>${snapshot.trade_quality_score ?? snapshot.confidence_score ?? "n/a"} score</small></td>
       <td data-label="Sharp">${sharpCell(row.sharp_snapshot || snapshot.sharp_snapshot || {})}</td>
       <td data-label="Entry"><strong>${intended === null ? "Unavailable" : formatCents(intended)}</strong><small>Actual ${actual === null ? "Unavailable" : formatCents(actual)}</small></td>
@@ -2687,13 +2690,41 @@ function personalTrackerRow(row) {
 }
 
 function renderPersonalTrackerFilters(options = {}) {
-  const sportsbook = document.getElementById("tracker-sportsbook");
   const tag = document.getElementById("tracker-tag");
-  const selectedSportsbook = sportsbook.value;
   const selectedTag = tag.value;
-  setSelectOptions(sportsbook, options.sportsbooks || [], selectedSportsbook, "All books");
+  renderTrackerBookFilter(options.sportsbooks || []);
   setSelectOptions(tag, options.tags || [], selectedTag, "All tags");
   renderSharpTrackerFilter(options);
+}
+
+function renderTrackerBookFilter(books = []) {
+  const view = appState.trackerView || "model";
+  const normalized = [...new Set((books || []).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  appState.trackerBookOptions[view] = normalized;
+  const selected = appState.trackerSelectedBooks[view] || [];
+  document.getElementById("tracker-book-filter-options").innerHTML = normalized.length
+    ? normalized.map((book) => `<label><input type="checkbox" value="${escapeHtml(book)}" ${selected.includes(book) ? "checked" : ""}><span>${escapeHtml(book)}</span></label>`).join("")
+    : '<span class="muted">No tracked books yet</span>';
+  const label = document.getElementById("tracker-book-filter-label");
+  label.textContent = selected.length === 0
+    ? "All books"
+    : selected.length === 1
+      ? selected[0]
+      : `${selected.length} books`;
+}
+
+function renderTrackerBookSummaries(summaries = []) {
+  const container = document.getElementById("tracker-book-summary");
+  if (appState.trackerView !== "model" || !summaries.length) {
+    container.hidden = true;
+    container.innerHTML = "";
+    return;
+  }
+  container.hidden = false;
+  container.innerHTML = summaries.map((summary) => {
+    const pnl = number(summary.realized_profit_loss) || 0;
+    return `<article><span>${escapeHtml(summary.sportsbook)}</span><strong class="${pnlTone(pnl)}">${escapeHtml(signedMoney(pnl))}</strong><small>${summary.wins || 0}-${summary.losses || 0} · ${summary.total_tracked_bets || 0} bets</small></article>`;
+  }).join("");
 }
 
 function renderSharpTrackerFilter(options = {}) {
@@ -2721,6 +2752,8 @@ function renderModelTracker(payload) {
   appState.sharpSources = {};
   appState.sharpSourceSequence = 0;
   renderSharpTrackerFilter(payload.filter_options || {});
+  renderTrackerBookFilter(payload.filter_options?.sportsbooks || []);
+  renderTrackerBookSummaries(payload.sportsbook_summaries || []);
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
   document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   renderTrackerState(payload.tracking || {});
@@ -2750,6 +2783,7 @@ function renderPersonalTracker(payload) {
   appState.sharpSources = {};
   appState.sharpSourceSequence = 0;
   renderPersonalTrackerFilters(payload.filter_options || {});
+  renderTrackerBookSummaries([]);
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
   document.getElementById("personal-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   document.getElementById("tracker-metrics").innerHTML = [
@@ -2804,9 +2838,10 @@ function trackerRequestParams(view) {
     tracker_start: document.getElementById("tracker-custom-start").value,
     tracker_end: document.getElementById("tracker-custom-end").value,
   };
+  const selectedBooks = appState.trackerSelectedBooks[view] || [];
+  if (selectedBooks.length) params.sportsbook = selectedBooks.join(",");
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
-    params.sportsbook = document.getElementById("tracker-sportsbook").value;
     params.tag = document.getElementById("tracker-tag").value;
   }
   return new URLSearchParams(params);
@@ -2873,7 +2908,6 @@ function configureTrackerShell(view) {
   document.getElementById("personal-track-action").hidden = model;
   document.getElementById("tracker-job-state").hidden = !model;
   document.getElementById("tracker-sharps").hidden = !model;
-  document.getElementById("tracker-sportsbook").hidden = model;
   document.getElementById("tracker-tag").hidden = model;
   document.querySelectorAll(".model-tracker-filter").forEach((element) => { element.hidden = !model; });
   document.querySelector('#tracker-status option[value="canceled"]').hidden = model;
@@ -2882,7 +2916,7 @@ function configureTrackerShell(view) {
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
   document.getElementById("tracker-search").placeholder = model ? "Search event, market, Sharp" : "Search event, selection, Sharp";
   document.getElementById("tracker-table-head").innerHTML = model
-    ? "<th>Event / Market</th><th>Selection</th><th>Grade / Score</th><th>Sharp</th><th>Intended / Actual</th><th>Composite Fair / Edge</th><th>Liquidity / Execution</th><th>Max Avg / Correlation</th><th>Bet</th><th>Decision</th><th>P&amp;L</th><th>Exchange CLV</th><th>Composite CLV</th><th>Execution Loss</th><th>Bankroll</th>"
+    ? "<th>Event / Market</th><th>Selection</th><th>Book</th><th>Grade / Score</th><th>Sharp</th><th>Intended / Actual</th><th>Composite Fair / Edge</th><th>Liquidity / Execution</th><th>Max Avg / Correlation</th><th>Bet</th><th>Decision</th><th>P&amp;L</th><th>Exchange CLV</th><th>Composite CLV</th><th>Execution Loss</th><th>Bankroll</th>"
     : "<th>Event / Market</th><th>Selection</th><th>Sharp</th><th>Shares</th><th>Entry</th><th>Position Cost</th><th>Fees</th><th>Status</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
   document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
@@ -3033,7 +3067,18 @@ async function initializeTrackerView() {
 function bindTracker() {
   document.getElementById("tracker-analytics-dimension")?.addEventListener("change", loadTrackerAdvancedAnalytics);
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
-  ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-grade", "tracker-liquidity-grade", "tracker-execution-method", "tracker-result", "tracker-sportsbook", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-grade", "tracker-liquidity-grade", "tracker-execution-method", "tracker-result", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  document.querySelectorAll("[data-tracker-books]").forEach((button) => button.addEventListener("click", () => {
+    const checked = button.dataset.trackerBooks === "all";
+    document.querySelectorAll("#tracker-book-filter-options input").forEach((input) => { input.checked = checked; });
+  }));
+  document.getElementById("tracker-book-filter-apply").addEventListener("click", () => {
+    appState.trackerSelectedBooks[appState.trackerView] = [...document.querySelectorAll("#tracker-book-filter-options input:checked")].map((input) => input.value);
+    document.getElementById("tracker-book-filter").removeAttribute("open");
+    renderTrackerBookFilter(appState.trackerBookOptions[appState.trackerView]);
+    appState.trackerPage[appState.trackerView] = 1;
+    loadTrackerView();
+  });
   document.getElementById("tracker-date-range").addEventListener("change", event => {
     const custom = event.target.value === "custom";
     document.getElementById("tracker-custom-start-wrap").hidden = !custom;
