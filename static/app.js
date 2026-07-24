@@ -3607,6 +3607,9 @@ function updateOddsDragAutoScroll(clientX) {
   shell.classList.toggle("auto-scroll-left", direction < 0);
   shell.classList.toggle("auto-scroll-right", direction > 0);
   if (oddsDragScrollFrame) return;
+  const initialPosition = shell.scrollLeft;
+  shell.scrollLeft += oddsDragScrollSpeed;
+  if (shell.scrollLeft === initialPosition) return stopOddsDragAutoScroll();
   const scrollStep = () => {
     if (!oddsState.draggedProvider || !oddsDragScrollSpeed) return stopOddsDragAutoScroll();
     const previous = shell.scrollLeft;
