@@ -120,6 +120,113 @@ def _event(start: datetime) -> dict:
     }
 
 
+def _alternate_event(
+    start: datetime, *, sport_key: str = "basketball_wnba"
+) -> dict:
+    updated = datetime.now(timezone.utc).isoformat()
+    return {
+        "id": "alternate-event-1",
+        "sport_key": sport_key,
+        "sport_title": "WNBA" if sport_key == "basketball_wnba" else "MLB",
+        "commence_time": start.isoformat(),
+        "home_team": "New York Liberty",
+        "away_team": "Chicago Sky",
+        "bookmakers": [
+            {
+                "key": "draftkings",
+                "title": "DraftKings",
+                "last_update": updated,
+                "link": "https://sportsbook.draftkings.com/event/alternate-event-1",
+                "markets": [
+                    {
+                        "key": "alternate_spreads",
+                        "last_update": updated,
+                        "outcomes": [
+                            {
+                                "name": "New York Liberty",
+                                "price": -115,
+                                "point": -7.5,
+                                "sid": "nyl-minus-7-5",
+                            },
+                            {
+                                "name": "Chicago Sky",
+                                "price": -105,
+                                "point": 7.5,
+                                "sid": "chi-plus-7-5",
+                            },
+                            {
+                                "name": "New York Liberty",
+                                "price": 120,
+                                "point": -9.5,
+                                "sid": "nyl-minus-9-5",
+                            },
+                            {
+                                "name": "Chicago Sky",
+                                "price": -140,
+                                "point": 9.5,
+                                "sid": "chi-plus-9-5",
+                            },
+                        ],
+                    },
+                    {
+                        "key": "alternate_totals",
+                        "last_update": updated,
+                        "outcomes": [
+                            {
+                                "name": "Over",
+                                "price": -110,
+                                "point": 161.5,
+                                "sid": "over-161-5",
+                            },
+                            {
+                                "name": "Under",
+                                "price": -110,
+                                "point": 161.5,
+                                "sid": "under-161-5",
+                            },
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+
+
+class AlternateSession:
+    def __init__(self, start: datetime) -> None:
+        self.event = _alternate_event(start)
+        self.calls: list[dict] = []
+
+    def get(self, url, *, params=None, timeout=None):
+        self.calls.append(
+            {"url": url, "params": dict(params or {}), "timeout": timeout}
+        )
+        if url.endswith("/events"):
+            payload = [
+                {
+                    key: self.event[key]
+                    for key in (
+                        "id",
+                        "sport_key",
+                        "sport_title",
+                        "commence_time",
+                        "home_team",
+                        "away_team",
+                    )
+                }
+            ]
+        else:
+            payload = self.event
+        return FakeResponse(
+            payload,
+            headers={
+                "x-requests-remaining": "99970",
+                "x-requests-used": "30",
+                "x-requests-last": "2",
+            },
+        )
+
+
 def _trade(start: datetime, *, stake: float = 100) -> dict:
     return {
         "id": "trade-1",
@@ -232,6 +339,87 @@ def test_odds_screen_rows_include_both_sides_and_today_tomorrow_only() -> None:
         "oddsapi::mlb-event-1::moneyline::None"
     }
     assert all(row["odds_api_event"] is True for row in rows)
+
+
+def test_wnba_alternate_spreads_and_totals_use_event_level_endpoints() -> None:
+    now = datetime.now(timezone.utc)
+    session = AlternateSession(now + timedelta(hours=4))
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=("us", "us2"),
+        default_sports=("basketball_wnba",),
+        cache_ttl_seconds=300,
+        alternate_cache_ttl_seconds=600,
+        session=session,
+    )
+
+    spread_rows = provider.odds_screen_rows(
+        sport="Basketball",
+        league="WNBA",
+        market_kind="alternate_spread",
+        now=now,
+    )
+    total_rows = provider.odds_screen_rows(
+        sport="Basketball",
+        league="WNBA",
+        market_kind="alternate_total",
+        now=now,
+    )
+
+    assert len(spread_rows) == 4
+    assert {row["market_line"] for row in spread_rows} == {
+        -9.5,
+        -7.5,
+        7.5,
+        9.5,
+    }
+    assert all(row["is_alternative"] is True for row in spread_rows)
+    assert all(
+        row["sports_market_type"] == "Alternate Spread"
+        for row in spread_rows
+    )
+    assert {row["outcome"] for row in total_rows} == {"Over", "Under"}
+    assert all(
+        row["sports_market_type"] == "Alternate Total"
+        for row in total_rows
+    )
+    event_calls = [
+        call
+        for call in session.calls
+        if "/events/alternate-event-1/odds" in call["url"]
+    ]
+    assert {
+        call["params"]["markets"] for call in event_calls
+    } == {"alternate_spreads", "alternate_totals"}
+    assert all(call["params"]["regions"] == "us,us2" for call in event_calls)
+
+
+def test_alternate_event_level_results_are_cached() -> None:
+    now = datetime.now(timezone.utc)
+    session = AlternateSession(now + timedelta(hours=4))
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=("us",),
+        default_sports=("basketball_wnba",),
+        cache_ttl_seconds=300,
+        alternate_cache_ttl_seconds=600,
+        session=session,
+    )
+
+    for _ in range(2):
+        provider.odds_screen_rows(
+            league="WNBA",
+            market_kind="alternate_spread",
+            now=now,
+        )
+
+    assert len(
+        [
+            call
+            for call in session.calls
+            if "/events/alternate-event-1/odds" in call["url"]
+        ]
+    ) == 1
 
 
 def test_quota_diagnostics_do_not_expose_api_key() -> None:

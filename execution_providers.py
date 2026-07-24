@@ -1134,6 +1134,11 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 cache_ttl_seconds=getattr(
                     settings, "the_odds_api_cache_ttl_seconds", 300
                 ),
+                alternate_cache_ttl_seconds=getattr(
+                    settings,
+                    "the_odds_api_alternate_cache_ttl_seconds",
+                    600,
+                ),
                 max_quote_age_seconds=getattr(
                     settings, "the_odds_api_max_quote_age_seconds", 180
                 ),

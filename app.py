@@ -1121,10 +1121,47 @@ def create_app(start_background: bool = True) -> Flask:
             for row in sportsbook_rows:
                 unique.setdefault(odds_identity(row), row)
 
+        def matches_requested_filters(row: dict) -> bool:
+            canonical = canonicalize_trade(row)
+            if canonical is None:
+                return not any(
+                    (requested_sport, requested_league, requested_market)
+                )
+            if (
+                requested_sport
+                and canonical.sport_id.upper()
+                != requested_sport.upper().replace(" ", "_")
+            ):
+                return False
+            if (
+                requested_league
+                and canonical.league_id.upper()
+                != requested_league.upper().replace(" ", "_")
+            ):
+                return False
+            if not requested_market:
+                return True
+            expected = {
+                "moneyline": ("moneyline", False),
+                "spread": ("spread", False),
+                "game_total": ("game_total", False),
+                "alternate_spread": ("spread", True),
+                "alternate_total": ("game_total", True),
+            }.get(requested_market)
+            return bool(
+                expected
+                and canonical.market_kind == expected[0]
+                and canonical.is_alternative is expected[1]
+            )
+
         rows = sorted(
-            unique.values(),
+            (
+                row
+                for row in unique.values()
+                if matches_requested_filters(row)
+            ),
             key=lambda row: (str(row.get("schedule_date_et") or "~"), str(row.get("resolution_time") or "~")),
-        )[:500]
+        )[:2000]
         token_ids = [str(row.get("clob_token_id") or "") for row in rows if row.get("clob_token_id")]
         try:
             live_books = tracker.client.get_order_books(token_ids) if token_ids else {}
@@ -1153,6 +1190,13 @@ def create_app(start_background: bool = True) -> Flask:
             row["recommendation"]["current_user_entry_price"] = best_ask
         execution_providers.attach_options(rows)
         provider_catalog: dict[str, dict] = {}
+        if odds_api_provider is not None:
+            provider_catalog.update(
+                {
+                    item["key"]: item
+                    for item in odds_api_provider.provider_catalog(rows)
+                }
+            )
         for row in rows:
             for option in row.get("executionOptions") or []:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
@@ -1168,10 +1212,34 @@ def create_app(start_background: bool = True) -> Flask:
                         else "exchange"
                     ),
                 }
+        compact_option_keys = {
+            "providerName",
+            "providerKey",
+            "displayOdds",
+            "deepLink",
+            "isAvailable",
+            "matchingConfidence",
+            "logoUrl",
+            "americanOdds",
+            "contractPrice",
+            "availableLiquidity",
+            "isBestPrice",
+            "lastUpdated",
+            "quoteStatus",
+        }
+        for row in rows:
+            row["executionOptions"] = [
+                {
+                    key: value
+                    for key, value in option.items()
+                    if key in compact_option_keys
+                }
+                for option in row.get("executionOptions") or []
+            ]
         return jsonify(
             {
                 "data": rows,
-                "pagination": {"total": len(rows), "page": 1, "per_page": 500},
+                "pagination": {"total": len(rows), "page": 1, "per_page": 2000},
                 "status": snapshot["status"],
                 "source": "polymarket_and_the_odds_api_read_only_feeds",
                 "providers": sorted(

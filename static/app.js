@@ -3450,13 +3450,13 @@ function oddsSelectionLabel(row) {
   if (normalized === "yes" || normalized === "no") return normalized === "yes" ? "Yes" : "No";
   const team = mlbSportsbookNames[normalized] || outcome;
   if (kind === "moneyline") return `${team} ML`;
-  if (kind === "spread") return `${team} ${number(row.market_line) !== null && number(row.market_line) > 0 ? "+" : ""}${row.market_line ?? ""}`.trim();
-  if (kind === "game_total") return `${team} ${row.market_line ?? ""}`.trim();
+  if (kind === "spread" || kind === "alternate_spread") return `${team} ${number(row.market_line) !== null && number(row.market_line) > 0 ? "+" : ""}${row.market_line ?? ""}`.trim();
+  if (kind === "game_total" || kind === "alternate_total") return `${team} ${row.market_line ?? ""}`.trim();
   return team;
 }
 
 function oddsMarketLabel(row) {
-  return ({moneyline:"Moneyline",spread:"Run Line",game_total:"Total",yes_no:"Yes / No"})[oddsMarketKind(row)] || String(row.sports_market_type || "Market");
+  return ({moneyline:"Moneyline",spread:"Run Line / Spread",alternate_spread:"Alt Spread",game_total:"Total",alternate_total:"Alt Total",yes_no:"Yes / No"})[oddsMarketKind(row)] || String(row.sports_market_type || "Market");
 }
 
 function renderOddsScreen() {
@@ -3502,6 +3502,8 @@ function oddsDateDivider(value) {
 
 function oddsMarketKind(row) {
   const raw = `${row.sports_market_type || ""} ${row.market_title || ""}`.toLowerCase();
+  if ((raw.includes("alternate") || raw.includes(" alt ")) && (raw.includes("spread") || raw.includes("run line") || raw.includes("handicap"))) return "alternate_spread";
+  if ((raw.includes("alternate") || raw.includes(" alt ")) && raw.includes("total")) return "alternate_total";
   if (raw.includes("first half") || raw.includes("1st half")) {
     if (raw.includes("moneyline") || raw.includes("winner")) return "first_half_moneyline";
     if (raw.includes("spread") || raw.includes("handicap")) return "first_half_spread";
@@ -3536,7 +3538,7 @@ async function loadOddsScreen() {
     const params = new URLSearchParams();
     if (oddsState.sport) params.set("sport", oddsState.sport);
     if (oddsState.league) params.set("league", oddsState.league);
-    if (["moneyline", "spread", "game_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
+    if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
     const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
