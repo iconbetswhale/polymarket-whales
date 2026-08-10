@@ -6,9 +6,9 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv()
-
 PROJECT_ROOT = Path(__file__).resolve().parent
+load_dotenv(PROJECT_ROOT / ".env")
+load_dotenv(PROJECT_ROOT / ".env.local")
 MAX_UNFAVORABLE_SLIPPAGE_PCT = 5.0
 
 
@@ -65,6 +65,7 @@ class Settings:
     request_timeout: int
     max_retries: int
     admin_password: str | None
+    wallet_position_stale_grace_seconds: int = 300
     default_bankroll: float = 10000.0
     unit_percentage: float = 0.01
     discord_webhook_url: str | None = None
@@ -74,12 +75,14 @@ class Settings:
     discord_bot_token: str | None = field(default=None, repr=False)
     discord_guild_id: str | None = None
     discord_trade_channel_id: str | None = None
+    discord_checkpoint_channel_id: str | None = None
+    discord_checkpoint_channel_name: str = "model-tracker-30m"
     discord_notifications_enabled: bool = False
     discord_notification_batch_size: int = 10
     durable_database_url: str | None = None
     tracker_job_secret: str | None = None
-    tracker_job_interval_seconds: int = 300
-    tracker_pregame_window_minutes: int = 120
+    tracker_job_interval_seconds: int = 60
+    tracker_pregame_window_minutes: int = 30
     novig_api_key: str | None = None
     novig_api_base_url: str = "https://api.sportsgameodds.com/v2"
     novig_cache_ttl_seconds: int = 45
@@ -111,9 +114,16 @@ class Settings:
     )
     the_odds_api_markets: tuple[str, ...] = ("h2h", "spreads", "totals")
     the_odds_api_default_sports: tuple[str, ...] = ("baseball_mlb",)
-    the_odds_api_cache_ttl_seconds: int = 600
+    the_odds_api_trade_bookmakers: tuple[str, ...] = (
+        "kalshi",
+        "novig",
+        "polymarket",
+        "prophetx",
+    )
+    the_odds_api_cache_ttl_seconds: int = 60
     the_odds_api_alternate_cache_ttl_seconds: int = 1200
     the_odds_api_max_quote_age_seconds: int = 1800
+    positive_ev_enabled: bool = False
     execution_quote_max_age_seconds: int = 60
     line_shop_max_quote_age_seconds: int = 60
     line_shop_refresh_interval_seconds: int = 5
@@ -139,7 +149,11 @@ class Settings:
 def get_settings() -> Settings:
     dashboard_port = _get_int("PORT", _get_int("DASHBOARD_PORT", 5000))
     return Settings(
-        dashboard_refresh=_get_int("DASHBOARD_REFRESH", 120),
+        # The three-sharp live board must react promptly to entries, exits,
+        # contradictions, and newly joining consensus wallets. Preserve an
+        # explicit zero used by tests, but do not allow a legacy production
+        # setting to leave the authoritative snapshot stale for over 15s.
+        dashboard_refresh=min(_get_int("DASHBOARD_REFRESH", 15), 15),
         dashboard_port=dashboard_port,
         wallets_file=_get_path("WALLETS_FILE", "wallets.json"),
         database_path=_get_path("DATABASE_PATH", "polymarket_tracker.db"),
@@ -150,6 +164,9 @@ def get_settings() -> Settings:
         request_timeout=_get_int("REQUEST_TIMEOUT", 15),
         max_retries=_get_int("MAX_RETRIES", 3),
         admin_password=os.getenv("ADMIN_PASSWORD") or None,
+        wallet_position_stale_grace_seconds=max(
+            0, _get_int("WALLET_POSITION_STALE_GRACE_SECONDS", 300)
+        ),
         default_bankroll=_get_float("DEFAULT_BANKROLL", 10000.0),
         unit_percentage=_get_float("UNIT_PERCENTAGE", 0.01),
         execution_quote_max_age_seconds=_get_int("EXECUTION_QUOTE_MAX_AGE_SECONDS", 60),
@@ -190,6 +207,14 @@ def get_settings() -> Settings:
         discord_bot_token=os.getenv("DISCORD_BOT_TOKEN") or None,
         discord_guild_id=os.getenv("DISCORD_GUILD_ID") or None,
         discord_trade_channel_id=os.getenv("DISCORD_TRADE_CHANNEL_ID") or None,
+        discord_checkpoint_channel_id=os.getenv(
+            "DISCORD_CHECKPOINT_CHANNEL_ID"
+        )
+        or None,
+        discord_checkpoint_channel_name=(
+            os.getenv("DISCORD_CHECKPOINT_CHANNEL_NAME")
+            or "model-tracker-30m"
+        ).strip(),
         discord_notifications_enabled=_get_bool(
             "DISCORD_NOTIFICATIONS_ENABLED", False
         ),
@@ -202,10 +227,14 @@ def get_settings() -> Settings:
             or os.getenv("DATABASE_URL")
             or None
         ),
-        tracker_job_secret=os.getenv("TRACKER_JOB_SECRET") or None,
-        tracker_job_interval_seconds=_get_int("TRACKER_JOB_INTERVAL_SECONDS", 300),
+        tracker_job_secret=(
+            os.getenv("TRACKER_JOB_SECRET")
+            or os.getenv("CRON_SECRET")
+            or None
+        ),
+        tracker_job_interval_seconds=_get_int("TRACKER_JOB_INTERVAL_SECONDS", 60),
         tracker_pregame_window_minutes=max(
-            1, _get_int("TRACKER_PREGAME_WINDOW_MINUTES", 120)
+            1, _get_int("TRACKER_PREGAME_WINDOW_MINUTES", 30)
         ),
         novig_api_key=(
             os.getenv("NOVIG_ODDS_API_KEY")
@@ -247,8 +276,12 @@ def get_settings() -> Settings:
         the_odds_api_default_sports=_get_csv(
             "THE_ODDS_API_DEFAULT_SPORTS", ("baseball_mlb",)
         ),
+        the_odds_api_trade_bookmakers=_get_csv(
+            "THE_ODDS_API_TRADE_BOOKMAKERS",
+            ("kalshi", "novig", "polymarket", "prophetx"),
+        ),
         the_odds_api_cache_ttl_seconds=max(
-            60, _get_int("THE_ODDS_API_CACHE_TTL_SECONDS", 600)
+            60, _get_int("THE_ODDS_API_CACHE_TTL_SECONDS", 60)
         ),
         the_odds_api_alternate_cache_ttl_seconds=max(
             300,
@@ -257,4 +290,5 @@ def get_settings() -> Settings:
         the_odds_api_max_quote_age_seconds=max(
             60, _get_int("THE_ODDS_API_MAX_QUOTE_AGE_SECONDS", 1800)
         ),
+        positive_ev_enabled=_get_bool("POSITIVE_EV_ENABLED", False),
     )

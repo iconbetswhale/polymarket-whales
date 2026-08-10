@@ -8,6 +8,8 @@ import requests
 
 from config import Settings
 
+ICONLABS_PURPLE = int("8B5CF6", 16)
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -101,7 +103,7 @@ class DiscordNotifier:
         embed = {
             "title": f"{wallet_label} {action}",
             "description": f"**{market_title}**",
-            "color": 3209337,
+            "color": ICONLABS_PURPLE,
             "fields": fields,
             "footer": {"text": "IconBets Polymarket Wallet Tracker"},
             "timestamp": event.get("detected_at"),

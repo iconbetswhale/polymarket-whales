@@ -11,9 +11,13 @@ from execution_providers import (
     ExecutionProviderRegistry,
     MatchConfidence,
     _finalize_execution_option,
+    apply_best_execution_option,
     american_to_probability,
 )
-from kalshi_provider import _effective_price as kalshi_effective_price
+from kalshi_provider import (
+    _effective_price as kalshi_effective_price,
+    _estimated_taker_fee as kalshi_estimated_taker_fee,
+)
 from line_shop_foundation import LINE_SHOP_MIGRATION_VERSION
 
 
@@ -43,14 +47,19 @@ def option(
     fee_rate: float | None = None,
 ) -> ExecutionOption:
     return ExecutionOption(
-        provider_name={"polymarket": "Polymarket", "kalshi": "Kalshi", "fourcx": "4CX"}[provider],
+        provider_name={
+            "polymarket": "Polymarket",
+            "kalshi": "Kalshi",
+            "fourcx": "4CX",
+            "novig": "NoVIG",
+        }[provider],
         provider_key=provider,
         market_id=f"{provider}-market",
         selection_id=f"{provider}-outcome",
         display_odds="pending",
         deep_link=f"https://example.com/{provider}/exact-market",
         is_available=True,
-        last_updated=(NOW - timedelta(seconds=age)).isoformat(),
+        last_updated=(datetime.now(timezone.utc) - timedelta(seconds=age)).isoformat(),
         matching_confidence=MatchConfidence.EXACT,
         logo_url=f"/{provider}.png",
         tooltip="Executable quote",
@@ -113,6 +122,138 @@ def test_lowest_same_selection_executable_price_wins_for_cents_and_american_odds
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
     assert best["providerKey"] == "kalshi"
     assert best["nativePrice"] == "47\u00a2"
+
+
+def test_novig_wins_an_executable_equal_price_tie_and_drives_sizing():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(
+            option(
+                "fourcx",
+                american_to_probability(108),
+                american=108,
+                fee_rate=0.0,
+            )
+        ),
+        Provider(
+            option("polymarket", american_to_probability(108), fee_rate=0.0)
+        ),
+        Provider(
+            option(
+                "novig",
+                american_to_probability(108),
+                american=108,
+                fee_rate=0.0,
+            )
+        ),
+    ))
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "novig"
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "novig"
+
+
+def test_novig_wins_a_rounded_48_1_cent_vs_plus_108_tie():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("polymarket", 0.481, fee_rate=0.0)),
+        Provider(
+            option(
+                "novig",
+                american_to_probability(108),
+                american=108,
+                fee_rate=0.0,
+            )
+        ),
+    ))
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "novig"
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "novig"
+
+
+def test_novig_wins_a_displayed_plus_108_tie_against_48_cent_polymarket():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("polymarket", 0.48, fee_rate=0.0)),
+        Provider(
+            option(
+                "novig",
+                american_to_probability(108),
+                american=108,
+                fee_rate=0.0,
+            )
+        ),
+    ))
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "novig"
+
+
+def test_primary_click_ignores_polymarket_and_kalshi_but_allows_better_fourcx():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("polymarket", 0.40, fee_rate=0.0)),
+        Provider(option("kalshi", 0.41, fee_rate=0.0)),
+        Provider(option("novig", 0.45, fee_rate=0.0)),
+        Provider(option("fourcx", 0.44, american=127, fee_rate=0.0)),
+    ))
+    registry.attach_options([value])
+
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "fourcx"
+    assert len(value["executionOptions"]) == 4
+
+
+def test_primary_click_uses_novig_when_fourcx_is_not_genuinely_better():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("polymarket", 0.40, fee_rate=0.0)),
+        Provider(option("kalshi", 0.41, fee_rate=0.0)),
+        Provider(option("novig", 0.45, fee_rate=0.0)),
+        Provider(option("fourcx", 0.46, american=117, fee_rate=0.0)),
+    ))
+    registry.attach_options([value])
+
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "novig"
+
+
+def test_novig_does_not_win_tie_without_enough_executable_liquidity():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("fourcx", american_to_probability(108), american=108)),
+        Provider(
+            option(
+                "novig",
+                american_to_probability(108),
+                american=108,
+                liquidity=25,
+                fillable=False,
+            )
+        ),
+    ))
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "fourcx"
+
+
+def test_a_meaningfully_better_price_beats_novig_priority():
+    value = trade()
+    registry = ExecutionProviderRegistry((
+        Provider(option("fourcx", 0.47, american=113)),
+        Provider(option("novig", 0.48, american=108)),
+    ))
+    registry.attach_options([value])
+
+    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
+    assert best["providerKey"] == "fourcx"
 
 
 def test_positive_and_negative_american_odds_rank_in_probability_order():
@@ -204,6 +345,62 @@ def test_zero_stake_odds_screen_quote_remains_executable_when_liquidity_exists()
     assert result.can_fill_recommended_stake is True
 
 
+def test_unknown_limit_quote_remains_visible_but_cannot_drive_automatic_sizing():
+    value = trade()
+    value["recommendation"]["recommended_amount"] = 25
+    value["card"]["recommended_amount"] = 25
+    source = option("novig", american_to_probability(178), american=178)
+    source = ExecutionOption(
+        **{
+            **source.__dict__,
+            "available_liquidity": None,
+            "can_fill_recommended_stake": None,
+            "fee_rate": 0.0,
+        }
+    )
+    result = _finalize_execution_option(
+        source,
+        value,
+        max_quote_age_seconds=60,
+        min_liquidity=0,
+        include_fees=True,
+        now=NOW,
+    )
+    value["executionOptions"] = [result.to_dict()]
+
+    assert result.is_available is True
+    assert result.can_fill_recommended_stake is None
+    assert result.best_executable_price == pytest.approx(100 / 278)
+    assert apply_best_execution_option(value) is False
+
+
+def test_partial_limit_quote_remains_visible_but_cannot_drive_automatic_sizing():
+    value = trade()
+    value["recommendation"]["recommended_amount"] = 25
+    value["card"]["recommended_amount"] = 25
+    source = option(
+        "novig",
+        american_to_probability(178),
+        american=178,
+        liquidity=2,
+        fillable=False,
+    )
+    result = _finalize_execution_option(
+        source,
+        value,
+        max_quote_age_seconds=60,
+        min_liquidity=0,
+        include_fees=True,
+        now=NOW,
+    )
+    value["executionOptions"] = [result.to_dict()]
+
+    assert result.is_available is True
+    assert result.can_fill_recommended_stake is False
+    assert result.failure_reason == "INSUFFICIENT_LIQUIDITY"
+    assert apply_best_execution_option(value) is False
+
+
 def test_depth_weighted_effective_price_and_fees_drive_ranking():
     effective, liquidity, fillable = kalshi_effective_price([(0.47, 100), (0.50, 106)], 100)
     assert effective == pytest.approx(100 / 206)
@@ -221,6 +418,57 @@ def test_depth_weighted_effective_price_and_fees_drive_ranking():
     kalshi = next(row for row in value["executionOptions"] if row["providerKey"] == "kalshi")
     assert kalshi["estimatedFees"] == pytest.approx(10.0)
     assert kalshi["bestExecutablePrice"] == pytest.approx(0.517)
+
+
+def test_kalshi_quadratic_fee_turns_42_cent_contract_into_44_cent_all_in_quote():
+    fee = kalshi_estimated_taker_fee(
+        0.42, 15.0,
+        fee_type="quadratic_with_maker_fees",
+        fee_multiplier=1.0,
+    )
+    source = option("kalshi", 0.42)
+    source = ExecutionOption(**{
+        **source.__dict__,
+        "estimated_fees": fee,
+        "fee_rate": fee / 15.0,
+    })
+    value = trade()
+    value["recommendation"]["recommended_amount"] = 15.0
+    value["card"]["recommended_amount"] = 15.0
+    result = _finalize_execution_option(
+        source, value, max_quote_age_seconds=60, min_liquidity=0,
+        include_fees=True, now=NOW,
+    )
+
+    assert fee == pytest.approx(0.61)
+    assert result.contract_price == pytest.approx(0.42)
+    assert result.best_executable_price == pytest.approx(0.43708, abs=0.00001)
+
+
+def test_best_execution_application_does_not_add_fee_twice():
+    from execution_providers import apply_best_execution_option
+
+    value = trade()
+    value["executionOptions"] = [
+        {
+            "providerName": "Kalshi", "providerKey": "kalshi",
+            "isAvailable": True, "isExactMatch": True, "isStale": False,
+            "marketStatus": "OPEN", "canFillRecommendedStake": True,
+            "bestExecutablePrice": 0.43708, "availableLiquidity": 1000,
+            "feeRate": 0.0406667, "directMarketUrl": "https://kalshi.com/markets/x",
+        },
+        {
+            "providerName": "NoVIG", "providerKey": "novig",
+            "isAvailable": True, "isExactMatch": True, "isStale": False,
+            "marketStatus": "OPEN", "canFillRecommendedStake": True,
+            "bestExecutablePrice": 100 / 233, "availableLiquidity": 1000,
+            "feeRate": 0, "directMarketUrl": "https://novig.us/markets/x",
+        },
+    ]
+
+    assert apply_best_execution_option(value) is True
+    assert value["selected_execution_option"]["providerKey"] == "novig"
+    assert value["current_price"] == pytest.approx(100 / 233)
 
 
 def test_provider_failure_is_isolated_and_no_order_method_is_called():

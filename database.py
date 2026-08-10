@@ -171,9 +171,12 @@ class TrackerDatabase:
                 CREATE TABLE IF NOT EXISTS user_accounts (
                     user_id TEXT PRIMARY KEY,
                     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
+                    username TEXT,
                     password_salt TEXT NOT NULL,
                     password_hash TEXT NOT NULL,
                     password_iterations INTEGER NOT NULL,
+                    oauth_provider TEXT,
+                    oauth_subject TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL
                 );
@@ -198,6 +201,8 @@ class TrackerDatabase:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     snapshot_json TEXT NOT NULL,
+                    thirty_minute_checked_at TEXT,
+                    thirty_minute_checkpoint_json TEXT,
                     PRIMARY KEY (user_id, dedupe_key)
                 );
 
@@ -205,6 +210,43 @@ class TrackerDatabase:
                     ON bet_tracker(user_id, created_at DESC);
                 CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                     ON bet_tracker(status, updated_at DESC);
+
+                CREATE TABLE IF NOT EXISTS ev_opportunities (
+                    user_id TEXT NOT NULL,
+                    opportunity_id TEXT NOT NULL,
+                    event_id TEXT NOT NULL,
+                    commence_time TEXT,
+                    first_seen_at TEXT NOT NULL,
+                    last_seen_at TEXT NOT NULL,
+                    execution_status TEXT NOT NULL,
+                    portfolio_status TEXT NOT NULL,
+                    opening_snapshot_json TEXT NOT NULL,
+                    latest_snapshot_json TEXT NOT NULL,
+                    PRIMARY KEY (user_id, opportunity_id)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ev_opportunities_user_event
+                    ON ev_opportunities(user_id, commence_time, event_id);
+
+                CREATE TABLE IF NOT EXISTS ev_opportunity_snapshots (
+                    snapshot_hash TEXT PRIMARY KEY,
+                    user_id TEXT NOT NULL,
+                    opportunity_id TEXT NOT NULL,
+                    captured_at TEXT NOT NULL,
+                    commence_time TEXT,
+                    fair_probability REAL,
+                    effective_decimal REAL,
+                    ev_percent REAL,
+                    recommended_stake REAL,
+                    execution_status TEXT,
+                    book_key TEXT,
+                    american_odds INTEGER,
+                    liquidity REAL,
+                    snapshot_json TEXT NOT NULL
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_ev_snapshots_opportunity_time
+                    ON ev_opportunity_snapshots(user_id, opportunity_id, captured_at);
 
                 CREATE TABLE IF NOT EXISTS discord_trade_notifications (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -375,6 +417,9 @@ class TrackerDatabase:
                     midpoint REAL,
                     last_trade REAL,
                     depth_json TEXT NOT NULL DEFAULT '[]',
+                    tracker_type TEXT,
+                    tracker_record_id TEXT,
+                    snapshot_json TEXT NOT NULL DEFAULT '{}',
                     source TEXT NOT NULL,
                     created_at TEXT NOT NULL,
                     UNIQUE(provider, provider_market_id, provider_selection_id, quote_timestamp)
@@ -423,10 +468,48 @@ class TrackerDatabase:
                 str(row["name"])
                 for row in conn.execute("PRAGMA table_info(user_settings)")
             }
+            account_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(user_accounts)")
+            }
             personal_fill_columns = {
                 str(row["name"])
                 for row in conn.execute("PRAGMA table_info(personal_bet_fills)")
             }
+            tracker_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(bet_tracker)")
+            }
+            clv_quote_columns = {
+                str(row["name"])
+                for row in conn.execute("PRAGMA table_info(clv_quote_snapshots)")
+            }
+            if "tracker_type" not in clv_quote_columns:
+                conn.execute(
+                    "ALTER TABLE clv_quote_snapshots ADD COLUMN tracker_type TEXT"
+                )
+            if "tracker_record_id" not in clv_quote_columns:
+                conn.execute(
+                    "ALTER TABLE clv_quote_snapshots ADD COLUMN tracker_record_id TEXT"
+                )
+            if "snapshot_json" not in clv_quote_columns:
+                conn.execute(
+                    "ALTER TABLE clv_quote_snapshots ADD COLUMN snapshot_json TEXT NOT NULL DEFAULT '{}'"
+                )
+            conn.execute(
+                """CREATE INDEX IF NOT EXISTS idx_clv_quotes_tracker_time
+                   ON clv_quote_snapshots(
+                       tracker_type, tracker_record_id, quote_timestamp DESC
+                   )"""
+            )
+            if "thirty_minute_checked_at" not in tracker_columns:
+                conn.execute(
+                    "ALTER TABLE bet_tracker ADD COLUMN thirty_minute_checked_at TEXT"
+                )
+            if "thirty_minute_checkpoint_json" not in tracker_columns:
+                conn.execute(
+                    "ALTER TABLE bet_tracker ADD COLUMN thirty_minute_checkpoint_json TEXT"
+                )
             if "sportsbook" not in personal_fill_columns:
                 conn.execute(
                     "ALTER TABLE personal_bet_fills ADD COLUMN sportsbook TEXT NOT NULL DEFAULT 'Polymarket'"
@@ -473,6 +556,26 @@ class TrackerDatabase:
                 conn.execute(
                     "ALTER TABLE user_settings ADD COLUMN settings_version INTEGER NOT NULL DEFAULT 1"
                 )
+            if "username" not in account_columns:
+                conn.execute("ALTER TABLE user_accounts ADD COLUMN username TEXT")
+            if "oauth_provider" not in account_columns:
+                conn.execute("ALTER TABLE user_accounts ADD COLUMN oauth_provider TEXT")
+            if "oauth_subject" not in account_columns:
+                conn.execute("ALTER TABLE user_accounts ADD COLUMN oauth_subject TEXT")
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_user_accounts_username
+                ON user_accounts(username COLLATE NOCASE)
+                WHERE username IS NOT NULL
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_user_accounts_oauth
+                ON user_accounts(oauth_provider, oauth_subject)
+                WHERE oauth_provider IS NOT NULL AND oauth_subject IS NOT NULL
+                """
+            )
             conn.execute(
                 """
                 UPDATE user_settings
@@ -1168,10 +1271,20 @@ class TrackerDatabase:
         password_salt: str,
         password_hash: str,
         password_iterations: int,
+        username: str | None = None,
+        oauth_provider: str | None = None,
+        oauth_subject: str | None = None,
     ) -> dict:
         if self.user_store:
             return self.user_store.create_account(
-                user_id, email, password_salt, password_hash, password_iterations
+                user_id,
+                email,
+                password_salt,
+                password_hash,
+                password_iterations,
+                username,
+                oauth_provider,
+                oauth_subject,
             )
         now = datetime.now(timezone.utc).isoformat()
         try:
@@ -1179,16 +1292,20 @@ class TrackerDatabase:
                 conn.execute(
                     """
                     INSERT INTO user_accounts (
-                        user_id, email, password_salt, password_hash,
-                        password_iterations, created_at, updated_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        user_id, email, username, password_salt, password_hash,
+                        password_iterations, oauth_provider, oauth_subject,
+                        created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         user_id,
                         email,
+                        username,
                         password_salt,
                         password_hash,
                         password_iterations,
+                        oauth_provider,
+                        oauth_subject,
                         now,
                         now,
                     ),
@@ -1206,6 +1323,68 @@ class TrackerDatabase:
                 (email,),
             ).fetchone()
         return dict(row) if row else None
+
+    def get_account_by_username(self, username: str) -> dict | None:
+        if self.user_store:
+            return self.user_store.get_account_by_username(username)
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM user_accounts WHERE username = ? COLLATE NOCASE",
+                (username,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_account_by_oauth(self, provider: str, subject: str) -> dict | None:
+        if self.user_store:
+            return self.user_store.get_account_by_oauth(provider, subject)
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM user_accounts
+                WHERE oauth_provider = ? AND oauth_subject = ?
+                """,
+                (provider, subject),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def update_account_identity(
+        self,
+        user_id: str,
+        *,
+        username: str | None = None,
+        oauth_provider: str | None = None,
+        oauth_subject: str | None = None,
+    ) -> dict:
+        if self.user_store:
+            return self.user_store.update_account_identity(
+                user_id,
+                username=username,
+                oauth_provider=oauth_provider,
+                oauth_subject=oauth_subject,
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            with self.connection() as conn:
+                conn.execute(
+                    """
+                    UPDATE user_accounts
+                    SET username = COALESCE(?, username),
+                        oauth_provider = COALESCE(?, oauth_provider),
+                        oauth_subject = COALESCE(?, oauth_subject),
+                        updated_at = ?
+                    WHERE user_id = ?
+                    """,
+                    (username, oauth_provider, oauth_subject, now, user_id),
+                )
+                row = conn.execute(
+                    "SELECT * FROM user_accounts WHERE user_id = ?",
+                    (user_id,),
+                ).fetchone()
+        except sqlite3.IntegrityError as exc:
+            raise ValueError("That username is already taken.") from exc
+        if row is None:
+            raise LookupError("Account not found.")
+        return dict(row)
 
     def create_auth_session(
         self, user_id: str, token_hash: str, expires_at: str
@@ -1230,7 +1409,7 @@ class TrackerDatabase:
         with self.connection() as conn:
             row = conn.execute(
                 """
-                SELECT a.user_id, a.email, s.expires_at
+                SELECT a.user_id, a.email, a.username, s.expires_at
                 FROM auth_sessions s
                 JOIN user_accounts a ON a.user_id = s.user_id
                 WHERE s.token_hash = ? AND s.expires_at > ?
@@ -1275,6 +1454,86 @@ class TrackerDatabase:
             )
             row = conn.execute("SELECT changes() AS count").fetchone()
         return int(row["count"] or 0)
+
+    def reset_model_experiments(self, user_ids: tuple[str, ...]) -> dict[str, int]:
+        """Delete model-experiment outputs without touching source or personal data."""
+        if self.user_store:
+            return self.user_store.reset_model_experiments(user_ids)
+        if not user_ids:
+            return {}
+        placeholders = ", ".join(["?"] * len(user_ids))
+        deleted: dict[str, int] = {}
+        with self.connection() as conn:
+            tracker_ids = {
+                str(row["tracker_record_id"])
+                for table in ("closing_line_snapshots", "dual_clv_measurements")
+                for row in conn.execute(
+                    f"SELECT tracker_record_id FROM {table} WHERE user_id IN ({placeholders})",
+                    user_ids,
+                ).fetchall()
+            }
+            tracker_ids.update(
+                str(row["dedupe_key"])
+                for row in conn.execute(
+                    f"SELECT dedupe_key FROM bet_tracker WHERE user_id IN ({placeholders})",
+                    user_ids,
+                ).fetchall()
+            )
+            recommendation_ids = tuple(
+                str(row["recommendation_snapshot_id"])
+                for row in conn.execute(
+                    f"""SELECT recommendation_snapshot_id
+                        FROM portfolio_risk_snapshots
+                        WHERE user_id IN ({placeholders})
+                          AND recommendation_snapshot_id IS NOT NULL""",
+                    user_ids,
+                ).fetchall()
+            )
+            if tracker_ids:
+                record_ids = tuple(sorted(tracker_ids))
+                deleted["clv_quote_snapshots"] = 0
+                for offset in range(0, len(record_ids), 10_000):
+                    batch = record_ids[offset : offset + 10_000]
+                    record_placeholders = ", ".join(["?"] * len(batch))
+                    cursor = conn.execute(
+                        f"""DELETE FROM clv_quote_snapshots
+                            WHERE tracker_type = 'model'
+                              AND tracker_record_id IN ({record_placeholders})""",
+                        batch,
+                    )
+                    deleted["clv_quote_snapshots"] += cursor.rowcount
+            else:
+                deleted["clv_quote_snapshots"] = 0
+            if recommendation_ids:
+                deleted["execution_plan_snapshots"] = 0
+                for offset in range(0, len(recommendation_ids), 10_000):
+                    batch = recommendation_ids[offset : offset + 10_000]
+                    recommendation_placeholders = ", ".join(
+                        ["?"] * len(batch)
+                    )
+                    cursor = conn.execute(
+                        f"""DELETE FROM execution_plan_snapshots
+                            WHERE recommendation_snapshot_id IN ({recommendation_placeholders})""",
+                        batch,
+                    )
+                    deleted["execution_plan_snapshots"] += cursor.rowcount
+            else:
+                deleted["execution_plan_snapshots"] = 0
+            for table in (
+                "dual_clv_measurements",
+                "closing_line_snapshots",
+                "portfolio_risk_snapshots",
+                "discord_trade_notifications",
+                "tracking_rejections",
+                "bet_tracker",
+                "risk_account_state",
+            ):
+                cursor = conn.execute(
+                    f"DELETE FROM {table} WHERE user_id IN ({placeholders})",
+                    user_ids,
+                )
+                deleted[table] = cursor.rowcount
+        return deleted
 
     def insert_tracker_snapshot(
         self,
@@ -1384,6 +1643,93 @@ class TrackerDatabase:
                     )
         return claimed
 
+    def insert_tracker_checkpoint(
+        self,
+        user_id: str,
+        dedupe_key: str,
+        checkpoint: dict,
+        discord_payload: dict | None = None,
+    ) -> bool:
+        if self.user_store:
+            return self.user_store.insert_tracker_checkpoint(
+                user_id, dedupe_key, checkpoint, discord_payload
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE bet_tracker
+                SET thirty_minute_checked_at = ?,
+                    thirty_minute_checkpoint_json = ?,
+                    updated_at = ?
+                WHERE user_id = ? AND dedupe_key = ?
+                  AND thirty_minute_checkpoint_json IS NULL
+                """,
+                (
+                    checkpoint["checked_at"],
+                    json.dumps(checkpoint),
+                    now,
+                    user_id,
+                    dedupe_key,
+                ),
+            )
+            inserted = cursor.rowcount > 0
+            if inserted and discord_payload is not None:
+                conn.execute(
+                    """
+                    INSERT OR IGNORE INTO discord_trade_notifications (
+                        user_id, dedupe_key, snapshot_id, notification_type,
+                        status, attempts, payload_json, created_at, updated_at
+                    ) VALUES (?, ?, ?, 'model_tracker_30m_update', 'pending', 0, ?, ?, ?)
+                    """,
+                    (
+                        user_id,
+                        dedupe_key,
+                        checkpoint.get("snapshot_id") or "",
+                        json.dumps(discord_payload),
+                        now,
+                        now,
+                    ),
+                )
+            return inserted
+
+    def ensure_model_tracker_discord_notification(
+        self,
+        user_id: str,
+        snapshot: dict,
+        discord_payload: dict,
+    ) -> bool:
+        """Create the durable official-play outbox row if it is missing.
+
+        Tracker records and Discord delivery have separate lifecycles.  This
+        method lets reconciliation repair an older tracker row that was saved
+        while Discord was disabled or temporarily unconfigured without ever
+        duplicating an already queued or delivered message.
+        """
+        if self.user_store:
+            return self.user_store.ensure_model_tracker_discord_notification(
+                user_id, snapshot, discord_payload
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                INSERT OR IGNORE INTO discord_trade_notifications (
+                    user_id, dedupe_key, snapshot_id, notification_type,
+                    status, attempts, payload_json, created_at, updated_at
+                ) VALUES (?, ?, ?, 'model_tracker_insert', 'pending', 0, ?, ?, ?)
+                """,
+                (
+                    user_id,
+                    snapshot["dedupe_key"],
+                    snapshot["snapshot_id"],
+                    json.dumps(discord_payload),
+                    now,
+                    now,
+                ),
+            )
+            return cursor.rowcount > 0
+
     def mark_discord_notification_delivered(
         self, notification_id: int, message_id: str | None, response_status: int | None
     ) -> None:
@@ -1483,7 +1829,8 @@ class TrackerDatabase:
             rows = conn.execute(
                 """
                 SELECT dedupe_key, snapshot_id, status, result, settled_at,
-                       created_at, updated_at, snapshot_json
+                       created_at, updated_at, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE user_id = ?
                 ORDER BY created_at ASC
@@ -1500,6 +1847,12 @@ class TrackerDatabase:
                 "created_at": row["created_at"],
                 "updated_at": row["updated_at"],
                 "snapshot": json.loads(row["snapshot_json"]),
+                "thirty_minute_checked_at": row["thirty_minute_checked_at"],
+                "thirty_minute_checkpoint": (
+                    json.loads(row["thirty_minute_checkpoint_json"])
+                    if row["thirty_minute_checkpoint_json"]
+                    else None
+                ),
             }
             for row in rows
         ]
@@ -1511,7 +1864,8 @@ class TrackerDatabase:
             row = conn.execute(
                 """
                 SELECT dedupe_key, snapshot_id, status, result, settled_at,
-                       created_at, updated_at, snapshot_json
+                       created_at, updated_at, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE user_id = ? AND dedupe_key = ?
                 """,
@@ -1528,6 +1882,12 @@ class TrackerDatabase:
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "snapshot": json.loads(row["snapshot_json"]),
+            "thirty_minute_checked_at": row["thirty_minute_checked_at"],
+            "thirty_minute_checkpoint": (
+                json.loads(row["thirty_minute_checkpoint_json"])
+                if row["thirty_minute_checkpoint_json"]
+                else None
+            ),
         }
 
     def set_tracking_job_state(self, state: dict) -> None:
@@ -1604,7 +1964,8 @@ class TrackerDatabase:
         with self.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT user_id, dedupe_key, status, snapshot_json
+                SELECT user_id, dedupe_key, status, snapshot_id, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE status IN ('scheduled', 'live', 'unresolved')
                 """
@@ -1613,8 +1974,15 @@ class TrackerDatabase:
             {
                 "user_id": row["user_id"],
                 "dedupe_key": row["dedupe_key"],
+                "snapshot_id": row["snapshot_id"],
                 "status": row["status"],
                 "snapshot": json.loads(row["snapshot_json"]),
+                "thirty_minute_checked_at": row["thirty_minute_checked_at"],
+                "thirty_minute_checkpoint": (
+                    json.loads(row["thirty_minute_checkpoint_json"])
+                    if row["thirty_minute_checkpoint_json"]
+                    else None
+                ),
             }
             for row in rows
         ]
@@ -2015,8 +2383,9 @@ class TrackerDatabase:
                     provider, provider_event_id, provider_market_id,
                     provider_selection_id, quote_timestamp, provider_status,
                     best_bid, best_ask, midpoint, last_trade, depth_json,
+                    tracker_type, tracker_record_id, snapshot_json,
                     source, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     quote["provider"], quote["provider_event_id"],
@@ -2024,7 +2393,10 @@ class TrackerDatabase:
                     quote["quote_timestamp"], quote.get("provider_status"),
                     quote.get("best_bid"), quote.get("best_ask"),
                     quote.get("midpoint"), quote.get("last_trade"),
-                    json.dumps(quote.get("depth") or []), quote["source"],
+                    json.dumps(quote.get("depth") or []),
+                    quote.get("tracker_type"), quote.get("tracker_record_id"),
+                    json.dumps(quote.get("snapshot") or {}, sort_keys=True),
+                    quote["source"],
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
@@ -2046,6 +2418,27 @@ class TrackerDatabase:
         result = [dict(row) for row in rows]
         for row in result:
             row["depth"] = json.loads(row.pop("depth_json"))
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return result
+
+    def get_tracker_clv_quotes(
+        self, tracker_type: str, tracker_record_id: str
+    ) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_tracker_clv_quotes(
+                tracker_type, tracker_record_id
+            )
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM clv_quote_snapshots
+                   WHERE tracker_type = ? AND tracker_record_id = ?
+                   ORDER BY quote_timestamp ASC""",
+                (tracker_type, tracker_record_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["depth"] = json.loads(row.pop("depth_json") or "[]")
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
         return result
 
     def insert_closing_line(self, snapshot: dict) -> bool:
@@ -2068,6 +2461,34 @@ class TrackerDatabase:
                 self._closing_line_values(snapshot),
             )
         return cursor.rowcount > 0
+
+    def replace_failed_closing_line(self, snapshot: dict) -> bool:
+        """Replace an unavailable close only after a verified close is recovered."""
+        if self.user_store:
+            return self.user_store.replace_failed_closing_line(snapshot)
+        with self.connection() as conn:
+            deleted = conn.execute(
+                """DELETE FROM closing_line_snapshots
+                   WHERE tracker_type = ? AND tracker_record_id = ?
+                     AND clv_status IN ('market_mapping_error', 'unavailable', 'stale_quote')""",
+                (snapshot["tracker_type"], snapshot["tracker_record_id"]),
+            ).rowcount
+            if not deleted:
+                return False
+            conn.execute(
+                """INSERT INTO closing_line_snapshots (
+                    tracker_type, tracker_record_id, user_id, provider,
+                    provider_event_id, provider_market_id, provider_selection_id,
+                    entry_price, entry_native_odds, entry_implied_probability,
+                    entry_stake, closing_snapshot_timestamp,
+                    official_event_start_timestamp, closing_effective_price,
+                    closing_midpoint, clv_cents, clv_probability_points, clv_pct,
+                    midpoint_clv_pct, clv_status, clv_unavailable_reason,
+                    snapshot_json, calculation_version, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                self._closing_line_values(snapshot),
+            )
+        return True
 
     def get_closing_lines(self, tracker_type: str, user_id: str) -> list[dict]:
         if self.user_store:
@@ -3202,6 +3623,199 @@ class TrackerDatabase:
         payload = dict(row)
         payload["quotes"] = json.loads(payload.pop("quotes_json") or "[]")
         return payload
+
+    def record_ev_board(self, user_id: str, rows: list[dict]) -> dict:
+        """Persist material optimizer changes without duplicating refreshes."""
+        if self.user_store:
+            return self.user_store.record_ev_board(user_id, rows)
+        captured_at = datetime.now(timezone.utc).isoformat()
+        inserted = 0
+        with self.connection() as conn:
+            for row in rows:
+                opportunity_id = str(row.get("id") or "")
+                if not opportunity_id:
+                    continue
+                best = row.get("bestQuote") or {}
+                serialized = json.dumps(row, sort_keys=True, separators=(",", ":"))
+                snapshot_hash = stable_hash(
+                    user_id,
+                    opportunity_id,
+                    best.get("bookKey"),
+                    best.get("americanOdds"),
+                    best.get("liquidity"),
+                    row.get("fairProbability"),
+                    row.get("recommendedStake"),
+                    row.get("executionStatus"),
+                    row.get("portfolioStatus"),
+                )
+                cursor = conn.execute(
+                    """
+                    INSERT OR IGNORE INTO ev_opportunity_snapshots(
+                        snapshot_hash, user_id, opportunity_id, captured_at,
+                        commence_time, fair_probability, effective_decimal,
+                        ev_percent, recommended_stake, execution_status,
+                        book_key, american_odds, liquidity, snapshot_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        snapshot_hash,
+                        user_id,
+                        opportunity_id,
+                        captured_at,
+                        row.get("commenceTime"),
+                        row.get("fairProbability"),
+                        best.get("effectiveDecimal"),
+                        row.get("evPercent"),
+                        row.get("recommendedStake"),
+                        row.get("executionStatus"),
+                        best.get("bookKey"),
+                        best.get("americanOdds"),
+                        best.get("liquidity"),
+                        serialized,
+                    ),
+                )
+                inserted += max(0, cursor.rowcount)
+                conn.execute(
+                    """
+                    INSERT INTO ev_opportunities(
+                        user_id, opportunity_id, event_id, commence_time,
+                        first_seen_at, last_seen_at, execution_status,
+                        portfolio_status, opening_snapshot_json,
+                        latest_snapshot_json
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT(user_id, opportunity_id) DO UPDATE SET
+                        last_seen_at = excluded.last_seen_at,
+                        execution_status = excluded.execution_status,
+                        portfolio_status = excluded.portfolio_status,
+                        latest_snapshot_json = excluded.latest_snapshot_json
+                    """,
+                    (
+                        user_id,
+                        opportunity_id,
+                        str(row.get("eventId") or ""),
+                        row.get("commenceTime"),
+                        captured_at,
+                        captured_at,
+                        str(row.get("executionStatus") or "unknown"),
+                        str(row.get("portfolioStatus") or "unknown"),
+                        serialized,
+                        serialized,
+                    ),
+                )
+        return {"opportunities": len(rows), "material_snapshots": inserted}
+
+    def get_ev_optimizer_history(self, user_id: str, limit: int = 100) -> dict:
+        if self.user_store:
+            return self.user_store.get_ev_optimizer_history(user_id, limit)
+        with self.connection() as conn:
+            opportunity_rows = conn.execute(
+                """
+                SELECT * FROM ev_opportunities
+                WHERE user_id = ?
+                ORDER BY first_seen_at DESC
+                LIMIT ?
+                """,
+                (user_id, max(1, min(int(limit), 500))),
+            ).fetchall()
+            snapshot_rows = conn.execute(
+                """
+                SELECT * FROM ev_opportunity_snapshots
+                WHERE user_id = ?
+                ORDER BY captured_at ASC
+                """,
+                (user_id,),
+            ).fetchall()
+        snapshots_by_id: dict[str, list[dict]] = {}
+        for raw in snapshot_rows:
+            item = dict(raw)
+            item["snapshot"] = json.loads(item.pop("snapshot_json") or "{}")
+            snapshots_by_id.setdefault(item["opportunity_id"], []).append(item)
+        data = []
+        clv_values: list[float] = []
+        composite_clv_values: list[float] = []
+        now = datetime.now(timezone.utc)
+        for raw in opportunity_rows:
+            item = dict(raw)
+            opening = json.loads(item.pop("opening_snapshot_json") or "{}")
+            latest = json.loads(item.pop("latest_snapshot_json") or "{}")
+            snapshots = snapshots_by_id.get(item["opportunity_id"], [])
+            try:
+                start = datetime.fromisoformat(
+                    str(item.get("commence_time") or now.isoformat()).replace("Z", "+00:00")
+                )
+            except ValueError:
+                start = now
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            opening_book = str((opening.get("bestQuote") or {}).get("bookKey") or "")
+            eligible_closes = [
+                snapshot
+                for snapshot in snapshots
+                if snapshot.get("book_key") == opening_book
+                and datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00")) <= start
+                and datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00")) >= start - timedelta(minutes=30)
+                and snapshot.get("effective_decimal")
+            ] if now >= start else []
+            composite_closes = [
+                snapshot
+                for snapshot in snapshots
+                if datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00")) <= start
+                and datetime.fromisoformat(snapshot["captured_at"].replace("Z", "+00:00")) >= start - timedelta(minutes=30)
+                and snapshot.get("fair_probability")
+            ] if now >= start else []
+            clv_points = None
+            composite_clv_points = None
+            if eligible_closes and (opening.get("bestQuote") or {}).get("effectiveDecimal"):
+                entry_probability = 1.0 / float(opening["bestQuote"]["effectiveDecimal"])
+                close_probability = 1.0 / float(eligible_closes[-1]["effective_decimal"])
+                clv_points = (close_probability - entry_probability) * 100.0
+                clv_values.append(clv_points)
+            if composite_closes and (opening.get("bestQuote") or {}).get("effectiveDecimal"):
+                entry_probability = 1.0 / float(opening["bestQuote"]["effectiveDecimal"])
+                composite_clv_points = (
+                    float(composite_closes[-1]["fair_probability"]) - entry_probability
+                ) * 100.0
+                composite_clv_values.append(composite_clv_points)
+            data.append(
+                {
+                    **item,
+                    "opening": opening,
+                    "latest": latest,
+                    "snapshotCount": len(snapshots),
+                    "respectiveBookClvPoints": (
+                        round(clv_points, 3) if clv_points is not None else None
+                    ),
+                    "compositeClvPoints": (
+                        round(composite_clv_points, 3)
+                        if composite_clv_points is not None
+                        else None
+                    ),
+                }
+            )
+        return {
+            "data": data,
+            "summary": {
+                "opportunities": len(opportunity_rows),
+                "snapshots": len(snapshot_rows),
+                "clvSamples": len(clv_values),
+                "averageRespectiveBookClvPoints": (
+                    round(sum(clv_values) / len(clv_values), 3)
+                    if clv_values
+                    else None
+                ),
+                "medianRespectiveBookClvPoints": (
+                    round(sorted(clv_values)[len(clv_values) // 2], 3)
+                    if clv_values
+                    else None
+                ),
+                "compositeClvSamples": len(composite_clv_values),
+                "averageCompositeClvPoints": (
+                    round(sum(composite_clv_values) / len(composite_clv_values), 3)
+                    if composite_clv_values
+                    else None
+                ),
+            },
+        }
 
     def health(self) -> dict[str, object]:
         payload: dict[str, object] = {

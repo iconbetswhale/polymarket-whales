@@ -1,0 +1,2109 @@
+/* IconLabs Bet Tracker — second-stage performance art direction.
+   Page-scoped by design: this layer changes presentation only and preserves
+   every existing ID, data hook, table, dialog, and tracker interaction. */
+
+body[data-page="tracker"] {
+  --tracker-root: #08070d;
+  --tracker-workspace: #0d0b13;
+  --tracker-surface: #12101a;
+  --tracker-surface-raised: #171321;
+  --tracker-surface-emphasis: #1d1729;
+  --tracker-purple: #a99af5;
+  --tracker-purple-hover: #b8acfa;
+  --tracker-purple-muted: #8273cd;
+  --tracker-purple-soft: rgba(169, 154, 245, 0.1);
+  --tracker-purple-strong: rgba(169, 154, 245, 0.17);
+  --tracker-line: rgba(195, 183, 238, 0.1);
+  --tracker-line-strong: rgba(195, 183, 238, 0.2);
+  --tracker-copy: #f5f2fa;
+  --tracker-copy-secondary: #b8b1c5;
+  --tracker-copy-muted: #81798f;
+  --tracker-positive: #79de79;
+  background:
+    radial-gradient(circle at 54% 18%, rgba(130, 115, 205, 0.07), transparent 31rem),
+    var(--tracker-root) !important;
+  color: var(--tracker-copy);
+}
+
+/* Tracker information architecture: Dashboard + Bet Tracker */
+body[data-page="tracker"] [hidden] {
+  display: none !important;
+}
+
+body[data-page="tracker"] .tracker-page-header {
+  max-width: 1540px;
+  margin: 0 auto;
+  padding-bottom: 8px;
+}
+
+body[data-page="tracker"] .tracker-page-header .eyebrow,
+body[data-page="tracker"] .tracker-page-header .tracker-subtitle {
+  display: none;
+}
+
+body[data-page="tracker"] .tracker-page-header h1 {
+  color: #f8fafc;
+  font-size: clamp(25px, 2vw, 32px);
+  font-weight: 760;
+  letter-spacing: -0.035em;
+}
+
+body[data-page="tracker"] .tracker-section-tabs {
+  width: min(100%, 1540px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 auto 18px;
+}
+
+body[data-page="tracker"] .tracker-section-tabs button {
+  min-height: 36px;
+  padding: 0 15px;
+  border: 1px solid #314553;
+  border-radius: 999px;
+  background: #070b0e;
+  color: #edf2f5;
+  font: 700 12px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+body[data-page="tracker"] .tracker-section-tabs button:hover {
+  border-color: #4f7185;
+  transform: translateY(-1px);
+}
+
+body[data-page="tracker"] .tracker-section-tabs button.active {
+  border-color: #68879a;
+  background: #405a6d;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+body[data-page="tracker"] .tracker-dashboard-grid,
+body[data-page="tracker"] .tracker-bets-view {
+  width: min(100%, 1540px);
+  margin-inline: auto;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 16px !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel {
+  min-height: 0 !important;
+  padding: 18px 20px 14px !important;
+  border: 1px solid #2e414d !important;
+  border-radius: 12px !important;
+  background: #101b22 !important;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.24) !important;
+}
+
+body[data-page="tracker"] .tracker-performance-header {
+  min-height: 48px;
+  padding-bottom: 12px;
+}
+
+body[data-page="tracker"] .tracker-performance-frame {
+  min-height: 360px;
+  border-color: #2c3b45;
+  border-radius: 10px;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart,
+body[data-page="tracker"] .tracker-calendar {
+  min-height: 360px !important;
+  height: 360px;
+}
+
+body[data-page="tracker"] .tracker-performance-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  padding: 16px 0 8px;
+}
+
+body[data-page="tracker"] .tracker-performance-summary > div {
+  padding: 0 18px;
+  border-right: 1px solid #263944;
+}
+
+body[data-page="tracker"] .tracker-performance-summary > div:first-child {
+  padding-left: 2px;
+}
+
+body[data-page="tracker"] .tracker-performance-summary > div:last-child {
+  border-right: 0;
+}
+
+body[data-page="tracker"] .tracker-profit-panel {
+  overflow: visible;
+  border: 1px solid #304552;
+  border-radius: 11px;
+  background: #13232e;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.2);
+}
+
+body[data-page="tracker"] .tracker-profit-header {
+  min-height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #314752;
+}
+
+body[data-page="tracker"] .tracker-profit-header h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 760;
+  letter-spacing: -0.02em;
+}
+
+body[data-page="tracker"] .tracker-profit-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+}
+
+body[data-page="tracker"] .tracker-profit-controls > select,
+body[data-page="tracker"] .tracker-profit-controls .tracker-book-filter > summary,
+body[data-page="tracker"] .tracker-profit-controls .segmented {
+  min-height: 36px;
+  border: 1px solid #3a5666;
+  border-radius: 7px;
+  background: #182a36;
+  color: #f4f7f8;
+}
+
+body[data-page="tracker"] .tracker-profit-controls > select {
+  min-width: 112px;
+  padding: 0 34px 0 12px;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+body[data-page="tracker"] .tracker-profit-controls .tracker-book-filter > summary {
+  min-width: 155px;
+  padding-inline: 12px;
+}
+
+body[data-page="tracker"] .tracker-profit-controls .segmented {
+  display: inline-flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+body[data-page="tracker"] .tracker-profit-controls .segmented button {
+  min-height: 34px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #d8e1e6;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+body[data-page="tracker"] .tracker-profit-controls .segmented button.active {
+  background: #08769a;
+  color: #fff;
+}
+
+body[data-page="tracker"] .tracker-custom-dates {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px;
+}
+
+body[data-page="tracker"] .tracker-custom-dates:has(.tracker-custom-date:not([hidden])) {
+  padding-block: 10px;
+  border-bottom: 1px solid #2c414d;
+}
+
+body[data-page="tracker"] .tracker-profit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+body[data-page="tracker"] .tracker-profit-grid > div {
+  min-height: 90px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 7px;
+  padding: 15px 18px;
+  border-right: 1px solid #2b404c;
+  border-bottom: 1px solid #2b404c;
+}
+
+body[data-page="tracker"] .tracker-profit-grid > div:nth-child(4n) {
+  border-right: 0;
+}
+
+body[data-page="tracker"] .tracker-profit-grid > div:nth-child(n + 5) {
+  border-bottom: 0;
+}
+
+body[data-page="tracker"] .tracker-profit-grid span {
+  color: #eef3f5;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+body[data-page="tracker"] .tracker-profit-grid strong {
+  color: #fff;
+  font-size: clamp(20px, 1.6vw, 27px);
+  font-weight: 760;
+  letter-spacing: -0.03em;
+}
+
+body[data-page="tracker"] .tracker-profit-grid strong.positive {
+  color: #58e583;
+}
+
+body[data-page="tracker"] .tracker-profit-grid strong.negative {
+  color: #ff7378;
+}
+
+body[data-page="tracker"] .tracker-bets-view .tracker-toolbar {
+  margin-top: 0;
+  border: 1px solid #2d424e;
+  border-radius: 10px;
+  background: #101d25;
+}
+
+body[data-page="tracker"] .tracker-bets-view .table-panel {
+  margin-top: 12px;
+  border-color: #2d424e;
+  border-radius: 10px;
+  background: #0e1920;
+}
+
+@media (max-width: 900px) {
+  body[data-page="tracker"] .tracker-profit-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls {
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div:nth-child(4n) {
+    border-right: 1px solid #2b404c;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div:nth-child(2n) {
+    border-right: 0;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div:nth-child(n + 5) {
+    border-bottom: 1px solid #2b404c;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div:nth-child(n + 7) {
+    border-bottom: 0;
+  }
+}
+
+@media (max-width: 600px) {
+  body[data-page="tracker"] .tracker-page-header {
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  body[data-page="tracker"] .tracker-section-tabs {
+    gap: 8px;
+    margin-bottom: 13px;
+    overflow-x: auto;
+  }
+
+  body[data-page="tracker"] .tracker-section-tabs button {
+    min-height: 34px;
+    padding-inline: 13px;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel {
+    padding: 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-frame,
+  body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart,
+  body[data-page="tracker"] .tracker-calendar {
+    min-height: 300px !important;
+    height: 300px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 14px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary > div:nth-child(3) {
+    padding-left: 2px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-header {
+    padding: 13px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls > select,
+  body[data-page="tracker"] .tracker-profit-controls .tracker-book-filter > summary {
+    min-width: 132px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div {
+    min-height: 82px;
+    padding: 13px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid span {
+    font-size: 10px;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid strong {
+    font-size: 20px;
+  }
+}
+
+body[data-page="tracker"] .app-shell {
+  padding-top: 78px !important;
+  background:
+    radial-gradient(circle at 46% 12%, rgba(169, 154, 245, 0.035), transparent 34rem),
+    var(--tracker-root) !important;
+}
+
+body[data-page="tracker"] .tracker-page-header,
+body[data-page="tracker"] .tracker-switcher-shell,
+body[data-page="tracker"] .tracker-context,
+body[data-page="tracker"] .tracker-dashboard-grid,
+body[data-page="tracker"] .tracker-advanced-panel,
+body[data-page="tracker"] .tracker-toolbar,
+body[data-page="tracker"] .tracker-book-summary,
+body[data-page="tracker"] .table-panel {
+  width: min(100%, 1640px);
+  max-width: 1640px;
+}
+
+/* Header: one performance command bar, with passive values kept quiet. */
+body[data-page="tracker"] .tracker-page-header {
+  min-height: 72px;
+  margin-bottom: 2px;
+  align-items: center;
+}
+
+body[data-page="tracker"] .tracker-page-header .eyebrow {
+  color: var(--tracker-purple-muted) !important;
+  letter-spacing: 0.085em;
+}
+
+body[data-page="tracker"] .tracker-page-header h1 {
+  color: var(--tracker-copy) !important;
+  font-size: clamp(26px, 2vw, 31px) !important;
+  font-weight: 730 !important;
+  letter-spacing: -0.045em !important;
+}
+
+body[data-page="tracker"] .tracker-page-header .result-badge {
+  border: 0 !important;
+  background: var(--tracker-purple-soft) !important;
+  color: var(--tracker-copy-secondary) !important;
+}
+
+body[data-page="tracker"] .tracker-page-header .status-label.ready {
+  border-color: rgba(121, 222, 121, 0.26) !important;
+  background: rgba(121, 222, 121, 0.09) !important;
+  color: var(--tracker-positive) !important;
+}
+
+body[data-page="tracker"] .tracker-header-actions {
+  gap: 10px;
+}
+
+body[data-page="tracker"] .bankroll-inline {
+  min-height: 38px;
+  padding: 0 2px 0 0;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .bankroll-inline strong {
+  margin-left: 5px;
+  color: var(--tracker-copy) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-page="tracker"] .bankroll-edit {
+  margin-left: 4px;
+  color: var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-header-actions .button {
+  border-color: var(--tracker-line) !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-header-actions .button:hover {
+  border-color: var(--tracker-line-strong) !important;
+  background: var(--tracker-purple-soft) !important;
+}
+
+/* View switcher: light lavender selection without a bright perimeter. */
+body[data-page="tracker"] .tracker-switcher-shell {
+  margin-top: -9px;
+  margin-bottom: 13px;
+}
+
+body[data-page="tracker"] .tracker-view-toggle {
+  gap: 2px;
+  padding: 3px;
+  border: 0 !important;
+  border-radius: 9px !important;
+  background: rgba(18, 16, 26, 0.88) !important;
+}
+
+body[data-page="tracker"] .tracker-view-toggle button {
+  min-width: 190px;
+  min-height: 42px;
+  border: 0 !important;
+  background: transparent !important;
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .tracker-view-toggle button:hover {
+  background: rgba(169, 154, 245, 0.06) !important;
+  color: var(--tracker-copy-secondary) !important;
+}
+
+body[data-page="tracker"] .tracker-view-toggle button[aria-selected="true"] {
+  background: var(--tracker-purple-strong) !important;
+  color: var(--tracker-copy) !important;
+  box-shadow: inset 3px 0 0 var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-view-toggle button i,
+body[data-page="tracker"] .tracker-view-toggle button[aria-selected="true"] i {
+  color: var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-view-toggle strong {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+body[data-page="tracker"] .tracker-view-toggle small {
+  color: var(--tracker-copy-muted) !important;
+}
+
+/* The ledger notice becomes a calm contextual ribbon rather than a card. */
+body[data-page="tracker"] .tracker-context {
+  min-height: 52px;
+  margin-bottom: 18px;
+  padding: 8px 14px;
+  border: 0 !important;
+  border-left: 2px solid var(--tracker-purple-muted) !important;
+  border-radius: 2px 9px 9px 2px !important;
+  background: linear-gradient(90deg, rgba(169, 154, 245, 0.09), rgba(169, 154, 245, 0.018) 58%, transparent) !important;
+  box-shadow: none !important;
+}
+
+body[data-page="tracker"] .tracker-context > i {
+  background: transparent !important;
+  color: var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-context strong {
+  color: var(--tracker-copy) !important;
+  font-size: 12px;
+}
+
+body[data-page="tracker"] .tracker-context p {
+  color: var(--tracker-copy-muted) !important;
+  font-size: 10.5px;
+}
+
+/* Hero composition: dominant performance canvas with a focused CLV rail. */
+body[data-page="tracker"] .tracker-dashboard-grid {
+  grid-template-columns: minmax(0, 1.82fr) minmax(340px, 0.62fr) !important;
+  gap: 18px !important;
+  margin-bottom: 18px;
+  align-items: stretch;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main {
+  min-width: 0;
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-flow: row dense;
+  gap: 10px 12px !important;
+}
+
+/* Removing the metrics wrapper lets the figures participate in the hero
+   composition instead of reading as a separate grid of equal cards. */
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-metrics {
+  display: contents !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel {
+  position: relative;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  min-height: 390px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--tracker-line) !important;
+  border-radius: 14px !important;
+  background:
+    radial-gradient(circle at 82% 6%, rgba(169, 154, 245, 0.12), transparent 26rem),
+    linear-gradient(180deg, #151120, #100e18) !important;
+  box-shadow: 0 26px 64px rgba(0, 0, 0, 0.23);
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel::after {
+  content: "";
+  position: absolute;
+  inset: 58px 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(169, 154, 245, 0.16), transparent);
+  pointer-events: none;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel .panel-header {
+  position: relative;
+  z-index: 2;
+  min-height: 68px;
+  padding: 15px 18px;
+  border-bottom: 0 !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel .eyebrow,
+body[data-page="tracker"] .tracker-clv-panel .eyebrow {
+  color: var(--tracker-purple-muted) !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel h2 {
+  color: var(--tracker-copy) !important;
+  font-size: 17px !important;
+  font-weight: 650;
+}
+
+body[data-page="tracker"] .segmented {
+  padding: 3px;
+  border: 0 !important;
+  background: rgba(8, 7, 13, 0.52) !important;
+}
+
+body[data-page="tracker"] .segmented button {
+  min-height: 30px;
+  border: 0 !important;
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .segmented button:hover {
+  color: var(--tracker-copy-secondary) !important;
+  background: var(--tracker-purple-soft) !important;
+}
+
+body[data-page="tracker"] .segmented button.active {
+  background: var(--tracker-purple-strong) !important;
+  color: var(--tracker-copy) !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart {
+  min-height: 320px !important;
+  padding: 2px 12px 12px;
+  background: transparent !important;
+}
+
+/* The chart renderer is canvas-based. A page-scoped color transform converts
+   its legacy cyan plot treatment to the restrained lavender art direction. */
+body[data-page="tracker"] #tracker-chart canvas,
+body[data-page="tracker"] #clv-chart canvas {
+  filter: hue-rotate(55deg) saturate(0.72) brightness(1.08);
+  animation: tracker-chart-arrive 420ms ease-out both;
+}
+
+@keyframes tracker-chart-arrive {
+  from { opacity: 0; transform: translateY(3px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Performance metrics: current bankroll owns the row; supporting statistics
+   become borderless groups with only spacing and type establishing hierarchy. */
+body[data-page="tracker"] .tracker-metrics .metric-card {
+  min-height: 86px;
+  padding: 12px 14px;
+  border: 0 !important;
+  border-radius: 10px !important;
+  background: rgba(23, 19, 33, 0.54) !important;
+  box-shadow: none !important;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:hover {
+  background: rgba(29, 23, 41, 0.72) !important;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2) {
+  grid-column: 1 / 3;
+  grid-row: 1;
+  min-height: 116px;
+  padding: 16px 18px;
+  border-left: 3px solid var(--tracker-purple) !important;
+  background:
+    linear-gradient(100deg, rgba(169, 154, 245, 0.15), rgba(23, 19, 33, 0.7) 52%, rgba(23, 19, 33, 0.35)) !important;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2)::before {
+  content: "Primary performance";
+  color: var(--tracker-purple-muted);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2) > strong {
+  color: var(--tracker-copy) !important;
+  font-size: clamp(29px, 2.6vw, 38px) !important;
+  letter-spacing: -0.045em;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(3) {
+  grid-column: 3;
+  grid-row: 1;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(4) {
+  grid-column: 4;
+  grid-row: 1;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(1),
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(n + 5) {
+  background: transparent !important;
+  border-radius: 0 !important;
+  box-shadow: inset 1px 0 0 var(--tracker-line) !important;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(n + 10) {
+  min-height: 70px;
+  padding-top: 9px;
+  padding-bottom: 9px;
+  opacity: 0.82;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-icon {
+  width: 27px;
+  height: 27px;
+  margin-bottom: 7px;
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: var(--tracker-purple-soft) !important;
+  color: var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card > span {
+  color: var(--tracker-copy-muted) !important;
+  font-size: 9px !important;
+  letter-spacing: 0.07em;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card > strong {
+  color: var(--tracker-copy) !important;
+  font-size: 20px !important;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card > small {
+  color: var(--tracker-copy-muted) !important;
+}
+
+/* CLV becomes an intelligence rail, led by the all-time measured value. */
+body[data-page="tracker"] .tracker-clv-panel {
+  min-width: 0;
+  height: 100%;
+  margin: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(220px, 1fr);
+  overflow: hidden;
+  border: 1px solid var(--tracker-line) !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, #14101d, #0f0d16) !important;
+  box-shadow: 0 24px 54px rgba(0, 0, 0, 0.19);
+}
+
+body[data-page="tracker"] .tracker-clv-panel .panel-header {
+  padding: 16px 17px 12px;
+  border-bottom: 0 !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-clv-panel h2 {
+  color: var(--tracker-copy) !important;
+  font-size: 17px !important;
+}
+
+body[data-page="tracker"] .tracker-clv-panel .panel-header p {
+  max-width: 34ch;
+  color: var(--tracker-copy-muted) !important;
+  font-size: 10.5px !important;
+}
+
+body[data-page="tracker"] .clv-period-strip {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  padding: 0 16px 12px !important;
+  border: 0 !important;
+}
+
+body[data-page="tracker"] .clv-period-strip > span {
+  min-height: 74px;
+  padding: 10px 11px !important;
+  border: 0 !important;
+  border-top: 1px solid var(--tracker-line) !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .clv-period-strip > span:nth-child(odd) {
+  border-right: 1px solid var(--tracker-line) !important;
+}
+
+body[data-page="tracker"] .clv-period-strip > span:nth-child(6) {
+  grid-column: 1 / -1;
+  grid-row: 1;
+  min-height: 110px;
+  padding: 13px 12px !important;
+  border: 0 !important;
+  border-left: 2px solid var(--tracker-purple-muted) !important;
+  background: linear-gradient(90deg, var(--tracker-purple-soft), transparent) !important;
+}
+
+body[data-page="tracker"] .clv-period-strip > span:nth-child(6) small::after {
+  content: " · primary";
+  color: var(--tracker-purple-muted);
+}
+
+body[data-page="tracker"] .clv-period-strip > span:nth-child(6) strong {
+  margin-top: 4px;
+  font-size: 30px !important;
+  letter-spacing: -0.04em;
+}
+
+body[data-page="tracker"] .clv-period-strip small,
+body[data-page="tracker"] .clv-period-strip em {
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .clv-period-strip strong {
+  color: var(--tracker-copy-secondary) !important;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-page="tracker"] .clv-period-strip strong.positive {
+  color: var(--tracker-positive) !important;
+}
+
+body[data-page="tracker"] .clv-period-strip strong.negative {
+  color: #eb707b !important;
+}
+
+body[data-page="tracker"] .tracker-clv-panel .tracker-chart {
+  min-height: 240px !important;
+  margin: 0 12px 12px;
+  border-top: 1px solid var(--tracker-line);
+  background:
+    linear-gradient(180deg, rgba(169, 154, 245, 0.045), transparent),
+    transparent !important;
+}
+
+/* Supporting analytics are quieter, flatter, and deliberately secondary. */
+body[data-page="tracker"] .tracker-advanced-panel {
+  margin-bottom: 14px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 12px !important;
+  background: var(--tracker-surface) !important;
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.13);
+}
+
+body[data-page="tracker"] .tracker-advanced-panel .panel-header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--tracker-line) !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-advanced-panel .panel-header h2 {
+  color: var(--tracker-copy) !important;
+  font-size: 17px !important;
+}
+
+body[data-page="tracker"] .tracker-advanced-panel .panel-header p {
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .tracker-analytics-summary {
+  gap: 0;
+  padding: 0 18px 13px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-analytics-summary span {
+  min-width: 0;
+  padding: 10px 18px 10px 0;
+  border: 0 !important;
+  border-right: 1px solid var(--tracker-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .tracker-analytics-summary span + span {
+  padding-left: 18px;
+}
+
+body[data-page="tracker"] .tracker-toolbar {
+  position: relative;
+  margin-top: 0;
+  padding: 10px 12px !important;
+  gap: 7px;
+  border: 0 !important;
+  border-bottom: 1px solid var(--tracker-line) !important;
+  border-radius: 10px 10px 0 0 !important;
+  background: rgba(18, 16, 26, 0.9) !important;
+}
+
+body[data-page="tracker"] .tracker-toolbar select,
+body[data-page="tracker"] .tracker-toolbar input,
+body[data-page="tracker"] .tracker-toolbar .search-control,
+body[data-page="tracker"] .tracker-book-filter > summary {
+  min-height: 34px;
+  border-color: var(--tracker-line) !important;
+  background: rgba(8, 7, 13, 0.52) !important;
+  color: var(--tracker-copy-secondary) !important;
+}
+
+body[data-page="tracker"] .tracker-toolbar select:focus,
+body[data-page="tracker"] .tracker-toolbar input:focus,
+body[data-page="tracker"] .tracker-book-filter > summary:focus-visible {
+  border-color: rgba(169, 154, 245, 0.5) !important;
+  box-shadow: 0 0 0 3px var(--tracker-purple-soft) !important;
+}
+
+body[data-page="tracker"] .tracker-book-filter-popover {
+  border-color: var(--tracker-line-strong) !important;
+  background: var(--tracker-surface-raised) !important;
+}
+
+body[data-page="tracker"] .tracker-book-filter-options label:hover {
+  background: var(--tracker-purple-soft) !important;
+}
+
+body[data-page="tracker"] .tracker-book-filter-actions button {
+  color: var(--tracker-purple) !important;
+}
+
+body[data-page="tracker"] .tracker-book-summary {
+  gap: 0;
+  margin-bottom: 14px;
+  border-bottom: 1px solid var(--tracker-line);
+}
+
+body[data-page="tracker"] .tracker-book-summary article {
+  padding: 10px 14px;
+  border: 0 !important;
+  border-right: 1px solid var(--tracker-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .table-panel {
+  min-height: 360px;
+  overflow: hidden;
+  border: 0 !important;
+  border-radius: 0 0 12px 12px !important;
+  background: var(--tracker-surface) !important;
+}
+
+body[data-page="tracker"] .responsive-table th {
+  height: 42px;
+  border-color: var(--tracker-line) !important;
+  background: #0d0b13 !important;
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .responsive-table td {
+  padding: 11px 12px;
+  border-color: rgba(195, 183, 238, 0.065) !important;
+  color: var(--tracker-copy-secondary);
+}
+
+body[data-page="tracker"] .responsive-table tbody tr {
+  background: transparent !important;
+}
+
+body[data-page="tracker"] .responsive-table tbody tr:hover {
+  background: rgba(169, 154, 245, 0.045) !important;
+}
+
+body[data-page="tracker"] .responsive-table td strong {
+  color: var(--tracker-copy) !important;
+}
+
+body[data-page="tracker"] .responsive-table td small {
+  color: var(--tracker-copy-muted) !important;
+}
+
+body[data-page="tracker"] .positive {
+  color: var(--tracker-positive) !important;
+}
+
+/* Diagnostics and dialogs remain fully functional while joining the new
+   hierarchy. */
+body[data-page="tracker"] .tracker-diagnostics {
+  margin-bottom: 16px;
+  border-color: var(--tracker-line) !important;
+  background: var(--tracker-surface) !important;
+}
+
+body[data-page="tracker"] .tracker-dialog::backdrop {
+  background: rgba(5, 3, 9, 0.84) !important;
+}
+
+body[data-page="tracker"] .tracker-dialog-shell {
+  border-color: var(--tracker-line-strong) !important;
+  background: var(--tracker-surface-raised) !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.58) !important;
+}
+
+body[data-page="tracker"] .tracker-loading-state span {
+  background: var(--tracker-purple-muted) !important;
+}
+
+body[data-page="tracker"] .entry-timing-panel {
+  position: relative;
+  margin: 16px 0;
+  overflow: hidden;
+  border: 1px solid var(--tracker-line-strong);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 4%, rgba(128, 103, 226, 0.13), transparent 34%),
+    linear-gradient(145deg, rgba(22, 18, 33, 0.98), rgba(13, 11, 21, 0.98));
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.24);
+}
+
+body[data-page="tracker"] .entry-timing-panel::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  content: "";
+  background: linear-gradient(180deg, #a895f5, rgba(102, 222, 184, 0.72));
+}
+
+body[data-page="tracker"] .entry-timing-panel .panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 21px 24px 17px;
+  border-bottom: 1px solid var(--tracker-line);
+}
+
+body[data-page="tracker"] .entry-timing-panel .panel-header h2 {
+  margin: 4px 0 6px;
+  color: var(--tracker-copy);
+  font-size: 19px;
+  letter-spacing: -0.02em;
+}
+
+body[data-page="tracker"] .entry-timing-panel .panel-header p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--tracker-copy-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+body[data-page="tracker"] .entry-timing-verdict {
+  min-width: 168px;
+  padding: 10px 13px;
+  border: 1px solid rgba(168, 149, 245, 0.24);
+  border-radius: 12px;
+  background: rgba(168, 149, 245, 0.08);
+  color: #cfc3ff;
+  font-size: 11px;
+  font-weight: 760;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+body[data-page="tracker"] .entry-timing-metrics {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  border-bottom: 1px solid var(--tracker-line);
+}
+
+body[data-page="tracker"] .entry-timing-metrics article {
+  min-height: 94px;
+  padding: 17px 18px;
+  border-right: 1px solid var(--tracker-line);
+}
+
+body[data-page="tracker"] .entry-timing-metrics article:last-child {
+  border-right: 0;
+}
+
+body[data-page="tracker"] .entry-timing-metrics span,
+body[data-page="tracker"] .checkpoint-grid span {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--tracker-copy-muted);
+  font-size: 9px;
+  font-weight: 720;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+body[data-page="tracker"] .entry-timing-metrics strong {
+  color: var(--tracker-copy);
+  font-size: 20px;
+  letter-spacing: -0.025em;
+}
+
+body[data-page="tracker"] .entry-timing-feed {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px;
+}
+
+body[data-page="tracker"] .entry-timing-feed > article {
+  padding: 15px;
+  border: 1px solid var(--tracker-line);
+  border-radius: 13px;
+  background: rgba(9, 8, 15, 0.55);
+}
+
+body[data-page="tracker"] .entry-timing-feed > article > span:first-child strong {
+  display: block;
+  margin-bottom: 9px;
+  overflow: hidden;
+  color: var(--tracker-copy);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .entry-timing-feed .muted {
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+body[data-page="tracker"] .checkpoint-details {
+  min-width: 178px;
+}
+
+body[data-page="tracker"] .checkpoint-details summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 9px;
+  border: 1px solid rgba(168, 149, 245, 0.2);
+  border-radius: 9px;
+  background: rgba(168, 149, 245, 0.07);
+  color: #cfc3ff;
+  font-size: 10px;
+  font-weight: 740;
+  cursor: pointer;
+  list-style: none;
+}
+
+body[data-page="tracker"] .checkpoint-details summary strong {
+  font-size: 10px;
+}
+
+body[data-page="tracker"] .checkpoint-details summary small {
+  color: var(--tracker-copy-muted);
+  font-size: 9px;
+  font-weight: 620;
+}
+
+body[data-page="tracker"] .checkpoint-pending {
+  color: var(--tracker-copy-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .checkpoint-details summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-page="tracker"] .checkpoint-details[open] summary {
+  margin-bottom: 9px;
+  border-color: rgba(168, 149, 245, 0.4);
+  background: rgba(168, 149, 245, 0.13);
+}
+
+body[data-page="tracker"] .checkpoint-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(76px, 1fr));
+  gap: 8px;
+  min-width: 220px;
+  padding: 10px;
+  border: 1px solid var(--tracker-line);
+  border-radius: 10px;
+  background: rgba(8, 7, 13, 0.88);
+}
+
+body[data-page="tracker"] .checkpoint-grid div {
+  min-width: 0;
+}
+
+body[data-page="tracker"] .checkpoint-grid span {
+  min-width: 0;
+  color: var(--tracker-copy);
+  font-size: 11px;
+}
+
+body[data-page="tracker"] .checkpoint-grid b {
+  display: block;
+  margin-bottom: 3px;
+  color: var(--tracker-copy-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body[data-page="tracker"] .checkpoint-grid strong {
+  color: var(--tracker-copy);
+  font-size: 11px;
+}
+
+body[data-page="tracker"] .checkpoint-grid .positive {
+  color: var(--tracker-positive) !important;
+}
+
+body[data-page="tracker"] .checkpoint-grid .negative {
+  color: #ff8f9f !important;
+}
+
+@media (max-width: 1360px) {
+  body[data-page="tracker"] .tracker-dashboard-grid {
+    grid-template-columns: minmax(0, 1.45fr) minmax(320px, 0.65fr) !important;
+  }
+
+  body[data-page="tracker"] .tracker-dashboard-main {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2) {
+    grid-column: 1 / 2;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(3) {
+    grid-column: 2;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(4) {
+    grid-column: 3;
+  }
+}
+
+@media (max-width: 1080px) {
+  body[data-page="tracker"] .tracker-dashboard-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  body[data-page="tracker"] .tracker-clv-panel {
+    min-height: 560px;
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics article:nth-child(3) {
+    border-right: 0;
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics article:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--tracker-line);
+  }
+}
+
+@media (max-width: 760px) {
+  body[data-page="tracker"] .tracker-page-header {
+    display: block;
+  }
+
+  body[data-page="tracker"] .tracker-header-actions {
+    margin-top: 12px;
+    overflow-x: auto;
+  }
+
+  body[data-page="tracker"] .tracker-switcher-shell {
+    margin-top: 8px;
+  }
+
+  body[data-page="tracker"] .tracker-view-toggle {
+    width: 100%;
+  }
+
+  body[data-page="tracker"] .tracker-view-toggle button {
+    min-width: 0;
+    flex: 1;
+  }
+
+  body[data-page="tracker"] .tracker-dashboard-main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel {
+    grid-row: 3;
+    min-height: 340px;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2) {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(3) {
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(4) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel .panel-header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel .segmented {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  body[data-page="tracker"] .entry-timing-panel .panel-header {
+    display: block;
+    padding: 18px;
+  }
+
+  body[data-page="tracker"] .entry-timing-verdict {
+    width: fit-content;
+    min-width: 0;
+    margin-top: 13px;
+  }
+
+  body[data-page="tracker"] .entry-timing-feed {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Closing line value workspace */
+body[data-page="tracker"] .tracker-clv-card {
+  position: relative;
+  overflow: hidden;
+  padding: 20px;
+  border: 1px solid #29313d;
+  border-radius: 20px;
+  background: #10141b;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .24);
+}
+
+body[data-page="tracker"] .tracker-clv-card-heading,
+body[data-page="tracker"] .tracker-clv-card-heading > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+body[data-page="tracker"] .tracker-clv-card-heading > div { justify-content: flex-start; }
+body[data-page="tracker"] .tracker-clv-card-heading i { color: #8ab8ff; font-size: 24px; }
+body[data-page="tracker"] .tracker-clv-card-heading h2 { margin: 0; color: #f7f9fc; font-size: 22px; letter-spacing: -.025em; }
+
+body[data-page="tracker"] .tracker-clv-help,
+body[data-page="tracker"] .tracker-clv-back,
+body[data-page="tracker"] .tracker-clv-link,
+body[data-page="tracker"] .tracker-clv-method-button,
+body[data-page="tracker"] .tracker-clv-card-body,
+body[data-page="tracker"] .tracker-clv-view-more,
+body[data-page="tracker"] .tracker-clv-range button,
+body[data-page="tracker"] .tracker-clv-dialog-ranges button,
+body[data-page="tracker"] .tracker-clv-book-grid button,
+body[data-page="tracker"] .tracker-clv-preference-list button,
+body[data-page="tracker"] .tracker-clv-save,
+body[data-page="tracker"] .tracker-clv-reset {
+  appearance: none;
+  border: 0;
+  font: inherit;
+}
+
+body[data-page="tracker"] .tracker-clv-help {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid #3a424e;
+  border-radius: 50%;
+  color: #aeb6c4;
+  background: #151a22;
+}
+
+body[data-page="tracker"] .tracker-clv-card-body {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  margin-top: 16px;
+  padding: 24px 22px;
+  overflow: hidden;
+  text-align: left;
+  border: 1px solid #39424e;
+  border-radius: 18px;
+  color: #f7f9fc;
+  background: #12171e;
+  cursor: pointer;
+}
+
+body[data-page="tracker"] .tracker-clv-card-body > span:not(.tracker-clv-glow),
+body[data-page="tracker"] .tracker-clv-detail-metrics > span {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 6px;
+}
+
+body[data-page="tracker"] .tracker-clv-card-body strong,
+body[data-page="tracker"] .tracker-clv-detail-metrics strong {
+  color: #9298a2;
+  font-size: clamp(30px, 4vw, 50px);
+  line-height: 1;
+  letter-spacing: -.045em;
+}
+
+body[data-page="tracker"] .tracker-clv-card-body strong.positive,
+body[data-page="tracker"] .tracker-clv-detail-metrics strong.positive { color: #53df7a; }
+body[data-page="tracker"] .tracker-clv-card-body strong.negative,
+body[data-page="tracker"] .tracker-clv-detail-metrics strong.negative { color: #ff5656; }
+body[data-page="tracker"] .tracker-clv-card-body small,
+body[data-page="tracker"] .tracker-clv-detail-metrics small { color: #929aa7; font-size: 14px; }
+
+body[data-page="tracker"] .tracker-clv-glow {
+  position: absolute;
+  right: -30px;
+  bottom: -55px;
+  width: 42%;
+  height: 110px;
+  border-radius: 50%;
+  background: rgba(42, 210, 102, .25);
+  filter: blur(38px);
+  pointer-events: none;
+}
+
+body[data-page="tracker"] .tracker-clv-range,
+body[data-page="tracker"] .tracker-clv-dialog-ranges {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 14px;
+}
+
+body[data-page="tracker"] .tracker-clv-range button,
+body[data-page="tracker"] .tracker-clv-dialog-ranges button {
+  min-height: 38px;
+  padding: 8px;
+  border-radius: 12px;
+  color: #737b88;
+  background: transparent;
+  cursor: pointer;
+}
+
+body[data-page="tracker"] .tracker-clv-range button.active,
+body[data-page="tracker"] .tracker-clv-dialog-ranges button.active {
+  color: #f6f8fb;
+  background: #293346;
+}
+
+body[data-page="tracker"] .tracker-clv-view-more {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  padding: 8px 2px;
+  color: #88b8ff;
+  background: transparent;
+  cursor: pointer;
+}
+
+body[data-page="tracker"] .tracker-clv-dialog {
+  width: min(680px, calc(100vw - 32px));
+  max-width: none;
+  max-height: min(900px, calc(100dvh - 32px));
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #303743;
+  border-radius: 24px;
+  color: #f5f7fa;
+  background: #10141a;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .64);
+}
+
+body[data-page="tracker"] .tracker-clv-dialog::backdrop { background: rgba(0, 0, 0, .7); }
+body[data-page="tracker"] .tracker-clv-dialog-shell { max-height: inherit; padding: 22px; overflow-y: auto; }
+
+body[data-page="tracker"] .tracker-clv-dialog-header {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  align-items: center;
+  gap: 12px;
+}
+
+body[data-page="tracker"] .tracker-clv-dialog-header > div { display: flex; align-items: center; gap: 9px; }
+body[data-page="tracker"] .tracker-clv-dialog-header h2 { margin: 0; font-size: 25px; letter-spacing: -.035em; }
+body[data-page="tracker"] .tracker-clv-dialog-header > div > i { color: #8ab8ff; font-size: 25px; }
+body[data-page="tracker"] .tracker-clv-back { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; color: #c8d0dc; background: #202630; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-link { color: #8ab8ff; background: transparent; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-dialog-ranges { margin: 24px 0 0; }
+
+body[data-page="tracker"] .tracker-clv-coverage {
+  margin: 16px -22px 18px;
+  padding: 14px 22px;
+  color: #a9b1bd;
+  text-align: center;
+  background: #1b2431;
+}
+
+body[data-page="tracker"] .tracker-clv-detail-card,
+body[data-page="tracker"] .tracker-clv-breakdown {
+  padding: 16px;
+  border: 1px solid #383f49;
+  border-radius: 20px;
+  background: #11151a;
+}
+
+body[data-page="tracker"] .tracker-clv-detail-card { box-shadow: inset -42px -28px 80px rgba(43, 196, 93, .14); }
+body[data-page="tracker"] .tracker-clv-method-button { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 14px; border: 1px solid #3a424d; border-radius: 14px; color: #f6f7f9; background: #10141a; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-method-button i { color: #8ab8ff; font-size: 25px; }
+body[data-page="tracker"] .tracker-clv-detail-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px; padding: 24px 14px 8px; }
+body[data-page="tracker"] .tracker-clv-dialog-shell > h3 { margin: 26px 0 12px; font-size: 22px; }
+body[data-page="tracker"] .tracker-clv-breakdown { display: grid; grid-template-columns: minmax(150px, .75fr) minmax(260px, 1.25fr); gap: 24px; align-items: center; }
+
+body[data-page="tracker"] .tracker-clv-donut { position: relative; display: grid; width: 158px; aspect-ratio: 1; place-items: center; justify-self: center; }
+body[data-page="tracker"] .tracker-clv-donut svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+body[data-page="tracker"] .tracker-clv-donut circle { fill: none; stroke-width: 5; }
+body[data-page="tracker"] .tracker-clv-donut circle.track { stroke: #202733; }
+body[data-page="tracker"] .tracker-clv-donut circle.positive { stroke: #53df7a; }
+body[data-page="tracker"] .tracker-clv-donut circle.negative { stroke: #ff4848; }
+body[data-page="tracker"] .tracker-clv-donut circle.even { stroke: #60708a; }
+body[data-page="tracker"] .tracker-clv-donut > span { z-index: 1; display: grid; text-align: center; }
+body[data-page="tracker"] .tracker-clv-donut small { font-size: 18px; }
+body[data-page="tracker"] .tracker-clv-donut strong { font-size: 25px; }
+
+body[data-page="tracker"] .tracker-clv-breakdown-bars { display: grid; gap: 18px; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars > div { display: grid; grid-template-columns: minmax(100px, 1fr) 58px 48px; gap: 12px; align-items: center; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars > div > span { height: 10px; overflow: hidden; border-radius: 999px; background: #202733; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars i { display: block; height: 100%; border-radius: inherit; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars i.positive { background: #53df7a; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars i.negative { background: #ff4848; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars i.even { background: #60708a; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars strong { text-align: right; }
+body[data-page="tracker"] .tracker-clv-breakdown-bars em { color: #e4e7ec; font-style: normal; }
+body[data-page="tracker"] .tracker-clv-unavailable { margin-top: 16px; padding: 20px; border: 1px dashed #414956; border-radius: 16px; color: #aab2bf; text-align: center; }
+
+body[data-page="tracker"] .tracker-clv-preferences-copy { margin: 18px 0; color: #9ca5b2; line-height: 1.45; }
+body[data-page="tracker"] .tracker-clv-preference-list { display: grid; gap: 12px; }
+body[data-page="tracker"] .tracker-clv-preference-list > label { display: grid; grid-template-columns: 1fr 28px; gap: 14px; align-items: center; padding: 18px; border: 1px solid #343b46; border-radius: 18px; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-preference-list > label:has(input:checked) { border-color: #79aefa; background: #26364f; }
+body[data-page="tracker"] .tracker-clv-preference-list > label > span { display: grid; gap: 6px; }
+body[data-page="tracker"] .tracker-clv-preference-list strong { font-size: 18px; }
+body[data-page="tracker"] .tracker-clv-preference-list small { color: #99a1ad; line-height: 1.35; }
+body[data-page="tracker"] .tracker-clv-preference-list input[type="radio"] { width: 24px; height: 24px; accent-color: #83b4ff; }
+body[data-page="tracker"] .tracker-clv-preference-list button { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; padding: 10px 12px; border: 1px solid #4a5566; border-radius: 10px; color: #e9edf3; background: #11161e; cursor: pointer; }
+
+body[data-page="tracker"] .tracker-clv-save { width: 100%; min-height: 50px; margin-top: 20px; border-radius: 13px; color: #09101a; font-weight: 750; background: #83b4ff; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-reset { width: 100%; padding: 15px; color: #8ab8ff; background: transparent; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-book-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px 12px; }
+body[data-page="tracker"] .tracker-clv-book-grid button { position: relative; display: grid; justify-items: center; gap: 8px; min-width: 0; padding: 12px 6px; border: 1px solid transparent; border-radius: 16px; color: #aeb5c0; background: transparent; cursor: pointer; }
+body[data-page="tracker"] .tracker-clv-book-grid button.selected { border-color: #79aefa; color: #9fc4ff; background: #1e2b3d; }
+body[data-page="tracker"] .tracker-clv-book-grid .provider-logo-mark { width: 58px; height: 58px; border: 1px solid #3b4350; border-radius: 15px; background: #171c24; }
+body[data-page="tracker"] .tracker-clv-book-grid .provider-logo-mark img { width: 42px; height: 42px; border-radius: 10px; object-fit: contain; }
+body[data-page="tracker"] .tracker-clv-book-grid .book-initials { font-size: 15px; }
+body[data-page="tracker"] .tracker-clv-book-grid button > span:not(.provider-logo-mark) { overflow: hidden; max-width: 100%; text-overflow: ellipsis; white-space: nowrap; }
+body[data-page="tracker"] .tracker-clv-book-grid button > i { position: absolute; top: 6px; right: 6px; color: #83b4ff; opacity: 0; }
+body[data-page="tracker"] .tracker-clv-book-grid button.selected > i { opacity: 1; }
+
+@media (max-width: 640px) {
+  body[data-page="tracker"] .tracker-clv-card { padding: 16px; border-radius: 17px; }
+  body[data-page="tracker"] .tracker-clv-card-heading h2 { font-size: 20px; }
+  body[data-page="tracker"] .tracker-clv-card-body { padding: 20px 14px; }
+  body[data-page="tracker"] .tracker-clv-card-body strong,
+  body[data-page="tracker"] .tracker-clv-detail-metrics strong { font-size: 34px; }
+  body[data-page="tracker"] .tracker-clv-range { gap: 2px; }
+  body[data-page="tracker"] .tracker-clv-range button { padding-inline: 3px; font-size: 12px; }
+  body[data-page="tracker"] .tracker-clv-dialog { width: 100vw; height: min(94dvh, 900px); max-height: 94dvh; margin: auto 0 0; border-width: 1px 0 0; border-radius: 24px 24px 0 0; }
+  body[data-page="tracker"] .tracker-clv-dialog-shell { height: 100%; padding: 18px 16px calc(26px + env(safe-area-inset-bottom)); }
+  body[data-page="tracker"] .tracker-clv-dialog-header { grid-template-columns: 42px 1fr auto; }
+  body[data-page="tracker"] .tracker-clv-dialog-header h2 { font-size: 23px; }
+  body[data-page="tracker"] .tracker-clv-link { font-size: 14px; }
+  body[data-page="tracker"] .tracker-clv-dialog-ranges { gap: 2px; overflow-x: auto; }
+  body[data-page="tracker"] .tracker-clv-dialog-ranges button { min-width: 54px; padding-inline: 5px; font-size: 13px; }
+  body[data-page="tracker"] .tracker-clv-coverage { margin-inline: -16px; }
+  body[data-page="tracker"] .tracker-clv-detail-metrics { gap: 10px; padding-inline: 2px; }
+  body[data-page="tracker"] .tracker-clv-detail-metrics small { font-size: 12px; }
+  body[data-page="tracker"] .tracker-clv-breakdown { grid-template-columns: 132px minmax(0, 1fr); gap: 14px; padding: 14px 10px; }
+  body[data-page="tracker"] .tracker-clv-donut { width: 128px; }
+  body[data-page="tracker"] .tracker-clv-breakdown-bars > div { grid-template-columns: minmax(50px, 1fr) 48px 38px; gap: 7px; font-size: 12px; }
+  body[data-page="tracker"] .tracker-clv-preference-list > label { padding: 15px; }
+  body[data-page="tracker"] .tracker-clv-book-grid { gap: 12px 6px; }
+  body[data-page="tracker"] .tracker-clv-book-grid .provider-logo-mark { width: 54px; height: 54px; }
+}
+
+@media (max-width: 520px) {
+  body[data-page="tracker"] .tracker-page-header h1 {
+    font-size: 26px !important;
+  }
+
+  body[data-page="tracker"] .tracker-view-toggle small {
+    display: none;
+  }
+
+  body[data-page="tracker"] .tracker-dashboard-main {
+    grid-template-columns: 1fr;
+  }
+
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2),
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(3),
+  body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(4) {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel {
+    grid-row: auto;
+  }
+
+  body[data-page="tracker"] .clv-period-strip {
+    grid-template-columns: 1fr !important;
+  }
+
+  body[data-page="tracker"] .clv-period-strip > span:nth-child(6) {
+    grid-column: 1;
+  }
+
+  body[data-page="tracker"] .clv-period-strip > span:nth-child(odd) {
+    border-right: 0 !important;
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics article,
+  body[data-page="tracker"] .entry-timing-metrics article:nth-child(3) {
+    border-right: 1px solid var(--tracker-line);
+    border-bottom: 1px solid var(--tracker-line);
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics article:nth-child(even) {
+    border-right: 0;
+  }
+
+  body[data-page="tracker"] .entry-timing-metrics article:nth-last-child(-n + 2) {
+    border-bottom: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body[data-page="tracker"] #tracker-chart canvas,
+  body[data-page="tracker"] #clv-chart canvas {
+    animation: none !important;
+  }
+}
+
+/* Pikkit-inspired performance card: chart/calendar first, every existing
+   tracker metric and ledger remains below it. */
+body[data-page="tracker"] {
+  --performance-green: #00e565;
+  --performance-red: #ff4545;
+  --performance-card: #111419;
+  --performance-raised: #171b21;
+  --performance-border: #34383f;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main {
+  grid-auto-flow: row !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main,
+body[data-page="tracker"] .tracker-clv-panel {
+  grid-column: 1 !important;
+}
+
+body[data-page="tracker"] .tracker-chart-eyebrow {
+  display: none;
+}
+
+body[data-page="tracker"] [data-performance-view="chart"] #tracker-period-profit {
+  display: none;
+}
+
+body[data-page="tracker"] .tracker-period-step[hidden] {
+  display: none !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel {
+  grid-column: 1 / -1 !important;
+  grid-row: 1 !important;
+  min-height: 610px !important;
+  padding: 18px 20px 16px;
+  border: 0 !important;
+  border-radius: 24px !important;
+  background: var(--performance-card) !important;
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.28) !important;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel::after {
+  display: none !important;
+}
+
+body[data-page="tracker"] .tracker-performance-header {
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 0 2px 14px;
+}
+
+body[data-page="tracker"] .tracker-period-heading,
+body[data-page="tracker"] .tracker-performance-controls,
+body[data-page="tracker"] .tracker-visual-toggle {
+  display: flex;
+  align-items: center;
+}
+
+body[data-page="tracker"] .tracker-period-heading {
+  gap: 12px;
+  min-width: 0;
+}
+
+body[data-page="tracker"] .tracker-period-heading .eyebrow {
+  margin: 0 0 2px;
+  color: #7f838b !important;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+body[data-page="tracker"] .tracker-period-heading h2 {
+  margin: 0;
+  color: #f6f7f8 !important;
+  font-family: Inter, system-ui, sans-serif;
+  font-size: clamp(23px, 2.1vw, 32px) !important;
+  font-weight: 680 !important;
+  letter-spacing: -0.035em;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .tracker-period-heading > strong {
+  margin-top: 15px;
+  color: #92959c;
+  font-size: clamp(16px, 1.45vw, 22px);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .tracker-period-heading > strong.positive,
+body[data-page="tracker"] .tracker-performance-summary strong.positive {
+  color: var(--performance-green) !important;
+}
+
+body[data-page="tracker"] .tracker-period-heading > strong.negative,
+body[data-page="tracker"] .tracker-performance-summary strong.negative {
+  color: var(--performance-red) !important;
+}
+
+body[data-page="tracker"] .tracker-performance-controls {
+  gap: 9px;
+}
+
+body[data-page="tracker"] .tracker-visual-toggle {
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid #292d34;
+  border-radius: 12px;
+  background: #0d1014;
+}
+
+body[data-page="tracker"] .tracker-visual-toggle button {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #8d919a;
+  font: 600 11px/1 Inter, system-ui, sans-serif;
+  cursor: pointer;
+}
+
+body[data-page="tracker"] .tracker-visual-toggle button.active {
+  background: #242a32;
+  color: #f5f6f7;
+}
+
+body[data-page="tracker"] .tracker-period-step {
+  width: 38px;
+  height: 38px;
+  display: inline-grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid #2b3037;
+  border-radius: 50%;
+  background: #242a32;
+  color: #aeb3bc;
+  cursor: pointer;
+}
+
+body[data-page="tracker"] .tracker-period-step:hover {
+  color: #fff;
+  background: #2c333c;
+}
+
+body[data-page="tracker"] .tracker-performance-frame {
+  min-height: 388px;
+  overflow: hidden;
+  border: 1px solid var(--performance-border);
+  border-radius: 23px;
+  background: #101318;
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart {
+  min-height: 388px !important;
+  height: 388px;
+  padding: 12px 8px 5px !important;
+  background: #101318 !important;
+}
+
+body[data-page="tracker"] #tracker-chart canvas {
+  filter: none !important;
+  animation: tracker-chart-arrive 420ms ease-out both;
+}
+
+body[data-page="tracker"] .tracker-performance-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 34px;
+  padding: 20px 7px 9px;
+}
+
+body[data-page="tracker"] .tracker-performance-summary > div {
+  min-width: 0;
+}
+
+body[data-page="tracker"] .tracker-performance-summary span {
+  display: block;
+  margin-bottom: 4px;
+  color: #f4f5f6;
+  font-size: 15px;
+  font-weight: 680;
+}
+
+body[data-page="tracker"] .tracker-performance-summary strong {
+  display: block;
+  overflow: hidden;
+  color: #777b83;
+  font-size: clamp(19px, 1.8vw, 27px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .tracker-performance-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 2px 7px 0;
+  color: #858991;
+  font-size: 10.5px;
+}
+
+body[data-page="tracker"] .tracker-performance-meta span:last-child {
+  color: #eff1f2;
+  font-weight: 650;
+}
+
+body[data-page="tracker"] .tracker-performance-meta i {
+  margin-right: 4px;
+  color: #f5f6f7;
+}
+
+body[data-page="tracker"] .tracker-calendar {
+  min-height: 388px;
+  padding: 18px 20px 20px;
+}
+
+body[data-page="tracker"] .tracker-calendar-grid {
+  width: min(100%, 760px);
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body[data-page="tracker"] .tracker-calendar-weekday {
+  padding: 0 0 7px;
+  color: #858991;
+  font-size: 14px;
+  text-align: center;
+}
+
+body[data-page="tracker"] .tracker-calendar-blank {
+  min-height: 63px;
+}
+
+body[data-page="tracker"] .tracker-calendar-day {
+  min-width: 0;
+  min-height: 63px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px solid transparent;
+  border-radius: 17px;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-page="tracker"] .tracker-calendar-day small {
+  color: #a7aab0;
+  font-size: 14px;
+}
+
+body[data-page="tracker"] .tracker-calendar-day strong {
+  max-width: calc(100% - 8px);
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 630;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="tracker"] .tracker-calendar-day.positive {
+  border-color: rgba(0, 229, 101, 0.05);
+  background: rgba(31, 92, 59, 0.52);
+}
+
+body[data-page="tracker"] .tracker-calendar-day.positive strong {
+  color: #39ef82;
+}
+
+body[data-page="tracker"] .tracker-calendar-day.negative {
+  border-color: rgba(255, 69, 69, 0.05);
+  background: rgba(92, 36, 39, 0.56);
+}
+
+body[data-page="tracker"] .tracker-calendar-day.negative strong {
+  color: #ff4d4d;
+}
+
+body[data-page="tracker"] .tracker-calendar-day.neutral {
+  background: #191d23;
+}
+
+body[data-page="tracker"] .tracker-calendar-day.neutral strong {
+  color: #666b73;
+}
+
+body[data-page="tracker"] .tracker-calendar-day.future {
+  opacity: 0.28;
+}
+
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(2),
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(3),
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(4),
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(1),
+body[data-page="tracker"] .tracker-metrics .metric-card:nth-child(n + 5) {
+  grid-column: auto !important;
+  grid-row: auto !important;
+}
+
+@media (max-width: 760px) {
+  body[data-page="tracker"] .tracker-bankroll-panel {
+    min-height: 0 !important;
+    padding: 14px 12px 13px;
+    border-radius: 20px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 12px;
+  }
+
+  body[data-page="tracker"] .tracker-period-heading {
+    width: 100%;
+  }
+
+  body[data-page="tracker"] .tracker-period-heading > strong {
+    margin: 0 0 2px auto;
+  }
+
+  body[data-page="tracker"] .tracker-performance-controls {
+    width: 100%;
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+
+  body[data-page="tracker"] .tracker-visual-toggle button {
+    min-height: 36px;
+    padding: 0 10px;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel .segmented button {
+    min-height: 32px;
+    padding-inline: 9px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-frame,
+  body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart,
+  body[data-page="tracker"] .tracker-calendar {
+    min-height: 330px !important;
+    height: 330px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary {
+    gap: 12px;
+    padding: 17px 3px 8px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary span {
+    font-size: 12px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary strong {
+    font-size: 18px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-meta {
+    padding-inline: 3px;
+    font-size: 9px;
+  }
+
+  body[data-page="tracker"] .tracker-calendar {
+    padding: 13px 8px;
+    overflow-y: auto;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-grid {
+    gap: 5px;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-day,
+  body[data-page="tracker"] .tracker-calendar-blank {
+    min-height: 52px;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-day {
+    gap: 4px;
+    border-radius: 12px;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-day small {
+    font-size: 11px;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-day strong {
+    font-size: 10px;
+  }
+}
+
+/* Final tracker view composition. These rules intentionally come last so the
+   new Dashboard / Bet Tracker split wins over the legacy multi-panel layout. */
+body[data-page="tracker"] .tracker-dashboard-main {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  grid-auto-flow: row !important;
+  gap: 16px !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-bankroll-panel,
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-profit-panel {
+  width: 100% !important;
+  grid-column: 1 / -1 !important;
+  grid-row: auto !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-bankroll-panel {
+  order: 0 !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-profit-panel {
+  min-width: 0;
+  order: 1 !important;
+}
+
+body[data-page="tracker"] .tracker-dashboard-main > .tracker-metrics {
+  display: none !important;
+}
+
+body[data-page="tracker"] .tracker-performance-summary {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+body[data-page="tracker"] .tracker-profit-header {
+  flex-wrap: wrap;
+}
+
+body[data-page="tracker"] .tracker-profit-controls {
+  flex: 1 1 720px;
+}
+
+@media (max-width: 760px) {
+  body[data-page="tracker"] .tracker-performance-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls {
+    flex: 1 1 100%;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}

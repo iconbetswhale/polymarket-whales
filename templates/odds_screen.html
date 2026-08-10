@@ -2,6 +2,10 @@
 {% block content %}
 <section class="odds-screen-page">
   <header class="odds-screen-toolbar">
+    <div class="odds-context">
+      <div><span class="page-kicker">Live market comparison</span><h1>Sportsbook Screen</h1></div>
+      <p>Exact-market prices across connected books and exchanges</p>
+    </div>
     <div class="odds-filter-row">
       <button class="odds-pill active" data-odds-all>All</button>
       <button class="odds-pill" data-odds-favorite>Favorites</button>
@@ -30,7 +34,8 @@
         </section>
       </div>
 
-      <span class="odds-live-state"><i></i><strong>LIVE</strong><small id="odds-latency">Connecting</small></span>
+      <span class="odds-live-state paused" id="odds-live-state"><i></i><strong id="odds-live-label">PAUSED</strong><small id="odds-latency">Credit saver</small></span>
+      <button class="odds-refresh odds-feed-toggle" id="odds-feed-toggle" type="button" title="Start the live odds feed"><i class="ph ph-play"></i><span>Start feed</span></button>
 
       <div class="odds-menu-shell odds-books-shell">
         <button class="odds-menu-trigger" id="odds-books-trigger" type="button" aria-expanded="false" aria-controls="odds-books-menu"><span>Sportsbooks</span><i class="ph ph-caret-down"></i></button>
@@ -58,9 +63,37 @@
     </div>
     <div class="odds-market-tabs">
       <button class="active" data-odds-kind="">Main Markets</button><button data-odds-kind="moneyline">Moneyline</button><button data-odds-kind="spread">Run Line / Spread</button><button data-odds-kind="alternate_spread">Alt Spreads</button><button data-odds-kind="game_total">Game Totals</button><button data-odds-kind="alternate_total">Alt Totals</button>
-      <span>Exact markets only · read-only feeds</span>
+      <span><i class="ph ph-shield-check" aria-hidden="true"></i> Exact markets only · read-only feeds</span>
     </div>
   </header>
+  <section class="mobile-odds-board" aria-label="Mobile sportsbook screen">
+    <div class="mobile-odds-titlebar">
+      <div class="mobile-odds-title"><span class="mobile-odds-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>Odds</strong></div>
+      <span class="mobile-odds-status" id="mobile-odds-status"><i></i><span>Paused</span></span>
+    </div>
+    <div class="mobile-odds-controls">
+      <label class="mobile-odds-league">
+        <span class="sr-only">League</span>
+        <select id="mobile-odds-league">
+          <option value="">All</option>
+          <option value="Baseball|MLB">MLB</option>
+          <option value="Basketball|WNBA">WNBA</option>
+          <option value="Basketball|NBA">NBA</option>
+          <option value="Football|NFL">NFL</option>
+          <option value="Hockey|NHL">NHL</option>
+          <option value="Tennis|ATP">ATP</option>
+          <option value="Tennis|WTA">WTA</option>
+        </select>
+        <i class="ph ph-caret-down" aria-hidden="true"></i>
+      </label>
+      <label class="mobile-odds-search">
+        <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+        <input id="mobile-odds-search" type="search" placeholder="Search teams...">
+      </label>
+      <button class="mobile-odds-refresh" id="mobile-odds-refresh" type="button" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
+    </div>
+    <div class="mobile-odds-games" id="mobile-odds-games" aria-live="polite"></div>
+  </section>
   <div class="odds-grid-shell">
     <div class="odds-grid-head">
       <span>START</span><span>TEAM / SELECTION</span>
@@ -69,8 +102,34 @@
       <span class="book-head fourcx" data-odds-column="4cx" data-book-column="4cx" draggable="true" title="Drag to reorder sportsbook columns" aria-label="4CX column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="4CX"><small>4CX</small></span>
       <span class="book-head best-column-head" data-odds-column="best" draggable="true" title="Drag to reorder the best-price column" aria-label="Best price column. Drag to reorder."><i class="ph ph-trophy"></i><small>BEST</small></span>
     </div>
-    <div id="odds-grid" class="odds-grid-body" aria-live="polite"><div class="odds-loading">Loading exact live markets…</div></div>
+    <div id="odds-grid" class="odds-grid-body" aria-live="polite">
+      <div class="odds-loading table-loading-state" role="status">
+        <span class="loading-pulse" aria-hidden="true"></span>
+        <strong>Odds Screen paused</strong>
+        <small>Start the feed when you need the full sportsbook board. The Trade Tool remains active.</small>
+      </div>
+    </div>
   </div>
-  <footer class="odds-footer"><span><i class="status-dot"></i> Read-only exchange and sportsbook feeds</span><span id="odds-updated">Waiting for first update</span></footer>
+  <footer class="odds-footer"><span><i class="status-dot"></i> Trade Tool active · Odds Screen on demand</span><span id="odds-updated">Paused to protect credits</span></footer>
+</section>
+<div class="mobile-odds-sheet-backdrop" id="mobile-odds-sheet-backdrop" hidden></div>
+<section class="mobile-odds-sheet" id="mobile-odds-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-odds-sheet-title" hidden>
+  <header class="mobile-odds-sheet-header">
+    <div class="mobile-odds-sheet-handle" aria-hidden="true"></div>
+    <div class="mobile-odds-sheet-heading">
+      <span></span>
+      <h2 id="mobile-odds-sheet-title">Markets</h2>
+      <button type="button" id="mobile-odds-sheet-close" aria-label="Close markets"><i class="ph ph-x"></i></button>
+    </div>
+    <p id="mobile-odds-sheet-meta"></p>
+    <strong id="mobile-odds-sheet-event"></strong>
+  </header>
+  <nav class="mobile-odds-sheet-tabs" aria-label="Market type">
+    <button class="active" type="button" data-mobile-market-kind="main">Main Markets</button>
+    <button type="button" data-mobile-market-kind="moneyline">Moneyline</button>
+    <button type="button" data-mobile-market-kind="spread">Run Line</button>
+    <button type="button" data-mobile-market-kind="total">Total Runs</button>
+  </nav>
+  <div class="mobile-odds-sheet-content" id="mobile-odds-sheet-content"></div>
 </section>
 {% endblock %}

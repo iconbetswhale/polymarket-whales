@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from discord_notifier import DiscordNotifier
+from discord_notifier import ICONLABS_PURPLE, DiscordNotifier
 
 
 def sample_event(event_type="new_entry", position_size=1250):
@@ -46,4 +46,5 @@ def test_discord_notifier_posts_embed(monkeypatch):
     assert notifier.notify(sample_event()) is True
     assert calls[0]["url"] == "https://discord.com/api/webhooks/test"
     assert calls[0]["json"]["username"] == "IconBets Wallet Alerts"
+    assert calls[0]["json"]["embeds"][0]["color"] == ICONLABS_PURPLE
     assert calls[0]["json"]["embeds"][0]["title"] == "Trader 1 opened a new position"

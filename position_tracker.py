@@ -23,6 +23,7 @@ from clv import (
     CAPTURED,
     CLV_CALCULATION_VERSION,
     CLV_FRESHNESS_SECONDS,
+    COMPOSITE_CLOSE_VERSION,
     MARKET_MAPPING_ERROR,
     STALE_QUOTE,
     UNAVAILABLE,
@@ -39,7 +40,10 @@ from config import Settings
 from database import TrackerDatabase
 from discord_notifier import DiscordNotifier
 from decision_engine import enrich_trade_decision
-from execution_providers import build_execution_provider_registry
+from execution_providers import (
+    apply_best_execution_option,
+    build_execution_provider_registry,
+)
 from execution_engine import ExecutionConfig
 from fair_price_engine import FairPriceEngine, composite_snapshot
 from model_tracker_discord import (
@@ -65,12 +69,33 @@ from risk_engine import RiskConfig, normalize_exposure
 from completion_system import matching_policy
 from scoring import hours_until_resolution, score_position
 from trade_scoring import build_trades_to_play
+from three_sharp_strategy import (
+    SHARPS as THREE_SHARP_WALLETS,
+    STRATEGY_ID as THREE_SHARP_STRATEGY_ID,
+    TRACKER_ENTRY_WINDOW_MINUTES as THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
+    main_mlb_strategy_positions,
+)
+from specialist_strategy import (
+    SHARPS as SPECIALIST_WALLETS,
+    STRATEGY_ID as SPECIALIST_STRATEGY_ID,
+    TRACKER_ENTRY_WINDOW_MINUTES as SPECIALIST_TRACKER_ENTRY_WINDOW_MINUTES,
+    specialist_strategy_positions,
+)
 from unit_analysis import amount_to_units, estimate_unit_size
-from wallet_activity import aggregate_trade_fills, normalize_trade_fills
+from wallet_activity import (
+    aggregate_trade_fills,
+    normalize_trade_fills,
+    summarize_aggregated_positions,
+)
 from wallet_loader import WalletEntry, load_wallets
 
 LOGGER = logging.getLogger(__name__)
-MODEL_TRACKER_USER_ID = "iconbets-model-tracker-global"
+# Give the approved strategy a clean forward-only ledger. The former global
+# tracker and shadow rows remain in durable storage for audit/history, but can
+# no longer contaminate this model's record, Discord dedupe state, or sizing
+# replay.
+MODEL_TRACKER_USER_ID = "iconbets-model-tracker-weighted-mlb-tennis-v1"
+SHADOW_TRACKER_USER_ID = "iconbets-shadow-broad-consensus-2"
 
 
 def _utc_now() -> datetime:
@@ -270,14 +295,19 @@ class TrackerService:
         self.database = database or TrackerDatabase(
             settings.database_path, settings.durable_database_url
         )
-        promoted_records = self.database.promote_tracker_records_to_global(
-            MODEL_TRACKER_USER_ID
-        )
-        if promoted_records:
-            LOGGER.info(
-                "Promoted %s existing recommendations into the global Model Tracker",
-                promoted_records,
+        if os.getenv("PROMOTE_LEGACY_TRACKER_RECORDS", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }:
+            promoted_records = self.database.promote_tracker_records_to_global(
+                MODEL_TRACKER_USER_ID
             )
+            if promoted_records:
+                LOGGER.info(
+                    "Promoted %s existing recommendations into the global Model Tracker",
+                    promoted_records,
+                )
         self.notifier = notifier or DiscordNotifier.from_settings(settings)
         self.model_discord_bot = model_discord_bot or ModelTrackerDiscordBot.from_settings(
             settings
@@ -498,26 +528,71 @@ class TrackerService:
             imported_count = self.database.insert_wallet_execution_fills(
                 normalized_fills
             )
-            aggregates = aggregate_trade_fills(normalized_fills)
+            persisted_fills = self.database.get_wallet_execution_fills(wallet.address)
+            aggregates = aggregate_trade_fills(persisted_fills)
             fill_aggregates_by_wallet[wallet.address] = aggregates
             fill_counts = [aggregate["fill_count"] for aggregate in aggregates.values()]
+            validation = summarize_aggregated_positions(
+                aggregates, unit_baseline=float(wallet.base_unit or 1)
+            )
+            validation_positions = validation.pop("aggregated_positions")
             fill_sync_stats[wallet.address] = {
                 "raw_fill_count": len(raw_fills),
-                "deduplicated_fill_count": len(normalized_fills),
+                "deduplicated_fill_count": len(persisted_fills),
                 "duplicate_fill_count": duplicate_count,
                 "new_fill_count": imported_count,
-                "aggregated_position_count": len(aggregates),
+                "aggregated_position_count": validation["aggregated_position_count"],
                 "average_fills_per_aggregated_position": (
                     round(sum(fill_counts) / len(fill_counts), 2)
                     if fill_counts
                     else 0.0
                 ),
+                "wallet_validation": validation,
+                "validation_position_sample": validation_positions[:100],
             }
 
         current_rows: list[dict] = []
         for wallet in loader.enabled_wallets:
             wallet_open = candidate_open_positions.get(wallet.address)
             if wallet_open is None:
+                stale_cutoff = _utc_now() - timedelta(
+                    seconds=self.settings.wallet_position_stale_grace_seconds
+                )
+                for cached in self.database.get_open_positions_for_wallet(
+                    wallet.address
+                ).values():
+                    try:
+                        last_seen = datetime.fromisoformat(
+                            str(cached.get("last_seen_at") or "").replace(
+                                "Z", "+00:00"
+                            )
+                        )
+                    except ValueError:
+                        continue
+                    if last_seen.tzinfo is None:
+                        last_seen = last_seen.replace(tzinfo=timezone.utc)
+                    event_time = None
+                    try:
+                        event_time = datetime.fromisoformat(
+                            str(cached.get("resolution_time") or "").replace(
+                                "Z", "+00:00"
+                            )
+                        )
+                        if event_time.tzinfo is None:
+                            event_time = event_time.replace(tzinfo=timezone.utc)
+                    except ValueError:
+                        event_time = coarse_event_datetime(cached)
+                    if (
+                        last_seen < stale_cutoff
+                        or not event_time
+                        or event_time <= _utc_now()
+                        or str(cached.get("status") or "open").lower() != "open"
+                    ):
+                        continue
+                    cached_row = dict(cached)
+                    cached_row["wallet_sync_stale"] = True
+                    cached_row["wallet_sync_stale_since"] = attempt_time
+                    current_rows.append(cached_row)
                 continue
 
             previous_rows = self.database.get_open_positions_for_wallet(wallet.address)
@@ -578,27 +653,68 @@ class TrackerService:
         positions = self._enrich_positions(
             current_rows, trades, unit_map, consensus_map
         )
+        strategy_positions = main_mlb_strategy_positions(positions)
+        specialist_positions = specialist_strategy_positions(positions)
         synced_wallet_count = sum(
             1
-            for wallet in loader.enabled_wallets
-            if open_positions.get(wallet.address) is not None
+            for address in THREE_SHARP_WALLETS
+            if open_positions.get(address) is not None
         )
         trade_exclusions: list[dict[str, Any]] = []
         trades_to_play = build_trades_to_play(
-            positions,
+            strategy_positions,
             trades,
             unit_map,
-            tracked_wallet_count=synced_wallet_count,
+            # Confidence always uses the complete three-wallet strategy as its
+            # denominator. A temporarily unavailable wallet must not make two
+            # agreeing feeds look like unanimous 3/3 consensus.
+            tracked_wallet_count=len(THREE_SHARP_WALLETS),
             diagnostics=trade_exclusions,
+            strategy_mode=THREE_SHARP_STRATEGY_ID,
         )
-        self.execution_providers.attach_options(trades_to_play)
-        provider_quotes = self.execution_providers.fair_price_quotes(trades_to_play)
         for play in trades_to_play:
+            play["model_strategy"] = THREE_SHARP_STRATEGY_ID
+        specialist_plays = build_trades_to_play(
+            specialist_positions,
+            trades,
+            unit_map,
+            tracked_wallet_count=len(SPECIALIST_WALLETS),
+            diagnostics=trade_exclusions,
+            strategy_mode=SPECIALIST_STRATEGY_ID,
+        )
+        for play in specialist_plays:
+            play["model_strategy"] = SPECIALIST_STRATEGY_ID
+        trades_to_play.extend(specialist_plays)
+        # Shadow records remain preserved in the database, but no shadow cohort
+        # is generated, reconciled, or allowed to consume provider refresh work.
+        shadow_trades: list[dict[str, Any]] = []
+        strategy_plays = trades_to_play
+        for play in strategy_plays:
+            # Provider selection is all-in for the complete intended flat stake.
+            # Make the bankroll available before the first quote evaluation.
             play["decision_bankroll"] = self.settings.default_bankroll
+        self.execution_providers.attach_options(strategy_plays)
+        provider_quotes = self.execution_providers.fair_price_quotes(strategy_plays)
+        fair_prices: dict[str, dict[str, Any]] = {}
+        for play in strategy_plays:
             fair_price = self.fair_price_engine.calculate(
                 provider_quotes.get(str(play.get("id") or ""), [])
             ).to_dict()
+            fair_prices[str(play.get("id") or "")] = fair_price
+            apply_best_execution_option(play)
             enrich_trade_decision(play, fair_price)
+            preliminary = self.evaluate_recommendation(
+                play, self.settings.default_bankroll, _utc_now()
+            )
+            play["recommendation"] = preliminary["recommendation"]
+        self.execution_providers.attach_options(strategy_plays)
+        for play in strategy_plays:
+            apply_best_execution_option(play)
+            enrich_trade_decision(
+                play,
+                fair_prices[str(play.get("id") or "")],
+            )
+            play.pop("recommendation", None)
         measurement = self._record_candidate_measurements(
             trades_to_play, trade_exclusions, _utc_now()
         )
@@ -608,6 +724,8 @@ class TrackerService:
         status["last_successful_refresh"] = success_time
         overview = self._build_overview(positions, trades, consensus, status)
         overview["trades_to_play_count"] = len(trades_to_play)
+        overview["strategy_wallets_synced"] = synced_wallet_count
+        overview["strategy_wallets_expected"] = len(THREE_SHARP_WALLETS)
         overview["live_position_count"] = len(
             [
                 position
@@ -643,6 +761,7 @@ class TrackerService:
                 "positions": positions,
                 "trades": trades,
                 "trades_to_play": trades_to_play,
+                "shadow_trades_to_play": shadow_trades,
                 "trade_exclusions": trade_exclusions,
                 "consensus": consensus,
                 "unit_analysis": unit_analysis,
@@ -700,10 +819,15 @@ class TrackerService:
             operational_buffer_allocation=float(bucket["operational_buffer_allocation"]),
             combine_model_and_personal=bool(bucket["combine_model_and_personal"]),
         )
+        exposure_user_id = (
+            SHADOW_TRACKER_USER_ID
+            if user_id == SHADOW_TRACKER_USER_ID
+            else MODEL_TRACKER_USER_ID
+        )
         model_records = [
             row
             for row in self.database.get_active_tracker_records()
-            if row.get("user_id") == MODEL_TRACKER_USER_ID
+            if row.get("user_id") == exposure_user_id
         ]
         exposures = [normalize_exposure(row, "MODEL_TRACKER") for row in model_records]
         if include_personal and config.combine_model_and_personal:
@@ -712,13 +836,13 @@ class TrackerService:
                 for row in self.database.get_personal_bet_fills(user_id, active_only=True)
             )
         current_bankroll = bankroll
-        if user_id == MODEL_TRACKER_USER_ID:
+        if user_id in {MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID}:
             replay = replay_tracker(
-                self.database.get_tracker_records(MODEL_TRACKER_USER_ID), bankroll
+                self.database.get_tracker_records(user_id), bankroll
             )
             current_bankroll = replay["summary"]["current_bankroll"]
         state = self.database.get_risk_account_state(user_id, current_bankroll)
-        if user_id == MODEL_TRACKER_USER_ID:
+        if user_id in {MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID}:
             replay_high = max(
                 [current_bankroll]
                 + [float(point.get("bankroll") or 0) for point in replay.get("graph") or []]
@@ -791,7 +915,7 @@ class TrackerService:
         }
         for play in plays:
             try:
-                if user_id == MODEL_TRACKER_USER_ID:
+                if user_id in {MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID}:
                     event_start = parse_timestamp(
                         play.get("event_date_et")
                         or play.get("resolution_time")
@@ -799,16 +923,24 @@ class TrackerService:
                     )
                     if event_start is not None:
                         time_to_start = event_start - run_now.astimezone(timezone.utc)
-                        pregame_window = timedelta(
-                            minutes=self.settings.tracker_pregame_window_minutes
+                        window_minutes = {
+                            THREE_SHARP_STRATEGY_ID: THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
+                            SPECIALIST_STRATEGY_ID: SPECIALIST_TRACKER_ENTRY_WINDOW_MINUTES,
+                        }.get(
+                            play.get("model_strategy"),
+                            self.settings.tracker_pregame_window_minutes,
                         )
+                        pregame_window = timedelta(minutes=window_minutes)
                         if not (timedelta(0) < time_to_start <= pregame_window):
                             result["deferred_until_pregame"] += 1
                             continue
                 try:
                     evaluation = self.evaluate_recommendation(
                         play, bankroll, run_now, user_id=user_id,
-                        include_personal=user_id != MODEL_TRACKER_USER_ID,
+                        include_personal=user_id not in {
+                            MODEL_TRACKER_USER_ID,
+                            SHADOW_TRACKER_USER_ID,
+                        },
                     )
                 except TypeError as exc:
                     if "unexpected keyword argument" not in str(exc):
@@ -857,6 +989,13 @@ class TrackerService:
                         None,
                     )
                 if existing:
+                    if user_id == MODEL_TRACKER_USER_ID:
+                        frozen_snapshot = existing.get("snapshot") or evaluation["snapshot"]
+                        self.database.ensure_model_tracker_discord_notification(
+                            user_id,
+                            frozen_snapshot,
+                            build_model_tracker_discord_payload(frozen_snapshot),
+                        )
                     result["existing"] += 1
                     LOGGER.info(
                         "Model Tracker duplicate user=%s key=%s snapshot_id=%s",
@@ -875,10 +1014,7 @@ class TrackerService:
 
                 snapshot = evaluation["snapshot"]
                 discord_payload = None
-                if (
-                    user_id == MODEL_TRACKER_USER_ID
-                    and self.model_discord_bot.enabled
-                ):
+                if user_id == MODEL_TRACKER_USER_ID:
                     discord_payload = build_model_tracker_discord_payload(snapshot)
                 if self.database.insert_tracker_snapshot(
                     user_id,
@@ -904,6 +1040,13 @@ class TrackerService:
 
                 existing = self.database.get_tracker_record(user_id, dedupe_key)
                 if existing:
+                    if user_id == MODEL_TRACKER_USER_ID:
+                        frozen_snapshot = existing.get("snapshot") or snapshot
+                        self.database.ensure_model_tracker_discord_notification(
+                            user_id,
+                            frozen_snapshot,
+                            build_model_tracker_discord_payload(frozen_snapshot),
+                        )
                     result["existing"] += 1
                     LOGGER.info(
                         "Model Tracker duplicate after insert race user=%s key=%s snapshot_id=%s",
@@ -964,7 +1107,7 @@ class TrackerService:
             "user_configurations": 1,
             "tracker_scope": "global",
             "interval_seconds": self.settings.tracker_job_interval_seconds,
-            "pregame_window_minutes": self.settings.tracker_pregame_window_minutes,
+            "pregame_window_minutes": THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
         }
         try:
             if plays is None:
@@ -1317,17 +1460,46 @@ class TrackerService:
                     "tracker_type": "model",
                     "tracker_record_id": record["dedupe_key"],
                     "user_id": record["user_id"],
-                    "provider": "polymarket",
+                    "provider": normalized_provider(
+                        snapshot.get("provider_key")
+                        or snapshot.get("sportsbook")
+                        or "polymarket"
+                    ),
                     "provider_event_id": str(snapshot.get("canonical_event_id") or ""),
                     "provider_event_slug": snapshot.get("canonical_event_slug"),
-                    "provider_market_id": str(snapshot.get("canonical_market_id") or ""),
-                    "provider_selection_id": str(snapshot.get("outcome_id") or ""),
+                    "polymarket_market_id": str(
+                        snapshot.get("canonical_market_id") or ""
+                    ),
+                    "polymarket_selection_id": str(
+                        snapshot.get("outcome_id") or ""
+                    ),
+                    "provider_market_id": str(
+                        snapshot.get("provider_market_id")
+                        or snapshot.get("canonical_market_id")
+                        or ""
+                    ),
+                    "provider_selection_id": str(
+                        snapshot.get("provider_outcome_id")
+                        or snapshot.get("outcome_id")
+                        or ""
+                    ),
                     "selection": snapshot.get("recommended_side"),
                     "event_start_time": snapshot.get("event_start_time"),
                     "entry_price": snapshot.get("effective_entry_price")
                     or snapshot.get("current_executable_entry_price"),
                     "entry_stake": snapshot.get("original_displayed_amount"),
                     "entry_timestamp": snapshot.get("recommendation_timestamp"),
+                    "entry_native_odds": snapshot.get("provider_display_odds"),
+                    "execution_options_at_entry": snapshot.get(
+                        "execution_options_at_entry"
+                    )
+                    or [],
+                    "event_title": snapshot.get("event_title"),
+                    "market_title": snapshot.get("market_title"),
+                    "sports_market_type": snapshot.get("sports_market_type"),
+                    "market_line": snapshot.get("market_line"),
+                    "category": snapshot.get("category"),
+                    "league": snapshot.get("league"),
                 }
             )
         for fill in personal_fills:
@@ -1339,6 +1511,12 @@ class TrackerService:
                     "provider": normalized_provider(fill.get("sportsbook")),
                     "provider_event_id": str(fill.get("canonical_event_id") or ""),
                     "provider_event_slug": fill.get("canonical_event_slug"),
+                    "polymarket_market_id": str(
+                        fill.get("canonical_market_id") or ""
+                    ),
+                    "polymarket_selection_id": str(
+                        fill.get("canonical_outcome_id") or ""
+                    ),
                     "provider_market_id": str(fill.get("canonical_market_id") or ""),
                     "provider_selection_id": str(fill.get("canonical_outcome_id") or ""),
                     "selection": fill.get("selection"),
@@ -1359,6 +1537,14 @@ class TrackerService:
                     "provider": candidate.get("provider") or "polymarket",
                     "provider_event_id": candidate.get("canonical_event_id") or "",
                     "provider_event_slug": frozen.get("provider_event_slug"),
+                    "polymarket_market_id": candidate.get(
+                        "canonical_market_id"
+                    )
+                    or "",
+                    "polymarket_selection_id": candidate.get(
+                        "canonical_outcome_id"
+                    )
+                    or "",
                     "provider_market_id": candidate.get("canonical_market_id") or "",
                     "provider_selection_id": candidate.get("canonical_outcome_id") or "",
                     "selection": candidate.get("selection"),
@@ -1372,28 +1558,37 @@ class TrackerService:
             (row["tracker_type"], row["tracker_record_id"])
             for kind, user in {(row["tracker_type"], row["user_id"]) for row in references}
             for row in self.database.get_closing_lines(kind, user)
+            if not (
+                row.get("clv_status") == MARKET_MAPPING_ERROR
+                and str(row.get("provider_market_id") or "").count(":") >= 2
+            )
         }
         pending = [
             reference
             for reference in references
             if (reference["tracker_type"], reference["tracker_record_id"]) not in existing
         ]
+        self._capture_multi_exchange_close_quotes(pending, events)
         polymarket = [
             reference
             for reference in pending
-            if reference["provider"] == "polymarket"
-            and reference["provider_market_id"]
-            and reference["provider_selection_id"]
+            if normalized_provider(reference.get("provider")) == "polymarket"
+            and reference["provider_event_slug"]
+            and reference.get("polymarket_market_id")
+            and reference.get("polymarket_selection_id")
         ]
         try:
             books = self.client.get_order_books(
-                [reference["provider_selection_id"] for reference in polymarket]
+                [
+                    reference["polymarket_selection_id"]
+                    for reference in polymarket
+                ]
             )
         except Exception as exc:
             LOGGER.warning("CLV order-book snapshot failed: %s", exc)
             books = {}
         for reference in polymarket:
-            book = books.get(reference["provider_selection_id"])
+            book = books.get(reference["polymarket_selection_id"])
             if not book:
                 continue
             event = events.get(reference["provider_event_slug"]) or {}
@@ -1402,7 +1597,7 @@ class TrackerService:
                     item
                     for item in event.get("markets") or []
                     if str(item.get("conditionId") or "")
-                    == reference["provider_market_id"]
+                    == reference["polymarket_market_id"]
                 ),
                 {},
             )
@@ -1419,9 +1614,13 @@ class TrackerService:
                 {
                     "provider": "polymarket",
                     "provider_event_id": reference["provider_event_id"],
-                    "provider_market_id": reference["provider_market_id"],
-                    "provider_selection_id": reference["provider_selection_id"],
+                    "provider_market_id": reference["polymarket_market_id"],
+                    "provider_selection_id": reference[
+                        "polymarket_selection_id"
+                    ],
                     "quote_timestamp": self._provider_quote_timestamp(book.get("timestamp")),
+                    "tracker_type": reference["tracker_type"],
+                    "tracker_record_id": reference["tracker_record_id"],
                     "provider_status": (
                         "closed"
                         if market.get("closed") is True
@@ -1434,6 +1633,37 @@ class TrackerService:
                     "last_trade": _safe_float(book.get("last_trade_price")) or None,
                     "depth": asks,
                     "source": "POLYMARKET_CLOB_ORDER_BOOK",
+                    "snapshot": {
+                        "execution_option": {
+                            "providerName": "Polymarket",
+                            "providerKey": "polymarket",
+                            "providerMarketId": reference[
+                                "polymarket_market_id"
+                            ],
+                            "providerOutcomeId": reference[
+                                "polymarket_selection_id"
+                            ],
+                            "bestExecutablePrice": best_ask,
+                            "impliedProbability": best_ask,
+                            "displayOdds": (
+                                f"{best_ask * 100:.1f}c" if best_ask else None
+                            ),
+                            "isAvailable": bool(best_ask),
+                            "isExactMatch": True,
+                            "isStale": False,
+                            "marketStatus": "OPEN",
+                        },
+                        "fair_quote": {
+                            "provider": "polymarket",
+                            "status": "AVAILABLE" if best_ask else "UNAVAILABLE",
+                            "quote_timestamp": self._provider_quote_timestamp(
+                                book.get("timestamp")
+                            ),
+                            "mapping_confidence": "EXACT",
+                            "no_vig_probability": best_ask,
+                            "raw_implied_probability": best_ask,
+                        },
+                    },
                 }
             )
             if reference.get("tracker_type") == "candidate":
@@ -1475,7 +1705,23 @@ class TrackerService:
                 self._freeze_unavailable_clv(reference, UNAVAILABLE, "LATE_ENTRY_NO_PREGAME_CLV", official_start)
                 continue
             if reference["provider"] != "polymarket":
-                self._freeze_unavailable_clv(reference, MARKET_MAPPING_ERROR, "CLV_MARKET_MAPPING_ERROR", official_start)
+                if self._freeze_multi_exchange_clv(reference, official_start):
+                    continue
+                recovered_start = self._recover_historical_provider_close(
+                    reference, official_start
+                )
+                if recovered_start and self._freeze_multi_exchange_clv(
+                    reference, recovered_start
+                ):
+                    continue
+                self._freeze_unavailable_clv(
+                    reference,
+                    MARKET_MAPPING_ERROR,
+                    "CLV_MARKET_MAPPING_ERROR",
+                    official_start,
+                )
+                continue
+            if self._freeze_multi_exchange_clv(reference, official_start):
                 continue
             quotes = self.database.get_clv_quotes(
                 reference["provider"], reference["provider_market_id"], reference["provider_selection_id"]
@@ -1515,6 +1761,452 @@ class TrackerService:
                     "provider_close_timestamp": parsed_provider_close.isoformat(),
                 }
             self._freeze_captured_clv(reference, quote, official_start)
+
+    def _capture_multi_exchange_close_quotes(
+        self, references: list[dict[str, Any]], events: dict[str, dict]
+    ) -> None:
+        now = _utc_now()
+        monitored: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for reference in references:
+            event = events.get(reference.get("provider_event_slug")) or {}
+            start_value = self._official_event_start(
+                event, reference.get("event_start_time")
+            )
+            start = parse_timestamp(start_value)
+            if start is None:
+                continue
+            seconds_to_start = (start - now).total_seconds()
+            if not 0 <= seconds_to_start <= 15 * 60:
+                continue
+            trade_id = hashlib.sha256(
+                (
+                    str(reference["tracker_type"])
+                    + "::"
+                    + str(reference["tracker_record_id"])
+                ).encode("utf-8")
+            ).hexdigest()
+            monitored.append(
+                (
+                    reference,
+                    {
+                        "id": trade_id,
+                        "event_title": reference.get("event_title"),
+                        "market_title": reference.get("market_title"),
+                        "sports_market_type": self._reference_market_type(reference),
+                        "outcome": reference.get("selection"),
+                        "category": reference.get("category"),
+                        "league": reference.get("league"),
+                        "event_slug": reference.get("provider_event_slug"),
+                        "event_date_et": start_value,
+                        "market_line": reference.get("market_line"),
+                        "current_price": reference.get("entry_price"),
+                        "validation_ids": {
+                            "event_id": reference.get("provider_event_id"),
+                            "event_slug": reference.get("provider_event_slug"),
+                            "condition_id": reference.get("provider_market_id"),
+                            "outcome": reference.get("selection"),
+                        },
+                    },
+                )
+            )
+        if not monitored:
+            return
+        trades = [trade for _reference, trade in monitored]
+        self.execution_providers.attach_options(
+            trades, exclude_provider_keys=("polymarket",)
+        )
+        fair_quotes = self.execution_providers.fair_price_quotes(trades)
+        for reference, trade in monitored:
+            by_provider: dict[str, dict[str, Any]] = {}
+            for option in trade.get("executionOptions") or []:
+                provider = normalized_provider(option.get("providerKey"))
+                if not provider:
+                    continue
+                by_provider.setdefault(provider, {})["execution_option"] = option
+            for fair_quote in fair_quotes.get(str(trade.get("id") or ""), []):
+                provider = normalized_provider(fair_quote.get("provider"))
+                if not provider or provider == "polymarket":
+                    continue
+                by_provider.setdefault(provider, {})["fair_quote"] = fair_quote
+            for provider, payload in by_provider.items():
+                option = payload.get("execution_option") or {}
+                fair_quote = payload.get("fair_quote") or {}
+                timestamp = self._provider_quote_timestamp(
+                    option.get("quoteTimestamp")
+                    or option.get("lastUpdated")
+                    or fair_quote.get("quote_timestamp")
+                    or _iso_now()
+                )
+                probability = _safe_float(
+                    option.get("bestExecutablePrice")
+                    or option.get("impliedProbability")
+                    or fair_quote.get("raw_implied_probability")
+                    or fair_quote.get("no_vig_probability")
+                )
+                market_id = str(
+                    option.get("providerMarketId")
+                    or option.get("marketId")
+                    or fair_quote.get("provider_market_id")
+                    or reference.get("provider_market_id")
+                    or ""
+                )
+                selection_id = str(
+                    option.get("providerOutcomeId")
+                    or option.get("selectionId")
+                    or fair_quote.get("provider_selection_id")
+                    or reference.get("provider_selection_id")
+                    or ""
+                )
+                self.database.insert_clv_quote(
+                    {
+                        "provider": provider,
+                        "provider_event_id": str(
+                            option.get("providerEventId")
+                            or fair_quote.get("provider_event_id")
+                            or reference.get("provider_event_id")
+                            or ""
+                        ),
+                        "provider_market_id": market_id,
+                        "provider_selection_id": selection_id,
+                        "quote_timestamp": timestamp,
+                        "provider_status": option.get("marketStatus")
+                        or option.get("quoteStatus")
+                        or fair_quote.get("status"),
+                        "best_ask": probability,
+                        "midpoint": probability,
+                        "tracker_type": reference["tracker_type"],
+                        "tracker_record_id": reference["tracker_record_id"],
+                        "depth": [],
+                        "source": "MULTI_EXCHANGE_CLOSE_MONITOR",
+                        "snapshot": payload,
+                    }
+                )
+
+    @staticmethod
+    def _reference_market_type(reference: dict[str, Any]) -> str | None:
+        explicit = str(reference.get("sports_market_type") or "").strip().lower()
+        if explicit:
+            return explicit
+        values = (
+            reference.get("provider_market_id"),
+            reference.get("market_title"),
+        )
+        text = " ".join(str(value or "").lower() for value in values)
+        if any(token in text for token in (":moneyline:", "moneyline", "money line", ":h2h:")):
+            return "moneyline"
+        if any(token in text for token in (":spread:", "run line", "spread", "handicap")):
+            return "spread"
+        if any(token in text for token in (":game_total:", ":total:", "total runs", "total")):
+            return "game_total"
+        return None
+
+    def _recover_historical_provider_close(
+        self, reference: dict[str, Any], official_start: str | None
+    ) -> str | None:
+        provider_market_id = str(reference.get("provider_market_id") or "")
+        if provider_market_id.count(":") < 2:
+            return None
+        event_id = provider_market_id.split(":", 1)[0].strip()
+        if not event_id or not official_start:
+            return None
+        odds_provider = next(
+            (
+                provider
+                for provider in getattr(
+                    getattr(self, "execution_providers", None), "providers", ()
+                )
+                if callable(getattr(provider, "historical_pregame_quote", None))
+            ),
+            None,
+        )
+        if odds_provider is None:
+            return None
+        provider = normalized_provider(reference.get("provider"))
+        bookmaker = provider.removeprefix("oddsapi__")
+        try:
+            recovered = odds_provider.historical_pregame_quote(
+                league=reference.get("league"),
+                event_id=event_id,
+                bookmaker=bookmaker,
+                market_kind=self._reference_market_type(reference),
+                selection=reference.get("selection"),
+                official_start=official_start,
+                market_line=reference.get("market_line"),
+            )
+        except Exception:
+            LOGGER.exception(
+                "Historical pregame close recovery failed for %s",
+                reference.get("tracker_record_id"),
+            )
+            return None
+        if not recovered:
+            return None
+        option = recovered["execution_option"]
+        self.database.insert_clv_quote(
+            {
+                "provider": provider,
+                "provider_event_id": str(option.get("providerEventId") or event_id),
+                "provider_market_id": str(option.get("providerMarketId") or provider_market_id),
+                "provider_selection_id": str(
+                    option.get("providerOutcomeId")
+                    or reference.get("provider_selection_id")
+                    or reference.get("selection")
+                    or ""
+                ),
+                "quote_timestamp": recovered["quote_timestamp"],
+                "provider_status": "CLOSED",
+                "best_ask": option.get("bestExecutablePrice"),
+                "midpoint": option.get("bestExecutablePrice"),
+                "tracker_type": reference["tracker_type"],
+                "tracker_record_id": reference["tracker_record_id"],
+                "depth": [],
+                "source": "THE_ODDS_API_HISTORICAL_PREGAME_CLOSE",
+                "snapshot": {"execution_option": option},
+            }
+        )
+        return recovered["provider_commence_time"]
+
+    def _freeze_multi_exchange_clv(
+        self, reference: dict[str, Any], official_start: str | None
+    ) -> bool:
+        quotes = self.database.get_tracker_clv_quotes(
+            reference["tracker_type"], reference["tracker_record_id"]
+        )
+        if not quotes:
+            return False
+        latest: dict[str, dict[str, Any]] = {}
+        for provider in {
+            normalized_provider(quote.get("provider")) for quote in quotes
+        }:
+            if not provider:
+                continue
+            selected, _reason = select_last_fresh_quote(
+                [
+                    quote
+                    for quote in quotes
+                    if normalized_provider(quote.get("provider")) == provider
+                ],
+                official_start,
+                CLV_FRESHNESS_SECONDS,
+            )
+            if selected is not None:
+                latest[provider] = selected
+        if not latest:
+            return False
+
+        provider_closes: list[dict[str, Any]] = []
+        fair_sources: list[dict[str, Any]] = []
+        for provider, quote in sorted(latest.items()):
+            payload = quote.get("snapshot") or {}
+            option = payload.get("execution_option") or {}
+            fair_quote = payload.get("fair_quote") or {}
+            probability = _safe_float(
+                option.get("bestExecutablePrice")
+                or option.get("impliedProbability")
+                or quote.get("best_ask")
+            )
+            provider_closes.append(
+                {
+                    "provider": provider,
+                    "provider_name": option.get("providerName") or provider,
+                    "quote_timestamp": quote.get("quote_timestamp"),
+                    "closing_probability": probability,
+                    "american_odds": option.get("americanOdds"),
+                    "decimal_odds": option.get("decimalOdds"),
+                    "display_odds": option.get("displayOdds"),
+                    "available_liquidity": option.get("availableLiquidity"),
+                    "can_fill_tracked_stake": option.get(
+                        "canFillRecommendedStake"
+                    ),
+                    "mapping_confidence": option.get("matchingConfidence")
+                    or fair_quote.get("mapping_confidence"),
+                    "source": quote.get("source"),
+                }
+            )
+            if fair_quote:
+                fair_sources.append(fair_quote)
+
+        entry_provider = normalized_provider(reference.get("provider"))
+        exchange_quote = latest.get(entry_provider)
+        exchange_probability = None
+        exchange_metrics = None
+        if exchange_quote:
+            payload = exchange_quote.get("snapshot") or {}
+            option = payload.get("execution_option") or {}
+            exchange_probability = _safe_float(
+                option.get("bestExecutablePrice")
+                or option.get("impliedProbability")
+                or exchange_quote.get("best_ask")
+            )
+            try:
+                exchange_metrics = calculate_clv(
+                    reference.get("entry_price"), exchange_probability
+                )
+            except ValueError:
+                exchange_metrics = None
+
+        start = parse_timestamp(official_start) or _utc_now()
+        fair_price_engine = getattr(self, "fair_price_engine", None)
+        composite = (
+            fair_price_engine.calculate(fair_sources, now=start).to_dict()
+            if fair_price_engine is not None and fair_sources
+            else {
+                "status": "UNAVAILABLE",
+                "fair_probability": None,
+                "missing_reason": "NO_FRESH_EXACT_COMPOSITE_CLOSE",
+                "sources": [],
+            }
+        )
+        composite_probability = _safe_float(composite.get("fair_probability"))
+        composite_metrics = None
+        try:
+            composite_metrics = calculate_clv(
+                reference.get("entry_price"), composite_probability
+            )
+        except ValueError:
+            composite_metrics = None
+
+        exchange_status = CAPTURED if exchange_metrics else UNAVAILABLE
+        composite_status = CAPTURED if composite_metrics else UNAVAILABLE
+        closing_timestamp = max(
+            (
+                str(quote.get("quote_timestamp") or "")
+                for quote in latest.values()
+            ),
+            default="",
+        ) or official_start
+        closing_record = {
+                **reference,
+                "entry_implied_probability": reference.get("entry_price"),
+                "closing_snapshot_timestamp": closing_timestamp,
+                "official_event_start_timestamp": official_start,
+                "closing_effective_price": exchange_probability,
+                "closing_midpoint": exchange_probability,
+                "clv_cents": (
+                    exchange_metrics["clv_cents"] if exchange_metrics else None
+                ),
+                "clv_probability_points": (
+                    exchange_metrics["clv_probability_points"]
+                    if exchange_metrics
+                    else None
+                ),
+                "clv_pct": (
+                    exchange_metrics["clv_pct"] if exchange_metrics else None
+                ),
+                "midpoint_clv_pct": (
+                    exchange_metrics["clv_pct"] if exchange_metrics else None
+                ),
+                "clv_status": exchange_status,
+                "clv_unavailable_reason": (
+                    None
+                    if exchange_metrics
+                    else f"NO_FRESH_{entry_provider.upper()}_CLOSE"
+                ),
+                "provider_close_source": "MULTI_EXCHANGE_CLOSE_MONITOR",
+                "provider_closes": provider_closes,
+                "composite_close": composite,
+                "calculation_version": CLV_CALCULATION_VERSION,
+            }
+        inserted = self.database.insert_closing_line(closing_record)
+        if not inserted and exchange_status == CAPTURED:
+            self.database.replace_failed_closing_line(closing_record)
+        self.database.upsert_dual_clv(
+            {
+                "tracker_type": reference["tracker_type"],
+                "tracker_record_id": reference["tracker_record_id"],
+                "user_id": reference["user_id"],
+                "candidate_id": (
+                    reference["tracker_record_id"]
+                    if reference.get("tracker_type") == "candidate"
+                    else None
+                ),
+                "entry_price": reference.get("entry_price"),
+                "exchange_closing_price": exchange_probability,
+                "composite_closing_probability": composite_probability,
+                "exchange_probability_point_clv": (
+                    exchange_metrics["clv_probability_points"]
+                    if exchange_metrics
+                    else None
+                ),
+                "exchange_stake_return_clv": (
+                    exchange_metrics["clv_pct"] / 100.0
+                    if exchange_metrics
+                    else None
+                ),
+                "composite_probability_point_clv": (
+                    composite_metrics["clv_probability_points"]
+                    if composite_metrics
+                    else None
+                ),
+                "composite_stake_return_clv": (
+                    composite_metrics["clv_pct"] / 100.0
+                    if composite_metrics
+                    else None
+                ),
+                "exchange_clv_status": exchange_status,
+                "composite_clv_status": composite_status,
+                "exchange_missing_reason": (
+                    None
+                    if exchange_metrics
+                    else f"NO_FRESH_{entry_provider.upper()}_CLOSE"
+                ),
+                "composite_missing_reason": (
+                    None
+                    if composite_metrics
+                    else composite.get("missing_reason")
+                    or "NO_FRESH_EXACT_COMPOSITE_CLOSE"
+                ),
+                "closing_timestamp": closing_timestamp,
+                "exchange_calculation_version": CLV_CALCULATION_VERSION,
+                "composite_calculation_version": COMPOSITE_CLOSE_VERSION,
+                "snapshot": {
+                    "entry_provider": entry_provider,
+                    "provider_closes": provider_closes,
+                    "composite_close": composite,
+                    "exchange_metrics": exchange_metrics,
+                    "composite_metrics": composite_metrics,
+                    "fabricated_data": False,
+                },
+            }
+        )
+        if reference.get("tracker_type") == "candidate":
+            self.database.update_candidate_monitoring(
+                reference["tracker_record_id"],
+                {
+                    "monitoring_status": "MONITORING",
+                    "exchange_clv_status": exchange_status,
+                    "composite_clv_status": composite_status,
+                    "exchange_closing_price": exchange_probability,
+                    "composite_closing_probability": composite_probability,
+                    "exchange_probability_point_clv": (
+                        exchange_metrics["clv_probability_points"]
+                        if exchange_metrics
+                        else None
+                    ),
+                    "exchange_stake_return_clv": (
+                        exchange_metrics["clv_pct"] / 100.0
+                        if exchange_metrics
+                        else None
+                    ),
+                    "composite_probability_point_clv": (
+                        composite_metrics["clv_probability_points"]
+                        if composite_metrics
+                        else None
+                    ),
+                    "composite_stake_return_clv": (
+                        composite_metrics["clv_pct"] / 100.0
+                        if composite_metrics
+                        else None
+                    ),
+                    "closing_timestamp": closing_timestamp,
+                    "missing_reason": (
+                        None
+                        if exchange_metrics and composite_metrics
+                        else "PARTIAL_CLOSING_DATA"
+                    ),
+                },
+            )
+        return True
 
     def _freeze_unavailable_clv(
         self, reference: dict, status: str, reason: str, official_start: str | None
@@ -1688,6 +2380,23 @@ class TrackerService:
                         "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
                         "requires_fill_aggregation": wallet.requires_fill_aggregation,
                         "hedge_detection_required": wallet.hedge_detection_required,
+                        "event_portfolio_netting_required": wallet.event_portfolio_netting_required,
+                        "registry_status": wallet.registry_status,
+                        "supporting_sharp_eligible": wallet.supporting_sharp_eligible,
+                        "lead_sharp_eligible": wallet.lead_sharp_eligible,
+                        "standard_originator_eligible": wallet.standard_originator_eligible,
+                        "research_candidate_originator_eligible": wallet.research_candidate_originator_eligible,
+                        "supporting_weight": wallet.supporting_weight,
+                        "provisional_unit": wallet.provisional_unit,
+                        "minimum_meaningful_originator_position_usd": wallet.minimum_meaningful_originator_position_usd,
+                        "historical_fill_backfill": wallet.historical_fill_backfill,
+                        "category_signal_roles": wallet.category_signal_roles,
+                        "wallet_forensics": wallet.wallet_forensics,
+                        "shadow_rejection_reason": (
+                            "SOARIN22_SHADOW_VALIDATION_REQUIRED"
+                            if wallet.registry_status == "RESEARCH_SHADOW"
+                            else None
+                        ),
                         "status": "enabled" if wallet.enabled else "disabled",
                         "sync_status": "pending" if wallet.enabled else "disabled",
                         "open_position_count": 0,
@@ -1761,6 +2470,35 @@ class TrackerService:
                         "hedge_detection_required": raw_entry.get(
                             "hedge_detection_required", False
                         ),
+                        "event_portfolio_netting_required": raw_entry.get(
+                            "event_portfolio_netting_required", False
+                        ),
+                        "registry_status": raw_entry.get("registry_status") or "ACTIVE",
+                        "supporting_sharp_eligible": raw_entry.get(
+                            "supporting_sharp_eligible", True
+                        ),
+                        "lead_sharp_eligible": raw_entry.get(
+                            "lead_sharp_eligible", True
+                        ),
+                        "standard_originator_eligible": raw_entry.get(
+                            "standard_originator_eligible", True
+                        ),
+                        "research_candidate_originator_eligible": raw_entry.get(
+                            "research_candidate_originator_eligible", True
+                        ),
+                        "supporting_weight": raw_entry.get("supporting_weight", 0.5),
+                        "provisional_unit": raw_entry.get("provisional_unit", False),
+                        "minimum_meaningful_originator_position_usd": raw_entry.get(
+                            "minimum_meaningful_originator_position_usd"
+                        ),
+                        "historical_fill_backfill": raw_entry.get(
+                            "historical_fill_backfill", False
+                        ),
+                        "category_signal_roles": raw_entry.get(
+                            "category_signal_roles"
+                        )
+                        or {},
+                        "wallet_forensics": raw_entry.get("wallet_forensics") or {},
                         "status": "invalid",
                         "sync_status": "failed",
                         "open_position_count": 0,
@@ -1893,13 +2631,22 @@ class TrackerService:
         closed_positions: dict[str, list[dict]] = {}
         trade_fills: dict[str, list[dict]] = {}
         errors: list[str] = []
+        existing_fill_counts = self.database.get_wallet_fill_counts()
 
         def fetch_wallet(
             wallet: WalletEntry,
         ) -> tuple[str, list[dict], list[dict], list[dict]]:
             current = self.client.get_current_positions(wallet.address)
             closed = self.client.get_closed_positions(
-                wallet.address, 500 if wallet.requires_fill_aggregation else 300
+                wallet.address,
+                (
+                    5000
+                    if wallet.historical_fill_backfill
+                    and not existing_fill_counts.get(wallet.address, 0)
+                    else 500
+                    if wallet.requires_fill_aggregation
+                    else 300
+                ),
             )
             fills: list[dict] = []
             if wallet.requires_fill_aggregation:
@@ -1920,11 +2667,35 @@ class TrackerService:
                     }
                 )
                 get_user_trades = getattr(self.client, "get_user_trades", None)
-                if market_ids and not callable(get_user_trades):
+                needs_historical_backfill = (
+                    wallet.historical_fill_backfill
+                    and not existing_fill_counts.get(wallet.address, 0)
+                )
+                if needs_historical_backfill:
+                    market_ids = sorted(
+                        {
+                            str(position.get("conditionId") or "").strip().lower()
+                            for position in [*current, *closed]
+                            if str(position.get("eventSlug") or "")
+                            .strip()
+                            .lower()
+                            .startswith("mlb-")
+                            and str(position.get("conditionId") or "").strip()
+                        }
+                    )
+                if (market_ids or needs_historical_backfill) and not callable(
+                    get_user_trades
+                ):
                     raise RuntimeError(
                         "Required executed-fill sync is unavailable for this wallet"
                     )
-                if market_ids:
+                if needs_historical_backfill:
+                    if not market_ids:
+                        raise RuntimeError(
+                            "No verified MLB market IDs were available for historical fill backfill"
+                        )
+                    fills = get_user_trades(wallet.address, market_ids)
+                elif market_ids:
                     fills = get_user_trades(wallet.address, market_ids)
             return (
                 wallet.address,
@@ -1976,19 +2747,53 @@ class TrackerService:
                     continue
                 metric = categories.setdefault(
                     classification.category,
-                    {"sample_size": 0, "wins": 0, "losses": 0, "profit_loss": 0.0},
+                    {
+                        "sample_size": 0,
+                        "wins": 0,
+                        "losses": 0,
+                        "profit_loss": 0.0,
+                        "total_bought": 0.0,
+                        "_settled_results": [],
+                    },
                 )
+                realized_pnl = _safe_float(position.get("realizedPnl"))
                 metric["sample_size"] += 1
                 metric["wins" if settlement_price >= 0.99 else "losses"] += 1
-                metric["profit_loss"] += _safe_float(position.get("realizedPnl"))
+                metric["profit_loss"] += realized_pnl
+                metric["total_bought"] += _safe_float(position.get("totalBought"))
+                metric["_settled_results"].append(
+                    (
+                        int(_safe_float(position.get("timestamp"))),
+                        realized_pnl,
+                    )
+                )
 
             for metric in categories.values():
                 sample = metric["sample_size"]
                 wins = metric["wins"]
+                results = sorted(metric.pop("_settled_results", []))
+                equity = 0.0
+                peak = 0.0
+                max_drawdown = 0.0
+                for _, pnl in results:
+                    equity += pnl
+                    peak = max(peak, equity)
+                    max_drawdown = max(max_drawdown, peak - equity)
                 metric["raw_hit_rate"] = wins / sample if sample else None
+                metric["positive_pnl_rate"] = (
+                    sum(1 for _, pnl in results if pnl > 0) / sample
+                    if sample
+                    else None
+                )
                 metric["adjusted_hit_rate"] = (
                     (wins + (0.52 * 100)) / (sample + 100) if sample else None
                 )
+                metric["roi"] = (
+                    metric["profit_loss"] / metric["total_bought"]
+                    if metric["total_bought"] > 0
+                    else None
+                )
+                metric["maximum_drawdown"] = max_drawdown if results else None
                 metric["source"] = "Polymarket closed positions"
 
             proven = [
@@ -2125,6 +2930,9 @@ class TrackerService:
                 if configured_top_category_ids
                 else wallet_category_metrics.get("top_category_verified_at")
             )
+            category_signal_policy = wallet.category_signal_roles.get(
+                canonical_category_id(classification.category) or "", {}
+            )
 
             row = {
                 "wallet_address": wallet.address,
@@ -2133,7 +2941,13 @@ class TrackerService:
                 "wallet_display_address": wallet.display_address,
                 "wallet_short_address": shorten_wallet(wallet.address),
                 "wallet_profile_url": f"https://polymarket.com/profile/{wallet.address}",
-                "wallet_base_unit": wallet.base_unit,
+                "wallet_base_unit": (
+                    category_signal_policy.get("unit_baseline_usd")
+                    or wallet.base_unit
+                ),
+                "category_unit_baseline_usd": category_signal_policy.get(
+                    "unit_baseline_usd"
+                ),
                 "wallet_top_category": wallet.top_category,
                 "wallet_top_category_display": wallet.top_category_display,
                 "wallet_top_categories": list(wallet.top_categories),
@@ -2150,12 +2964,41 @@ class TrackerService:
                 "wallet_execution_style": wallet.execution_style,
                 "wallet_execution_style_code": wallet.execution_style_code,
                 "wallet_general_strategy": wallet.general_strategy,
+                "wallet_forensics": wallet.wallet_forensics,
                 "minimum_position_units": wallet.minimum_position_units,
                 "actionable_position_units": wallet.actionable_position_units,
                 "typical_execution_tranche_dollars": wallet.typical_execution_tranche_dollars,
                 "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
                 "requires_fill_aggregation": wallet.requires_fill_aggregation,
                 "hedge_detection_required": wallet.hedge_detection_required,
+                "event_portfolio_netting_required": wallet.event_portfolio_netting_required,
+                "wallet_registry_status": wallet.registry_status,
+                "supporting_sharp_eligible": wallet.supporting_sharp_eligible,
+                "lead_sharp_eligible": wallet.lead_sharp_eligible,
+                "standard_originator_eligible": wallet.standard_originator_eligible,
+                "research_candidate_originator_eligible": wallet.research_candidate_originator_eligible,
+                "supporting_weight": wallet.supporting_weight,
+                "category_signal_role": category_signal_policy.get("role"),
+                "category_consensus_role": category_signal_policy.get(
+                    "consensus_role"
+                ),
+                "category_signal_quality_weight": category_signal_policy.get(
+                    "quality_weight"
+                ),
+                "category_signal_minimum_originator_units": category_signal_policy.get(
+                    "minimum_originator_units"
+                ),
+                "category_signal_requires_clean_directional": category_signal_policy.get(
+                    "requires_clean_directional", False
+                ),
+                "category_signal_policy_source": category_signal_policy.get("source"),
+                "provisional_unit": wallet.provisional_unit,
+                "minimum_meaningful_originator_position_usd": wallet.minimum_meaningful_originator_position_usd,
+                "shadow_rejection_reason": (
+                    "SOARIN22_SHADOW_VALIDATION_REQUIRED"
+                    if wallet.registry_status == "RESEARCH_SHADOW"
+                    else None
+                ),
                 "position_key": position_key(position),
                 "condition_id": position.get("conditionId"),
                 "event_slug": position.get("eventSlug"),
@@ -2282,6 +3125,10 @@ class TrackerService:
                 "net_directional_exposure_usd": round(remaining_entry_value, 6),
                 "opposing_exposure_usd": 0.0,
                 "wallet_hedge_status": "unhedged",
+                "two_sided_status": "CLEAN_DIRECTIONAL",
+                "opposing_exposure_ratio": 0.0,
+                "hedge_probability": 0.0,
+                "directional_weight": 1.0,
                 "signal_rejection_reason": (
                     "INVALID_MARKET_MAPPING"
                     if wallet.requires_fill_aggregation
@@ -2351,6 +3198,28 @@ class TrackerService:
                 continue
             leader_shares = _safe_float(leader.get("shares"))
             opposing_shares = _safe_float(opponent.get("shares"))
+            leader_exposure = _safe_float(leader.get("position_size_usd"))
+            opposing_exposure = _safe_float(opponent.get("position_size_usd"))
+            larger_exposure = max(leader_exposure, opposing_exposure)
+            smaller_exposure = min(leader_exposure, opposing_exposure)
+            opposing_ratio = (
+                smaller_exposure / larger_exposure if larger_exposure > 0 else 0.0
+            )
+            frequent_two_way_execution = (
+                sum(int(row.get("raw_fill_count") or 0) for row in group) >= 6
+                and sum(int(row.get("sell_fill_count") or 0) for row in group) >= 2
+            )
+            hedge_policy = bool(leader.get("hedge_detection_required"))
+            if frequent_two_way_execution and opposing_ratio > 0.2:
+                two_sided_status = "MARKET_MAKING_OR_UNCERTAIN"
+            elif opposing_ratio > 0.5:
+                two_sided_status = "TWO_SIDED"
+            elif opposing_ratio > 0.2:
+                two_sided_status = "MATERIAL_HEDGE"
+            elif opposing_ratio >= 0.1:
+                two_sided_status = "MINOR_HEDGE"
+            else:
+                two_sided_status = "CLEAN_DIRECTIONAL"
             net_shares = max(0.0, leader_shares - opposing_shares)
             net_cost_basis = net_shares * _safe_float(
                 leader.get("average_entry_price")
@@ -2377,6 +3246,19 @@ class TrackerService:
                 )
                 row["opposing_exposure_usd"] = round(other_exposure, 6)
                 row["wallet_hedge_status"] = "opposing_exposure_detected"
+                row["gross_side_a_exposure"] = round(leader_exposure, 6)
+                row["gross_side_b_exposure"] = round(opposing_exposure, 6)
+                row["opposing_exposure_ratio"] = round(opposing_ratio, 6)
+                row["hedge_probability"] = round(
+                    min(1.0, opposing_ratio * (1.25 if frequent_two_way_execution else 1.0)),
+                    6,
+                )
+                row["two_sided_status"] = two_sided_status
+                row["directional_weight"] = (
+                    0.5
+                    if hedge_policy and two_sided_status == "MATERIAL_HEDGE"
+                    else 1.0
+                )
 
             for row in group:
                 if row is leader:
@@ -2391,14 +3273,145 @@ class TrackerService:
             leader["signal_position_size_usd"] = round(net_cost_basis, 6)
             leader["net_directional_exposure_usd"] = round(net_cost_basis, 6)
             leader["net_directional_shares"] = round(net_shares, 8)
-            if net_shares <= 0 or net_cost_basis < actionable_dollars:
+            if hedge_policy and two_sided_status in {
+                "TWO_SIDED",
+                "MARKET_MAKING_OR_UNCERTAIN",
+            }:
+                leader["signal_position_size_usd"] = 0.0
+                leader["net_directional_exposure_usd"] = round(net_cost_basis, 6)
+                leader["wallet_hedge_status"] = two_sided_status.lower()
+                leader["signal_rejection_reason"] = (
+                    "MARKET_MAKING_OR_UNCERTAIN"
+                    if two_sided_status == "MARKET_MAKING_OR_UNCERTAIN"
+                    else "NO_CLEAR_DIRECTIONAL_EXPOSURE"
+                )
+                leader["signal_rejection_detail"] = two_sided_status
+            elif net_shares <= 0 or net_cost_basis < actionable_dollars:
                 leader["wallet_hedge_status"] = "no_clear_directional_exposure"
                 leader["signal_rejection_reason"] = (
                     leader.get("signal_rejection_reason")
                     or "NO_CLEAR_DIRECTIONAL_EXPOSURE"
                 )
             else:
-                leader["wallet_hedge_status"] = "directional_after_hedge"
+                leader["wallet_hedge_status"] = (
+                    "directional_after_hedge"
+                    if two_sided_status != "CLEAN_DIRECTIONAL"
+                    else "clean_directional"
+                )
+
+        TrackerService._apply_event_portfolio_netting(rows)
+
+    @staticmethod
+    def _apply_event_portfolio_netting(rows: list[dict]) -> None:
+        groups: dict[tuple[str, str, str], list[dict]] = {}
+        for row in rows:
+            if not row.get("event_portfolio_netting_required"):
+                continue
+            event_slug = str(row.get("event_slug") or "").strip().lower()
+            if not event_slug:
+                continue
+            slug = str(row.get("market_slug") or "").strip().lower()
+            title = str(row.get("market_title") or "").strip().lower()
+            if "-total-" in slug or "o/u " in title:
+                family = "TOTAL"
+            elif "-spread-" in slug or title.startswith("spread:"):
+                family = "TEAM"
+            else:
+                family = "TEAM"
+            groups.setdefault(
+                (
+                    str(row.get("wallet_address") or "").strip().lower(),
+                    event_slug,
+                    family,
+                ),
+                [],
+            ).append(row)
+
+        for (_, _, family), group in groups.items():
+            exposures: dict[str, float] = {}
+            for row in group:
+                outcome = str(row.get("outcome") or "").strip().lower()
+                if family == "TOTAL":
+                    direction = (
+                        "over"
+                        if outcome.startswith("over")
+                        else "under"
+                        if outcome.startswith("under")
+                        else outcome
+                    )
+                else:
+                    direction = outcome
+                if not direction:
+                    continue
+                exposures[direction] = exposures.get(direction, 0.0) + _safe_float(
+                    row.get("position_size_usd")
+                )
+                row["event_portfolio_direction"] = direction
+
+            meaningful = {
+                direction: exposure
+                for direction, exposure in exposures.items()
+                if exposure > 0
+            }
+            if len(meaningful) < 2:
+                for row in group:
+                    row["event_portfolio_status"] = "SINGLE_DIRECTION"
+                    row["event_portfolio_opposing_ratio"] = 0.0
+                continue
+
+            ordered = sorted(
+                meaningful.items(), key=lambda item: item[1], reverse=True
+            )
+            dominant_direction, dominant_exposure = ordered[0]
+            opposing_exposure = sum(exposure for _, exposure in ordered[1:])
+            opposing_ratio = (
+                opposing_exposure / dominant_exposure
+                if dominant_exposure > 0
+                else 1.0
+            )
+            status = (
+                "CLEAN_AFTER_EVENT_NETTING"
+                if opposing_ratio < 0.10
+                else "MINOR_EVENT_HEDGE"
+                if opposing_ratio <= 0.20
+                else "MATERIAL_EVENT_HEDGE"
+                if opposing_ratio <= 0.50
+                else "TWO_SIDED_EVENT_PORTFOLIO"
+            )
+
+            for row in group:
+                direction = row.get("event_portfolio_direction")
+                row["event_portfolio_status"] = status
+                row["event_portfolio_opposing_ratio"] = round(
+                    opposing_ratio, 6
+                )
+                row["event_portfolio_dominant_direction"] = dominant_direction
+                if direction != dominant_direction:
+                    row["signal_position_size_usd"] = 0.0
+                    row["signal_rejection_reason"] = (
+                        row.get("signal_rejection_reason")
+                        or "EVENT_PORTFOLIO_HEDGE_LEG"
+                    )
+                    continue
+                if status == "CLEAN_AFTER_EVENT_NETTING":
+                    continue
+                if status == "MINOR_EVENT_HEDGE":
+                    row["two_sided_status"] = "MINOR_HEDGE"
+                    row["directional_weight"] = min(
+                        _safe_float(row.get("directional_weight"), 1.0),
+                        0.75,
+                    )
+                    continue
+                row["signal_position_size_usd"] = 0.0
+                row["two_sided_status"] = (
+                    "TWO_SIDED"
+                    if status == "TWO_SIDED_EVENT_PORTFOLIO"
+                    else "MATERIAL_HEDGE"
+                )
+                row["signal_rejection_reason"] = (
+                    row.get("signal_rejection_reason")
+                    or "EVENT_PORTFOLIO_DIRECTION_UNCLEAR"
+                )
 
     def _persist_positions(
         self,
@@ -2450,6 +3463,37 @@ class TrackerService:
         for key in missing_keys:
             previous = previous_rows[key]
             closed_match = closed_by_key.get(key)
+            # Polymarket's open-position endpoint can briefly omit an otherwise
+            # unchanged position during refreshes.  Do not let that transient
+            # omission make a qualified play flicker off the live board.  A
+            # matching closed-position record still closes immediately; an
+            # unconfirmed disappearance must remain absent for the configured
+            # grace period before it is treated as a real exit.
+            if not closed_match:
+                try:
+                    last_seen = datetime.fromisoformat(
+                        str(previous.get("last_seen_at") or "").replace("Z", "+00:00")
+                    )
+                except ValueError:
+                    last_seen = None
+                if last_seen is not None and last_seen.tzinfo is None:
+                    last_seen = last_seen.replace(tzinfo=timezone.utc)
+                event_time = coarse_event_datetime(previous)
+                grace_cutoff = _utc_now() - timedelta(
+                    seconds=self.settings.wallet_position_stale_grace_seconds
+                )
+                if (
+                    last_seen is not None
+                    and last_seen >= grace_cutoff
+                    and event_time is not None
+                    and event_time > _utc_now()
+                    and str(previous.get("status") or "open").lower() == "open"
+                ):
+                    stale_row = dict(previous)
+                    stale_row["wallet_sync_stale"] = True
+                    stale_row["wallet_sync_stale_since"] = now
+                    output.append(stale_row)
+                    continue
             closed_snapshot = dict(previous)
             closed_snapshot["status"] = "closed"
             closed_snapshot["closed_at"] = now
@@ -2759,6 +3803,8 @@ class TrackerService:
                     "minimum_actionable_exposure_dollars": wallet.minimum_actionable_exposure_dollars,
                     "requires_fill_aggregation": wallet.requires_fill_aggregation,
                     "hedge_detection_required": wallet.hedge_detection_required,
+                    "event_portfolio_netting_required": wallet.event_portfolio_netting_required,
+                    "wallet_forensics": wallet.wallet_forensics,
                 }
             )
             results.append(result)
@@ -2880,19 +3926,25 @@ class TrackerService:
         output: list[dict] = []
         for position in positions:
             wallet_unit = unit_map.get(position["wallet_address"], {})
+            category_unit = position.get("category_unit_baseline_usd")
+            effective_unit = (
+                category_unit or wallet_unit.get("estimated_base_unit")
+            )
             estimated_units = amount_to_units(
                 position.get("position_size_usd") or 0,
-                wallet_unit.get("estimated_base_unit"),
+                effective_unit,
             )
             signal_units = amount_to_units(
                 position.get("signal_position_size_usd")
                 if position.get("signal_position_size_usd") is not None
                 else position.get("position_size_usd") or 0,
-                wallet_unit.get("estimated_base_unit"),
+                effective_unit,
             )
-            position["estimated_base_unit"] = wallet_unit.get("estimated_base_unit")
-            position["estimated_base_unit_label"] = wallet_unit.get(
-                "estimated_base_unit_label"
+            position["estimated_base_unit"] = effective_unit
+            position["estimated_base_unit_label"] = (
+                "Category-specific measured unit"
+                if category_unit
+                else wallet_unit.get("estimated_base_unit_label")
             )
             position["estimated_units"] = estimated_units
             position["position_units"] = estimated_units

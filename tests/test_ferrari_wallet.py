@@ -78,8 +78,8 @@ def _position(
         "status": "open",
         "shares": 100,
         "minimum_position_units": 0.2,
-        "actionable_position_units": 0.5,
-        "minimum_actionable_exposure_dollars": 2500,
+        "actionable_position_units": 0.2,
+        "minimum_actionable_exposure_dollars": 3400,
     }
     row.update(overrides)
     return row
@@ -109,20 +109,35 @@ def test_ferrari_wallet_identity_metadata_and_aliases_are_authoritative():
     wallet = matches[0]
     assert wallet.label == "ferrariChampions2026"
     assert wallet.enabled is True
-    assert wallet.base_unit == 5000
+    assert wallet.base_unit == 17000
     assert wallet.top_category == "Baseball"
     assert wallet.top_category_display == "MLB / Baseball"
     assert wallet.top_category_ids == ("mlb", "tennis")
     assert wallet.sub_top_categories == ("Tennis",)
-    assert wallet.trader_type == "ULTRA_HFT_AUTOMATED_HEDGING"
-    assert wallet.selectivity_code == "VERY_LOW"
-    assert wallet.copyability_code == "LOW_WITHOUT_AGGREGATION"
-    assert wallet.execution_style_code == "FRAGMENTED_HIGH_FREQUENCY"
-    assert wallet.hold_profile == "UNKNOWN_OR_MIXED"
-    assert wallet.typical_execution_tranche_dollars == 1000
-    assert wallet.minimum_actionable_exposure_dollars == 2500
+    assert wallet.trader_type == "ULTRA_HFT_MLB_EVENT_PORTFOLIO"
+    assert wallet.selectivity_code == "VERY_LOW_EVENT_PORTFOLIO"
+    assert wallet.copyability_code == "MLB_EVENT_NETTING_REQUIRED"
+    assert (
+        wallet.execution_style_code
+        == "ULTRA_HFT_MULTI_MARKET_EVENT_PORTFOLIO"
+    )
+    assert wallet.hold_profile == "ACTIVE_EVENT_PORTFOLIO"
+    assert wallet.typical_execution_tranche_dollars == 10
+    assert wallet.minimum_actionable_exposure_dollars == 3400
+    assert wallet.actionable_position_units == pytest.approx(0.2)
     assert wallet.requires_fill_aggregation is True
     assert wallet.hedge_detection_required is True
+    assert wallet.event_portfolio_netting_required is True
+    assert wallet.supporting_weight == pytest.approx(0.9)
+    assert wallet.category_signal_roles["mlb"]["quality_weight"] == pytest.approx(
+        0.98
+    )
+    assert wallet.category_signal_roles["tennis"]["role"] == "RESEARCH"
+    assert wallet.wallet_forensics["realized_pnl_usd"] == pytest.approx(
+        5950052.41
+    )
+    assert wallet.wallet_forensics["gross_turnover_roi"] == pytest.approx(0.1029)
+    assert wallet.wallet_forensics["clv_status"] == "UNAVAILABLE_NOT_FABRICATED"
 
 
 def test_repeated_fills_are_deduplicated_and_volume_weighted():
@@ -167,7 +182,11 @@ def test_partial_exit_reduces_remaining_cost_and_full_exit_is_excluded():
 
 def test_wallet_fill_ledger_and_registry_are_idempotent(tmp_path):
     database = TrackerDatabase(tmp_path / "tracker.db")
-    wallet = load_wallets(Path("wallets.json")).valid_wallets[-1]
+    wallet = next(
+        wallet
+        for wallet in load_wallets(Path("wallets.json")).valid_wallets
+        if wallet.address == FERRARI_ADDRESS
+    )
     database.sync_wallet_registry([wallet.__dict__])
     database.sync_wallet_registry([{**wallet.__dict__, "label": "ferrariChampions2026"}])
     fills, _ = normalize_trade_fills(
@@ -188,44 +207,55 @@ def test_wallet_fill_ledger_and_registry_are_idempotent(tmp_path):
 
 def test_wallet_specific_unit_math_and_exact_actionable_threshold():
     diagnostics: list[dict] = []
-    below = _position(amount=2499.99, condition_id="0xbelow")
-    exact = _position(amount=2500, condition_id="0xexact")
+    below = _position(
+        amount=3399.99,
+        condition_id="0xbelow",
+        minimum_actionable_exposure_dollars=3400,
+    )
+    exact = _position(
+        amount=3400.01,
+        condition_id="0xexact",
+        minimum_actionable_exposure_dollars=3400,
+    )
     plays = build_trades_to_play(
         [below, exact],
-        unit_map={FERRARI_ADDRESS: {"estimated_base_unit": 5000}},
+        unit_map={FERRARI_ADDRESS: {"estimated_base_unit": 17000}},
         now=datetime(2026, 7, 13, tzinfo=timezone.utc),
         diagnostics=diagnostics,
     )
 
     assert {play["canonical_market_key"] for play in plays} == {"0xexact"}
-    assert plays[0]["primary_trader"]["relative_units"] == 0.5
+    assert plays[0]["primary_trader"]["relative_units"] == pytest.approx(
+        3400.01 / 17000
+    )
     assert diagnostics[0]["reason"] == "BELOW_WALLET_ACTIONABLE_THRESHOLD"
-    assert diagnostics[0]["aggregated_cost_basis"] == 2499.99
-    assert diagnostics[0]["signal_cost_basis"] == 2499.99
-    assert 1000 / 5000 == 0.2
-    assert 2500 / 5000 == 0.5
-    assert 5000 / 5000 == 1.0
+    assert diagnostics[0]["aggregated_cost_basis"] == 3399.99
+    assert diagnostics[0]["signal_cost_basis"] == 3399.99
+    assert 3400 / 17000 == 0.2
+    assert 8500 / 17000 == 0.5
+    assert 17000 / 17000 == 1.0
 
 
-def test_tennis_sub_category_can_originate_at_full_weight():
+def test_tennis_sub_category_is_research_only():
     ferrari = _position(
-        amount=5000,
+        amount=17000,
         category="Tennis",
         canonical_category_id="tennis",
         event_slug="atp-example",
+        category_signal_role="RESEARCH",
+        category_signal_quality_weight=0.0,
+        category_signal_minimum_originator_units=999,
+        category_signal_requires_clean_directional=True,
     )
     diagnostics: list[dict] = []
     alone = build_trades_to_play(
         [ferrari],
-        unit_map={FERRARI_ADDRESS: {"estimated_base_unit": 5000}},
+        unit_map={FERRARI_ADDRESS: {"estimated_base_unit": 17000}},
         now=datetime(2026, 7, 13, tzinfo=timezone.utc),
         diagnostics=diagnostics,
     )
-    assert len(alone) == 1
-    assert diagnostics == []
-    assert alone[0]["lead_sharp_count"] == 1
-    assert alone[0]["supporting_wallets"][0]["sharp_role"] == "Lead Sharp"
-    assert alone[0]["supporting_wallets"][0]["category_weight"] == 1.0
+    assert alone == []
+    assert diagnostics[0]["reason"] == "SINGLE_NON_CATEGORY_WALLET"
 
     tennis_lead = _position(
         amount=3000,
@@ -239,20 +269,20 @@ def test_tennis_sub_category_can_originate_at_full_weight():
     mixed = build_trades_to_play(
         [ferrari, tennis_lead],
         unit_map={
-            FERRARI_ADDRESS: {"estimated_base_unit": 5000},
+            FERRARI_ADDRESS: {"estimated_base_unit": 17000},
             "0xlead": {"estimated_base_unit": 1000},
         },
         now=datetime(2026, 7, 13, tzinfo=timezone.utc),
     )[0]
-    assert mixed["primary_trader"]["wallet_label"] == "ferrariChampions2026"
-    assert mixed["weighted_sharp_count"] == 2.0
+    assert mixed["primary_trader"]["wallet_label"] == "TennisLead"
+    assert mixed["weighted_sharp_count"] == 1.0
     ferrari_support = next(
         supporter
         for supporter in mixed["supporting_wallets"]
         if supporter["wallet_address"] == FERRARI_ADDRESS
     )
-    assert ferrari_support["sharp_role"] == "Lead Sharp"
-    assert ferrari_support["category_weight"] == 1.0
+    assert ferrari_support["sharp_role"] == "Supporting Sharp"
+    assert ferrari_support["category_weight"] == 0.0
 
 
 def test_same_wallet_opposing_exposure_is_netted_before_signal_scoring():
@@ -264,6 +294,7 @@ def test_same_wallet_opposing_exposure_is_netted_before_signal_scoring():
         opposite_outcome="Red Sox",
         hedge_detection_required=True,
         wallet_base_unit=5000,
+        minimum_actionable_exposure_dollars=2500,
     )
     opponent = _position(
         amount=1200,
@@ -316,6 +347,35 @@ def test_substantially_hedged_wallet_has_no_clear_directional_signal():
     TrackerService._apply_wallet_hedge_controls(None, [first, second])
     assert first["signal_rejection_reason"] == "NO_CLEAR_DIRECTIONAL_EXPOSURE"
     assert second["signal_rejection_reason"] == "HEDGED_WALLET_POSITION"
+
+
+def test_ferrari_event_portfolio_conflicts_cannot_originate():
+    dominant = _position(
+        amount=10000,
+        outcome="Yankees",
+        condition_id="0xmoneyline",
+        event_portfolio_netting_required=True,
+    )
+    opposing_spread = _position(
+        amount=4000,
+        outcome="Red Sox",
+        condition_id="0xspread",
+        market_slug="mlb-nyy-bos-2026-07-14-spread-away-1pt5",
+        market_title="Spread: Red Sox +1.5",
+        event_portfolio_netting_required=True,
+    )
+
+    TrackerService._apply_event_portfolio_netting(
+        [dominant, opposing_spread]
+    )
+
+    assert dominant["event_portfolio_status"] == "MATERIAL_EVENT_HEDGE"
+    assert dominant["signal_position_size_usd"] == 0
+    assert (
+        dominant["signal_rejection_reason"]
+        == "EVENT_PORTFOLIO_DIRECTION_UNCLEAR"
+    )
+    assert opposing_spread["signal_position_size_usd"] == 0
 
 
 class NoFillSyncClient:

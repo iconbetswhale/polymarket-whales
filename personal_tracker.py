@@ -381,6 +381,7 @@ def replay_personal_tracker(
             "timestamp": None,
             "profit_loss": 0.0,
             "bankroll": starting_bankroll,
+            "daily_profit": 0.0,
         }
     ]
     for row in settled_rows:
@@ -390,6 +391,7 @@ def replay_personal_tracker(
                 "timestamp": row.get("settled_at") or row.get("event_start_time"),
                 "profit_loss": running_profit,
                 "bankroll": starting_bankroll + running_profit,
+                "daily_profit": float(row["profit_loss"] or 0),
             }
         )
 

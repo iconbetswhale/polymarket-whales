@@ -198,6 +198,8 @@ def evaluate_portfolio_risk(
     exposures: list[dict[str, Any]],
     account_state: dict[str, Any],
     config: RiskConfig = RiskConfig(),
+    *,
+    continuous_sizing: bool = False,
 ) -> dict[str, Any]:
     total = max(0.0, _number(bankroll))
     proposed = max(0.0, _number(proposed_stake))
@@ -255,7 +257,24 @@ def evaluate_portfolio_risk(
     )
     before_correlation = proposed * drawdown["stake_multiplier"]
     caps = {**remaining, "bankroll_bucket": bucket_remaining}
-    final = min([before_correlation, *caps.values()]) if caps else before_correlation
+    exposure_pressure = max(
+        (
+            related[key] / limits[key]
+            for key in related
+            if limits[key] > 0
+        ),
+        default=0.0,
+    )
+    exposure_multiplier = (
+        1.0 / (1.0 + exposure_pressure) if continuous_sizing else 1.0
+    )
+    final = (
+        before_correlation * exposure_multiplier
+        if continuous_sizing
+        else min([before_correlation, *caps.values()])
+        if caps
+        else before_correlation
+    )
     reasons = []
     if not drawdown["automatic_recommendations_allowed"]:
         final = 0.0
@@ -263,7 +282,11 @@ def evaluate_portfolio_risk(
     if bucket == "DISCOVERY" and drawdown["freeze_experiments"]:
         final = 0.0
         reasons.append("DISCOVERY_FROZEN_BY_RISK_STATE")
-    binding = sorted(key for key, value in caps.items() if value <= final + 1e-9)
+    binding = (
+        []
+        if continuous_sizing
+        else sorted(key for key, value in caps.items() if value <= final + 1e-9)
+    )
     if final + 1e-9 < proposed and not reasons:
         reasons.append("PORTFOLIO_RISK_CAP_REDUCED_STAKE")
     return {
@@ -273,6 +296,13 @@ def evaluate_portfolio_risk(
         "limits": {key: round(value, 8) for key, value in limits.items()},
         "remaining_capacity": {key: round(value, 8) for key, value in caps.items()},
         "correlation_multiplier": round(final / proposed, 8) if proposed > 0 else 0.0,
+        "continuous_exposure_pressure": round(exposure_pressure, 8),
+        "continuous_exposure_multiplier": round(exposure_multiplier, 8),
+        "sizing_mode": (
+            "CONTINUOUS_EXPOSURE_WEIGHTING"
+            if continuous_sizing
+            else "HARD_PORTFOLIO_CAPS"
+        ),
         "final_capped_stake": round(max(0.0, final), 8),
         "bucket": bucket,
         "bankroll_buckets": buckets,

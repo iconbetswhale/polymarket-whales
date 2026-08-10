@@ -1,0 +1,521 @@
+/* IconLabs stage-two art direction
+   Loaded after the legacy and structural design systems. This file owns the
+   shared brand atmosphere and component behavior; page composition lives in
+   the stage2 page stylesheets. */
+
+:root {
+  --bg-root: #08070d;
+  --bg-sidebar: #0c0a12;
+  --bg-workspace: #0d0b13;
+  --bg-surface-1: #12101a;
+  --bg-surface-2: #171321;
+  --bg-surface-3: #1d1729;
+  --bg-elevated: #221b30;
+  --bg-hover: #282038;
+  --bg-selected: #2b2240;
+
+  --purple-primary: #a99af5;
+  --purple-primary-hover: #b8acfa;
+  --purple-secondary: #8273cd;
+  --purple-muted: #65598e;
+  --purple-soft: rgba(169, 154, 245, 0.1);
+  --purple-soft-strong: rgba(169, 154, 245, 0.17);
+  --purple-glow: rgba(169, 154, 245, 0.18);
+
+  --border-subtle: rgba(195, 183, 238, 0.09);
+  --border-default: rgba(195, 183, 238, 0.16);
+  --border-strong: rgba(195, 183, 238, 0.28);
+  --border-focus: rgba(178, 162, 255, 0.68);
+
+  --text-primary: #f5f2fa;
+  --text-secondary: #b8b1c5;
+  --text-muted: #81798f;
+  --text-disabled: #585263;
+
+  --positive: #79de79;
+  --positive-soft: rgba(121, 222, 121, 0.12);
+  --warning: #e9bd63;
+  --warning-soft: rgba(233, 189, 99, 0.12);
+  --negative: #eb707b;
+  --negative-soft: rgba(235, 112, 123, 0.12);
+  --data-cyan: #69c7e8;
+  --data-cyan-soft: rgba(105, 199, 232, 0.1);
+
+  /* Compatibility aliases for the legacy presentation layer. */
+  --panel: var(--bg-surface-1);
+  --panel-strong: var(--bg-surface-2);
+  --border: var(--border-default);
+  --cyan: var(--purple-primary);
+  --cyan-bright: var(--purple-primary-hover);
+  --cyan-soft: var(--purple-soft);
+  --accent-primary: var(--purple-primary);
+  --accent-soft: var(--purple-soft);
+  --border-positive: rgba(121, 222, 121, 0.34);
+  --border-warning: rgba(233, 189, 99, 0.38);
+  --border-negative: rgba(235, 112, 123, 0.38);
+}
+
+html,
+body {
+  background: var(--bg-root) !important;
+}
+
+body {
+  color: var(--text-primary);
+  background-image:
+    radial-gradient(circle at 58% -18%, rgba(101, 89, 142, 0.08), transparent 32%),
+    linear-gradient(180deg, #08070d 0%, #0a0810 100%) !important;
+}
+
+::selection {
+  color: var(--text-primary);
+  background: rgba(169, 154, 245, 0.3);
+}
+
+/* Shared shell ------------------------------------------------------------ */
+.app-nav {
+  background:
+    linear-gradient(180deg, rgba(169, 154, 245, 0.035), transparent 180px),
+    var(--bg-sidebar) !important;
+  border-right-color: var(--border-subtle) !important;
+  box-shadow: 16px 0 42px rgba(0, 0, 0, 0.16) !important;
+}
+
+.brand {
+  min-height: 50px;
+  margin-bottom: 2px;
+  padding: 6px 8px !important;
+  border-radius: 10px;
+  background: linear-gradient(110deg, rgba(169, 154, 245, 0.09), rgba(169, 154, 245, 0.025));
+}
+
+.brand-icon {
+  border: 1px solid rgba(169, 154, 245, 0.24) !important;
+  background: rgba(169, 154, 245, 0.14) !important;
+  color: var(--purple-primary-hover) !important;
+  box-shadow: 0 8px 24px rgba(34, 27, 48, 0.32) !important;
+}
+
+.brand-copy strong {
+  color: var(--text-primary) !important;
+  letter-spacing: -0.02em !important;
+}
+
+.brand-copy small {
+  color: var(--purple-muted) !important;
+}
+
+.product-mode {
+  border-color: var(--border-subtle) !important;
+  background: rgba(18, 16, 26, 0.58) !important;
+}
+
+.product-mode .active {
+  color: var(--purple-primary-hover) !important;
+  background: var(--purple-soft) !important;
+  box-shadow: inset 0 0 0 1px rgba(169, 154, 245, 0.16) !important;
+}
+
+.nav-section-label {
+  color: #746c82 !important;
+}
+
+.nav-links a {
+  color: var(--text-secondary) !important;
+  border: 0 !important;
+}
+
+.nav-links a i {
+  color: #756d86 !important;
+}
+
+.nav-links a:hover {
+  color: var(--text-primary) !important;
+  background: rgba(169, 154, 245, 0.07) !important;
+}
+
+.nav-links a:hover i {
+  color: var(--purple-primary) !important;
+}
+
+.nav-links a[aria-current="page"] {
+  color: var(--text-primary) !important;
+  background: var(--purple-soft) !important;
+  box-shadow: none !important;
+}
+
+.nav-links a[aria-current="page"]::before {
+  width: 2px !important;
+  background: var(--purple-primary) !important;
+  box-shadow: 0 0 12px rgba(169, 154, 245, 0.24);
+}
+
+.nav-links a[aria-current="page"] i {
+  color: var(--purple-primary-hover) !important;
+}
+
+.nav-status {
+  display: none !important;
+}
+
+.nav-links {
+  min-height: 0;
+  flex: 1 1 auto;
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch !important;
+}
+
+.nav-links a,
+.sidebar-account-button {
+  width: 100% !important;
+  display: grid !important;
+  grid-template-columns: 20px minmax(0, 1fr) !important;
+  justify-content: start !important;
+  align-items: center !important;
+  gap: 10px !important;
+  padding: 0 10px !important;
+  text-align: left !important;
+}
+
+.nav-links a i,
+.sidebar-account-button > i {
+  width: 20px !important;
+  display: grid;
+  place-items: center;
+  margin: 0 !important;
+}
+
+@media (max-width: 1320px) {
+  .nav-links {
+    display: none !important;
+  }
+
+  .nav-links.open {
+    display: flex !important;
+  }
+}
+
+.sidebar-account-button {
+  min-height: 46px;
+  margin-top: auto;
+  border: 1px solid var(--border-subtle);
+  border-radius: 9px;
+  background: rgba(169, 154, 245, .055);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.sidebar-account-button:hover {
+  border-color: rgba(169, 154, 245, .22);
+  background: var(--purple-soft);
+  color: var(--text-primary);
+}
+
+.sidebar-account-button > span {
+  min-width: 0;
+  display: grid;
+  gap: 1px;
+}
+
+.sidebar-account-button strong {
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.sidebar-account-button small {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 500;
+}
+
+.app-shell,
+body[data-page="trades"] .app-shell,
+body[data-page="tracker"] .app-shell,
+body[data-page="odds-screen"] .app-shell {
+  padding-top: var(--space-5) !important;
+}
+
+@media (max-width: 900px) {
+  .app-shell,
+  body[data-page="trades"] .app-shell,
+  body[data-page="tracker"] .app-shell,
+  body[data-page="odds-screen"] .app-shell {
+    padding-top: calc(var(--topbar-height) + 14px) !important;
+  }
+
+  .sidebar-account-button {
+    margin-top: 10px;
+  }
+}
+
+.app-shell,
+body[data-page="trades"] .app-shell,
+body[data-page="tracker"] .app-shell,
+body[data-page="odds-screen"] .app-shell {
+  background:
+    radial-gradient(circle at 76% 0%, rgba(169, 154, 245, 0.035), transparent 27%),
+    var(--bg-workspace) !important;
+}
+
+/* Shared controls --------------------------------------------------------- */
+button,
+a,
+input,
+select,
+summary {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    opacity 160ms ease,
+    box-shadow 180ms ease,
+    transform 180ms ease !important;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--border-focus) !important;
+  outline-offset: 2px !important;
+}
+
+.button,
+.icon-button,
+.odds-pill,
+.odds-menu-trigger,
+.odds-refresh,
+.toolbar-bankroll,
+.personal-pnl-summary,
+.workspace-tabs,
+.workspace-tabs button {
+  border-color: var(--border-subtle) !important;
+  background: rgba(18, 16, 26, 0.72) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+
+.button:hover,
+.icon-button:hover,
+.odds-pill:hover,
+.odds-menu-trigger:hover,
+.odds-refresh:hover,
+.workspace-tabs button:hover {
+  color: var(--text-primary) !important;
+  border-color: rgba(169, 154, 245, 0.2) !important;
+  background: var(--bg-hover) !important;
+}
+
+.button.primary,
+.odds-pill.active,
+.workspace-tabs button.active,
+.segmented button.active {
+  color: #110e19 !important;
+  border-color: rgba(184, 172, 250, 0.42) !important;
+  background: var(--purple-primary) !important;
+  box-shadow: 0 7px 20px rgba(47, 38, 69, 0.24) !important;
+}
+
+.button.primary:hover,
+.odds-pill.active:hover,
+.workspace-tabs button.active:hover,
+.segmented button.active:hover {
+  background: var(--purple-primary-hover) !important;
+  transform: translateY(-1px);
+}
+
+.search-control,
+.compact-search,
+.odds-search,
+select,
+input {
+  color: var(--text-primary) !important;
+  border-color: var(--border-subtle) !important;
+  background-color: rgba(18, 16, 26, 0.72) !important;
+}
+
+input::placeholder {
+  color: #685f76 !important;
+}
+
+.result-badge,
+.status-label,
+.model-status-pill,
+.warning-chip {
+  border-width: 0 !important;
+  box-shadow: none !important;
+}
+
+.model-status-pill,
+.status-label:not(.stale) {
+  color: var(--purple-primary-hover) !important;
+  background: var(--purple-soft) !important;
+}
+
+.status-dot {
+  background: var(--positive) !important;
+  box-shadow: 0 0 0 4px rgba(121, 222, 121, 0.07) !important;
+}
+
+/* Surface hierarchy ------------------------------------------------------- */
+.panel,
+.metric-card,
+.trade-card,
+.trade-detail,
+.odds-books-menu,
+.odds-mega-menu,
+.tracker-dialog-shell,
+.bankroll-popover,
+.personal-pnl-popover {
+  border-color: var(--border-subtle) !important;
+  background: var(--bg-surface-1) !important;
+}
+
+.panel {
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.13) !important;
+}
+
+.panel-header {
+  border-bottom-color: var(--border-subtle) !important;
+  background: transparent !important;
+}
+
+.metric-card {
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+.metric-icon,
+.activity-icon,
+.tracker-context > i {
+  color: var(--purple-primary-hover) !important;
+  border-color: rgba(169, 154, 245, 0.2) !important;
+  background: var(--purple-soft) !important;
+}
+
+.page-kicker,
+.eyebrow {
+  color: #8d84a0 !important;
+}
+
+.page-header h1,
+.trades-title-block h1,
+.odds-context h1,
+.tracker-page-header h1,
+.panel-header h2 {
+  color: var(--text-primary) !important;
+}
+
+.page-header p,
+.trades-title-block p,
+.odds-context p,
+.panel-header p {
+  color: var(--text-muted) !important;
+}
+
+/* Shared semantic states -------------------------------------------------- */
+.best-price,
+.best-execution-price,
+.positive,
+[data-tone="positive"] {
+  color: var(--positive) !important;
+}
+
+.best-execution-price {
+  border-color: rgba(121, 222, 121, 0.25) !important;
+  background: var(--positive-soft) !important;
+}
+
+.stale,
+[data-state="stale"] {
+  color: var(--warning) !important;
+}
+
+.error-state,
+[data-state="error"] {
+  border-color: rgba(235, 112, 123, 0.25) !important;
+  background: var(--negative-soft) !important;
+}
+
+.skeleton-card,
+.table-loading-state,
+.tracker-loading-state {
+  background:
+    linear-gradient(90deg, transparent, rgba(169, 154, 245, 0.055), transparent),
+    var(--bg-surface-1) !important;
+}
+
+.loading-pulse,
+.model-activity-state .live-label i {
+  color: var(--purple-primary) !important;
+  background: var(--purple-primary) !important;
+  box-shadow: 0 0 0 5px rgba(169, 154, 245, 0.08) !important;
+}
+
+.empty-state,
+.empty-detail,
+.professional-empty-state,
+.model-activity-state {
+  color: var(--text-secondary) !important;
+}
+
+.empty-state h2,
+.empty-detail h2,
+.professional-empty-state h2,
+.model-activity-state h2 {
+  color: var(--text-primary) !important;
+}
+
+/* Remaining workspaces ---------------------------------------------------- */
+.overview-page .metric-grid,
+.edge-map-summary,
+.intel-summary {
+  gap: 10px !important;
+}
+
+.overview-page .metric-card,
+.edge-map-summary article,
+.intel-summary article {
+  border: 0 !important;
+  background: rgba(23, 19, 33, 0.72) !important;
+}
+
+.responsive-table table {
+  background: transparent !important;
+}
+
+.responsive-table thead {
+  background: rgba(18, 16, 26, 0.86) !important;
+}
+
+.responsive-table th {
+  color: #8c839c !important;
+  border-color: var(--border-subtle) !important;
+}
+
+.responsive-table td {
+  color: var(--text-secondary) !important;
+  border-color: rgba(195, 183, 238, 0.06) !important;
+}
+
+.responsive-table tbody tr:nth-child(even) {
+  background: rgba(169, 154, 245, 0.025) !important;
+}
+
+.responsive-table tbody tr:hover {
+  background: rgba(169, 154, 245, 0.07) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.001ms !important;
+  }
+}

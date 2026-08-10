@@ -6,7 +6,9 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Iterable
 
 
-CLV_CALCULATION_VERSION = "clv-v1"
+CLV_CALCULATION_VERSION = "clv-v2-multi-exchange"
+COMPOSITE_CLOSE_VERSION = "composite-clv-v2-exact-sources"
+CLV_PREFERENCE_VERSION = "clv-preferences-v2-six-source-sharp-core"
 CLV_FRESHNESS_SECONDS = 300
 CAPTURED = "captured"
 PENDING = "pending"
@@ -38,16 +40,194 @@ def parse_timestamp(value: Any) -> datetime | None:
 
 def normalized_provider(value: Any) -> str:
     compact = "".join(character for character in str(value or "").lower() if character.isalnum())
+    if compact.startswith("oddsapi"):
+        compact = compact[len("oddsapi") :]
     aliases = {
         "": "polymarket",
         "poly": "polymarket",
         "polymarket": "polymarket",
         "novig": "novig",
         "prophetx": "prophetx",
+        "betonline": "betonline",
+        "betonlineag": "betonline",
+        "circa": "circa",
+        "circasports": "circa",
+        "bookmaker": "bookmaker",
+        "bookmakerag": "bookmaker",
+        "bookmakereu": "bookmaker",
         "kalshi": "kalshi",
         "4cx": "4cx",
     }
     return aliases.get(compact, compact)
+
+
+CLV_NO_VIG_PROVIDER_WEIGHTS = {
+    "pinnacle": 0.25,
+    "circa": 0.20,
+    "bookmaker": 0.20,
+    "betonline": 0.15,
+    "novig": 0.10,
+    "prophetx": 0.10,
+}
+
+CLV_NO_VIG_REQUIRED_SPORTSBOOKS = ("pinnacle", "circa", "bookmaker", "betonline")
+CLV_NO_VIG_EXCHANGES = ("novig", "prophetx")
+CLV_NO_VIG_REQUIRED_SOURCES = [
+    *CLV_NO_VIG_REQUIRED_SPORTSBOOKS,
+    "novig_or_prophetx",
+]
+
+
+def _preference_result(
+    entry_price: Any,
+    closing_probability: Any,
+    *,
+    providers: list[str],
+    method: str,
+    weights: dict[str, float] | None = None,
+) -> dict[str, Any]:
+    try:
+        metrics = calculate_clv(entry_price, closing_probability)
+    except ValueError:
+        return {
+            "status": UNAVAILABLE,
+            "missing_reason": "INVALID_ENTRY_OR_CLOSING_PROBABILITY",
+            "method": method,
+            "calculation_version": CLV_PREFERENCE_VERSION,
+        }
+    return {
+        "status": CAPTURED,
+        "missing_reason": None,
+        "method": method,
+        "closing_probability": float(closing_probability),
+        "clv_cents": metrics["clv_cents"],
+        "clv_probability_points": metrics["clv_probability_points"],
+        "clv_pct": metrics["clv_pct"],
+        "providers": providers,
+        "weights": weights or {},
+        "calculation_version": CLV_PREFERENCE_VERSION,
+    }
+
+
+def _verified_provider_closes(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    verified: dict[str, dict[str, Any]] = {}
+    for close in snapshot.get("provider_closes") or []:
+        provider = normalized_provider(close.get("provider") or close.get("provider_name"))
+        probability = safe_float(close.get("closing_probability"))
+        mapping = str(close.get("mapping_confidence") or "EXACT").upper()
+        if not provider or probability is None or not 0 < probability < 1 or mapping != "EXACT":
+            continue
+        verified[provider] = {**close, "closing_probability": probability}
+    return verified
+
+
+def _verified_no_vig_sources(snapshot: dict[str, Any]) -> dict[str, float]:
+    sources: dict[str, float] = {}
+    composite = snapshot.get("composite_close") or {}
+    for contribution in composite.get("contributions") or []:
+        source = contribution.get("source_snapshot") or {}
+        provider = normalized_provider(contribution.get("provider") or source.get("provider"))
+        probability = safe_float(
+            contribution.get("no_vig_probability")
+            if contribution.get("no_vig_probability") is not None
+            else source.get("no_vig_probability")
+        )
+        mapping = str(source.get("mapping_confidence") or "").upper()
+        status = str(source.get("status") or "").upper()
+        tracker_eligible = contribution.get("included") is True or str(
+            contribution.get("exclusion_reason") or ""
+        ).upper() == "PROVIDER_WEIGHT_NOT_CONFIGURED"
+        if (
+            provider
+            and tracker_eligible
+            and probability is not None
+            and 0 < probability < 1
+            and mapping == "EXACT"
+            and status == "AVAILABLE"
+        ):
+            sources[provider] = probability
+    return sources
+
+
+def calculate_clv_preferences(snapshot: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    """Calculate immutable CLV views from exact closes already stored on a bet.
+
+    Best available uses the most favorable verified close. The no-vig view is
+    deliberately unavailable unless Pinnacle, Circa, BookMaker, BetOnline,
+    and at least one of NoVIG or ProphetX contributed an exact, complete
+    no-vig price.
+    """
+    entry = snapshot.get("entry_price")
+    respective = {
+        "status": str(snapshot.get("clv_status") or PENDING).lower(),
+        "missing_reason": snapshot.get("clv_unavailable_reason"),
+        "method": "respective",
+        "closing_probability": safe_float(snapshot.get("closing_effective_price")),
+        "clv_cents": safe_float(snapshot.get("clv_cents")),
+        "clv_probability_points": safe_float(snapshot.get("clv_probability_points")),
+        "clv_pct": safe_float(snapshot.get("clv_pct")),
+        "providers": [normalized_provider(snapshot.get("provider"))],
+        "weights": {},
+        "calculation_version": CLV_PREFERENCE_VERSION,
+    }
+
+    closes = _verified_provider_closes(snapshot)
+    if closes:
+        best_provider, best_close = min(
+            closes.items(), key=lambda item: item[1]["closing_probability"]
+        )
+        best = _preference_result(
+            entry,
+            best_close["closing_probability"],
+            providers=[best_provider],
+            method="best",
+        )
+    else:
+        best = {
+            "status": UNAVAILABLE,
+            "missing_reason": "NO_VERIFIED_PROVIDER_CLOSES",
+            "method": "best",
+            "calculation_version": CLV_PREFERENCE_VERSION,
+        }
+
+    fair_sources = _verified_no_vig_sources(snapshot)
+    missing = []
+    for provider in CLV_NO_VIG_REQUIRED_SPORTSBOOKS:
+        if provider not in fair_sources:
+            missing.append(provider.upper())
+    exchanges = [provider for provider in CLV_NO_VIG_EXCHANGES if provider in fair_sources]
+    if not exchanges:
+        missing.append("NOVIG_OR_PROPHETX")
+    if missing:
+        no_vig = {
+            "status": UNAVAILABLE,
+            "missing_reason": "MISSING_REQUIRED_NO_VIG_SOURCES:" + ",".join(missing),
+            "method": "novig",
+            "required_sources": CLV_NO_VIG_REQUIRED_SOURCES,
+            "available_sources": sorted(fair_sources),
+            "calculation_version": CLV_PREFERENCE_VERSION,
+        }
+    else:
+        eligible = [*CLV_NO_VIG_REQUIRED_SPORTSBOOKS, *exchanges]
+        total_weight = sum(CLV_NO_VIG_PROVIDER_WEIGHTS[provider] for provider in eligible)
+        normalized_weights = {
+            provider: CLV_NO_VIG_PROVIDER_WEIGHTS[provider] / total_weight
+            for provider in eligible
+        }
+        fair_probability = sum(
+            fair_sources[provider] * normalized_weights[provider]
+            for provider in eligible
+        )
+        no_vig = _preference_result(
+            entry,
+            fair_probability,
+            providers=eligible,
+            method="novig",
+            weights=normalized_weights,
+        )
+        no_vig["required_sources"] = CLV_NO_VIG_REQUIRED_SOURCES
+
+    return {"respective": respective, "best": best, "novig": no_vig}
 
 
 def probability_from_native_odds(value: Any, odds_format: str = "probability") -> float | None:

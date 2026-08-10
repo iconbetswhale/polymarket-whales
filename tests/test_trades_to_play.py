@@ -205,6 +205,95 @@ def test_started_or_closed_events_are_not_actionable():
     assert plays == []
 
 
+def test_elite_high_conviction_originator_outweighs_two_weak_confirmers():
+    elite = _position(
+        "0xelite",
+        "Elite",
+        outcome="Yankees",
+        amount=5000,
+        category_signal_role="ORIGINATOR",
+        category_signal_quality_weight=1.0,
+        category_signal_minimum_originator_units=1.0,
+    )
+    weak_one = _position(
+        "0xweak1",
+        "Weak one",
+        outcome="Red Sox",
+        amount=500,
+        category_signal_role="CONFIRMER",
+        category_signal_quality_weight=0.2,
+    )
+    weak_two = _position(
+        "0xweak2",
+        "Weak two",
+        outcome="Red Sox",
+        amount=500,
+        category_signal_role="CONFIRMER",
+        category_signal_quality_weight=0.2,
+    )
+
+    plays = build_trades_to_play(
+        [elite, weak_one, weak_two],
+        unit_map=_unit_map("0xelite", "0xweak1", "0xweak2"),
+        now=_now(),
+    )
+    yankees = next(play for play in plays if play["outcome"] == "Yankees")
+
+    assert yankees["tradeClassification"] == "STANDARD"
+    assert yankees["rawAgreeingSharpCount"] == 1
+    assert yankees["rawContradictingSharpCount"] == 2
+    assert (
+        yankees["weightedDirectionalSupport"]
+        > yankees["weightedDirectionalOpposition"]
+    )
+    assert yankees["has_lead_sharp"] is True
+
+
+def test_research_wallet_cannot_originate_even_with_large_position():
+    research = _position(
+        "0xresearch",
+        "Research",
+        amount=10000,
+        category_signal_role="RESEARCH",
+        category_signal_quality_weight=0.1,
+    )
+
+    plays = build_trades_to_play(
+        [research],
+        unit_map=_unit_map("0xresearch"),
+        now=_now(),
+    )
+
+    assert plays == []
+
+
+def test_missing_polymarket_ask_does_not_remove_valid_sharp_consensus():
+    positions = [
+        _position(
+            "0xa",
+            "A",
+            clob_token_id="token-a",
+            executable_ask_price=None,
+            current_price=0.42,
+        ),
+        _position(
+            "0xb",
+            "B",
+            clob_token_id="token-a",
+            executable_ask_price=None,
+            current_price=0.42,
+        ),
+    ]
+
+    plays = build_trades_to_play(
+        positions, unit_map=_unit_map("0xa", "0xb"), now=_now()
+    )
+
+    assert len(plays) == 1
+    assert plays[0]["agreeing_wallet_count"] == 2
+    assert plays[0]["current_price"] == 0.42
+
+
 def test_search_matches_entire_event_not_only_selected_bet():
     positions = [
         _position(
@@ -475,7 +564,7 @@ def test_every_enabled_wallet_agreeing_scores_exactly_one_hundred():
     )
 
 
-def test_missing_wallet_prevents_one_hundred_and_opposing_minority_is_research():
+def test_missing_wallet_prevents_one_hundred_and_weighted_majority_remains_standard():
     non_unanimous = [
         _position("0xa", "A", amount=500),
         _position("0xb", "B", amount=600),
@@ -490,14 +579,19 @@ def test_missing_wallet_prevents_one_hundred_and_opposing_minority_is_research()
     assert plays[0]["confidence_score"] < 100
 
     opposing = non_unanimous + [_position("0xc", "C", outcome="Red Sox", amount=700)]
-    research = build_trades_to_play(
+    weighted_majority = build_trades_to_play(
         opposing,
         unit_map=_unit_map("0xa", "0xb", "0xc"),
         tracked_wallet_count=3,
         now=_now(),
     )
-    assert research[0]["tradeClassification"] == "CONTRADICTING_SHARPS"
-    assert research[0]["confidence_score"] <= 69
+    assert weighted_majority[0]["tradeClassification"] == "STANDARD"
+    assert weighted_majority[0]["isResearchOnly"] is False
+    assert weighted_majority[0]["modelTrackerEligible"] is True
+    assert (
+        weighted_majority[0]["weightedDirectionalSupport"]
+        > weighted_majority[0]["weightedDirectionalOpposition"]
+    )
 
 
 def test_duplicate_and_inactive_wallets_do_not_create_unanimity():
@@ -756,7 +850,7 @@ def test_three_leads_rank_above_two_leads_plus_supporting():
     assert by_market["0xmixed3"]["weighted_sharp_count"] == 2.5
 
 
-def test_opposing_supporting_wallet_creates_majority_research_trade():
+def test_opposing_supporting_wallet_reduces_but_does_not_veto_weighted_lead():
     lead = _position(
         "0xa", "Lead", outcome="Yankees", configured_top_category="MLB"
     )
@@ -778,9 +872,13 @@ def test_opposing_supporting_wallet_creates_majority_research_trade():
         unit_map=_unit_map("0xa", "0xb", "0xc"),
         now=_now(),
     )
-    assert plays[0]["tradeClassification"] == "CONTRADICTING_SHARPS"
+    assert plays[0]["tradeClassification"] == "STANDARD"
     assert plays[0]["rawAgreeingSharpCount"] == 2
     assert plays[0]["rawContradictingSharpCount"] == 1
+    assert (
+        plays[0]["weightedDirectionalSupport"]
+        > plays[0]["weightedDirectionalOpposition"]
+    )
 
 
 def test_complete_raw_agreement_scores_one_hundred_when_a_lead_exists():

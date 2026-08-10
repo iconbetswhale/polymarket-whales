@@ -10,5 +10,11 @@ dependencies = [
   "psycopg[binary]>=3.2,<4",
 ]
 
+[project.optional-dependencies]
+simulation = [
+  "numpy>=2,<3",
+  "pytest>=8,<9",
+]
+
 [tool.vercel]
 entrypoint = "app:app"

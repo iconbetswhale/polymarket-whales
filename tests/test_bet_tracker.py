@@ -7,6 +7,7 @@ import pytest
 import database as database_module
 from bet_tracker import recommendation_snapshot, replay_tracker
 from database import TrackerDatabase
+from position_tracker import MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID
 from sharp_tracking import sharp_snapshot_from_fill, sharp_snapshot_from_trade
 
 
@@ -147,6 +148,54 @@ def test_recommendation_snapshot_freezes_best_sportsbook_attribution():
     assert snapshot["provider_key"] == "oddsapi__fanduel"
     assert snapshot["provider_entry_price"] == pytest.approx(0.48)
     assert snapshot["provider_display_odds"] == "+108"
+
+
+def test_recommendation_snapshot_prioritizes_selected_execution_provider():
+    play = {
+        "event_slug": "mlb-wsh-phi",
+        "event_title": "Washington Nationals vs. Philadelphia Phillies",
+        "market_title": "Moneyline",
+        "outcome": "Washington Nationals",
+        "clob_token_id": "nationals-token",
+        "validation_ids": {"condition_id": "market-1"},
+        "selected_execution_option": {
+            "providerName": "Novig",
+            "providerKey": "oddsapi__novig",
+            "bestExecutablePrice": 100 / 244,
+            "displayOdds": "+144",
+            "deepLink": "https://novig.com/events/nationals",
+            "isAvailable": True,
+            "isExactMatch": True,
+            "isStale": False,
+            "marketStatus": "OPEN",
+        },
+        "executionOptions": [
+            {
+                "providerName": "Polymarket",
+                "providerKey": "polymarket",
+                "bestExecutablePrice": 0.41,
+                "displayOdds": "41.0c",
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "isBestPrice": True,
+            }
+        ],
+    }
+    recommendation = {
+        "recommendation_version": "v1",
+        "effective_entry_price": 0.41,
+        "sharp_reference_entry_price": 0.4046,
+    }
+
+    snapshot = recommendation_snapshot(play, recommendation, 10000)
+
+    assert snapshot["sportsbook"] == "Novig"
+    assert snapshot["provider_key"] == "oddsapi__novig"
+    assert snapshot["provider_entry_price"] == pytest.approx(100 / 244)
+    assert snapshot["provider_display_odds"] == "+144"
+    assert snapshot["sharp_reference_entry_price"] == pytest.approx(0.4046)
 
 
 def test_tracker_rejects_near_zero_recommendation(tmp_path):
@@ -343,3 +392,58 @@ def test_recommendation_snapshot_keeps_sharp_and_user_entries_separate():
     assert snapshot["primary_sharp"]["display_name"] == "Bagwell306"
     assert snapshot["agreeing_sharps"][0]["display_name"] == "Bagwell306"
     assert snapshot["agreeing_sharps"][1]["display_name"] == "Large Supporter"
+
+
+def test_reset_model_experiments_preserves_unrelated_tracker_users(tmp_path):
+    database = TrackerDatabase(tmp_path / "reset.db")
+    user_ids = (
+        MODEL_TRACKER_USER_ID,
+        SHADOW_TRACKER_USER_ID,
+        "unrelated-tracker-user",
+    )
+    with database.connection() as conn:
+        for index, user_id in enumerate(user_ids):
+            conn.execute(
+                """INSERT INTO bet_tracker(
+                    user_id, dedupe_key, snapshot_id, status,
+                    created_at, updated_at, snapshot_json
+                ) VALUES (?, ?, ?, 'scheduled', ?, ?, '{}')""",
+                (user_id, f"key-{index}", f"snapshot-{index}", "now", "now"),
+            )
+            conn.execute(
+                """INSERT INTO tracking_rejections(
+                    user_id, dedupe_key, rejection_reason,
+                    last_evaluated_at, evaluation_json
+                ) VALUES (?, ?, 'TEST', 'now', '{}')""",
+                (user_id, f"rejection-{index}"),
+            )
+            conn.execute(
+                """INSERT INTO risk_account_state(
+                    user_id, current_bankroll, high_water_mark,
+                    state_version, updated_at
+                ) VALUES (?, 10000, 10000, 'test', 'now')""",
+                (user_id,),
+            )
+
+    deleted = database.reset_model_experiments(
+        (MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID)
+    )
+
+    assert deleted["bet_tracker"] == 2
+    assert deleted["tracking_rejections"] == 2
+    assert deleted["risk_account_state"] == 2
+    with database.connection() as conn:
+        tracker_users = {
+            row["user_id"] for row in conn.execute("SELECT user_id FROM bet_tracker")
+        }
+        rejection_users = {
+            row["user_id"]
+            for row in conn.execute("SELECT user_id FROM tracking_rejections")
+        }
+        risk_users = {
+            row["user_id"]
+            for row in conn.execute("SELECT user_id FROM risk_account_state")
+        }
+    assert tracker_users == {"unrelated-tracker-user"}
+    assert rejection_users == {"unrelated-tracker-user"}
+    assert risk_users == {"unrelated-tracker-user"}

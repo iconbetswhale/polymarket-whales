@@ -1,0 +1,686 @@
+{% extends "base.html" %}
+{% macro orbit_visual(mode) %}
+  <div class="orbit-stage orbit-stage-{{ mode }}" aria-hidden="true">
+    <img class="orbit-energy-ring" src="{{ url_for('static', filename='assets/home/purple-energy-ring.png', v=asset_version) }}" alt="">
+    <canvas class="orbit-particle-canvas" data-orbit-direction="{{ mode }}"></canvas>
+    <span class="orbit-energy-flow"><span></span></span>
+    {% if mode == 'inward' %}
+      {% set orbit_items = [
+        ('cowboys.png','Cowboys','patriots.png','Patriots','path-a'),
+        ('lakers.png','Lakers','warriors.png','Warriors','path-b'),
+        ('dodgers.png','Dodgers','cubs.png','Cubs','path-c'),
+        ('maple-leafs.png','Maple Leafs','canadiens.png','Canadiens','path-d'),
+        ('steelers.png','Steelers','packers.png','Packers','path-e')
+      ] %}
+    {% else %}
+      {% set orbit_items = [
+        ('ph-baseball','MLB','91','+3.8%','path-a'),
+        ('ph-tennis-ball','TENNIS','86','+2.7%','path-b'),
+        ('ph-basketball','WNBA','88','+3.1%','path-c'),
+        ('ph-trend-up','+EV','94','+4.6%','path-d'),
+        ('ph-fingerprint','SHARP','89','+3.4%','path-e')
+      ] %}
+    {% endif %}
+    {% for item in orbit_items %}
+      {% if mode == 'inward' %}
+        <div class="orbit-data-chip orbit-logo-cluster {{ item[4] }}" title="{{ item[1] }} vs {{ item[3] }}">
+          <img src="{{ url_for('static', filename='assets/home/team-logos/' ~ item[0], v=asset_version) }}" alt="">
+          <b>VS</b>
+          <img src="{{ url_for('static', filename='assets/home/team-logos/' ~ item[2], v=asset_version) }}" alt="">
+        </div>
+      {% else %}
+        <div class="orbit-signal-card {{ item[4] }}"><i class="ph {{ item[0] }}"></i><span><small>{{ item[1] }}</small><strong>{{ item[2] }}</strong></span><b>{{ item[3] }}</b></div>
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endmacro %}
+{% block content %}
+<div class="home-page">
+  <header class="marketing-nav">
+    <a class="marketing-brand" href="/" aria-label="IconLabs home"><span class="marketing-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>IconLabs</strong></a>
+    <div class="marketing-auth">
+      <button class="marketing-login" id="account-open" type="button">Login</button>
+      <button class="home-menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="home-menu-drawer"><i class="ph ph-list"></i></button>
+    </div>
+  </header>
+  <div class="home-menu-backdrop" data-home-menu-close hidden></div>
+  <aside class="home-menu-drawer" id="home-menu-drawer" aria-label="IconLabs tools" aria-hidden="true">
+    <header><span>IconLabs Tools</span><button type="button" data-home-menu-close aria-label="Close navigation"><i class="ph ph-x"></i></button></header>
+    <nav>
+      <a href="/trades"><i class="ph ph-fingerprint"></i><span>Prediction Traders</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/sharp-money"><i class="ph ph-currency-circle-dollar"></i><span>Sharp Money</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/positive-ev"><i class="ph ph-trend-up"></i><span>Positive EV</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/odds-screen"><i class="ph ph-table"></i><span>Sportsbook Screen</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/tracker"><i class="ph ph-chart-bar"></i><span>Bet Tracker</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/shadow-test"><i class="ph ph-flask"></i><span>Shadow Test</span><i class="ph ph-arrow-up-right"></i></a>
+      <small>PORTFOLIO</small>
+      <a href="/live-positions"><i class="ph ph-activity"></i><span>Live Positions</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/wallets"><i class="ph ph-wallet"></i><span>Sharp Wallets</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/position-history"><i class="ph ph-clock-counter-clockwise"></i><span>Bet History</span><i class="ph ph-arrow-up-right"></i></a>
+      <small>INTELLIGENCE</small>
+      <a href="/edge-map"><i class="ph ph-crosshair"></i><span>Edge Map</span><i class="ph ph-arrow-up-right"></i></a>
+      <a href="/intelligence"><i class="ph ph-brain"></i><span>Intelligence</span><i class="ph ph-arrow-up-right"></i></a>
+    </nav>
+  </aside>
+
+  <section class="marketing-hero" aria-labelledby="home-title">
+    <canvas class="hero-network-canvas" aria-hidden="true"></canvas>
+    <img class="hero-orbit-background" src="{{ url_for('static', filename='assets/home/hero-orbits.png', v=asset_version) }}" alt="">
+    <div class="hero-content">
+      <div class="marketing-hero-copy">
+        <div class="hero-proof-badge" aria-label="Rated 4.94 by more than 1,000 verified winners">
+          <i class="ph ph-checks" aria-hidden="true"></i>
+          <strong>4.94</strong>
+          <span class="hero-proof-star" aria-hidden="true">&#9733;</span>
+          <span class="hero-proof-separator" aria-hidden="true"></span>
+          <b>1000+ Verified Winners</b>
+        </div>
+        <h1 id="home-title">See the market<br><em>before it moves.</em><span class="sr-only">Smarter bets. Sharper edges.</span></h1>
+        <p>Follow proven sharp wallets, understand every signal, and execute at the best available price from one intelligent workspace.</p>
+        <button class="hero-start-winning" type="button" data-estimator-open>Start winning now <i class="ph ph-arrow-right"></i></button>
+      </div>
+
+      <aside class="profit-estimator-card">
+        <div class="estimator-blur-lines" aria-hidden="true"><i></i><i></i><i></i></div>
+        <i class="ph ph-lock-key"></i>
+        <strong>See how much your edge<br>could be worth.</strong>
+        <span>Build a plan around your bankroll.</span>
+        <button type="button" data-estimator-open>Estimate your profit</button>
+      </aside>
+    </div>
+
+    <div class="product-stage" aria-label="IconLabs Prediction Traders product preview">
+      <div class="desktop-product">
+        <div class="desktop-window-bar"><span></span><span></span><span></span></div>
+        <aside class="preview-sidebar">
+          <div class="preview-logo"><i class="ph ph-chart-line-up"></i><strong>IconLabs</strong></div>
+          <a><i class="ph ph-squares-four"></i>Dashboard</a><a class="active"><i class="ph ph-fingerprint"></i>Prediction Traders</a><a><i class="ph ph-currency-circle-dollar"></i>Sharp Money</a><a><i class="ph ph-trend-up"></i>Positive EV</a><a><i class="ph ph-table"></i>Sportsbook Screen</a>
+        </aside>
+        <div class="preview-main">
+          <div class="preview-toolbar"><h2>Traders</h2><div class="preview-tabs"><b>Trades <sup>1</sup></b><span>Positions <sup>0</sup></span><span>Closed <sup>0</sup></span></div><span class="model-live"><i></i>Model live</span><div class="preview-search"><i class="ph ph-magnifying-glass"></i>Search</div></div>
+          <div class="preview-content">
+            <article class="preview-trade-card"><div class="trade-summary"><b>91</b><small>MLB &middot; HYBRID 2-WALLET</small><h3>Detroit Tigers vs. San Francisco Giants</h3><span>Moneyline</span></div><div class="trade-pick"><div class="trade-chips"><span>Today, 4:05 PM</span><span>$1.3K</span><span>+2.5%</span></div><small>Recommended pick &middot; 2 Sharps</small><h3>Detroit Tigers</h3><b>$101.00</b><button>-119</button></div></article>
+            <div class="preview-lower"><div class="later-card"><i class="ph ph-clock"></i><strong>There'll be more plays later</strong><p>Prices refresh every 5 seconds</p><div class="mini-chart">{% for height in [18,28,24,16,20,26,18,38,52,42,58,40,25,22,34,42,24,55,30,24,35,28] %}<i style="height:{{ height }}%"></i>{% endfor %}</div></div><aside class="preview-details"><div><b>91</b><small>MLB &middot; MLB</small><strong>Detroit Tigers</strong></div><span>Executable entry <b>-119</b></span><div class="details-pick"><small>RECOMMENDED PICK</small><strong>Detroit Tigers</strong><b>$101.00</b></div></aside></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </section>
+
+  <section class="home-testimonials" aria-labelledby="testimonials-title">
+    <header class="testimonials-heading">
+      <h2 id="testimonials-title">With IconLabs,<br><strong>edge is the expectation.</strong></h2>
+      <p>Early stories from prediction traders using sharper signals, better prices, and disciplined tracking.</p>
+    </header>
+
+    <div class="testimonials-marquee" role="region" aria-label="Verified trader reviews">
+      <div class="testimonials-track">
+        {% for repeat in range(2) %}
+          <div class="testimonials-group"{% if repeat == 1 %} aria-hidden="true"{% endif %}>
+            {% for review_index in range(6) %}
+              <article class="testimonial-card">
+                <header>
+                  <img class="testimonial-avatar" src="{{ url_for('static', filename='assets/home/rome-profile.png', v=asset_version) }}" alt="Rome">
+                  <div><h3>Rome <i class="ph-fill ph-seal-check"></i></h3><small>@PlusCLV</small></div>
+                  <strong class="testimonial-pikkit"><i class="ph-fill ph-clover"></i>Pikkit</strong>
+                </header>
+                <div class="testimonial-story">
+                  <p>Learned you could beat sportsbooks with "math". Ended up buying IconLabs and it's history from there.</p>
+                  <p>I just put in a few bets every day, takes me 30 minutes, and have a huge side income funding my life from it.</p>
+                </div>
+                <div class="testimonial-result"><strong>+$62,554.05</strong><span>all-time verified profit</span></div>
+                <img class="testimonial-proof" src="{{ url_for('static', filename='assets/home/rome-pikkit-results.png', v=asset_version) }}" alt="Rome's verified Pikkit results showing $62,554.05 profit">
+              </article>
+            {% endfor %}
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+
+  </section>
+
+  <section class="home-book-execution" aria-labelledby="book-trust-title">
+    <div class="book-rating-panel">
+      <div><span class="book-stars" aria-label="4.94 out of 5 stars">&#9733; &#9733; &#9733; &#9733; &#9733;</span><strong>4.94</strong><small>out of 5</small></div>
+      <p><b>1,057 verified traders</b> trust IconLabs market intelligence</p>
+      <button type="button" data-estimator-open>Join 1,000+ Winning Traders</button>
+    </div>
+    <header>
+      <span>CONNECTED EXECUTION</span>
+      <h2 id="book-trust-title">Works with 100+ premium sportsbooks</h2>
+      <p>Compare prices and access opportunities across leading books and prediction exchanges.</p>
+    </header>
+    {% set book_logos = [
+      ('Novig','https://www.google.com/s2/favicons?domain=novig.us&sz=64'),
+      ('Kalshi',url_for('static', filename='assets/providers/kalshi.png', v=asset_version)),
+      ('Polymarket','https://www.google.com/s2/favicons?domain=polymarket.com&sz=64'),
+      ('ProphetX','https://www.google.com/s2/favicons?domain=prophetx.co&sz=64'),
+      ('DraftKings','https://www.google.com/s2/favicons?domain=draftkings.com&sz=64'),
+      ('FanDuel','https://www.google.com/s2/favicons?domain=fanduel.com&sz=64'),
+      ('BetMGM','https://www.google.com/s2/favicons?domain=betmgm.com&sz=64'),
+      ('Fanatics','https://www.google.com/s2/favicons?domain=fanatics.com&sz=64'),
+      ('BetOnline','https://www.google.com/s2/favicons?domain=betonline.ag&sz=64'),
+      ('PrizePicks','https://www.google.com/s2/favicons?domain=prizepicks.com&sz=64'),
+      ('Underdog','https://www.google.com/s2/favicons?domain=underdogfantasy.com&sz=64'),
+      ('Betr','https://www.google.com/s2/favicons?domain=betr.app&sz=64'),
+      ('Dabble','https://www.google.com/s2/favicons?domain=dabble.com&sz=64'),
+      ('Sleeper','https://www.google.com/s2/favicons?domain=sleeper.com&sz=64')
+    ] %}
+    <div class="book-logo-marquee" aria-label="Supported sportsbooks and exchanges">
+      <div class="book-logo-track">
+        {% for duplicate in range(2) %}
+          {% for name, logo in book_logos %}
+            <div class="book-logo-item" {% if duplicate == 1 %}aria-hidden="true"{% endif %}><span><img src="{{ logo }}" alt="{% if duplicate == 0 %}{{ name }} logo{% endif %}"></span><strong>{{ name }}</strong></div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    </div>
+
+    <div class="home-video-shell">
+      <div class="home-video-glow" aria-hidden="true"></div>
+      <div class="home-video-frame">
+        <iframe
+          id="home-case-study-video"
+          src="https://www.youtube-nocookie.com/embed/LhdAFsvdyHM?rel=0&amp;modestbranding=1&amp;playsinline=1&amp;enablejsapi=1&amp;mute=1"
+          title="I Copied 3 of the Sharpest MLB Bettors for 7 Days"
+          loading="lazy"
+          referrerpolicy="strict-origin-when-cross-origin"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+          allowfullscreen></iframe>
+      </div>
+    </div>
+  </section>
+
+  <section class="home-orbit-features" aria-label="How IconLabs turns market data into actionable signals">
+    <article class="orbit-feature orbit-feature-inward">
+      <div class="orbit-feature-copy">
+        <span>TRACK SHARP MARKET ACTIVITY</span>
+        <h2>See where the sharp<br><strong>money is moving.</strong></h2>
+        <p>IconLabs continuously analyzes market activity, pricing, sharp wallets, prediction traders, and line movement to identify where informed money is entering the market.</p>
+      </div>
+      <div class="orbit-feature-visual">{{ orbit_visual('inward') }}</div>
+    </article>
+
+    <article class="orbit-feature orbit-feature-outward">
+      <div class="orbit-feature-visual">{{ orbit_visual('outward') }}</div>
+      <div class="orbit-feature-copy">
+        <span>SURFACE HIGH-VALUE OPPORTUNITIES</span>
+        <h2>Turn market intelligence<br><strong>into actionable signals.</strong></h2>
+        <p>IconLabs filters market data into clear opportunities, helping users quickly identify strong signals, favorable pricing, and high-confidence positions.</p>
+        <a href="/trades">View prediction traders <i class="ph ph-arrow-right"></i></a>
+      </div>
+    </article>
+  </section>
+
+  <section class="home-pricing" id="pricing" aria-labelledby="pricing-title">
+    <header class="pricing-heading">
+      <h2 id="pricing-title">Choose Your Plan</h2>
+      <p>Get instant access to sharper predictions, real-time market alerts, and a disciplined system built to find your edge.</p>
+      <div class="pricing-rating"><span>&#9733; &#9733; &#9733; &#9733; &#9733;</span><b>4.94/5</b><i></i><small>1,000+ verified winners</small></div>
+      <div class="pricing-toggle" role="group" aria-label="Billing period">
+        <button class="active" type="button" data-billing="monthly">Monthly</button>
+        <button type="button" data-billing="yearly">Yearly <small>Save 15%</small></button>
+      </div>
+    </header>
+
+    {% set pricing_plans = [
+      {'class':'','badge':'','name':'Prediction Traders','monthly':'49','yearly':'42','old':'$59','description':'Focused access to qualified wallet consensus and executable exchange prices.','icon':'ph-fingerprint','cta':'Select Plan','features':['Real-time prediction trader signals','Model confidence and sharp agreement','Best-price exchange line shopping']},
+      {'class':'featured','badge':'MOST POPULAR','name':'Market Intelligence','monthly':'99','yearly':'84','old':'$119','description':'Our most popular choice for tracking informed money and actionable market signals.','icon':'ph-chart-line-up','cta':'Start Winning Today','features':['Sharp wallet and market-flow tracking','30-minute signal and price updates','Composite and book-specific CLV tracking']},
+      {'class':'value','badge':'BEST VALUE','name':'IconLabs Pro','monthly':'199','yearly':'169','old':'$239','description':'The complete professional toolkit for finding, pricing, sizing, and tracking every edge.','icon':'ph-lightning','cta':'Select Plan','features':['Everything in Prediction Traders','Everything in Market Intelligence','Positive EV, line shopping, and tracking','Priority access to new model releases']}
+    ] %}
+    <div class="pricing-grid">
+      {% for plan in pricing_plans %}
+        <article class="pricing-card {{ plan.class }}">
+          {% if plan.badge %}<span class="pricing-badge">{{ plan.badge }}</span>{% endif %}
+          <header><i class="ph {{ plan.icon }}"></i><h3>{{ plan.name }}</h3></header>
+          <div class="pricing-price"><sup>$</sup><strong data-monthly="{{ plan.monthly }}" data-yearly="{{ plan.yearly }}">{{ plan.monthly }}</strong><span><s>{{ plan.old }}</s><small>per month</small></span></div>
+          <p>{{ plan.description }}</p>
+          <ul>{% for feature in plan.features %}<li><i class="ph ph-check"></i>{{ feature }}</li>{% endfor %}</ul>
+          <a href="/trades">{{ plan.cta }}</a>
+        </article>
+      {% endfor %}
+    </div>
+  </section>
+
+  <section class="home-faq" id="faq" aria-labelledby="faq-title">
+    <div class="faq-intro">
+      <h2 id="faq-title">Frequently Asked Questions</h2>
+    </div>
+    <div class="faq-list">
+      <details><summary><span>How does IconLabs work?</span><i class="ph ph-caret-down"></i></summary><p>IconLabs combines tracked sharp-wallet activity, market pricing, line movement, and model rules to surface qualified opportunities with transparent confidence and sizing context.</p></details>
+      <details><summary><span>How many exchanges do I need?</span><i class="ph ph-caret-down"></i></summary><p>You can begin with one supported exchange, but access to several books or exchanges gives you more chances to secure the best executable price.</p></details>
+      <details><summary><span>How long does this take each day?</span><i class="ph ph-caret-down"></i></summary><p>The dashboard does the monitoring continuously. Most traders only need a few minutes to review a signal, compare prices, and record their entry.</p></details>
+      <details><summary><span>Will every tracked play win?</span><i class="ph ph-caret-down"></i></summary><p>No. Variance is unavoidable, and no model wins every position. IconLabs is designed to improve decision quality, pricing discipline, and long-run expected value.</p></details>
+      <details><summary><span>How can I understand why a play qualified?</span><i class="ph ph-caret-down"></i></summary><p>Every qualified play includes its supporting wallets, conflicts, confidence inputs, executable pricing, recommended sizing, and later closing-line measurements.</p></details>
+      <details><summary><span>What if I want to cancel?</span><i class="ph ph-caret-down"></i></summary><p>You can manage or cancel your plan from your account. Your access remains active through the end of the current billing period.</p></details>
+    </div>
+  </section>
+
+  <footer class="home-footer">
+    <div class="home-footer-inner">
+      <div class="footer-brand">
+        <a href="/" aria-label="IconLabs home"><span class="marketing-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>IconLabs</strong></a>
+        <p>Sharper prediction-market signals, transparent sizing, and best-price execution in one intelligent workspace.</p>
+      </div>
+      <nav class="footer-column" aria-label="Social links">
+        <strong>LINKS</strong>
+        <a href="https://x.com" target="_blank" rel="noreferrer"><i class="ph ph-x-logo"></i> X</a>
+        <a href="https://youtube.com" target="_blank" rel="noreferrer"><i class="ph ph-youtube-logo"></i> YouTube</a>
+      </nav>
+      <nav class="footer-column" aria-label="Legal links">
+        <strong>LEGAL</strong>
+        <a href="/privacy">Privacy Policy</a>
+        <a href="/terms">Terms &amp; Conditions</a>
+      </nav>
+    </div>
+  </footer>
+</div>
+
+<dialog class="profit-survey" id="profit-survey" aria-labelledby="survey-title">
+  <form method="dialog" class="survey-shell">
+    <button class="survey-close" type="button" data-estimator-close aria-label="Close survey"><i class="ph ph-x"></i></button>
+    <header><span class="marketing-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>IconLabs</strong><small>PERSONALIZATION SURVEY</small></header>
+
+    <section class="survey-step active" data-survey-step="1">
+      <span class="survey-progress">QUESTION 1 OF 4</span>
+      <h2 id="survey-title">Which exchanges do you use?</h2>
+      <p>Select every platform where you can execute a position.</p>
+      <div class="survey-book-grid">
+        {% for icon, name in [('ph-x','ProfitX'),('ph-lightning','Novig'),('ph-chart-bar','Kalshi'),('ph-shield','Polymarket'),('ph-currency-dollar','Flutter'),('ph-trophy','Betr')] %}
+          <button type="button" class="survey-choice book-choice"><i class="ph {{ icon }}"></i>{{ name }}<i class="ph ph-check"></i></button>
+        {% endfor %}
+      </div>
+      <button class="survey-next" type="button" data-survey-next>Continue</button>
+    </section>
+
+    <section class="survey-step" data-survey-step="2">
+      <span class="survey-progress">QUESTION 2 OF 4</span>
+      <h2>What is your starting bankroll?</h2>
+      <p>We’ll use this to create a responsible illustrative estimate.</p>
+      <label class="survey-money"><i class="ph ph-currency-dollar"></i><input id="survey-bankroll" type="number" min="100" step="100" value="10000" inputmode="numeric" aria-label="Starting bankroll"></label>
+      <button class="survey-next" type="button" data-survey-next>Continue</button>
+    </section>
+
+    <section class="survey-step" data-survey-step="3">
+      <span class="survey-progress">QUESTION 3 OF 4</span>
+      <h2>How much time do you have each day?</h2>
+      <p>Choose the pace that best matches your routine.</p>
+      <div class="survey-time-grid">
+        {% for value in ['15m','30m','1h','2h+'] %}<button type="button" class="survey-choice time-choice" data-time="{{ value }}">{{ value }}</button>{% endfor %}
+      </div>
+      <button class="survey-next" type="button" data-survey-next>Continue</button>
+    </section>
+
+    <section class="survey-step" data-survey-step="4">
+      <span class="survey-progress">FINAL STEP</span>
+      <h2>Where should we send your estimate?</h2>
+      <p>Enter your phone number to unlock your personalized plan.</p>
+      <label class="survey-phone"><i class="ph ph-phone"></i><input id="survey-phone" type="tel" autocomplete="tel" placeholder="Phone number" required aria-label="Phone number"></label>
+      <button class="survey-next" type="button" data-survey-finish>Unlock my estimate</button>
+      <small>By continuing, you agree to receive your estimate by text. Message and data rates may apply.</small>
+    </section>
+
+    <section class="survey-step survey-result" data-survey-step="result">
+      <i class="ph ph-check-circle"></i><span>YOUR PERSONALIZED PLAN</span>
+      <h2>Based on your bankroll and schedule:</h2>
+      <strong id="survey-estimate">$0</strong>
+      <p>illustrative annual expected value opportunity</p>
+      <div><span><b id="survey-unit">$0</b> base unit</span><span><b id="survey-plays">2–4</b> plays per day</span></div>
+      <a href="/trades">Explore IconLabs free <i class="ph ph-arrow-right"></i></a>
+      <small>Illustrative only. This is not a guarantee of profit.</small>
+    </section>
+  </form>
+</dialog>
+<script>
+(() => {
+  const video = document.getElementById('home-case-study-video');
+  if (!video || !('IntersectionObserver' in window)) return;
+  let isVisible = false;
+
+  const sendCommand = (func) => {
+    video.contentWindow?.postMessage(JSON.stringify({event:'command',func,args:[]}), '*');
+  };
+
+  const syncPlayback = () => {
+    if (isVisible) {
+      sendCommand('mute');
+      sendCommand('playVideo');
+    } else {
+      sendCommand('pauseVideo');
+    }
+  };
+
+  video.addEventListener('load', () => {
+    window.setTimeout(syncPlayback, 350);
+  });
+
+  const observer = new IntersectionObserver(([entry]) => {
+    isVisible = entry.isIntersecting && entry.intersectionRatio >= .45;
+    syncPlayback();
+  }, {threshold:[0,.45,.75]});
+
+  observer.observe(video);
+})();
+
+(() => {
+  const canvas = document.querySelector('.hero-network-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let width = 0;
+  let height = 0;
+  let animationFrame = 0;
+
+  const rebuild = () => {
+    const bounds = canvas.getBoundingClientRect();
+    const ratio = Math.min(window.devicePixelRatio || 1, 2);
+    width = bounds.width;
+    height = bounds.height;
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  };
+
+  const waveY = (x, index, time) => {
+    const phase = time * (.00018 + index * .000012);
+    const baseline = height * (.18 + index * .082);
+    return baseline
+      + Math.sin(x * .0064 + phase + index * .76) * (15 + index * 1.8)
+      + Math.sin(x * .0021 - phase * .72 + index * 1.31) * 27;
+  };
+
+  const traceWave = (index, time, reverse = false) => {
+    const step = Math.max(10, width / 130);
+    if (reverse) {
+      for (let x = width; x >= -step; x -= step) ctx.lineTo(x, waveY(x, index, time));
+      return;
+    }
+    for (let x = -step; x <= width + step; x += step) {
+      const y = waveY(x, index, time);
+      if (x === -step) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+  };
+
+  const render = (time = 0) => {
+    ctx.clearRect(0, 0, width, height);
+
+    const glow = ctx.createRadialGradient(width * .68, height * .42, 0, width * .68, height * .42, width * .55);
+    glow.addColorStop(0, 'rgba(113, 55, 201, .12)');
+    glow.addColorStop(.55, 'rgba(72, 38, 141, .045)');
+    glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, width, height);
+
+    const ribbon = ctx.createLinearGradient(0, 0, width, 0);
+    ribbon.addColorStop(0, 'rgba(244, 63, 116, .025)');
+    ribbon.addColorStop(.48, 'rgba(158, 82, 255, .07)');
+    ribbon.addColorStop(1, 'rgba(90, 62, 207, .01)');
+    ctx.beginPath();
+    traceWave(3, time);
+    traceWave(5, time, true);
+    ctx.closePath();
+    ctx.fillStyle = ribbon;
+    ctx.fill();
+
+    for (let index = 0; index < 8; index += 1) {
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, `rgba(255, 66, 119, ${index === 3 ? .32 : .12})`);
+      gradient.addColorStop(.48, `rgba(172, 91, 255, ${index === 3 ? .46 : .22})`);
+      gradient.addColorStop(1, `rgba(95, 72, 219, ${index === 3 ? .23 : .09})`);
+      ctx.beginPath();
+      traceWave(index, time);
+      ctx.strokeStyle = gradient;
+      ctx.lineWidth = index === 3 ? 1.45 : .72;
+      ctx.stroke();
+    }
+
+    for (let index = 0; index < 5; index += 1) {
+      const progress = reducedMotion ? (index + 1) / 6 : (time * (.000075 + index * .000006) + index * .21) % 1;
+      const x = progress * width;
+      const waveIndex = [1, 3, 5, 2, 6][index];
+      const y = waveY(x, waveIndex, time);
+      const pulse = ctx.createRadialGradient(x, y, 0, x, y, 22 + index * 2);
+      pulse.addColorStop(0, 'rgba(255, 244, 255, .98)');
+      pulse.addColorStop(.13, 'rgba(217, 156, 255, .9)');
+      pulse.addColorStop(.42, 'rgba(155, 79, 255, .27)');
+      pulse.addColorStop(1, 'rgba(120, 67, 255, 0)');
+      ctx.fillStyle = pulse;
+      ctx.beginPath();
+      ctx.arc(x, y, 24 + index * 2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (!reducedMotion) animationFrame = requestAnimationFrame(render);
+  };
+
+  rebuild();
+  render();
+  window.addEventListener('resize', () => {
+    cancelAnimationFrame(animationFrame);
+    rebuild();
+    render();
+  }, {passive:true});
+})();
+
+(() => {
+  const billingButtons = document.querySelectorAll('[data-billing]');
+  const pricingValues = document.querySelectorAll('.pricing-price strong');
+  billingButtons.forEach((button) => button.addEventListener('click', () => {
+    billingButtons.forEach((item) => item.classList.toggle('active', item === button));
+    pricingValues.forEach((value) => { value.textContent = value.dataset[button.dataset.billing]; });
+  }));
+
+  const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.querySelectorAll('.orbit-particle-canvas').forEach((canvas, canvasIndex) => {
+    const ctx = canvas.getContext('2d');
+    let particles = [];
+    let frame = 0;
+    let last = performance.now();
+    let rect;
+    let particleCount = 0;
+
+    const seed = (index) => {
+      const value = Math.sin((index + 1) * 9187.13 + canvasIndex * 113.7) * 43758.5453;
+      return value - Math.floor(value);
+    };
+
+    const pointOnRing = (angle) => {
+      const widthScale = Math.min(rect.width / 520, 1);
+      const rx = 137 * widthScale;
+      const ry = 72 * widthScale;
+      const tilt = -.59;
+      const localX = Math.cos(angle) * rx;
+      const localY = Math.sin(angle) * ry;
+      return {
+        x: rect.width * .5 + localX * Math.cos(tilt) - localY * Math.sin(tilt),
+        y: rect.height * .51 + localX * Math.sin(tilt) + localY * Math.cos(tilt)
+      };
+    };
+
+    const resetParticle = (particle, index, initial = false) => {
+      const angle = seed(index + particle.generation * 83) * Math.PI * 2;
+      const origin = pointOnRing(angle);
+      const dx = origin.x - rect.width * .5;
+      const dy = origin.y - rect.height * .51;
+      const length = Math.hypot(dx, dy) || 1;
+      const outward = 7 + seed(index + particle.generation * 47 + 19) * 20;
+      const tangent = (seed(index + particle.generation * 61 + 31) - .5) * 12;
+      particle.x = origin.x;
+      particle.y = origin.y;
+      particle.vx = dx / length * outward - dy / length * tangent;
+      particle.vy = dy / length * outward + dx / length * tangent;
+      particle.life = .72 + seed(index + particle.generation * 29 + 51) * 1.55;
+      particle.age = initial ? seed(index + 73) * particle.life : 0;
+      particle.size = .45 + seed(index + particle.generation * 37 + 89) * 1.55;
+      particle.alpha = .3 + seed(index + particle.generation * 43 + 113) * .68;
+      particle.blur = seed(index + particle.generation * 53 + 149) > .67;
+      particle.flicker = 5 + seed(index + particle.generation * 71 + 173) * 10;
+      particle.generation += 1;
+    };
+
+    const resize = () => {
+      rect = canvas.getBoundingClientRect();
+      const ratio = Math.min(window.devicePixelRatio || 1, 2);
+      canvas.width = Math.round(rect.width * ratio);
+      canvas.height = Math.round(rect.height * ratio);
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      particleCount = rect.width < 380 ? 42 : 76;
+      particles = Array.from({length: particleCount}, (_, index) => {
+        const particle = {generation: 1};
+        resetParticle(particle, index, true);
+        return particle;
+      });
+    };
+
+    const draw = (now) => {
+      const dt = Math.min((now - last) / 1000, .04);
+      last = now;
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      for (let hotSpot = 0; hotSpot < 3; hotSpot += 1) {
+        const angle = (now * .00042 * (hotSpot % 2 ? -1 : 1)) + hotSpot * 2.18;
+        const point = pointOnRing(angle);
+        const glow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, 18 + hotSpot * 3);
+        glow.addColorStop(0, 'rgba(255,247,255,.82)');
+        glow.addColorStop(.16, 'rgba(225,196,255,.65)');
+        glow.addColorStop(.5, 'rgba(139,92,255,.2)');
+        glow.addColorStop(1, 'rgba(139,92,255,0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 20 + hotSpot * 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      particles.forEach((particle, index) => {
+        if (!reduced) {
+          particle.age += dt;
+          particle.x += particle.vx * dt;
+          particle.y += particle.vy * dt;
+          particle.vx *= .994;
+          particle.vy *= .994;
+          if (particle.age >= particle.life) resetParticle(particle, index);
+        }
+        const progress = Math.min(particle.age / particle.life, 1);
+        const fade = Math.sin(progress * Math.PI);
+        const flicker = .7 + Math.sin(now * .001 * particle.flicker + index) * .3;
+        const alpha = particle.alpha * fade * flicker;
+        const color = index % 5 === 0 ? '225,196,255' : index % 3 === 0 ? '192,139,255' : '139,92,255';
+        if (particle.size > 1.15) {
+          ctx.beginPath();
+          ctx.strokeStyle = `rgba(${color},${alpha * .28})`;
+          ctx.lineWidth = Math.max(.45, particle.size * .42);
+          ctx.moveTo(particle.x - particle.vx * .045, particle.y - particle.vy * .045);
+          ctx.lineTo(particle.x, particle.y);
+          ctx.stroke();
+        }
+        ctx.beginPath();
+        ctx.fillStyle = `rgba(${color},${alpha})`;
+        ctx.shadowColor = `rgba(${color},.88)`;
+        ctx.shadowBlur = particle.blur ? 9 : particle.size > 1.25 ? 6 : 2;
+        ctx.arc(particle.x, particle.y, particle.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.shadowBlur = 0;
+      if (!reduced) frame = requestAnimationFrame(draw);
+    };
+
+    resize();
+    draw(last);
+    if (!reduced) window.addEventListener('resize', resize, {passive:true});
+  });
+})();
+
+(() => {
+  const toggle = document.querySelector('.home-menu-toggle');
+  const drawer = document.getElementById('home-menu-drawer');
+  const backdrop = document.querySelector('.home-menu-backdrop');
+  if (!toggle || !drawer || !backdrop) return;
+  const setOpen = (open) => {
+    drawer.classList.toggle('open', open);
+    drawer.setAttribute('aria-hidden', String(!open));
+    toggle.setAttribute('aria-expanded', String(open));
+    backdrop.hidden = !open;
+    document.body.classList.toggle('home-menu-open', open);
+  };
+  toggle.addEventListener('click', () => setOpen(toggle.getAttribute('aria-expanded') !== 'true'));
+  document.querySelectorAll('[data-home-menu-close]').forEach((button) => button.addEventListener('click', () => setOpen(false)));
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setOpen(false); });
+})();
+
+(() => {
+  const dialog = document.getElementById('profit-survey');
+  if (!dialog) return;
+
+  const steps = Array.from(dialog.querySelectorAll('[data-survey-step]'));
+  const bankrollInput = document.getElementById('survey-bankroll');
+  const phoneInput = document.getElementById('survey-phone');
+  const timeChoices = Array.from(dialog.querySelectorAll('.time-choice'));
+  const showStep = (step) => {
+    steps.forEach((section) => section.classList.toggle('active', section.dataset.surveyStep === String(step)));
+    dialog.querySelector('.survey-shell').scrollTop = 0;
+  };
+
+  document.querySelectorAll('[data-estimator-open]').forEach((button) => button.addEventListener('click', () => {
+    showStep(1);
+    dialog.showModal();
+  }));
+  dialog.querySelector('[data-estimator-close]').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', (event) => { if (event.target === dialog) dialog.close(); });
+  dialog.querySelectorAll('.book-choice').forEach((choice) => choice.addEventListener('click', () => {
+    choice.classList.toggle('selected');
+    choice.setAttribute('aria-pressed', String(choice.classList.contains('selected')));
+  }));
+  timeChoices.forEach((choice) => choice.addEventListener('click', () => {
+    timeChoices.forEach((item) => {
+      item.classList.toggle('selected', item === choice);
+      item.setAttribute('aria-pressed', String(item === choice));
+    });
+  }));
+  dialog.querySelectorAll('[data-survey-next]').forEach((button) => button.addEventListener('click', () => {
+    const current = Number(button.closest('[data-survey-step]').dataset.surveyStep);
+    if (current === 2 && Number(bankrollInput.value) < 100) {
+      bankrollInput.setCustomValidity('Enter a bankroll of at least $100.');
+      bankrollInput.reportValidity();
+      return;
+    }
+    bankrollInput.setCustomValidity('');
+    showStep(current + 1);
+  }));
+  dialog.querySelector('[data-survey-finish]').addEventListener('click', () => {
+    const digits = phoneInput.value.replace(/\D/g, '');
+    if (digits.length < 10) {
+      phoneInput.setCustomValidity('Enter a valid phone number.');
+      phoneInput.reportValidity();
+      return;
+    }
+    phoneInput.setCustomValidity('');
+    const bankroll = Math.max(100, Number(bankrollInput.value) || 10000);
+    const bookCount = Math.max(1, dialog.querySelectorAll('.book-choice.selected').length);
+    const time = dialog.querySelector('.time-choice.selected')?.dataset.time || '30m';
+    const timeFactor = {'15m': .72, '30m': .9, '1h': 1, '2h+': 1.12}[time];
+    const plays = {'15m': '1-2', '30m': '2-3', '1h': '2-4', '2h+': '3-5'}[time];
+    const annual = bankroll * (.07 + Math.min(bookCount, 4) * .01) * timeFactor;
+    document.getElementById('survey-estimate').textContent = annual.toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
+    document.getElementById('survey-unit').textContent = (bankroll * .01).toLocaleString('en-US', {style:'currency', currency:'USD', maximumFractionDigits:0});
+    document.getElementById('survey-plays').textContent = plays;
+    showStep('result');
+  });
+})();
+
+(() => {
+  const cards = Array.from(document.querySelectorAll('.pricing-card'));
+  const grid = document.querySelector('.pricing-grid');
+  if (!grid || !cards.length || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  cards.forEach((card) => card.classList.add('pricing-slide-ready'));
+  const observer = new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting) return;
+    cards.forEach((card) => card.classList.add('pricing-slide-in'));
+    observer.disconnect();
+  }, {threshold: .22});
+  observer.observe(grid);
+})();
+</script>
+{% endblock %}

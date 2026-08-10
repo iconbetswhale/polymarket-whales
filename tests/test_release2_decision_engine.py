@@ -162,6 +162,45 @@ def test_independence_collapses_known_copy_relationships():
     assert result["independent_equivalent_count"] < result["raw_count"]
 
 
+def test_category_quality_and_conviction_drive_independent_signal_weight():
+    elite = _play()
+    elite.update(
+        {
+            "lead_wallet_ids": ["lead-a"],
+            "supporting_wallet_ids": [],
+            "agreeingWalletIds": ["lead-a"],
+            "supporting_wallets": [
+                {
+                    "wallet_address": "lead-a",
+                    "category_signal_role": "ORIGINATOR",
+                    "category_signal_weight": 2.0,
+                }
+            ],
+        }
+    )
+    weak = _play()
+    weak.update(
+        {
+            "lead_wallet_ids": [],
+            "supporting_wallet_ids": ["support-c"],
+            "agreeingWalletIds": ["support-c"],
+            "supporting_wallets": [
+                {
+                    "wallet_address": "support-c",
+                    "category_signal_role": "CONFIRMER",
+                    "category_signal_weight": 0.2,
+                }
+            ],
+        }
+    )
+
+    elite_signal = independent_sharp_signal(elite)
+    weak_signal = independent_sharp_signal(weak)
+
+    assert elite_signal["points"] > weak_signal["points"]
+    assert elite_signal["independent_equivalent_count"] == pytest.approx(2.0)
+
+
 def test_weighted_opposition_distinguishes_note_from_pass():
     play = _play()
     play["contradicting_wallets"] = [{"wallet_address": "opp", "amount": 20, "relative_units": 0.1, "is_hedge": True}]

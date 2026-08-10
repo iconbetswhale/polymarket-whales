@@ -8,6 +8,7 @@ import pytest
 
 from bet_sizing import SLIPPAGE_ABOVE_MAX
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from three_sharp_strategy import STRATEGY_ID
 from recommendation_service import (
     EVENT_ALREADY_STARTED,
     MISSING_BANKROLL,
@@ -107,6 +108,32 @@ def test_positive_full_precision_today_recommendation_is_tracker_eligible(
     assert 0 < recommendation["final_recommended_fraction"] < 0.01
     assert recommendation["recommended_amount"] > 0
     assert evaluation["qualifies_today"] is True
+
+
+def test_tracker_snapshot_freezes_hybrid_strategy_metadata(temp_settings):
+    play = _play()
+    play["strategy_version"] = "mlb-hybrid-consensus-v1"
+    play["mlb_hybrid_strategy"] = {
+        "qualified": True,
+        "eligible_wallet_count": 2,
+        "core_wallet_count": 1,
+        "confirmer_wallet_count": 1,
+        "execution_window_minutes": 120,
+        "recommended_manual_entry_window_minutes": [60, 90],
+    }
+
+    evaluation = evaluate_trade_recommendation(
+        play,
+        10000,
+        TrackerService(temp_settings, auto_start=False).sizing_config,
+        NOW,
+    )
+
+    snapshot = evaluation["snapshot"]
+    assert snapshot["strategy_version"] == "mlb-hybrid-consensus-v1"
+    assert snapshot["mlb_hybrid_strategy"]["eligible_wallet_count"] == 2
+    assert snapshot["tracking_window_minutes"] == 120
+    assert snapshot["recommended_manual_entry_window_minutes"] == [60, 90]
 
 
 def test_model_tracker_rejects_supporting_only_trade(temp_settings):
@@ -259,21 +286,66 @@ def test_model_tracker_rejects_excess_slippage_without_deleting_history(
     assert len(db.get_tracker_records(MODEL_TRACKER_USER_ID)) == 1
 
 
-def test_model_tracker_defers_until_final_two_hours_and_requires_play_to_remain_present(temp_settings, db):
+def test_model_tracker_defers_until_final_thirty_minutes_and_requires_play_to_remain_present(temp_settings, db):
     service = TrackerService(temp_settings, database=db, auto_start=False)
-    start = NOW + timedelta(hours=3)
+    start = NOW + timedelta(hours=1)
     play = _play(start=start)
-    play["orderbook"]["timestamp"] = (start - timedelta(minutes=119)).isoformat()
+    play["orderbook"]["timestamp"] = (start - timedelta(minutes=29)).isoformat()
 
     early = service.reconcile_model_tracker([play], NOW)
-    missing_at_gate = service.reconcile_model_tracker([], start - timedelta(hours=2))
-    eligible = service.reconcile_model_tracker([play], start - timedelta(minutes=119))
+    missing_at_gate = service.reconcile_model_tracker([], start - timedelta(minutes=30))
+    eligible = service.reconcile_model_tracker([play], start - timedelta(minutes=29))
 
     assert early["records_inserted"] == 0
     assert early["deferred_until_pregame"] == 1
     assert missing_at_gate["records_inserted"] == 0
     assert eligible["records_inserted"] == 1
-    assert eligible["pregame_window_minutes"] == 120
+    assert eligible["pregame_window_minutes"] == 30
+
+
+def test_three_sharp_model_tracker_waits_until_final_thirty_minutes(temp_settings, db):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    start = NOW + timedelta(minutes=31)
+    play = _play(start=start)
+    play["model_strategy"] = STRATEGY_ID
+    play["strategy_target_units"] = 1.0
+
+    early = service.reconcile_model_tracker([play], NOW)
+    eligible = service.reconcile_model_tracker(
+        [play], start - timedelta(minutes=30)
+    )
+
+    assert early["records_inserted"] == 0
+    assert early["deferred_until_pregame"] == 1
+    assert eligible["records_inserted"] == 1
+    assert eligible["pregame_window_minutes"] == 30
+
+
+@pytest.mark.parametrize(
+    ("minutes_to_start", "expected_inserted", "expected_deferred"),
+    [
+        (31, 0, 1),
+        (30, 1, 0),
+        (1, 1, 0),
+        (0, 0, 1),
+        (-1, 0, 1),
+    ],
+)
+def test_model_tracker_thirty_minute_gate_boundaries(
+    temp_settings,
+    db,
+    minutes_to_start,
+    expected_inserted,
+    expected_deferred,
+):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    play = _play(start=NOW + timedelta(minutes=minutes_to_start))
+
+    result = service.reconcile_model_tracker([play], NOW)
+
+    assert result["records_inserted"] == expected_inserted
+    assert result["deferred_until_pregame"] == expected_deferred
+    assert len(db.get_tracker_records(MODEL_TRACKER_USER_ID)) == expected_inserted
 
 
 def test_one_failed_trade_does_not_stop_the_batch(temp_settings, db, monkeypatch):

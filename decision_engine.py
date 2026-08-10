@@ -5,8 +5,11 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any
 
+from specialist_strategy import STRATEGY_ID as SPECIALIST_STRATEGY_ID
+from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
 
-TRADE_QUALITY_VERSION = "trade-quality-v2"
+
+TRADE_QUALITY_VERSION = "trade-quality-v3-hybrid"
 INDEPENDENCE_VERSION = "sharp-independence-v2"
 OPPOSITION_VERSION = "weighted-opposition-v2"
 LIQUIDITY_VERSION = "liquidity-quality-v2"
@@ -83,15 +86,33 @@ def independent_sharp_signal(play: dict[str, Any]) -> dict[str, Any]:
         dependency = dependencies.get(wallet) or {}
         copied = bool(dependency.get("copy_trading") or dependency.get("shared_funding"))
         synchronized = bool(dependency.get("synchronized_entry"))
-        base = 1.0 if wallet in lead_ids else 0.5
+        configured_signal = wallet_rows.get(wallet, {}).get(
+            "category_signal_weight"
+        )
+        base = (
+            max(0.0, _number(configured_signal))
+            if configured_signal is not None
+            else 1.0
+            if wallet in lead_ids
+            else 0.5
+        )
         weight = base * (0.25 if copied else (0.5 if synchronized else 1.0))
         equivalent += weight
-        details.append({"wallet_id": wallet, "weight": weight, "dependency": dependency})
+        details.append(
+            {
+                "wallet_id": wallet,
+                "weight": round(weight, 4),
+                "category_signal_role": wallet_rows.get(wallet, {}).get(
+                    "category_signal_role"
+                ),
+                "dependency": dependency,
+            }
+        )
     if not details:
         lead_count = int(_number(play.get("lead_sharp_count")))
         supporting_count = int(_number(play.get("supporting_sharp_count")))
         equivalent = lead_count + (supporting_count * 0.5)
-    points = min(10.0, equivalent * 3.0)
+    points = min(10.0, equivalent * 7.0)
     return {
         "raw_count": raw,
         "independent_equivalent_count": round(equivalent, 3),
@@ -129,12 +150,30 @@ def weighted_opposition(play: dict[str, Any]) -> dict[str, Any]:
         sample_weight = _clamp(sample / 30.0, 0.25, 1.0)
         size_weight = _clamp(max(amount / agreeing, relative_units / 3.0), 0.1, 1.5)
         hedge_weight = 0.25 if hedge else 1.0
-        value = relevance_weight * sample_weight * size_weight * independence * hedge_weight
+        configured_signal = row.get("category_signal_weight")
+        if configured_signal is not None:
+            value = (
+                max(0.0, _number(configured_signal))
+                * independence
+                * hedge_weight
+            )
+        else:
+            value = (
+                relevance_weight
+                * sample_weight
+                * size_weight
+                * independence
+                * hedge_weight
+            )
         weighted += value
         details.append({"wallet_id": row.get("wallet_address"), "weight": round(value, 4)})
     if not opposing_rows and raw_count:
         weighted = min(float(raw_count), _number(play.get("weightedContradictingConsensus"), raw_count))
-    penalty = min(15.0, weighted * 5.0)
+    agreeing_weight = max(
+        0.0, _number(play.get("weightedDirectionalSupport"), 1.0)
+    )
+    opposition_ratio = weighted / max(agreeing_weight, 0.01)
+    penalty = min(15.0, opposition_ratio * 8.0)
     if penalty >= 10:
         action = "PASS"
     elif penalty >= 6:
@@ -146,6 +185,8 @@ def weighted_opposition(play: dict[str, Any]) -> dict[str, Any]:
     return {
         "raw_count": raw_count,
         "weighted_opposition": round(weighted, 4),
+        "weighted_agreement": round(agreeing_weight, 4),
+        "opposition_ratio": round(opposition_ratio, 4),
         "penalty": round(penalty, 2),
         "action": action,
         "details": details,
@@ -251,8 +292,37 @@ def score_trade_quality(play: dict[str, Any], fair_price: dict[str, Any]) -> Tra
     liquidity = liquidity_quality(play, fair_price)
     metrics = (play.get("evidence_inputs") or {}).get("category_details") or play.get("category_details") or []
     history, history_detail = _category_performance_points(metrics)
-    size = 8.0 * _clamp(_number(play.get("strongest_relative_units")) / 3.0, 0.0, 1.0)
-    signal = max(0.0, history + size + independence["points"] - opposition["penalty"])
+    size = 8.0 * _clamp(
+        _number(play.get("strongest_relative_units")) / 3.0, 0.0, 1.0
+    )
+    hybrid = play.get("mlb_hybrid_strategy") or {}
+    hybrid_points = 0.0
+    if hybrid.get("qualified"):
+        core_count = max(0.0, _number(hybrid.get("core_wallet_count")))
+        eligible_count = max(0.0, _number(hybrid.get("eligible_wallet_count")))
+        confirm_weight = max(
+            0.0, _number(hybrid.get("confirming_portfolio_weight"))
+        )
+        oppose_weight = max(
+            0.0, _number(hybrid.get("opposing_portfolio_weight"))
+        )
+        margin_quality = _clamp(
+            (confirm_weight - oppose_weight + 0.5) / 2.0, 0.0, 1.0
+        )
+        hybrid_points = (
+            4.0
+            + min(5.0, core_count * 2.5)
+            + min(3.0, max(0.0, eligible_count - 1.0) * 1.5)
+            + (2.0 * margin_quality)
+        )
+    signal = max(
+        0.0,
+        history
+        + size
+        + independence["points"]
+        + hybrid_points
+        - opposition["penalty"],
+    )
     probability = _number(fair_price.get("fair_probability"), -1.0)
     provisional_amount = max(0.0, _number(play.get("decision_bankroll"))) * 0.02
     walked_entry = _effective_book_entry(play, provisional_amount)
@@ -276,7 +346,18 @@ def score_trade_quality(play: dict[str, Any], fair_price: dict[str, Any]) -> Tra
     news = 4.0 * _clamp(_number(play.get("news_certainty_score")), 0.0, 1.0)
     correlation = 5.0 * _clamp(_number(play.get("correlation_quality_score")), 0.0, 1.0)
     context = news + timing + correlation + mapping
-    total = int(round(_clamp(signal + price + liquidity["trade_quality_points"] + context, 0.0, 100.0)))
+    total = int(
+        round(
+            _clamp(
+                signal
+                + price
+                + liquidity["trade_quality_points"]
+                + context,
+                0.0,
+                100.0,
+            )
+        )
+    )
     uncapped = grade_for_score(total)
     caps: list[str] = []
     grade = uncapped
@@ -299,9 +380,10 @@ def score_trade_quality(play: dict[str, Any], fair_price: dict[str, Any]) -> Tra
     return TradeQualityResult(
         score=total, grade=grade, uncapped_grade=uncapped,
         components={
+            "architecture": "mlb_hybrid_quality_v10",
             "signal": round(signal, 2), "price": round(price, 2),
             "liquidity": liquidity["trade_quality_points"], "context": round(context, 2),
-            "signal_detail": {"category_performance": round(history, 2), "category_performance_detail": history_detail, "relative_size": round(size, 2), "independence": independence, "opposition": opposition},
+            "signal_detail": {"category_performance": round(history, 2), "category_performance_detail": history_detail, "relative_size": round(size, 2), "independence": independence, "opposition": opposition, "hybrid_consensus_points": round(hybrid_points, 2), "hybrid_strategy": hybrid or None},
             "price_detail": {"effective_executable_entry": entry if 0 < entry < 1 else None, "entry_method": "MAX_RISK_DEPTH_WALK" if walked_entry is not None else "CURRENT_ACTIONABLE_PRICE", "provisional_amount": provisional_amount or None, "raw_edge": raw_edge, "expected_fee_fraction": fee_input, "fees_considered": fees_considered, "fee_adjusted_edge": fee_adjusted_edge, "expected_roi": (fee_adjusted_edge / entry if fee_adjusted_edge is not None and entry > 0 else None), "edge_points": round(edge_points, 2), "slippage": slippage, "slippage_points": round(slip_points, 2), "cross_market": round(cross, 2)},
             "liquidity_detail": liquidity,
             "context_detail": {"news": news, "timing": timing, "correlation": correlation, "mapping_and_settlement": mapping},
@@ -388,9 +470,19 @@ def enrich_trade_decision(play: dict[str, Any], fair_price: dict[str, Any]) -> d
     play["trade_quality"] = quality
     play["trade_quality_score"] = quality["score"]
     play["trade_quality_grade"] = quality["grade"]
-    play["confidence_score"] = quality["score"]
-    play["confidenceScore"] = quality["score"]
-    play["score_breakdown"] = quality["components"]
+    # Approved fixed-unit sharp models intentionally separate trust confidence
+    # from market/execution quality. Preserve their strategy confidence and
+    # expose market quality independently instead of replacing the live score.
+    if str(play.get("model_strategy") or "") in {
+        THREE_SHARP_STRATEGY_ID,
+        SPECIALIST_STRATEGY_ID,
+    }:
+        play["market_quality_score"] = quality["score"]
+        play["market_quality_breakdown"] = quality["components"]
+    else:
+        play["confidence_score"] = quality["score"]
+        play["confidenceScore"] = quality["score"]
+        play["score_breakdown"] = quality["components"]
     play["liquidity_quality"] = quality["components"]["liquidity_detail"]
     play["independent_sharp_signal"] = quality["components"]["signal_detail"]["independence"]
     play["weighted_opposition"] = quality["components"]["signal_detail"]["opposition"]

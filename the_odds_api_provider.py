@@ -661,7 +661,24 @@ class TheOddsAPIProvider(ExecutionProvider):
         regions: Iterable[str] = DEFAULT_REGIONS,
         markets: Iterable[str] = ("h2h", "spreads", "totals"),
         default_sports: Iterable[str] = ("baseball_mlb",),
-        cache_ttl_seconds: int = 600,
+        trade_bookmakers: Iterable[str] = (
+            "kalshi",
+            "novig",
+            "polymarket",
+            "prophetx",
+        ),
+        ev_bookmakers: Iterable[str] = (
+            "pinnacle",
+            "betonlineag",
+            "novig",
+            "prophetx",
+            "fourcx",
+            "kalshi",
+            "polymarket",
+            "fanduel",
+            "draftkings",
+        ),
+        cache_ttl_seconds: int = 60,
         alternate_cache_ttl_seconds: int = 1200,
         max_quote_age_seconds: int = 1800,
         request_timeout: int = 15,
@@ -683,6 +700,20 @@ class TheOddsAPIProvider(ExecutionProvider):
                 str(item).strip() for item in default_sports if str(item).strip()
             )
         )
+        self.trade_bookmakers = tuple(
+            dict.fromkeys(
+                _bookmaker_key(item)
+                for item in trade_bookmakers
+                if _bookmaker_key(item)
+            )
+        )
+        self.ev_bookmakers = tuple(
+            dict.fromkeys(
+                _bookmaker_key(item)
+                for item in ev_bookmakers
+                if _bookmaker_key(item)
+            )
+        )
         self.cache_ttl_seconds = max(60, int(cache_ttl_seconds))
         self.alternate_cache_ttl_seconds = max(
             self.cache_ttl_seconds, int(alternate_cache_ttl_seconds)
@@ -691,8 +722,20 @@ class TheOddsAPIProvider(ExecutionProvider):
         self.request_timeout = max(1, int(request_timeout))
         self.session = session or requests.Session()
         self.failure_reasons: dict[str, str] = {}
-        self._cache: dict[tuple[str, tuple[str, ...]], _OddsCacheEntry] = {}
+        self._cache: dict[
+            tuple[str, str, tuple[str, ...]], _OddsCacheEntry
+        ] = {}
+        self._fetch_locks: dict[
+            tuple[str, str, tuple[str, ...]], threading.Lock
+        ] = {}
         self._lock = threading.RLock()
+        self._request_metrics = {
+            "calls": 0,
+            "credits_observed": 0,
+            "trade_calls": 0,
+            "screen_calls": 0,
+            "ev_calls": 0,
+        }
         self._quota = {
             "remaining": None,
             "used": None,
@@ -702,6 +745,137 @@ class TheOddsAPIProvider(ExecutionProvider):
 
     def options_for_trades(
         self, trades: list[dict]
+    ) -> dict[str, list[ExecutionOption]]:
+        return self._options_for_trades(trades, scope="trade")
+
+    def screen_options_for_trades(
+        self, trades: list[dict]
+    ) -> dict[str, list[ExecutionOption]]:
+        return self._options_for_trades(trades, scope="screen")
+
+    def historical_pregame_quote(
+        self,
+        *,
+        league: object,
+        event_id: object,
+        bookmaker: object,
+        market_kind: object,
+        selection: object,
+        official_start: object,
+        market_line: object = None,
+    ) -> dict | None:
+        """Return the last verified provider quote before its own commence time."""
+        if not self.api_key:
+            return None
+        sport_key = SPORT_KEY_BY_LEAGUE.get(str(league or "").strip().upper())
+        market_key = MARKET_KEY_BY_KIND.get(str(market_kind or "").strip().lower())
+        event_id_text = str(event_id or "").strip()
+        bookmaker_key = _bookmaker_key(bookmaker)
+        start = _parse_datetime(official_start)
+        if not all((sport_key, market_key, event_id_text, bookmaker_key, start)):
+            return None
+
+        def fetch(at: datetime) -> tuple[dict, datetime, datetime] | None:
+            response = self.session.get(
+                (
+                    f"{self.base_url}/historical/sports/{sport_key}/events/"
+                    f"{event_id_text}/odds"
+                ),
+                params={
+                    "apiKey": self.api_key,
+                    "bookmakers": bookmaker_key,
+                    "markets": market_key,
+                    "oddsFormat": "american",
+                    "dateFormat": "iso",
+                    "date": at.isoformat().replace("+00:00", "Z"),
+                },
+                timeout=self.request_timeout,
+            )
+            self._capture_quota(response, scope="trade")
+            response.raise_for_status()
+            body = response.json()
+            if not isinstance(body, dict) or not isinstance(body.get("data"), dict):
+                return None
+            snapshot_time = _parse_datetime(body.get("timestamp"))
+            commence = _parse_datetime(body["data"].get("commence_time"))
+            if snapshot_time is None or commence is None:
+                return None
+            return body["data"], snapshot_time, commence
+
+        loaded = fetch(start + timedelta(seconds=60))
+        if loaded is None:
+            return None
+        event, snapshot_time, commence = loaded
+        if snapshot_time >= commence:
+            loaded = fetch(start)
+            if loaded is None:
+                return None
+            event, snapshot_time, commence = loaded
+        if snapshot_time >= commence:
+            return None
+
+        selected_name = " ".join(str(selection or "").casefold().split())
+        try:
+            requested_line = float(market_line) if market_line is not None else None
+        except (TypeError, ValueError):
+            requested_line = None
+        for book in event.get("bookmakers") or []:
+            if _bookmaker_key(book.get("key")) != bookmaker_key:
+                continue
+            for market in book.get("markets") or []:
+                if str(market.get("key") or "").lower() != market_key:
+                    continue
+                for outcome in market.get("outcomes") or []:
+                    outcome_name = " ".join(str(outcome.get("name") or "").casefold().split())
+                    if outcome_name != selected_name:
+                        continue
+                    try:
+                        outcome_line = (
+                            float(outcome.get("point"))
+                            if outcome.get("point") is not None
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        outcome_line = None
+                    if requested_line is not None and outcome_line is not None and abs(requested_line - outcome_line) > 1e-6:
+                        continue
+                    try:
+                        american = int(round(float(outcome.get("price"))))
+                    except (TypeError, ValueError):
+                        continue
+                    probability = american_to_probability(american)
+                    if probability is None:
+                        continue
+                    display = f"{american:+d}" if american != 0 else "0"
+                    provider_key = _provider_key(bookmaker_key)
+                    quote_time = _parse_datetime(market.get("last_update")) or snapshot_time
+                    if quote_time >= commence:
+                        quote_time = snapshot_time
+                    return {
+                        "quote_timestamp": quote_time.isoformat(),
+                        "provider_commence_time": commence.isoformat(),
+                        "execution_option": {
+                            "providerName": str(book.get("title") or bookmaker_key),
+                            "providerKey": provider_key,
+                            "providerEventId": event_id_text,
+                            "providerMarketId": f"{event_id_text}:{market_kind}:{outcome_line}",
+                            "providerOutcomeId": str(outcome.get("sid") or outcome.get("name") or ""),
+                            "bestExecutablePrice": probability,
+                            "impliedProbability": probability,
+                            "americanOdds": american,
+                            "displayOdds": display,
+                            "isAvailable": True,
+                            "isExactMatch": True,
+                            "isStale": False,
+                            "marketStatus": "CLOSED",
+                            "matchingConfidence": "EXACT",
+                            "quoteTimestamp": quote_time.isoformat(),
+                        },
+                    }
+        return None
+
+    def _options_for_trades(
+        self, trades: list[dict], *, scope: str
     ) -> dict[str, list[ExecutionOption]]:
         self.failure_reasons = {}
         if not self.api_key or not trades:
@@ -727,7 +901,9 @@ class TheOddsAPIProvider(ExecutionProvider):
         results: dict[str, list[ExecutionOption]] = {}
         for sport_key, sport_trades in grouped.items():
             requested_keys = {
-                self._market_key_for_trade(trade) for trade in sport_trades
+                key
+                for trade in sport_trades
+                for key in self._market_keys_for_trade(trade)
             }
             market_keys = tuple(
                 key
@@ -736,12 +912,22 @@ class TheOddsAPIProvider(ExecutionProvider):
             )
             if not market_keys:
                 continue
-            events = self._events(sport_key, market_keys)
+            events = [
+                event
+                for market_key in market_keys
+                for event in self._events(
+                    sport_key, (market_key,), scope=scope
+                )
+            ]
             by_book, metadata = normalize_the_odds_api_events(events)
             for book_key, markets in by_book.items():
                 index = ProviderMarketIndex(markets)
                 for trade in sport_trades:
-                    confidence, matched = _match_exact_trade(trade, index)
+                    confidence, matched = _match_exact_trade(
+                        trade,
+                        index,
+                        allow_equivalent_line_class=True,
+                    )
                     if confidence is not MatchConfidence.EXACT or matched is None:
                         continue
                     meta = metadata[matched.selection_id]
@@ -756,6 +942,9 @@ class TheOddsAPIProvider(ExecutionProvider):
                         True
                         if meta.bet_limit is None
                         else meta.bet_limit + 1e-9 >= stake
+                    )
+                    implied_probability = american_to_probability(
+                        matched.american_odds
                     )
                     results.setdefault(trade.trade_id, []).append(
                         ExecutionOption(
@@ -778,6 +967,10 @@ class TheOddsAPIProvider(ExecutionProvider):
                             provider_event_id=matched.event_id,
                             native_price_format="AMERICAN",
                             quote_max_age_seconds=self.max_quote_age_seconds,
+                            implied_probability=implied_probability,
+                            best_executable_price=implied_probability,
+                            is_exact_match=True,
+                            market_status="OPEN",
                         )
                     )
         for trade in canonical:
@@ -801,7 +994,9 @@ class TheOddsAPIProvider(ExecutionProvider):
         results: dict[str, list[dict]] = {}
         for sport_key, sport_trades in grouped.items():
             requested_keys = {
-                self._market_key_for_trade(trade) for trade in sport_trades
+                key
+                for trade in sport_trades
+                for key in self._market_keys_for_trade(trade)
             }
             market_keys = tuple(
                 key
@@ -810,7 +1005,13 @@ class TheOddsAPIProvider(ExecutionProvider):
             )
             if not market_keys:
                 continue
-            events = self._events(sport_key, market_keys)
+            events = [
+                event
+                for market_key in market_keys
+                for event in self._events(
+                    sport_key, (market_key,), scope="trade"
+                )
+            ]
             by_book, _metadata = normalize_the_odds_api_events(events)
             for book_key, provider_alias in FAIR_PRICE_BOOK_ALIASES.items():
                 markets = by_book.get(book_key)
@@ -820,6 +1021,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                     sport_trades,
                     ProviderMarketIndex(markets),
                     provider_alias,
+                    allow_equivalent_line_class=True,
                 )
                 for trade_id, quote in quotes.items():
                     results.setdefault(trade_id, []).append(quote)
@@ -846,7 +1048,7 @@ class TheOddsAPIProvider(ExecutionProvider):
         }
         unique: dict[tuple, dict] = {}
         for sport_key in sport_keys:
-            events = self._events(sport_key, market_keys)
+            events = self._events(sport_key, market_keys, scope="screen")
             by_book, _metadata = normalize_the_odds_api_events(events)
             for market in (
                 item for rows in by_book.values() for item in rows
@@ -991,6 +1193,38 @@ class TheOddsAPIProvider(ExecutionProvider):
                 }
         return sorted(catalog.values(), key=lambda item: item["name"].casefold())
 
+    def ev_events(
+        self,
+        *,
+        sport_keys: Iterable[str],
+        market_keys: Iterable[str],
+    ) -> list[dict]:
+        """Return cached raw market snapshots for the +EV optimizer.
+
+        Featured markets use the economical sport odds endpoint. Alternate
+        markets and player props use the event endpoint and therefore remain
+        strictly demand-driven by the optimizer UI.
+        """
+        if not self.api_key:
+            return []
+        requested = tuple(
+            dict.fromkeys(
+                str(key).strip().lower()
+                for key in market_keys
+                if str(key).strip()
+            )
+        )
+        if not requested:
+            return []
+        events: list[dict] = []
+        for sport_key in dict.fromkeys(
+            str(key).strip() for key in sport_keys if str(key).strip()
+        ):
+            events.extend(
+                self._events(sport_key, requested, scope="ev")
+            )
+        return events
+
     def health_status(
         self, *, authenticate: bool = False
     ) -> ProviderHealthStatus:
@@ -1014,6 +1248,7 @@ class TheOddsAPIProvider(ExecutionProvider):
         status = self.health_status(authenticate=authenticate)
         with self._lock:
             quota = dict(self._quota)
+            request_metrics = dict(self._request_metrics)
             cache_entries = len(self._cache)
         return {
             "provider": self.provider_key,
@@ -1024,53 +1259,87 @@ class TheOddsAPIProvider(ExecutionProvider):
             "markets": list(self.markets),
             "alternate_markets": list(self.alternate_markets),
             "default_sports": list(self.default_sports),
+            "trade_bookmakers": list(self.trade_bookmakers),
+            "ev_bookmakers": list(self.ev_bookmakers),
+            "trade_mode": "selected_bookmakers",
+            "ev_mode": "selected_bookmakers",
+            "odds_screen_mode": "manual",
             "cache_ttl_seconds": self.cache_ttl_seconds,
             "alternate_cache_ttl_seconds": self.alternate_cache_ttl_seconds,
             "cache_entries": cache_entries,
             "quota": quota,
+            "request_metrics": request_metrics,
             "credentials_exposed": False,
         }
 
     def _events(
-        self, sport_key: str, market_keys: tuple[str, ...]
+        self,
+        sport_key: str,
+        market_keys: tuple[str, ...],
+        *,
+        scope: str = "trade",
     ) -> list[dict]:
-        cache_key = (sport_key, tuple(market_keys))
+        scope = scope if scope in {"screen", "ev"} else "trade"
+        cache_key = (scope, sport_key, tuple(market_keys))
         now = time.monotonic()
         ttl = (
             self.alternate_cache_ttl_seconds
-            if any(key in ALTERNATE_MARKET_KEYS for key in market_keys)
+            if any(key not in FEATURED_MARKET_KEYS for key in market_keys)
             else self.cache_ttl_seconds
         )
         with self._lock:
             cached = self._cache.get(cache_key)
             if cached and now - cached.loaded_at < ttl:
                 return cached.events
-        featured_keys = tuple(
-            key for key in market_keys if key in FEATURED_MARKET_KEYS
-        )
-        alternate_keys = tuple(
-            key for key in market_keys if key in ALTERNATE_MARKET_KEYS
-        )
-        events: list[dict] = []
-        if featured_keys:
-            events.extend(self._featured_events(sport_key, featured_keys))
-        if alternate_keys:
-            events.extend(self._alternate_events(sport_key, alternate_keys))
-        with self._lock:
-            self._cache[cache_key] = _OddsCacheEntry(
-                loaded_at=now, events=events
+            fetch_lock = self._fetch_locks.setdefault(
+                cache_key, threading.Lock()
             )
-        return events
+        with fetch_lock:
+            now = time.monotonic()
+            with self._lock:
+                cached = self._cache.get(cache_key)
+                if cached and now - cached.loaded_at < ttl:
+                    return cached.events
+            featured_keys = tuple(
+                key for key in market_keys if key in FEATURED_MARKET_KEYS
+            )
+            alternate_keys = tuple(
+                key for key in market_keys if key not in FEATURED_MARKET_KEYS
+            )
+            events: list[dict] = []
+            if featured_keys:
+                events.extend(
+                    self._featured_events(
+                        sport_key, featured_keys, scope=scope
+                    )
+                )
+            if alternate_keys:
+                events.extend(
+                    self._alternate_events(
+                        sport_key, alternate_keys, scope=scope
+                    )
+                )
+            with self._lock:
+                self._cache[cache_key] = _OddsCacheEntry(
+                    loaded_at=now, events=events
+                )
+            return events
 
     def _featured_events(
-        self, sport_key: str, market_keys: tuple[str, ...]
+        self,
+        sport_key: str,
+        market_keys: tuple[str, ...],
+        *,
+        scope: str,
     ) -> list[dict]:
-        request_regions = self._regions_for_market_keys(market_keys)
+        request_target = self._request_target_params(
+            market_keys, scope=scope
+        )
         response = self.session.get(
             f"{self.base_url}/sports/{sport_key}/odds/",
             params={
                 "apiKey": self.api_key,
-                "regions": ",".join(request_regions),
+                **request_target,
                 "markets": ",".join(market_keys),
                 "oddsFormat": "american",
                 "dateFormat": "iso",
@@ -1080,7 +1349,7 @@ class TheOddsAPIProvider(ExecutionProvider):
             },
             timeout=self.request_timeout,
         )
-        self._capture_quota(response)
+        self._capture_quota(response, scope=scope)
         if response.status_code == 429:
             error = requests.HTTPError(RATE_LIMITED, response=response)
             raise error
@@ -1091,9 +1360,15 @@ class TheOddsAPIProvider(ExecutionProvider):
         return [item for item in payload if isinstance(item, dict)]
 
     def _alternate_events(
-        self, sport_key: str, market_keys: tuple[str, ...]
+        self,
+        sport_key: str,
+        market_keys: tuple[str, ...],
+        *,
+        scope: str,
     ) -> list[dict]:
-        request_regions = self._regions_for_market_keys(market_keys)
+        request_target = self._request_target_params(
+            market_keys, scope=scope
+        )
         schedule = self.session.get(
             f"{self.base_url}/sports/{sport_key}/events",
             params={
@@ -1102,7 +1377,7 @@ class TheOddsAPIProvider(ExecutionProvider):
             },
             timeout=self.request_timeout,
         )
-        self._capture_quota(schedule)
+        self._capture_quota(schedule, scope=scope)
         if schedule.status_code == 429:
             raise requests.HTTPError(RATE_LIMITED, response=schedule)
         schedule.raise_for_status()
@@ -1142,7 +1417,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                 ),
                 params={
                     "apiKey": self.api_key,
-                    "regions": ",".join(request_regions),
+                    **request_target,
                     "markets": ",".join(market_keys),
                     "oddsFormat": "american",
                     "dateFormat": "iso",
@@ -1152,7 +1427,7 @@ class TheOddsAPIProvider(ExecutionProvider):
                 },
                 timeout=self.request_timeout,
             )
-            self._capture_quota(response)
+            self._capture_quota(response, scope=scope)
             if response.status_code == 429:
                 raise requests.HTTPError(RATE_LIMITED, response=response)
             response.raise_for_status()
@@ -1209,7 +1484,13 @@ class TheOddsAPIProvider(ExecutionProvider):
         )
         return results
 
-    def _capture_quota(self, response: requests.Response) -> None:
+    def _capture_quota(
+        self, response: requests.Response, *, scope: str = "diagnostic"
+    ) -> None:
+        try:
+            last_cost = int(response.headers.get("x-requests-last") or 0)
+        except (TypeError, ValueError):
+            last_cost = 0
         with self._lock:
             self._quota = {
                 "remaining": response.headers.get("x-requests-remaining"),
@@ -1217,6 +1498,23 @@ class TheOddsAPIProvider(ExecutionProvider):
                 "last": response.headers.get("x-requests-last"),
                 "last_request_at": datetime.now(timezone.utc).isoformat(),
             }
+            self._request_metrics["calls"] += 1
+            self._request_metrics["credits_observed"] += max(0, last_cost)
+            if scope in {"trade", "screen", "ev"}:
+                self._request_metrics[f"{scope}_calls"] += 1
+
+    def _request_target_params(
+        self, market_keys: tuple[str, ...], *, scope: str
+    ) -> dict[str, str]:
+        if scope == "trade" and self.trade_bookmakers:
+            return {"bookmakers": ",".join(self.trade_bookmakers)}
+        if scope == "ev" and self.ev_bookmakers:
+            return {"bookmakers": ",".join(self.ev_bookmakers)}
+        return {
+            "regions": ",".join(
+                self._regions_for_market_keys(market_keys)
+            )
+        }
 
     def _sport_key_for_trade(self, trade: CanonicalTrade) -> str | None:
         league = str(trade.league_id or "").upper().replace("-", "_")
@@ -1257,16 +1555,21 @@ class TheOddsAPIProvider(ExecutionProvider):
         return selected or self.regions
 
     @staticmethod
-    def _market_key_for_trade(trade: CanonicalTrade) -> str | None:
+    def _market_keys_for_trade(trade: CanonicalTrade) -> tuple[str, ...]:
         if trade.market_kind == "spread":
             return (
-                "alternate_spreads" if trade.is_alternative else "spreads"
+                ("alternate_spreads",)
+                if trade.is_alternative
+                else ("spreads", "alternate_spreads")
             )
         if trade.market_kind == "game_total":
             return (
-                "alternate_totals" if trade.is_alternative else "totals"
+                ("alternate_totals",)
+                if trade.is_alternative
+                else ("totals", "alternate_totals")
             )
-        return MARKET_KEY_BY_KIND.get(trade.market_kind)
+        key = MARKET_KEY_BY_KIND.get(trade.market_kind)
+        return (key,) if key else ()
 
     @staticmethod
     def _recommended_stake(trade: dict) -> float:

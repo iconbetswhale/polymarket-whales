@@ -13,6 +13,10 @@ from bet_sizing import (
 from bet_tracker import recommendation_snapshot
 from execution_engine import PASS as EXECUTION_PASS, WAIT as EXECUTION_WAIT
 from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS
+from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
+from specialist_strategy import STRATEGY_ID as SPECIALIST_STRATEGY_ID
+
+FIXED_UNIT_STRATEGY_IDS = {THREE_SHARP_STRATEGY_ID, SPECIALIST_STRATEGY_ID}
 
 
 EASTERN = ZoneInfo("America/New_York")
@@ -34,6 +38,7 @@ EXPECTED_FEES_UNAVAILABLE = "EXPECTED_FEES_UNAVAILABLE"
 STRATEGY_STOP = "STRATEGY_STOP"
 EXECUTION_PLAN_NOT_ACTIONABLE = "EXECUTION_PLAN_NOT_ACTIONABLE"
 CORRELATION_CAP_EXCEEDED = "CORRELATION_CAP_EXCEEDED"
+MLB_HYBRID_CONSENSUS_REQUIRED = "MLB_HYBRID_CONSENSUS_REQUIRED"
 
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
@@ -92,12 +97,21 @@ def evaluate_trade_recommendation(
     event_start = parse_event_start(play.get("event_date_et"))
     rejection_reason: str | None = None
     classification = str(play.get("tradeClassification") or "STANDARD")
+    hybrid = play.get("mlb_hybrid_strategy")
+    fixed_unit_strategy = play.get("model_strategy") in FIXED_UNIT_STRATEGY_IDS
 
     if classification in RESEARCH_CLASSIFICATIONS:
         rejection_reason = POLICIES[classification].model_tracker_rejection_reason
-    elif (play.get("fair_price") or {}).get("status") != "AVAILABLE":
+    elif hybrid is not None and hybrid.get("qualified") is not True:
+        rejection_reason = MLB_HYBRID_CONSENSUS_REQUIRED
+    elif (
+        not fixed_unit_strategy
+        and (play.get("fair_price") or {}).get("status") != "AVAILABLE"
+    ):
         rejection_reason = NO_INDEPENDENT_FAIR_PRICE
-    elif str((play.get("trade_quality") or {}).get("grade") or "") in {
+    elif not fixed_unit_strategy and str(
+        (play.get("trade_quality") or {}).get("grade") or ""
+    ) in {
         "PASS",
         "DISCOVERY",
         "",
@@ -132,12 +146,15 @@ def evaluate_trade_recommendation(
         )
         if not 0 < entry_price < 1:
             rejection_reason = MISSING_ENTRY_PRICE
-        elif recommendation.get("passes_slippage_rule") is not True:
+        elif (
+            not fixed_unit_strategy
+            and recommendation.get("passes_slippage_rule") is not True
+        ):
             rejection_reason = (
                 recommendation.get("slippage_rejection_reason")
                 or MISSING_EXECUTABLE_PRICE
             )
-        elif not 0 < estimated_probability < 1:
+        elif not fixed_unit_strategy and not 0 < estimated_probability < 1:
             rejection_reason = INVALID_PROBABILITY_INPUT
         elif _safe_float(recommendation.get("recommended_amount_before_portfolio_risk")) <= 0:
             rejection_reason = ZERO_KELLY

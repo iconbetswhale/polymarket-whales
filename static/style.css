@@ -3115,6 +3115,436 @@ td small {
   flex: 1;
 }
 
+/* Sharp Wallets — active roster */
+body[data-page="wallets"] .content {
+  overflow-x: hidden;
+}
+
+.wallet-roster-page {
+  display: grid;
+  gap: 18px;
+  width: 100%;
+  max-width: 1560px;
+  margin: 0 auto;
+}
+
+.wallet-roster-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 6px 2px 2px;
+}
+
+.wallet-roster-header h1 {
+  font-size: clamp(25px, 2vw, 34px);
+  letter-spacing: -0.045em;
+}
+
+.wallet-page-subtitle {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.wallet-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 25px;
+  padding: 0 9px;
+  border: 1px solid rgba(91, 231, 108, 0.2);
+  border-radius: 999px;
+  background: rgba(70, 194, 79, 0.08);
+  color: #6ce676;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.wallet-live-badge > span,
+.wallet-sync-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #62df6c;
+  box-shadow: 0 0 0 4px rgba(98, 223, 108, .09), 0 0 12px rgba(98, 223, 108, .42);
+}
+
+.wallet-roster-summary {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(8, 18, 25, .78);
+}
+
+.wallet-roster-summary span {
+  display: grid;
+  gap: 2px;
+  min-width: 122px;
+  padding: 11px 14px;
+  border-left: 1px solid var(--border-soft);
+  color: var(--muted);
+  font-size: 8px;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.wallet-roster-summary span:first-child { border-left: 0; }
+.wallet-roster-summary strong { color: var(--text); font-size: 12px; letter-spacing: 0; text-transform: none; }
+
+.wallet-view-tabs {
+  display: flex;
+  width: max-content;
+  padding: 3px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(5, 12, 17, .85);
+}
+
+.wallet-view-tab {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted-strong);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wallet-view-tab span {
+  display: inline-grid;
+  min-width: 20px;
+  height: 20px;
+  place-items: center;
+  border: 1px solid rgba(148, 169, 185, .14);
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
+.wallet-view-tab.is-active {
+  background: #132936;
+  box-shadow: inset 0 0 0 1px rgba(26, 183, 239, .24);
+  color: #f5f9fb;
+}
+
+.wallet-view-tab.is-active i { color: var(--cyan); }
+
+.wallet-hidden-toolbar {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(240px, .65fr) 160px 150px;
+  gap: 9px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background: rgba(9, 21, 29, .82);
+}
+
+.wallet-hidden-toolbar[hidden] { display: none; }
+.wallet-hidden-toolbar > div { display: grid; gap: 3px; }
+.wallet-hidden-toolbar > div strong { font-size: 11px; }
+.wallet-hidden-toolbar > div span { color: var(--muted); font-size: 9px; }
+.wallet-hidden-toolbar select { width: 100%; }
+
+.wallet-roster-section {
+  display: grid;
+  gap: 10px;
+}
+
+.wallet-section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 0 2px;
+}
+
+.wallet-section-heading h2 {
+  margin-top: 2px;
+  font-size: 16px;
+  letter-spacing: -.02em;
+}
+
+.wallet-roster-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.wallet-roster-card {
+  position: relative;
+  display: grid;
+  gap: 13px;
+  min-height: 286px;
+  padding: 16px;
+  overflow: hidden;
+  border-color: rgba(57, 91, 108, .48);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(13, 170, 225, .08), transparent 34%),
+    linear-gradient(150deg, rgba(13, 29, 39, .98), rgba(7, 17, 24, .98));
+  box-shadow: 0 15px 38px rgba(0, 0, 0, .15);
+}
+
+.wallet-roster-card.is-active-sharp::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 2px;
+  background: linear-gradient(180deg, var(--cyan), rgba(34, 199, 236, .08));
+  content: "";
+}
+
+.wallet-roster-card-head,
+.wallet-identity,
+.wallet-card-badges,
+.wallet-clv-band,
+.wallet-clv-band > div,
+.wallet-roster-footer {
+  display: flex;
+  align-items: center;
+}
+
+.wallet-roster-card-head { justify-content: space-between; gap: 12px; }
+.wallet-identity { min-width: 0; gap: 10px; }
+.wallet-identity .provider-logo-mark { width: 38px; height: 38px; flex-basis: 38px; border-radius: 9px; background: #1858ef; box-shadow: 0 7px 20px rgba(20, 79, 226, .2); }
+.wallet-identity .provider-logo-mark img { width: 25px; height: 25px; border-radius: 5px; }
+.wallet-identity > div { min-width: 0; }
+.wallet-identity span { color: #66b9db; font-size: 7px; font-weight: 750; letter-spacing: .11em; }
+.wallet-roster-card .wallet-identity h2 { margin-top: 3px; font-size: 17px; letter-spacing: -.025em; }
+.wallet-card-badges { gap: 10px; }
+.wallet-sport-badge { display: inline-flex; min-width: 48px; height: 27px; align-items: center; justify-content: center; border: 1px solid rgba(63, 201, 242, .28); border-radius: 7px; background: rgba(16, 150, 197, .1); color: #72d9f5; font-size: 10px; letter-spacing: .06em; }
+.wallet-sync-dot { width: 6px; height: 6px; }
+.wallet-sync-dot.failed, .wallet-sync-dot.disabled { background: var(--red); box-shadow: 0 0 0 4px rgba(255, 95, 120, .08); }
+.wallet-sync-dot.stale, .wallet-sync-dot.pending { background: var(--amber); box-shadow: 0 0 0 4px rgba(245, 187, 80, .08); }
+
+.wallet-roster-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid rgba(76, 112, 130, .28);
+  border-radius: 9px;
+  background: rgba(42, 72, 86, .18);
+}
+
+.wallet-roster-metric {
+  display: grid;
+  grid-template-columns: 17px 1fr;
+  gap: 2px 5px;
+  min-width: 0;
+  padding: 11px 12px;
+  border-top: 1px solid rgba(76, 112, 130, .22);
+  border-left: 1px solid rgba(76, 112, 130, .22);
+}
+
+.wallet-roster-metric:nth-child(-n+2) { border-top: 0; }
+.wallet-roster-metric:nth-child(odd) { border-left: 0; }
+.wallet-roster-metric i { grid-row: 1 / 3; align-self: center; color: #5e9cb7; font-size: 14px; }
+.wallet-roster-metric span { color: var(--muted); font-size: 8px; }
+.wallet-roster-metric strong { overflow: hidden; color: #eef5f8; font-family: var(--font-mono); font-size: 14px; text-overflow: ellipsis; white-space: nowrap; }
+.wallet-roster-metric.positive strong { color: #73e772; }
+.wallet-roster-metric.negative strong { color: #ff758c; }
+
+.wallet-clv-band {
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: 1px solid rgba(72, 105, 121, .28);
+  border-radius: 9px;
+  background: rgba(4, 12, 17, .55);
+}
+
+.wallet-clv-band > div { gap: 8px; }
+.wallet-clv-band > div:last-child { display: grid; gap: 1px; text-align: right; }
+.wallet-clv-band i { color: #68b6d7; font-size: 15px; }
+.wallet-clv-band span { display: grid; gap: 1px; font-size: 10px; font-weight: 700; }
+.wallet-clv-band small { color: var(--muted); font-size: 7px; font-weight: 500; }
+.wallet-clv-band strong { font-family: var(--font-mono); font-size: 13px; }
+.wallet-clv-band.positive strong { color: #6ce676; }
+.wallet-clv-band.negative strong { color: #ff758c; }
+.wallet-clv-band.collecting strong { color: #f1c765; }
+
+.wallet-roster-footer {
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.wallet-address-button,
+.wallet-roster-footer a {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted-strong);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.wallet-address-button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wallet-roster-footer a { flex: 0 0 auto; color: #6bc6e6; font-family: inherit; font-weight: 700; text-decoration: none; }
+.wallet-roster-grid.is-hidden-view { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wallet-roster-card.is-hidden-wallet { min-height: 270px; opacity: .9; }
+.wallet-roster-card.is-hidden-wallet .wallet-sport-badge { color: var(--muted-strong); border-color: rgba(148, 169, 185, .16); background: rgba(148, 169, 185, .05); }
+
+.wallet-clv-note {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 14px;
+  border: 1px solid rgba(55, 100, 121, .32);
+  border-radius: 10px;
+  background: rgba(10, 25, 34, .65);
+}
+
+.wallet-clv-note > i { color: var(--cyan); font-size: 18px; }
+.wallet-clv-note > div { display: grid; gap: 2px; }
+.wallet-clv-note strong { font-size: 10px; }
+.wallet-clv-note span { color: var(--muted); font-size: 8px; line-height: 1.45; }
+
+@media (max-width: 1100px) {
+  .wallet-roster-summary { display: none; }
+  .wallet-roster-grid, .wallet-roster-grid.is-hidden-view { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wallet-hidden-toolbar { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 720px) {
+  .wallet-roster-page { gap: 14px; }
+  .wallet-roster-header { align-items: flex-start; }
+  .wallet-page-subtitle { max-width: 310px; font-size: 11px; line-height: 1.45; }
+  .wallet-view-tabs { width: 100%; }
+  .wallet-view-tab { flex: 1; justify-content: center; padding: 0 8px; }
+  .wallet-hidden-toolbar { grid-template-columns: 1fr; }
+  .wallet-roster-grid, .wallet-roster-grid.is-hidden-view { grid-template-columns: 1fr; }
+  .wallet-roster-card { min-height: 278px; padding: 15px; }
+  .wallet-roster-card .wallet-identity h2 { font-size: 16px; }
+  .wallet-section-heading { min-height: 36px; }
+  .wallet-clv-note { align-items: flex-start; }
+}
+
+.status-label.shadow,
+.wallet-provisional-unit {
+  border: 1px solid rgba(154, 116, 255, 0.42);
+  background: rgba(117, 78, 214, 0.16);
+  color: #cdbbff;
+}
+
+.wallet-provisional-unit {
+  width: fit-content;
+  margin: 10px 0 2px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.account-oauth-button {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+  padding: 0 14px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .055);
+  color: var(--text);
+  font-weight: 700;
+  text-decoration: none;
+  transition: border-color .16s ease, background .16s ease, transform .16s ease;
+}
+
+.account-oauth-button:hover {
+  border-color: rgba(255, 255, 255, .26);
+  background: rgba(255, 255, 255, .09);
+  transform: translateY(-1px);
+}
+
+.account-oauth-button.unavailable {
+  opacity: .58;
+}
+
+.account-oauth-button i {
+  font-size: 18px;
+}
+
+.account-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 14px 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.account-divider::before,
+.account-divider::after {
+  height: 1px;
+  flex: 1;
+  background: var(--border);
+  content: "";
+}
+
+.account-username-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 10px;
+}
+
+.account-identity small {
+  margin-top: 2px;
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.account-membership {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 13px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .025);
+}
+
+.account-membership > span {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+.account-membership small {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .07em;
+  text-transform: uppercase;
+}
+
+.account-membership strong {
+  font-size: 11px;
+}
+
+@media (max-width: 520px) {
+  .account-username-form {
+    grid-template-columns: 1fr;
+  }
+}
+
 .save-state[data-state="saved"] {
   color: var(--green);
 }
@@ -7938,6 +8368,132 @@ body[data-page="trades"] {
   background: rgba(7, 12, 15, 0.98);
 }
 
+/* Prediction Traders — focused workspace proportions (OddsJam-inspired) */
+@media (min-width: 981px) {
+  body[data-page="trades"] .app-shell {
+    padding-inline: 18px;
+  }
+  body[data-page="trades"] .trades-page {
+    width: min(100%, 1140px);
+    max-width: 1140px;
+    grid-template-rows: 58px minmax(0, 1fr);
+    gap: 10px;
+  }
+  body[data-page="trades"] .trades-command-bar {
+    min-height: 58px;
+    align-items: center;
+  }
+  body[data-page="trades"] .trades-command-primary h1 {
+    font-size: 22px;
+    letter-spacing: -.02em;
+  }
+  body[data-page="trades"] .trades-command-primary .page-kicker {
+    display: none;
+  }
+  body[data-page="trades"] .trades-command-primary > p {
+    display: none;
+  }
+  body[data-page="trades"] .workspace-tabs {
+    height: 34px;
+    border-radius: 7px;
+  }
+  body[data-page="trades"] .workspace-tabs button {
+    min-height: 28px;
+    padding-inline: 10px;
+    font-size: 10px;
+  }
+  body[data-page="trades"] .result-badge,
+  body[data-page="trades"] .model-status-pill {
+    min-height: 30px;
+    font-size: 10px;
+  }
+  body[data-page="trades"] .trades-command-actions {
+    gap: 7px;
+  }
+  body[data-page="trades"] .compact-search {
+    width: 184px;
+    min-height: 34px;
+  }
+  body[data-page="trades"] .toolbar-bankroll,
+  body[data-page="trades"] .personal-pnl-summary,
+  body[data-page="trades"] .trades-command-actions > .icon-button {
+    min-height: 34px;
+    height: 34px;
+  }
+  body[data-page="trades"] .trade-workspace {
+    grid-template-columns: minmax(0, 2.58fr) 315px;
+    gap: 9px;
+  }
+  body[data-page="trades"] .trade-list {
+    gap: 7px;
+    padding-right: 4px;
+  }
+  body[data-page="trades"] .trade-card {
+    min-height: 82px;
+    margin-bottom: 0;
+    border-radius: 8px;
+    grid-template-columns: minmax(220px, 1fr) minmax(360px, 1.35fr);
+    box-shadow: 0 6px 16px rgba(0,0,0,.22), inset 0 1px rgba(255,255,255,.02);
+  }
+  body[data-page="trades"] .trade-identity {
+    padding: 10px 12px;
+    gap: 10px;
+  }
+  body[data-page="trades"] .trade-score strong {
+    font-size: 22px;
+  }
+  body[data-page="trades"] .trade-kicker,
+  body[data-page="trades"] .trade-context {
+    font-size: 9px;
+  }
+  body[data-page="trades"] .trade-event {
+    font-size: 13px;
+    line-height: 1.2;
+  }
+  body[data-page="trades"] .trade-market {
+    font-size: 9px;
+  }
+  body[data-page="trades"] .trade-decision {
+    grid-template-rows: 29px minmax(52px, 1fr);
+  }
+  body[data-page="trades"] .trade-metrics-row {
+    min-height: 29px;
+    padding: 4px 9px;
+  }
+  body[data-page="trades"] .trade-selection {
+    min-height: 52px;
+    padding: 6px 8px;
+    gap: 7px;
+  }
+  body[data-page="trades"] .trade-pick strong,
+  body[data-page="trades"] .trade-recommendation strong {
+    font-size: 12px;
+  }
+  body[data-page="trades"] .execution-option {
+    min-height: 36px;
+  }
+  body[data-page="trades"] .trade-detail {
+    border-radius: 9px;
+    min-height: 0;
+  }
+  body[data-page="trades"] .detail-header {
+    padding: 12px 14px;
+  }
+  body[data-page="trades"] .detail-header h2 {
+    font-size: 14px;
+  }
+  body[data-page="trades"] .model-activity-state {
+    padding: 32px 20px;
+  }
+  body[data-page="trades"] .model-activity-state h2 {
+    font-size: 17px;
+  }
+  body[data-page="trades"] .model-activity-state p {
+    font-size: 11px;
+    line-height: 1.5;
+  }
+}
+
 .execution-toolbar--best { flex-direction:column; align-items:stretch; gap:4px; }
 .execution-toolbar--best .line-shop-status { display:flex; align-items:center; justify-content:center; gap:4px; color:#79a990; font-size:8px; line-height:1.2; white-space:nowrap; }
 .execution-toolbar--best .line-shop-status i { color:#5fd479; font-size:10px; }
@@ -8126,6 +8682,30 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 .odds-live-state { margin-left:auto; display:flex; align-items:center; gap:5px; color:#5bd75b; font-size:10px; }
 .odds-live-state i { width:6px; height:6px; border-radius:50%; background:#50dc57; box-shadow:0 0 8px #50dc57; }
 .odds-live-state small { color:#78909c; margin-left:3px; }
+.odds-live-state.paused { color:#f4bf58; }
+.odds-live-state.paused i { background:#f4bf58; box-shadow:0 0 8px rgba(244,191,88,.55); }
+.odds-feed-toggle { width:auto!important; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+
+.visual-preview-trade {
+  border-color: rgba(169,154,245,.58)!important;
+  box-shadow: inset 3px 0 0 #a99af5, 0 12px 34px rgba(48,34,84,.22);
+}
+.visual-preview-badge,
+.visual-preview-safe {
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  border:1px solid rgba(169,154,245,.38);
+  border-radius:999px;
+  background:rgba(169,154,245,.12);
+  color:#c9bcff;
+  padding:3px 7px;
+  font:700 9px/1 "Roboto Condensed",sans-serif;
+  letter-spacing:.055em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+.visual-preview-badge { margin-left:7px; font-style:normal; }
 .odds-search { width:190px; height:31px; display:flex; align-items:center; gap:7px; border:1px solid #29404d; border-radius:5px; padding:0 9px; background:#13232e; }
 .odds-search input { width:100%; border:0; outline:0; background:transparent; color:#eef6f9; font:500 11px "Roboto Condensed",sans-serif; }
 .odds-refresh { width:31px; padding:0; }
@@ -9553,4 +10133,107 @@ body[data-page="odds-screen"] .nav-links a { padding:0 7px; font-size:10px; }
   .intel-row { padding:19px 25px; }
   .intel-row strong { font-size:15px; }
   .intel-row small { font-size:13px; }
+}
+.wallet-lock-shell {
+  min-height: calc(100vh - 48px);
+  display: grid;
+  place-items: center;
+  padding: 32px 20px;
+  background:
+    radial-gradient(circle at 50% 20%, rgba(132, 94, 247, 0.14), transparent 38%),
+    linear-gradient(145deg, rgba(13, 15, 22, 0.96), rgba(6, 8, 12, 0.98));
+}
+
+.wallet-lock-card {
+  width: min(100%, 430px);
+  padding: 40px;
+  border: 1px solid rgba(157, 123, 255, 0.24);
+  border-radius: 20px;
+  background: rgba(13, 15, 22, 0.92);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.42);
+  text-align: center;
+}
+
+.wallet-lock-icon {
+  width: 54px;
+  height: 54px;
+  display: inline-grid;
+  place-items: center;
+  margin-bottom: 20px;
+  border: 1px solid rgba(157, 123, 255, 0.32);
+  border-radius: 16px;
+  color: #b69cff;
+  background: rgba(132, 94, 247, 0.12);
+  font-size: 25px;
+}
+
+.wallet-lock-card h1 {
+  margin: 8px 0 10px;
+  font-family: "Fraunces", serif;
+  font-size: clamp(28px, 6vw, 38px);
+}
+
+.wallet-lock-card > p:not(.eyebrow) {
+  margin: 0 auto 28px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.wallet-lock-form {
+  display: grid;
+  gap: 12px;
+  text-align: left;
+}
+
+.wallet-lock-form label {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.wallet-lock-form input {
+  width: 100%;
+  padding: 16px 18px;
+  border: 1px solid rgba(157, 123, 255, 0.3);
+  border-radius: 12px;
+  color: var(--text-primary);
+  background: rgba(4, 6, 10, 0.84);
+  font: 700 24px/1 "DM Sans", sans-serif;
+  letter-spacing: 0.5em;
+  text-align: center;
+}
+
+.wallet-lock-form input:focus {
+  border-color: #9d7bff;
+  outline: 3px solid rgba(157, 123, 255, 0.14);
+}
+
+.wallet-lock-form .button {
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.wallet-lock-error {
+  min-height: 18px;
+  margin: 0;
+  color: #ff9b9b;
+  font-size: 13px;
+}
+
+.wallet-lock-card > small {
+  display: block;
+  margin-top: 20px;
+  color: var(--text-subtle);
+}
+
+@media (max-width: 560px) {
+  .wallet-lock-shell {
+    padding: 20px 14px;
+  }
+
+  .wallet-lock-card {
+    padding: 30px 22px;
+  }
 }

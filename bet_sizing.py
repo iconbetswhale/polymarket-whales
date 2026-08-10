@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+from math import floor
+import math
 from typing import Any
 
 from config import MAX_UNFAVORABLE_SLIPPAGE_PCT
@@ -8,6 +10,10 @@ from decision_engine import uncertainty_adjusted_kelly
 from execution_engine import ExecutionConfig, build_execution_plan
 from risk_engine import RiskConfig, evaluate_portfolio_risk
 from trade_research import POLICIES, RESEARCH_CLASSIFICATIONS, STANDARD
+from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
+from specialist_strategy import STRATEGY_ID as SPECIALIST_STRATEGY_ID
+
+FIXED_UNIT_STRATEGY_IDS = {THREE_SHARP_STRATEGY_ID, SPECIALIST_STRATEGY_ID}
 
 
 SLIPPAGE_ABOVE_MAX = "SLIPPAGE_ABOVE_MAX"
@@ -29,7 +35,7 @@ class SizingConfig:
     consensus_count_target: int = 4
     consensus_count_weight: float = 0.60
     consensus_percentage_weight: float = 0.40
-    recommendation_version: str = "v4"
+    recommendation_version: str = "v10-longshot-variance-adjusted"
 
 
 DEFAULT_SIZING_CONFIG = SizingConfig()
@@ -47,10 +53,150 @@ GRADE_EDGE_RELIABILITY = {
     "A": 0.50,
     "A_PLUS": 0.60,
 }
+GRADE_SCORE_BANDS = {
+    "DISCOVERY": (55.0, 64.0, 0.0, GRADE_RISK_CAPS["DISCOVERY"]),
+    "B": (65.0, 74.0, GRADE_RISK_CAPS["DISCOVERY"], GRADE_RISK_CAPS["B"]),
+    "A": (75.0, 84.0, GRADE_RISK_CAPS["B"], GRADE_RISK_CAPS["A"]),
+    "A_PLUS": (85.0, 100.0, GRADE_RISK_CAPS["A"], GRADE_RISK_CAPS["A_PLUS"]),
+}
+
+DOLLAR_ROUNDING_INCREMENT = 1.0
 
 
 def clamp(value: float, lower: float, upper: float) -> float:
     return max(lower, min(upper, value))
+
+
+def round_stake_down_to_dollars(amount: Any) -> float:
+    """Return an executable whole-dollar stake without increasing model risk."""
+    try:
+        numeric_amount = max(0.0, float(amount))
+    except (TypeError, ValueError):
+        return 0.0
+    return float(floor((numeric_amount + 1e-9) / DOLLAR_ROUNDING_INCREMENT))
+
+
+def longshot_variance_adjustment(entry_price: Any) -> dict[str, Any]:
+    """Smoothly reduce volatile underdog exposure without hiding the signal."""
+    price = _safe_float(entry_price)
+    if price <= 0 or price >= 0.40:
+        return {
+            "applied": False,
+            "stake_multiplier": 1.0,
+            "maximum_units": None,
+            "entry_probability": price if price > 0 else None,
+            "reason": None,
+        }
+    severity = clamp((0.40 - price) / 0.25, 0.0, 1.0)
+    return {
+        "applied": True,
+        "stake_multiplier": 1.0 - (0.35 * severity),
+        "maximum_units": 2.0 - (1.25 * severity),
+        "entry_probability": price,
+        "reason": "CONTINUOUS_LONGSHOT_VARIANCE_REDUCTION",
+    }
+
+
+def continuous_grade_risk_cap(grade: str, score: Any) -> float:
+    """Interpolate within a quality band instead of flattening every stake."""
+    base_cap = GRADE_RISK_CAPS.get(grade, GRADE_RISK_CAPS["B"])
+    band = GRADE_SCORE_BANDS.get(grade)
+    try:
+        numeric_score = float(score)
+    except (TypeError, ValueError):
+        return base_cap
+    if band is None:
+        return base_cap
+    lower_score, upper_score, lower_cap, upper_cap = band
+    progress = clamp(
+        (numeric_score - lower_score + 1.0) / (upper_score - lower_score + 1.0),
+        0.0,
+        1.0,
+    )
+    return lower_cap + ((upper_cap - lower_cap) * progress)
+
+
+def continuous_trade_weight(play: dict[str, Any]) -> dict[str, Any]:
+    """Build a unique multiplier from quality-weighted directional evidence."""
+    agreeing = max(1, int(play.get("rawAgreeingSharpCount") or play.get("agreeing_wallet_count") or 1))
+    opposing = max(0, int(play.get("rawContradictingSharpCount") or 0))
+    weighted_support = max(
+        0.0,
+        _safe_float(
+            play.get("weightedDirectionalSupport"),
+            play.get("weighted_sharp_count") or agreeing,
+        ),
+    )
+    weighted_opposition = max(
+        0.0,
+        _safe_float(
+            play.get("weightedDirectionalOpposition"), opposing
+        ),
+    )
+    agreement_ratio = weighted_support / max(
+        0.01, weighted_support + weighted_opposition
+    )
+    net_agreement = max(0.0, weighted_support - weighted_opposition)
+    consensus = (
+        1.0 - math.exp(-net_agreement / 1.5)
+    ) * agreement_ratio
+
+    wallet_units = [
+        max(0.0, _safe_float(wallet.get("relative_units")))
+        for wallet in (play.get("supporting_wallets") or [])
+        if wallet.get("relative_units") is not None
+    ]
+    strongest_units = max(
+        [max(0.0, _safe_float(play.get("strongest_relative_units"))), *wallet_units]
+    )
+    average_units = (
+        sum(wallet_units) / len(wallet_units) if wallet_units else strongest_units
+    )
+    relative_size = (
+        0.6 * (strongest_units / (strongest_units + 1.0))
+        + 0.4 * (average_units / (average_units + 1.0))
+    )
+
+    evidence_inputs = play.get("evidence_inputs") or {}
+    combined_amount = clamp(
+        _safe_float(evidence_inputs.get("combined_amount")), 0.0, 1.0
+    )
+    confidence = clamp(
+        _safe_float(
+            play.get("confidence_score")
+            if play.get("confidence_score") is not None
+            else (play.get("trade_quality") or {}).get("score")
+        )
+        / 100.0,
+        0.0,
+        1.0,
+    )
+    components = {
+        "confidence": confidence,
+        "sharp_consensus": consensus,
+        "relative_unit_size": relative_size,
+        "combined_exposure": combined_amount,
+    }
+    weights = {
+        "confidence": 0.30,
+        "sharp_consensus": 0.20,
+        "relative_unit_size": 0.30,
+        "combined_exposure": 0.20,
+    }
+    multiplier = sum(components[key] * weights[key] for key in weights)
+    return {
+        "multiplier": clamp(multiplier, 0.0, 1.0),
+        "components": components,
+        "weights": weights,
+        "agreeing_sharps": agreeing,
+        "opposing_sharps": opposing,
+        "weighted_directional_support": weighted_support,
+        "weighted_directional_opposition": weighted_opposition,
+        "weighted_directional_margin": net_agreement,
+        "strongest_relative_units": strongest_units,
+        "average_relative_units": average_units,
+        "formula": "0.5 Kelly x continuous quality, category-weighted directional conviction, relative units, and combined exposure",
+    }
 
 
 def _interpolated_cap(
@@ -292,6 +438,154 @@ def slippage_status(
     }
 
 
+def _build_three_sharp_recommendation(
+    play: dict[str, Any],
+    bankroll: float,
+    config: SizingConfig,
+    risk_context: dict[str, Any],
+    valid_asks: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Size an approved fixed-unit sharp signal without inventing a fair probability."""
+    strategy_id = str(play.get("model_strategy") or THREE_SHARP_STRATEGY_ID)
+    specialist = strategy_id == SPECIALIST_STRATEGY_ID
+    strategy_slug = strategy_id.lower().replace("_", "-")
+    strategy_label = "SPECIALIST_SIGNAL" if specialist else "THREE_SHARP_SIGNAL"
+    target_units = max(0.0, _safe_float(play.get("strategy_target_units")))
+    unit_value = bankroll * config.unit_percentage
+    proposed_amount = target_units * unit_value
+    initial_fill = volume_weighted_entry(valid_asks, proposed_amount)
+    if not initial_fill:
+        return unavailable_recommendation(
+            "A live executable ask is unavailable for this outcome.", config
+        )
+
+    risk_config_value = risk_context.get("config")
+    risk_config = (
+        risk_config_value
+        if isinstance(risk_config_value, RiskConfig)
+        else RiskConfig(**(risk_config_value or {}))
+    )
+    portfolio_risk = evaluate_portfolio_risk(
+        play,
+        min(proposed_amount, _safe_float(initial_fill.get("executable_amount"))),
+        bankroll,
+        risk_context.get("exposures") or [],
+        risk_context.get("account_state")
+        or {"current_bankroll": bankroll, "high_water_mark": bankroll},
+        risk_config,
+        continuous_sizing=False,
+    )
+    unrounded_amount = max(
+        0.0, _safe_float(portfolio_risk.get("final_capped_stake"))
+    )
+    final_amount = round_stake_down_to_dollars(unrounded_amount)
+    fill = volume_weighted_entry(valid_asks, final_amount) if final_amount > 0 else None
+    if not fill:
+        return unavailable_recommendation(
+            "Order-book depth could not execute the approved strategy stake.",
+            config,
+            portfolio_risk=portfolio_risk,
+        )
+    final_amount = round_stake_down_to_dollars(fill["executable_amount"])
+    fill = volume_weighted_entry(valid_asks, final_amount)
+    if not fill:
+        return unavailable_recommendation(
+            "Order-book depth could not execute the approved strategy stake.", config
+        )
+
+    entry_price = _safe_float(fill.get("effective_entry_price"))
+    top_ask = _safe_float(valid_asks[0].get("price"))
+    provider = play.get("selectedExecutionOption") or play.get("bestExecutionOption") or {}
+    provider_name = str(
+        provider.get("sportsbook")
+        or provider.get("provider")
+        or provider.get("providerName")
+        or "live executable order book"
+    )
+    final_fraction = final_amount / bankroll
+    final_units = final_fraction / config.unit_percentage
+    portfolio_risk["final_capped_stake"] = final_amount
+    execution_plan = {
+        "recommended_stake": final_amount,
+        "recommended_shares": fill.get("shares", 0.0),
+        "current_best_ask": top_ask,
+        "effective_price_for_full_stake": entry_price,
+        "effective_price_for_executable_amount": entry_price,
+        "maximum_average_price": entry_price,
+        "amount_executable_below_max": final_amount,
+        "unfilled_amount": fill.get("unfilled_amount", 0.0),
+        "recommended_execution_method": "TAKE_NOW",
+        "execution_reason_code": f"{strategy_label}_EXECUTABLE",
+        "execution_explanation": "The approved strategy stake is executable at the selected best live price.",
+        "quote_timestamp": play.get("orderbook_timestamp"),
+        "calculation_version": f"{strategy_slug}-execution-v1",
+    }
+    reference = _safe_float(
+        play.get("sharp_reference_entry_price") or play.get("average_entry_price"),
+        -1.0,
+    )
+    movement = entry_price - reference if 0 < reference < 1 else None
+    return {
+        "available": True,
+        "reason": None,
+        "message": "Recommended bet",
+        "recommendation_version": f"{strategy_slug}-fixed-unit-sizing-v1",
+        "bankroll": bankroll,
+        "unit_value": unit_value,
+        "unit_percentage": config.unit_percentage,
+        "current_user_entry_price": entry_price,
+        "effective_entry_price": entry_price,
+        "entry_price_source": f"{provider_name}, volume-weighted for the recommended dollar amount",
+        "baseline_probability": None,
+        "estimated_win_probability": None,
+        "raw_fair_probability": None,
+        "composite_fair_probability": None,
+        "fair_price_status": (
+            "NOT_REQUIRED_BY_SPECIALIST_STRATEGY"
+            if specialist
+            else "NOT_REQUIRED_BY_WEIGHTED_MLB_STRATEGY"
+        ),
+        "calculated_edge": None,
+        "full_kelly_fraction": None,
+        "half_kelly_fraction": None,
+        "trade_classification": str(play.get("tradeClassification") or STANDARD),
+        "trade_grade": strategy_label,
+        "final_recommended_fraction": final_fraction,
+        "recommended_amount": final_amount,
+        "recommended_amount_before_portfolio_risk": proposed_amount,
+        "recommended_shares": fill.get("shares", 0.0),
+        "recommended_units": final_units,
+        "raw_recommended_units": target_units,
+        "strategy_target_units": target_units,
+        "strategy_sizing_mode": play.get("strategy_sizing_mode")
+        or (play.get("strategy_sizing") or {}).get("sizing_mode")
+        or "WEIGHTED_DIRECTIONAL_CONVICTION_UNITS",
+        "unrounded_recommended_amount": unrounded_amount,
+        "dollar_rounding_increment": DOLLAR_ROUNDING_INCREMENT,
+        "rounding_method": "FLOOR_TO_WHOLE_DOLLAR",
+        "sharp_average_entry_price": reference if 0 < reference < 1 else None,
+        "sharp_reference_entry_price": reference if 0 < reference < 1 else None,
+        "current_top_ask_price": top_ask,
+        "price_movement": movement,
+        "slippage_cents": movement * 100 if movement is not None else None,
+        "price_slippage_fraction": movement / reference if movement is not None else None,
+        "unfavorable_slippage_pct": (
+            movement / reference * 100 if movement is not None else None
+        ),
+        "passes_slippage_rule": True,
+        "slippage_rejection_reason": None,
+        "slippage_policy": "MONITORED_NOT_ELIGIBILITY_GATED",
+        "orderbook_levels_used": fill.get("levels_used", 0),
+        "liquidity_limited": bool(initial_fill.get("liquidity_limited")),
+        "unfilled_amount": initial_fill.get("unfilled_amount", 0.0),
+        "fees_included": bool(play.get("expected_fee_fraction") is not None),
+        "expected_fee_fraction": play.get("expected_fee_fraction"),
+        "portfolio_risk": portfolio_risk,
+        "execution_plan": execution_plan,
+        "config": asdict(config),
+    }
+
+
 def build_recommendation(
     play: dict[str, Any],
     bankroll: float,
@@ -331,6 +625,11 @@ def build_recommendation(
                 None,
                 None,
             ),
+        )
+
+    if play.get("model_strategy") in FIXED_UNIT_STRATEGY_IDS:
+        return _build_three_sharp_recommendation(
+            play, bankroll, config, risk_context or {}, valid_asks
         )
 
     fair_price = play.get("fair_price") or {}
@@ -377,12 +676,7 @@ def build_recommendation(
     tracked = max(sharps, int(play.get("tracked_wallet_count") or sharps))
     unanimous = sharps == tracked
     full_weight_unanimous = unanimous and abs(weighted_sharps - sharps) < 1e-9
-    policy = POLICIES[classification]
-    adjustment_cap = (
-        policy.probability_adjustment_cap
-        if classification in RESEARCH_CLASSIFICATIONS
-        else probability_adjustment_cap(weighted_sharps, full_weight_unanimous)
-    )
+    trade_weight = continuous_trade_weight(play)
     evidence_strength = clamp(
         (evidence["score"] - config.neutral_threshold)
         / (1.0 - config.neutral_threshold),
@@ -395,17 +689,24 @@ def build_recommendation(
         agreeing_weight = 0.25 if play.get("isNonCategoryConsensus") else 0.5
         net_research_weight = max(0.0, agreeing * agreeing_weight - opposing)
         evidence_strength *= clamp(net_research_weight / agreeing, 0.0, 1.0)
-    evidence_adjustment = evidence_strength * adjustment_cap
-    sharp_cap = (
-        policy.risk_cap
-        if classification in RESEARCH_CLASSIFICATIONS
-        else stake_risk_cap(weighted_sharps, full_weight_unanimous)
-    )
+    evidence_adjustment = 0.0
     trade_grade = str((play.get("trade_quality") or {}).get("grade") or "B")
-    grade_risk_cap = GRADE_RISK_CAPS.get(trade_grade, GRADE_RISK_CAPS["B"])
-    edge_reliability = GRADE_EDGE_RELIABILITY.get(
-        trade_grade, GRADE_EDGE_RELIABILITY["B"]
-    ) * clamp(_safe_float(fair_price.get("reliability"), 1.0), 0.0, 1.0)
+    trade_quality_score = (play.get("trade_quality") or {}).get("score")
+    confidence_reliability = clamp(
+        _safe_float(
+            trade_quality_score
+            if trade_quality_score is not None
+            else play.get("confidence_score")
+            if play.get("confidence_score") is not None
+            else evidence["score"] * 100.0
+        )
+        / 100.0,
+        0.0,
+        1.0,
+    )
+    edge_reliability = confidence_reliability * clamp(
+        _safe_float(fair_price.get("reliability"), 1.0), 0.0, 1.0
+    )
 
     current_top_ask_price = _safe_float(valid_asks[0].get("price"))
     entry_price = current_top_ask_price
@@ -432,9 +733,7 @@ def build_recommendation(
         odds_b = (1.0 - entry_price) / entry_price
         full_kelly = _safe_float(kelly_result.get("full_kelly_fraction"))
         half_kelly = _safe_float(kelly_result.get("half_kelly_fraction"))
-        final_fraction = min(
-            half_kelly, sharp_cap, grade_risk_cap, config.global_risk_cap
-        )
+        final_fraction = half_kelly * trade_weight["multiplier"]
         if final_fraction <= 0:
             break
         requested_stake = bankroll * final_fraction
@@ -494,8 +793,8 @@ def build_recommendation(
         full_kelly = _safe_float(kelly_result.get("full_kelly_fraction"))
         half_kelly = _safe_float(kelly_result.get("half_kelly_fraction"))
         final_fraction = min(
-            final_fraction, half_kelly, sharp_cap, grade_risk_cap,
-            config.global_risk_cap
+            final_fraction,
+            half_kelly * trade_weight["multiplier"],
         )
         final_amount = bankroll * final_fraction
         fill = volume_weighted_entry(valid_asks, final_amount)
@@ -532,6 +831,19 @@ def build_recommendation(
         final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
     )
 
+    longshot_adjustment = longshot_variance_adjustment(entry_price)
+    amount_before_longshot_adjustment = final_amount
+    if longshot_adjustment["applied"]:
+        final_amount *= longshot_adjustment["stake_multiplier"]
+        unit_value = bankroll * config.unit_percentage
+        if unit_value > 0:
+            final_amount = min(
+                final_amount,
+                unit_value * longshot_adjustment["maximum_units"],
+            )
+        final_fraction = final_amount / bankroll
+        units = final_fraction / config.unit_percentage
+
     risk_context = risk_context or {}
     risk_config_value = risk_context.get("config")
     risk_config = (
@@ -549,6 +861,7 @@ def build_recommendation(
             "high_water_mark": bankroll,
         },
         risk_config,
+        continuous_sizing=True,
     )
     pre_risk_amount = final_amount
     final_amount = portfolio_risk["final_capped_stake"]
@@ -562,6 +875,13 @@ def build_recommendation(
         0.0,
         min(1.0, _safe_float(segment_policy.get("stake_multiplier"), 1.0)),
     )
+    unrounded_recommended_amount = final_amount
+    raw_units_after_risk = (
+        final_amount / (bankroll * config.unit_percentage)
+        if bankroll > 0 and config.unit_percentage > 0
+        else 0.0
+    )
+    final_amount = round_stake_down_to_dollars(final_amount)
     portfolio_risk["final_capped_stake_before_segment_policy"] = amount_before_segment_policy
     portfolio_risk["final_capped_stake"] = round(final_amount, 8)
     portfolio_risk["applied_segment_policy"] = segment_policy
@@ -570,6 +890,11 @@ def build_recommendation(
     if final_fill:
         fill = final_fill
         entry_price = final_fill["effective_entry_price"]
+    edge = max(0.0, estimated_probability - entry_price)
+    status = slippage_status(
+        sharp_average_entry_price, current_top_ask_price, entry_price
+    )
+    price_movement = entry_price - sharp_average_entry_price
     units = final_fraction / config.unit_percentage if config.unit_percentage > 0 else 0.0
     execution_plan = build_execution_plan(
         play,
@@ -605,12 +930,13 @@ def build_recommendation(
         "lead_sharp_count": lead_sharps,
         "supporting_sharp_count": supporting_sharps,
         "weighted_sharp_count": weighted_sharps,
-        "category_weighting": "Lead Sharps count 1.0x; Supporting Sharps count 0.5x before probability and Kelly calculations.",
+        "category_weighting": "Category labels do not alter recommendation size.",
+        "continuous_trade_weight": trade_weight,
         "trade_classification": classification,
         "is_research_only": classification in RESEARCH_CLASSIFICATIONS,
         "evidence_strength": evidence_strength,
         "evidence_adjustment": evidence_adjustment,
-        "maximum_adjustment": adjustment_cap,
+        "maximum_adjustment": None,
         "estimated_win_probability": estimated_probability,
         "raw_fair_probability": fair_probability,
         "composite_fair_probability": fair_probability,
@@ -623,19 +949,31 @@ def build_recommendation(
         "net_odds_b": odds_b,
         "full_kelly_fraction": full_kelly,
         "half_kelly_fraction": half_kelly,
-        "sharp_risk_cap": sharp_cap,
+        "sharp_risk_cap": None,
         "trade_grade": trade_grade,
-        "trade_grade_risk_cap": grade_risk_cap,
+        "trade_quality_score": trade_quality_score,
+        "trade_grade_base_risk_cap": None,
+        "trade_grade_risk_cap": None,
         "edge_reliability_factor": edge_reliability,
-        "global_risk_cap": config.global_risk_cap,
-        "risk_cap_applied": min(sharp_cap, grade_risk_cap, config.global_risk_cap),
+        "global_risk_cap": None,
+        "risk_cap_applied": None,
         "final_recommended_fraction": final_fraction,
         "recommended_amount": final_amount,
+        "recommended_amount_before_longshot_adjustment": (
+            amount_before_longshot_adjustment
+        ),
+        "longshot_variance_adjustment": longshot_adjustment,
         "recommended_amount_before_portfolio_risk": pre_risk_amount,
         "recommended_shares": (fill or {}).get("shares", 0.0)
         if final_fraction > 0
         else 0.0,
         "recommended_units": units,
+        "raw_recommended_units": raw_units_after_risk,
+        "score_unit_cap": None,
+        "unit_increment": None,
+        "unrounded_recommended_amount": unrounded_recommended_amount,
+        "dollar_rounding_increment": DOLLAR_ROUNDING_INCREMENT,
+        "rounding_method": "FLOOR_TO_WHOLE_DOLLAR",
         "sharp_average_entry_price": sharp_average_entry_price,
         "sharp_reference_entry_price": status["sharp_reference_entry_price"],
         "current_top_ask_price": status["current_top_ask_price"],

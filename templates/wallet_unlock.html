@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="wallet-lock-shell" aria-labelledby="wallet-lock-title">
+  <div class="wallet-lock-card">
+    <span class="wallet-lock-icon" aria-hidden="true"><i class="ph ph-lock-key"></i></span>
+    <p class="eyebrow">PRIVATE WORKSPACE</p>
+    <h1 id="wallet-lock-title">Sharp Wallets are locked</h1>
+    <p>Enter your four-digit passcode to view tracked wallets and wallet research.</p>
+    <form class="wallet-lock-form" method="post" action="{{ url_for('wallet_unlock_page') }}">
+      <input type="hidden" name="next" value="{{ next_path }}">
+      <label for="wallet-passcode">Four-digit passcode</label>
+      <input
+        id="wallet-passcode"
+        name="passcode"
+        type="password"
+        inputmode="numeric"
+        pattern="[0-9]{4}"
+        minlength="4"
+        maxlength="4"
+        autocomplete="one-time-code"
+        autofocus
+        required
+        aria-describedby="wallet-lock-error"
+      >
+      <p class="wallet-lock-error" id="wallet-lock-error" role="alert">{{ error or "" }}</p>
+      <button class="button primary" type="submit"><i class="ph ph-lock-open"></i> Unlock wallets</button>
+    </form>
+    <small>The wallet page locks again when this browser session ends.</small>
+  </div>
+</section>
+{% endblock %}

@@ -46,6 +46,18 @@ class WalletEntry:
     minimum_actionable_exposure_dollars: float | None
     requires_fill_aggregation: bool
     hedge_detection_required: bool
+    event_portfolio_netting_required: bool
+    registry_status: str
+    supporting_sharp_eligible: bool
+    lead_sharp_eligible: bool
+    standard_originator_eligible: bool
+    research_candidate_originator_eligible: bool
+    supporting_weight: float
+    provisional_unit: bool
+    minimum_meaningful_originator_position_usd: float | None
+    historical_fill_backfill: bool
+    category_signal_roles: dict[str, dict[str, Any]]
+    wallet_forensics: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -136,6 +148,66 @@ def _parse_bool(value: Any, default: bool = False) -> bool:
     raise ValueError("must be a boolean")
 
 
+def _parse_category_signal_roles(value: Any) -> dict[str, dict[str, Any]]:
+    if value in (None, ""):
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError("category_signal_roles must be an object")
+    allowed_roles = {
+        "ORIGINATOR",
+        "CONDITIONAL_ORIGINATOR",
+        "CONFIRMER",
+        "RESEARCH",
+    }
+    allowed_consensus_roles = {
+        "DIRECTIONAL_CORE",
+        "NETTED_CONFIRMER",
+        "RESEARCH",
+    }
+    parsed: dict[str, dict[str, Any]] = {}
+    for category, raw_policy in value.items():
+        category_ids = canonical_category_ids([category])
+        if not category_ids:
+            raise ValueError(f"Unknown category_signal_roles category: {category}")
+        if not isinstance(raw_policy, dict):
+            raise ValueError("Each category signal role must be an object")
+        role = str(raw_policy.get("role") or "CONFIRMER").strip().upper()
+        if role not in allowed_roles:
+            raise ValueError(f"Unsupported category signal role: {role}")
+        consensus_role = str(
+            raw_policy.get("consensus_role") or ""
+        ).strip().upper() or None
+        if consensus_role not in allowed_consensus_roles | {None}:
+            raise ValueError(
+                f"Unsupported category consensus role: {consensus_role}"
+            )
+        quality_weight = float(raw_policy.get("quality_weight", 0.5))
+        if not 0 <= quality_weight <= 1:
+            raise ValueError("quality_weight must be between zero and one")
+        minimum_units = float(raw_policy.get("minimum_originator_units", 0.5))
+        if minimum_units < 0:
+            raise ValueError("minimum_originator_units cannot be negative")
+        unit_baseline = raw_policy.get("unit_baseline_usd")
+        if unit_baseline is not None:
+            unit_baseline = float(unit_baseline)
+            if unit_baseline <= 0:
+                raise ValueError("unit_baseline_usd must be greater than zero")
+        parsed[category_ids[0]] = {
+            "role": role,
+            **({"consensus_role": consensus_role} if consensus_role else {}),
+            "quality_weight": quality_weight,
+            "minimum_originator_units": minimum_units,
+            "unit_baseline_usd": unit_baseline,
+            "requires_clean_directional": _parse_bool(
+                raw_policy.get("requires_clean_directional"), False
+            ),
+            "source": str(
+                raw_policy.get("source") or "provisional_category_review"
+            ).strip(),
+        }
+    return parsed
+
+
 def load_wallets(path: Path) -> WalletLoadResult:
     invalid_entries: list[WalletError] = []
     file_errors: list[str] = []
@@ -221,6 +293,7 @@ def load_wallets(path: Path) -> WalletLoadResult:
         for field in (
             "typical_execution_tranche_dollars",
             "minimum_actionable_exposure_dollars",
+            "minimum_meaningful_originator_position_usd",
         ):
             value = item.get(field)
             try:
@@ -238,10 +311,21 @@ def load_wallets(path: Path) -> WalletLoadResult:
 
         boolean_fields: dict[str, bool] = {}
         invalid_boolean = False
-        for field in ("requires_fill_aggregation", "hedge_detection_required"):
+        boolean_defaults = {
+            "requires_fill_aggregation": False,
+            "hedge_detection_required": False,
+            "event_portfolio_netting_required": False,
+            "supporting_sharp_eligible": True,
+            "lead_sharp_eligible": True,
+            "standard_originator_eligible": True,
+            "research_candidate_originator_eligible": True,
+            "provisional_unit": False,
+            "historical_fill_backfill": False,
+        }
+        for field, default in boolean_defaults.items():
             value = item.get(field)
             try:
-                boolean_fields[field] = _parse_bool(value)
+                boolean_fields[field] = _parse_bool(value, default)
             except ValueError as exc:
                 invalid_entries.append(
                     WalletError(index=index, field=field, value=value, message=str(exc))
@@ -249,6 +333,48 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 invalid_boolean = True
                 break
         if invalid_boolean:
+            continue
+
+        supporting_weight_value = item.get("supporting_weight", 0.5)
+        try:
+            supporting_weight = float(supporting_weight_value)
+            if not 0 < supporting_weight <= 1:
+                raise ValueError("supporting_weight must be greater than zero and no more than one")
+        except (TypeError, ValueError) as exc:
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="supporting_weight",
+                    value=supporting_weight_value,
+                    message=str(exc),
+                )
+            )
+            continue
+
+        try:
+            category_signal_roles = _parse_category_signal_roles(
+                item.get("category_signal_roles")
+            )
+        except (TypeError, ValueError) as exc:
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="category_signal_roles",
+                    value=item.get("category_signal_roles"),
+                    message=str(exc),
+                )
+            )
+            continue
+        wallet_forensics = item.get("wallet_forensics") or {}
+        if not isinstance(wallet_forensics, dict):
+            invalid_entries.append(
+                WalletError(
+                    index=index,
+                    field="wallet_forensics",
+                    value=wallet_forensics,
+                    message="wallet_forensics must be an object",
+                )
+            )
             continue
 
         if (
@@ -370,6 +496,32 @@ def load_wallets(path: Path) -> WalletLoadResult:
                 hedge_detection_required=boolean_fields[
                     "hedge_detection_required"
                 ],
+                event_portfolio_netting_required=boolean_fields[
+                    "event_portfolio_netting_required"
+                ],
+                registry_status=(
+                    _parse_optional_text(item.get("registry_status")) or "ACTIVE"
+                ).upper(),
+                supporting_sharp_eligible=boolean_fields[
+                    "supporting_sharp_eligible"
+                ],
+                lead_sharp_eligible=boolean_fields["lead_sharp_eligible"],
+                standard_originator_eligible=boolean_fields[
+                    "standard_originator_eligible"
+                ],
+                research_candidate_originator_eligible=boolean_fields[
+                    "research_candidate_originator_eligible"
+                ],
+                supporting_weight=supporting_weight,
+                provisional_unit=boolean_fields["provisional_unit"],
+                minimum_meaningful_originator_position_usd=optional_dollar_fields[
+                    "minimum_meaningful_originator_position_usd"
+                ],
+                historical_fill_backfill=boolean_fields[
+                    "historical_fill_backfill"
+                ],
+                category_signal_roles=category_signal_roles,
+                wallet_forensics=wallet_forensics,
             )
         )
 

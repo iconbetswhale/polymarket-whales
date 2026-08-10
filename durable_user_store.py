@@ -86,9 +86,12 @@ class PostgresUserStore:
             CREATE TABLE IF NOT EXISTS user_accounts (
                 user_id TEXT PRIMARY KEY,
                 email TEXT NOT NULL UNIQUE,
+                username TEXT,
                 password_salt TEXT NOT NULL,
                 password_hash TEXT NOT NULL,
                 password_iterations INTEGER NOT NULL,
+                oauth_provider TEXT,
+                oauth_subject TEXT,
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL
             )
@@ -116,8 +119,18 @@ class PostgresUserStore:
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 snapshot_json TEXT NOT NULL,
+                thirty_minute_checked_at TEXT,
+                thirty_minute_checkpoint_json TEXT,
                 PRIMARY KEY (user_id, dedupe_key)
             )
+            """,
+            """
+            ALTER TABLE bet_tracker
+            ADD COLUMN IF NOT EXISTS thirty_minute_checked_at TEXT
+            """,
+            """
+            ALTER TABLE bet_tracker
+            ADD COLUMN IF NOT EXISTS thirty_minute_checkpoint_json TEXT
             """,
             """
             CREATE INDEX IF NOT EXISTS idx_bet_tracker_user_created
@@ -126,6 +139,47 @@ class PostgresUserStore:
             """
             CREATE INDEX IF NOT EXISTS idx_bet_tracker_status
                 ON bet_tracker(status, updated_at DESC)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS ev_opportunities (
+                user_id TEXT NOT NULL,
+                opportunity_id TEXT NOT NULL,
+                event_id TEXT NOT NULL,
+                commence_time TEXT,
+                first_seen_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                execution_status TEXT NOT NULL,
+                portfolio_status TEXT NOT NULL,
+                opening_snapshot_json TEXT NOT NULL,
+                latest_snapshot_json TEXT NOT NULL,
+                PRIMARY KEY (user_id, opportunity_id)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_ev_opportunities_user_event
+                ON ev_opportunities(user_id, commence_time, event_id)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS ev_opportunity_snapshots (
+                snapshot_hash TEXT PRIMARY KEY,
+                user_id TEXT NOT NULL,
+                opportunity_id TEXT NOT NULL,
+                captured_at TEXT NOT NULL,
+                commence_time TEXT,
+                fair_probability DOUBLE PRECISION,
+                effective_decimal DOUBLE PRECISION,
+                ev_percent DOUBLE PRECISION,
+                recommended_stake DOUBLE PRECISION,
+                execution_status TEXT,
+                book_key TEXT,
+                american_odds INTEGER,
+                liquidity DOUBLE PRECISION,
+                snapshot_json TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_ev_snapshots_opportunity_time
+                ON ev_opportunity_snapshots(user_id, opportunity_id, captured_at)
             """,
             """
             CREATE TABLE IF NOT EXISTS discord_trade_notifications (
@@ -316,6 +370,9 @@ class PostgresUserStore:
                 midpoint DOUBLE PRECISION,
                 last_trade DOUBLE PRECISION,
                 depth_json TEXT NOT NULL DEFAULT '[]',
+                tracker_type TEXT,
+                tracker_record_id TEXT,
+                snapshot_json TEXT NOT NULL DEFAULT '{}',
                 source TEXT NOT NULL,
                 created_at TEXT NOT NULL,
                 UNIQUE(provider, provider_market_id, provider_selection_id, quote_timestamp)
@@ -369,6 +426,23 @@ class PostgresUserStore:
             for statement in statements:
                 conn.execute(statement)
             conn.execute(
+                "ALTER TABLE clv_quote_snapshots ADD COLUMN IF NOT EXISTS tracker_type TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE clv_quote_snapshots ADD COLUMN IF NOT EXISTS tracker_record_id TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE clv_quote_snapshots ADD COLUMN IF NOT EXISTS snapshot_json TEXT NOT NULL DEFAULT '{}'"
+            )
+            conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_clv_quotes_tracker_time
+                    ON clv_quote_snapshots(
+                        tracker_type, tracker_record_id, quote_timestamp DESC
+                    )
+                """
+            )
+            conn.execute(
                 """
                 ALTER TABLE user_settings
                 ADD COLUMN IF NOT EXISTS tracker_bankroll DOUBLE PRECISION
@@ -420,6 +494,29 @@ class PostgresUserStore:
                 """
                 ALTER TABLE user_settings
                 ADD COLUMN IF NOT EXISTS settings_version INTEGER
+                """
+            )
+            conn.execute(
+                "ALTER TABLE user_accounts ADD COLUMN IF NOT EXISTS username TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE user_accounts ADD COLUMN IF NOT EXISTS oauth_provider TEXT"
+            )
+            conn.execute(
+                "ALTER TABLE user_accounts ADD COLUMN IF NOT EXISTS oauth_subject TEXT"
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_user_accounts_username
+                ON user_accounts (LOWER(username))
+                WHERE username IS NOT NULL
+                """
+            )
+            conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_user_accounts_oauth
+                ON user_accounts (oauth_provider, oauth_subject)
+                WHERE oauth_provider IS NOT NULL AND oauth_subject IS NOT NULL
                 """
             )
             conn.execute(
@@ -742,6 +839,9 @@ class PostgresUserStore:
         password_salt: str,
         password_hash: str,
         password_iterations: int,
+        username: str | None = None,
+        oauth_provider: str | None = None,
+        oauth_subject: str | None = None,
     ) -> dict:
         now = datetime.now(timezone.utc).isoformat()
         try:
@@ -749,17 +849,21 @@ class PostgresUserStore:
                 row = conn.execute(
                     """
                     INSERT INTO user_accounts (
-                        user_id, email, password_salt, password_hash,
-                        password_iterations, created_at, updated_at
-                    ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                        user_id, email, username, password_salt, password_hash,
+                        password_iterations, oauth_provider, oauth_subject,
+                        created_at, updated_at
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     RETURNING *
                     """,
                     (
                         user_id,
                         email,
+                        username,
                         password_salt,
                         password_hash,
                         password_iterations,
+                        oauth_provider,
+                        oauth_subject,
                         now,
                         now,
                     ),
@@ -777,6 +881,56 @@ class PostgresUserStore:
                 (email,),
             ).fetchone()
         return dict(row) if row else None
+
+    def get_account_by_username(self, username: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM user_accounts WHERE LOWER(username) = LOWER(%s)",
+                (username,),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def get_account_by_oauth(self, provider: str, subject: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                SELECT * FROM user_accounts
+                WHERE oauth_provider = %s AND oauth_subject = %s
+                """,
+                (provider, subject),
+            ).fetchone()
+        return dict(row) if row else None
+
+    def update_account_identity(
+        self,
+        user_id: str,
+        *,
+        username: str | None = None,
+        oauth_provider: str | None = None,
+        oauth_subject: str | None = None,
+    ) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        try:
+            with self.connection() as conn:
+                row = conn.execute(
+                    """
+                    UPDATE user_accounts
+                    SET username = COALESCE(%s, username),
+                        oauth_provider = COALESCE(%s, oauth_provider),
+                        oauth_subject = COALESCE(%s, oauth_subject),
+                        updated_at = %s
+                    WHERE user_id = %s
+                    RETURNING *
+                    """,
+                    (username, oauth_provider, oauth_subject, now, user_id),
+                ).fetchone()
+        except Exception as exc:
+            if "unique" in str(exc).lower() or "duplicate" in str(exc).lower():
+                raise ValueError("That username is already taken.") from exc
+            raise
+        if row is None:
+            raise LookupError("Account not found.")
+        return dict(row)
 
     def create_auth_session(
         self, user_id: str, token_hash: str, expires_at: str
@@ -796,7 +950,7 @@ class PostgresUserStore:
         with self.connection() as conn:
             row = conn.execute(
                 """
-                SELECT a.user_id, a.email, s.expires_at
+                SELECT a.user_id, a.email, a.username, s.expires_at
                 FROM auth_sessions s
                 JOIN user_accounts a ON a.user_id = s.user_id
                 WHERE s.token_hash = %s AND s.expires_at > %s
@@ -837,6 +991,84 @@ class PostgresUserStore:
                 (global_user_id, global_user_id),
             ).fetchall()
         return len(rows)
+
+    def reset_model_experiments(self, user_ids: tuple[str, ...]) -> dict[str, int]:
+        """Delete model-experiment outputs without touching source or personal data."""
+        if not user_ids:
+            return {}
+        placeholders = ", ".join(["%s"] * len(user_ids))
+        deleted: dict[str, int] = {}
+        with self.connection() as conn:
+            tracker_ids = {
+                str(row["tracker_record_id"])
+                for table in ("closing_line_snapshots", "dual_clv_measurements")
+                for row in conn.execute(
+                    f"SELECT tracker_record_id FROM {table} WHERE user_id IN ({placeholders})",
+                    user_ids,
+                ).fetchall()
+            }
+            tracker_ids.update(
+                str(row["dedupe_key"])
+                for row in conn.execute(
+                    f"SELECT dedupe_key FROM bet_tracker WHERE user_id IN ({placeholders})",
+                    user_ids,
+                ).fetchall()
+            )
+            recommendation_ids = tuple(
+                str(row["recommendation_snapshot_id"])
+                for row in conn.execute(
+                    f"""SELECT recommendation_snapshot_id
+                        FROM portfolio_risk_snapshots
+                        WHERE user_id IN ({placeholders})
+                          AND recommendation_snapshot_id IS NOT NULL""",
+                    user_ids,
+                ).fetchall()
+            )
+            if tracker_ids:
+                record_ids = tuple(sorted(tracker_ids))
+                deleted["clv_quote_snapshots"] = 0
+                for offset in range(0, len(record_ids), 10_000):
+                    batch = record_ids[offset : offset + 10_000]
+                    record_placeholders = ", ".join(["%s"] * len(batch))
+                    cursor = conn.execute(
+                        f"""DELETE FROM clv_quote_snapshots
+                            WHERE tracker_type = 'model'
+                              AND tracker_record_id IN ({record_placeholders})""",
+                        batch,
+                    )
+                    deleted["clv_quote_snapshots"] += cursor.rowcount
+            else:
+                deleted["clv_quote_snapshots"] = 0
+            if recommendation_ids:
+                deleted["execution_plan_snapshots"] = 0
+                for offset in range(0, len(recommendation_ids), 10_000):
+                    batch = recommendation_ids[offset : offset + 10_000]
+                    recommendation_placeholders = ", ".join(
+                        ["%s"] * len(batch)
+                    )
+                    cursor = conn.execute(
+                        f"""DELETE FROM execution_plan_snapshots
+                            WHERE recommendation_snapshot_id IN ({recommendation_placeholders})""",
+                        batch,
+                    )
+                    deleted["execution_plan_snapshots"] += cursor.rowcount
+            else:
+                deleted["execution_plan_snapshots"] = 0
+            for table in (
+                "dual_clv_measurements",
+                "closing_line_snapshots",
+                "portfolio_risk_snapshots",
+                "discord_trade_notifications",
+                "tracking_rejections",
+                "bet_tracker",
+                "risk_account_state",
+            ):
+                cursor = conn.execute(
+                    f"DELETE FROM {table} WHERE user_id IN ({placeholders})",
+                    user_ids,
+                )
+                deleted[table] = cursor.rowcount
+        return deleted
 
     def insert_tracker_snapshot(
         self,
@@ -927,6 +1159,90 @@ class PostgresUserStore:
             for row in rows
         ]
 
+    def insert_tracker_checkpoint(
+        self,
+        user_id: str,
+        dedupe_key: str,
+        checkpoint: dict,
+        discord_payload: dict | None = None,
+    ) -> bool:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE bet_tracker
+                SET thirty_minute_checked_at = %s,
+                    thirty_minute_checkpoint_json = %s,
+                    updated_at = %s
+                WHERE user_id = %s AND dedupe_key = %s
+                  AND thirty_minute_checkpoint_json IS NULL
+                RETURNING snapshot_id
+                """,
+                (
+                    checkpoint["checked_at"],
+                    json.dumps(checkpoint),
+                    now,
+                    user_id,
+                    dedupe_key,
+                ),
+            ).fetchone()
+            if row is not None and discord_payload is not None:
+                conn.execute(
+                    """
+                    INSERT INTO discord_trade_notifications (
+                        user_id, dedupe_key, snapshot_id, notification_type,
+                        status, attempts, payload_json, created_at, updated_at
+                    ) VALUES (
+                        %s, %s, %s, 'model_tracker_30m_update',
+                        'pending', 0, %s, %s, %s
+                    )
+                    ON CONFLICT (user_id, dedupe_key, notification_type)
+                    DO NOTHING
+                    """,
+                    (
+                        user_id,
+                        dedupe_key,
+                        checkpoint.get("snapshot_id") or row["snapshot_id"],
+                        json.dumps(discord_payload),
+                        now,
+                        now,
+                    ),
+                )
+        return row is not None
+
+    def ensure_model_tracker_discord_notification(
+        self,
+        user_id: str,
+        snapshot: dict,
+        discord_payload: dict,
+    ) -> bool:
+        """Idempotently backfill a missing official-play Discord outbox row."""
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO discord_trade_notifications (
+                    user_id, dedupe_key, snapshot_id, notification_type,
+                    status, attempts, payload_json, created_at, updated_at
+                ) VALUES (
+                    %s, %s, %s, 'model_tracker_insert',
+                    'pending', 0, %s, %s, %s
+                )
+                ON CONFLICT (user_id, dedupe_key, notification_type)
+                DO NOTHING
+                RETURNING id
+                """,
+                (
+                    user_id,
+                    snapshot["dedupe_key"],
+                    snapshot["snapshot_id"],
+                    json.dumps(discord_payload),
+                    now,
+                    now,
+                ),
+            ).fetchone()
+        return row is not None
+
     def mark_discord_notification_delivered(
         self, notification_id: int, message_id: str | None, response_status: int | None
     ) -> None:
@@ -1006,7 +1322,8 @@ class PostgresUserStore:
             rows = conn.execute(
                 """
                 SELECT dedupe_key, snapshot_id, status, result, settled_at,
-                       created_at, updated_at, snapshot_json
+                       created_at, updated_at, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE user_id = %s
                 ORDER BY created_at ASC
@@ -1020,7 +1337,8 @@ class PostgresUserStore:
             row = conn.execute(
                 """
                 SELECT dedupe_key, snapshot_id, status, result, settled_at,
-                       created_at, updated_at, snapshot_json
+                       created_at, updated_at, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE user_id = %s AND dedupe_key = %s
                 """,
@@ -1092,7 +1410,8 @@ class PostgresUserStore:
         with self.connection() as conn:
             rows = conn.execute(
                 """
-                SELECT user_id, dedupe_key, status, snapshot_json
+                SELECT user_id, dedupe_key, status, snapshot_id, snapshot_json,
+                       thirty_minute_checked_at, thirty_minute_checkpoint_json
                 FROM bet_tracker
                 WHERE status IN ('scheduled', 'live', 'unresolved')
                 """
@@ -1101,8 +1420,15 @@ class PostgresUserStore:
             {
                 "user_id": row["user_id"],
                 "dedupe_key": row["dedupe_key"],
+                "snapshot_id": row["snapshot_id"],
                 "status": row["status"],
                 "snapshot": json.loads(row["snapshot_json"]),
+                "thirty_minute_checked_at": row["thirty_minute_checked_at"],
+                "thirty_minute_checkpoint": (
+                    json.loads(row["thirty_minute_checkpoint_json"])
+                    if row["thirty_minute_checkpoint_json"]
+                    else None
+                ),
             }
             for row in rows
         ]
@@ -1450,8 +1776,9 @@ class PostgresUserStore:
                     provider, provider_event_id, provider_market_id,
                     provider_selection_id, quote_timestamp, provider_status,
                     best_bid, best_ask, midpoint, last_trade, depth_json,
+                    tracker_type, tracker_record_id, snapshot_json,
                     source, created_at
-                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 ON CONFLICT DO NOTHING
                 """,
                 (
@@ -1460,7 +1787,10 @@ class PostgresUserStore:
                     quote["quote_timestamp"], quote.get("provider_status"),
                     quote.get("best_bid"), quote.get("best_ask"),
                     quote.get("midpoint"), quote.get("last_trade"),
-                    json.dumps(quote.get("depth") or []), quote["source"],
+                    json.dumps(quote.get("depth") or []),
+                    quote.get("tracker_type"), quote.get("tracker_record_id"),
+                    json.dumps(quote.get("snapshot") or {}, sort_keys=True),
+                    quote["source"],
                     datetime.now(timezone.utc).isoformat(),
                 ),
             )
@@ -1478,6 +1808,23 @@ class PostgresUserStore:
         result = [dict(row) for row in rows]
         for row in result:
             row["depth"] = json.loads(row.pop("depth_json"))
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
+        return result
+
+    def get_tracker_clv_quotes(
+        self, tracker_type: str, tracker_record_id: str
+    ) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """SELECT * FROM clv_quote_snapshots
+                   WHERE tracker_type = %s AND tracker_record_id = %s
+                   ORDER BY quote_timestamp ASC""",
+                (tracker_type, tracker_record_id),
+            ).fetchall()
+        result = [dict(row) for row in rows]
+        for row in result:
+            row["depth"] = json.loads(row.pop("depth_json") or "[]")
+            row["snapshot"] = json.loads(row.pop("snapshot_json") or "{}")
         return result
 
     def insert_closing_line(self, snapshot: dict) -> bool:
@@ -1511,6 +1858,45 @@ class PostgresUserStore:
                 values,
             )
         return cursor.rowcount > 0
+
+    def replace_failed_closing_line(self, snapshot: dict) -> bool:
+        values = (
+            snapshot["tracker_type"], snapshot["tracker_record_id"], snapshot["user_id"],
+            snapshot["provider"], snapshot["provider_event_id"], snapshot["provider_market_id"],
+            snapshot["provider_selection_id"], snapshot.get("entry_price"),
+            snapshot.get("entry_native_odds"), snapshot.get("entry_implied_probability"),
+            snapshot.get("entry_stake"), snapshot.get("closing_snapshot_timestamp"),
+            snapshot.get("official_event_start_timestamp"), snapshot.get("closing_effective_price"),
+            snapshot.get("closing_midpoint"), snapshot.get("clv_cents"),
+            snapshot.get("clv_probability_points"), snapshot.get("clv_pct"),
+            snapshot.get("midpoint_clv_pct"), snapshot["clv_status"],
+            snapshot.get("clv_unavailable_reason"), json.dumps(snapshot),
+            snapshot["calculation_version"], datetime.now(timezone.utc).isoformat(),
+        )
+        with self.connection() as conn:
+            deleted = conn.execute(
+                """DELETE FROM closing_line_snapshots
+                   WHERE tracker_type = %s AND tracker_record_id = %s
+                     AND clv_status IN ('market_mapping_error', 'unavailable', 'stale_quote')""",
+                (snapshot["tracker_type"], snapshot["tracker_record_id"]),
+            ).rowcount
+            if not deleted:
+                return False
+            conn.execute(
+                """INSERT INTO closing_line_snapshots (
+                    tracker_type, tracker_record_id, user_id, provider,
+                    provider_event_id, provider_market_id, provider_selection_id,
+                    entry_price, entry_native_odds, entry_implied_probability,
+                    entry_stake, closing_snapshot_timestamp,
+                    official_event_start_timestamp, closing_effective_price,
+                    closing_midpoint, clv_cents, clv_probability_points, clv_pct,
+                    midpoint_clv_pct, clv_status, clv_unavailable_reason,
+                    snapshot_json, calculation_version, created_at
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s,
+                          %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""",
+                values,
+            )
+        return True
 
     def get_closing_lines(self, tracker_type: str, user_id: str) -> list[dict]:
         with self.connection() as conn:
@@ -2394,6 +2780,142 @@ class PostgresUserStore:
                 row[target] = [] if target == "reason_codes" else {}
         return row
 
+    def record_ev_board(self, user_id: str, rows: list[dict]) -> dict:
+        captured_at = datetime.now(timezone.utc).isoformat()
+        inserted = 0
+        with self.connection() as conn:
+            for row in rows:
+                opportunity_id = str(row.get("id") or "")
+                if not opportunity_id:
+                    continue
+                best = row.get("bestQuote") or {}
+                serialized = json.dumps(row, sort_keys=True, separators=(",", ":"))
+                snapshot_hash = stable_hash(
+                    user_id, opportunity_id, best.get("bookKey"),
+                    best.get("americanOdds"), best.get("liquidity"),
+                    row.get("fairProbability"), row.get("recommendedStake"),
+                    row.get("executionStatus"), row.get("portfolioStatus"),
+                )
+                cursor = conn.execute(
+                    """
+                    INSERT INTO ev_opportunity_snapshots(
+                        snapshot_hash, user_id, opportunity_id, captured_at,
+                        commence_time, fair_probability, effective_decimal,
+                        ev_percent, recommended_stake, execution_status,
+                        book_key, american_odds, liquidity, snapshot_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(snapshot_hash) DO NOTHING
+                    """,
+                    (
+                        snapshot_hash, user_id, opportunity_id, captured_at,
+                        row.get("commenceTime"), row.get("fairProbability"),
+                        best.get("effectiveDecimal"), row.get("evPercent"),
+                        row.get("recommendedStake"), row.get("executionStatus"),
+                        best.get("bookKey"), best.get("americanOdds"),
+                        best.get("liquidity"), serialized,
+                    ),
+                )
+                inserted += max(0, cursor.rowcount)
+                conn.execute(
+                    """
+                    INSERT INTO ev_opportunities(
+                        user_id, opportunity_id, event_id, commence_time,
+                        first_seen_at, last_seen_at, execution_status,
+                        portfolio_status, opening_snapshot_json,
+                        latest_snapshot_json
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    ON CONFLICT(user_id, opportunity_id) DO UPDATE SET
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        execution_status = EXCLUDED.execution_status,
+                        portfolio_status = EXCLUDED.portfolio_status,
+                        latest_snapshot_json = EXCLUDED.latest_snapshot_json
+                    """,
+                    (
+                        user_id, opportunity_id, str(row.get("eventId") or ""),
+                        row.get("commenceTime"), captured_at, captured_at,
+                        str(row.get("executionStatus") or "unknown"),
+                        str(row.get("portfolioStatus") or "unknown"),
+                        serialized, serialized,
+                    ),
+                )
+        return {"opportunities": len(rows), "material_snapshots": inserted}
+
+    def get_ev_optimizer_history(self, user_id: str, limit: int = 100) -> dict:
+        with self.connection() as conn:
+            opportunities = [
+                dict(row) for row in conn.execute(
+                    """
+                    SELECT * FROM ev_opportunities WHERE user_id = %s
+                    ORDER BY first_seen_at DESC LIMIT %s
+                    """,
+                    (user_id, max(1, min(int(limit), 500))),
+                ).fetchall()
+            ]
+            snapshots = [
+                dict(row) for row in conn.execute(
+                    """
+                    SELECT * FROM ev_opportunity_snapshots WHERE user_id = %s
+                    ORDER BY captured_at ASC
+                    """,
+                    (user_id,),
+                ).fetchall()
+            ]
+        by_id: dict[str, list[dict]] = {}
+        for snapshot in snapshots:
+            snapshot["snapshot"] = json.loads(snapshot.pop("snapshot_json") or "{}")
+            by_id.setdefault(snapshot["opportunity_id"], []).append(snapshot)
+        data = []
+        book_clv: list[float] = []
+        composite_clv: list[float] = []
+        now = datetime.now(timezone.utc)
+        for item in opportunities:
+            opening = json.loads(item.pop("opening_snapshot_json") or "{}")
+            latest = json.loads(item.pop("latest_snapshot_json") or "{}")
+            rows = by_id.get(item["opportunity_id"], [])
+            try:
+                start = datetime.fromisoformat(str(item.get("commence_time") or now.isoformat()).replace("Z", "+00:00"))
+            except ValueError:
+                start = now
+            if start.tzinfo is None:
+                start = start.replace(tzinfo=timezone.utc)
+            opening_quote = opening.get("bestQuote") or {}
+            opening_book = str(opening_quote.get("bookKey") or "")
+            entry_decimal = opening_quote.get("effectiveDecimal")
+            closing_window = [
+                row for row in rows
+                if start - timedelta(minutes=30) <= datetime.fromisoformat(row["captured_at"].replace("Z", "+00:00")) <= start
+            ] if now >= start else []
+            book_rows = [row for row in closing_window if row.get("book_key") == opening_book and row.get("effective_decimal")]
+            composite_rows = [row for row in closing_window if row.get("fair_probability")]
+            book_points = None
+            composite_points = None
+            if entry_decimal and book_rows:
+                book_points = ((1 / float(book_rows[-1]["effective_decimal"])) - (1 / float(entry_decimal))) * 100
+                book_clv.append(book_points)
+            if entry_decimal and composite_rows:
+                composite_points = (float(composite_rows[-1]["fair_probability"]) - (1 / float(entry_decimal))) * 100
+                composite_clv.append(composite_points)
+            data.append({
+                **item,
+                "opening": opening,
+                "latest": latest,
+                "snapshotCount": len(rows),
+                "respectiveBookClvPoints": round(book_points, 3) if book_points is not None else None,
+                "compositeClvPoints": round(composite_points, 3) if composite_points is not None else None,
+            })
+        return {
+            "data": data,
+            "summary": {
+                "opportunities": len(opportunities),
+                "snapshots": len(snapshots),
+                "clvSamples": len(book_clv),
+                "averageRespectiveBookClvPoints": round(sum(book_clv) / len(book_clv), 3) if book_clv else None,
+                "medianRespectiveBookClvPoints": round(sorted(book_clv)[len(book_clv) // 2], 3) if book_clv else None,
+                "compositeClvSamples": len(composite_clv),
+                "averageCompositeClvPoints": round(sum(composite_clv) / len(composite_clv), 3) if composite_clv else None,
+            },
+        }
+
     def record_line_shop_quotes(self, user_id: str, trades: list[dict]) -> dict:
         initials, observations = persistence_records(user_id, trades)
         with self.connection() as conn:
@@ -2474,4 +2996,10 @@ class PostgresUserStore:
             "created_at": row["created_at"],
             "updated_at": row["updated_at"],
             "snapshot": json.loads(row["snapshot_json"]),
+            "thirty_minute_checked_at": row["thirty_minute_checked_at"],
+            "thirty_minute_checkpoint": (
+                json.loads(row["thirty_minute_checkpoint_json"])
+                if row["thirty_minute_checkpoint_json"]
+                else None
+            ),
         }

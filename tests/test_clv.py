@@ -9,6 +9,7 @@ from clv import (
     VOID,
     book_effective_ask,
     calculate_clv,
+    calculate_clv_preferences,
     clv_aggregate,
     clv_period_analytics,
     probability_from_native_odds,
@@ -67,6 +68,157 @@ def test_native_odds_are_normalized_to_selected_side_probability() -> None:
     assert probability_from_native_odds(+100, "american") == pytest.approx(0.5)
     assert probability_from_native_odds(-125, "american") == pytest.approx(125 / 225)
     assert probability_from_native_odds(2.5, "decimal") == pytest.approx(0.4)
+
+
+def _clv_preference_snapshot(
+    probabilities: dict[str, float],
+    *,
+    entry: float = 0.50,
+) -> dict:
+    contributions = []
+    provider_closes = []
+    for provider, probability in probabilities.items():
+        source = {
+            "provider": provider,
+            "status": "AVAILABLE",
+            "mapping_confidence": "EXACT",
+            "no_vig_probability": probability,
+        }
+        contributions.append(
+            {
+                "provider": provider,
+                "included": True,
+                "no_vig_probability": probability,
+                "source_snapshot": source,
+            }
+        )
+        provider_closes.append(
+            {
+                "provider": provider,
+                "closing_probability": probability,
+                "mapping_confidence": "EXACT",
+            }
+        )
+    return {
+        "entry_price": entry,
+        "provider": "novig",
+        "clv_status": CAPTURED,
+        "closing_effective_price": probabilities.get("novig", entry),
+        "clv_pct": 0.0,
+        "clv_cents": 0.0,
+        "clv_probability_points": 0.0,
+        "provider_closes": provider_closes,
+        "composite_close": {"contributions": contributions},
+    }
+
+
+@pytest.mark.parametrize(
+    ("probabilities", "missing_source"),
+    [
+        ({"circa": 0.53, "bookmaker": 0.52, "betonline": 0.51, "novig": 0.49}, "PINNACLE"),
+        ({"pinnacle": 0.54, "bookmaker": 0.52, "betonline": 0.51, "novig": 0.49}, "CIRCA"),
+        ({"pinnacle": 0.54, "circa": 0.53, "betonline": 0.51, "novig": 0.49}, "BOOKMAKER"),
+        ({"pinnacle": 0.54, "circa": 0.53, "bookmaker": 0.52, "novig": 0.49}, "BETONLINE"),
+        ({"pinnacle": 0.54, "circa": 0.53, "bookmaker": 0.52, "betonline": 0.51}, "NOVIG_OR_PROPHETX"),
+    ],
+)
+def test_no_vig_clv_requires_the_complete_sharp_core(
+    probabilities: dict[str, float], missing_source: str
+) -> None:
+    result = calculate_clv_preferences(_clv_preference_snapshot(probabilities))["novig"]
+    assert result["status"] == "unavailable"
+    assert missing_source in result["missing_reason"]
+
+
+def test_no_vig_clv_normalizes_required_books_and_one_exchange() -> None:
+    snapshot = _clv_preference_snapshot(
+        {
+            "pinnacle": 0.54,
+            "oddsapi__circasports": 0.53,
+            "oddsapi__bookmaker": 0.52,
+            "betonlineag": 0.51,
+            "novig": 0.48,
+        }
+    )
+    result = calculate_clv_preferences(snapshot)["novig"]
+    assert result["status"] == CAPTURED
+    assert result["weights"] == pytest.approx(
+        {
+            "pinnacle": 0.25 / 0.90,
+            "circa": 0.20 / 0.90,
+            "bookmaker": 0.20 / 0.90,
+            "betonline": 0.15 / 0.90,
+            "novig": 0.10 / 0.90,
+        }
+    )
+    assert result["closing_probability"] == pytest.approx(
+        (0.54 * 0.25 / 0.90)
+        + (0.53 * 0.20 / 0.90)
+        + (0.52 * 0.20 / 0.90)
+        + (0.51 * 0.15 / 0.90)
+        + (0.48 * 0.10 / 0.90)
+    )
+
+
+def test_no_vig_clv_splits_equal_exchange_weights_when_both_exist() -> None:
+    snapshot = _clv_preference_snapshot(
+        {
+            "pinnacle": 0.54,
+            "circa": 0.53,
+            "bookmaker": 0.52,
+            "betonline": 0.51,
+            "novig": 0.48,
+            "prophetx": 0.49,
+        }
+    )
+    result = calculate_clv_preferences(snapshot)["novig"]
+    assert result["status"] == CAPTURED
+    assert result["weights"] == pytest.approx(
+        {
+            "pinnacle": 0.25,
+            "circa": 0.20,
+            "bookmaker": 0.20,
+            "betonline": 0.15,
+            "novig": 0.10,
+            "prophetx": 0.10,
+        }
+    )
+
+
+def test_tracker_no_vig_accepts_exact_sources_not_used_by_live_trade_formula() -> None:
+    snapshot = _clv_preference_snapshot(
+        {
+            "pinnacle": 0.54,
+            "circa": 0.53,
+            "bookmaker": 0.52,
+            "betonline": 0.51,
+            "novig": 0.48,
+        }
+    )
+    for contribution in snapshot["composite_close"]["contributions"]:
+        if contribution["provider"] in {"circa", "bookmaker"}:
+            contribution["included"] = False
+            contribution["exclusion_reason"] = "PROVIDER_WEIGHT_NOT_CONFIGURED"
+    result = calculate_clv_preferences(snapshot)["novig"]
+    assert result["status"] == CAPTURED
+    assert result["providers"] == [
+        "pinnacle",
+        "circa",
+        "bookmaker",
+        "betonline",
+        "novig",
+    ]
+
+
+def test_best_available_clv_uses_most_favorable_verified_close() -> None:
+    snapshot = _clv_preference_snapshot(
+        {"pinnacle": 0.54, "betonline": 0.51, "novig": 0.48}
+    )
+    result = calculate_clv_preferences(snapshot)["best"]
+    assert result["status"] == CAPTURED
+    assert result["providers"] == ["novig"]
+    assert result["closing_probability"] == pytest.approx(0.48)
+    assert result["clv_pct"] == pytest.approx(-4.0)
 
 
 def test_stake_weighted_aggregate_excludes_missing_and_void() -> None:
@@ -225,3 +377,57 @@ def test_backend_freezes_exact_polymarket_book_without_cross_provider_fallback(t
     )
     assert early_snapshot["provider_close_source"] == "MARKET_CLOSED_PRE_EVENT"
     assert early_snapshot["provider_market_close_timestamp"] == (start - timedelta(seconds=10)).isoformat()
+
+
+def test_close_monitor_recovers_market_type_from_provider_market_id() -> None:
+    reference = {
+        "provider_market_id": "event-1:moneyline:None",
+        "market_title": "Washington Nationals vs. Philadelphia Phillies",
+    }
+    assert TrackerService._reference_market_type(reference) == "moneyline"
+
+
+def test_verified_close_can_replace_mapping_error(tmp_path) -> None:
+    database = TrackerDatabase(tmp_path / "repair.db")
+    base = {
+        "tracker_type": "model",
+        "tracker_record_id": "record-1",
+        "user_id": "model-user",
+        "provider": "oddsapi__novig",
+        "provider_event_id": "event-1",
+        "provider_market_id": "event-1:moneyline:None",
+        "provider_selection_id": "Washington Nationals",
+        "entry_price": 100 / 244,
+        "entry_native_odds": "+144",
+        "entry_implied_probability": 100 / 244,
+        "entry_stake": 100,
+        "closing_snapshot_timestamp": None,
+        "official_event_start_timestamp": "2026-08-03T22:41:00+00:00",
+        "closing_effective_price": None,
+        "closing_midpoint": None,
+        "clv_cents": None,
+        "clv_probability_points": None,
+        "clv_pct": None,
+        "midpoint_clv_pct": None,
+        "clv_status": "market_mapping_error",
+        "clv_unavailable_reason": "CLV_MARKET_MAPPING_ERROR",
+        "calculation_version": "clv-v1",
+    }
+    assert database.insert_closing_line(base)
+    metrics = calculate_clv(100 / 244, 100 / 238)
+    recovered = {
+        **base,
+        "closing_snapshot_timestamp": "2026-08-03T22:40:18+00:00",
+        "closing_effective_price": 100 / 238,
+        "closing_midpoint": 100 / 238,
+        **metrics,
+        "midpoint_clv_pct": metrics["clv_pct"],
+        "clv_status": CAPTURED,
+        "clv_unavailable_reason": None,
+        "provider_closes": [{"provider": "oddsapi__novig", "display_odds": "+138"}],
+    }
+    assert database.replace_failed_closing_line(recovered)
+    stored = database.get_closing_lines("model", "model-user")[0]
+    assert stored["clv_status"] == CAPTURED
+    assert stored["entry_native_odds"] == "+144"
+    assert stored["provider_closes"][0]["display_odds"] == "+138"

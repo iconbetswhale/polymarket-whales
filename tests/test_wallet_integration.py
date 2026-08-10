@@ -19,6 +19,8 @@ REQUESTED_WALLETS = {
     "Surfandturf": "0x9f2fe025f84839ca81dd8e0338892605702d2ca8",
     "Bagwell306": "0x9c76cdb43fb46454da005fbc82047a64a18ec926",
     "ferrariChampions2026": "0xfe787d2da716d60e8acff57fb87eb13cd4d10319",
+    "HomeRunHazard": "0x5268527977f700f9bf9b6d5cd843859e4e70135d",
+    "Formal-Cupcake": "0xb8c842bc049bf208f73354c7b037b811d741d8a4",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -31,6 +33,9 @@ EXPECTED_TOP_CATEGORIES = {
     "Surfandturf": "nba",
     "Bagwell306": "tennis",
     "ferrariChampions2026": "mlb",
+    "Soarin22": "mlb",
+    "HomeRunHazard": "mlb",
+    "Formal-Cupcake": "mlb",
 }
 
 
@@ -119,18 +124,33 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert wallet_4f2.top_category_ids == ("mlb",)
     assert wallet_4f2.primary_top_category_id == "mlb"
     assert wallet_4f2.top_category_source == "manually_reviewed_locked"
+    assert wallet_4f2.base_unit == 8000
+    assert wallet_4f2.requires_fill_aggregation is True
+    assert wallet_4f2.hedge_detection_required is True
+    assert wallet_4f2.actionable_position_units == 0.2
+    assert wallet_4f2.minimum_actionable_exposure_dollars == 1600
+    assert wallet_4f2.category_signal_roles["mlb"][
+        "requires_clean_directional"
+    ] is True
+    assert wallet_4f2.category_signal_roles["mlb"][
+        "minimum_originator_units"
+    ] == 0.2
+    assert wallet_4f2.wallet_forensics["clean_directional_markets"] == 322
+    assert wallet_4f2.wallet_forensics["two_sided_markets"] == 527
 
     ferrari = next(
         wallet
         for wallet in result.valid_wallets
         if wallet.label == "ferrariChampions2026"
     )
-    assert ferrari.base_unit == 5000
+    assert ferrari.base_unit == 17000
     assert ferrari.top_category_ids == ("mlb", "tennis")
     assert ferrari.sub_top_categories == ("Tennis",)
     assert ferrari.sub_top_category_ids == ("tennis",)
-    assert ferrari.minimum_actionable_exposure_dollars == 2500
+    assert ferrari.actionable_position_units == 0.2
+    assert ferrari.minimum_actionable_exposure_dollars == 3400
     assert ferrari.requires_fill_aggregation is True
+    assert ferrari.event_portfolio_netting_required is True
 
     phonesculptor = next(
         wallet for wallet in result.valid_wallets if wallet.label == "phonesculptor"
@@ -140,6 +160,16 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert phonesculptor.sub_top_categories == ("Soccer",)
     assert phonesculptor.sub_top_category_ids == ("soccer",)
     assert phonesculptor.top_category_ids == ("mlb", "soccer")
+    assert phonesculptor.base_unit == 29000
+    assert phonesculptor.actionable_position_units == 0.5
+    assert phonesculptor.minimum_actionable_exposure_dollars == 14500
+    assert phonesculptor.requires_fill_aggregation is True
+    assert phonesculptor.hedge_detection_required is True
+    assert phonesculptor.event_portfolio_netting_required is True
+    assert (
+        phonesculptor.category_signal_roles["soccer"]["unit_baseline_usd"]
+        == 38750
+    )
 
     weflyhigh = next(
         wallet for wallet in result.valid_wallets if wallet.label == "Weflyhigh"
@@ -156,6 +186,12 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert sportmaster.sub_top_categories == ("NBA", "NHL", "Soccer")
     assert sportmaster.sub_top_category_ids == ("nba", "nhl", "soccer")
     assert sportmaster.top_category_ids == ("mlb", "nba", "nhl", "soccer")
+    assert sportmaster.base_unit == 6000
+    assert sportmaster.actionable_position_units == 0.25
+    assert sportmaster.minimum_actionable_exposure_dollars == 1500
+    assert sportmaster.requires_fill_aggregation is True
+    assert sportmaster.hedge_detection_required is True
+    assert sportmaster.event_portfolio_netting_required is True
 
     wordylittleneck = next(
         wallet for wallet in result.valid_wallets if wallet.label == "Wordylittleneck"
@@ -164,6 +200,11 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert wordylittleneck.sub_top_categories == ("UFC",)
     assert wordylittleneck.sub_top_category_ids == ("mma",)
     assert wordylittleneck.top_category_ids == ("mlb", "mma")
+    assert wordylittleneck.base_unit == 20000
+    assert wordylittleneck.actionable_position_units == 0.5
+    assert wordylittleneck.minimum_actionable_exposure_dollars == 10000
+    assert wordylittleneck.requires_fill_aggregation is True
+    assert wordylittleneck.event_portfolio_netting_required is True
 
     surfandturf = next(
         wallet for wallet in result.valid_wallets if wallet.label == "Surfandturf"

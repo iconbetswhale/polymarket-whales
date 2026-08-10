@@ -35,6 +35,10 @@ PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
 EVENT_TIME_TOLERANCE = timedelta(minutes=10)
 EASTERN = ZoneInfo("America/New_York")
 MAX_PROVIDER_PAGES = 10
+# Exchange UIs round contract probabilities and American odds differently.
+# Treat quotes within ten basis points of implied probability as the same
+# displayed price so NoVIG wins an economically immaterial tie.
+BEST_PRICE_TIE_TOLERANCE = 1e-3
 EXCHANGE_EXECUTION_PROVIDER_KEYS = frozenset(
     {
         "polymarket",
@@ -49,6 +53,61 @@ EXCHANGE_EXECUTION_PROVIDER_KEYS = frozenset(
         "oddsapi__kalshi",
     }
 )
+
+
+def _is_novig_provider_key(provider_key: str) -> bool:
+    normalized = str(provider_key or "").strip().lower()
+    return normalized.removeprefix("oddsapi__") == "novig"
+
+
+def _primary_execution_candidates(
+    candidates: list,
+    *,
+    price_getter,
+    provider_key_getter,
+) -> list:
+    """Limit the one-click venue to NoVIG/ProphetX, or a superior 4CX quote.
+
+    Polymarket and Kalshi remain visible comparison quotes, but their displayed
+    top-of-book prices are not sufficiently stake-aware to drive execution.
+    """
+    def base_key(item) -> str:
+        return (
+            str(provider_key_getter(item) or "")
+            .strip()
+            .lower()
+            .removeprefix("oddsapi__")
+        )
+
+    core = [item for item in candidates if base_key(item) in {"novig", "prophetx"}]
+    fourcx = [item for item in candidates if base_key(item) in {"4cx", "fourcx"}]
+    if not core:
+        return fourcx
+    best_core_price = min(float(price_getter(item)) for item in core)
+    return core + [
+        item
+        for item in fourcx
+        if float(price_getter(item)) < best_core_price - BEST_PRICE_TIE_TOLERANCE
+    ]
+
+
+def _best_price_with_novig_tiebreak(
+    candidates: list,
+    *,
+    price_getter,
+    provider_key_getter,
+):
+    """Prefer NoVIG only among quotes that are effectively the same price."""
+    lowest_price = min(float(price_getter(item)) for item in candidates)
+    tied = [
+        item
+        for item in candidates
+        if abs(float(price_getter(item)) - lowest_price) <= BEST_PRICE_TIE_TOLERANCE
+    ]
+    return min(
+        tied,
+        key=lambda item: 0 if _is_novig_provider_key(provider_key_getter(item)) else 1,
+    )
 
 
 class MatchConfidence(str, Enum):
@@ -317,7 +376,15 @@ class ProphetXProvider(ExecutionProvider):
         self._bearer_token: str | None = None
         self._token_expires_at = 0.0
         self._market_cache: _CacheEntry | None = None
+        self._live_seed_cache: tuple[float, list[dict], list[dict]] | None = None
         self._last_matches: dict[str, ExecutionOption] = {}
+        self._request_metrics = {
+            "requests": 0,
+            "authenticationRequests": 0,
+            "lastRequestAt": None,
+            "lastSuccessAt": None,
+            "lastErrorAt": None,
+        }
 
     def __repr__(self) -> str:
         configured = bool(self._access_key and self._secret_key)
@@ -429,6 +496,7 @@ class ProphetXProvider(ExecutionProvider):
         return index
 
     def _get_data(self, path: str, headers: dict, *, params=None) -> object:
+        self._record_request()
         response = self.session.get(
             f"{self.base_url}{path}",
             headers=headers,
@@ -440,6 +508,7 @@ class ProphetXProvider(ExecutionProvider):
                 self._bearer_token = None
                 self._token_expires_at = 0.0
             headers = {**headers, "Authorization": self._access_token()}
+            self._record_request()
             response = self.session.get(
                 f"{self.base_url}{path}",
                 headers=headers,
@@ -448,7 +517,113 @@ class ProphetXProvider(ExecutionProvider):
             )
         response.raise_for_status()
         payload = response.json()
+        with self._health_lock:
+            self._request_metrics["lastSuccessAt"] = datetime.now(
+                timezone.utc
+            ).isoformat()
         return payload.get("data") if isinstance(payload, dict) else None
+
+    def _record_request(self, *, authentication: bool = False) -> None:
+        with self._health_lock:
+            self._request_metrics["requests"] += 1
+            if authentication:
+                self._request_metrics["authenticationRequests"] += 1
+            self._request_metrics["lastRequestAt"] = datetime.now(
+                timezone.utc
+            ).isoformat()
+
+    def live_market_snapshot(self) -> dict:
+        """Return a sanitized read-only snapshot for the local flow collector."""
+        token = self._access_token()
+        headers = {"Authorization": token, "Accept": "application/json"}
+        seed_ttl = max(
+            15.0,
+            float(os.getenv("SHARP_MONEY_SEED_REFRESH_SECONDS", "60")),
+        )
+        now = time.monotonic()
+        with self._health_lock:
+            cached_seed = self._live_seed_cache
+
+        if cached_seed and now - cached_seed[0] < seed_ttl:
+            tournament_rows = cached_seed[1]
+            event_rows = cached_seed[2]
+        else:
+            tournaments = self._get_data("/affiliate/get_tournaments", headers)
+            all_tournaments = _payload_list(tournaments, "tournaments")
+            configured_names = {
+                value.strip().upper()
+                for value in os.getenv(
+                    "SHARP_MONEY_TOURNAMENTS", "MLB,WNBA"
+                ).split(",")
+                if value.strip()
+            }
+            tournament_rows = [
+                row
+                for row in all_tournaments
+                if not configured_names
+                or any(
+                    target in str(row.get("name") or "").upper()
+                    for target in configured_names
+                )
+            ]
+            event_rows = []
+            for tournament in tournament_rows:
+                tournament_id = tournament.get("id")
+                if tournament_id is None:
+                    continue
+                event_payload = self._get_data(
+                    "/affiliate/get_sport_events",
+                    headers,
+                    params={"tournament_id": tournament_id},
+                )
+                event_rows.extend(
+                    _payload_list(event_payload, "sport_events")
+                )
+            with self._health_lock:
+                self._live_seed_cache = (
+                    time.monotonic(),
+                    tournament_rows,
+                    event_rows,
+                )
+
+        markets: dict[str, list[dict]] = {}
+
+        # ProphetX limits multi-market calls to 50 event IDs.
+        event_ids = [
+            str(row.get("event_id"))
+            for row in event_rows
+            if row.get("event_id") is not None
+        ]
+        for start in range(0, len(event_ids), 50):
+            batch = event_ids[start : start + 50]
+            market_payload = self._get_data(
+                "/v3/affiliate/get_multiple_markets",
+                headers,
+                params={"event_ids": ",".join(batch)},
+            )
+            for event_id, event_markets in _prophetx_markets_by_event(
+                market_payload
+            ).items():
+                markets.setdefault(event_id, []).extend(event_markets)
+        return {
+            "observedAt": datetime.now(timezone.utc).isoformat(),
+            "tournaments": tournament_rows,
+            "events": event_rows,
+            "markets": markets,
+        }
+
+    def diagnostics(self) -> dict:
+        with self._health_lock:
+            metrics = dict(self._request_metrics)
+        return {
+            "provider": self.provider_key,
+            "configured": bool(self._access_key and self._secret_key),
+            "health": self.health_status().value,
+            "baseUrl": self.base_url,
+            "tradeUrl": self.trade_url,
+            "readOnly": True,
+            "metrics": metrics,
+        }
 
     def _access_token(self) -> str:
         if self.health_status(authenticate=True) is not ProviderHealthStatus.AUTHENTICATED:
@@ -469,6 +644,7 @@ class ProphetXProvider(ExecutionProvider):
                 return ProviderHealthStatus.AUTHENTICATED
 
         try:
+            self._record_request(authentication=True)
             response = self.session.post(
                 f"{self.base_url}/auth/login",
                 json={
@@ -498,6 +674,10 @@ class ProphetXProvider(ExecutionProvider):
             # This boundary deliberately suppresses provider exception details so
             # credentials and upstream response bodies can never reach logs or APIs.
             result = ProviderHealthStatus.CONNECTION_FAILED
+            with self._health_lock:
+                self._request_metrics["lastErrorAt"] = datetime.now(
+                    timezone.utc
+                ).isoformat()
 
         with self._health_lock:
             self._health_status = result
@@ -605,11 +785,19 @@ def _equivalent_market_key(market: NormalizedProviderMarket) -> tuple:
 
 
 def _fair_quotes_from_index(
-    trades: list[CanonicalTrade], index: ProviderMarketIndex, provider_key: str
+    trades: list[CanonicalTrade],
+    index: ProviderMarketIndex,
+    provider_key: str,
+    *,
+    allow_equivalent_line_class: bool = False,
 ) -> dict[str, dict]:
     results: dict[str, dict] = {}
     for trade in trades:
-        confidence, matched = _match_exact_trade(trade, index)
+        confidence, matched = _match_exact_trade(
+            trade,
+            index,
+            allow_equivalent_line_class=allow_equivalent_line_class,
+        )
         if confidence is not MatchConfidence.EXACT or matched is None:
             continue
         siblings = [
@@ -854,7 +1042,12 @@ class ExecutionProviderRegistry:
         *,
         compare_all: bool = False,
         include_non_comparison: bool = False,
+        exclude_provider_keys: Iterable[str] = (),
     ) -> list[dict]:
+        excluded = {
+            str(provider_key or "").strip().lower()
+            for provider_key in exclude_provider_keys
+        }
         by_provider: list[
             tuple[
                 ExecutionProvider,
@@ -863,6 +1056,8 @@ class ExecutionProviderRegistry:
         ] = []
         provider_failures: dict[str, str] = {}
         for provider in self.providers:
+            if provider.provider_key.lower() in excluded:
+                continue
             try:
                 by_provider.append((provider, provider.options_for_trades(trades)))
             except requests.HTTPError as exc:
@@ -938,7 +1133,11 @@ class ExecutionProviderRegistry:
                 and _valid_deep_link(item.deep_link)
             ]
             if executable:
-                best = min(executable, key=lambda item: item.best_executable_price)
+                best = _best_price_with_novig_tiebreak(
+                    executable,
+                    price_getter=lambda item: item.best_executable_price,
+                    provider_key_getter=lambda item: item.provider_key,
+                )
                 found = [replace(item, is_best_price=item is best) for item in found]
             trade["executionOptions"] = [item.to_dict() for item in found]
             trade["lineShopFailures"] = failures
@@ -1027,13 +1226,92 @@ class ExecutionProviderRegistry:
             return {"provider": provider_key, "status": "ERROR", "last_error_code": "DIAGNOSTIC_FAILED"}
 
 
+def apply_best_execution_option(trade: dict) -> bool:
+    """Use the best fully verified exchange quote as the sizing order book."""
+    candidates = []
+    for option in trade.get("executionOptions") or []:
+        price = _float_or_none(option.get("bestExecutablePrice"))
+        liquidity = _float_or_none(option.get("availableLiquidity"))
+        fee_rate = _float_or_none(option.get("feeRate"))
+        if (
+            option.get("isAvailable") is True
+            and option.get("isExactMatch") is True
+            and option.get("isStale") is not True
+            and str(option.get("marketStatus") or "").upper() == "OPEN"
+            and option.get("canFillRecommendedStake") is True
+            and price is not None
+            and 0 < price < 1
+            and liquidity is not None
+            and liquidity > 0
+            and fee_rate is not None
+            and fee_rate >= 0
+            and _valid_deep_link(option.get("directMarketUrl") or option.get("deepLink"))
+        ):
+            # bestExecutablePrice is finalized once as the stake-aware,
+            # depth-weighted, fee-inclusive probability cost. Do not add the
+            # fee again here or fee-charging exchanges are double-penalized.
+            candidates.append((price, option))
+
+    if not candidates:
+        if trade.get("execution_orderbook_source"):
+            trade["orderbook"] = {}
+            trade["orderbook_timestamp"] = None
+            trade["expected_fee_fraction"] = None
+            trade.pop("execution_orderbook_source", None)
+            trade.pop("selected_execution_option", None)
+        return False
+
+    primary_candidates = _primary_execution_candidates(
+        candidates,
+        price_getter=lambda item: item[0],
+        provider_key_getter=lambda item: item[1].get("providerKey"),
+    )
+    if not primary_candidates:
+        if trade.get("execution_orderbook_source"):
+            trade["orderbook"] = {}
+            trade["orderbook_timestamp"] = None
+            trade["expected_fee_fraction"] = None
+            trade.pop("execution_orderbook_source", None)
+            trade.pop("selected_execution_option", None)
+        return False
+
+    price, best = _best_price_with_novig_tiebreak(
+        primary_candidates,
+        price_getter=lambda item: item[0],
+        provider_key_getter=lambda item: item[1].get("providerKey"),
+    )
+    liquidity_dollars = float(best["availableLiquidity"])
+    quote_timestamp = best.get("quoteTimestamp") or best.get("lastUpdated")
+    trade["orderbook"] = {
+        "asks": [{"price": price, "size": liquidity_dollars / price}],
+        "bids": [],
+        "timestamp": quote_timestamp,
+        "min_order_size": 0,
+    }
+    trade["orderbook_timestamp"] = quote_timestamp
+    trade["current_price"] = price
+    trade["current_price_source"] = str(best.get("providerName") or "")
+    trade["expected_fee_fraction"] = float(best["feeRate"])
+    trade["execution_orderbook_source"] = str(best.get("providerKey") or "")
+    trade["selected_execution_option"] = dict(best)
+    return True
+
+
 def _recommended_stake(trade: dict) -> float:
     recommendation = trade.get("recommendation") or {}
     card = trade.get("card") or {}
+    strategy_units = _float_or_none(trade.get("strategy_target_units"))
+    decision_bankroll = _float_or_none(trade.get("decision_bankroll"))
+    strategy_stake = (
+        strategy_units * decision_bankroll * 0.01
+        if strategy_units is not None and decision_bankroll is not None
+        else 0.0
+    )
     return max(
         0.0,
         _float_or_none(card.get("recommended_amount"))
         or _float_or_none(recommendation.get("recommended_amount"))
+        or strategy_stake
         or 0.0,
     )
 
@@ -1065,6 +1343,12 @@ def _finalize_execution_option(
     failure = option.failure_reason
     liquidity = option.available_liquidity
     can_fill = option.can_fill_recommended_stake
+    # A provider's preliminary quote may have been created before the model's
+    # bankroll-sized recommendation existed. Reconcile it against the complete
+    # intended stake here so a marginally better, shallow price cannot shrink a
+    # flat-sized recommendation when another provider can fill it in full.
+    if stake > 0 and liquidity is not None:
+        can_fill = liquidity + 1e-9 >= stake
     if stake <= 0 and can_fill is None:
         can_fill = option.is_available if liquidity is None else liquidity > 0
 
@@ -1078,7 +1362,7 @@ def _finalize_execution_option(
         failure = NO_LIQUIDITY
     elif liquidity is not None and liquidity < min_liquidity:
         failure = INSUFFICIENT_LIQUIDITY
-    elif can_fill is False or (stake > 0 and can_fill is not True) or market_status == "INSUFFICIENT_DEPTH":
+    elif can_fill is False or market_status == "INSUFFICIENT_DEPTH":
         failure = INSUFFICIENT_LIQUIDITY
     elif not option.is_available:
         failure = failure or PROVIDER_UNAVAILABLE
@@ -1121,12 +1405,11 @@ def _finalize_execution_option(
     ) and option.american_odds is not None:
         display = f"{option.american_odds:+d}"
 
-    executable = bool(
-        failure is None
+    quote_available = bool(
+        failure in {None, INSUFFICIENT_LIQUIDITY}
         and option.is_available
         and option.matching_confidence is MatchConfidence.EXACT
         and market_status == "OPEN"
-        and can_fill is True
         and all_in_price is not None
         and _valid_deep_link(option.deep_link)
     )
@@ -1134,7 +1417,7 @@ def _finalize_execution_option(
         option,
         display_odds=display,
         contract_price=contract_price,
-        is_available=executable,
+        is_available=quote_available,
         selection=str(trade.get("outcome") or ""),
         native_price_format=native_format,
         implied_probability=all_in_price,
@@ -1231,8 +1514,13 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     "the_odds_api_default_sports",
                     ("baseball_mlb",),
                 ),
+                trade_bookmakers=getattr(
+                    settings,
+                    "the_odds_api_trade_bookmakers",
+                    ("kalshi", "novig", "polymarket", "prophetx"),
+                ),
                 cache_ttl_seconds=getattr(
-                    settings, "the_odds_api_cache_ttl_seconds", 600
+                    settings, "the_odds_api_cache_ttl_seconds", 60
                 ),
                 alternate_cache_ttl_seconds=getattr(
                     settings,
@@ -1658,7 +1946,11 @@ def _event_is_exact(
 
 
 def _match_exact_trade(
-    trade: CanonicalTrade, index: ProviderMarketIndex, *, allow_same_day: bool = False
+    trade: CanonicalTrade,
+    index: ProviderMarketIndex,
+    *,
+    allow_same_day: bool = False,
+    allow_equivalent_line_class: bool = False,
 ) -> tuple[MatchConfidence, NormalizedProviderMarket | None]:
     probable = False
     exact_matches: list[NormalizedProviderMarket] = []
@@ -1666,8 +1958,32 @@ def _match_exact_trade(
         if not _event_is_exact(trade, market, allow_same_day=allow_same_day):
             continue
         probable = True
-        if _market_is_exact(trade, market):
+        if _market_is_exact(
+            trade,
+            market,
+            allow_equivalent_line_class=allow_equivalent_line_class,
+        ):
             exact_matches.append(market)
+    if len(exact_matches) > 1:
+        equivalent_keys = {
+            (
+                market.event_id,
+                market.side_id,
+                market.stat_entity_id,
+                market.line,
+                market.settlement_rules,
+                market.period_id,
+            )
+            for market in exact_matches
+        }
+        if len(equivalent_keys) == 1:
+            exact_matches.sort(
+                key=lambda market: (
+                    market.is_alternative != trade.is_alternative,
+                    market.last_updated or "",
+                )
+            )
+            return MatchConfidence.EXACT, exact_matches[0]
     if len(exact_matches) != 1:
         return (
             MatchConfidence.PROBABLE if probable else MatchConfidence.NO_MATCH,
@@ -1677,7 +1993,10 @@ def _match_exact_trade(
 
 
 def _market_is_exact(
-    trade: CanonicalTrade, market: NormalizedProviderMarket
+    trade: CanonicalTrade,
+    market: NormalizedProviderMarket,
+    *,
+    allow_equivalent_line_class: bool = False,
 ) -> bool:
     if trade.market_kind in {"moneyline", "spread", "game_total", "team_total"}:
         if market.stat_id != "points":
@@ -1686,7 +2005,10 @@ def _market_is_exact(
         return False
     if trade.period_id != market.period_id:
         return False
-    if trade.is_alternative != market.is_alternative:
+    if trade.is_alternative != market.is_alternative and not (
+        allow_equivalent_line_class
+        and trade.market_kind in {"spread", "game_total", "team_total"}
+    ):
         return False
     if trade.line is None:
         if market.line is not None:
@@ -1776,6 +2098,7 @@ def _canonical_market_kind(trade: dict) -> str | None:
         return "spread"
     if raw in {
         "total",
+        "totals",
         "game total",
         "over under",
         "overunder",
@@ -1847,7 +2170,7 @@ def _source_line(trade: dict, market_kind: str) -> float | None:
         return None
     direct = _float_or_none(trade.get("market_line"))
     if direct is not None:
-        return direct
+        return _selection_relative_spread_line(trade, direct) if market_kind == "spread" else direct
     texts = [str(trade.get("outcome") or ""), str(trade.get("market_title") or "")]
     if market_kind in {"game_total", "team_total"}:
         pattern = re.compile(r"\b(?:over|under|total)\s*([+-]?\d+(?:\.\d+)?)\b", re.I)
@@ -1856,8 +2179,51 @@ def _source_line(trade: dict, market_kind: str) -> float | None:
     for text in texts:
         match = pattern.search(text)
         if match:
-            return _float_or_none(match.group(1))
+            parsed = _float_or_none(match.group(1))
+            return (
+                _selection_relative_spread_line(trade, parsed)
+                if market_kind == "spread" and parsed is not None
+                else parsed
+            )
     return None
+
+
+def _selection_relative_spread_line(trade: dict, line: float) -> float:
+    """Express a spread line from the selected outcome's point of view."""
+    participants = _event_participants(
+        trade.get("event_title") or trade.get("market_title")
+    )
+    if not participants:
+        return line
+    selection = _selection_name(str(trade.get("outcome") or ""))
+    selected_participant = next(
+        (
+            participant
+            for participant in participants
+            if _name_matches(selection, (_normalize_name(participant),))
+        ),
+        None,
+    )
+    if selected_participant is None:
+        return line
+
+    title = str(trade.get("market_title") or "")
+    descriptor = re.sub(
+        r"\s*\(?[+-]\d+(?:\.\d+)?\)?\s*$",
+        "",
+        title.rsplit(":", 1)[-1],
+    ).strip()
+    named_participants = [
+        participant
+        for participant in participants
+        if _name_matches(
+            _selection_name(descriptor),
+            (_normalize_name(participant),),
+        )
+    ]
+    if len(named_participants) != 1:
+        return line
+    return line if named_participants[0] == selected_participant else -line
 
 
 def _provider_line(bet_type_id: str, snapshot: dict) -> float | None:
@@ -1982,13 +2348,21 @@ def _canonical_sport_id(value: object) -> str:
         "american football": "FOOTBALL",
         "football": "FOOTBALL",
         "nfl": "FOOTBALL",
+        "ncaaf": "FOOTBALL",
         "college football": "FOOTBALL",
         "soccer": "SOCCER",
+        "mls": "SOCCER",
+        "epl": "SOCCER",
         "association football": "SOCCER",
         "baseball": "BASEBALL",
+        "mlb": "BASEBALL",
         "basketball": "BASKETBALL",
+        "nba": "BASKETBALL",
+        "wnba": "BASKETBALL",
+        "ncaab": "BASKETBALL",
         "hockey": "HOCKEY",
         "ice hockey": "HOCKEY",
+        "nhl": "HOCKEY",
         "tennis": "TENNIS",
         "golf": "GOLF",
         "mma": "MMA",

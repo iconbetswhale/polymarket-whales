@@ -2,31 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#05080b">
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&family=Roboto+Condensed:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=Roboto+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-art-direction.css', v=asset_version) }}">
+  {% if page == 'trades' %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version) }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='trades-hierarchy.css', v=asset_version) }}">
+  {% endif %}
+  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money.css', v=asset_version) }}">{% endif %}
+  {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-odds.css', v=asset_version) }}">{% endif %}
+  {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version) }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='shared-shell.css', v=asset_version) }}">
+  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version) }}">{% endif %}
+  {% if page in ['trades', 'tracker'] %}<link rel="stylesheet" href="{{ url_for('static', filename='premium-compact.css', v=asset_version) }}">{% endif %}
+  {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
+  {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
+  <div class="global-risk-banner" id="global-risk-banner" role="alert" hidden>
+    <i class="ph ph-warning-octagon" aria-hidden="true"></i>
+    <div><strong id="global-risk-title">Model tracking stopped</strong><span id="global-risk-detail"></span></div>
+  </div>
+  {% if page != 'home' %}
   <nav class="app-nav" aria-label="Primary navigation">
-    <a class="brand" href="/trades" aria-label="IconBets Trades to Play">
-      <span class="brand-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
-      <span class="brand-copy"><strong>ICONBETS</strong><small>Trading Intelligence</small></span>
-    </a>
-    <div class="product-mode" aria-label="Product mode"><span class="active"><i class="ph ph-money-wavy"></i>BETTING</span><span>ANALYTICS</span></div>
     <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links">
       <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
     </button>
+    <a class="brand" href="{{ url_for('index') }}" aria-label="IconLabs home">
+      <span class="brand-icon" aria-hidden="true"><i class="ph ph-chart-line-up"></i></span>
+      <span class="brand-copy"><strong>IconLabs</strong><small>Trading Intelligence</small></span>
+    </a>
     <div class="nav-links" id="primary-links">
-      <a href="/overview" {% if page == 'overview' %}aria-current="page"{% endif %}><i class="ph ph-squares-four"></i><span>Dashboard</span></a>
       <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-fingerprint"></i><span>Prediction Traders</span></a>
+      <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-currency-circle-dollar"></i><span>Sharp Money</span></a>
+      <a href="/positive-ev" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span>Positive EV</span></a>
       <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-table"></i><span>Sportsbook Screen</span></a>
       <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span>Bet Tracker</span></a>
+      <a href="/shadow-test" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span>Shadow Test</span></a>
       <span class="nav-section-label">Portfolio</span>
       <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity"></i><span>Live Positions</span></a>
       <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span>Sharp Wallets</span></a>
@@ -34,16 +55,11 @@
       <span class="nav-section-label">Intelligence</span>
       <a href="/edge-map" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-crosshair"></i><span>Edge Map</span></a>
       <a href="/intelligence" {% if page == 'intelligence' %}aria-current="page"{% endif %}><i class="ph ph-brain"></i><span>Intelligence</span></a>
+      <button class="sidebar-account-button" id="account-open" type="button"><i class="ph ph-user-circle" aria-hidden="true"></i><span><strong id="account-status">Account</strong><small>Profile &amp; subscription</small></span></button>
       <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
     </div>
-    <div class="nav-status" aria-label="System status">
-      <span class="status-chip"><span class="status-dot" id="global-api-dot"></span>API <strong id="global-api-status">Loading</strong></span>
-      <span class="status-chip"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><strong id="global-last-refresh">Waiting</strong></span>
-      <button class="status-chip pause-chip" id="global-pause-refresh" type="button" data-refresh-toggle aria-pressed="false" title="Pause automatic 15-second page refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
-      <a class="status-chip wallet-link" href="/wallets">Wallets <strong id="global-wallet-count">0</strong></a>
-      <button class="status-chip account-chip" id="account-open" type="button"><i class="ph ph-user-circle" aria-hidden="true"></i><strong id="account-status">Account</strong></button>
-    </div>
   </nav>
+  {% endif %}
   <main class="app-shell" id="main-content">
     {% block content %}{% endblock %}
   </main>
@@ -55,10 +71,21 @@
       <h2 id="account-title">Keep your settings on every device</h2>
       <p class="tracker-dialog-note" id="account-copy">Create an account or sign in to sync your saved bankroll, Personal Tracker, hidden trades, and view preferences.</p>
       <div class="account-authenticated" id="account-authenticated" hidden>
-        <div class="account-identity"><i class="ph ph-check-circle" aria-hidden="true"></i><div><span>Signed in as</span><strong id="account-email"></strong></div></div>
+        <div class="account-identity"><i class="ph ph-check-circle" aria-hidden="true"></i><div><span>Signed in as</span><strong id="account-username"></strong><small id="account-email"></small></div></div>
+        <form class="account-username-form" id="account-username-form">
+          <label class="tracker-dialog-field">Username<input id="account-username-input" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="username"></label>
+          <button class="button ghost compact" type="submit">Save username</button>
+        </form>
+        <div class="account-membership">
+          <span><small>Subscription</small><strong id="account-plan-status">Billing not connected</strong></span>
+          <a class="button ghost compact" id="account-subscription" href="/api/account/subscription">Manage subscription</a>
+        </div>
         <button class="button ghost" id="account-logout" type="button">Sign out</button>
       </div>
       <form id="account-form">
+        <a class="account-oauth-button" id="account-google" href="/api/auth/google/start"><i class="ph ph-google-logo" aria-hidden="true"></i><span>Continue with Google</span></a>
+        <div class="account-divider"><span>or use email</span></div>
+        <label class="tracker-dialog-field">Username<input id="account-username-register" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="username" placeholder="iconbettor"></label>
         <label class="tracker-dialog-field">Email<input id="account-email-input" type="email" autocomplete="email" required></label>
         <label class="tracker-dialog-field">Password<input id="account-password" type="password" minlength="8" autocomplete="current-password" required></label>
         <p class="tracker-admin-error" id="account-error" role="alert" aria-live="polite"></p>
@@ -67,5 +94,7 @@
     </div>
   </dialog>
   <script src="{{ url_for('static', filename='app.js', v=asset_version) }}"></script>
+  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version) }}"></script>{% endif %}
+  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version) }}"></script>{% endif %}
 </body>
 </html>

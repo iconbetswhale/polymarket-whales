@@ -21,6 +21,21 @@ from trade_research import (
     classify_trade,
     research_confidence,
 )
+from three_sharp_strategy import (
+    POSITION_THRESHOLD_TOLERANCE_UNITS,
+    STRATEGY_ID as THREE_SHARP_STRATEGY_ID,
+    STRATEGY_VERSION as THREE_SHARP_STRATEGY_VERSION,
+    TRACKER_ENTRY_WINDOW_MINUTES as THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
+    confidence_score as three_sharp_confidence_score,
+    evaluate_matchup as three_sharp_evaluate_matchup,
+    recommendation_units as three_sharp_recommendation_units,
+)
+from specialist_strategy import (
+    STRATEGY_ID as SPECIALIST_STRATEGY_ID,
+    STRATEGY_VERSION as SPECIALIST_STRATEGY_VERSION,
+    confidence_score as specialist_confidence_score,
+    recommendation_units as specialist_recommendation_units,
+)
 
 SECONDARY_SCORE_WEIGHTS = {
     "category_composition": 0.25,
@@ -93,7 +108,37 @@ def _category_profile(position: dict[str, Any]) -> dict[str, Any]:
     trade_category_id = canonical_category_id(
         position.get("canonical_category_id") or position.get("category")
     )
-    is_lead = category_matches(trade_category_id, top_category_ids)
+    category_match = category_matches(trade_category_id, top_category_ids)
+    lead_eligible = position.get("lead_sharp_eligible") is not False
+    supporting_eligible = position.get("supporting_sharp_eligible") is not False
+    configured_role = str(position.get("category_signal_role") or "").upper()
+    signal_role = configured_role or (
+        "ORIGINATOR" if category_match and lead_eligible else "CONFIRMER"
+    )
+    is_lead = (
+        category_match
+        and lead_eligible
+        and signal_role in {"ORIGINATOR", "CONDITIONAL_ORIGINATOR"}
+    )
+    supporting_weight = _safe_float(position.get("supporting_weight"), 0.5)
+    directional_weight = _safe_float(position.get("directional_weight"), 1.0)
+    quality_weight = max(
+        0.0,
+        min(
+            1.0,
+            _safe_float(
+                position.get("category_signal_quality_weight"),
+                1.0 if is_lead else supporting_weight,
+            ),
+        ),
+    )
+    category_weight = (
+        quality_weight
+        if is_lead
+        else min(quality_weight, supporting_weight)
+        if supporting_eligible and signal_role != "RESEARCH"
+        else 0.0
+    ) * directional_weight
     source = position.get("top_category_source")
     if configured_ids:
         source = source or "manual_config"
@@ -109,8 +154,290 @@ def _category_profile(position: dict[str, Any]) -> dict[str, Any]:
         "top_category_source": source,
         "top_category_verified_at": position.get("top_category_verified_at"),
         "is_lead_sharp": is_lead,
-        "sharp_role": "Lead Sharp" if is_lead else "Supporting Sharp",
-        "category_weight": 1.0 if is_lead else 0.5,
+        "sharp_role": (
+            "Lead Sharp"
+            if is_lead
+            else "Supporting Sharp"
+            if supporting_eligible
+            else "Research Only"
+        ),
+        "category_match": category_match,
+        "lead_sharp_eligible": lead_eligible,
+        "supporting_sharp_eligible": supporting_eligible,
+        "category_weight": category_weight,
+        "signal_role": signal_role,
+        "consensus_role": (
+            str(position.get("category_consensus_role") or "").upper() or None
+        ),
+        "quality_weight": quality_weight,
+        "minimum_originator_units": max(
+            0.0,
+            _safe_float(
+                position.get("category_signal_minimum_originator_units"), 0.0
+            ),
+        ),
+        "requires_clean_directional": bool(
+            position.get("category_signal_requires_clean_directional")
+        ),
+        "signal_policy_source": position.get("category_signal_policy_source"),
+    }
+
+
+def _conviction_weight(relative_units: float) -> float:
+    if relative_units <= 0:
+        return 0.0
+    return max(0.2, min(2.25, math.sqrt(relative_units)))
+
+
+def _directional_signal_weight(
+    position: dict[str, Any],
+    profile: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> float:
+    units = _relative_units(position, unit_map, events_by_wallet) or 0.0
+    role_weight = profile["category_weight"]
+    if (
+        profile["signal_role"] == "CONDITIONAL_ORIGINATOR"
+        and not _originator_eligible(
+            position, profile, unit_map, events_by_wallet
+        )
+    ):
+        role_weight = min(
+            role_weight,
+            _safe_float(position.get("supporting_weight"), 0.5),
+        )
+    return (
+        role_weight
+        * _conviction_weight(units)
+    )
+
+
+def _originator_eligible(
+    position: dict[str, Any],
+    profile: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
+    if not profile["is_lead_sharp"]:
+        return False
+    units = _relative_units(position, unit_map, events_by_wallet) or 0.0
+    if units + 1e-9 < profile["minimum_originator_units"]:
+        return False
+    if profile["requires_clean_directional"]:
+        status = str(
+            position.get("two_sided_status")
+            or position.get("wallet_hedge_status")
+            or "CLEAN_DIRECTIONAL"
+        ).upper()
+        if status not in {"CLEAN_DIRECTIONAL", "DIRECTIONAL_AFTER_MARKET_NETTING"}:
+            return False
+    return True
+
+
+def _hybrid_signal_eligible(
+    position: dict[str, Any],
+    profile: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
+    """Apply the wallet's measured threshold before it gets a hybrid vote."""
+    if profile["consensus_role"] == "RESEARCH":
+        return False
+    if not profile["supporting_sharp_eligible"]:
+        return False
+    units = _relative_units(position, unit_map, events_by_wallet) or 0.0
+    if units + 1e-9 < profile["minimum_originator_units"]:
+        return False
+    status = str(
+        position.get("event_portfolio_status")
+        or position.get("two_sided_status")
+        or position.get("wallet_hedge_status")
+        or "CLEAN_DIRECTIONAL"
+    ).upper()
+    if status in {
+        "MATERIAL_EVENT_HEDGE",
+        "TWO_SIDED_EVENT_PORTFOLIO",
+        "MARKET_MAKING_OR_UNCERTAIN",
+        "MATERIAL_HEDGE",
+        "TWO_SIDED",
+    }:
+        return False
+    if profile["requires_clean_directional"] and status not in {
+        "CLEAN_DIRECTIONAL",
+        "DIRECTIONAL_AFTER_MARKET_NETTING",
+        "CLEAN_AFTER_EVENT_NETTING",
+        "SINGLE_DIRECTION",
+        "MINOR_HEDGE",
+        "MINOR_EVENT_HEDGE",
+    }:
+        return False
+    return True
+
+
+def _mlb_hybrid_decision(
+    group: list[dict[str, Any]],
+    opposing_group: list[dict[str, Any]],
+    profiles: list[dict[str, Any]],
+    opposing_profiles: list[dict[str, Any]],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+    strategy_mode: str = "HYBRID_CONSENSUS_2",
+) -> dict[str, Any] | None:
+    """Return None for legacy groups and a complete MLB hybrid decision otherwise."""
+    trade_category = profiles[0].get("trade_category_id") if profiles else None
+    if strategy_mode == THREE_SHARP_STRATEGY_ID:
+        if trade_category != "mlb":
+            return {
+                "version": THREE_SHARP_STRATEGY_VERSION,
+                "strategy_mode": strategy_mode,
+                "qualified": False,
+                "reason": "MLB_WEIGHTED_MONEYLINE_ONLY",
+                "minimum_wallets": 1,
+                "requires_directional_core": False,
+                "eligible_wallet_count": len(group),
+                "opposing_wallet_count": len(opposing_group),
+                "execution_window_minutes": THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
+            }
+        def strategy_units(position: dict[str, Any]) -> float:
+            units = _relative_units(position, unit_map, events_by_wallet)
+            # Groups reach this decision only after the actionable-size gate.
+            # The fallback keeps direct unit tests and legacy cached rows usable.
+            return 1.0 if units is None else units
+
+        agreeing_units = {
+            str(position.get("wallet_address") or "").lower(): strategy_units(position)
+            for position in group
+        }
+        opposing_units = {
+            str(position.get("wallet_address") or "").lower(): strategy_units(position)
+            for position in opposing_group
+        }
+        matchup = three_sharp_evaluate_matchup(
+            agreeing_units,
+            agreeing_units,
+            opposing_units,
+            opposing_units,
+        )
+        return {
+            "version": THREE_SHARP_STRATEGY_VERSION,
+            "strategy_mode": strategy_mode,
+            "qualified": matchup["qualified"],
+            "reason": matchup["reason"],
+            "minimum_wallets": 1,
+            "requires_directional_core": True,
+            "eligible_wallet_count": len(matchup["agreeing_wallet_ids"]),
+            "opposing_wallet_count": len(matchup["opposing_wallet_ids"]),
+            "core_wallet_count": len(matchup["primary_wallet_ids"]),
+            "confirmer_wallet_count": len(matchup["confirmer_wallet_ids"]),
+            "opposing_core_count": len(matchup["opposing_primary_wallet_ids"]),
+            "confirming_portfolio_weight": matchup["confirming_portfolio_weight"],
+            "opposing_portfolio_weight": matchup["opposing_portfolio_weight"],
+            "core_wallet_ids": matchup["primary_wallet_ids"],
+            "conditional_wallet_ids": matchup["conditional_wallet_ids"],
+            "confirmer_wallet_ids": matchup["confirmer_wallet_ids"],
+            "execution_window_minutes": THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
+            "recommended_manual_entry_window_minutes": [
+                THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES
+            ],
+        }
+    configured = any(
+        profile.get("consensus_role")
+        for profile in [*profiles, *opposing_profiles]
+    )
+    if trade_category != "mlb" or not configured:
+        return None
+
+    agreeing = [
+        (position, profile)
+        for position, profile in zip(group, profiles)
+        if _hybrid_signal_eligible(position, profile, unit_map, events_by_wallet)
+    ]
+    opposing = [
+        (position, profile)
+        for position, profile in zip(opposing_group, opposing_profiles)
+        if _hybrid_signal_eligible(position, profile, unit_map, events_by_wallet)
+    ]
+    core = [
+        item for item in agreeing
+        if item[1].get("consensus_role") == "DIRECTIONAL_CORE"
+    ]
+    confirmers = [
+        item for item in agreeing
+        if item[1].get("consensus_role") == "NETTED_CONFIRMER"
+    ]
+    opposing_core = [
+        item for item in opposing
+        if item[1].get("consensus_role") == "DIRECTIONAL_CORE"
+    ]
+    opposing_confirmers = [
+        item for item in opposing
+        if item[1].get("consensus_role") == "NETTED_CONFIRMER"
+    ]
+
+    def signal(items: list[tuple[dict[str, Any], dict[str, Any]]]) -> float:
+        return sum(
+            _directional_signal_weight(
+                position, profile, unit_map, events_by_wallet
+            )
+            for position, profile in items
+        )
+
+    confirming_weight = signal(confirmers)
+    opposing_confirmer_weight = signal(opposing_confirmers)
+    reason = None
+    broad_consensus = strategy_mode == "BROAD_CONSENSUS_2"
+    agreeing_weight = signal(agreeing)
+    opposing_weight = signal(opposing)
+    if len(agreeing) < 2:
+        reason = (
+            "MLB_BROAD_CONSENSUS_REQUIRES_TWO_WALLETS"
+            if broad_consensus
+            else "MLB_HYBRID_REQUIRES_TWO_WALLETS"
+        )
+    elif broad_consensus and opposing_weight >= agreeing_weight:
+        reason = "MLB_BROAD_CONSENSUS_OPPOSITION_NOT_BEATEN"
+    elif not broad_consensus and not core:
+        reason = "MLB_HYBRID_REQUIRES_DIRECTIONAL_CORE"
+    elif not broad_consensus and opposing_core:
+        reason = "MLB_HYBRID_OPPOSING_CORE_VETO"
+    elif (
+        not broad_consensus
+        and opposing_confirmer_weight > confirming_weight + 0.5
+    ):
+        reason = "MLB_HYBRID_OPPOSING_PORTFOLIO_DOMINANT"
+
+    return {
+        "version": (
+            "mlb-broad-consensus-v1"
+            if broad_consensus
+            else "mlb-hybrid-consensus-v1"
+        ),
+        "strategy_mode": strategy_mode,
+        "qualified": reason is None,
+        "reason": reason or (
+            "QUALIFIED_BROAD_CONSENSUS"
+            if broad_consensus
+            else "QUALIFIED_HYBRID_CONSENSUS"
+        ),
+        "minimum_wallets": 2,
+        "requires_directional_core": not broad_consensus,
+        "eligible_wallet_count": len(agreeing),
+        "core_wallet_count": len(core),
+        "confirmer_wallet_count": len(confirmers),
+        "opposing_core_count": len(opposing_core),
+        "confirming_portfolio_weight": round(confirming_weight, 6),
+        "opposing_portfolio_weight": round(opposing_confirmer_weight, 6),
+        "core_wallet_ids": sorted(
+            str(position.get("wallet_address") or "").lower()
+            for position, _profile in core
+        ),
+        "confirmer_wallet_ids": sorted(
+            str(position.get("wallet_address") or "").lower()
+            for position, _profile in confirmers
+        ),
+        "execution_window_minutes": 120,
+        "recommended_manual_entry_window_minutes": [60, 90],
     }
 
 
@@ -406,8 +733,10 @@ def _relative_units(
 ) -> float | None:
     amount = _position_signal_amount(position)
     wallet = str(position.get("wallet_address") or "").lower()
-    base_unit = unit_map.get(wallet, {}).get("estimated_base_unit") or position.get(
-        "estimated_base_unit"
+    base_unit = (
+        position.get("category_unit_baseline_usd")
+        or position.get("estimated_base_unit")
+        or unit_map.get(wallet, {}).get("estimated_base_unit")
     )
     if base_unit and _safe_float(base_unit) > 0:
         return amount / _safe_float(base_unit)
@@ -469,8 +798,6 @@ def _is_actionable(position: dict[str, Any], now: datetime) -> bool:
         return False
     if "market_open" in position and position.get("market_open") is not True:
         return False
-    if position.get("clob_token_id") and not position.get("executable_ask_price"):
-        return False
     event_time = _safe_datetime(position.get("resolution_time"))
     return bool(event_time and event_time > now)
 
@@ -488,13 +815,39 @@ def _is_playable_size(
     )
 
 
+def _is_three_sharp_playable_size(
+    position: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
+    units = _relative_units(position, unit_map, events_by_wallet)
+    return (
+        units is not None
+        and units + POSITION_THRESHOLD_TOLERANCE_UNITS >= _minimum_units(position)
+        and _position_signal_amount(position) > 0
+    )
+
+
 def _is_actionable_wallet_position(
     position: dict[str, Any],
     unit_map: dict[str, dict[str, Any]],
     events_by_wallet: dict[str, list[dict[str, Any]]],
 ) -> bool:
     units = _relative_units(position, unit_map, events_by_wallet)
-    return units is not None and units >= _actionable_units(position)
+    return units is not None and units + 1e-9 >= _actionable_units(position)
+
+
+def _is_three_sharp_actionable_wallet_position(
+    position: dict[str, Any],
+    unit_map: dict[str, dict[str, Any]],
+    events_by_wallet: dict[str, list[dict[str, Any]]],
+) -> bool:
+    units = _relative_units(position, unit_map, events_by_wallet)
+    return bool(
+        units is not None
+        and units + POSITION_THRESHOLD_TOLERANCE_UNITS
+        >= _actionable_units(position)
+    )
 
 
 def _format_event_time(value: Any) -> dict[str, str | None]:
@@ -836,6 +1189,7 @@ def build_trades_to_play(
     now: datetime | None = None,
     tracked_wallet_count: int | None = None,
     diagnostics: list[dict[str, Any]] | None = None,
+    strategy_mode: str = "HYBRID_CONSENSUS_2",
 ) -> list[dict[str, Any]]:
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -858,7 +1212,16 @@ def build_trades_to_play(
             continue
         if not _is_actionable(position, now):
             continue
-        if not _is_playable_size(position, unit_map, events_by_wallet):
+        fixed_unit_strategy = strategy_mode in {
+            THREE_SHARP_STRATEGY_ID,
+            SPECIALIST_STRATEGY_ID,
+        }
+        playable_size = (
+            _is_three_sharp_playable_size(position, unit_map, events_by_wallet)
+            if fixed_unit_strategy
+            else _is_playable_size(position, unit_map, events_by_wallet)
+        )
+        if not playable_size:
             if position.get("actionable_position_units") is not None:
                 diagnostics.append(
                     _exclusion_record(
@@ -866,7 +1229,14 @@ def build_trades_to_play(
                     )
                 )
             continue
-        if not _is_actionable_wallet_position(position, unit_map, events_by_wallet):
+        actionable_wallet_position = (
+            _is_three_sharp_actionable_wallet_position(
+                position, unit_map, events_by_wallet
+            )
+            if fixed_unit_strategy
+            else _is_actionable_wallet_position(position, unit_map, events_by_wallet)
+        )
+        if not actionable_wallet_position:
             diagnostics.append(
                 _exclusion_record([position], BELOW_WALLET_ACTIONABLE_THRESHOLD)
             )
@@ -877,7 +1247,14 @@ def build_trades_to_play(
         ).append(position)
 
     playable_groups: list[
-        tuple[list[dict[str, Any]], list[dict[str, Any]], str]
+        tuple[
+            list[dict[str, Any]],
+            list[dict[str, Any]],
+            str,
+            float,
+            float,
+            dict[str, Any] | None,
+        ]
     ] = []
     missing_category_wallets: set[str] = set()
     for sides in market_sides.values():
@@ -909,18 +1286,101 @@ def build_trades_to_play(
                     )
                 )
                 continue
-            lead_count = sum(1 for profile in profiles if profile["is_lead_sharp"])
-            classification = classify_trade(
-                len(unique_group), len(opposing_group), lead_count
+            opposing_profiles = [
+                _category_profile(position) for position in opposing_group
+            ]
+            if strategy_mode == SPECIALIST_STRATEGY_ID and opposing_group:
+                diagnostics.append(
+                    _exclusion_record(
+                        unique_group,
+                        "SPECIALIST_DIRECT_CONFLICT",
+                        trade_category_id,
+                    )
+                )
+                continue
+            hybrid_decision = _mlb_hybrid_decision(
+                unique_group,
+                opposing_group,
+                profiles,
+                opposing_profiles,
+                unit_map,
+                events_by_wallet,
+                strategy_mode,
             )
+            if hybrid_decision is not None and not hybrid_decision["qualified"]:
+                diagnostics.append(
+                    _exclusion_record(
+                        unique_group,
+                        hybrid_decision["reason"],
+                        trade_category_id,
+                    )
+                )
+                continue
+            # Three-sharp candidates have already passed the strategy-specific
+            # actionable threshold (including provider rounding tolerance).
+            # Do not send them through the legacy exact-threshold originator
+            # check a second time: a $1,299.99 Formal-Cupcake position against
+            # a $1,300 baseline is a valid full-unit signal.
+            lead_count = (
+                len(unique_group)
+                if strategy_mode in {
+                    THREE_SHARP_STRATEGY_ID,
+                    SPECIALIST_STRATEGY_ID,
+                }
+                else sum(
+                    1
+                    for position, profile in zip(unique_group, profiles)
+                    if _originator_eligible(
+                        position, profile, unit_map, events_by_wallet
+                    )
+                )
+            )
+            agreeing_signal = sum(
+                _directional_signal_weight(
+                    position, profile, unit_map, events_by_wallet
+                )
+                for position, profile in zip(unique_group, profiles)
+            )
+            opposing_signal = sum(
+                _directional_signal_weight(
+                    position, profile, unit_map, events_by_wallet
+                )
+                for position, profile in zip(opposing_group, opposing_profiles)
+            )
+            if strategy_mode == THREE_SHARP_STRATEGY_ID and hybrid_decision:
+                classification = "STANDARD"
+            elif lead_count < 1:
+                classification = classify_trade(
+                    len(unique_group), len(opposing_group), 0
+                )
+            elif opposing_signal <= 0:
+                classification = "STANDARD"
+            elif (
+                agreeing_signal > opposing_signal
+                and agreeing_signal >= opposing_signal * 1.15
+                and agreeing_signal - opposing_signal >= 0.20
+            ):
+                classification = "STANDARD"
+            elif agreeing_signal > opposing_signal:
+                classification = "CONTRADICTING_SHARPS"
+            else:
+                classification = None
             if classification is None:
-                if opposing_group:
+                shadow_reason = next(
+                    (
+                        str(position.get("shadow_rejection_reason"))
+                        for position in unique_group
+                        if position.get("shadow_rejection_reason")
+                    ),
+                    None,
+                )
+                if shadow_reason:
+                    reason = shadow_reason
+                elif opposing_group:
                     reason = (
-                        "TIED_SHARPS"
-                        if len(unique_group) == len(opposing_group)
-                        else "CONTRADICTING_SIDE_MAJORITY"
-                        if len(unique_group) < len(opposing_group)
-                        else "INSUFFICIENT_AGREEING_MAJORITY"
+                        "WEIGHTED_DIRECTIONAL_TIE"
+                        if abs(agreeing_signal - opposing_signal) < 1e-9
+                        else "WEIGHTED_OPPOSITION_STRONGER"
                     )
                 else:
                     reason = "SINGLE_NON_CATEGORY_WALLET"
@@ -928,7 +1388,16 @@ def build_trades_to_play(
                     _exclusion_record(unique_group, reason, trade_category_id)
                 )
                 continue
-            playable_groups.append((unique_group, opposing_group, classification))
+            playable_groups.append(
+                (
+                    unique_group,
+                    opposing_group,
+                    classification,
+                    agreeing_signal,
+                    opposing_signal,
+                    hybrid_decision,
+                )
+            )
 
     if missing_category_wallets:
         LOGGER.warning(
@@ -938,7 +1407,7 @@ def build_trades_to_play(
 
     group_amounts = [
         sum(_position_signal_amount(position) for position in group)
-        for group, _opposing, _classification in playable_groups
+        for group, _opposing, _classification, _agreeing, _opposing_signal, _hybrid in playable_groups
     ]
     historical_amounts = [
         abs(_safe_float(event.get("position_size_usd") or event.get("delta_usd")))
@@ -954,7 +1423,14 @@ def build_trades_to_play(
     )
 
     output: list[dict[str, Any]] = []
-    for group, opposing_group, classification in playable_groups:
+    for (
+        group,
+        opposing_group,
+        classification,
+        agreeing_directional_signal,
+        opposing_directional_signal,
+        hybrid_decision,
+    ) in playable_groups:
         unique_wallets = {
             str(position.get("wallet_address") or "").lower()
             for position in group
@@ -967,19 +1443,45 @@ def build_trades_to_play(
             )
             for position in group
         }
-        lead_positions = [
-            position
-            for position in group
-            if profiles_by_wallet[
-                str(position.get("wallet_address") or "").lower()
-            ]["is_lead_sharp"]
-        ]
+        three_sharp_strategy = bool(
+            hybrid_decision
+            and hybrid_decision.get("strategy_mode") == THREE_SHARP_STRATEGY_ID
+        )
+        specialist_strategy = strategy_mode == SPECIALIST_STRATEGY_ID
+        if three_sharp_strategy:
+            primary_ids = set(hybrid_decision.get("core_wallet_ids") or [])
+            lead_positions = [
+                position for position in group
+                if str(position.get("wallet_address") or "").lower() in primary_ids
+            ]
+        elif specialist_strategy:
+            lead_positions = list(group)
+        else:
+            lead_positions = [
+                position
+                for position in group
+                if (
+                    (
+                        hybrid_decision is None
+                        or profiles_by_wallet[
+                            str(position.get("wallet_address") or "").lower()
+                        ].get("consensus_role")
+                        == "DIRECTIONAL_CORE"
+                    )
+                    and _originator_eligible(
+                        position,
+                        profiles_by_wallet[
+                            str(position.get("wallet_address") or "").lower()
+                        ],
+                        unit_map,
+                        events_by_wallet,
+                    )
+                )
+            ]
         supporting_positions = [
             position
             for position in group
-            if not profiles_by_wallet[
-                str(position.get("wallet_address") or "").lower()
-            ]["is_lead_sharp"]
+            if position not in lead_positions
         ]
         lead_sharp_count = len(lead_positions)
         supporting_sharp_count = len(supporting_positions)
@@ -988,13 +1490,15 @@ def build_trades_to_play(
             if classification in {SHARP_NON_CATEGORY, CONTRADICTING_NON_CATEGORY}
             else 0.5
         )
-        weighted_sharp_count = lead_sharp_count + (
-            supporting_sharp_count * supporting_weight
-        )
         category_weights = {
-            wallet: (1.0 if profile["is_lead_sharp"] else supporting_weight)
+            wallet: (
+                profile["category_weight"]
+                if profile["is_lead_sharp"]
+                else min(profile["category_weight"], supporting_weight)
+            )
             for wallet, profile in profiles_by_wallet.items()
         }
+        weighted_sharp_count = sum(category_weights.values())
         total_amount = sum(
             _position_signal_amount(position) for position in group
         )
@@ -1013,6 +1517,12 @@ def build_trades_to_play(
                 _relative_units(position, unit_map, events_by_wallet) or 0
             )
             for position in group
+        }
+        opposing_units_by_wallet = {
+            str(position.get("wallet_address") or "").lower(): (
+                _relative_units(position, unit_map, events_by_wallet) or 0
+            )
+            for position in opposing_group
         }
         strongest_units = max(units_by_wallet.values())
         primary_wallet = str(primary.get("wallet_address") or "").lower()
@@ -1105,6 +1615,17 @@ def build_trades_to_play(
             ),
             slippage=slippage,
         )
+        if three_sharp_strategy:
+            confidence, breakdown = three_sharp_confidence_score(
+                unique_wallets,
+                units_by_wallet,
+                opposing_units_by_wallet,
+                opposing_units_by_wallet,
+            )
+        elif specialist_strategy:
+            confidence, breakdown = specialist_confidence_score(
+                unique_wallets, primary.get("category")
+            )
         classification_meta = classification_fields(
             classification, wallet_count, len(opposing_group)
         )
@@ -1179,6 +1700,11 @@ def build_trades_to_play(
                         position.get("net_directional_exposure_usd")
                     ),
                     "wallet_hedge_status": position.get("wallet_hedge_status"),
+                    "two_sided_status": position.get("two_sided_status"),
+                    "opposing_exposure_ratio": position.get(
+                        "opposing_exposure_ratio"
+                    ),
+                    "hedge_probability": position.get("hedge_probability"),
                     "wallet_position_netting_version": position.get(
                         "wallet_position_netting_version"
                     ),
@@ -1210,14 +1736,39 @@ def build_trades_to_play(
                     "top_category_verified_at": profile[
                         "top_category_verified_at"
                     ],
-                    "is_lead_sharp": profile["is_lead_sharp"],
-                    "sharp_role": profile["sharp_role"],
-                    "category_match": profile["is_lead_sharp"],
-                    "category_weight": profile["category_weight"],
+                    "is_lead_sharp": position in lead_positions,
+                    "sharp_role": (
+                        "Lead Sharp"
+                        if position in lead_positions
+                        else "Supporting Sharp"
+                        if profile["supporting_sharp_eligible"]
+                        else "Research Only"
+                    ),
+                    "category_match": profile["category_match"],
+                    "category_weight": category_weights[wallet],
+                    "category_signal_role": profile["signal_role"],
+                    "category_consensus_role": profile["consensus_role"],
+                    "category_signal_quality_weight": profile["quality_weight"],
+                    "category_signal_weight": _directional_signal_weight(
+                        position, profile, unit_map, events_by_wallet
+                    ),
+                    "minimum_originator_units": profile[
+                        "minimum_originator_units"
+                    ],
+                    "signal_policy_source": profile["signal_policy_source"],
+                    "registry_status": position.get("wallet_registry_status")
+                    or "ACTIVE",
+                    "shadow_rejection_reason": position.get(
+                        "shadow_rejection_reason"
+                    ),
+                    "lead_sharp_eligible": profile["lead_sharp_eligible"],
+                    "supporting_sharp_eligible": profile[
+                        "supporting_sharp_eligible"
+                    ],
                     "weighted_amount_contribution": _position_signal_amount(position)
-                    * profile["category_weight"],
+                    * category_weights[wallet],
                     "weighted_relative_contribution": units
-                    * profile["category_weight"],
+                    * category_weights[wallet],
                     "bettor_type": position.get("wallet_bettor_type"),
                     "selectivity": position.get("wallet_selectivity"),
                     "selectivity_score": position.get("wallet_selectivity_score"),
@@ -1237,26 +1788,44 @@ def build_trades_to_play(
                 str(item["wallet_label"]).lower(),
             ),
         )
-        contradictors = [
-            {
+        contradictors = []
+        for position in opposing_group:
+            opposing_profile = _category_profile(position)
+            opposing_units = (
+                _relative_units(position, unit_map, events_by_wallet) or 0
+            )
+            contradictors.append({
                 "wallet_address": position.get("wallet_address"),
                 "wallet_label": position.get("wallet_label"),
                 "opposing_selection": position.get("outcome"),
                 "amount": _position_signal_amount(position),
                 "gross_amount": _safe_float(position.get("position_size_usd")),
-                "relative_units": _relative_units(
-                    position, unit_map, events_by_wallet
-                )
-                or 0,
+                "relative_units": opposing_units,
                 "average_entry_price": position.get("average_entry_price"),
                 "current_price": position.get("current_price"),
                 "top_category": position.get("configured_top_category")
                 or position.get("top_category"),
+                "category_match": opposing_profile["category_match"],
+                "is_lead_sharp": _originator_eligible(
+                    position,
+                    opposing_profile,
+                    unit_map,
+                    events_by_wallet,
+                ),
+                "category_signal_role": opposing_profile["signal_role"],
+                "category_consensus_role": opposing_profile["consensus_role"],
+                "category_signal_quality_weight": opposing_profile[
+                    "quality_weight"
+                ],
+                "category_signal_weight": _directional_signal_weight(
+                    position,
+                    opposing_profile,
+                    unit_map,
+                    events_by_wallet,
+                ),
                 "wallet_profile_url": position.get("wallet_profile_url"),
                 "source": "active_position_snapshot",
-            }
-            for position in opposing_group
-        ]
+            })
         contradictors.sort(
             key=lambda item: (
                 -item["amount"],
@@ -1295,7 +1864,9 @@ def build_trades_to_play(
             "supporting_sharp_count": supporting_sharp_count,
             "weighted_sharp_count": weighted_sharp_count,
             "weightedAgreeingConsensus": weighted_sharp_count,
-            "weightedContradictingConsensus": float(len(opposing_group)),
+            "weightedContradictingConsensus": round(
+                opposing_directional_signal, 6
+            ),
             "has_lead_sharp": lead_sharp_count > 0,
             "lead_wallet_ids": sorted(
                 str(position.get("wallet_address") or "").lower()
@@ -1326,6 +1897,28 @@ def build_trades_to_play(
             },
             "category_weight_by_wallet": category_weights,
             "weighted_consensus_score": weighted_sharp_count,
+            "weightedDirectionalSupport": round(
+                agreeing_directional_signal, 6
+            ),
+            "weighted_directional_support": round(
+                agreeing_directional_signal, 6
+            ),
+            "weightedDirectionalOpposition": round(
+                opposing_directional_signal, 6
+            ),
+            "weighted_directional_opposition": round(
+                opposing_directional_signal, 6
+            ),
+            "weightedDirectionalMargin": round(
+                agreeing_directional_signal - opposing_directional_signal, 6
+            ),
+            "directionalWeightingVersion": "category-conviction-v9",
+            "mlb_hybrid_strategy": hybrid_decision,
+            "strategy_version": (
+                hybrid_decision["version"]
+                if hybrid_decision
+                else "category-weighted-legacy"
+            ),
             "weighted_amount_signal": weighted_amount_signal,
             "weighted_relative_size_signal": weighted_relative_size_signal,
             "market_title": primary.get("market_title"),
@@ -1426,6 +2019,47 @@ def build_trades_to_play(
             ),
             **event_time,
         }
+        if three_sharp_strategy:
+            strategy_sizing = three_sharp_recommendation_units(
+                unique_wallets,
+                units_by_wallet,
+                opposing_units_by_wallet,
+                opposing_units_by_wallet,
+            )
+            play.update(
+                {
+                    "model_strategy": THREE_SHARP_STRATEGY_ID,
+                    "strategy_version": THREE_SHARP_STRATEGY_VERSION,
+                    "strategy_sizing": strategy_sizing,
+                    "strategy_target_units": strategy_sizing["units"],
+                    "strategy_sizing_mode": strategy_sizing["sizing_mode"],
+                    "strategy_copy_weight": strategy_sizing[
+                        "average_copy_weight"
+                    ],
+                    "strategy_consensus_multiplier": strategy_sizing[
+                        "consensus_multiplier"
+                    ],
+                }
+            )
+        elif specialist_strategy:
+            strategy_sizing = specialist_recommendation_units(
+                unique_wallets,
+                units_by_wallet,
+                primary.get("category"),
+            )
+            play.update(
+                {
+                    "model_strategy": SPECIALIST_STRATEGY_ID,
+                    "strategy_version": SPECIALIST_STRATEGY_VERSION,
+                    "strategy_sizing": strategy_sizing,
+                    "strategy_target_units": strategy_sizing["units"],
+                    "strategy_sizing_mode": strategy_sizing["sizing_mode"],
+                    "strategy_copy_weight": 1.0,
+                    "strategy_consensus_multiplier": float(
+                        strategy_sizing["agreeing_count"]
+                    ),
+                }
+            )
         play["search_blob"] = _search_blob(play)
         output.append(play)
 

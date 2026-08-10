@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import threading
 import time
+from math import ceil
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -37,6 +38,7 @@ class KalshiProvider(ExecutionProvider):
         self._lock = threading.RLock()
         self._cache = {}
         self._depth_cache = {}
+        self._fee_cache = {}
         self._last_success = None
         self._market_count = 0
         self._match_count = 0
@@ -68,6 +70,13 @@ class KalshiProvider(ExecutionProvider):
             levels = self._ask_levels(ticker, summary_price, summary_size)
             price = levels[0][0] if levels else summary_price
             effective, liquidity, fillable = _effective_price(levels, stake)
+            fee_type, fee_multiplier = self._series_fee_terms(
+                SERIES.get((trade.sport_id, trade.league_id))
+            )
+            estimated_fees = _estimated_taker_fee(
+                effective, stake, fee_type=fee_type, fee_multiplier=fee_multiplier
+            )
+            fee_rate = estimated_fees / stake if estimated_fees is not None and stake > 0 else 0.0
             available = bool(market.is_available and price is not None and fillable)
             result[trade.trade_id] = ExecutionOption(
                 provider_name=self.provider_name, provider_key=self.provider_key,
@@ -81,6 +90,8 @@ class KalshiProvider(ExecutionProvider):
                 contract_price=price, effective_price=effective,
                 available_liquidity=liquidity,
                 can_fill_recommended_stake=fillable,
+                fee_rate=fee_rate,
+                estimated_fees=estimated_fees,
                 quote_status="OPEN" if market.is_available and fillable else "INSUFFICIENT_DEPTH",
                 provider_event_id=market.event_id,
                 native_price_format="CENTS",
@@ -160,6 +171,31 @@ class KalshiProvider(ExecutionProvider):
         with self._lock:
             self._depth_cache[ticker] = (time.monotonic(), levels)
         return levels
+
+    def _series_fee_terms(self, series):
+        if not series:
+            return None, 0.0
+        with self._lock:
+            cached = self._fee_cache.get(series)
+            if cached and time.monotonic() - cached[0] < 3600:
+                return cached[1]
+        terms = (None, 0.0)
+        try:
+            response = self.session.get(
+                f"{self.base_url}/series/{series}",
+                timeout=self.request_timeout,
+            )
+            response.raise_for_status()
+            payload = response.json().get("series") or {}
+            terms = (
+                str(payload.get("fee_type") or "").strip().lower() or None,
+                max(0.0, _float(payload.get("fee_multiplier")) or 0.0),
+            )
+        except (requests.RequestException, ValueError, TypeError):
+            terms = (None, 0.0)
+        with self._lock:
+            self._fee_cache[series] = (time.monotonic(), terms)
+        return terms
 
 
 def _normalize_market(market, sport, league):
@@ -259,6 +295,26 @@ def _effective_price(levels, stake):
         if remaining <= 0.01:
             return cost / shares, liquidity, True
     return None, liquidity, False
+
+
+def _estimated_taker_fee(price, stake, *, fee_type, fee_multiplier):
+    """Return Kalshi's estimated taker fee for the requested executable stake.
+
+    Event-contract series using the quadratic schedule charge
+    7% * multiplier * contracts * price * (1-price), rounded up to cents for
+    the transaction. Unknown/waived schedules remain zero rather than guessed.
+    """
+    if (
+        price is None
+        or not 0 < price < 1
+        or stake <= 0
+        or not str(fee_type or "").startswith("quadratic")
+        or fee_multiplier <= 0
+    ):
+        return 0.0
+    contracts = stake / price
+    raw_fee = 0.07 * fee_multiplier * contracts * price * (1.0 - price)
+    return ceil((raw_fee - 1e-12) * 100.0) / 100.0
 
 
 def _stake(trade):

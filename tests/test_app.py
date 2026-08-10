@@ -17,7 +17,9 @@ from app import (
     _has_positive_recommendation,
     _slippage_fraction,
     _trade_card_view,
+    _wallet_roster_summary,
 )
+from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
 
 
 def test_historical_personal_sharp_backfill_requires_exact_earlier_snapshot():
@@ -107,6 +109,108 @@ def test_wallet_cards_show_complete_category_and_profile_fields():
         "Strategy",
     ):
         assert f'walletMeta("{label}"' in script
+
+
+def test_wallet_roster_summary_uses_audited_wallet_specific_metrics():
+    row = _wallet_roster_summary(
+        {
+            "address": next(iter(THREE_SHARP_WALLETS)),
+            "label": "Formal-Cupcake",
+            "base_unit": 1300,
+            "historical_position_count": 999,
+            "wallet_forensics": {
+                "corrected_roi": 0.1323,
+                "corrected_win_rate": 0.4903,
+                "settled_positions": 155,
+                "stake_weighted_exchange_clv_probability": -0.00151,
+                "exchange_clv_sample": 152,
+            },
+        }
+    )
+
+    assert row["is_active_sharp"] is True
+    assert row["roster_summary"] == {
+        "sport": "MLB",
+        "provider": "Polymarket",
+        "unit_size": 1300.0,
+        "roi": 0.1323,
+        "win_rate": 0.4903,
+        "play_count": 155,
+        "clv_probability_points": -0.00151,
+        "clv_sample": 152,
+        "clv_status": "CAPTURED",
+        "clv_source": "Polymarket closing price",
+    }
+
+
+def test_wallet_api_separates_active_roster_from_preserved_hidden_wallets(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    active_rows = [
+        {
+            "address": address,
+            "label": config["label"],
+            "base_unit": 1000,
+            "wallet_forensics": {},
+        }
+        for address, config in reversed(list(THREE_SHARP_WALLETS.items()))
+    ]
+    hidden = {
+        "address": "0x0000000000000000000000000000000000000001",
+        "label": "Archived Sharp",
+        "base_unit": 500,
+        "wallet_forensics": {},
+    }
+    monkeypatch.setattr(
+        service,
+        "get_snapshot",
+        lambda: {"wallets": [hidden, *active_rows], "status": {"ok": True}},
+    )
+
+    active_payload = app_client.get("/api/wallets").get_json()
+    hidden_payload = app_client.get("/api/wallets?view=hidden").get_json()
+    all_payload = app_client.get("/api/wallets?view=all").get_json()
+
+    assert [row["address"] for row in active_payload["data"]] == list(
+        THREE_SHARP_WALLETS
+    )
+    assert active_payload["view"] == "active"
+    assert active_payload["active_total"] == 3
+    assert active_payload["hidden_total"] == 1
+    assert [row["label"] for row in hidden_payload["data"]] == ["Archived Sharp"]
+    assert hidden_payload["view"] == "hidden"
+    assert len(all_payload["data"]) == 4
+
+
+def test_wallet_roster_page_exposes_active_and_hidden_views():
+    template = Path("templates/wallets.html").read_text(encoding="utf-8")
+    script = Path("static/app.js").read_text(encoding="utf-8")
+
+    assert 'data-wallet-view="active"' in template
+    assert 'data-wallet-view="hidden"' in template
+    assert "The three directional MLB wallets" in template
+    assert "Polymarket CLV" in script
+    assert 'view: walletRosterView' in script
+
+
+def test_current_best_price_precedes_stale_selected_execution_snapshot():
+    script = Path("static/app.js").read_text(encoding="utf-8")
+    function_start = script.index("function bestExecutionOption(trade)")
+    function_end = script.index("function executionVenueStack", function_start)
+    function_source = script[function_start:function_end]
+
+    assert function_source.index("if (ranked.length) return ranked[0]") < function_source.index(
+        "const explicit = options.find"
+    )
+    assert function_source.index("const explicit = options.find") < function_source.index(
+        "const selected = normalizeExecutionOption"
+    )
+    assert "EXECUTION_PRICE_TIE_TOLERANCE = 1e-3" in script
+    assert 'canonicalExecutionProviderKey(left.providerKey) === "novig"' in function_source
+    assert "option.canFillRecommendedStake === true" in function_source
+    assert "number(option.availableLiquidity) > 0" in function_source
+    assert '"oddsapi__novig"' in script
 
 
 class CountingClient:
@@ -238,6 +342,22 @@ def test_health_endpoint(app_client):
     assert "database_status" in payload
 
 
+def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
+    response = app_client.get("/api/positive-ev")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "configured": False,
+        "data": [],
+        "message": (
+            "Positive EV scanning is paused. No paid odds requests are being made."
+        ),
+        "paused": True,
+        "refreshSeconds": 0,
+        "total": 0,
+    }
+
+
 def test_app_starts_with_no_enabled_wallets(tmp_path):
     wallets_file = tmp_path / "wallets.json"
     wallets_file.write_text(
@@ -296,6 +416,90 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/provider-health/prophetx").status_code == 200
 
 
+def test_trades_to_play_fast_mode_returns_snapshot_without_blocking_live_quotes(
+    app_client, monkeypatch
+):
+    providers = app_client.application.extensions["execution_providers"]
+    monkeypatch.setattr(
+        providers,
+        "attach_options",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("fast mode must not wait for provider quotes")
+        ),
+    )
+
+    response = app_client.get("/api/trades-to-play?fast=1")
+
+    assert response.status_code == 200
+    assert response.get_json()["fastMode"] is True
+
+
+def test_wallet_page_and_api_require_configured_passcode(app_client, monkeypatch):
+    app = app_client.application
+    monkeypatch.setitem(app.config, "WALLET_PAGE_PASSCODE", "1010")
+    monkeypatch.setitem(app.config, "WALLET_PAGE_LOCK_SECRET", "test-wallet-secret")
+    client = app.test_client()
+
+    locked_page = client.get("/wallets")
+    locked_api = client.get("/api/wallets")
+    wrong_code = client.post(
+        "/wallets/unlock",
+        data={"passcode": "9999", "next": "/wallets"},
+    )
+
+    assert locked_page.status_code == 302
+    assert "/wallets/unlock" in locked_page.headers["Location"]
+    assert locked_api.status_code == 401
+    assert locked_api.get_json()["error"] == "WALLET_PAGE_LOCKED"
+    assert wrong_code.status_code == 401
+
+    unlocked = client.post(
+        "/wallets/unlock",
+        data={"passcode": "1010", "next": "/wallets"},
+    )
+
+    assert unlocked.status_code == 302
+    assert unlocked.headers["Location"] == "/wallets"
+    assert "HttpOnly" in unlocked.headers["Set-Cookie"]
+    assert "SameSite=Strict" in unlocked.headers["Set-Cookie"]
+    assert client.get("/wallets").status_code == 200
+    assert client.get("/api/wallets").status_code == 200
+
+
+def test_vercel_cron_can_run_model_tracker_with_bearer_secret(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    settings = app_client.application.config["SETTINGS"]
+    object.__setattr__(settings, "tracker_job_secret", "test-cron-secret")
+    refreshes = []
+    monkeypatch.setattr(service, "refresh", lambda: refreshes.append(True))
+
+    unauthorized = app_client.get("/api/admin/model-tracker/reconcile")
+    authorized = app_client.get(
+        "/api/admin/model-tracker/reconcile",
+        headers={"Authorization": "Bearer test-cron-secret"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    assert refreshes == [True]
+
+
+def test_trades_javascript_does_not_inject_visual_preview_fixtures():
+    javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
+        encoding="utf-8"
+    )
+    load_trades = javascript.split("async function loadTrades()", 1)[1].split(
+        "async function", 1
+    )[0]
+
+    assert "previewEnabled" not in load_trades
+    assert "visualPreviewTrade()" not in load_trades
+    assert "secondaryVisualPreviewTrade()" not in load_trades
+    assert "const incomingTrades = payload.data || [];" in load_trades
+
+
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
     registry = app_client.application.extensions["execution_providers"]
     provider = next(
@@ -340,9 +544,112 @@ def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
     assert "test-secret" not in combined
 
 
-def test_discord_connection_test_requires_job_auth_and_returns_safe_result(
+def test_vercel_cron_runs_insider_reconciliation_every_minute():
+    config = json.loads(
+        (Path(__file__).resolve().parents[1] / "vercel.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert {
+        "path": "/api/admin/model-tracker/reconcile",
+        "schedule": "* * * * *",
+    } in config["crons"]
+
+
+def test_sharp_money_live_page_is_available_and_paused_by_default(app_client):
+    response = app_client.get("/sharp-money")
+
+    assert response.status_code == 200
+    assert b"Sharp Money" in response.data
+    assert b"Feed paused" in response.data
+    assert b"zero new requests" in response.data
+    assert b"sharp-play" in response.data
+    assert b"sharp-pause" in response.data
+    assert b"sharp-money-initial-payload" not in response.data
+    assert b"sharp-money-v2.css" in response.data
+
+
+def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
     app_client, monkeypatch
 ):
+    service = app_client.application.extensions["tracker_service"]
+    collector = app_client.application.extensions["sharp_money_collector"]
+    monkeypatch.setattr(
+        service,
+        "get_snapshot",
+        lambda: (_ for _ in ()).throw(AssertionError("live tracker was called")),
+    )
+    monkeypatch.setattr(
+        collector.prophetx,
+        "live_market_snapshot",
+        lambda: (_ for _ in ()).throw(AssertionError("provider was called")),
+    )
+
+    page = app_client.get("/sharp-money")
+    response = app_client.get("/api/sharp-money/live")
+    payload = response.get_json()
+
+    assert page.status_code == 200
+    assert response.status_code == 200
+    assert payload["mode"] == "paused"
+    assert payload["paused"] is True
+    assert payload["fabricatedData"] is False
+    assert payload["executionEnabled"] is False
+    assert payload["trackerWritesEnabled"] is False
+
+
+def test_sharp_money_frontend_uses_explicit_control_gate():
+    script = (
+        Path(__file__).resolve().parents[1] / "static" / "sharp-money.js"
+    ).read_text(encoding="utf-8")
+    shell_script = (
+        Path(__file__).resolve().parents[1] / "static" / "app.js"
+    ).read_text(encoding="utf-8")
+
+    assert 'fetch("/api/sharp-money/live"' in script
+    assert 'fetch("/api/sharp-money/control"' in script
+    assert 'control("play")' in script
+    assert 'control("pause")' in script
+    assert "/api/odds-screen" not in script
+    assert "active=1" not in script
+    assert (
+        'if (page !== "sharp-money") loadGlobalStatus();'
+        in shell_script
+    )
+
+
+def test_sharp_money_control_routes_to_collector(app_client, monkeypatch):
+    collector = app_client.application.extensions["sharp_money_collector"]
+    actions = []
+    monkeypatch.setattr(
+        collector,
+        "play",
+        lambda: (actions.append("play") or True, "started"),
+    )
+    monkeypatch.setattr(
+        collector,
+        "pause",
+        lambda: (actions.append("pause") or True, "paused"),
+    )
+
+    assert app_client.post(
+        "/api/sharp-money/control", json={"action": "play"}
+    ).status_code == 200
+    assert app_client.post(
+        "/api/sharp-money/control", json={"action": "pause"}
+    ).status_code == 200
+    assert actions == ["play", "pause"]
+
+
+def test_sharp_money_control_rejects_unknown_action(app_client):
+    response = app_client.post(
+        "/api/sharp-money/control", json={"action": "execute"}
+    )
+    assert response.status_code == 400
+
+
+def test_discord_connection_test_is_disabled_and_never_sends(app_client, monkeypatch):
     service = app_client.application.extensions["tracker_service"]
     settings = app_client.application.config["SETTINGS"]
     object.__setattr__(settings, "tracker_job_secret", "test-job-secret")
@@ -362,9 +669,11 @@ def test_discord_connection_test_requires_job_auth_and_returns_safe_result(
     )
 
     assert unauthorized.status_code == 401
-    assert delivered.get_json() == {"status": "authenticated", "delivered": True}
-    assert sent_payloads[0]["content"] == "IconBets Discord connection test"
-    assert sent_payloads[0]["allowed_mentions"] == {"parse": []}
+    assert delivered.status_code == 410
+    assert delivered.get_json()["status"] == "private_only"
+    assert delivered.get_json()["delivered"] is False
+    assert delivered.get_json()["error"] == "test_messages_disabled"
+    assert sent_payloads == []
 
 
 def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
@@ -393,10 +702,16 @@ def test_tracker_page_uses_one_shared_shell_for_both_trackers(app_client):
     assert html.count('href="/tracker"') == 1
     assert 'id="tracker-metrics"' in html
     assert 'id="tracker-chart"' in html
-    assert 'id="clv-chart"' in html
-    assert 'id="clv-period-strip"' in html
+    assert 'id="tracker-summary-clv"' in html
+    assert 'id="clv-chart"' not in html
+    assert 'id="clv-period-strip"' not in html
     assert 'id="tracker-clv-status"' in html
     assert 'id="tracker-clv-sort"' in html
+    assert 'id="tracker-clv-card"' in html
+    assert 'id="tracker-clv-dialog"' in html
+    assert 'id="tracker-clv-preferences-dialog"' in html
+    assert 'id="tracker-clv-books-dialog"' in html
+    assert "Best verified closing price captured for each bet" in html
     assert 'id="tracker-body"' in html
     assert 'id="personal-bankroll-control"' in html
     assert 'id="model-bankroll-control"' in html
@@ -805,6 +1120,75 @@ def test_account_bankroll_persists_across_login_and_is_user_owned(app_client):
     assert signed_out_settings["trades_to_play_bankroll"] == default_bankroll
 
 
+def test_account_registration_persists_username_and_rejects_duplicates(app_client):
+    first = app_client.post(
+        "/api/auth/register",
+        json={
+            "username": "line_shopper",
+            "email": "first@example.com",
+            "password": "strong-pass-1",
+        },
+    )
+
+    assert first.status_code == 201
+    assert first.get_json()["username"] == "line_shopper"
+    session = app_client.get("/api/auth/session").get_json()
+    assert session["authenticated"] is True
+    assert session["username"] == "line_shopper"
+
+    other = app_client.application.test_client()
+    duplicate = other.post(
+        "/api/auth/register",
+        json={
+            "username": "LINE_SHOPPER",
+            "email": "second@example.com",
+            "password": "strong-pass-2",
+        },
+    )
+
+    assert duplicate.status_code == 409
+    assert duplicate.get_json()["error"] == "That username is already taken."
+
+
+def test_google_auth_start_requires_configured_credentials(app_client, monkeypatch):
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_OAUTH_CLIENT_SECRET", raising=False)
+
+    response = app_client.get("/api/auth/google/start")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith(
+        "/trades?auth_error=google_not_configured"
+    )
+
+
+def test_subscription_portal_requires_login_and_configuration(app_client, monkeypatch):
+    monkeypatch.delenv("STRIPE_CUSTOMER_PORTAL_URL", raising=False)
+
+    signed_out = app_client.get("/api/account/subscription")
+    assert signed_out.status_code == 302
+    assert signed_out.headers["Location"].endswith("/trades?account=signin")
+
+    assert app_client.post(
+        "/api/auth/register",
+        json={
+            "username": "portal_tester",
+            "email": "portal@example.com",
+            "password": "strong-pass-1",
+        },
+    ).status_code == 201
+    unavailable = app_client.get("/api/account/subscription")
+    assert unavailable.status_code == 302
+    assert unavailable.headers["Location"].endswith(
+        "/trades?account=subscription_unavailable"
+    )
+    assert (
+        app_client.get("/api/auth/session")
+        .get_json()["subscription_management_available"]
+        is False
+    )
+
+
 def test_failed_and_stale_bankroll_saves_preserve_confirmed_value(app_client):
     app_client.set_cookie("iconbets_user", "versioned-user")
     initial = app_client.get("/api/user-settings").get_json()["data"]
@@ -873,6 +1257,22 @@ def test_tracker_shell_script_supports_query_memory_and_keyboard_navigation():
     assert 'trackerCache: { model: null, personal: null }' in script
 
 
+def test_frontend_storage_failures_cannot_block_trade_startup():
+    script = (Path(__file__).parents[1] / "static" / "app.js").read_text()
+    server = (Path(__file__).parents[1] / "app.py").read_text()
+
+    assert "const safeStorage = {" in script
+    assert 'paused: safeStorage.getItem("iconbets-refresh-paused")' in script
+    assert "localStorage.getItem" not in script
+    assert "localStorage.setItem" not in script
+    assert "document.currentScript" not in script
+    assert "live_snapshot_endpoints = {" in server
+    assert 'if request.endpoint not in live_snapshot_endpoints' in server
+    assert "tradeRequestInFlight: false" in script
+    assert "if (appState.tradeRequestInFlight)" in script
+    assert "appState.tradeRefreshQueued = true" in script
+
+
 def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
     service = app_client.application.extensions["tracker_service"]
     app_client.set_cookie("iconbets_user", "render-user")
@@ -900,9 +1300,58 @@ def test_scheduled_tracker_record_appears_after_api_revalidation(app_client):
     assert payload["data"][0]["status"] == "scheduled"
 
 
+def test_official_tracker_play_remains_in_trades_feed_when_live_signal_is_absent(
+    app_client,
+):
+    service = app_client.application.extensions["tracker_service"]
+    event_start = datetime.now(timezone.utc) + timedelta(hours=1)
+    snapshot = {
+        "snapshot_id": "locked-official-snapshot",
+        "dedupe_key": "locked-event::locked-market::::locked-outcome::v2",
+        "recommendation_version": "v2",
+        "recommendation_timestamp": datetime.now(timezone.utc).isoformat(),
+        "canonical_event_id": "locked-event",
+        "canonical_market_id": "locked-market",
+        "outcome_id": "locked-outcome",
+        "event_title": "Locked MLB game",
+        "market_title": "Moneyline",
+        "recommended_side": "Away team",
+        "category": "MLB",
+        "league": "MLB",
+        "canonical_category_id": "mlb",
+        "event_start_time": event_start.isoformat(),
+        "effective_entry_price": 0.4,
+        "confidence_score": 83,
+        "final_recommended_fraction": 0.04,
+        "original_displayed_amount": 400,
+        "original_recommended_units": 4,
+        "sharps_count": 3,
+        "lead_sharp_count": 1,
+        "supporting_sharp_count": 2,
+    }
+    assert service.database.insert_tracker_snapshot(
+        MODEL_TRACKER_USER_ID, snapshot
+    )
+
+    payload = app_client.get(
+        "/api/trades-to-play",
+        query_string={
+            "date_range": "custom",
+            "custom_start": (
+                datetime.now(timezone.utc) - timedelta(days=1)
+            ).date().isoformat(),
+            "custom_end": (event_start + timedelta(days=1)).date().isoformat(),
+        },
+    ).get_json()
+
+    official = payload["officialTracked"]
+    assert len(official) == 1
+    assert official[0]["snapshot"]["snapshot_id"] == "locked-official-snapshot"
+    assert official[0]["snapshot"]["original_displayed_amount"] == 400
+
+
 def test_dedicated_pages_and_tracker_redirects(app_client):
     for route in (
-        "/overview",
         "/trades",
         "/live-positions",
         "/wallets",
@@ -913,7 +1362,15 @@ def test_dedicated_pages_and_tracker_redirects(app_client):
         assert response.status_code == 200
         assert response.request.path == route
 
-    assert app_client.get("/").status_code == 302
+    home = app_client.get("/")
+    assert home.status_code == 200
+    assert b"Smarter bets. Sharper edges." in home.data
+    assert b'aria-label="IconLabs home"' in home.data
+    assert b'href="/overview"' not in home.data
+
+    legacy_dashboard = app_client.get("/overview")
+    assert legacy_dashboard.status_code == 302
+    assert legacy_dashboard.headers["Location"].endswith("/")
     assert app_client.get("/history").status_code == 301
     redirects = {
         "/model-tracker": "/tracker?view=model",
@@ -966,11 +1423,11 @@ def test_event_start_display_uses_eastern_today_tomorrow_and_future_dates():
     now = datetime(2026, 7, 13, 16, 0, tzinfo=timezone.utc)
 
     assert _format_event_start("2026-07-13T19:10:00-04:00", now) == "Today, 7:10 PM"
-    assert _format_event_start("2026-07-14T15:00:00-04:00", now) == "Tomorrow, 3:00 PM"
+    assert _format_event_start("2026-07-14T15:00:00-04:00", now) == "Tomorrow, 3 PM"
     assert _format_event_start("2026-07-19T23:59:00-04:00", now) == "Jul 19, 11:59 PM"
     assert (
         _format_event_start("2027-01-03T14:00:00-05:00", now)
-        == "Jan 3, 2027 \u00b7 2:00 PM"
+        == "Jan 3, 2027 \u00b7 2 PM"
     )
     assert _format_event_start(None, now) == "Time unavailable"
 
@@ -994,7 +1451,7 @@ def test_trade_card_view_uses_real_metric_and_recommendation_values():
     card = _trade_card_view(play, recommendation, now)
 
     assert card == {
-        "event_time": "Tomorrow, 3:00 PM",
+        "event_time": "Tomorrow, 3 PM",
         "trader_bet_amount": 2036.42,
         "trader_average_entry_price": 0.405,
         "relative_bet_size": 3.5,
@@ -1049,6 +1506,38 @@ def test_trade_feed_bulk_loads_personal_exposure_once(app_client, monkeypatch):
     assert response.status_code == 200
     assert response.get_json()["pagination"]["total"] == 2
     assert calls == 1
+
+
+def test_today_dashboard_shows_qualified_play_before_two_hour_tracking_gate(
+    app_client, monkeypatch
+):
+    import trade_scoring
+
+    fixed_now = datetime(2026, 7, 13, 16, 0, tzinfo=timezone.utc)
+
+    class FixedDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return fixed_now if tz is None else fixed_now.astimezone(tz)
+
+    monkeypatch.setattr(trade_scoring, "datetime", FixedDateTime)
+    service = app_client.application.extensions["tracker_service"]
+    trade = {
+        **_actionable_trade(),
+        "event_date_et": "2026-07-13T19:00:00-04:00",
+        "event_time_et": "2026-07-13T19:00:00-04:00",
+    }
+    service._cache["trades_to_play"] = [trade]
+    monkeypatch.setattr(service, "evaluate_recommendation", _positive_evaluation)
+
+    response = app_client.get("/api/trades-to-play?date_range=today")
+    tracking = service.reconcile_model_tracker([trade], fixed_now)
+
+    assert response.status_code == 200
+    assert response.get_json()["pagination"]["total"] == 1
+    assert response.get_json()["data"][0]["id"] == trade["id"]
+    assert tracking["records_inserted"] == 0
+    assert tracking["deferred_until_pregame"] == 1
 
 
 def test_trade_feed_includes_polymarket_execution_option(app_client, monkeypatch):

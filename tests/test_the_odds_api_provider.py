@@ -262,6 +262,54 @@ def _provider(start: datetime) -> tuple[TheOddsAPIProvider, FakeSession]:
     )
 
 
+def test_historical_close_uses_last_snapshot_before_provider_commence() -> None:
+    official = datetime(2026, 8, 3, 22, 40, tzinfo=timezone.utc)
+    provider_commence = official + timedelta(minutes=1)
+    payload = {
+        "timestamp": (official + timedelta(seconds=38)).isoformat(),
+        "data": {
+            "id": "event-1",
+            "sport_key": "baseball_mlb",
+            "commence_time": provider_commence.isoformat(),
+            "bookmakers": [
+                {
+                    "key": "novig",
+                    "title": "NoVIG",
+                    "markets": [
+                        {
+                            "key": "h2h",
+                            "last_update": (official + timedelta(seconds=18)).isoformat(),
+                            "outcomes": [
+                                {"name": "Philadelphia Phillies", "price": -147},
+                                {"name": "Washington Nationals", "price": 138},
+                            ],
+                        }
+                    ],
+                }
+            ],
+        },
+    }
+    session = FakeSession(payload)
+    provider = TheOddsAPIProvider("key", session=session)
+
+    quote = provider.historical_pregame_quote(
+        league="MLB",
+        event_id="event-1",
+        bookmaker="novig",
+        market_kind="moneyline",
+        selection="Washington Nationals",
+        official_start=official.isoformat(),
+    )
+
+    assert quote is not None
+    option = quote["execution_option"]
+    assert option["providerKey"] == "oddsapi__novig"
+    assert option["displayOdds"] == "+138"
+    assert option["bestExecutablePrice"] == pytest.approx(100 / 238)
+    assert datetime.fromisoformat(quote["quote_timestamp"]) < provider_commence
+    assert session.calls[0]["params"]["date"] == "2026-08-03T22:41:00Z"
+
+
 def test_returns_every_exact_bookmaker_and_ranks_best_american_price() -> None:
     start = datetime.now(timezone.utc) + timedelta(hours=4)
     provider, _session = _provider(start)
@@ -325,7 +373,10 @@ def test_cache_prevents_frontend_polling_from_spending_more_credits() -> None:
     provider.options_for_trades([trade])
 
     assert len(session.calls) == 1
-    assert session.calls[0]["params"]["regions"] == "us"
+    assert session.calls[0]["params"]["bookmakers"] == (
+        "kalshi,novig,polymarket,prophetx"
+    )
+    assert "regions" not in session.calls[0]["params"]
     assert session.calls[0]["params"]["markets"] == "h2h"
     assert session.calls[0]["params"]["includeLinks"] == "true"
     assert session.calls[0]["params"]["includeSids"] == "true"
@@ -433,6 +484,37 @@ def test_wnba_alternate_spreads_and_totals_use_event_level_endpoints() -> None:
         call["params"]["markets"] for call in event_calls
     } == {"alternate_spreads", "alternate_totals"}
     assert all(call["params"]["regions"] == "us,us2" for call in event_calls)
+
+
+def test_standard_labeled_trade_can_match_exact_alternate_book_line() -> None:
+    start = datetime.now(timezone.utc) + timedelta(hours=4)
+    session = AlternateSession(start)
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        regions=("us",),
+        markets=("h2h",),
+        default_sports=("basketball_wnba",),
+        session=session,
+    )
+    trade = {
+        "id": "trade-wnba-spread",
+        "canonical_sport_id": "BASKETBALL",
+        "canonical_league_id": "WNBA",
+        "event_title": "Chicago Sky vs New York Liberty",
+        "market_title": "Spread: New York Liberty (-7.5)",
+        "sports_market_type": "Spread",
+        "market_line": -7.5,
+        "outcome": "Chicago Sky",
+        "event_date_et": start.isoformat(),
+    }
+
+    options = provider.options_for_trades([trade])
+
+    assert options["trade-wnba-spread"][0].american_odds == -105
+    assert any(
+        call["params"].get("markets") == "alternate_spreads"
+        for call in session.calls
+    )
 
 
 def test_alternate_event_level_results_are_cached() -> None:
@@ -595,7 +677,7 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
     )
     monkeypatch.setattr(
         provider,
-        "options_for_trades",
+        "screen_options_for_trades",
         lambda trades: {
             str(item["id"]): [option]
             for item in trades
@@ -604,7 +686,7 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
     )
 
     response = app_client.get(
-        "/api/odds-screen?league=MLB&market=moneyline"
+        "/api/odds-screen?active=1&league=MLB&market=moneyline"
     )
 
     assert response.status_code == 200
@@ -643,3 +725,44 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
     assert fanduel_option["bestExecutablePrice"] == pytest.approx(100 / 210)
     assert fanduel_option["isStale"] is False
     assert fanduel_option["marketStatus"] == "OPEN"
+
+
+def test_odds_screen_preserves_both_moneyline_sides(
+    app_client, monkeypatch
+) -> None:
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item
+        for item in registry.providers
+        if item.provider_key == "the_odds_api"
+    )
+    start = datetime.now(timezone.utc) + timedelta(hours=4)
+    base = {
+        **_trade(start, stake=0),
+        "event_id": "two-sided-event",
+        "event_title": "San Diego Padres vs Miami Marlins",
+        "market_id": "two-sided-moneyline",
+        "condition_id": "two-sided-moneyline",
+        "sports_market_type": "Moneyline",
+        "schedule_date_et": start.astimezone().date().isoformat(),
+        "is_sports": True,
+    }
+    rows = [
+        {**base, "id": "padres-moneyline", "outcome": "San Diego Padres"},
+        {**base, "id": "marlins-moneyline", "outcome": "Miami Marlins"},
+    ]
+    monkeypatch.setattr(
+        provider, "odds_screen_rows", lambda **_kwargs: [dict(row) for row in rows]
+    )
+    monkeypatch.setattr(
+        provider, "screen_options_for_trades", lambda _rows: {}
+    )
+
+    response = app_client.get("/api/odds-screen?active=1&league=MLB")
+
+    assert response.status_code == 200
+    assert {
+        row["outcome"]
+        for row in response.get_json()["data"]
+        if row.get("event_id") == "two-sided-event"
+    } == {"San Diego Padres", "Miami Marlins"}

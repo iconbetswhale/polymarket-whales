@@ -2,27 +2,38 @@
 {% block content %}
 <header class="page-header tracker-page-header">
   <div>
-    <p class="eyebrow" id="tracker-eyebrow">PERFORMANCE TRACKING</p>
-    <div class="title-line"><h1>Bet Tracker</h1><span class="result-badge" id="tracker-result-count">Loading</span><span class="status-label stale" id="tracker-job-state">Tracking: Loading</span></div>
-    <p class="tracker-subtitle" id="tracker-subtitle">Loading your selected tracker view.</p>
+    <p class="eyebrow" id="tracker-eyebrow">PERFORMANCE</p>
+    <div class="title-line"><h1 id="tracker-page-title">Dashboard</h1><span id="tracker-result-count" hidden>Loading</span><span id="tracker-job-state" hidden>Tracking: Loading</span></div>
+    <p class="tracker-subtitle" id="tracker-subtitle"></p>
   </div>
   <div class="tracker-header-actions">
-    <div class="bankroll-inline" id="model-bankroll-control">Model Replay Bankroll <strong id="tracker-starting-bankroll">Loading</strong><button class="bankroll-edit" id="tracker-bankroll-edit" type="button">Edit</button></div>
-    <div class="bankroll-inline" id="personal-bankroll-control" hidden>Personal Tracker Starting Bankroll <strong id="personal-starting-bankroll">Loading</strong><button class="bankroll-edit" id="personal-bankroll-edit" type="button">Edit</button></div>
-    <button class="button ghost compact" id="tracker-admin-open" type="button"><i class="ph ph-wrench" aria-hidden="true"></i>Admin diagnostics</button>
+    <div id="model-bankroll-control">
+      <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll">
+        <span>Bankroll</span><strong id="tracker-starting-bankroll">Loading</strong>
+      </button>
+    </div>
+    <button class="tracker-bankroll-control" id="personal-bankroll-control" type="button" hidden aria-label="Edit personal tracker bankroll">
+      <span>Bankroll</span><strong id="personal-starting-bankroll">Loading</strong>
+    </button>
+    <button id="tracker-admin-open" type="button" hidden aria-hidden="true" tabindex="-1">Admin diagnostics</button>
     <button class="button primary compact" id="personal-manual-action" type="button" hidden><i class="ph ph-pencil-simple-line" aria-hidden="true"></i>Add manual bet</button>
     <a class="button primary compact" id="personal-track-action" href="/trades" hidden><i class="ph ph-plus" aria-hidden="true"></i>Track a trade</a>
   </div>
 </header>
 
-<section class="tracker-switcher-shell" aria-label="Select tracker view">
-  <div class="tracker-view-toggle" id="tracker-view-toggle" role="tablist" aria-label="Tracker view">
-    <button type="button" role="tab" data-tracker-view="model" aria-selected="false" tabindex="-1"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span><strong>Model Tracker</strong><small>Automatic recommendations</small></span></button>
-    <button type="button" role="tab" data-tracker-view="personal" aria-selected="false" tabindex="-1"><i class="ph ph-user-focus" aria-hidden="true"></i><span><strong>Personal Tracker</strong><small>Manually confirmed bets</small></span></button>
+<nav class="tracker-section-tabs" id="tracker-section-tabs" role="tablist" aria-label="Tracker pages">
+  <button class="active" type="button" role="tab" data-tracker-section="dashboard" aria-selected="true">Dashboard</button>
+  <button type="button" role="tab" data-tracker-section="bets" aria-selected="false">Bet Tracker</button>
+</nav>
+
+<section class="tracker-switcher-shell" aria-label="Select tracker view" hidden>
+  <div class="tracker-view-toggle" id="tracker-view-toggle" role="tablist" aria-label="Tracker data source">
+    <button type="button" role="tab" data-tracker-view="model" aria-selected="false" tabindex="-1"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span><strong>Model</strong></span></button>
+    <button type="button" role="tab" data-tracker-view="personal" aria-selected="false" tabindex="-1"><i class="ph ph-user-focus" aria-hidden="true"></i><span><strong>Personal</strong></span></button>
   </div>
 </section>
 
-<section class="panel tracker-context" id="tracker-context" aria-live="polite">
+<section class="panel tracker-context" id="tracker-context" aria-live="polite" hidden>
   <i class="ph ph-info" id="tracker-context-icon" aria-hidden="true"></i>
   <div><strong id="tracker-context-title">Loading tracker</strong><p id="tracker-context-copy">Your Model and Personal records remain financially separate.</p></div>
 </section>
@@ -33,42 +44,108 @@
   <div class="diagnostic-rejections"><div class="panel-header"><div><p class="eyebrow">REJECTION LOG</p><h2>Today recommendations not tracked</h2></div></div><div class="responsive-table"><table><thead><tr><th>Event / Market</th><th>Selection</th><th>Event time</th><th>Entry</th><th>Fraction</th><th>Amount</th><th>Reason</th><th>Evaluated</th></tr></thead><tbody id="tracker-rejection-body"></tbody></table></div></div>
 </section>
 
-<div class="tracker-dashboard-grid">
+<div class="tracker-dashboard-grid" id="tracker-dashboard-view" data-tracker-section-panel="dashboard">
   <div class="tracker-dashboard-main">
-    <section class="panel chart-panel tracker-bankroll-panel">
-      <div class="panel-header"><div><p class="eyebrow" id="tracker-chart-eyebrow">BANKROLL REPLAY</p><h2 id="tracker-chart-title">Simulated bankroll</h2></div><div class="segmented" id="graph-range"><button data-range="today" type="button">Today</button><button data-range="week" type="button">This Week</button><button class="active" data-range="month" type="button">This Month</button><button data-range="year" type="button">This Year</button></div></div>
-      <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Tracker performance over time"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
+    <section class="panel chart-panel tracker-bankroll-panel" data-performance-view="chart">
+      <div class="tracker-performance-header">
+        <div class="tracker-period-heading">
+          <button class="tracker-period-step" id="tracker-period-previous" type="button" aria-label="Previous period"><i class="ph ph-caret-left" aria-hidden="true"></i></button>
+          <div><p class="eyebrow" id="tracker-chart-eyebrow">BANKROLL REPLAY</p><h2 id="tracker-chart-title">This Month</h2></div>
+          <strong id="tracker-period-profit">$0.00</strong>
+        </div>
+        <div class="tracker-performance-controls">
+          <div class="tracker-visual-toggle" role="tablist" aria-label="Performance visualization">
+            <button class="active" type="button" role="tab" data-tracker-visual="chart" aria-selected="true"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span>Chart</span></button>
+            <button type="button" role="tab" data-tracker-visual="calendar" aria-selected="false"><i class="ph ph-calendar-dots" aria-hidden="true"></i><span>Calendar</span></button>
+          </div>
+          <button class="tracker-period-step" id="tracker-period-next" type="button" aria-label="Next period"><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+        </div>
+      </div>
+      <div class="tracker-performance-frame">
+        <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Tracker cumulative profit over time"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
+        <div class="tracker-calendar" id="tracker-calendar" role="grid" aria-label="Daily tracker profit and loss" hidden></div>
+      </div>
+      <div class="tracker-performance-summary" id="tracker-performance-summary" aria-live="polite">
+        <div><span>Profit</span><strong id="tracker-summary-profit">$0.00</strong></div>
+        <div><span>CLV</span><strong id="tracker-summary-clv">—</strong><small id="tracker-summary-clv-bets">0 bets</small></div>
+        <div><span>ROI</span><strong id="tracker-summary-roi">0.00%</strong></div>
+        <div><span>Record</span><strong id="tracker-summary-record">0-0-0</strong></div>
+      </div>
+      <div class="tracker-performance-meta"><span id="tracker-performance-updated">Updated: just now</span><span><i class="ph-fill ph-seal-check" aria-hidden="true"></i> Verified</span></div>
     </section>
 
-    <section class="metric-grid tracker-metrics" id="tracker-metrics" aria-live="polite"></section>
+    <section class="tracker-profit-panel" aria-labelledby="tracker-profit-title">
+      <div class="tracker-profit-header">
+        <h2 id="tracker-profit-title">Profit Over Time</h2>
+        <div class="tracker-profit-controls">
+          <select id="tracker-dashboard-tag-filter" aria-label="Filter tracker activity">
+            <option value="">Tags</option>
+            <option value="live">Live bets</option>
+            <option value="won">Wins</option>
+            <option value="lost">Losses</option>
+          </select>
+          <details class="tracker-book-filter" id="tracker-book-filter">
+            <summary><i class="ph ph-buildings" aria-hidden="true"></i><span id="tracker-book-filter-label">All sportsbooks</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+            <div class="tracker-book-filter-popover">
+              <div class="tracker-book-filter-actions"><button type="button" data-tracker-books="all">Select all</button><button type="button" data-tracker-books="none">Deselect all</button></div>
+              <div class="tracker-book-filter-options" id="tracker-book-filter-options"></div>
+              <button class="button primary compact" id="tracker-book-filter-apply" type="button">Apply books</button>
+            </div>
+          </details>
+          <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 days</option><option value="28" selected>Last 28 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option><option value="all">All time</option></select>
+          <div class="segmented" id="graph-range"><button data-range="today" type="button">Daily</button><button data-range="week" type="button">Weekly</button><button class="active" data-range="month" type="button">Monthly</button><button data-range="year" type="button">Yearly</button></div>
+        </div>
+      </div>
+      <div class="tracker-custom-dates">
+        <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
+        <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
+      </div>
+      <div class="tracker-profit-grid" id="tracker-profit-grid" aria-live="polite">
+        <div><span>Total Profit</span><strong id="tracker-profit-total">$0.00</strong></div>
+        <div><span>Total Stake</span><strong id="tracker-total-stake">$0.00</strong></div>
+        <div><span>Pending Bets</span><strong id="tracker-pending-bets">$0.00</strong></div>
+        <div><span>Pot. Payout</span><strong id="tracker-potential-payout">$0.00</strong></div>
+        <div><span>Profit Margin Per Wager</span><strong id="tracker-profit-margin">0.00%</strong></div>
+        <div><span>Beat CLV</span><strong id="tracker-beat-clv">—</strong></div>
+        <div><span>Total Bets</span><strong id="tracker-total-bets">0</strong></div>
+        <div><span>% Bets Won</span><strong id="tracker-bets-won">—</strong></div>
+      </div>
+    </section>
+
+    <section class="tracker-clv-card" id="tracker-clv-card" aria-labelledby="tracker-clv-card-title">
+      <div class="tracker-clv-card-heading">
+        <div><i class="ph-fill ph-seal-check" aria-hidden="true"></i><h2 id="tracker-clv-card-title">Closing Line Value</h2></div>
+        <button class="tracker-clv-help" type="button" aria-label="About closing line value" title="CLV compares your entry with a verified pre-game close."><i class="ph ph-question" aria-hidden="true"></i></button>
+      </div>
+      <button class="tracker-clv-card-body" id="tracker-clv-open" type="button" aria-label="View closing line value details">
+        <span><strong id="tracker-clv-card-ev">—</strong><small>Expected Value</small></span>
+        <span><strong id="tracker-clv-card-beat">—</strong><small>Bets Beating CLV</small></span>
+        <span class="tracker-clv-glow" aria-hidden="true"></span>
+      </button>
+      <div class="tracker-clv-range" id="tracker-clv-card-range" role="tablist" aria-label="Closing line value period">
+        <button type="button" data-clv-range="today">TDAY</button><button type="button" data-clv-range="yesterday">YDAY</button><button class="active" type="button" data-clv-range="7d">1W</button><button type="button" data-clv-range="month">1M</button><button type="button" data-clv-range="year">1Y</button><button type="button" data-clv-range="all">ALL</button>
+      </div>
+      <button class="tracker-clv-view-more" id="tracker-clv-view-more" type="button">View more CLV <i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+    </section>
+
+    <section class="metric-grid tracker-metrics" id="tracker-metrics" aria-live="polite" hidden></section>
   </div>
 
-  <section class="panel chart-panel clv-panel tracker-clv-panel">
-    <div class="panel-header"><div><p class="eyebrow">CLOSING LINE VALUE</p><h2>Daily stake-weighted CLV</h2><p>Provider-specific entry quality at the pre-event close. This is separate from P&amp;L.</p></div></div>
-    <div class="clv-period-strip" id="clv-period-strip" aria-label="CLV period metrics"></div>
-    <div class="tracker-chart" id="clv-chart" role="img" aria-label="Daily stake-weighted closing line value"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
-  </section>
 </div>
 
-<section class="panel tracker-advanced-panel" id="tracker-advanced-panel">
-  <div class="panel-header"><div><p class="eyebrow">PLAYED VERSUS PASSED</p><h2>Model evidence by segment</h2><p>Composite CLV, execution, grade, sport, timing, and Sharp attribution from immutable Candidate Ledger records.</p></div><select id="tracker-analytics-dimension" aria-label="Analytics dimension"><option value="sport">Sport</option><option value="wallet">Sharp</option><option value="time_to_event_bucket">Timing</option><option value="trade_grade">Trade grade</option><option value="liquidity_grade">Liquidity</option><option value="execution_method">Execution method</option><option value="decision_class">Played versus passed</option></select></div>
+<details class="panel tracker-advanced-panel" id="tracker-advanced-panel" hidden>
+  <summary><span><i class="ph ph-chart-pie-slice" aria-hidden="true"></i>Performance breakdown</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+  <div class="panel-header"><div><h2>By segment</h2></div><select id="tracker-analytics-dimension" aria-label="Analytics dimension"><option value="sport">Sport</option><option value="wallet">Sharp</option><option value="time_to_event_bucket">Timing</option><option value="trade_grade">Trade grade</option><option value="liquidity_grade">Liquidity</option><option value="execution_method">Execution method</option><option value="decision_class">Played versus passed</option></select></div>
   <div class="tracker-analytics-summary" id="tracker-analytics-summary"></div>
   <div class="responsive-table"><table class="tracker-analytics-table"><thead><tr><th>Segment</th><th>Status</th><th>Candidates</th><th>Played</th><th>Passed</th><th>Settled</th><th>ROI</th><th>Composite CLV</th><th>Execution loss</th></tr></thead><tbody id="tracker-analytics-body"><tr><td colspan="9">Loading analytics…</td></tr></tbody></table></div>
-</section>
+</details>
 
+<section class="tracker-bets-view" id="tracker-bets-view" data-tracker-section-panel="bets" hidden>
 <section class="toolbar tracker-toolbar">
   <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-search" type="search" placeholder="Search event, market, trader"></label>
-  <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 days</option><option value="28" selected>Last 28 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option><option value="all">All time</option></select>
-  <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
-  <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
-  <details class="tracker-book-filter" id="tracker-book-filter">
-    <summary><i class="ph ph-buildings" aria-hidden="true"></i><span id="tracker-book-filter-label">All books</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
-    <div class="tracker-book-filter-popover">
-      <div class="tracker-book-filter-actions"><button type="button" data-tracker-books="all">Select all</button><button type="button" data-tracker-books="none">Deselect all</button></div>
-      <div class="tracker-book-filter-options" id="tracker-book-filter-options"></div>
-      <button class="button primary compact" id="tracker-book-filter-apply" type="button">Apply books</button>
-    </div>
-  </details>
+  <details class="tracker-more-filters">
+    <summary><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span>Filters</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+    <div class="tracker-more-filter-grid">
   <select id="tracker-tag" class="personal-tracker-filter" aria-label="Personal bet tag" hidden><option value="">All tags</option></select>
   <select id="tracker-sharp-wallet" aria-label="Sharp wallet"><option value="">All Sharps</option></select>
   <select id="tracker-status" aria-label="Tracker status"><option value="">All statuses</option><option value="scheduled">Scheduled</option><option value="live">Live</option><option value="won">Won</option><option value="lost">Lost</option><option value="push">Push</option><option value="void">Void</option><option value="unresolved">Unresolved</option><option value="canceled">Canceled</option></select>
@@ -81,11 +158,73 @@
   <label class="compact-number-filter">Min CLV%<input id="tracker-clv-min" type="number" step="0.01" inputmode="decimal"></label>
   <label class="compact-number-filter">Max CLV%<input id="tracker-clv-max" type="number" step="0.01" inputmode="decimal"></label>
   <select id="tracker-clv-sort" aria-label="Sort CLV"><option value="">Default order</option><option value="highest_pct">Highest CLV%</option><option value="lowest_pct">Lowest CLV%</option><option value="highest_cents">Highest CLV cents</option><option value="closing_date">Newest close</option><option value="entry_price">Entry price</option><option value="closing_price">Closing price</option></select>
+    </div>
+  </details>
 </section>
 
 <section class="tracker-book-summary" id="tracker-book-summary" aria-label="Sportsbook profit and loss"></section>
 
-<section class="panel table-panel"><div class="responsive-table tracker-table"><table><thead><tr id="tracker-table-head"></tr></thead><tbody id="tracker-body"><tr><td><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr></tbody></table></div><div class="pagination" id="tracker-pagination"></div></section>
+<section class="panel table-panel">
+  <div class="tracker-mobile-bet-list" id="tracker-mobile-bet-list" aria-live="polite"></div>
+  <div class="responsive-table tracker-table"><table><thead><tr id="tracker-table-head"></tr></thead><tbody id="tracker-body"><tr><td><div class="tracker-loading-state"><span></span><span></span><span></span></div></td></tr></tbody></table></div>
+  <div class="pagination" id="tracker-pagination"></div>
+</section>
+</section>
+
+<dialog class="tracker-clv-dialog" id="tracker-clv-dialog" aria-labelledby="tracker-clv-dialog-title">
+  <div class="tracker-clv-dialog-shell">
+    <header class="tracker-clv-dialog-header">
+      <button class="tracker-clv-back" id="tracker-clv-close" type="button" aria-label="Close closing line value"><i class="ph ph-caret-left" aria-hidden="true"></i></button>
+      <div><i class="ph-fill ph-seal-check" aria-hidden="true"></i><h2 id="tracker-clv-dialog-title">CLV</h2></div>
+      <button class="tracker-clv-link" id="tracker-clv-view-bets" type="button">View all bets</button>
+    </header>
+    <div class="tracker-clv-dialog-ranges" id="tracker-clv-dialog-range" role="tablist" aria-label="CLV date range">
+      <button type="button" data-clv-range="today">Day</button><button type="button" data-clv-range="yesterday">Yesterday</button><button class="active" type="button" data-clv-range="7d">Week</button><button type="button" data-clv-range="month">Month</button><button type="button" data-clv-range="year">Year</button><button type="button" data-clv-range="all">All</button>
+    </div>
+    <p class="tracker-clv-coverage" id="tracker-clv-coverage">Loading verified CLV data…</p>
+    <section class="tracker-clv-detail-card">
+      <button class="tracker-clv-method-button" id="tracker-clv-preferences-open" type="button"><span id="tracker-clv-method-label">Respective Sportsbook</span><i class="ph-fill ph-gear" aria-hidden="true"></i></button>
+      <div class="tracker-clv-detail-metrics"><span><strong id="tracker-clv-detail-ev">—</strong><small>Expected Value</small></span><span><strong id="tracker-clv-detail-beat">—</strong><small>Bets Beating CLV</small></span></div>
+    </section>
+    <h3>CLV Bets Breakdown</h3>
+    <section class="tracker-clv-breakdown">
+      <div class="tracker-clv-donut" id="tracker-clv-donut" role="img" aria-label="CLV bets breakdown"><span><strong id="tracker-clv-donut-value">—</strong></span></div>
+      <div class="tracker-clv-breakdown-bars">
+        <div><span><i class="positive" id="tracker-clv-positive-bar"></i></span><strong id="tracker-clv-positive-value">—</strong><em>+CLV</em></div>
+        <div><span><i class="negative" id="tracker-clv-negative-bar"></i></span><strong id="tracker-clv-negative-value">—</strong><em>-CLV</em></div>
+        <div><span><i class="even" id="tracker-clv-even-bar"></i></span><strong id="tracker-clv-even-value">—</strong><em>Even</em></div>
+      </div>
+    </section>
+    <section class="tracker-clv-unavailable" id="tracker-clv-unavailable" hidden><i class="ph ph-info" aria-hidden="true"></i><p>No verified closing prices match this preference and period.</p></section>
+  </div>
+</dialog>
+
+<dialog class="tracker-clv-dialog tracker-clv-preferences-dialog" id="tracker-clv-preferences-dialog" aria-labelledby="tracker-clv-preferences-title">
+  <form class="tracker-clv-dialog-shell" id="tracker-clv-preferences-form" method="dialog">
+    <header class="tracker-clv-dialog-header">
+      <button class="tracker-clv-back" id="tracker-clv-preferences-close" type="button" aria-label="Back to CLV"><i class="ph ph-caret-left" aria-hidden="true"></i></button>
+      <h2 id="tracker-clv-preferences-title">CLV Preferences</h2><span></span>
+    </header>
+    <p class="tracker-clv-preferences-copy">Choose how your entry odds are compared with verified closing lines.</p>
+    <div class="tracker-clv-preference-list">
+      <label><span><strong>Best Available</strong><small>Best verified closing price captured for each bet</small></span><input type="radio" name="clv-method" value="best"></label>
+      <label><span><strong>No-Vig Fair Odds</strong><small>Requires Pinnacle, Circa, BookMaker, BetOnline, and NoVIG or ProphetX</small></span><input type="radio" name="clv-method" value="novig"></label>
+      <label><span><strong>Custom Book Selection</strong><small>Use only verified closes from sportsbooks you select</small><button id="tracker-clv-books-open" type="button"><span id="tracker-clv-books-label">Choose sportsbooks</span><i class="ph ph-caret-down" aria-hidden="true"></i></button></span><input type="radio" name="clv-method" value="custom"></label>
+      <label><span><strong>Respective Sportsbook</strong><small>Use the verified close from the sportsbook where the bet was placed</small></span><input type="radio" name="clv-method" value="respective" checked></label>
+    </div>
+    <button class="tracker-clv-save" id="tracker-clv-preferences-save" type="submit">Save preference</button>
+  </form>
+</dialog>
+
+<dialog class="tracker-clv-dialog tracker-clv-books-dialog" id="tracker-clv-books-dialog" aria-labelledby="tracker-clv-books-title">
+  <div class="tracker-clv-dialog-shell">
+    <header class="tracker-clv-dialog-header"><button class="tracker-clv-back" id="tracker-clv-books-close" type="button" aria-label="Back to CLV preferences"><i class="ph ph-caret-left" aria-hidden="true"></i></button><h2 id="tracker-clv-books-title">Sportsbook Preference</h2><span></span></header>
+    <p class="tracker-clv-preferences-copy">Select the sportsbooks whose verified closing lines should calculate your CLV.</p>
+    <div class="tracker-clv-book-grid" id="tracker-clv-book-grid"></div>
+    <button class="tracker-clv-save" id="tracker-clv-books-save" type="button">Save changes</button>
+    <button class="tracker-clv-reset" id="tracker-clv-books-reset" type="button">Reset</button>
+  </div>
+</dialog>
 
 <dialog class="tracker-dialog tracker-sharp-source-dialog" id="sharp-source-dialog" aria-labelledby="sharp-source-title">
   <div class="tracker-dialog-shell">

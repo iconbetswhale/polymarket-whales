@@ -10,17 +10,25 @@ import hashlib
 import hmac
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlencode
 from zoneinfo import ZoneInfo
 
 import requests
-from flask import Flask, g, jsonify, redirect, render_template, request, url_for
+from flask import Flask, g, jsonify, make_response, redirect, render_template, request, url_for
 
 from bet_tracker import replay_tracker
-from clv import clv_period_analytics, clv_trend, safe_float as clv_float
+from clv import (
+    calculate_clv_preferences,
+    clv_period_analytics,
+    clv_trend,
+    safe_float as clv_float,
+)
 from config import get_settings
 from database import SettingsVersionConflict
 from execution_providers import (
     ProviderHealthStatus,
+    american_to_probability,
+    apply_best_execution_option,
     build_execution_provider_registry,
     canonicalize_trade,
 )
@@ -42,7 +50,11 @@ from personal_positions import (
     executable_sell_quote,
     personal_realized_pnl_summary,
 )
-from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from position_tracker import (
+    MODEL_TRACKER_USER_ID,
+    SHADOW_TRACKER_USER_ID,
+    TrackerService,
+)
 from risk_engine import bankroll_buckets, risk_state
 from learning_system import (
     EDGE_MAP_VERSION,
@@ -62,8 +74,24 @@ from sharp_tracking import (
     sharp_snapshot_from_model,
     tracker_identity,
 )
-from model_tracker_discord import build_discord_connection_test_payload
+from model_tracker_discord import (
+    build_model_tracker_discord_payload,
+)
+from model_tracker_checkpoint import timing_outlook
+from sharp_money_sandbox import sandbox_payload
+from sharp_money_live import build_sharp_money_collector
 from trade_scoring import filter_trades_to_play
+from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
+from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
+from specialist_strategy import SHARPS as SPECIALIST_WALLETS
+from ev_optimizer import (
+    ALTERNATE_MARKETS,
+    DEFAULT_EXECUTION_BOOKS,
+    DEFAULT_SOURCE_WEIGHTS,
+    MAIN_MARKETS,
+    PLAYER_PROP_MARKETS,
+    build_ev_board,
+)
 from whiteboard import (
     canonical_trade_identity as whiteboard_identity,
     dynamic_whiteboard_state,
@@ -78,7 +106,9 @@ LOGGER = logging.getLogger(__name__)
 EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
 AUTH_SESSION_COOKIE = "iconbets_session"
+OAUTH_STATE_COOKIE = "iconbets_oauth_state"
 ADMIN_COOKIE = "iconbets_tracker_admin"
+WALLET_PAGE_COOKIE = "iconbets_wallet_unlocked"
 AUTH_SESSION_DAYS = 30
 PASSWORD_ITERATIONS = 310_000
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
@@ -102,6 +132,7 @@ def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> lis
             "clv_pct": None,
             "clv_cents": None,
         }
+        row["clv_preferences"] = calculate_clv_preferences(row["clv"])
     return rows
 
 
@@ -265,6 +296,36 @@ def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
     }
 
 
+def _tracker_period_summary(rows: list[dict], cutoff: datetime) -> dict:
+    period_rows = []
+    for row in rows:
+        occurred_at = _parse_datetime(
+            row.get("settled_at")
+            or row.get("tracked_at")
+            or row.get("created_at")
+            or (row.get("snapshot") or {}).get("event_start_time")
+        )
+        if occurred_at is not None and occurred_at >= cutoff:
+            period_rows.append(row)
+    wins = sum(1 for row in period_rows if str(row.get("result") or row.get("status") or "").lower() == "won")
+    losses = sum(1 for row in period_rows if str(row.get("result") or row.get("status") or "").lower() == "lost")
+    pushes = sum(1 for row in period_rows if str(row.get("result") or row.get("status") or "").lower() in {"push", "void", "canceled"})
+    realized = sum(_safe_float(row.get("profit_loss")) for row in period_rows if row.get("profit_loss") is not None)
+    settled_wagered = sum(
+        _safe_float(row.get("position_cost") or row.get("recommended_amount"))
+        for row in period_rows
+        if str(row.get("result") or row.get("status") or "").lower() in {"won", "lost", "push", "void", "canceled"}
+    )
+    return {
+        "realized_profit_loss": realized,
+        "roi": realized / settled_wagered if settled_wagered > 0 else 0,
+        "wins": wins,
+        "losses": losses,
+        "pushes_voids": pushes,
+        "settled_wagered": settled_wagered,
+    }
+
+
 def _selected_sportsbooks(value: object) -> set[str]:
     return {
         normalize_sportsbook(item).casefold()
@@ -320,6 +381,14 @@ def _valid_email(value: str) -> bool:
     return bool(re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", value))
 
 
+def _normalize_username(value: object) -> str:
+    return re.sub(r"[^a-z0-9_]", "", str(value or "").strip().lower())
+
+
+def _valid_username(value: str) -> bool:
+    return bool(re.fullmatch(r"[a-z0-9_]{3,24}", value))
+
+
 def _password_digest(password: str, salt: bytes, iterations: int) -> str:
     return hashlib.pbkdf2_hmac(
         "sha256", password.encode("utf-8"), salt, iterations
@@ -335,6 +404,62 @@ def _safe_float(value, default: float = 0.0) -> float:
         return float(value if value is not None else default)
     except (TypeError, ValueError):
         return default
+
+
+def _optional_float(value) -> float | None:
+    try:
+        return float(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _wallet_roster_summary(row: dict) -> dict:
+    """Return the compact, audited metrics used by the Sharp Wallet roster."""
+    wallet = dict(row)
+    forensics = wallet.get("wallet_forensics") or {}
+    category_stats = wallet.get("top_category_stats") or {}
+
+    roi = _optional_float(forensics.get("corrected_roi"))
+    if roi is None:
+        roi = _optional_float(forensics.get("clean_directional_roi"))
+    if roi is None:
+        roi = _optional_float(category_stats.get("roi"))
+
+    win_rate = _optional_float(forensics.get("corrected_win_rate"))
+    if win_rate is None:
+        win_rate = _optional_float(forensics.get("clean_directional_positive_rate"))
+    if win_rate is None:
+        win_rate = _optional_float(category_stats.get("raw_hit_rate"))
+
+    play_count = forensics.get("settled_positions")
+    if play_count is None:
+        play_count = forensics.get("clean_directional_markets")
+    if play_count is None:
+        play_count = category_stats.get("sample_size")
+    if play_count is None:
+        play_count = wallet.get("historical_position_count") or 0
+
+    clv = _optional_float(
+        forensics.get("stake_weighted_exchange_clv_probability")
+    )
+    clv_sample = int(forensics.get("exchange_clv_sample") or 0)
+    wallet["roster_summary"] = {
+        "sport": "MLB",
+        "provider": "Polymarket",
+        "unit_size": _optional_float(wallet.get("base_unit")),
+        "roi": roi,
+        "win_rate": win_rate,
+        "play_count": int(play_count or 0),
+        "clv_probability_points": clv,
+        "clv_sample": clv_sample,
+        "clv_status": "CAPTURED" if clv is not None and clv_sample else "COLLECTING",
+        "clv_source": "Polymarket closing price",
+    }
+    wallet["is_active_sharp"] = str(wallet.get("address") or "").lower() in {
+        **THREE_SHARP_WALLETS,
+        **SPECIALIST_WALLETS,
+    }
+    return wallet
 
 
 def _slippage_fraction(user_entry, whale_entry) -> float | None:
@@ -429,7 +554,9 @@ def _tracker_date_bounds(args, now: datetime | None = None) -> tuple[datetime | 
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
     preset = str(args.get("tracker_range") or "28").strip().lower()
     if preset in {"7", "28", "90"}:
-        return current - timedelta(days=int(preset)), current, preset
+        # Allow small app/database clock skew so a just-frozen recommendation
+        # cannot disappear from the current tracker response.
+        return current - timedelta(days=int(preset)), current + timedelta(minutes=5), preset
     if preset == "all":
         return None, None, preset
     if preset != "custom":
@@ -467,7 +594,8 @@ def _format_event_start(value: str | None, now: datetime | None = None) -> str:
     reference_eastern = reference.astimezone(EASTERN)
     day_offset = (eastern.date() - reference_eastern.date()).days
     hour = eastern.strftime("%I").lstrip("0") or "0"
-    time_text = f"{hour}:{eastern.strftime('%M %p')}"
+    minute = eastern.strftime("%M")
+    time_text = f"{hour} {eastern.strftime('%p')}" if minute == "00" else f"{hour}:{minute} {eastern.strftime('%p')}"
 
     if day_offset == 0:
         return f"Today, {time_text}"
@@ -512,11 +640,26 @@ def create_app(start_background: bool = True) -> Flask:
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
     app.extensions["execution_providers"] = execution_providers
+    app.extensions["sharp_money_collector"] = build_sharp_money_collector(
+        execution_providers, settings
+    )
     app.extensions["polymarket_schedule_feed"] = PolymarketScheduleFeed(timeout=settings.request_timeout)
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
+    app.config["WALLET_PAGE_PASSCODE"] = (
+        os.getenv("WALLET_PAGE_PASSCODE") or ""
+    ).strip()
+    app.config["WALLET_PAGE_LOCK_SECRET"] = (
+        os.getenv("WALLET_PAGE_LOCK_SECRET")
+        or settings.admin_password
+        or settings.tracker_job_secret
+        or app.config["WALLET_PAGE_PASSCODE"]
+    )
     app.jinja_env.globals["asset_version"] = (
-        os.getenv("VERCEL_GIT_COMMIT_SHA") or os.getenv("ASSET_VERSION") or "local"
+        os.getenv("VERCEL_GIT_COMMIT_SHA")
+        or os.getenv("ASSET_VERSION")
+        or os.getenv("VERCEL_URL")
+        or "local"
     )
     app.jinja_env.globals["line_shop_refresh_interval_seconds"] = settings.line_shop_refresh_interval_seconds
 
@@ -576,14 +719,48 @@ def create_app(start_background: bool = True) -> Flask:
         user_id = account.get("user_id") if account else request.cookies.get(USER_COOKIE)
         g.iconbets_authenticated = bool(account)
         g.iconbets_account_email = account.get("email") if account else None
+        g.iconbets_account_username = account.get("username") if account else None
         g.iconbets_session_token = session_token if account else None
         g.iconbets_new_user = not bool(user_id)
         g.iconbets_user_id = user_id or secrets.token_urlsafe(24)
 
+        # Only endpoints that consume the live in-memory snapshot should pay
+        # the provider refresh cost on a cold serverless instance.
+        live_snapshot_endpoints = {
+            "health",
+            "api_status",
+            "api_overview",
+            "api_positions",
+            "api_wallets",
+            "api_trades",
+            "api_odds_screen",
+            "api_trades_to_play",
+            "api_whiteboard",
+            "api_trade_eligibility_diagnostics",
+            "api_hidden_trades",
+            "api_personal_exposure",
+            "api_personal_bets",
+            "api_consensus",
+            "api_price_history",
+            "api_refresh",
+        }
+        if request.endpoint not in live_snapshot_endpoints:
+            return
+        if request.endpoint == "api_trades_to_play" and request.args.get(
+            "fast", ""
+        ).strip().lower() in {"1", "true", "yes"}:
+            # First paint uses the already-available snapshot. The browser
+            # immediately follows with the full provider-backed refresh.
+            return
         if request.endpoint in {
             "api_model_tracker_reconcile",
             "api_prophetx_health",
             "api_fourcx_health",
+            "sharp_money_page",
+            "api_sharp_money_sandbox",
+            "api_sharp_money_status",
+            "api_sharp_money_live",
+            "api_sharp_money_control",
         }:
             return
         if (
@@ -644,6 +821,17 @@ def create_app(start_background: bool = True) -> Flask:
             user_id, _session_token_hash(token), expires_at
         )
         return token
+
+    def available_username(preferred: object) -> str:
+        base = _normalize_username(preferred)[:20] or "iconbettor"
+        if len(base) < 3:
+            base = f"{base}user"[:20]
+        candidate = base
+        suffix = 1
+        while tracker.database.get_account_by_username(candidate):
+            suffix += 1
+            candidate = f"{base[:20-len(str(suffix))]}{suffix}"
+        return candidate
 
     def present_user_settings(current: dict) -> dict:
         current = dict(current)
@@ -747,12 +935,20 @@ def create_app(start_background: bool = True) -> Flask:
     def has_job_authorization() -> bool:
         if is_admin():
             return True
-        configured = settings.tracker_job_secret or ""
         supplied = request.headers.get("Authorization", "")
         if supplied.lower().startswith("bearer "):
             supplied = supplied[7:].strip()
-        return bool(configured and supplied) and hmac.compare_digest(
-            supplied, configured
+        configured_secrets = {
+            str(secret).strip()
+            for secret in (
+                settings.tracker_job_secret,
+                os.getenv("CRON_SECRET"),
+            )
+            if str(secret or "").strip()
+        }
+        return bool(supplied) and any(
+            hmac.compare_digest(supplied, configured)
+            for configured in configured_secrets
         )
 
     def find_trade(snapshot: dict, trade_id: str) -> dict | None:
@@ -790,13 +986,13 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/")
     def index():
-        return redirect(url_for("trades_page"))
+        return render_template(
+            "home.html", title="IconLabs Trading Intelligence", page="home"
+        )
 
     @app.route("/overview")
     def overview_page():
-        return render_template(
-            "overview.html", title="IconBets Overview", page="overview"
-        )
+        return redirect(url_for("index"))
 
     @app.route("/trades")
     def trades_page():
@@ -804,9 +1000,25 @@ def create_app(start_background: bool = True) -> Flask:
             "trades.html", title="IconBets Trades to Play", page="trades"
         )
 
+    @app.route("/sharp-money")
+    def sharp_money_page():
+        return render_template(
+            "sharp_money.html",
+            title="IconBets Sharp Money",
+            page="sharp-money",
+        )
+
     @app.route("/odds-screen")
     def odds_screen_page():
         return render_template("odds_screen.html", title="IconBets Live Odds Screen", page="odds-screen")
+
+    @app.route("/positive-ev")
+    def positive_ev_page():
+        return render_template(
+            "positive_ev.html",
+            title="IconBets Positive EV",
+            page="positive-ev",
+        )
 
     @app.route("/live-positions")
     def live_positions_page():
@@ -816,9 +1028,80 @@ def create_app(start_background: bool = True) -> Flask:
             page="live-positions",
         )
 
+    def wallet_page_is_unlocked() -> bool:
+        passcode = str(app.config.get("WALLET_PAGE_PASSCODE") or "")
+        secret = str(app.config.get("WALLET_PAGE_LOCK_SECRET") or "")
+        if not passcode:
+            return True
+        supplied = request.cookies.get(WALLET_PAGE_COOKIE, "")
+        expected = hmac.new(
+            secret.encode("utf-8"),
+            f"wallet-page-unlocked-v1:{passcode}".encode("utf-8"),
+            hashlib.sha256,
+        ).hexdigest()
+        return bool(supplied) and hmac.compare_digest(supplied, expected)
+
+    @app.route("/wallets/unlock", methods=["GET", "POST"])
+    def wallet_unlock_page():
+        passcode = str(app.config.get("WALLET_PAGE_PASSCODE") or "")
+        if not passcode:
+            return redirect(url_for("wallets_page"))
+
+        error = None
+        if request.method == "POST":
+            submitted = str(request.form.get("passcode") or "").strip()
+            if hmac.compare_digest(submitted, passcode):
+                secret = str(app.config.get("WALLET_PAGE_LOCK_SECRET") or "")
+                token = hmac.new(
+                    secret.encode("utf-8"),
+                    f"wallet-page-unlocked-v1:{passcode}".encode("utf-8"),
+                    hashlib.sha256,
+                ).hexdigest()
+                destination = str(request.form.get("next") or "/wallets")
+                if not (
+                    destination == "/wallets"
+                    or destination.startswith("/wallets?")
+                ):
+                    destination = "/wallets"
+                response = make_response(redirect(destination))
+                response.set_cookie(
+                    WALLET_PAGE_COOKIE,
+                    token,
+                    httponly=True,
+                    secure=request.is_secure,
+                    samesite="Strict",
+                    path="/",
+                )
+                response.headers["Cache-Control"] = "no-store"
+                return response
+            error = "Incorrect passcode. Try again."
+
+        response = make_response(
+            render_template(
+                "wallet_unlock.html",
+                title="Unlock Sharp Wallets",
+                page="wallet-lock",
+                error=error,
+                next_path=request.args.get("next", "/wallets"),
+            ),
+            401 if error else 200,
+        )
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
     @app.route("/wallets")
     def wallets_page():
-        return render_template("wallets.html", title="IconBets Wallets", page="wallets")
+        if not wallet_page_is_unlocked():
+            response = make_response(
+                redirect(url_for("wallet_unlock_page", next=request.full_path))
+            )
+            response.headers["Cache-Control"] = "no-store"
+            return response
+        response = make_response(
+            render_template("wallets.html", title="IconBets Wallets", page="wallets")
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @app.route("/position-history")
     def position_history_page():
@@ -831,6 +1114,14 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/tracker")
     def tracker_page():
         return render_template("tracker.html", title="IconBets Tracker", page="tracker")
+
+    @app.route("/shadow-test")
+    def shadow_test_page():
+        return render_template(
+            "shadow_test.html",
+            title="IconBets Shadow Strategy Test",
+            page="shadow-test",
+        )
 
     @app.route("/edge-map")
     def edge_map_page():
@@ -883,6 +1174,32 @@ def create_app(start_background: bool = True) -> Flask:
     def api_status():
         return jsonify(tracker.get_snapshot()["status"])
 
+    @app.route("/api/risk-state")
+    def api_public_risk_state():
+        context = tracker.build_risk_context(
+            settings.default_bankroll,
+            user_id=MODEL_TRACKER_USER_ID,
+            include_personal=False,
+        )
+        account_state = context["account_state"]
+        state = risk_state(
+            account_state["current_bankroll"],
+            account_state["high_water_mark"],
+            manual_kill_switch=bool(account_state.get("manual_kill_switch")),
+            manual_reason=account_state.get("manual_reason"),
+        )
+        job = tracker.database.get_tracking_job_state()
+        return jsonify(
+            {
+                "data": {
+                    "risk_state": state,
+                    "tracking_paused": bool(job.get("paused")),
+                    "tracking_status": job.get("status"),
+                    "last_successful_run": job.get("last_successful_run"),
+                }
+            }
+        )
+
     @app.route("/api/provider-health/prophetx", methods=["GET", "POST"])
     def api_prophetx_health():
         if request.method == "POST" and not has_job_authorization():
@@ -914,17 +1231,59 @@ def create_app(start_background: bool = True) -> Flask:
     def api_discord_notification_test():
         if not has_job_authorization():
             return jsonify({"status": "unauthorized"}), 401
-        nonce = str((request.get_json(silent=True) or {}).get("nonce") or "")
-        result = tracker.model_discord_bot.send(
-            build_discord_connection_test_payload(nonce)
-        )
-        if result.delivered:
-            return jsonify({"status": "authenticated", "delivered": True})
         return (
             jsonify(
                 {
-                    "status": tracker.model_discord_bot.safe_configuration()["status"],
+                    "status": "private_only",
                     "delivered": False,
+                    "error": "test_messages_disabled",
+                    "message": (
+                        "Discord test and experiment messages are disabled. "
+                        "Only official Model Tracker plays may be published."
+                    ),
+                }
+            ),
+            410,
+        )
+
+    @app.route("/api/admin/discord-notifications/repost", methods=["POST"])
+    def api_discord_notification_repost():
+        """Repost one frozen official play using its current canonical fields."""
+        if not has_job_authorization():
+            return jsonify({"status": "unauthorized"}), 401
+        snapshot_id = str(
+            (request.get_json(silent=True) or {}).get("snapshot_id") or ""
+        ).strip()
+        snapshot = next(
+            (
+                record
+                for record in tracker.database.get_tracker_records(
+                    MODEL_TRACKER_USER_ID
+                )
+                if str(record.get("snapshot_id") or "") == snapshot_id
+            ),
+            None,
+        )
+        if snapshot is None:
+            return jsonify({"status": "not_found"}), 404
+        payload = build_model_tracker_discord_payload(snapshot)
+        payload.pop("nonce", None)
+        payload.pop("enforce_nonce", None)
+        result = tracker.model_discord_bot.send(payload)
+        if result.delivered:
+            return jsonify(
+                {
+                    "status": "delivered",
+                    "snapshot_id": snapshot_id,
+                    "sportsbook": snapshot.get("sportsbook"),
+                    "entry": snapshot.get("provider_display_odds"),
+                }
+            )
+        return (
+            jsonify(
+                {
+                    "status": "failed",
+                    "snapshot_id": snapshot_id,
                     "error": result.error_code or "connection_failed",
                 }
             ),
@@ -1035,8 +1394,38 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/wallets")
     def api_wallets():
+        if not wallet_page_is_unlocked():
+            response = jsonify(
+                {
+                    "error": "WALLET_PAGE_LOCKED",
+                    "message": "Unlock Sharp Wallets to view wallet data.",
+                    "unlock_url": url_for("wallet_unlock_page"),
+                }
+            )
+            response.status_code = 401
+            response.headers["Cache-Control"] = "no-store"
+            return response
         snapshot = tracker.get_snapshot()
-        rows = snapshot.get("wallets", [])
+        all_rows = [_wallet_roster_summary(row) for row in snapshot.get("wallets", [])]
+        active_addresses = set(THREE_SHARP_WALLETS) | set(SPECIALIST_WALLETS)
+        active_rows = [
+            row
+            for row in all_rows
+            if str(row.get("address") or "").lower() in active_addresses
+        ]
+        hidden_rows = [
+            row
+            for row in all_rows
+            if str(row.get("address") or "").lower() not in active_addresses
+        ]
+        view = request.args.get("view", "active").strip().lower()
+        if view == "hidden":
+            rows = hidden_rows
+        elif view == "all":
+            rows = all_rows
+        else:
+            view = "active"
+            rows = active_rows
         search = request.args.get("q", "").strip().lower()
         status_filter = request.args.get("status", "").strip().lower()
         if search:
@@ -1049,8 +1438,11 @@ def create_app(start_background: bool = True) -> Flask:
             rows = [
                 row
                 for row in rows
-                if str(row.get("sync_status") or row.get("status") or "").lower()
-                == status_filter
+                if status_filter
+                in {
+                    str(row.get("sync_status") or row.get("status") or "").lower(),
+                    str(row.get("registry_status") or "").lower(),
+                }
             ]
         sort = request.args.get("sort", "label-asc")
         if sort == "positions-desc":
@@ -1061,18 +1453,93 @@ def create_app(start_background: bool = True) -> Flask:
             rows = sorted(
                 rows, key=lambda row: str(row.get("last_synced_at") or ""), reverse=True
             )
+        elif view == "active":
+            active_order = [*THREE_SHARP_WALLETS, *SPECIALIST_WALLETS]
+            order = {address: index for index, address in enumerate(active_order)}
+            rows = sorted(
+                rows,
+                key=lambda row: order.get(
+                    str(row.get("address") or "").lower(), len(order)
+                ),
+            )
         else:
             rows = sorted(rows, key=lambda row: str(row.get("label") or "").lower())
-        return jsonify({"data": rows, "total": len(rows), "status": snapshot["status"]})
+        response = jsonify(
+            {
+                "data": rows,
+                "total": len(rows),
+                "active_total": len(active_rows),
+                "hidden_total": len(hidden_rows),
+                "view": view,
+                "status": snapshot["status"],
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @app.route("/api/trades")
     def api_trades():
         snapshot = tracker.get_snapshot()
         return jsonify({"data": snapshot["trades"], "status": snapshot["status"]})
 
+    @app.route("/api/sharp-money/sandbox")
+    def api_sharp_money_sandbox():
+        response = jsonify(sandbox_payload())
+        response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.route("/api/sharp-money/status")
+    def api_sharp_money_status():
+        response = jsonify(
+            app.extensions["sharp_money_collector"].status()
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/sharp-money/live")
+    def api_sharp_money_live():
+        # This endpoint only returns the in-memory cache. It never refreshes a
+        # provider and is safe to poll while the collector is paused.
+        response = jsonify(
+            app.extensions["sharp_money_collector"].payload()
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.post("/api/sharp-money/control")
+    def api_sharp_money_control():
+        collector = app.extensions["sharp_money_collector"]
+        action = str((request.get_json(silent=True) or {}).get("action") or "")
+        action = action.strip().lower()
+        if action == "play":
+            accepted, message = collector.play()
+        elif action == "pause":
+            accepted, message = collector.pause()
+        else:
+            return jsonify({"error": "Action must be play or pause."}), 400
+        payload = collector.status()
+        payload["message"] = message
+        return jsonify(payload), 200 if accepted else 409
+
     @app.route("/api/odds-screen")
     def api_odds_screen():
         """Live read-only odds universe, independent of recommendation eligibility."""
+        if request.args.get("active", "").strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            return jsonify(
+                {
+                    "data": [],
+                    "providers": [],
+                    "paused": True,
+                    "message": (
+                        "Odds Screen is paused to protect Odds API credits. "
+                        "Start the feed when you need it."
+                    ),
+                }
+            )
         snapshot = tracker.get_snapshot()
         now = datetime.now(timezone.utc)
         eastern_today = now.astimezone(EASTERN).date()
@@ -1088,6 +1555,24 @@ def create_app(start_background: bool = True) -> Flask:
             if canonical is None:
                 return ("id", str(row.get("id") or stable_hash(row)))
             start_bucket = int(canonical.start_at.timestamp() // (10 * 60))
+            normalized_outcome = " ".join(
+                re.findall(r"[a-z0-9]+", str(canonical.outcome).lower())
+            )
+            participant_side = ""
+            if canonical.side_id == "team":
+                for index, participant in enumerate(canonical.participants):
+                    normalized_participant = " ".join(
+                        re.findall(r"[a-z0-9]+", str(participant).lower())
+                    )
+                    if (
+                        normalized_outcome == normalized_participant
+                        or normalized_outcome in normalized_participant
+                        or normalized_participant in normalized_outcome
+                    ):
+                        participant_side = f"participant:{index}"
+                        break
+                if not participant_side:
+                    participant_side = normalized_outcome
             return (
                 "canonical",
                 canonical.sport_id,
@@ -1098,6 +1583,7 @@ def create_app(start_background: bool = True) -> Flask:
                 canonical.period_id,
                 canonical.line,
                 canonical.side_id,
+                participant_side,
                 canonical.settlement_rules,
             )
 
@@ -1236,7 +1722,48 @@ def create_app(start_background: bool = True) -> Flask:
             rows,
             compare_all=True,
             include_non_comparison=True,
+            exclude_provider_keys=("the_odds_api",),
         )
+        if odds_api_provider is not None:
+            sportsbook_options = odds_api_provider.screen_options_for_trades(
+                rows
+            )
+            for row in rows:
+                existing = list(row.get("executionOptions") or [])
+                additions = [
+                    option.to_dict()
+                    for option in sportsbook_options.get(
+                        str(row.get("id") or ""), []
+                    )
+                ]
+                for option in additions:
+                    if (
+                        option.get("bestExecutablePrice") is None
+                        and option.get("americanOdds") is not None
+                    ):
+                        option["bestExecutablePrice"] = (
+                            american_to_probability(
+                                int(option["americanOdds"])
+                            )
+                        )
+                combined = existing + additions
+                executable = [
+                    option
+                    for option in combined
+                    if option.get("isAvailable")
+                    and option.get("matchingConfidence") == "Exact"
+                    and option.get("bestExecutablePrice") is not None
+                ]
+                if executable:
+                    best = min(
+                        executable,
+                        key=lambda option: float(
+                            option["bestExecutablePrice"]
+                        ),
+                    )
+                    for option in combined:
+                        option["isBestPrice"] = option is best
+                row["executionOptions"] = combined
         provider_catalog: dict[str, dict] = {}
         if odds_api_provider is not None:
             provider_catalog.update(
@@ -1328,9 +1855,186 @@ def create_app(start_background: bool = True) -> Flask:
         )
         return response
 
+    @app.route("/api/positive-ev")
+    def api_positive_ev():
+        """Demand-driven +EV feed. It never mutates Prediction Traders."""
+        if not settings.positive_ev_enabled:
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": bool(settings.the_odds_api_key),
+                    "paused": True,
+                    "message": (
+                        "Positive EV scanning is paused. No paid odds requests "
+                        "are being made."
+                    ),
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        odds_provider = next(
+            (
+                provider
+                for provider in execution_providers.providers
+                if provider.provider_key == "the_odds_api"
+            ),
+            None,
+        )
+        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+            return jsonify(
+                {
+                    "data": [],
+                    "configured": False,
+                    "message": "The Odds API is not configured.",
+                }
+            )
+
+        sport_keys = tuple(
+            item.strip()
+            for item in request.args.get(
+                "sports", "baseball_mlb,basketball_wnba"
+            ).split(",")
+            if item.strip()
+        )[:4]
+        market_group = request.args.get("group", "main").strip().lower()
+        if market_group == "alternate":
+            market_keys = ALTERNATE_MARKETS
+        elif market_group == "props":
+            market_keys = tuple(
+                dict.fromkeys(
+                    key
+                    for sport_key in sport_keys
+                    for key in PLAYER_PROP_MARKETS.get(sport_key, ())
+                )
+            )
+        else:
+            market_group = "main"
+            market_keys = MAIN_MARKETS
+
+        requested_markets = tuple(
+            item.strip()
+            for item in request.args.get("markets", "").split(",")
+            if item.strip()
+        )
+        if requested_markets:
+            allowed = set(market_keys)
+            market_keys = tuple(
+                key for key in requested_markets if key in allowed
+            )
+
+        def number_arg(name: str, default: float, low: float, high: float) -> float:
+            try:
+                value = float(request.args.get(name, default))
+            except (TypeError, ValueError):
+                value = default
+            return min(high, max(low, value))
+
+        source_weights = dict(DEFAULT_SOURCE_WEIGHTS)
+        raw_weights = request.args.get("weights", "").strip()
+        if raw_weights:
+            try:
+                parsed = json.loads(raw_weights)
+                if isinstance(parsed, dict):
+                    source_weights = {
+                        str(key).strip().lower(): max(0.0, float(value))
+                        for key, value in parsed.items()
+                        if str(key).strip()
+                    }
+            except (TypeError, ValueError, json.JSONDecodeError):
+                return jsonify({"error": "INVALID_WEIGHTS"}), 400
+        execution_books = tuple(
+            item.strip().lower()
+            for item in request.args.get(
+                "books", ",".join(DEFAULT_EXECUTION_BOOKS)
+            ).split(",")
+            if item.strip()
+        )
+        try:
+            events = odds_provider.ev_events(
+                sport_keys=sport_keys,
+                market_keys=market_keys,
+            )
+            board = build_ev_board(
+                events,
+                source_weights=source_weights,
+                execution_books=execution_books,
+                devig_method=request.args.get("devig", "power"),
+                min_ev=number_arg("min_ev", 1.0, 0.0, 50.0),
+                bankroll=number_arg("bankroll", 10000.0, 1.0, 10000000.0),
+                kelly_fraction=number_arg("kelly", 0.25, 0.0, 1.0),
+                min_source_books=int(number_arg("min_sources", 3, 2, 8)),
+                max_quote_age_seconds=int(
+                    number_arg("max_quote_age", 180, 30, 1800)
+                ),
+                max_source_age_seconds=int(
+                    number_arg("max_source_age", 600, 60, 3600)
+                ),
+                max_source_dispersion=(
+                    number_arg("max_dispersion", 12.0, 2.0, 25.0) / 100.0
+                ),
+                max_stake_pct=(
+                    number_arg("max_stake_pct", 2.0, 0.1, 10.0) / 100.0
+                ),
+                max_event_exposure_pct=(
+                    number_arg("max_event_pct", 5.0, 0.5, 20.0) / 100.0
+                ),
+            )
+            rows = board["data"]
+            tracking = tracker.database.record_ev_board(g.iconbets_user_id, rows)
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            return jsonify(
+                {
+                    "data": [],
+                    "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+                }
+            ), 429 if status == 429 else 502
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            LOGGER.warning("Positive EV refresh failed: %s", type(exc).__name__)
+            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+
+        diagnostics = odds_provider.diagnostics(authenticate=False)
+        response = jsonify(
+            {
+                "data": rows[:250],
+                "total": len(rows),
+                "diagnostics": board["diagnostics"],
+                "tracking": tracking,
+                "configured": True,
+                "marketGroup": market_group,
+                "marketKeys": list(market_keys),
+                "sourceWeights": source_weights,
+                "executionBooks": list(execution_books),
+                "quota": diagnostics.get("quota", {}),
+                "refreshSeconds": (
+                    60 if market_group == "main" else 1200
+                ),
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/positive-ev/history")
+    def api_positive_ev_history():
+        history = tracker.database.get_ev_optimizer_history(
+            g.iconbets_user_id,
+            limit=request.args.get("limit", 100, type=int) or 100,
+        )
+        response = jsonify(history)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
     @app.route("/api/trades-to-play")
     def api_trades_to_play():
         snapshot = tracker.get_snapshot()
+        fast_mode = request.args.get("fast", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
         date_range = request.args.get("date_range", "today")
         if date_range not in VALID_TRADE_DATE_RANGES:
             return jsonify({"error": "Unsupported date range"}), 400
@@ -1368,6 +2072,20 @@ def create_app(start_background: bool = True) -> Flask:
             wallet=request.args.get("wallet", ""),
             classification=request.args.get("classification", ""),
         )
+        # Establish an executable exchange price before recommendation
+        # eligibility is evaluated.  Previously Polymarket's transient top ask
+        # was the only price available during public_trade(), so a brief CLOB
+        # gap or unfavorable move could remove an otherwise valid consensus
+        # even when another connected exchange still had an exact market.
+        if not fast_mode:
+            refresh_polymarket_execution_quotes(filtered)
+            execution_providers.attach_options(
+                filtered,
+                compare_all=True,
+                include_non_comparison=True,
+            )
+        for play in filtered:
+            apply_best_execution_option(play)
         sized = [
             decorate_personal_state(
                 public_trade(play, bankroll), active_personal_fills, hidden_by_key
@@ -1393,8 +2111,130 @@ def create_app(start_background: bool = True) -> Flask:
         )
         start = (page - 1) * per_page
         page_trades = visible[start : start + per_page]
-        refresh_polymarket_execution_quotes(page_trades)
-        execution_providers.attach_options(page_trades)
+        if not fast_mode:
+            refresh_polymarket_execution_quotes(page_trades)
+            execution_providers.attach_options(
+                page_trades,
+                compare_all=True,
+                include_non_comparison=True,
+            )
+        # Recalculate against the best current all-in exchange price. The first
+        # pass establishes a stake for depth checks; this pass makes the venue,
+        # displayed odds, and user-sized recommendation agree.
+        line_shopped_page: list[dict] = []
+        for trade in page_trades:
+            apply_best_execution_option(trade)
+            refreshed = public_trade(trade, bankroll)
+            refreshed = decorate_personal_state(
+                refreshed, active_personal_fills, hidden_by_key
+            )
+            pin_id = pinned_keys.get(
+                whiteboard_identity_key(whiteboard_identity(refreshed))
+            )
+            refreshed["isPinnedByCurrentUser"] = pin_id is not None
+            refreshed["whiteboardPinId"] = pin_id
+            line_shopped_page.append(refreshed)
+        page_trades = line_shopped_page
+        official_records_by_snapshot: dict[str, dict] = {}
+        official_filter_rows: list[dict] = []
+        for record in tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID):
+            frozen = record.get("snapshot") or {}
+            snapshot_id = str(frozen.get("snapshot_id") or "").strip()
+            if not snapshot_id:
+                continue
+            supporters = [
+                {
+                    "wallet_address": wallet_id,
+                    "wallet_label": wallet_label or wallet_id,
+                }
+                for wallet_id, wallet_label in zip(
+                    frozen.get("agreeing_wallet_ids") or [],
+                    frozen.get("agreeing_wallet_labels") or [],
+                )
+                if wallet_id or wallet_label
+            ]
+            searchable_values = [
+                str(value or "")
+                for value in (
+                    frozen.get("event_title"),
+                    frozen.get("market_title"),
+                    frozen.get("recommended_side"),
+                    frozen.get("category"),
+                    frozen.get("league"),
+                    *(entry.get("wallet_label") for entry in supporters),
+                )
+                if value
+            ]
+            search_tokens: set[str] = set()
+            for value in searchable_values:
+                words = re.findall(r"[a-z0-9]+", value.casefold())
+                search_tokens.update(words)
+                search_tokens.update(
+                    "-".join(words[index : index + 2])
+                    for index in range(len(words) - 1)
+                )
+                if words:
+                    search_tokens.add("-".join(words))
+            filter_row = {
+                "id": f"official:{snapshot_id}",
+                "event_title": frozen.get("event_title"),
+                "market_title": frozen.get("market_title"),
+                "outcome": frozen.get("recommended_side"),
+                "category": frozen.get("category"),
+                "league": frozen.get("league"),
+                "canonical_category_id": frozen.get("canonical_category_id")
+                or frozen.get("category"),
+                "event_date_et": frozen.get("event_start_time"),
+                "confidence_score": frozen.get("confidence_score"),
+                "agreeing_wallet_count": frozen.get("sharps_count") or 0,
+                "lead_sharp_count": frozen.get("lead_sharp_count") or 0,
+                "supporting_wallets": supporters,
+                "tradeClassification": frozen.get("trade_classification")
+                or "STANDARD",
+                "isResearchOnly": False,
+                "search_blob": " ".join(sorted(search_tokens)),
+            }
+            official_records_by_snapshot[snapshot_id] = {
+                "dedupe_key": record.get("dedupe_key"),
+                "status": record.get("status"),
+                "snapshot": frozen,
+            }
+            official_filter_rows.append(filter_row)
+        filtered_official_rows = filter_trades_to_play(
+            official_filter_rows,
+            search=request.args.get("q", ""),
+            min_sharps=max(request.args.get("min_sharps", 0, type=int) or 0, 0),
+            date_range=date_range,
+            custom_start=request.args.get("custom_start"),
+            custom_end=request.args.get("custom_end"),
+            min_confidence=max(
+                request.args.get("min_confidence", 0, type=int) or 0, 0
+            ),
+            sport=request.args.get("sport", ""),
+            league=request.args.get("league", ""),
+            wallet=request.args.get("wallet", ""),
+            classification=request.args.get("classification", ""),
+        )
+        official_tracked = []
+        for row in filtered_official_rows:
+            snapshot_id = str(row["id"]).removeprefix("official:")
+            record = official_records_by_snapshot.get(snapshot_id)
+            if not record:
+                continue
+            frozen_price = _safe_float(
+                (record.get("snapshot") or {}).get("effective_entry_price")
+                or (record.get("snapshot") or {}).get("provider_entry_price")
+            )
+            frozen_cents = frozen_price * 100 if frozen_price else None
+            if minimum_cents is not None and (
+                frozen_cents is None or frozen_cents < minimum_cents
+            ):
+                continue
+            if maximum_cents is not None and (
+                frozen_cents is None or frozen_cents > maximum_cents
+            ):
+                continue
+            official_tracked.append(record)
         try:
             tracker.database.record_line_shop_quotes(g.iconbets_user_id, page_trades)
         except Exception as exc:
@@ -1402,6 +2242,7 @@ def create_app(start_background: bool = True) -> Flask:
         return jsonify(
             {
                 "data": page_trades,
+                "officialTracked": official_tracked,
                 "bankroll": current_settings,
                 "hiddenCount": len(hidden_records),
                 "whiteboardCount": len(active_pins),
@@ -1419,6 +2260,7 @@ def create_app(start_background: bool = True) -> Flask:
                 },
                 "status": snapshot["status"],
                 "lineShopRefreshIntervalSeconds": settings.line_shop_refresh_interval_seconds,
+                "fastMode": fast_mode,
             }
         )
 
@@ -1431,7 +2273,11 @@ def create_app(start_background: bool = True) -> Flask:
             public_trade(play, bankroll)
             for play in snapshot.get("trades_to_play", [])
         ]
-        execution_providers.attach_options(current_trades)
+        execution_providers.attach_options(
+            current_trades,
+            compare_all=True,
+            include_non_comparison=True,
+        )
         current_by_key = {
             whiteboard_identity_key(whiteboard_identity(trade)): trade
             for trade in current_trades
@@ -2128,14 +2974,15 @@ def create_app(start_background: bool = True) -> Flask:
             )
             realized_graph = personal_realized_pnl_summary(positions, "all")["graph"]
             replay["graph"] = [
-                {"timestamp": None, "profit_loss": 0, "bankroll": starting},
+                {"timestamp": None, "profit_loss": 0, "bankroll": starting, "daily_profit": 0},
                 *(
                     {
                         "timestamp": point["timestamp"],
                         "profit_loss": point["profitLoss"],
                         "bankroll": starting + point["profitLoss"],
+                        "daily_profit": point["profitLoss"] - (realized_graph[index - 1]["profitLoss"] if index else 0),
                     }
-                    for point in realized_graph
+                    for index, point in enumerate(realized_graph)
                 ),
             ]
         rows = replay["rows"]
@@ -2156,6 +3003,7 @@ def create_app(start_background: bool = True) -> Flask:
             "year": now - timedelta(days=366),
         }
         cutoff = cutoffs.get(graph_range, cutoffs["month"])
+        period_summary = _tracker_period_summary(rows, cutoff)
         graph = [
             point
             for point in replay["graph"]
@@ -2173,8 +3021,21 @@ def create_app(start_background: bool = True) -> Flask:
             {
                 "data": list(reversed(rows))[start : start + per_page],
                 "summary": replay["summary"],
+                "period_summary": period_summary,
                 "graph": graph,
                 "clv": clv_analytics,
+                "clv_records": [
+                    {
+                        "clv": row.get("clv") or {},
+                        "clv_preferences": row.get("clv_preferences") or {},
+                        "dual_clv": row.get("dual_clv") or {},
+                        "sportsbook": row.get("sportsbook") or "Polymarket",
+                        "record_timestamp": row.get("settled_at")
+                        or row.get("tracked_at")
+                        or row.get("created_at"),
+                    }
+                    for row in rows
+                ],
                 "bankroll": current_settings,
                 "filter_options": filter_options,
                 "trackerDateRange": {"preset": tracker_range, "start": request.args.get("tracker_start", ""), "end": request.args.get("tracker_end", "")},
@@ -2216,16 +3077,45 @@ def create_app(start_background: bool = True) -> Flask:
             {
                 "authenticated": bool(g.iconbets_authenticated),
                 "email": g.iconbets_account_email,
+                "username": g.iconbets_account_username,
+                "google_oauth_available": bool(
+                    os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+                    and os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+                ),
+                "subscription_management_available": bool(
+                    os.getenv("STRIPE_CUSTOMER_PORTAL_URL")
+                ),
             }
         )
+
+    @app.route("/api/account/subscription")
+    def api_account_subscription():
+        if not g.iconbets_authenticated:
+            return redirect("/trades?account=signin")
+        portal_url = os.getenv("STRIPE_CUSTOMER_PORTAL_URL")
+        if not portal_url:
+            return redirect("/trades?account=subscription_unavailable")
+        return redirect(portal_url)
 
     @app.route("/api/auth/register", methods=["POST"])
     def api_auth_register():
         payload = request.get_json(silent=True) or {}
         email = _normalize_email(payload.get("email"))
+        requested_username = _normalize_username(payload.get("username"))
+        username = requested_username or available_username(email.split("@", 1)[0])
         password = str(payload.get("password") or "")
         if not _valid_email(email):
             return jsonify({"error": "Enter a valid email address."}), 400
+        if requested_username and not _valid_username(requested_username):
+            return jsonify(
+                {
+                    "error": "Username must be 3-24 characters using letters, numbers, or underscores."
+                }
+            ), 400
+        if requested_username and tracker.database.get_account_by_username(
+            requested_username
+        ):
+            return jsonify({"error": "That username is already taken."}), 409
         if len(password) < 8:
             return jsonify({"error": "Password must be at least 8 characters."}), 400
         salt = secrets.token_bytes(16)
@@ -2236,12 +3126,15 @@ def create_app(start_background: bool = True) -> Flask:
                 salt.hex(),
                 _password_digest(password, salt, PASSWORD_ITERATIONS),
                 PASSWORD_ITERATIONS,
+                username,
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 409
         user_settings()
         token = create_account_session(g.iconbets_user_id)
-        response = jsonify({"authenticated": True, "email": email})
+        response = jsonify(
+            {"authenticated": True, "email": email, "username": username}
+        )
         g.iconbets_new_user = False
         set_auth_cookie(response, token)
         response.delete_cookie(USER_COOKIE, path="/")
@@ -2264,9 +3157,156 @@ def create_app(start_background: bool = True) -> Flask:
         if not hmac.compare_digest(supplied, str(account["password_hash"])):
             return jsonify({"error": "Email or password is incorrect."}), 401
         token = create_account_session(str(account["user_id"]))
-        response = jsonify({"authenticated": True, "email": account["email"]})
+        response = jsonify(
+            {
+                "authenticated": True,
+                "email": account["email"],
+                "username": account.get("username"),
+            }
+        )
         g.iconbets_new_user = False
         set_auth_cookie(response, token)
+        response.delete_cookie(USER_COOKIE, path="/")
+        return response
+
+    @app.route("/api/auth/username", methods=["PUT"])
+    def api_auth_username():
+        if not g.iconbets_authenticated:
+            return jsonify({"error": "Sign in before changing your username."}), 401
+        payload = request.get_json(silent=True) or {}
+        username = _normalize_username(payload.get("username"))
+        if not _valid_username(username):
+            return jsonify(
+                {
+                    "error": "Username must be 3-24 characters using letters, numbers, or underscores."
+                }
+            ), 400
+        existing = tracker.database.get_account_by_username(username)
+        if existing and str(existing.get("user_id")) != str(g.iconbets_user_id):
+            return jsonify({"error": "That username is already taken."}), 409
+        try:
+            account = tracker.database.update_account_identity(
+                g.iconbets_user_id, username=username
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 409
+        return jsonify(
+            {
+                "authenticated": True,
+                "email": account["email"],
+                "username": account.get("username"),
+            }
+        )
+
+    @app.route("/api/auth/google/start")
+    def api_auth_google_start():
+        client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+        if not client_id or not client_secret:
+            return redirect("/trades?auth_error=google_not_configured")
+        state = secrets.token_urlsafe(24)
+        callback_url = os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or url_for(
+            "api_auth_google_callback", _external=True, _scheme="https"
+        )
+        authorization_url = "https://accounts.google.com/o/oauth2/v2/auth?" + urlencode(
+            {
+                "client_id": client_id,
+                "redirect_uri": callback_url,
+                "response_type": "code",
+                "scope": "openid email profile",
+                "state": state,
+                "prompt": "select_account",
+            }
+        )
+        response = redirect(authorization_url)
+        response.set_cookie(
+            OAUTH_STATE_COOKIE,
+            state,
+            max_age=600,
+            httponly=True,
+            secure=request.is_secure or bool(os.getenv("VERCEL")),
+            samesite="Lax",
+            path="/",
+        )
+        return response
+
+    @app.route("/api/auth/google/callback")
+    def api_auth_google_callback():
+        supplied_state = str(request.args.get("state") or "")
+        expected_state = str(request.cookies.get(OAUTH_STATE_COOKIE) or "")
+        code = str(request.args.get("code") or "")
+        if not code or not expected_state or not hmac.compare_digest(
+            supplied_state, expected_state
+        ):
+            return redirect("/trades?auth_error=google_state")
+        client_id = os.getenv("GOOGLE_OAUTH_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_OAUTH_CLIENT_SECRET")
+        callback_url = os.getenv("GOOGLE_OAUTH_REDIRECT_URI") or url_for(
+            "api_auth_google_callback", _external=True, _scheme="https"
+        )
+        try:
+            token_response = requests.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "code": code,
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "redirect_uri": callback_url,
+                    "grant_type": "authorization_code",
+                },
+                timeout=10,
+            )
+            token_response.raise_for_status()
+            access_token = token_response.json()["access_token"]
+            profile_response = requests.get(
+                "https://openidconnect.googleapis.com/v1/userinfo",
+                headers={"Authorization": f"Bearer {access_token}"},
+                timeout=10,
+            )
+            profile_response.raise_for_status()
+            profile = profile_response.json()
+        except (requests.RequestException, KeyError, ValueError):
+            return redirect("/trades?auth_error=google_exchange")
+        email = _normalize_email(profile.get("email"))
+        subject = str(profile.get("sub") or "")
+        if not subject or not _valid_email(email) or not profile.get("email_verified"):
+            return redirect("/trades?auth_error=google_profile")
+        account = tracker.database.get_account_by_oauth("google", subject)
+        if account is None:
+            account = tracker.database.get_account_by_email(email)
+        if account is None:
+            salt = secrets.token_bytes(16)
+            generated_password = secrets.token_urlsafe(32)
+            username = available_username(
+                profile.get("given_name") or email.split("@", 1)[0]
+            )
+            account = tracker.database.create_account(
+                secrets.token_urlsafe(24),
+                email,
+                salt.hex(),
+                _password_digest(
+                    generated_password, salt, PASSWORD_ITERATIONS
+                ),
+                PASSWORD_ITERATIONS,
+                username,
+                "google",
+                subject,
+            )
+            tracker.database.get_or_create_user_settings(
+                str(account["user_id"]),
+                settings.default_bankroll,
+                settings.unit_percentage,
+            )
+        elif account.get("oauth_subject") != subject:
+            account = tracker.database.update_account_identity(
+                str(account["user_id"]),
+                oauth_provider="google",
+                oauth_subject=subject,
+            )
+        token = create_account_session(str(account["user_id"]))
+        response = redirect("/trades?account=welcome")
+        set_auth_cookie(response, token)
+        response.delete_cookie(OAUTH_STATE_COOKIE, path="/")
         response.delete_cookie(USER_COOKIE, path="/")
         return response
 
@@ -2494,6 +3534,11 @@ def create_app(start_background: bool = True) -> Flask:
             tracker.database.get_dual_clv_measurements("model", MODEL_TRACKER_USER_ID),
         )
         rows = _filter_sort_clv_rows(rows)
+        for row in rows:
+            # Preserve historical checkpoint data in storage, but never expose
+            # the retired Icon Labs timing experiment through public APIs.
+            row.pop("thirty_minute_checkpoint", None)
+            row.pop("thirty_minute_checked_at", None)
         clv_analytics = _clv_analytics(rows)
 
         graph_range = request.args.get("graph_range", "month")
@@ -2505,6 +3550,7 @@ def create_app(start_background: bool = True) -> Flask:
             "year": now - timedelta(days=366),
         }
         cutoff = cutoffs.get(graph_range, cutoffs["month"])
+        period_summary = _tracker_period_summary(rows, cutoff)
         graph = [
             point
             for point in replay["graph"]
@@ -2522,8 +3568,21 @@ def create_app(start_background: bool = True) -> Flask:
             {
                 "data": list(reversed(rows))[start : start + per_page],
                 "summary": replay["summary"],
+                "period_summary": period_summary,
                 "graph": graph,
                 "clv": clv_analytics,
+                "clv_records": [
+                    {
+                        "clv": row.get("clv") or {},
+                        "clv_preferences": row.get("clv_preferences") or {},
+                        "dual_clv": row.get("dual_clv") or {},
+                        "sportsbook": _model_tracker_sportsbook(row),
+                        "record_timestamp": row.get("settled_at")
+                        or row.get("tracked_at")
+                        or row.get("created_at"),
+                    }
+                    for row in rows
+                ],
                 "bankroll": current_settings,
                 "tracking": {
                     key: value
@@ -2892,11 +3951,14 @@ def create_app(start_background: bool = True) -> Flask:
         paused = bool((request.get_json(silent=True) or {}).get("paused"))
         return jsonify({"data": tracker.set_tracking_paused(paused)})
 
-    @app.route("/api/admin/model-tracker/reconcile", methods=["POST"])
+    @app.route("/api/admin/model-tracker/reconcile", methods=["GET", "POST"])
     def api_model_tracker_reconcile():
         if not has_job_authorization():
             return jsonify({"error": "Model Tracker job authorization required."}), 401
-        force = bool((request.get_json(silent=True) or {}).get("force"))
+        force = (
+            request.args.get("force", "").strip().lower() in {"1", "true", "yes"}
+            or bool((request.get_json(silent=True) or {}).get("force"))
+        )
         state = tracker.database.get_tracking_job_state()
         if state.get("paused") and not force:
             return jsonify({"data": {**state, "status": "paused"}})
@@ -2928,6 +3990,153 @@ def create_app(start_background: bool = True) -> Flask:
             result = tracker.database.get_tracking_job_state()
         return jsonify({"data": result})
 
+    @app.route("/api/admin/model-tracker/reset-experiments", methods=["POST"])
+    def api_model_tracker_reset_experiments():
+        if not has_job_authorization():
+            return jsonify({"error": "Model Tracker job authorization required."}), 401
+        payload = request.get_json(silent=True) or {}
+        if payload.get("confirmation") != "RESET_100_BET_EXPERIMENTS":
+            return jsonify({"error": "Reset confirmation phrase is required."}), 400
+        reset_at = datetime.now(timezone.utc).isoformat()
+        deleted = tracker.database.reset_model_experiments(
+            (MODEL_TRACKER_USER_ID, SHADOW_TRACKER_USER_ID)
+        )
+        return jsonify(
+            {
+                "data": {
+                    "reset_at": reset_at,
+                    "target_bets_per_model": 100,
+                    "user_ids": [
+                        MODEL_TRACKER_USER_ID,
+                        SHADOW_TRACKER_USER_ID,
+                    ],
+                    "deleted": deleted,
+                    "live_records": len(
+                        tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID)
+                    ),
+                    "shadow_records": len(
+                        tracker.database.get_tracker_records(SHADOW_TRACKER_USER_ID)
+                    ),
+                }
+            }
+        )
+
+    @app.route("/api/shadow-test")
+    def api_shadow_test():
+        def tracker_payload(user_id: str) -> tuple[dict, list[dict]]:
+            replay = replay_tracker(
+                tracker.database.get_tracker_records(user_id),
+                settings.default_bankroll,
+            )
+            rows = _attach_clv(
+                replay["rows"],
+                tracker.database.get_closing_lines("model", user_id),
+                "dedupe_key",
+            )
+            rows = _attach_dual_clv(
+                rows,
+                tracker.database.get_dual_clv_measurements("model", user_id),
+            )
+            for row in rows:
+                row["sharp_snapshot"] = sharp_snapshot_from_model(
+                    row.get("snapshot") or {}
+                )
+            return replay["summary"], rows
+
+        live_summary, live_rows = tracker_payload(MODEL_TRACKER_USER_ID)
+        shadow_summary, shadow_rows = tracker_payload(SHADOW_TRACKER_USER_ID)
+        contributions: dict[str, dict] = {}
+        for row in live_rows:
+            pnl = clv_float(row.get("profit_loss"))
+            if pnl is None:
+                continue
+            stake = max(0.0, _safe_float(row.get("recommended_amount")))
+            dual = row.get("dual_clv") or {}
+            composite_clv = clv_float(dual.get("composite_probability_point_clv"))
+            for wallet in (row.get("sharp_snapshot") or {}).get("agreeing_sharps") or []:
+                key = str(wallet.get("wallet_address") or wallet.get("display_name") or "")
+                if not key:
+                    continue
+                score = contributions.setdefault(
+                    key,
+                    {
+                        "wallet_address": wallet.get("wallet_address"),
+                        "display_name": wallet.get("display_name") or key,
+                        "settled_bets": 0,
+                        "wins": 0,
+                        "stake": 0.0,
+                        "profit_loss": 0.0,
+                        "composite_clv_sum": 0.0,
+                        "composite_clv_count": 0,
+                    },
+                )
+                score["settled_bets"] += 1
+                score["wins"] += int(pnl > 0)
+                score["stake"] += stake
+                score["profit_loss"] += pnl
+                if composite_clv is not None:
+                    score["composite_clv_sum"] += composite_clv
+                    score["composite_clv_count"] += 1
+        contribution_rows = []
+        for score in contributions.values():
+            sample = score["settled_bets"]
+            roi = score["profit_loss"] / score["stake"] if score["stake"] else None
+            average_clv = (
+                score["composite_clv_sum"] / score["composite_clv_count"]
+                if score["composite_clv_count"]
+                else None
+            )
+            if sample < 20:
+                verdict = "INSUFFICIENT_SAMPLE"
+            elif (roi or 0) <= 0 or (average_clv is not None and average_clv < 0):
+                verdict = "REVIEW"
+            elif sample >= 30 and roi is not None and roi >= 0.05:
+                verdict = "STRONG_CONTRIBUTOR"
+            else:
+                verdict = "KEEP"
+            contribution_rows.append(
+                {
+                    **score,
+                    "roi": roi,
+                    "shrunk_win_rate": (score["wins"] + 2) / (sample + 4),
+                    "average_composite_probability_point_clv": average_clv,
+                    "verdict": verdict,
+                }
+            )
+        contribution_rows.sort(
+            key=lambda row: (
+                row["verdict"] == "STRONG_CONTRIBUTOR",
+                row.get("roi") or -999,
+                row["settled_bets"],
+            ),
+            reverse=True,
+        )
+        return jsonify(
+            {
+                "data": {
+                    "target_bets": 100,
+                    "live": {
+                        "strategy": THREE_SHARP_STRATEGY_ID,
+                        "enabled": True,
+                        "summary": live_summary,
+                        "tracked_bets": len(live_rows),
+                        "timing": timing_outlook(live_rows),
+                    },
+                    "shadow": {
+                        "strategy": "BROAD_CONSENSUS_2",
+                        "enabled": False,
+                        "status": "DISABLED_HISTORY_PRESERVED",
+                        "summary": shadow_summary,
+                        "tracked_bets": len(shadow_rows),
+                        "timing": timing_outlook(shadow_rows),
+                        "recent_rows": shadow_rows[:25],
+                    },
+                    "wallet_contributions": contribution_rows,
+                    "forward_only": True,
+                    "automatic_wallet_removal": False,
+                }
+            }
+        )
     @app.route("/api/price-history")
     def api_price_history():
         token_id = request.args.get("token_id", "")

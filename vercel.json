@@ -1,14 +1,9 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 60
-    }
-  },
-  "rewrites": [
+  "crons": [
     {
-      "source": "/(.*)",
-      "destination": "/api/index.py"
+      "path": "/api/admin/model-tracker/reconcile",
+      "schedule": "* * * * *"
     }
   ]
 }

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="sharp-money-page">
+  <header class="sharp-money-header">
+    <div class="sharp-money-heading">
+      <span class="sharp-kicker">ProphetX market intelligence</span>
+      <div class="sharp-title-row">
+        <h1>Sharp Money</h1>
+        <span class="sandbox-badge" id="sharp-mode-badge"><i class="ph ph-pause"></i> Paused</span>
+      </div>
+      <p>Read-only exchange depth, price movement, inferred market pressure, and exact-line sportsbook comparison.</p>
+    </div>
+    <div class="sharp-header-actions">
+      <label class="sharp-search"><i class="ph ph-magnifying-glass"></i><input id="sharp-search" type="search" placeholder="Search markets"></label>
+      <div class="sharp-feed-control" role="group" aria-label="Sharp Money feed">
+        <button id="sharp-play" type="button"><i class="ph ph-play-fill"></i><span>Play</span></button>
+        <button id="sharp-pause" type="button" class="active"><i class="ph ph-pause-fill"></i><span>Pause</span></button>
+      </div>
+      <button class="sharp-icon-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><span id="sharp-filter-count">0</span></button>
+    </div>
+  </header>
+
+  <section class="sandbox-notice" id="sharp-feed-notice">
+    <span class="sandbox-notice-icon"><i class="ph ph-shield-check"></i></span>
+    <div><strong id="sharp-feed-title">Feed paused · zero new requests</strong><p id="sharp-feed-copy">Press Play to start the local read-only ProphetX collector and sportsbook comparisons.</p></div>
+    <span class="sandbox-mode-state" id="sharp-feed-state"><i></i> Paused</span>
+  </section>
+
+  <section class="sharp-summary" aria-label="Sharp Money status">
+    <div><span>Markets monitored</span><strong id="sharp-summary-signals">0</strong><small>Real ProphetX markets</small></div>
+    <div><span>ProphetX depth</span><strong id="sharp-summary-liquidity">$0</strong><small>Quoted, not confirmed wagers</small></div>
+    <div><span>Flow detections</span><strong id="sharp-summary-flow">0</strong><small>Snapshot-inferred pressure</small></div>
+    <div><span>Collector cycles</span><strong id="sharp-summary-cycles">0</strong><small id="sharp-summary-requests">No requests while paused</small></div>
+  </section>
+
+  <section class="sharp-workspace">
+    <div class="sharp-signal-column">
+      <div class="sharp-list-toolbar">
+        <div><span id="sharp-result-label">Collector paused</span><small id="sharp-last-updated">No live request has started</small></div>
+        <div class="sharp-quick-filters">
+          <button class="active" type="button" data-sharp-sport="">All</button>
+          <button type="button" data-sharp-sport="MLB">MLB</button>
+          <button type="button" data-sharp-sport="WNBA">WNBA</button>
+          <button type="button" data-sharp-sport="Tennis">Tennis</button>
+        </div>
+      </div>
+      <div class="sharp-signal-list" id="sharp-signal-list" aria-live="polite">
+        <div class="sharp-empty-state"><div><i class="ph ph-pause-circle"></i><strong>Sharp Money is paused</strong><span>Start the local feed when you want to inspect real ProphetX markets.</span></div></div>
+      </div>
+    </div>
+    <aside class="sharp-detail-panel" id="sharp-detail-panel" aria-live="polite">
+      <div class="sharp-detail-loading"><i class="ph ph-waveform"></i><strong>No market selected</strong><span>Play the feed, then select a market to inspect its flow.</span></div>
+    </aside>
+  </section>
+</section>
+
+<div class="sharp-filter-backdrop" id="sharp-filter-backdrop" hidden></div>
+<aside class="sharp-filter-drawer" id="sharp-filter-drawer" aria-labelledby="sharp-filter-title" hidden>
+  <header><div><span>Customize</span><h2 id="sharp-filter-title">Sharp Money filters</h2></div><button id="sharp-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x"></i></button></header>
+  <div class="sharp-filter-body">
+    <section><label>Minimum quoted depth <span id="sharp-liquidity-value">$0</span><input id="sharp-liquidity-filter" type="range" min="0" max="25000" step="500" value="0"></label></section>
+    <section><label>Flow state<select id="sharp-flow-filter"><option value="">All markets</option><option value="detected">Flow detected</option><option value="monitoring">Monitoring</option></select></label></section>
+    <section><label>Market type<select id="sharp-market-filter"><option value="">All markets</option><option value="moneyline">Moneyline</option><option value="spread">Spread</option><option value="game_total">Totals</option></select></label></section>
+    <section class="sharp-filter-explainer"><i class="ph ph-info"></i><div><strong>Inference, not identity</strong><p>Pressure is inferred from changing prices and available depth. It does not claim to identify a bettor or guarantee that a displayed order was filled.</p></div></section>
+  </div>
+  <footer><button id="sharp-filter-reset" type="button">Reset</button><button id="sharp-filter-apply" type="button">Show results</button></footer>
+</aside>
+{% endblock %}

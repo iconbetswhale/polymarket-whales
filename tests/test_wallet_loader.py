@@ -172,3 +172,39 @@ def test_wallet_loader_keeps_primary_and_sub_top_categories_distinct(tmp_path):
     assert wallet.sub_top_categories == ("Soccer",)
     assert wallet.sub_top_category_ids == ("soccer",)
     assert wallet.top_category_ids == ("mlb", "soccer")
+
+
+def test_wallet_loader_normalizes_category_specific_signal_roles(tmp_path):
+    wallet_file = tmp_path / "wallets.json"
+    wallet_file.write_text(
+        """
+[
+  {
+    "address": "0xabcdefabcdefabcdefabcdefabcdefabcdefabcd",
+    "label": "MLB specialist",
+    "enabled": true,
+    "top_category": "MLB",
+    "category_signal_roles": {
+      "Baseball": {
+        "role": "conditional_originator",
+        "quality_weight": 0.85,
+        "minimum_originator_units": 1.5,
+        "requires_clean_directional": true
+      }
+    }
+  }
+]
+        """.strip(),
+        encoding="utf-8",
+    )
+
+    wallet = load_wallets(wallet_file).valid_wallets[0]
+
+    assert wallet.category_signal_roles["mlb"] == {
+        "role": "CONDITIONAL_ORIGINATOR",
+        "quality_weight": 0.85,
+        "minimum_originator_units": 1.5,
+        "unit_baseline_usd": None,
+        "requires_clean_directional": True,
+        "source": "provisional_category_review",
+    }

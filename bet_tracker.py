@@ -33,6 +33,37 @@ def _json_list(value: Any) -> list[Any]:
 
 
 def _tracked_execution_option(play: dict[str, Any]) -> dict[str, Any]:
+    selected = play.get("selected_execution_option") or play.get(
+        "selectedExecutionOption"
+    )
+    if isinstance(selected, dict):
+        selected_price = selected.get("bestExecutablePrice")
+        if selected_price is None:
+            selected_price = selected.get("best_executable_price")
+        selected_exact = (
+            selected.get("matchingConfidence") == "Exact"
+            or selected.get("matching_confidence") == "Exact"
+            or selected.get("isExactMatch") is True
+            or selected.get("is_exact_match") is True
+        )
+        selected_open = (
+            str(
+                selected.get("marketStatus")
+                or selected.get("market_status")
+                or "OPEN"
+            ).upper()
+            == "OPEN"
+        )
+        if (
+            selected_price is not None
+            and selected.get("isAvailable", selected.get("is_available", True))
+            is not False
+            and selected.get("isStale", selected.get("is_stale")) is not True
+            and selected_exact
+            and selected_open
+        ):
+            return selected
+
     options = [
         option
         for option in (play.get("executionOptions") or [])
@@ -92,13 +123,20 @@ def recommendation_snapshot(
     execution_option = _tracked_execution_option(play)
     tracked_sportsbook = _sportsbook_name(
         execution_option.get("providerName")
+        or execution_option.get("provider_name")
+        or execution_option.get("sportsbook")
+        or execution_option.get("provider")
         or recommendation.get("entry_price_source")
         or "Polymarket"
     )
     tracked_provider_key = str(
-        execution_option.get("providerKey") or tracked_sportsbook
+        execution_option.get("providerKey")
+        or execution_option.get("provider_key")
+        or tracked_sportsbook
     ).strip().lower()
     tracked_entry_price = execution_option.get("bestExecutablePrice")
+    if tracked_entry_price is None:
+        tracked_entry_price = execution_option.get("best_executable_price")
     if tracked_entry_price is None:
         tracked_entry_price = recommendation.get("effective_entry_price")
     return {
@@ -114,6 +152,7 @@ def recommendation_snapshot(
         "recommended_side": play.get("outcome"),
         "event_title": play.get("event_title"),
         "market_title": play.get("market_title"),
+        "sports_market_type": play.get("sports_market_type"),
         "category": play.get("category"),
         "league": play.get("league"),
         "canonical_sport_id": play.get("canonical_sport_id"),
@@ -122,12 +161,27 @@ def recommendation_snapshot(
         "market_url": play.get("market_url"),
         "sportsbook": tracked_sportsbook,
         "provider_key": tracked_provider_key,
-        "provider_logo_url": execution_option.get("logoUrl"),
+        "provider_logo_url": execution_option.get("logoUrl")
+        or execution_option.get("logo_url"),
         "provider_deep_link": execution_option.get("deepLink")
+        or execution_option.get("deep_link")
         or execution_option.get("directMarketUrl")
-        or play.get("market_url"),
-        "provider_display_odds": execution_option.get("displayOdds"),
+        or execution_option.get("direct_market_url")
+        or (play.get("market_url") if tracked_sportsbook == "Polymarket" else None),
+        "provider_display_odds": execution_option.get("displayOdds")
+        or execution_option.get("display_odds")
+        or execution_option.get("nativePrice"),
+        "provider_market_id": execution_option.get("providerMarketId")
+        or execution_option.get("marketId"),
+        "provider_outcome_id": execution_option.get("providerOutcomeId")
+        or execution_option.get("selectionId"),
         "provider_entry_price": tracked_entry_price,
+        "execution_options_at_entry": [
+            dict(option)
+            for option in (play.get("executionOptions") or [])
+            if isinstance(option, dict)
+        ],
+        "model_strategy": play.get("model_strategy") or "HYBRID_CONSENSUS_2",
         "current_executable_entry_price": tracked_entry_price,
         "effective_entry_price": tracked_entry_price,
         "intended_entry_price": tracked_entry_price,
@@ -171,6 +225,18 @@ def recommendation_snapshot(
         or recommendation.get("decision_reason")
         or "APPROVED_RECOMMENDATION",
         "decision_class": "PLAYED",
+        "strategy_version": play.get("strategy_version"),
+        "mlb_hybrid_strategy": play.get("mlb_hybrid_strategy"),
+        "tracking_window_minutes": (
+            (play.get("mlb_hybrid_strategy") or {}).get(
+                "execution_window_minutes"
+            )
+        ),
+        "recommended_manual_entry_window_minutes": (
+            (play.get("mlb_hybrid_strategy") or {}).get(
+                "recommended_manual_entry_window_minutes"
+            )
+        ),
         "score_breakdown": play.get("score_breakdown"),
         "sharps_count": play.get("agreeing_wallet_count"),
         "raw_sharp_count": play.get("raw_sharp_count"),
@@ -315,7 +381,7 @@ def replay_tracker(
     open_exposure = 0.0
     potential_payout = 0.0
     rows: list[dict[str, Any]] = []
-    graph = [{"timestamp": None, "bankroll": bankroll, "realized_profit": 0.0}]
+    graph = [{"timestamp": None, "bankroll": bankroll, "realized_profit": 0.0, "daily_profit": 0.0}]
     wins = losses = pushes_voids = 0
 
     ordered = sorted(
@@ -359,6 +425,7 @@ def replay_tracker(
                     or snapshot.get("event_start_time"),
                     "bankroll": bankroll,
                     "realized_profit": realized_profit,
+                    "daily_profit": profit,
                 }
             )
 
@@ -389,6 +456,12 @@ def replay_tracker(
             "pushes_voids": pushes_voids,
             "win_rate": wins / settled_decisions if settled_decisions else None,
             "average_recommended_stake": sum(stakes) / len(stakes) if stakes else 0.0,
+            "total_wagered": sum(stakes),
+            "settled_wagered": sum(
+                float(row.get("recommended_amount") or 0)
+                for row in rows
+                if str(row.get("status") or "").lower() in SETTLED_TRACKER_STATUSES
+            ),
             "open_exposure": open_exposure,
             "potential_payout": potential_payout,
             "maximum_drawdown": maximum_drawdown,

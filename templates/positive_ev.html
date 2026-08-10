@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="ev-page" aria-labelledby="ev-title">
+  <header class="ev-toolbar">
+    <div class="ev-heading">
+      <span class="ev-kicker">MARKET INTELLIGENCE</span>
+      <div class="ev-title-row">
+        <h1 id="ev-title">+EV</h1>
+        <div class="ev-mode-tabs" role="tablist" aria-label="Feed state">
+          <button class="active" type="button">Pre-Match <span id="ev-count">0</span></button>
+          <button type="button" disabled>Live</button>
+        </div>
+      </div>
+      <p>Validated expected value against a leave-one-out fair-price consensus.</p>
+    </div>
+    <div class="ev-actions">
+      <label class="ev-search"><i class="ph ph-magnifying-glass"></i><input id="ev-search" type="search" placeholder="Search teams, players, markets"></label>
+      <button class="ev-icon-button" id="ev-pause" type="button" aria-pressed="false" title="Pause refresh"><i class="ph ph-pause"></i></button>
+      <button class="ev-icon-button" id="ev-filter-open" type="button" title="Customize feed"><i class="ph ph-sliders-horizontal"></i><span class="ev-alert-dot"></span></button>
+      <button class="ev-icon-button" id="ev-refresh" type="button" title="Refresh now"><i class="ph ph-arrows-clockwise"></i></button>
+    </div>
+  </header>
+
+  <div class="ev-credit-banner" id="ev-credit-banner">
+    <i class="ph ph-shield-check"></i>
+    <span><strong>Validating market structure, independent sources, freshness, and execution.</strong></span>
+    <button id="ev-adjust-filters" type="button">Adjust filters</button>
+  </div>
+
+  <div class="ev-workspace">
+    <div class="ev-feed-column">
+      <div class="ev-feed-status">
+        <span><i class="ev-live-dot"></i><strong id="ev-feed-label">Live market scan</strong></span>
+        <span id="ev-updated">Waiting for first refresh</span>
+      </div>
+      <div class="ev-feed" id="ev-feed" aria-live="polite">
+        <div class="ev-loading"><span></span><p>Building your weighted fair-price board…</p></div>
+      </div>
+    </div>
+    <aside class="ev-detail" id="ev-detail" aria-label="EV opportunity detail">
+      <div class="ev-detail-empty">
+        <i class="ph ph-chart-line-up"></i>
+        <h2>Select an opportunity</h2>
+        <p>Inspect the fair price, EV calculation, best execution, liquidity, and the full market.</p>
+      </div>
+    </aside>
+  </div>
+</section>
+
+<dialog class="ev-filter-dialog" id="ev-filter-dialog" aria-labelledby="ev-filter-title">
+  <form method="dialog" class="ev-filter-shell">
+    <header>
+      <div><span>CUSTOMIZE</span><h2 id="ev-filter-title">Positive EV filters</h2></div>
+      <button class="ev-dialog-close" value="cancel" aria-label="Close filters"><i class="ph ph-x"></i></button>
+    </header>
+    <div class="ev-filter-layout">
+      <nav class="ev-filter-nav" aria-label="Filter categories">
+        <button class="active" type="button" data-panel="markets"><i class="ph ph-list-checks"></i><span>Market</span><small id="ev-market-count">3 selected</small></button>
+        <button type="button" data-panel="sportsbooks"><i class="ph ph-storefront"></i><span>Sportsbooks</span><small>Execution</small></button>
+        <button type="button" data-panel="devig"><i class="ph ph-function"></i><span>De-vig Settings</span><small>Icon weights</small></button>
+        <button type="button" data-panel="thresholds"><i class="ph ph-sliders"></i><span>Thresholds</span><small>EV &amp; bankroll</small></button>
+        <button type="button" data-panel="warnings"><i class="ph ph-warning-circle"></i><span>Bet Warnings</span><small>3 enabled</small></button>
+      </nav>
+      <div class="ev-filter-panels">
+        <section class="ev-filter-panel active" data-filter-panel="markets">
+          <h3>Markets</h3><p>Selecting props or alternates activates higher-cost event-level API requests.</p>
+          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="main" checked><span><strong>Main Markets</strong><small>Moneyline, spread, game total</small></span><b>3</b></label>
+          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="props"><span><strong>Player Props</strong><small>MLB and WNBA supported markets</small></span><b>12</b></label>
+          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="alternate"><span><strong>Alternate Markets</strong><small>Alternate spreads and totals</small></span><b>2</b></label>
+          <h4>Leagues</h4>
+          <div class="ev-chip-grid">
+            <label><input type="checkbox" name="sports" value="baseball_mlb" checked><span>MLB</span></label>
+            <label><input type="checkbox" name="sports" value="basketball_wnba" checked><span>WNBA</span></label>
+          </div>
+        </section>
+        <section class="ev-filter-panel" data-filter-panel="sportsbooks">
+          <h3>Execution sportsbooks</h3><p>The feed uses the highest executable price from the books selected here.</p>
+          <div class="ev-book-grid" id="ev-execution-books"></div>
+        </section>
+        <section class="ev-filter-panel" data-filter-panel="devig">
+          <h3>Icon fair-price weights</h3><p>Each available source is de-vigged first, then blended using these weights. Missing books are automatically reweighted—never fabricated.</p>
+          <div class="ev-devig-methods">
+            <label><input type="radio" name="devig" value="power" checked><span>Power</span></label>
+            <label><input type="radio" name="devig" value="multiplicative"><span>Multiplicative</span></label>
+            <label><input type="radio" name="devig" value="additive"><span>Additive</span></label>
+          </div>
+          <div class="ev-weight-list" id="ev-weight-list"></div>
+          <div class="ev-weight-total">Configured weight <strong id="ev-weight-total">100%</strong></div>
+        </section>
+        <section class="ev-filter-panel" data-filter-panel="thresholds">
+          <h3>Opportunity thresholds</h3>
+          <div class="ev-field-grid">
+            <label>Minimum EV<input id="ev-min-ev" type="number" min="-25" max="100" step=".1" value="1"><span>%</span></label>
+            <label>Bankroll<input id="ev-bankroll" type="number" min="1" step="100" value="10000"><span>$</span></label>
+            <label>Kelly multiplier<select id="ev-kelly"><option value=".1">10%</option><option value=".25" selected>25%</option><option value=".5">50%</option><option value="1">Full Kelly</option></select></label>
+            <label>Minimum fair sources<input id="ev-min-sources" type="number" min="2" max="8" step="1" value="3"></label>
+            <label>Maximum quote age<input id="ev-max-quote-age" type="number" min="30" max="1800" step="30" value="180"><span>sec</span></label>
+            <label>Maximum source spread<input id="ev-max-dispersion" type="number" min="2" max="25" step="1" value="12"><span>pts</span></label>
+            <label>Maximum stake<input id="ev-max-stake-pct" type="number" min=".1" max="10" step=".1" value="2"><span>% bankroll</span></label>
+            <label>Maximum event exposure<input id="ev-max-event-pct" type="number" min=".5" max="20" step=".5" value="5"><span>% bankroll</span></label>
+          </div>
+        </section>
+        <section class="ev-filter-panel" data-filter-panel="warnings">
+          <h3>Bet warnings</h3>
+          <label class="ev-toggle-row"><span><strong>Show same-game opportunities</strong><small>May concentrate risk in one event</small></span><input type="checkbox" checked></label>
+          <label class="ev-toggle-row"><span><strong>Show conflicting opportunities</strong><small>May offset potential profit</small></span><input type="checkbox" checked></label>
+          <label class="ev-toggle-row"><span><strong>Show previously viewed opportunities</strong><small>Keep dismissed rows visible</small></span><input type="checkbox" checked></label>
+        </section>
+      </div>
+    </div>
+    <footer><button class="ev-secondary" id="ev-reset" type="button">Reset defaults</button><button class="ev-primary" id="ev-apply" value="cancel" type="button">Show opportunities</button></footer>
+  </form>
+</dialog>
+
+<div class="ev-mobile-scrim" id="ev-mobile-scrim" hidden></div>
+{% endblock %}

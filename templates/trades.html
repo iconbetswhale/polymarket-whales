@@ -3,7 +3,9 @@
 <section class="trades-page">
   <header class="trades-command-bar">
     <div class="trades-command-primary">
-      <h1>Traders</h1>
+      <div class="trades-title-block">
+        <h1>Traders</h1>
+      </div>
       <div class="trades-view-tabs workspace-tabs" role="tablist" aria-label="Personal trading workspace">
         <button class="active" type="button" role="tab" data-workspace-tab="trades" aria-selected="true">Trades <span id="trades-tab-count">0</span></button>
         <button type="button" role="tab" data-workspace-tab="positions" aria-selected="false">Positions <span id="positions-tab-count">0</span></button>
@@ -47,6 +49,13 @@
       </div>
     </div>
   </header>
+  <section class="trade-summary-strip" aria-label="Prediction Traders summary">
+    <div class="summary-metric"><span>Qualified plays</span><strong id="trade-summary-qualified">—</strong><small>Actionable now</small></div>
+    <div class="summary-metric"><span>Candidates scanned</span><strong id="trade-summary-scanned">—</strong><small>Current view</small></div>
+    <div class="summary-metric"><span>Active providers</span><strong id="trade-summary-providers">—</strong><small>Exact executable feeds</small></div>
+    <div class="summary-metric"><span>Recommended exposure</span><strong id="trade-summary-exposure">—</strong><small>Across qualified plays</small></div>
+    <div class="summary-metric warning-metric"><span>Mapping warnings</span><strong id="trade-summary-warnings">—</strong><small>Require review</small></div>
+  </section>
 
   <div class="trades-drawer-backdrop" id="trades-drawer-backdrop" hidden></div>
   <aside class="more-filters trades-settings-drawer" id="more-filters" aria-labelledby="trades-settings-title" hidden>
@@ -97,12 +106,38 @@
     <div class="trade-list-panel" aria-label="Trades to Play results">
       <div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
       <section class="low-inventory-state" id="low-inventory-state" hidden>
-        <i class="ph ph-clock-countdown" aria-hidden="true"></i>
-        <div><h2>There’ll be more plays later</h2><p>Only verified, actionable recommendations appear here. The live feed checks again every 15 seconds.</p></div>
+        <div class="low-inventory-message">
+          <i class="ph ph-clock-countdown" aria-hidden="true"></i>
+          <div><h2>There’ll be more<br>plays later</h2></div>
+          <div class="low-inventory-copy"><p>Come back later or try clearing your filters.</p><strong>Prices refresh every 5 seconds</strong><small>Sharp consensus refreshes every 15 seconds.</small></div>
+        </div>
+        <div class="play-activity-chart" role="img" aria-label="Typical hourly play activity, with the most opportunities appearing in the evening">
+          <header><span>Typical plays by hour</span><small>12a&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6a&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;12p&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6p</small></header>
+          <ol aria-hidden="true">
+            <li style="--activity:12%"></li><li style="--activity:18%"></li><li style="--activity:28%"></li><li style="--activity:22%"></li>
+            <li style="--activity:18%"></li><li style="--activity:12%"></li><li style="--activity:16%"></li><li style="--activity:30%"></li>
+            <li style="--activity:22%"></li><li style="--activity:48%"></li><li style="--activity:72%"></li><li style="--activity:56%"></li>
+            <li style="--activity:78%"></li><li style="--activity:62%"></li><li style="--activity:38%"></li><li style="--activity:28%"></li>
+            <li style="--activity:42%"></li><li style="--activity:58%"></li><li style="--activity:34%"></li><li style="--activity:92%"></li>
+            <li style="--activity:54%"></li><li style="--activity:36%"></li><li style="--activity:46%"></li><li style="--activity:32%"></li>
+          </ol>
+        </div>
         <button class="button ghost compact" id="low-inventory-clear" type="button">Clear filters</button>
       </section>
     </div>
-    <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite"><div class="empty-detail"><i class="ph ph-cursor-click" aria-hidden="true"></i><h2>Select a trade</h2><p>Choose a verified opportunity to inspect its price, Sharp evidence, and bankroll calculation.</p></div></aside>
+    <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite">
+      <div class="model-activity-state">
+        <span class="activity-icon"><i class="ph ph-waveform" aria-hidden="true"></i></span>
+        <div><span class="live-label"><i></i>Model live</span><h2>Scanning markets</h2><p>Qualified picks appear automatically.</p></div>
+        <dl>
+          <div><dt>Last scan</dt><dd id="trade-activity-scan">Checking</dd></div>
+          <div><dt>Markets monitored</dt><dd id="trade-activity-markets">—</dd></div>
+          <div><dt>Qualified</dt><dd id="trade-activity-qualified">—</dd></div>
+          <div><dt>Provider health</dt><dd id="trade-activity-providers">Checking</dd></div>
+        </dl>
+      </div>
+    </aside>
+    <button class="mobile-trade-detail-backdrop" id="mobile-trade-detail-backdrop" type="button" aria-label="Close selected trade details" hidden></button>
   </section>
   <section class="whiteboard-workspace" id="whiteboard-workspace" hidden>
     <div class="whiteboard-toolbar"><div><button class="button ghost compact" id="close-whiteboard-button" type="button"><i class="ph ph-arrow-left" aria-hidden="true"></i>Back to Trades</button><p class="eyebrow">PERSONAL RESEARCH</p><h2>Your Whiteboard</h2><span>Frozen research snapshots with live price checks</span></div><label>Sort<select id="whiteboard-sort"><option value="event">Event start</option><option value="pinned">Pin time</option><option value="score">Frozen score</option><option value="slippage">Current slippage</option><option value="amount">Frozen recommended amount</option><option value="classification">Classification</option></select></label></div>

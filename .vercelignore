@@ -1,10 +1,15 @@
 .env
 .env.local
 .pytest_cache/
+.pytest*/
+.pytest*
+.test-tmp*/
 __pycache__/
 tests/__pycache__/
 tests/
 *.pyc
+*.db
+*.log
 polymarket_tracker.db
 polymarket_tracker.db-journal
 *.db-journal
@@ -18,3 +23,11 @@ design-qa.md
 personal-controls*.png
 redesign-*.png
 qa/
+.qa*
+qa-*.png
+outputs/
+analysis/
+notebooks/
+scripts/
+docs/
+docs/visual-qa/

@@ -8,6 +8,8 @@ import requests
 
 from config import get_settings
 from execution_providers import (
+    apply_best_execution_option,
+    ExecutionOption,
     ExecutionProviderRegistry,
     MatchConfidence,
     NoVIGProvider,
@@ -18,6 +20,8 @@ from execution_providers import (
     _match_exact_trade,
     american_to_probability,
     canonicalize_trade,
+    _finalize_execution_option,
+    _recommended_stake,
 )
 from kalshi_provider import _normalize_market
 
@@ -340,6 +344,153 @@ def test_exact_game_total_matches_only_the_identical_line() -> None:
 
     assert options["trade-1"].display_odds == "-112"
     assert "trade-2" not in options
+
+
+def test_spread_line_is_canonicalized_from_selected_outcomes_perspective() -> None:
+    rockies = canonicalize_trade(
+        trade(
+            event_title="Colorado Rockies vs Milwaukee Brewers",
+            market_title="Spread: Milwaukee Brewers (-1.5)",
+            outcome="Colorado Rockies",
+            sports_market_type="spread",
+            market_line=-1.5,
+        )
+    )
+    brewers = canonicalize_trade(
+        trade(
+            event_title="Colorado Rockies vs Milwaukee Brewers",
+            market_title="Spread: Milwaukee Brewers (-1.5)",
+            outcome="Milwaukee Brewers",
+            sports_market_type="spread",
+            market_line=-1.5,
+        )
+    )
+
+    assert rockies is not None and rockies.line == 1.5
+    assert brewers is not None and brewers.line == -1.5
+
+
+def test_league_style_sport_ids_normalize_to_provider_sports() -> None:
+    mlb = canonicalize_trade(trade(canonical_sport_id="mlb"))
+    wnba = canonicalize_trade(
+        trade(
+            canonical_sport_id="wnba",
+            canonical_league_id="wnba",
+            event_title="Chicago Sky vs New York Liberty",
+            outcome="Chicago Sky",
+        )
+    )
+
+    assert mlb is not None and mlb.sport_id == "BASEBALL"
+    assert wnba is not None and wnba.sport_id == "BASKETBALL"
+
+
+def test_plural_totals_market_type_is_canonicalized() -> None:
+    total = canonicalize_trade(
+        trade(
+            market_title="San Diego Padres vs Miami Marlins: O/U 9.5",
+            outcome="Under",
+            sports_market_type="totals",
+            market_line=9.5,
+        )
+    )
+
+    assert total is not None
+    assert total.market_kind == "game_total"
+    assert total.line == 9.5
+    assert total.side_id == "under"
+
+
+def test_verified_best_exchange_quote_becomes_sizing_orderbook() -> None:
+    value = trade(
+        executionOptions=[
+            {
+                "providerName": "4CX",
+                "providerKey": "4cx",
+                "bestExecutablePrice": 0.48,
+                "availableLiquidity": 240.0,
+                "feeRate": 0.0,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "quoteTimestamp": "2026-07-14T20:00:00Z",
+                "directMarketUrl": "https://4cx.com/sports/event/exact",
+            }
+        ]
+    )
+
+    assert apply_best_execution_option(value) is True
+    assert value["orderbook"]["asks"] == [{"price": 0.48, "size": 500.0}]
+    assert value["expected_fee_fraction"] == 0.0
+    assert value["execution_orderbook_source"] == "4cx"
+
+
+def test_best_exchange_quote_uses_verified_all_in_price_after_fees() -> None:
+    value = trade(
+        executionOptions=[
+            {
+                "providerName": "Kalshi",
+                "providerKey": "kalshi",
+                    # Finalized execution options expose the fee-inclusive
+                    # stake-aware price. Raw contract price is stored
+                    # separately and must not have feeRate added again.
+                    "bestExecutablePrice": 0.452,
+                "availableLiquidity": 240.0,
+                "feeRate": 0.012,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "directMarketUrl": "https://kalshi.com/markets/exact",
+            },
+            {
+                "providerName": "NoVIG",
+                "providerKey": "novig",
+                "bestExecutablePrice": 0.447,
+                "availableLiquidity": 240.0,
+                "feeRate": 0.0,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "directMarketUrl": "https://novig.com/markets/exact",
+            },
+        ]
+    )
+
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "novig"
+    assert value["orderbook"]["asks"] == [
+        {"price": 0.447, "size": pytest.approx(240.0 / 0.447)}
+    ]
+
+
+def test_unverified_fee_or_liquidity_never_becomes_sizing_depth() -> None:
+    value = trade(
+        executionOptions=[
+            {
+                "providerName": "Kalshi",
+                "providerKey": "kalshi",
+                "bestExecutablePrice": 0.47,
+                "availableLiquidity": 240.0,
+                "feeRate": None,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "quoteTimestamp": "2026-07-14T20:00:00Z",
+                "directMarketUrl": "https://kalshi.com/markets/exact",
+            }
+        ]
+    )
+
+    assert apply_best_execution_option(value) is False
+    assert "execution_orderbook_source" not in value
 
 
 @pytest.mark.parametrize(
@@ -673,3 +824,48 @@ def test_novig_homepage_is_never_used_as_an_execution_link() -> None:
     assert option.display_odds == "Unavailable"
     assert option.deep_link is None
     assert option.is_available is False
+
+
+def test_strategy_target_stake_is_available_before_recommendation_card() -> None:
+    assert _recommended_stake({
+        "strategy_target_units": 1.0,
+        "decision_bankroll": 10_000.0,
+    }) == pytest.approx(100.0)
+
+
+def test_finalized_quote_must_fill_complete_strategy_stake() -> None:
+    now = datetime.now(timezone.utc)
+    option = ExecutionOption(
+        provider_key="prophetx",
+        provider_name="ProphetX",
+        market_id="market-1",
+        selection_id="selection-1",
+        display_odds="+148",
+        american_odds=148,
+        is_available=True,
+        last_updated=now.isoformat(),
+        deep_link="https://app.prophetx.co/market/one",
+        matching_confidence=MatchConfidence.EXACT,
+        logo_url="/static/prophetx.svg",
+        tooltip="Open ProphetX market",
+        available_liquidity=10.0,
+        can_fill_recommended_stake=True,
+        quote_status="OPEN",
+    )
+
+    finalized = _finalize_execution_option(
+        option,
+        {
+            "outcome": "Washington Nationals",
+            "strategy_target_units": 1.0,
+            "decision_bankroll": 10_000.0,
+        },
+        max_quote_age_seconds=60,
+        min_liquidity=1.0,
+        include_fees=True,
+        now=now,
+    )
+
+    assert finalized.recommended_stake == pytest.approx(100.0)
+    assert finalized.can_fill_recommended_stake is False
+    assert finalized.failure_reason == "INSUFFICIENT_LIQUIDITY"

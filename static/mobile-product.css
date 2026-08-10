@@ -1,0 +1,982 @@
+/* IconLabs mobile product layer
+   Loaded last so every product page shares the same compact mobile rhythm. */
+
+@media (max-width: 900px) {
+:root {
+    --mobile-product-gutter: 14px;
+    --mobile-product-radius: 14px;
+    --mobile-product-control: 44px;
+    --iconlabs-mobile-header-height: 58px;
+  }
+
+  html {
+    max-width: 100%;
+    overflow-x: hidden;
+    background: #08070d;
+  }
+
+  body {
+    max-width: 100%;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body .app-nav,
+  body[data-page="trades"] .app-nav,
+  body[data-page="tracker"] .app-nav,
+  body[data-page="odds-screen"] .app-nav {
+    height: calc(var(--iconlabs-mobile-header-height) + env(safe-area-inset-top)) !important;
+    min-height: calc(var(--iconlabs-mobile-header-height) + env(safe-area-inset-top)) !important;
+    padding: env(safe-area-inset-top) var(--mobile-product-gutter) 0 !important;
+    grid-template-columns: 44px minmax(0, 1fr) !important;
+    grid-template-rows: var(--iconlabs-mobile-header-height) !important;
+    column-gap: 8px !important;
+    background:
+      radial-gradient(circle at 18% 0%, rgba(153, 128, 230, .12), transparent 34%),
+      rgba(10, 8, 16, .96) !important;
+    box-shadow: 0 12px 34px rgba(0, 0, 0, .34) !important;
+  }
+
+  body .app-nav .mobile-nav-toggle,
+  body[data-page="trades"] .app-nav .mobile-nav-toggle,
+  body[data-page="tracker"] .app-nav .mobile-nav-toggle,
+  body[data-page="odds-screen"] .app-nav .mobile-nav-toggle {
+    width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    border-color: rgba(181, 166, 235, .22) !important;
+    border-radius: 12px !important;
+    background: rgba(169, 154, 245, .075) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .035) !important;
+  }
+
+  body .app-nav .mobile-nav-toggle i {
+    font-size: 22px;
+  }
+
+  body .app-nav .brand,
+  body[data-page="trades"] .app-nav .brand,
+  body[data-page="tracker"] .app-nav .brand,
+  body[data-page="odds-screen"] .app-nav .brand {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 6px !important;
+    gap: 9px !important;
+  }
+
+  body .app-nav .brand-icon {
+    width: 32px !important;
+    height: 32px !important;
+    flex-basis: 32px !important;
+    border-radius: 9px !important;
+    box-shadow: 0 8px 20px rgba(122, 97, 202, .2) !important;
+  }
+
+  body .app-nav .brand-copy strong {
+    font-size: 14px !important;
+    letter-spacing: -.02em !important;
+  }
+
+  body .app-nav .nav-links,
+  body[data-page="trades"] .app-nav .nav-links,
+  body[data-page="tracker"] .app-nav .nav-links,
+  body[data-page="odds-screen"] .app-nav .nav-links {
+    top: calc(var(--iconlabs-mobile-header-height) + env(safe-area-inset-top)) !important;
+    height: calc(100dvh - var(--iconlabs-mobile-header-height) - env(safe-area-inset-top)) !important;
+    max-height: calc(100dvh - var(--iconlabs-mobile-header-height) - env(safe-area-inset-top)) !important;
+    padding: 12px var(--mobile-product-gutter) max(24px, env(safe-area-inset-bottom)) !important;
+    gap: 3px !important;
+  }
+
+  body .app-nav .nav-links a,
+  body .app-nav .sidebar-account-button,
+  body .app-nav .mobile-nav-pause {
+    width: 100% !important;
+    min-height: 48px !important;
+    padding-inline: 14px !important;
+    border-radius: 11px !important;
+    justify-content: flex-start !important;
+    text-align: left !important;
+  }
+
+  body .app-nav .nav-links a[aria-current="page"] {
+    background: linear-gradient(90deg, rgba(141, 116, 217, .18), rgba(141, 116, 217, .075)) !important;
+    box-shadow: inset 3px 0 #9f86ee !important;
+  }
+
+  .app-shell,
+  body[data-page="trades"] .app-shell,
+  body[data-page="tracker"] .app-shell,
+  body[data-page="odds-screen"] .app-shell {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin-left: 0 !important;
+    padding: calc(var(--iconlabs-mobile-header-height) + env(safe-area-inset-top) + 14px) var(--mobile-product-gutter) max(30px, env(safe-area-inset-bottom)) !important;
+  }
+
+  button,
+  .button,
+  select,
+  input,
+  summary {
+    touch-action: manipulation;
+  }
+
+  .button,
+  .icon-button,
+  .search-control,
+  select,
+  input:not([type="checkbox"]):not([type="radio"]) {
+    min-height: var(--mobile-product-control);
+  }
+
+  .page-header,
+  .panel-header,
+  .toolbar,
+  .control-bar,
+  .filter-bar {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+
+  .page-header h1,
+  .panel-header h1 {
+    font-size: clamp(24px, 7vw, 30px) !important;
+    letter-spacing: -.04em !important;
+  }
+
+  .responsive-table {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  dialog.tracker-dialog[open] {
+    width: calc(100% - 20px) !important;
+    max-width: 560px !important;
+    max-height: calc(100dvh - 20px) !important;
+    margin: auto !important;
+    border-radius: 18px !important;
+  }
+
+  dialog.tracker-dialog .tracker-dialog-shell {
+    max-height: calc(100dvh - 24px);
+    overflow-y: auto;
+    padding: 18px 16px max(18px, env(safe-area-inset-bottom));
+  }
+}
+
+.tracker-mobile-bet-list {
+  display: none;
+}
+
+/* Prediction Traders */
+@media (max-width: 860px) {
+  body[data-page="trades"] .trades-page {
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 14px !important;
+  }
+
+  body[data-page="trades"] .trades-command-bar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    padding: 0 0 14px !important;
+    border-bottom: 1px solid rgba(169, 154, 245, .13) !important;
+    background: transparent !important;
+  }
+
+  body[data-page="trades"] .trades-command-primary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  body[data-page="trades"] .trades-title-block {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+  }
+
+  body[data-page="trades"] .trades-title-block h1 {
+    margin: 0 !important;
+    font-size: 28px !important;
+    line-height: 1 !important;
+    letter-spacing: -.045em !important;
+  }
+
+  body[data-page="trades"] .model-status-pill {
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    min-height: 34px !important;
+    padding: 0 12px !important;
+    border-radius: 10px !important;
+    font-size: 11px !important;
+    box-shadow: 0 8px 22px rgba(53, 176, 96, .12) !important;
+  }
+
+  body[data-page="trades"] .result-badge {
+    grid-column: 2 !important;
+    grid-row: 2 !important;
+    align-self: center !important;
+    justify-self: end !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: none !important;
+    color: #aaa2bb !important;
+    font-size: 11px !important;
+  }
+
+  body[data-page="trades"] .trades-view-tabs {
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(169, 154, 245, .17) !important;
+    border-radius: 13px !important;
+    background: rgba(255, 255, 255, .018) !important;
+  }
+
+  body[data-page="trades"] .trades-view-tabs button {
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 0 8px !important;
+    justify-content: center !important;
+    border-radius: 9px !important;
+    font-size: 12px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+    width: 100% !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .compact-search {
+    grid-column: 1 !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 44px !important;
+    border-radius: 11px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions > .toolbar-popover-shell:first-of-type {
+    grid-column: 2 !important;
+    width: auto !important;
+    display: block !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .toolbar-bankroll {
+    width: auto !important;
+    min-width: 72px !important;
+    height: 44px !important;
+    padding: 0 10px !important;
+    border-radius: 11px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .personal-pnl-shell {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .personal-pnl-summary {
+    width: 74px !important;
+    min-width: 74px !important;
+    height: 44px !important;
+    padding: 0 10px !important;
+    border-radius: 11px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .personal-pnl-summary span,
+  body[data-page="trades"] .trades-command-actions .personal-pnl-summary em {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .personal-pnl-summary strong {
+    font-size: 12px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions > .icon-button,
+  body[data-page="trades"] .trades-command-actions > .toolbar-popover-shell:last-child {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trade-summary-strip {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trade-workspace,
+  body[data-page="trades"] .trade-list-panel,
+  body[data-page="trades"] .trade-list {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-list {
+    display: grid !important;
+    gap: 10px !important;
+  }
+
+  body[data-page="trades"] .trade-card,
+  body[data-page="trades"] .trade-card.selected {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+    overflow: hidden !important;
+    border-radius: 16px !important;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, .18), inset 0 1px 0 rgba(255, 255, 255, .025) !important;
+  }
+
+  body[data-page="trades"] .trade-identity {
+    min-width: 0 !important;
+    padding: 16px 16px 14px !important;
+  }
+
+  body[data-page="trades"] .trade-score strong {
+    font-size: 30px !important;
+    line-height: .9 !important;
+  }
+
+  body[data-page="trades"] .trade-kicker {
+    margin-top: 10px !important;
+    font-size: 10px !important;
+  }
+
+  body[data-page="trades"] .trade-event {
+    margin-top: 7px !important;
+    font-size: 17px !important;
+    line-height: 1.22 !important;
+    letter-spacing: -.025em !important;
+    white-space: normal !important;
+  }
+
+  body[data-page="trades"] .trade-market {
+    margin-top: 5px !important;
+    font-size: 11px !important;
+  }
+
+  body[data-page="trades"] .trade-decision {
+    min-width: 0 !important;
+    padding: 0 !important;
+    border-top: 1px solid rgba(169, 154, 245, .11) !important;
+  }
+
+  body[data-page="trades"] .trade-metrics-row {
+    display: flex !important;
+    gap: 6px !important;
+    padding: 10px 12px !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain !important;
+    scrollbar-width: none !important;
+  }
+
+  body[data-page="trades"] .trade-metrics-row::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-page="trades"] .trade-metric {
+    flex: 0 0 auto !important;
+    min-height: 30px !important;
+    padding: 0 8px !important;
+    border-radius: 8px !important;
+    font-size: 10px !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 10px !important;
+    align-items: center !important;
+    min-height: 76px !important;
+    padding: 12px 14px !important;
+    background: rgba(16, 28, 34, .74) !important;
+  }
+
+  body[data-page="trades"] .trade-pick {
+    min-width: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-pick small {
+    font-size: 9px !important;
+  }
+
+  body[data-page="trades"] .trade-pick strong {
+    margin-top: 5px !important;
+    font-size: 16px !important;
+    line-height: 1.16 !important;
+    white-space: normal !important;
+  }
+
+  body[data-page="trades"] .recommended-bet {
+    min-width: 64px !important;
+    text-align: right !important;
+  }
+
+  body[data-page="trades"] .recommended-bet strong {
+    font-size: 18px !important;
+  }
+
+  body[data-page="trades"] .recommended-bet small {
+    font-size: 9px !important;
+  }
+
+  body[data-page="trades"] .execution-button,
+  body[data-page="trades"] .best-price-button,
+  body[data-page="trades"] .provider-cta {
+    min-width: 0 !important;
+    min-height: 42px !important;
+    padding: 5px 9px !important;
+    border-radius: 10px !important;
+  }
+
+  body[data-page="trades"] .trade-caret,
+  body[data-page="trades"] .trade-card-actions {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .low-inventory-state {
+    min-height: 220px !important;
+    padding: 18px 6px 12px !important;
+    gap: 18px !important;
+  }
+
+  body[data-page="trades"] .low-inventory-message {
+    grid-template-columns: auto minmax(0, 1fr) !important;
+    gap: 10px !important;
+    max-width: 100% !important;
+  }
+
+  body[data-page="trades"] .low-inventory-message h2 {
+    font-size: 24px !important;
+    line-height: .98 !important;
+  }
+
+  body[data-page="trades"] .low-inventory-copy {
+    grid-column: 1 / -1 !important;
+    padding-left: 0 !important;
+  }
+
+  body[data-page="trades"] .play-activity-chart {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trade-detail {
+    width: min(100%, 520px) !important;
+    max-width: 100% !important;
+    max-height: calc(100dvh - 18px) !important;
+    inset: auto 0 0 0 !important;
+    margin: auto !important;
+    padding-bottom: max(16px, env(safe-area-inset-bottom)) !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+
+  body[data-page="trades"] .trades-settings-drawer {
+    width: min(100%, 520px) !important;
+    max-width: 100% !important;
+    inset: auto 0 0 0 !important;
+    max-height: 92dvh !important;
+    border-radius: 20px 20px 0 0 !important;
+  }
+}
+
+@media (max-width: 420px) {
+  body[data-page="trades"] .trades-command-actions {
+    grid-template-columns: minmax(0, 1fr) 68px !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+  }
+
+  body[data-page="trades"] .recommended-bet {
+    grid-column: 2 !important;
+  }
+}
+
+/* Bet Tracker */
+@media (max-width: 760px) {
+  body[data-page="tracker"] .app-shell {
+    display: block !important;
+  }
+
+  body[data-page="tracker"] .tracker-page-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 10px !important;
+    align-items: end !important;
+    margin: 0 0 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-page-header .eyebrow,
+  body[data-page="tracker"] .tracker-subtitle {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-page-header h1 {
+    font-size: 28px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="tracker"] .tracker-header-actions {
+    display: block !important;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-control {
+    width: auto !important;
+    min-width: 106px !important;
+    min-height: 44px !important;
+    padding: 6px 12px !important;
+    border-radius: 11px !important;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-control span {
+    font-size: 8px !important;
+    letter-spacing: .08em !important;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-control strong {
+    font-size: 15px !important;
+  }
+
+  body[data-page="tracker"] .tracker-section-tabs {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 4px !important;
+    width: 100% !important;
+    min-height: 48px !important;
+    margin: 0 0 12px !important;
+    padding: 4px !important;
+    overflow: hidden !important;
+    border: 1px solid rgba(169, 154, 245, .17) !important;
+    border-radius: 13px !important;
+    background: rgba(255, 255, 255, .018) !important;
+  }
+
+  body[data-page="tracker"] .tracker-section-tabs button {
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 0 10px !important;
+    justify-content: center !important;
+    border-radius: 9px !important;
+    font-size: 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-dashboard-grid,
+  body[data-page="tracker"] .tracker-dashboard-main {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 12px !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="tracker"] .tracker-bankroll-panel {
+    min-height: 0 !important;
+    padding: 14px 12px 12px !important;
+    border-radius: 16px !important;
+    box-shadow: 0 14px 32px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .025) !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    padding-bottom: 10px !important;
+  }
+
+  body[data-page="tracker"] .tracker-period-heading {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    align-items: center !important;
+  }
+
+  body[data-page="tracker"] .tracker-period-heading h2 {
+    font-size: 20px !important;
+    letter-spacing: -.03em !important;
+  }
+
+  body[data-page="tracker"] .tracker-period-heading > strong {
+    margin: 0 !important;
+    font-size: 17px !important;
+  }
+
+  body[data-page="tracker"] .tracker-period-step {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-controls {
+    display: flex !important;
+    width: 100% !important;
+    gap: 8px !important;
+    justify-content: space-between !important;
+    overflow: visible !important;
+  }
+
+  body[data-page="tracker"] .tracker-visual-toggle {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
+    flex: 1 1 auto !important;
+  }
+
+  body[data-page="tracker"] .tracker-visual-toggle button {
+    min-height: 38px !important;
+    justify-content: center !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-frame,
+  body[data-page="tracker"] .tracker-bankroll-panel .tracker-chart,
+  body[data-page="tracker"] .tracker-calendar {
+    min-height: 224px !important;
+    height: 224px !important;
+    border-radius: 13px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    padding: 12px 0 6px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary > div {
+    min-width: 0 !important;
+    padding: 0 8px !important;
+    border-left: 1px solid rgba(169, 154, 245, .11) !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary > div:first-child {
+    padding-left: 0 !important;
+    border-left: 0 !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary span {
+    font-size: 9px !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary strong {
+    margin-top: 4px !important;
+    font-size: clamp(14px, 4vw, 18px) !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary small {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-performance-meta {
+    padding: 8px 0 0 !important;
+    font-size: 9px !important;
+  }
+
+  body[data-page="tracker"] .tracker-calendar {
+    padding: 10px 6px !important;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-grid {
+    gap: 4px !important;
+  }
+
+  body[data-page="tracker"] .tracker-calendar-day,
+  body[data-page="tracker"] .tracker-calendar-blank {
+    min-height: 42px !important;
+    border-radius: 9px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-panel {
+    padding: 14px 12px !important;
+    border-radius: 16px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-header {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-header h2 {
+    font-size: 17px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100% !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls > * {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls .segmented {
+    grid-column: 1 / -1 !important;
+    display: grid !important;
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    overflow: hidden !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-controls .segmented button {
+    min-width: 0 !important;
+    min-height: 36px !important;
+    padding: 0 5px !important;
+    font-size: 10px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    margin-top: 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid > div {
+    min-height: 76px !important;
+    padding: 12px 10px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid span {
+    font-size: 9px !important;
+  }
+
+  body[data-page="tracker"] .tracker-profit-grid strong {
+    margin-top: 6px !important;
+    font-size: 18px !important;
+  }
+
+  body[data-page="tracker"] [data-tracker-section-panel][hidden] {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-bets-view,
+  body[data-page="tracker"] .tracker-toolbar,
+  body[data-page="tracker"] .tracker-book-summary,
+  body[data-page="tracker"] .table-panel {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="tracker"] .tracker-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  body[data-page="tracker"] .tracker-toolbar .search-control {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="tracker"] .tracker-more-filters summary {
+    min-width: 44px !important;
+    width: 44px !important;
+    padding: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    border: 1px solid rgba(169, 154, 245, .16) !important;
+    border-radius: 11px !important;
+  }
+
+  body[data-page="tracker"] .tracker-more-filters summary span,
+  body[data-page="tracker"] .tracker-more-filters summary .ph-caret-down {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-more-filter-grid {
+    position: fixed !important;
+    inset: auto 0 0 0 !important;
+    z-index: 120 !important;
+    max-height: 78dvh !important;
+    padding: 16px var(--mobile-product-gutter) max(18px, env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    grid-template-columns: 1fr !important;
+    border-radius: 20px 20px 0 0 !important;
+    background: #11101a !important;
+    box-shadow: 0 -18px 42px rgba(0, 0, 0, .48) !important;
+  }
+
+  body[data-page="tracker"] .tracker-table {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .table-panel {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet-list {
+    display: grid !important;
+    gap: 8px !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet {
+    overflow: hidden !important;
+    border: 1px solid rgba(169, 154, 245, .16) !important;
+    border-radius: 13px !important;
+    background: linear-gradient(145deg, rgba(20, 18, 31, .98), rgba(12, 13, 22, .98)) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, .18) !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet > summary {
+    display: grid !important;
+    grid-template-columns: 34px minmax(0, 1fr) auto 18px !important;
+    min-height: 58px !important;
+    align-items: center !important;
+    gap: 10px !important;
+    padding: 10px 12px !important;
+    cursor: pointer !important;
+    list-style: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet > summary::-webkit-details-marker {
+    display: none !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-provider,
+  body[data-page="tracker"] .tracker-mobile-provider .provider-logo-mark {
+    display: grid !important;
+    width: 34px !important;
+    height: 34px !important;
+    place-items: center !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-provider .provider-logo-mark {
+    overflow: hidden !important;
+    border-radius: 9px !important;
+    background: rgba(255, 255, 255, .06) !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-provider img {
+    width: 27px !important;
+    height: 27px !important;
+    object-fit: contain !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet > summary > strong {
+    overflow: hidden !important;
+    color: #f4f2fb !important;
+    font-size: 15px !important;
+    font-weight: 750 !important;
+    letter-spacing: -.01em !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet > summary > b {
+    color: #f7f5fb !important;
+    font-size: 16px !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet > summary > .ph-caret-down {
+    color: #8f899f !important;
+    font-size: 16px !important;
+    transition: transform .18s ease !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet[open] > summary {
+    border-bottom: 1px solid rgba(169, 154, 245, .12) !important;
+    background: rgba(169, 154, 245, .045) !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-bet[open] > summary > .ph-caret-down {
+    transform: rotate(180deg) !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-details {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    padding: 4px 12px 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail {
+    min-width: 0 !important;
+    padding: 11px 6px !important;
+    border-bottom: 1px solid rgba(169, 154, 245, .09) !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail.wide {
+    grid-column: 1 / -1 !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail > span {
+    display: block !important;
+    margin-bottom: 5px !important;
+    color: #777184 !important;
+    font-size: 9px !important;
+    font-weight: 700 !important;
+    letter-spacing: .09em !important;
+    text-transform: uppercase !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail > div {
+    min-width: 0 !important;
+    color: #e9e6f0 !important;
+    font-size: 13px !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail .tracker-sharp-compact strong {
+    font-size: 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-detail .tracker-result-pill {
+    width: auto !important;
+    min-width: 76px !important;
+    padding: 5px 12px !important;
+  }
+
+  body[data-page="tracker"] .tracker-mobile-empty {
+    display: grid !important;
+    min-height: 128px !important;
+    place-items: center !important;
+    gap: 8px !important;
+    color: #8d8797 !important;
+    text-align: center !important;
+  }
+}
+
+@media (max-width: 380px) {
+  :root {
+    --mobile-product-gutter: 11px;
+  }
+
+  body[data-page="tracker"] .tracker-performance-summary strong {
+    font-size: 13px !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    gap: 7px !important;
+    padding-inline: 11px !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
