@@ -870,10 +870,10 @@ body:not([data-page="home"]) strong {
 
   body:not([data-page="home"]) .brand {
     min-height: 62px !important;
-    margin: 0 14px 22px !important;
-    padding: 0 4px !important;
+    margin: 0 0 22px !important;
+    padding: 0 2px !important;
     gap: 15px !important;
-    justify-content: center;
+    justify-content: flex-start !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
