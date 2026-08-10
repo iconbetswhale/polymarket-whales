@@ -257,13 +257,13 @@ function slippageComparison(userEntry, whaleEntry, providedFraction = null) {
 
 function slippageMetricChip(comparison) {
   if (!comparison) {
-    return tradeMetricChip("ph-arrows-left-right", "N/A", "Entry slippage unavailable");
+    return tradeMetricChip("ph-trend-up", "N/A", "Entry slippage unavailable");
   }
   const direction = comparison.tone === "worse" ? "worse" : comparison.tone === "better" ? "better" : "unchanged";
   const aria = `${comparison.formatted} slippage, ${direction} than the tracked whale's entry`;
   return `
     <button class="trade-metric-chip slippage-chip ${comparison.tone}" type="button" data-testid="slippage-tooltip-trigger" aria-expanded="false" aria-label="${escapeHtml(aria)}">
-      <i class="ph ph-arrows-left-right" aria-hidden="true"></i>
+      <i class="ph ph-trend-up" aria-hidden="true"></i>
       <strong>${escapeHtml(comparison.formatted)}</strong>
       <span class="slippage-tooltip" role="tooltip">
         <span>You're now getting a <strong>${escapeHtml(comparison.comparison)}</strong> price of <strong>${escapeHtml(formatCents(comparison.userPrice))}</strong>, compared to the tracked whale's <strong>${escapeHtml(formatCents(comparison.whalePrice))}</strong>.</span>
@@ -1903,10 +1903,10 @@ function tradeCard(trade) {
       <span class="trade-decision">
         <span class="trade-metrics-row">
           ${tradeMetricChip("ph-calendar-blank", eventTime, "Scheduled event start in Eastern Time", "time")}
-          ${tradeMetricChip("ph-coins", formatOptionalMoney(betAmount, true), amountTooltip)}
+          ${tradeMetricChip("ph-bag", formatOptionalMoney(betAmount, true), amountTooltip)}
           ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Tracked Sharp average entry price")}
           ${slippageMetricChip(slippage)}
-          ${tradeMetricChip("ph-arrow-up-right", formatRelativeSize(relativeSize), relativeTooltip)}
+          ${tradeMetricChip("ph-gauge", formatRelativeSize(relativeSize), relativeTooltip)}
           ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
         </span>
         <span class="trade-selection">

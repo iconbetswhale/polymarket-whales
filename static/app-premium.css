@@ -1311,9 +1311,58 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body[data-page="trades"] .trade-decision {
-    grid-template-rows: 34px 64px !important;
+    grid-template-rows: 38px 64px !important;
     align-content: center !important;
     gap: 7px !important;
+  }
+
+  body[data-page="trades"] .trade-metrics-row {
+    min-height: 38px !important;
+    align-items: center !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip {
+    min-height: 30px !important;
+    gap: 6px !important;
+    padding: 3px 8px 3px 4px !important;
+    border: 1px solid rgba(164, 94, 235, .22) !important;
+    border-radius: 8px !important;
+    background: rgba(31, 18, 48, .68) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip i {
+    width: 23px !important;
+    height: 23px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: 0 0 23px !important;
+    border: 1px solid rgba(171, 94, 243, .2) !important;
+    border-radius: 6px !important;
+    color: #b875ff !important;
+    background: linear-gradient(145deg, rgba(85, 38, 126, .42), rgba(20, 13, 31, .68)) !important;
+    box-shadow: inset 0 1px rgba(255,255,255,.04), 0 0 8px rgba(153, 75, 235, .08) !important;
+    font-size: 15px !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.better {
+    border-color: rgba(80, 213, 126, .34) !important;
+    background: rgba(17, 50, 36, .68) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.better i {
+    border-color: rgba(80, 213, 126, .22) !important;
+    color: #67e7a4 !important;
+    background: linear-gradient(145deg, rgba(24, 87, 59, .48), rgba(13, 31, 24, .72)) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.time i {
+    width: 18px !important;
+    height: 18px !important;
+    flex-basis: 18px !important;
+    border: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font-size: 12px !important;
   }
 
   body[data-page="trades"] .trade-selection {
