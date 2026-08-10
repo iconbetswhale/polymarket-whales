@@ -1913,15 +1913,6 @@ function tradeCard(trade) {
           <span class="trade-pick"><strong>${escapeHtml(trade.outcome)}</strong></span>
           ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
           ${executionToolbar(trade)}
-          <span class="trade-card-actions">
-            ${trade.isVisualPreview ? "" : `
-            <button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" type="button" data-trade-id="${escapeHtml(trade.id)}" data-pin-id="${escapeHtml(trade.whiteboardPinId || "")}" title="${trade.isPinnedByCurrentUser ? "Unpin from Whiteboard" : "Pin to Whiteboard"}" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from your Whiteboard" : "Pin this trade to your Whiteboard"}"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button>
-            ${trade.isHidden
-              ? `<button class="trade-restore-action" type="button" data-testid="restore-trade-action" data-hidden-id="${escapeHtml(trade.hiddenRecordId)}" title="Restore this trade" aria-label="Restore this trade to Trades to Play"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
-              : `<button class="trade-hide-action" type="button" data-testid="hide-trade-action" data-trade-id="${escapeHtml(trade.id)}" title="Hide this trade" aria-label="Hide this trade from Trades to Play"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>`}
-            <button class="tracker-quick-action" type="button" data-testid="personal-tracker-action" data-trade-id="${escapeHtml(trade.id)}" title="Track this personal trade" aria-label="Track ${escapeHtml(trade.outcome)} in Personal Tracking"><i class="ph ph-plus" aria-hidden="true"></i><span>Track</span></button>
-            `}
-          </span>
         </span>
       </span>
       <i class="ph ph-caret-right trade-caret" aria-hidden="true"></i>
