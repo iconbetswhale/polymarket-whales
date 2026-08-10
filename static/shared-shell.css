@@ -95,6 +95,23 @@
     border-radius: 8px !important;
   }
 
+  body:not([data-page="home"]) .app-nav .nav-links a {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: 20px auto !important;
+    justify-items: center !important;
+    justify-content: center !important;
+    align-content: center !important;
+    min-height: 48px !important;
+    gap: 3px !important;
+    padding: 5px 2px !important;
+    text-align: center !important;
+  }
+
+  body:not([data-page="home"]) .app-nav .nav-links a > span[data-short] {
+    width: 100% !important;
+    text-align: center !important;
+  }
+
   .app-nav .nav-section-label {
     width: 100%;
     margin: 8px 0 2px !important;
