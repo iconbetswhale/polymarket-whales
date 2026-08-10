@@ -1065,3 +1065,103 @@ body[data-page="trades"] .execution-option-copy strong { font-size: 15px !import
 body[data-page="trades"] .detail-selection-panel {
   grid-template-columns: minmax(0, 1fr) auto 72px !important;
 }
+
+/* Desktop density polish: preserve the visual system while giving the shell room to breathe. */
+@media (min-width: 821px) {
+  body:not([data-page="home"]) .nav-links {
+    gap: 7px !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a {
+    min-height: 47px !important;
+    padding: 0 17px !important;
+    gap: 14px !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a i {
+    width: 22px !important;
+    font-size: 22px !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a[aria-current="page"] {
+    min-height: 50px !important;
+  }
+
+  body:not([data-page="home"]) .nav-section-label {
+    gap: 10px !important;
+    margin: 20px 7px 9px !important;
+    font-size: 11px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button {
+    min-height: 70px !important;
+    padding: 11px 14px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button > i:first-child {
+    width: 38px !important;
+    font-size: 38px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button > span {
+    gap: 4px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button strong {
+    font-size: 14px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button small {
+    font-size: 11px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-caret {
+    font-size: 19px !important;
+  }
+
+  body:not([data-page="home"]) .app-shell {
+    padding: 28px 28px 42px !important;
+  }
+
+  body[data-page="trades"] .trades-command-bar {
+    margin-bottom: 22px !important;
+    column-gap: 18px !important;
+  }
+
+  body[data-page="trades"] .trades-command-primary,
+  body[data-page="trades"] .trades-command-actions {
+    gap: 10px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace {
+    gap: 20px !important;
+  }
+
+  body[data-page="trades"] .trade-list {
+    gap: 16px !important;
+  }
+
+  body[data-page="trades"] .trade-identity {
+    gap: 18px !important;
+    padding: 22px 22px !important;
+  }
+
+  body[data-page="trades"] .trade-decision {
+    padding: 16px 18px 18px !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    gap: 13px !important;
+    padding: 14px 14px 14px 18px !important;
+  }
+
+  body[data-page="trades"] .trade-detail {
+    padding: 12px !important;
+  }
+
+  body[data-page="trades"] .trade-detail > * + * {
+    margin-top: 12px !important;
+  }
+}
