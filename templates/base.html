@@ -26,7 +26,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-neon2') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-sidebar3') }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -44,10 +44,10 @@
       <span class="brand-copy"><strong>IconLabs</strong><small>Trading Intelligence</small></span>
     </a>
     <div class="nav-links" id="primary-links">
-      <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-fingerprint"></i><span>Prediction Traders</span></a>
-      <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-currency-circle-dollar"></i><span>Sharp Money</span></a>
+      <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span>Prediction Traders</span></a>
+      <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-currency-dollar"></i><span>Sharp Money</span></a>
       <a href="/positive-ev" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span>Positive EV</span></a>
-      <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-table"></i><span>Sportsbook Screen</span></a>
+      <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-desktop"></i><span>Sportsbook Screen</span></a>
       <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span>Bet Tracker</span></a>
       <a href="/shadow-test" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span>Shadow Test</span></a>
       <span class="nav-section-label">Portfolio</span>
@@ -55,9 +55,9 @@
       <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span>Sharp Wallets</span></a>
       <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span>Bet History</span></a>
       <span class="nav-section-label">Intelligence</span>
-      <a href="/edge-map" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-crosshair"></i><span>Edge Map</span></a>
+      <a href="/edge-map" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-graph"></i><span>Edge Map</span></a>
       <a href="/intelligence" {% if page == 'intelligence' %}aria-current="page"{% endif %}><i class="ph ph-brain"></i><span>Intelligence</span></a>
-      <button class="sidebar-account-button" id="account-open" type="button"><i class="ph ph-user-circle" aria-hidden="true"></i><span><strong id="account-status">Account</strong><small>Profile &amp; subscription</small></span></button>
+      <button class="sidebar-account-button" id="account-open" type="button"><i class="ph ph-user-circle" aria-hidden="true"></i><span><strong id="account-status">Account</strong><small>Profile &amp; subscription</small></span><i class="ph ph-caret-right sidebar-account-caret" aria-hidden="true"></i></button>
       <button class="mobile-nav-pause" type="button" data-refresh-toggle aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
     </div>
   </nav>

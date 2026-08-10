@@ -851,3 +851,165 @@ body:not([data-page="home"]) h3,
 body:not([data-page="home"]) strong {
   color: #fff;
 }
+
+/* Reference-matched desktop sidebar. */
+@media (min-width: 821px) {
+  body:not([data-page="home"]) .app-nav {
+    width: 292px !important;
+    padding: 26px 20px 20px !important;
+    background:
+      radial-gradient(circle at 50% 3%, rgba(122, 51, 255, .19), transparent 170px),
+      linear-gradient(180deg, #05030a 0%, #010104 66%, #05020a 100%) !important;
+    border-right: 1px solid rgba(173, 99, 255, .28) !important;
+  }
+
+  body:not([data-page="home"]) .app-shell {
+    margin-left: 292px !important;
+    width: calc(100% - 292px) !important;
+  }
+
+  body:not([data-page="home"]) .brand {
+    min-height: 62px !important;
+    margin: 0 14px 22px !important;
+    padding: 0 4px !important;
+    gap: 15px !important;
+    justify-content: center;
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+
+  body:not([data-page="home"]) .brand-icon {
+    width: 44px !important;
+    height: 44px !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  body:not([data-page="home"]) .brand-icon img {
+    width: 44px !important;
+    height: 44px !important;
+    object-fit: contain;
+    filter: saturate(1.35) brightness(1.23) drop-shadow(0 0 10px rgba(159, 74, 255, .58)) !important;
+  }
+
+  body:not([data-page="home"]) .brand-copy strong {
+    font: 500 21px/1 "DM Sans", sans-serif !important;
+    letter-spacing: .19em !important;
+    text-transform: uppercase;
+    background: linear-gradient(90deg, #fff 0 50%, #c788ff 72%, #8c45ff 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent !important;
+    white-space: nowrap;
+  }
+
+  body:not([data-page="home"]) .brand-copy small { display: none !important; }
+
+  body:not([data-page="home"]) .nav-links {
+    min-height: calc(100vh - 130px) !important;
+    gap: 5px !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a {
+    min-height: 52px !important;
+    padding: 0 20px !important;
+    gap: 17px !important;
+    border: 1px solid transparent !important;
+    border-radius: 10px !important;
+    color: #f2edf7 !important;
+    font: 500 16px/1 "DM Sans", sans-serif !important;
+    transform: none !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a i {
+    width: 25px !important;
+    color: #f7f2fa !important;
+    font-size: 25px !important;
+    text-align: center;
+    filter: drop-shadow(0 0 5px rgba(255,255,255,.08));
+  }
+
+  body:not([data-page="home"]) .nav-links a:hover {
+    background: rgba(128, 51, 217, .12) !important;
+    border-color: rgba(156, 86, 240, .28) !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a[aria-current="page"] {
+    min-height: 56px !important;
+    color: #fff !important;
+    background: linear-gradient(100deg, rgba(85, 24, 171, .58), rgba(29, 14, 54, .82)) !important;
+    border-color: rgba(151, 75, 255, .72) !important;
+    box-shadow: inset 4px 0 #b34cff, 0 0 27px rgba(121, 44, 237, .22), inset 0 0 25px rgba(122, 43, 231, .12) !important;
+  }
+
+  body:not([data-page="home"]) .nav-links a[aria-current="page"] i {
+    color: #a75bff !important;
+    filter: drop-shadow(0 0 7px rgba(154, 76, 255, .72));
+  }
+
+  body:not([data-page="home"]) .nav-section-label {
+    display: flex !important;
+    align-items: center;
+    gap: 12px;
+    margin: 16px 7px 7px !important;
+    color: #a85cff !important;
+    font: 500 12px/1 "DM Sans", sans-serif !important;
+    letter-spacing: .17em !important;
+    text-transform: uppercase;
+  }
+
+  body:not([data-page="home"]) .nav-section-label::before,
+  body:not([data-page="home"]) .nav-section-label::after {
+    content: "";
+    height: 1px;
+    flex: 1;
+    background: linear-gradient(90deg, transparent, rgba(145, 74, 232, .32));
+  }
+
+  body:not([data-page="home"]) .nav-section-label::after {
+    background: linear-gradient(90deg, rgba(145, 74, 232, .32), transparent);
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button {
+    min-height: 76px !important;
+    margin-top: auto !important;
+    padding: 12px 16px !important;
+    border: 1px solid rgba(150, 82, 237, .58) !important;
+    border-radius: 11px !important;
+    background:
+      radial-gradient(circle at 82% 45%, rgba(132, 67, 227, .13), transparent 65px),
+      linear-gradient(110deg, rgba(48, 26, 79, .68), rgba(15, 9, 27, .94)) !important;
+    box-shadow: inset 0 0 22px rgba(128, 55, 219, .1), 0 0 22px rgba(81, 29, 143, .12) !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button > i:first-child {
+    width: 44px !important;
+    color: #b267ff !important;
+    font-size: 44px !important;
+    filter: drop-shadow(0 0 8px rgba(157, 74, 255, .42));
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button > span {
+    gap: 5px !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button strong {
+    font: 500 16px/1 "DM Sans", sans-serif !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-button small {
+    color: #8d829c !important;
+    font: 400 12px/1 "DM Sans", sans-serif !important;
+  }
+
+  body:not([data-page="home"]) .sidebar-account-caret {
+    width: auto !important;
+    margin-left: auto;
+    color: #b66cff !important;
+    font-size: 22px !important;
+  }
+}
