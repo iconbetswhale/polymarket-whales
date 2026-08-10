@@ -1873,10 +1873,6 @@ function tradeCard(trade) {
   const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
   const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
   const eventTime = formatScheduledClock(card.event_time);
-  const sharpLabel = `${trade.agreeing_wallet_count} Sharp${trade.agreeing_wallet_count === 1 ? "" : "s"}`;
-  const sizingLabel = trade.model_strategy === "MLB_WEIGHTED_DIRECTIONAL_V1"
-    ? " · scaled"
-    : "";
   const sportLeagueLabel = [...new Map(
     [trade.category, trade.league]
       .filter(Boolean)
@@ -1889,10 +1885,6 @@ function tradeCard(trade) {
     ? "Relative bet size unavailable"
     : `${formatRelativeSize(relativeSize)} the trader's normal position size`;
   const hitRateText = number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 2);
-  const hybrid = trade.mlb_hybrid_strategy || null;
-  const hybridBadge = hybrid?.qualified
-    ? `<em class="visual-preview-badge" title="Requires at least two eligible MLB wallets, including one directional-core Sharp">Hybrid ${escapeHtml(hybrid.eligible_wallet_count)}-wallet</em>`
-    : "";
   return `
     <article class="trade-card ${selected ? "selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""} ${trade.isVisualPreview ? "visual-preview-trade" : ""}" role="button" tabindex="0" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
       <span class="trade-identity">
@@ -1902,7 +1894,7 @@ function tradeCard(trade) {
           ${trade.isOfficialTracked && !trade.officialLiveQualified ? '<span class="official-live-status caution"><i class="ph ph-waveform" aria-hidden="true"></i>Live signal changed · official bet remains tracked</span>' : ""}
           ${trade.isOfficialTracked && trade.officialLiveQualified ? '<span class="official-live-status"><i class="ph ph-waveform" aria-hidden="true"></i>Still qualifies live</span>' : ""}
           ${trade.isRefreshPending ? '<span class="refresh-pending-label"><i class="ph ph-eye" aria-hidden="true"></i>No longer qualified · monitoring</span>' : ""}
-          <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(sportLeagueLabel)}${hybridBadge}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
+          <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
           <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
           <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
           <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))}</span>
@@ -1918,7 +1910,7 @@ function tradeCard(trade) {
           ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
         </span>
         <span class="trade-selection">
-          <span class="trade-pick"><small>${trade.isOfficialTracked ? "Official pick" : "Recommended pick"} · ${escapeHtml(sharpLabel)}${escapeHtml(sizingLabel)}</small><strong>${escapeHtml(trade.outcome)}</strong></span>
+          <span class="trade-pick"><strong>${escapeHtml(trade.outcome)}</strong></span>
           ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
           ${executionToolbar(trade)}
           <span class="trade-card-actions">
@@ -2362,7 +2354,7 @@ function detailSelectionPanel(trade) {
   const card = trade.card || {};
   return `
     <section class="detail-selection-panel">
-      <span class="detail-selection-copy"><small>Recommended pick</small><strong>${escapeHtml(trade.outcome)}</strong></span>
+      <span class="detail-selection-copy"><strong>${escapeHtml(trade.outcome)}</strong></span>
       ${recommendedBetMarkup(
         card.recommended_amount ?? recommendation.recommended_amount,
         card.recommended_units ?? recommendation.recommended_units,

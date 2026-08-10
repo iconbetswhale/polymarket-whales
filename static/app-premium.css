@@ -1018,3 +1018,50 @@ body:not([data-page="home"]) strong {
     font-size: 22px !important;
   }
 }
+
+/* Cleaner trade recommendation row. */
+body[data-page="trades"] .trade-selection {
+  grid-template-columns: minmax(150px, 1fr) 100px 72px auto !important;
+}
+
+body[data-page="trades"] .trade-pick { justify-content: center !important; }
+
+body[data-page="trades"] .trade-bet-size { padding: 5px 7px !important; }
+
+body[data-page="trades"] .trade-bet-size strong {
+  color: #fff !important;
+  font-size: 18px !important;
+  font-weight: 700 !important;
+  text-shadow: none !important;
+}
+
+body[data-page="trades"] .trade-selection > .execution-toolbar,
+body[data-page="trades"] .detail-selection-panel > .execution-toolbar {
+  width: 72px !important;
+  min-width: 72px !important;
+  max-width: 72px !important;
+}
+
+body[data-page="trades"] .trade-selection .execution-options-scroll .execution-option,
+body[data-page="trades"] .detail-selection-panel .execution-options-scroll .execution-option {
+  width: 72px !important;
+  max-width: 72px !important;
+  min-height: 40px !important;
+  grid-template-columns: 20px auto !important;
+  gap: 3px !important;
+  padding: 4px 5px !important;
+  border-radius: 7px !important;
+}
+
+body[data-page="trades"] .execution-option .provider-logo-mark,
+body[data-page="trades"] .execution-option .provider-logo-mark img {
+  width: 20px !important;
+  height: 20px !important;
+  flex-basis: 20px !important;
+}
+
+body[data-page="trades"] .execution-option-copy strong { font-size: 15px !important; }
+
+body[data-page="trades"] .detail-selection-panel {
+  grid-template-columns: minmax(0, 1fr) auto 72px !important;
+}
