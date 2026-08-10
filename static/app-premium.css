@@ -116,6 +116,7 @@ body:not([data-page="home"]) .brand-icon {
   background: linear-gradient(145deg, rgba(167,107,236,.18), rgba(242,61,104,.04));
   box-shadow: inset 0 0 20px rgba(167,107,236,.05), 0 0 28px rgba(167,107,236,.06);
 }
+body:not([data-page="home"]) .brand-icon img { width: 29px; height: 29px; display: block; }
 
 body:not([data-page="home"]) .brand-copy strong { color: #fff; font-size: 16px; font-weight: 700; letter-spacing: -.025em; }
 body:not([data-page="home"]) .brand-copy small { margin-top: 2px; color: var(--app-muted-2); font: 600 8px/1 "Roboto Condensed", sans-serif; letter-spacing: .13em; text-transform: uppercase; }

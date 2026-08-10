@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">IconLabs</title>
+  <desc id="desc">Interlocking market signal paths forming the IconLabs mark.</desc>
+  <defs>
+    <linearGradient id="g" x1="7" y1="52" x2="57" y2="10" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F23D68"/><stop offset=".54" stop-color="#A76BEC"/><stop offset="1" stop-color="#C08BFF"/>
+    </linearGradient>
+    <filter id="glow" x="-35%" y="-35%" width="170%" height="170%"><feGaussianBlur stdDeviation="2.1"/></filter>
+  </defs>
+  <g fill="none" stroke-linecap="round">
+    <path d="M13 45.5V29.2c0-8.9 7.2-16.1 16.1-16.1h5.8M29.1 50.9h5.8C43.8 50.9 51 43.7 51 34.8V18.5" stroke="url(#g)" stroke-width="9" filter="url(#glow)" opacity=".5"/>
+    <path d="M13 45.5V29.2c0-8.9 7.2-16.1 16.1-16.1h5.8M29.1 50.9h5.8C43.8 50.9 51 43.7 51 34.8V18.5" stroke="url(#g)" stroke-width="7"/>
+    <path d="m23.5 37.5 7.7-7.5 5.2 5.1 8.4-9.5m-4.3-.1 4.6-.3-.5 4.6" stroke="#F7F4FA" stroke-width="3.3" stroke-linejoin="round"/>
+  </g>
+</svg>
