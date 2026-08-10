@@ -170,6 +170,36 @@ body:not([data-page="home"]) .nav-links a[aria-current="page"] .sharp-money-nav-
   stroke: var(--app-purple-bright);
 }
 
+body:not([data-page="home"]) .sportsbook-nav-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 22px;
+}
+
+body:not([data-page="home"]) .sportsbook-nav-icon svg {
+  width: 21px;
+  height: 21px;
+  overflow: visible;
+}
+
+body:not([data-page="home"]) .sportsbook-nav-icon rect,
+body:not([data-page="home"]) .sportsbook-nav-icon path {
+  fill: none;
+  stroke: #f5f2fa;
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body:not([data-page="home"]) .nav-links a:hover .sportsbook-nav-icon rect,
+body:not([data-page="home"]) .nav-links a:hover .sportsbook-nav-icon path,
+body:not([data-page="home"]) .nav-links a[aria-current="page"] .sportsbook-nav-icon rect,
+body:not([data-page="home"]) .nav-links a[aria-current="page"] .sportsbook-nav-icon path {
+  stroke: var(--app-purple-bright);
+}
+
 body:not([data-page="home"]) .live-position-nav-icon {
   width: 22px;
   height: 22px;
