@@ -398,7 +398,7 @@ body[data-page="trades"] .play-activity-chart ol {
   }
 
   body[data-page="trades"] .trade-card:not(.selected) .trade-decision {
-    display: none !important;
+    display: grid !important;
   }
 
   body[data-page="trades"] .trade-identity {
