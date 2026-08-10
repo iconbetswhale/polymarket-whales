@@ -1427,7 +1427,7 @@ body[data-page="trades"] .detail-selection-panel {
     box-shadow: none !important;
   }
 
-  body[data-page="trades"] .trade-metric-chip.time strong {
+body[data-page="trades"] .trade-metric-chip.time strong {
     color: #9db5c1 !important;
     font-weight: 500 !important;
   }
@@ -1601,4 +1601,58 @@ body[data-page="trades"] .detail-selection-panel {
     height: 23px !important;
     min-height: 23px !important;
   }
+}
+
+/* Keep the compact rail last so it wins over prior desktop sidebar refinements. */
+@media (min-width: 821px) {
+  body:not([data-page="home"]) .app-nav { width: 82px !important; padding: 14px 8px 10px !important; }
+  body:not([data-page="home"]) .app-shell { width: calc(100% - 82px) !important; margin-left: 82px !important; }
+  body:not([data-page="home"]) .brand { min-height: 45px !important; margin: 0 0 8px !important; padding: 0 !important; justify-content: center !important; }
+  body:not([data-page="home"]) .brand-icon,
+  body:not([data-page="home"]) .brand-icon img { width: 36px !important; height: 36px !important; }
+  body:not([data-page="home"]) .brand-copy,
+  body:not([data-page="home"]) .nav-section-label,
+  body:not([data-page="home"]) .mobile-nav-pause { display: none !important; }
+  body:not([data-page="home"]) .nav-links { min-height: calc(100vh - 67px) !important; gap: 2px !important; align-items: stretch !important; overflow-y: auto !important; }
+  body:not([data-page="home"]) .nav-links a {
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+    align-items: center !important;
+    min-height: 48px !important;
+    padding: 5px 2px !important;
+    gap: 3px !important;
+    border-radius: 7px !important;
+    font-size: 0 !important;
+    text-align: center !important;
+  }
+  body:not([data-page="home"]) .nav-links a > span[data-short]::after {
+    content: attr(data-short);
+    display: block;
+    color: inherit;
+    font: 500 9px/1.05 "DM Sans", sans-serif;
+    letter-spacing: 0;
+    white-space: nowrap;
+  }
+  body:not([data-page="home"]) .nav-links a i,
+  body:not([data-page="home"]) .sharp-money-nav-icon,
+  body:not([data-page="home"]) .sportsbook-nav-icon,
+  body:not([data-page="home"]) .live-position-nav-icon { width: 20px !important; height: 20px !important; flex: 0 0 20px !important; font-size: 20px !important; }
+  body:not([data-page="home"]) .sharp-money-nav-icon svg,
+  body:not([data-page="home"]) .sportsbook-nav-icon svg,
+  body:not([data-page="home"]) .live-position-nav-icon svg { width: 20px !important; height: 20px !important; }
+  body:not([data-page="home"]) .nav-links a[aria-current="page"] { min-height: 48px !important; box-shadow: inset 2px 0 #b34cff, 0 0 18px rgba(121, 44, 237, .18) !important; }
+  body:not([data-page="home"]) .sidebar-account-button {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    width: 48px !important;
+    min-height: 48px !important;
+    margin: auto auto 0 !important;
+    padding: 5px !important;
+    place-items: center !important;
+    border-radius: 8px !important;
+  }
+  body:not([data-page="home"]) .sidebar-account-button > i:first-child { width: auto !important; font-size: 25px !important; }
+  body:not([data-page="home"]) .sidebar-account-button > span,
+  body:not([data-page="home"]) .sidebar-account-caret { display: none !important; }
 }
