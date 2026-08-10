@@ -1355,7 +1355,20 @@ body[data-page="trades"] .detail-selection-panel {
     color: #b9c9d4 !important;
     background: rgba(5, 27, 39, .78) !important;
     box-shadow: inset 0 1px rgba(255, 255, 255, .025) !important;
-    font-size: 9px !important;
+    font-size: 10px !important;
+    font-family: "DM Sans", sans-serif !important;
+    font-weight: 500 !important;
+    letter-spacing: .01em !important;
+    text-shadow: none !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body[data-page="trades"] .trade-metric-chip strong {
+    color: #d9e5eb !important;
+    font: 500 10px/1 "DM Sans", sans-serif !important;
+    letter-spacing: .01em !important;
+    text-shadow: none !important;
   }
 
   body[data-page="trades"] .trade-metric-chip i {
@@ -1368,6 +1381,7 @@ body[data-page="trades"] .detail-selection-panel {
     color: #52c8f0 !important;
     background: transparent !important;
     box-shadow: none !important;
+    filter: none !important;
     font-size: 12px !important;
   }
 
