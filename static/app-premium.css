@@ -1346,7 +1346,7 @@ body[data-page="trades"] .detail-selection-panel {
     align-items: center !important;
     gap: 5px !important;
     padding: 0 0 6px !important;
-    border-bottom: 1px solid rgba(40, 195, 230, .34) !important;
+    border-bottom: 0 !important;
   }
 
   body[data-page="trades"] .trade-metric-chip {
