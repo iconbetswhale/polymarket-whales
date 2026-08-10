@@ -1047,6 +1047,9 @@ body:not([data-page="home"]) strong {
     align-items: center;
     gap: 12px;
     margin: 16px 7px 7px !important;
+    padding-top: 0 !important;
+    border-top: 0 !important;
+    box-shadow: none !important;
     color: #a85cff !important;
     font: 500 12px/1 "DM Sans", sans-serif !important;
     letter-spacing: .17em !important;
