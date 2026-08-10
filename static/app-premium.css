@@ -1171,3 +1171,91 @@ body[data-page="trades"] .detail-selection-panel {
     margin-top: 12px !important;
   }
 }
+
+/* Compact trade-row execution controls without changing their visual language. */
+@media (min-width: 861px) {
+  body[data-page="trades"] .trade-decision {
+    grid-template-rows: 34px 64px !important;
+    align-content: center !important;
+    gap: 7px !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    width: min(100%, 540px) !important;
+    min-height: 64px !important;
+    justify-self: end !important;
+    grid-template-columns: minmax(150px, 1fr) 86px 62px 25px !important;
+    gap: 8px !important;
+    padding: 7px 8px 7px 13px !important;
+  }
+
+  body[data-page="trades"] .trade-pick {
+    gap: 2px !important;
+  }
+
+  body[data-page="trades"] .trade-pick strong {
+    font-size: 16px !important;
+    line-height: 1.12 !important;
+  }
+
+  body[data-page="trades"] .trade-bet-size {
+    gap: 1px !important;
+    padding: 3px 6px !important;
+  }
+
+  body[data-page="trades"] .trade-bet-size strong {
+    font-size: 17px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-bet-size em {
+    font-size: 8px !important;
+    line-height: 1.1 !important;
+  }
+
+  body[data-page="trades"] .trade-selection > .execution-toolbar {
+    width: 62px !important;
+    min-width: 62px !important;
+    max-width: 62px !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-options-scroll .execution-option {
+    width: 62px !important;
+    min-width: 62px !important;
+    min-height: 36px !important;
+    grid-template-columns: 18px auto !important;
+    justify-content: center !important;
+    gap: 2px !important;
+    padding: 3px 4px !important;
+    border-radius: 6px !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-option .provider-logo-mark,
+  body[data-page="trades"] .trade-selection .execution-option .provider-logo-mark img {
+    width: 18px !important;
+    height: 18px !important;
+    flex-basis: 18px !important;
+    padding: 0 !important;
+    border-radius: 4px !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-option-copy {
+    gap: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-option-copy strong {
+    font-size: 14px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-card-actions {
+    width: 25px !important;
+    gap: 1px !important;
+  }
+
+  body[data-page="trades"] .trade-card-actions button {
+    width: 23px !important;
+    height: 23px !important;
+    min-height: 23px !important;
+  }
+}
