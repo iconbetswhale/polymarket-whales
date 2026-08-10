@@ -1616,6 +1616,9 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body:not([data-page="home"]) .nav-links { min-height: calc(100vh - 67px) !important; gap: 2px !important; align-items: stretch !important; overflow-y: auto !important; }
   body:not([data-page="home"]) .nav-links a {
     display: flex !important;
+    width: 100% !important;
+    max-width: none !important;
+    box-sizing: border-box !important;
     flex-direction: column !important;
     justify-content: center !important;
     align-items: center !important;
