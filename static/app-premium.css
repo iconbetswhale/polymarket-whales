@@ -1445,11 +1445,11 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body[data-page="trades"] .trade-selection {
-    width: min(100%, 560px) !important;
+    width: min(100%, 500px) !important;
     min-height: 64px !important;
     justify-self: end !important;
-    grid-template-columns: minmax(150px, 1fr) 98px 78px 25px !important;
-    gap: 10px !important;
+    grid-template-columns: minmax(150px, 1fr) 92px 78px !important;
+    gap: 7px !important;
     padding: 7px 8px 7px 13px !important;
   }
 
