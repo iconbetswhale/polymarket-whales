@@ -1402,6 +1402,17 @@ body[data-page="trades"] .detail-selection-panel {
     background: linear-gradient(145deg, rgba(24, 87, 59, .48), rgba(13, 31, 24, .72)) !important;
   }
 
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.worse {
+    border-color: rgba(246, 75, 104, .72) !important;
+    color: #ff8297 !important;
+    background: rgba(61, 12, 24, .82) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.worse i,
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.worse strong {
+    color: #ff8297 !important;
+  }
+
   body[data-page="trades"] .trade-metric-chip.time i {
     display: none !important;
   }
