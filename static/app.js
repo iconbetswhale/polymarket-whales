@@ -1873,6 +1873,7 @@ function tradeCard(trade) {
   const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
   const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
   const eventTime = formatScheduledClock(card.event_time);
+  const eventClock = eventTime.match(/\b\d{1,2}:\d{2}\s*(?:AM|PM)\b/i)?.[0] || eventTime;
   const sportLeagueLabel = [...new Map(
     [trade.category, trade.league]
       .filter(Boolean)
@@ -1902,7 +1903,7 @@ function tradeCard(trade) {
       </span>
       <span class="trade-decision">
         <span class="trade-metrics-row">
-          ${tradeMetricChip("ph-calendar-blank", eventTime, "Scheduled event start in Eastern Time", "time")}
+          ${tradeMetricChip("ph-calendar-blank", eventClock, "Scheduled event start in Eastern Time", "time")}
           ${tradeMetricChip("ph-bag", formatOptionalMoney(betAmount, true), amountTooltip)}
           ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Tracked Sharp average entry price")}
           ${slippageMetricChip(slippage)}

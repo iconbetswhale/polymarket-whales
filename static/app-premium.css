@@ -1403,17 +1403,22 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body[data-page="trades"] .trade-metric-chip.time i {
-    color: #61bad8 !important;
-    font-size: 11px !important;
+    display: none !important;
   }
 
   body[data-page="trades"] .trade-metric-chip.time {
-    margin-right: auto !important;
-    padding-left: 2px !important;
+    margin-left: auto !important;
+    margin-right: 1px !important;
+    padding: 0 3px !important;
     border-color: transparent !important;
-    color: #78b9cf !important;
+    color: #9db5c1 !important;
     background: transparent !important;
     box-shadow: none !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.time strong {
+    color: #9db5c1 !important;
+    font-weight: 500 !important;
   }
 
   body[data-page="trades"] .trade-event-copy {
