@@ -1076,7 +1076,7 @@ body[data-page="trades"] .detail-selection-panel {
     min-height: 47px !important;
     padding: 0 17px !important;
     gap: 14px !important;
-    font-size: 14px !important;
+    font-size: 12px !important;
     font-weight: 500 !important;
   }
 
@@ -1092,7 +1092,7 @@ body[data-page="trades"] .detail-selection-panel {
   body:not([data-page="home"]) .nav-section-label {
     gap: 10px !important;
     margin: 20px 7px 9px !important;
-    font-size: 11px !important;
+    font-size: 9px !important;
   }
 
   body:not([data-page="home"]) .sidebar-account-button {
@@ -1115,11 +1115,11 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body:not([data-page="home"]) .sidebar-account-button strong {
-    font-size: 14px !important;
+    font-size: 12px !important;
   }
 
   body:not([data-page="home"]) .sidebar-account-button small {
-    font-size: 11px !important;
+    font-size: 9px !important;
   }
 
   body:not([data-page="home"]) .sidebar-account-caret {
@@ -1226,7 +1226,7 @@ body[data-page="trades"] .detail-selection-panel {
     width: min(100%, 560px) !important;
     min-height: 64px !important;
     justify-self: end !important;
-    grid-template-columns: minmax(150px, 1fr) 98px 64px 25px !important;
+    grid-template-columns: minmax(150px, 1fr) 98px 78px 25px !important;
     gap: 10px !important;
     padding: 7px 8px 7px 13px !important;
   }
@@ -1266,15 +1266,27 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body[data-page="trades"] .trade-selection > .execution-toolbar {
-    width: 64px !important;
-    min-width: 64px !important;
-    max-width: 64px !important;
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    display: flex !important;
+    justify-content: flex-start !important;
+    overflow: hidden !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-options-scroll {
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
+    flex: 0 0 78px !important;
+    margin: 0 !important;
     overflow: hidden !important;
   }
 
   body[data-page="trades"] .trade-selection .execution-options-scroll .execution-option {
-    width: 64px !important;
-    min-width: 64px !important;
+    width: 78px !important;
+    min-width: 78px !important;
+    max-width: 78px !important;
     min-height: 36px !important;
     grid-template-columns: 18px auto !important;
     justify-content: center !important;
