@@ -1371,6 +1371,37 @@ body[data-page="trades"] .detail-selection-panel {
     font-size: 12px !important;
   }
 
+  body[data-page="trades"] .trade-event-copy {
+    position: relative !important;
+  }
+
+  body[data-page="trades"] .trade-event-copy > .research-badges:not(:empty) {
+    position: absolute !important;
+    top: -2px !important;
+    right: 0 !important;
+    z-index: 2;
+    display: flex !important;
+    width: auto !important;
+    max-width: calc(100% - 78px) !important;
+    min-height: 16px !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-event {
+    display: -webkit-box !important;
+    min-height: 38px !important;
+    max-height: 38px !important;
+    overflow: hidden !important;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  body[data-page="trades"] .trade-market {
+    min-height: 12px !important;
+  }
+
   body[data-page="trades"] .trade-selection {
     width: min(100%, 560px) !important;
     min-height: 64px !important;
