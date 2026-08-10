@@ -26,7 +26,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-green-execution1') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-sharp-money-icon1') }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -45,7 +45,7 @@
     </a>
     <div class="nav-links" id="primary-links">
       <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span>Prediction Traders</span></a>
-      <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-currency-dollar"></i><span>Sharp Money</span></a>
+      <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><span class="sharp-money-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path class="sharp-money-ring" d="M15.8 18.7A8.7 8.7 0 1 1 19.3 15"/><path class="sharp-money-dollar" d="M12 6.7v10.5M14.4 8.4c-.6-.65-1.35-1-2.35-1-1.35 0-2.35.72-2.35 1.82 0 2.8 4.7 1.35 4.7 4.25 0 1.13-1.02 1.95-2.48 1.95-1.1 0-2.02-.42-2.7-1.18"/><path class="sharp-money-trend" d="M16.4 17.2h2l1.05-2.05 1.25 4.15 1.1-2.1H23"/></svg></span><span>Sharp Money</span></a>
       <a href="/positive-ev" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span>Positive EV</span></a>
       <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-desktop"></i><span>Sportsbook Screen</span></a>
       <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span>Bet Tracker</span></a>
