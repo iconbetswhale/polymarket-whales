@@ -7,5 +7,11 @@
 - Panel separation and dark-surface consistency: passed
 - Positive and execution color treatment: passed
 - Existing layout and interactions preserved: passed
+- Desktop density refinement: passed
+- Sidebar label scale and icon alignment: passed
+- Sidebar section and account-card spacing: passed
+- Command bar, trade-list, and detail-rail spacing: passed
+- Palette, card geometry, hierarchy, and branding unchanged: passed
+- Production route checked: `https://iconbets-polymarket-wallet-tracker-92z0kpt4p.vercel.app/trades`
 
 final result: passed
