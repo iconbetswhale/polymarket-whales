@@ -1710,6 +1710,7 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   }
 
   body[data-page="trades"] .trade-decision {
+    display: grid !important;
     min-height: 114px !important;
     height: 114px !important;
     grid-template-rows: 28px 48px !important;
