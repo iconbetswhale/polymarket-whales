@@ -912,7 +912,12 @@ body:not([data-page="home"]) strong {
   body:not([data-page="home"]) .nav-links {
     min-height: calc(100vh - 130px) !important;
     gap: 5px !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
   }
+
+  body:not([data-page="home"]) .nav-links::-webkit-scrollbar { display: none; }
 
   body:not([data-page="home"]) .nav-links a {
     min-height: 52px !important;
