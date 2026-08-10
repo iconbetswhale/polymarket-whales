@@ -1067,8 +1067,24 @@ body:not([data-page="home"]) strong {
 
   body:not([data-page="home"]) .nav-section-label::before,
   body:not([data-page="home"]) .nav-section-label::after {
-    content: none !important;
-    display: none !important;
+    content: "" !important;
+    display: block !important;
+    height: 1px !important;
+    min-width: 18px;
+    flex: 1 1 auto;
+    opacity: .9;
+  }
+
+  body:not([data-page="home"]) .nav-section-label::before {
+    background:
+      radial-gradient(circle at calc(100% - 1px) 50%, #a85cff 0 2px, rgba(168, 92, 255, .42) 3px, transparent 6px),
+      linear-gradient(90deg, rgba(117, 60, 171, .06), rgba(155, 77, 240, .48)) !important;
+  }
+
+  body:not([data-page="home"]) .nav-section-label::after {
+    background:
+      radial-gradient(circle at 1px 50%, #a85cff 0 2px, rgba(168, 92, 255, .42) 3px, transparent 6px),
+      linear-gradient(90deg, rgba(155, 77, 240, .48), rgba(117, 60, 171, .06)) !important;
   }
 
   body:not([data-page="home"]) .sidebar-account-button {
