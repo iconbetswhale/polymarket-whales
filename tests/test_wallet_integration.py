@@ -21,6 +21,7 @@ REQUESTED_WALLETS = {
     "ferrariChampions2026": "0xfe787d2da716d60e8acff57fb87eb13cd4d10319",
     "HomeRunHazard": "0x5268527977f700f9bf9b6d5cd843859e4e70135d",
     "Formal-Cupcake": "0xb8c842bc049bf208f73354c7b037b811d741d8a4",
+    "DaBossHogg": "0x6157d529ae129fe08f22a27ed42e741d2eaa9fb4",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -32,10 +33,13 @@ EXPECTED_TOP_CATEGORIES = {
     "phonesculptor": "mlb",
     "Surfandturf": "nba",
     "Bagwell306": "tennis",
+    "Lilybaeum": "tennis",
     "ferrariChampions2026": "mlb",
     "Soarin22": "mlb",
     "HomeRunHazard": "mlb",
     "Formal-Cupcake": "mlb",
+    "BreakTheBank": "soccer",
+    "DaBossHogg": "tennis",
 }
 
 
@@ -113,9 +117,18 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     bagwell = next(
         wallet for wallet in result.valid_wallets if wallet.label == "Bagwell306"
     )
-    assert bagwell.base_unit == 2500
+    assert bagwell.base_unit == 875
     assert bagwell.top_category == "Tennis"
-    assert bagwell.actionable_position_units == 0.5
+    assert bagwell.actionable_position_units == 1.0
+
+    daboss = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "DaBossHogg"
+    )
+    assert daboss.base_unit == 5050
+    assert daboss.top_category == "Tennis"
+    assert daboss.actionable_position_units == 1.0
+    assert daboss.category_signal_roles["tennis"]["role"] == "CONDITIONAL_ORIGINATOR"
+    assert daboss.category_signal_roles["tennis"]["minimum_originator_units"] == 1.0
 
     wallet_4f2 = next(
         wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"

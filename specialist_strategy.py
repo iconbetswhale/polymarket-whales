@@ -4,8 +4,8 @@ from collections import defaultdict
 from typing import Any, Iterable
 
 
-STRATEGY_ID = "SPECIALIST_WEIGHTED_TENNIS_WNBA_SOCCER_V3"
-STRATEGY_VERSION = "specialist-weighted-tennis-wnba-soccer-v3"
+STRATEGY_ID = "SPECIALIST_WEIGHTED_TENNIS_WNBA_SOCCER_V4"
+STRATEGY_VERSION = "specialist-weighted-tennis-wnba-soccer-v4"
 SIZING_MODE = "VALIDATED_SPECIALIST_UNITS"
 TRACKER_ENTRY_WINDOW_MINUTES = 30
 POSITION_THRESHOLD_TOLERANCE_UNITS = 0.01
@@ -14,12 +14,14 @@ MAXIMUM_OPPOSING_EXPOSURE_RATIO = 0.10
 
 BAGWELL = "0x9c76cdb43fb46454da005fbc82047a64a18ec926"
 LILYBAEUM = "0x01c78f8873c0c86d6b6b92ff627e3802237ee995"
+DABOSSHOGG = "0x6157d529ae129fe08f22a27ed42e741d2eaa9fb4"
 FORMAL_CUPCAKE = "0xb8c842bc049bf208f73354c7b037b811d741d8a4"
 BREAK_THE_BANK = "0xf0318c32136c2db7fec88b84869aee6a1106c80c"
 
 TENNIS_SHARPS = {
     BAGWELL: {"label": "Bagwell306", "base_unit_usd": 875.0},
     LILYBAEUM: {"label": "Lilybaeum", "base_unit_usd": 575.0},
+    DABOSSHOGG: {"label": "DaBossHogg", "base_unit_usd": 5050.0},
 }
 WNBA_SPREAD_SHARPS = {
     FORMAL_CUPCAKE: {"label": "Formal-Cupcake", "base_unit_usd": 1300.0}
@@ -262,15 +264,23 @@ def recommendation_units(
     category_text = _text(category)
     if "tennis" in category_text:
         eligible = [address for address in addresses if address in TENNIS_SHARPS]
-        if len(eligible) >= 2:
+        if len(eligible) >= 3:
+            units = 3.0
+        elif len(eligible) == 2:
             units = 2.0
         elif eligible == [BAGWELL]:
             units = 1.0
         elif eligible == [LILYBAEUM]:
             units = 0.75
+        elif eligible == [DABOSSHOGG]:
+            units = 1.0
         else:
             units = 0.0
-        rule = "Bagwell 1.00u; Lilybaeum 0.75u; 2.00u agreement; direct conflicts skipped"
+        rule = (
+            "Bagwell 1.00u; Lilybaeum 0.75u; DaBossHogg 1.00u; "
+            "2.00u two-sharp agreement; 3.00u three-sharp agreement; "
+            "direct conflicts skipped"
+        )
     elif "wnba" in category_text and addresses == [FORMAL_CUPCAKE]:
         observed = relative.get(FORMAL_CUPCAKE, 1.0)
         units = min(1.25, max(1.0, observed))
@@ -305,12 +315,16 @@ def confidence_score(wallet_addresses: Iterable[Any], category: Any) -> tuple[in
     category_text = _text(category)
     if "tennis" in category_text:
         count = len([address for address in addresses if address in TENNIS_SHARPS])
-        if count >= 2:
+        if count >= 3:
+            score, band = 99, "Three-tennis-sharp agreement"
+        elif count == 2:
             score, band = 97, "Two-tennis-sharp agreement"
         elif addresses == [BAGWELL]:
             score, band = 90, "Bagwell validated tennis sharp"
         elif addresses == [LILYBAEUM]:
             score, band = 84, "Lilybaeum weighted tennis sharp"
+        elif addresses == [DABOSSHOGG]:
+            score, band = 88, "DaBossHogg validated tennis sharp"
         else:
             score, band = 0, "No validated tennis signal"
     elif "wnba" in category_text and addresses == [FORMAL_CUPCAKE]:
@@ -323,7 +337,7 @@ def confidence_score(wallet_addresses: Iterable[Any], category: Any) -> tuple[in
         score = 0
         band = "No validated specialist signal"
     return score, {
-        "architecture": "specialist_weighted_tennis_wnba_soccer_v3",
+        "architecture": "specialist_weighted_tennis_wnba_soccer_v4",
         "consensus_band": band,
         "raw_sharp_count": len(addresses),
         "wallet_addresses": addresses,

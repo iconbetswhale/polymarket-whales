@@ -6,6 +6,7 @@ from bet_sizing import SizingConfig, build_recommendation
 from specialist_strategy import (
     BAGWELL,
     BREAK_THE_BANK,
+    DABOSSHOGG,
     FORMAL_CUPCAKE,
     LILYBAEUM,
     STRATEGY_ID,
@@ -31,12 +32,14 @@ def _position(
     label = {
         BAGWELL: "Bagwell306",
         LILYBAEUM: "Lilybaeum",
+        DABOSSHOGG: "DaBossHogg",
         FORMAL_CUPCAKE: "Formal-Cupcake",
         BREAK_THE_BANK: "BreakTheBank",
     }[wallet]
     base = {
         BAGWELL: 875.0,
         LILYBAEUM: 575.0,
+        DABOSSHOGG: 5050.0,
         FORMAL_CUPCAKE: 1300.0,
         BREAK_THE_BANK: 116150.0,
     }[wallet]
@@ -92,6 +95,7 @@ def _units() -> dict:
     return {
         BAGWELL: {"estimated_base_unit": 875.0},
         LILYBAEUM: {"estimated_base_unit": 575.0},
+        DABOSSHOGG: {"estimated_base_unit": 5050.0},
         FORMAL_CUPCAKE: {"estimated_base_unit": 1300.0},
         BREAK_THE_BANK: {"estimated_base_unit": 116150.0},
     }
@@ -100,15 +104,23 @@ def _units() -> dict:
 def test_validated_specialist_sizing_and_confidence():
     assert recommendation_units([BAGWELL], {BAGWELL: 1.0}, "Tennis")["units"] == 1.0
     assert recommendation_units([LILYBAEUM], {LILYBAEUM: 1.0}, "Tennis")["units"] == 0.75
+    assert recommendation_units([DABOSSHOGG], {DABOSSHOGG: 1.0}, "Tennis")["units"] == 1.0
     assert recommendation_units(
         [BAGWELL, LILYBAEUM], {BAGWELL: 3.0, LILYBAEUM: 2.0}, "Tennis"
     )["units"] == 2.0
+    assert recommendation_units(
+        [BAGWELL, LILYBAEUM, DABOSSHOGG],
+        {BAGWELL: 1.0, LILYBAEUM: 1.0, DABOSSHOGG: 1.0},
+        "Tennis",
+    )["units"] == 3.0
     assert recommendation_units(
         [FORMAL_CUPCAKE], {FORMAL_CUPCAKE: 1.4}, "WNBA"
     )["units"] == 1.25
     assert confidence_score([BAGWELL], "Tennis")[0] == 90
     assert confidence_score([LILYBAEUM], "Tennis")[0] == 84
+    assert confidence_score([DABOSSHOGG], "Tennis")[0] == 88
     assert confidence_score([BAGWELL, LILYBAEUM], "Tennis")[0] == 97
+    assert confidence_score([BAGWELL, LILYBAEUM, DABOSSHOGG], "Tennis")[0] == 99
     assert confidence_score([FORMAL_CUPCAKE], "WNBA")[0] == 90
     assert recommendation_units(
         [BREAK_THE_BANK], {BREAK_THE_BANK: 1.0}, "Soccer"
@@ -190,6 +202,39 @@ def test_tennis_same_side_agreement_is_two_units_and_conflict_is_skipped():
         strategy_mode=STRATEGY_ID,
     ) == []
     assert {row["reason"] for row in diagnostics} == {"SPECIALIST_DIRECT_CONFLICT"}
+
+
+def test_dabosshogg_originates_tennis_and_three_sharp_agreement_is_three_units():
+    now = datetime.now(timezone.utc)
+    agreement = specialist_strategy_positions(
+        [
+            _position(BAGWELL, "Player A"),
+            _position(LILYBAEUM, "Player A"),
+            _position(DABOSSHOGG, "Player A"),
+        ]
+    )
+    plays = build_trades_to_play(
+        agreement,
+        unit_map=_units(),
+        now=now,
+        tracked_wallet_count=3,
+        strategy_mode=STRATEGY_ID,
+    )
+    assert len(plays) == 1
+    assert plays[0]["strategy_target_units"] == 3.0
+    assert plays[0]["confidence_score"] == 99
+
+    daboss_total = specialist_strategy_positions(
+        [
+            _position(
+                DABOSSHOGG,
+                "Over 22.5",
+                market_type="Tennis Match Totals",
+                condition="daboss-total",
+            )
+        ]
+    )
+    assert [row["condition_id"] for row in daboss_total] == ["daboss-total"]
 
 
 def test_formal_cupcake_only_originates_wnba_full_game_spreads():
