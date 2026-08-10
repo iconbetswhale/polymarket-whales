@@ -26,7 +26,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-traders-controls2') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-live-position-icon1') }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -51,7 +51,7 @@
       <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span>Bet Tracker</span></a>
       <a href="/shadow-test" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span>Shadow Test</span></a>
       <span class="nav-section-label">Portfolio</span>
-      <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity"></i><span>Live Positions</span></a>
+      <a href="/live-positions" {% if page == 'live-positions' %}aria-current="page"{% endif %}><span class="live-position-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 20" focusable="false"><path d="M1 11h4l2.2-7 4.1 13 2.5-8H17"/><circle cx="20" cy="10" r="2.25"/></svg></span><span>Live Positions</span></a>
       <a href="/wallets" {% if page == 'wallets' %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span>Sharp Wallets</span></a>
       <a href="/position-history" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span>Bet History</span></a>
       <span class="nav-section-label">Intelligence</span>

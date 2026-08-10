@@ -140,6 +140,32 @@ body:not([data-page="home"]) .nav-links a i { color: #777080; font-size: 16px; t
 body:not([data-page="home"]) .nav-links a:hover { color: #f2edf5; border-color: rgba(167,107,236,.11); background: rgba(167,107,236,.055); transform: translateX(2px); }
 body:not([data-page="home"]) .nav-links a:hover i { color: var(--app-purple-bright); }
 
+body:not([data-page="home"]) .live-position-nav-icon {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+
+body:not([data-page="home"]) .live-position-nav-icon svg {
+  width: 22px;
+  height: 19px;
+  overflow: visible;
+}
+
+body:not([data-page="home"]) .live-position-nav-icon path {
+  fill: none;
+  stroke: #f5f2fa;
+  stroke-width: 1.45;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+body:not([data-page="home"]) .live-position-nav-icon circle {
+  fill: #a65cff;
+  filter: drop-shadow(0 0 3px rgba(166, 92, 255, .95));
+}
+
 body:not([data-page="home"]) .nav-links a[aria-current="page"] {
   color: #fff;
   border-color: rgba(167,107,236,.24);
