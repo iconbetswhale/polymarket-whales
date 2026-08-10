@@ -1096,6 +1096,10 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body:not([data-page="home"]) .sidebar-account-button {
+    display: grid !important;
+    grid-template-columns: 38px minmax(0, 1fr) 19px !important;
+    align-items: center !important;
+    column-gap: 12px !important;
     min-height: 70px !important;
     padding: 11px 14px !important;
   }
@@ -1106,6 +1110,7 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body:not([data-page="home"]) .sidebar-account-button > span {
+    min-width: 0 !important;
     gap: 4px !important;
   }
 
@@ -1118,6 +1123,7 @@ body[data-page="trades"] .detail-selection-panel {
   }
 
   body:not([data-page="home"]) .sidebar-account-caret {
+    justify-self: end !important;
     font-size: 19px !important;
   }
 
