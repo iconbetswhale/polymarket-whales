@@ -1659,3 +1659,83 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body:not([data-page="home"]) .sidebar-account-button > span,
   body:not([data-page="home"]) .sidebar-account-caret { display: none !important; }
 }
+
+/* Slim desktop trade rows. */
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-card,
+  body[data-page="trades"] .trade-card.selected {
+    min-height: 116px !important;
+    height: 116px !important;
+    grid-template-columns: minmax(230px, 38%) minmax(0, 62%) !important;
+    column-gap: 10px !important;
+    padding: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-identity {
+    min-height: 114px !important;
+    height: 114px !important;
+    padding: 10px 14px !important;
+    align-content: center !important;
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr !important;
+    row-gap: 3px !important;
+  }
+
+  body[data-page="trades"] .trade-score-cluster {
+    min-height: 24px !important;
+    align-self: end !important;
+  }
+
+  body[data-page="trades"] .trade-score strong {
+    font-size: 25px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-event-copy {
+    min-height: 0 !important;
+    align-content: start !important;
+    gap: 3px !important;
+  }
+
+  body[data-page="trades"] .trade-event {
+    font-size: 14px !important;
+    line-height: 1.16 !important;
+  }
+
+  body[data-page="trades"] .trade-kicker,
+  body[data-page="trades"] .trade-market,
+  body[data-page="trades"] .refresh-pending-label {
+    font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-decision {
+    min-height: 114px !important;
+    height: 114px !important;
+    grid-template-rows: 28px 48px !important;
+    align-content: center !important;
+    gap: 6px !important;
+    padding: 0 10px 0 0 !important;
+  }
+
+  body[data-page="trades"] .trade-metrics-row {
+    min-height: 28px !important;
+    height: 28px !important;
+    padding: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-selection {
+    min-height: 48px !important;
+    height: 48px !important;
+    max-height: 48px !important;
+    padding: 0 8px 0 12px !important;
+    border-radius: 7px !important;
+  }
+
+  body[data-page="trades"] .trade-pick,
+  body[data-page="trades"] .trade-bet-size,
+  body[data-page="trades"] .trade-selection > .execution-toolbar {
+    min-height: 46px !important;
+    height: 46px !important;
+  }
+}
