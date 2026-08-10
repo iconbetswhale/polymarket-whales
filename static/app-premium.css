@@ -1174,6 +1174,48 @@ body[data-page="trades"] .detail-selection-panel {
 
 /* Compact trade-row execution controls without changing their visual language. */
 @media (min-width: 861px) {
+  /* Keep the fixed app shell, but let the results column own vertical scroll. */
+  body[data-page="trades"] .app-shell,
+  body[data-page="trades"] .trades-page,
+  body[data-page="trades"] .trade-workspace,
+  body[data-page="trades"] .trade-list-panel {
+    min-height: 0 !important;
+  }
+
+  body[data-page="trades"] .trades-page {
+    overflow: hidden !important;
+  }
+
+  body[data-page="trades"] .trade-workspace {
+    height: auto !important;
+    max-height: 100% !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+  }
+
+  body[data-page="trades"] .trade-list-panel {
+    height: auto !important;
+    align-self: stretch !important;
+    overflow: hidden !important;
+  }
+
+  body[data-page="trades"] .trade-detail {
+    height: auto !important;
+    max-height: 100% !important;
+    align-self: stretch !important;
+  }
+
+  body[data-page="trades"] .trade-list {
+    height: 100% !important;
+    min-height: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior-y: contain;
+    scrollbar-gutter: stable;
+    touch-action: pan-y;
+  }
+
   body[data-page="trades"] .trade-decision {
     grid-template-rows: 34px 64px !important;
     align-content: center !important;
