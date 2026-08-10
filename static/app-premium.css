@@ -1065,6 +1065,12 @@ body:not([data-page="home"]) strong {
     background: linear-gradient(90deg, rgba(145, 74, 232, .32), transparent);
   }
 
+  body:not([data-page="home"]) .nav-section-label::before,
+  body:not([data-page="home"]) .nav-section-label::after {
+    content: none !important;
+    display: none !important;
+  }
+
   body:not([data-page="home"]) .sidebar-account-button {
     min-height: 76px !important;
     margin-top: auto !important;
