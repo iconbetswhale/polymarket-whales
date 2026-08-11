@@ -680,6 +680,54 @@ body:not([data-page="home"]) .account-dialog .account-actions .button {
   body:not([data-page="home"]) .account-dialog .tracker-dialog-shell { padding: 22px 18px !important; }
 }
 
+/* Subtle purple treatment: retain hierarchy without neon halos around every surface. */
+body:not([data-page="home"]) {
+  --app-line: rgba(174,125,224,.12);
+  --app-line-strong: rgba(174,125,224,.25);
+  --app-shadow: 0 14px 38px rgba(0,0,0,.24);
+}
+
+body:not([data-page="home"]) .panel,
+body:not([data-page="home"]) .metric-card,
+body:not([data-page="home"]) .trade-card,
+body:not([data-page="home"]) .trade-detail,
+body:not([data-page="home"]) .sharp-signal-card,
+body:not([data-page="home"]) .sharp-detail-panel,
+body:not([data-page="home"]) .ev-opportunity,
+body:not([data-page="home"]) .ev-detail,
+body:not([data-page="home"]) .wallet-card,
+body:not([data-page="home"]) .tracker-dialog-shell {
+  box-shadow: 0 12px 32px rgba(0,0,0,.22) !important;
+}
+
+body:not([data-page="home"]) .trade-card.selected,
+body:not([data-page="home"]) .sharp-signal-card.selected,
+body:not([data-page="home"]) .ev-opportunity.active {
+  border-color: rgba(167,107,236,.4) !important;
+  box-shadow: inset 2px 0 rgba(167,107,236,.72), 0 10px 26px rgba(0,0,0,.22) !important;
+}
+
+body:not([data-page="home"]) .nav-links a[aria-current="page"] {
+  box-shadow: inset 2px 0 rgba(167,107,236,.72), 0 6px 18px rgba(112,52,184,.06) !important;
+}
+
+body:not([data-page="home"]) .nav-links a[aria-current="page"] i,
+body:not([data-page="home"]) .nav-links a[aria-current="page"] svg,
+body:not([data-page="home"]) .brand-mark {
+  filter: drop-shadow(0 0 3px rgba(167,107,236,.28)) !important;
+}
+
+body[data-page="trades"] .stage2-scan-orbit,
+body[data-page="positive-ev"] .ev-alert-dot {
+  box-shadow: 0 0 12px rgba(167,107,236,.12) !important;
+}
+
+body:not([data-page="home"]) .workspace-tabs button.active,
+body:not([data-page="home"]) .workspace-tabs button[aria-selected="true"],
+body:not([data-page="home"]) .segmented button.active {
+  box-shadow: inset 0 -1px rgba(192,139,255,.2) !important;
+}
+
 /* Risk state remains intentionally impossible to miss. */
 body:not([data-page="home"]) .global-risk-banner { color: #fff; border-color: rgba(255,109,120,.38); background: linear-gradient(90deg, #521522, #29101e); }
 
