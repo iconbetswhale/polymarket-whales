@@ -47,6 +47,20 @@
           <small>All event times shown in ET</small>
         </div>
       </div>
+      <div class="trades-corner-cluster" aria-label="Quick account controls">
+        <button class="corner-control" id="corner-search-button" type="button" aria-label="Search trades"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
+        <button class="corner-control corner-wallet" id="corner-bankroll-button" type="button" aria-label="Open bankroll settings"><i class="ph ph-wallet" aria-hidden="true"></i></button>
+        <label class="corner-region" aria-label="Region">
+          <select id="corner-region-select">
+            <option value="FL" selected>FL</option>
+            <option value="NY">NY</option>
+            <option value="NJ">NJ</option>
+            <option value="PA">PA</option>
+          </select>
+          <span>FL</span><i class="ph ph-caret-down" aria-hidden="true"></i>
+        </label>
+        <button class="corner-avatar" type="button" data-account-open aria-label="Open account">R</button>
+      </div>
     </div>
   </header>
   <section class="trade-summary-strip" aria-label="Prediction Traders summary">

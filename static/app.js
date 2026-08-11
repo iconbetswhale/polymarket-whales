@@ -3152,6 +3152,18 @@ function bindTrades() {
     const panel = document.getElementById("bankroll-popover");
     togglePopover("bankroll-popover-button", "bankroll-popover", panel.hidden);
   });
+  document.getElementById("corner-search-button")?.addEventListener("click", () => {
+    const search = document.getElementById("trade-search");
+    search?.closest(".compact-search")?.classList.add("corner-search-open");
+    search?.focus();
+  });
+  document.getElementById("corner-bankroll-button")?.addEventListener("click", () => {
+    document.getElementById("bankroll-popover-button")?.click();
+  });
+  document.getElementById("corner-region-select")?.addEventListener("change", (event) => {
+    const label = event.currentTarget.parentElement?.querySelector("span");
+    if (label) label.textContent = event.currentTarget.value;
+  });
   document.getElementById("trades-more-button").addEventListener("click", () => {
     const panel = document.getElementById("trades-more-menu");
     togglePopover("trades-more-button", "trades-more-menu", panel.hidden);
