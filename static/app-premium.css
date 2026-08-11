@@ -2153,4 +2153,15 @@ body[data-page="trades"] .compact-search.corner-search-open {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip i {
+    width: auto !important;
+    height: auto !important;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
 }
