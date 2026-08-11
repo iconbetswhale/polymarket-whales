@@ -2142,3 +2142,15 @@ body[data-page="trades"] .compact-search.corner-search-open {
     margin-top: 0 !important;
   }
 }
+
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-bet-size strong {
+    color: #f2f3f6 !important;
+    font: 500 13px/1 "DM Sans", sans-serif !important;
+    letter-spacing: -0.01em !important;
+    text-shadow: none !important;
+    filter: none !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
