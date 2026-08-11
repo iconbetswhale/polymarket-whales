@@ -2054,7 +2054,4 @@ body[data-page="trades"] .compact-search.corner-search-open {
     transform: none !important;
   }
 
-  body[data-page="trades"] .trade-card .trade-market {
-    display: none !important;
-  }
 }
