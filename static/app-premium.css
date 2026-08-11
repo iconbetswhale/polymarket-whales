@@ -1994,3 +1994,43 @@ body[data-page="trades"] .compact-search.corner-search-open {
     height: 46px !important;
   }
 }
+
+/* Locked plays carry additional status rows, so they cannot use the compact
+   fixed height shared by ordinary recommendations. */
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-card.official-trade,
+  body[data-page="trades"] .trade-card.official-trade.selected {
+    min-height: 188px !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  body[data-page="trades"] .trade-card.official-trade .trade-identity,
+  body[data-page="trades"] .trade-card.official-trade .trade-decision {
+    min-height: 186px !important;
+    height: auto !important;
+  }
+
+  body[data-page="trades"] .trade-card.official-trade .trade-identity {
+    align-content: start !important;
+    padding-block: 12px !important;
+  }
+
+  body[data-page="trades"] .trade-card.official-trade .trade-decision {
+    align-content: center !important;
+  }
+
+  body[data-page="trades"] .trade-card.official-trade .trade-selection {
+    grid-template-columns: minmax(140px, 1fr) 92px 86px !important;
+    overflow: visible !important;
+  }
+
+  body[data-page="trades"] .trade-card.official-trade .trade-selection > .execution-toolbar,
+  body[data-page="trades"] .trade-card.official-trade .execution-options-scroll,
+  body[data-page="trades"] .trade-card.official-trade .execution-option {
+    width: 86px !important;
+    min-width: 86px !important;
+    max-width: 86px !important;
+    overflow: visible !important;
+  }
+}
