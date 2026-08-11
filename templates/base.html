@@ -84,7 +84,7 @@
         </div>
         <button class="button ghost" id="account-logout" type="button">Sign out</button>
       </div>
-      <form id="account-form">
+      <form id="account-form" novalidate>
         <a class="account-oauth-button" id="account-google" href="/api/auth/google/start"><i class="ph ph-google-logo" aria-hidden="true"></i><span>Continue with Google</span></a>
         <div class="account-divider"><span>or use email</span></div>
         <label class="tracker-dialog-field">Username<input id="account-username-register" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="nickname" placeholder="iconbettor"></label>
@@ -95,7 +95,7 @@
       </form>
     </div>
   </dialog>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-account-dialog2') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-account-dialog3') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version) }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version) }}"></script>{% endif %}
 </body>
