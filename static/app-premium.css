@@ -57,6 +57,73 @@
   }
 }
 
+/* Reference-style metric capsules: dark glass, restrained borders, and
+   distinct icon colors without changing the underlying metric hierarchy. */
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-decision {
+    grid-template-rows: 34px 48px !important;
+  }
+
+  body[data-page="trades"] .trade-metrics-row {
+    min-height: 34px !important;
+    height: 34px !important;
+    gap: 7px !important;
+    overflow: visible !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:not(.time) {
+    min-width: 0 !important;
+    min-height: 31px !important;
+    height: 31px !important;
+    gap: 7px !important;
+    padding: 0 11px !important;
+    border: 1px solid rgba(136, 140, 166, .27) !important;
+    border-radius: 10px !important;
+    color: #d8dae4 !important;
+    background: linear-gradient(180deg, rgba(17, 17, 27, .95), rgba(11, 11, 19, .93)) !important;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025), 0 4px 14px rgba(0, 0, 0, .18) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:not(.time) strong {
+    color: #d9dbe4 !important;
+    font: 400 12px/1 "DM Sans", sans-serif !important;
+    letter-spacing: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:not(.time) i {
+    font-size: 17px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:nth-child(2) i {
+    color: #c17cff !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:nth-child(3) i {
+    color: #d6b86f !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip:nth-child(5) i,
+  body[data-page="trades"] .trade-metric-chip:nth-child(6) i {
+    color: #49aafa !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.better {
+    border-color: rgba(53, 187, 92, .55) !important;
+    background: linear-gradient(180deg, rgba(8, 31, 19, .96), rgba(6, 22, 14, .94)) !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.better i,
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.better strong {
+    color: #48c66a !important;
+  }
+
+  body[data-page="trades"] .trade-metric-chip.slippage-chip.worse {
+    border-color: rgba(241, 61, 92, .58) !important;
+    background: linear-gradient(180deg, rgba(53, 10, 22, .96), rgba(34, 7, 15, .94)) !important;
+  }
+}
+
 body:not([data-page="home"]) {
   min-height: 100vh;
   overflow-x: hidden;

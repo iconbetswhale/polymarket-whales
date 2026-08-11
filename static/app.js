@@ -1937,7 +1937,7 @@ function tradeCard(trade) {
           ${tradeMetricChip("ph-bag", formatOptionalMoney(betAmount, true), amountTooltip)}
           ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Tracked Sharp average entry price")}
           ${slippageMetricChip(slippage)}
-          ${tradeMetricChip("ph-gauge", formatRelativeSize(relativeSize), relativeTooltip)}
+          ${tradeMetricChip("ph-cloud", formatRelativeSize(relativeSize), relativeTooltip)}
           ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
         </span>
         <span class="trade-selection">
