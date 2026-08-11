@@ -2749,12 +2749,13 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("trade-league").value = currentLeague;
   document.getElementById("trade-wallet").value = currentWallet;
   const lowInventory = document.getElementById("low-inventory-state");
+  const tradeWorkspace = document.querySelector(".trade-workspace");
+  tradeWorkspace?.classList.toggle("empty-trades", appState.trades.length === 0);
   if (lowInventory) lowInventory.hidden = appState.trades.length >= 5;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
     list.replaceChildren();
-    document.getElementById("trade-detail").innerHTML = tradeModelActivityPanel(payload, sourceTrades, appState.trades);
-    document.getElementById("empty-clear-trade-filters")?.addEventListener("click", () => document.getElementById("clear-trade-filters")?.click());
+    document.getElementById("trade-detail").replaceChildren();
     return;
   }
   const selectedParam = new URLSearchParams(window.location.search).get("selected");
