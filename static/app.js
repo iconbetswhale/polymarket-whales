@@ -580,7 +580,9 @@ async function submitAccount(mode) {
   const form = document.getElementById("account-form");
   const error = document.getElementById("account-error");
   const buttons = form.querySelectorAll("button");
-  if (!form.reportValidity()) return;
+  const emailInput = document.getElementById("account-email-input");
+  const passwordInput = document.getElementById("account-password");
+  if (!emailInput.reportValidity() || !passwordInput.reportValidity()) return;
   const requestedUsername = document.getElementById("account-username-register")?.value.trim() || "";
   if (mode === "register" && !/^[A-Za-z0-9_]{3,24}$/.test(requestedUsername)) {
     error.textContent = "Choose a 3-24 character username using letters, numbers, or underscores.";

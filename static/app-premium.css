@@ -606,6 +606,80 @@ body:not([data-page="home"]) .account-oauth-button { color: var(--app-text); bor
 body:not([data-page="home"]) .account-divider::before,
 body:not([data-page="home"]) .account-divider::after { border-color: var(--app-line); }
 
+/* Account access is a single centered panel; the base dialog must not outgrow its shell. */
+body:not([data-page="home"]) dialog.account-dialog[open] {
+  width: min(480px, calc(100vw - 32px)) !important;
+  max-width: 480px !important;
+  margin: auto !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border-color: rgba(167,107,236,.42) !important;
+  border-radius: 14px !important;
+  background: #100d18 !important;
+}
+
+body:not([data-page="home"]) .account-dialog .tracker-dialog-shell {
+  width: 100% !important;
+  max-width: none !important;
+  box-sizing: border-box !important;
+  margin: 0 !important;
+  padding: 26px !important;
+  border: 0 !important;
+  border-radius: 13px !important;
+  background: linear-gradient(145deg, rgba(18,16,28,.99), rgba(10,9,16,.99)) !important;
+}
+
+body:not([data-page="home"]) .account-dialog h2 {
+  margin: 4px 42px 8px 0 !important;
+  font-size: 17px !important;
+  line-height: 1.25 !important;
+}
+
+body:not([data-page="home"]) .account-dialog .tracker-dialog-note {
+  margin: 0 0 20px !important;
+  line-height: 1.5 !important;
+}
+
+body:not([data-page="home"]) .account-dialog #account-form {
+  display: grid !important;
+  gap: 13px !important;
+}
+
+body:not([data-page="home"]) .account-dialog .account-divider {
+  margin: 1px 0 !important;
+}
+
+body:not([data-page="home"]) .account-dialog .tracker-dialog-field {
+  width: 100% !important;
+  gap: 6px !important;
+}
+
+body:not([data-page="home"]) .account-dialog .tracker-dialog-field input {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  min-height: 44px !important;
+  padding: 0 13px !important;
+  border-color: rgba(167,107,236,.28) !important;
+  background: rgba(6,5,11,.78) !important;
+  color: #fff !important;
+}
+
+body:not([data-page="home"]) .account-dialog .account-actions {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+  gap: 10px !important;
+  margin-top: 4px !important;
+}
+
+body:not([data-page="home"]) .account-dialog .account-actions .button {
+  width: 100% !important;
+  min-height: 42px !important;
+}
+
+@media (max-width: 520px) {
+  body:not([data-page="home"]) .account-dialog .tracker-dialog-shell { padding: 22px 18px !important; }
+}
+
 /* Risk state remains intentionally impossible to miss. */
 body:not([data-page="home"]) .global-risk-banner { color: #fff; border-color: rgba(255,109,120,.38); background: linear-gradient(90deg, #521522, #29101e); }
 

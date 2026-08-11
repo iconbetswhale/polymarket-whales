@@ -26,7 +26,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-detail-toolbar1') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-account-dialog2') }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -87,7 +87,7 @@
       <form id="account-form">
         <a class="account-oauth-button" id="account-google" href="/api/auth/google/start"><i class="ph ph-google-logo" aria-hidden="true"></i><span>Continue with Google</span></a>
         <div class="account-divider"><span>or use email</span></div>
-        <label class="tracker-dialog-field">Username<input id="account-username-register" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="username" placeholder="iconbettor"></label>
+        <label class="tracker-dialog-field">Username<input id="account-username-register" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="nickname" placeholder="iconbettor"></label>
         <label class="tracker-dialog-field">Email<input id="account-email-input" type="email" autocomplete="email" required></label>
         <label class="tracker-dialog-field">Password<input id="account-password" type="password" minlength="8" autocomplete="current-password" required></label>
         <p class="tracker-admin-error" id="account-error" role="alert" aria-live="polite"></p>
@@ -95,7 +95,7 @@
       </form>
     </div>
   </dialog>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-plain-metric-time1') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-account-dialog2') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version) }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version) }}"></script>{% endif %}
 </body>
