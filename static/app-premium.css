@@ -2033,4 +2033,24 @@ body[data-page="trades"] .compact-search.corner-search-open {
     max-width: 86px !important;
     overflow: visible !important;
   }
+
+  body[data-page="trades"] .trade-selection .execution-toolbar--best {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    align-self: center !important;
+    justify-content: center !important;
+    gap: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-toolbar--best .line-shop-status {
+    display: none !important;
+  }
+
+  body[data-page="trades"] .trade-selection .execution-options-scroll,
+  body[data-page="trades"] .trade-selection .execution-option.best-execution-price {
+    align-self: center !important;
+    margin: 0 !important;
+    transform: none !important;
+  }
 }
