@@ -97,14 +97,33 @@
 
   body:not([data-page="home"]) .app-nav .nav-links a {
     grid-template-columns: 1fr !important;
-    grid-template-rows: 20px auto !important;
+    grid-template-rows: 24px auto !important;
     justify-items: center !important;
     justify-content: center !important;
     align-content: center !important;
+    width: 100% !important;
     min-height: 48px !important;
     gap: 3px !important;
     padding: 5px 2px !important;
     text-align: center !important;
+  }
+
+  body:not([data-page="home"]) .app-nav .nav-links a > i,
+  body:not([data-page="home"]) .app-nav .sharp-money-nav-icon,
+  body:not([data-page="home"]) .app-nav .sportsbook-nav-icon,
+  body:not([data-page="home"]) .app-nav .live-position-nav-icon {
+    width: 24px !important;
+    height: 24px !important;
+    flex: 0 0 24px !important;
+    justify-self: center !important;
+    font-size: 24px !important;
+  }
+
+  body:not([data-page="home"]) .app-nav .sharp-money-nav-icon svg,
+  body:not([data-page="home"]) .app-nav .sportsbook-nav-icon svg,
+  body:not([data-page="home"]) .app-nav .live-position-nav-icon svg {
+    width: 24px !important;
+    height: 24px !important;
   }
 
   body:not([data-page="home"]) .app-nav .nav-links a > span[data-short] {
