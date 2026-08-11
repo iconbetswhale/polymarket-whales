@@ -360,7 +360,39 @@ function formatRefreshDateTime(value, fallback = "Waiting") {
 
 function formatScheduledClock(value, fallback = "Time unavailable") {
   if (!value) return fallback;
-  return String(value).replace(/:00 (?=(?:AM|PM)\b)/g, " ");
+  const raw = String(value).trim();
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return raw.replace(/:00 (?=(?:AM|PM)\b)/g, " ");
+
+  const timeZone = "America/New_York";
+  const dateParts = (date) => Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+    }).formatToParts(date).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)])
+  );
+  const eventDate = dateParts(parsed);
+  const todayDate = dateParts(new Date());
+  const eventDay = Date.UTC(eventDate.year, eventDate.month - 1, eventDate.day);
+  const todayDay = Date.UTC(todayDate.year, todayDate.month - 1, todayDate.day);
+  const dayDifference = Math.round((eventDay - todayDay) / 86400000);
+  const time = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
+
+  if (dayDifference === 0) return time;
+  if (dayDifference === 1) return `Tomorrow, ${time}`;
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(parsed);
 }
 
 function upcomingPreviewStart(hour, minute = 0) {
@@ -1875,7 +1907,7 @@ function tradeCard(trade) {
   const recommendedUnits = card.recommended_units ?? recommendation.recommended_units;
   const recommendedShares = card.recommended_shares ?? recommendation.recommended_shares;
   const eventTime = formatScheduledClock(card.event_time);
-  const eventClock = eventTime.match(/\b\d{1,2}:\d{2}\s*(?:AM|PM)\b/i)?.[0] || eventTime;
+  const eventClock = eventTime;
   const sportLeagueLabel = [...new Map(
     [trade.category, trade.league]
       .filter(Boolean)
