@@ -47,6 +47,16 @@
   --ev-cyan: var(--app-purple);
 }
 
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-card .trade-event {
+    min-height: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-card .trade-market {
+    margin-top: 0 !important;
+  }
+}
+
 body:not([data-page="home"]) {
   min-height: 100vh;
   overflow-x: hidden;
@@ -2054,4 +2064,14 @@ body[data-page="trades"] .compact-search.corner-search-open {
     transform: none !important;
   }
 
+}
+
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-card .trade-event {
+    min-height: 0 !important;
+  }
+
+  body[data-page="trades"] .trade-card .trade-market {
+    margin-top: 0 !important;
+  }
 }
