@@ -2000,15 +2000,15 @@ body[data-page="trades"] .compact-search.corner-search-open {
 @media (min-width: 1050px) {
   body[data-page="trades"] .trade-card.official-trade,
   body[data-page="trades"] .trade-card.official-trade.selected {
-    min-height: 160px !important;
-    height: 160px !important;
+    min-height: 172px !important;
+    height: 172px !important;
     overflow: visible !important;
   }
 
   body[data-page="trades"] .trade-card.official-trade .trade-identity,
   body[data-page="trades"] .trade-card.official-trade .trade-decision {
-    min-height: 158px !important;
-    height: 158px !important;
+    min-height: 170px !important;
+    height: 170px !important;
   }
 
   body[data-page="trades"] .trade-card.official-trade .trade-identity {
