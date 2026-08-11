@@ -47,6 +47,49 @@
   --ev-cyan: var(--app-purple);
 }
 
+/* Authenticated account menu and profile workspace */
+body[data-page="trades"] .trades-corner-cluster { position: relative; }
+body[data-page="trades"] .corner-account-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 120; width: 164px; padding: 7px; border: 1px solid rgba(145,163,187,.32); border-radius: 10px; background: #142231; box-shadow: 0 16px 38px rgba(0,0,0,.44); }
+body[data-page="trades"] .corner-account-menu[hidden] { display: none !important; }
+body[data-page="trades"] .corner-account-menu button { display: flex; align-items: center; gap: 11px; width: 100%; min-height: 40px; padding: 0 10px; border: 0; border-radius: 7px; color: #f7f9fd; background: transparent; font: inherit; font-size: 13px; font-weight: 650; text-align: left; cursor: pointer; }
+body[data-page="trades"] .corner-account-menu button:hover { background: rgba(174,79,244,.14); }
+body[data-page="trades"] .corner-account-menu i { color: #5ed4ff; font-size: 18px; }
+body:not([data-page="home"]) dialog.account-dialog.authenticated-profile[open] { width: min(1120px, calc(100vw - 48px)) !important; max-width: none !important; }
+body:not([data-page="home"]) .account-dialog.authenticated-profile .tracker-dialog-shell { width: 100% !important; max-width: none !important; padding: 24px !important; border-color: rgba(178,78,245,.42) !important; background: linear-gradient(145deg, rgba(20,31,45,.99), rgba(10,13,23,.99)) !important; }
+.profile-tabs { display: flex; gap: 6px; margin: 18px 0 14px; padding: 5px; border: 1px solid rgba(130,145,168,.22); border-radius: 11px; background: rgba(4,8,15,.5); }
+.profile-tabs button { flex: 1; min-height: 42px; border: 0; border-radius: 8px; color: #9ca9ba; background: transparent; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; }
+.profile-tabs button.active { color: #fff; background: linear-gradient(110deg, rgba(239,55,111,.82), rgba(157,63,239,.82)); box-shadow: 0 8px 24px rgba(167,57,230,.2); }
+.profile-tab-panel { padding: 22px; border: 1px solid rgba(132,151,177,.22); border-radius: 12px; background: rgba(21,37,53,.88); }
+.profile-tab-panel[hidden] { display: none !important; }
+.profile-tab-panel header { margin-bottom: 20px; }
+.profile-tab-panel header h3 { margin: 0 0 5px; color: #fff; font-size: 17px; }
+.profile-tab-panel header p { margin: 0; color: #8eb0cd; font-size: 12px; }
+.profile-overview-form { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 18px 20px; }
+.profile-overview-form label { display: grid; gap: 7px; color: #f3f6fb; font-size: 11px; font-weight: 700; }
+.profile-overview-form input, .profile-overview-form select { width: 100%; min-height: 42px; padding: 0 13px; border: 1px solid rgba(127,151,178,.35); border-radius: 5px; outline: none; color: #f5f8fc; background: #203449; font: inherit; font-weight: 500; }
+.profile-overview-form input:focus, .profile-overview-form select:focus { border-color: #b35cf2; box-shadow: 0 0 0 3px rgba(179,92,242,.12); }
+.profile-overview-form input[readonly] { color: #91a9bf; }
+.profile-input-with-icon { position: relative; display: block; }
+.profile-input-with-icon i { position: absolute; top: 50%; left: 12px; z-index: 1; color: #91a9bf; font-size: 17px; transform: translateY(-50%); }
+.profile-input-with-icon input { padding-left: 38px; }
+.profile-form-actions { grid-column: 1/-1; display: flex; justify-content: flex-end; gap: 10px; margin: 4px -22px -22px; padding: 16px 22px; border-top: 1px solid rgba(132,151,177,.22); }
+.profile-subscription-card, .profile-billing-info { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px; border: 1px solid rgba(127,151,178,.3); border-radius: 9px; background: #203449; }
+.profile-subscription-card div, .profile-billing-info div { display: grid; gap: 5px; }
+.profile-subscription-card span { color: #96aabd; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.profile-subscription-card strong { color: #fff; font-size: 17px; }
+.profile-subscription-card small { color: #8eb0cd; }
+.profile-billing-info { justify-content: flex-start; margin-top: 14px; }
+.profile-billing-info > i { color: #b75cf2; font-size: 28px; }
+.profile-billing-info strong { color: #fff; }
+.profile-billing-info p { margin: 0; color: #9aacbf; font-size: 12px; }
+@media (max-width: 720px) {
+  body:not([data-page="home"]) dialog.account-dialog.authenticated-profile[open] { width: calc(100vw - 20px) !important; }
+  body:not([data-page="home"]) .account-dialog.authenticated-profile .tracker-dialog-shell { padding: 17px !important; }
+  .profile-tabs { flex-direction: column; }
+  .profile-overview-form { grid-template-columns: 1fr; gap: 14px; }
+  .profile-subscription-card { align-items: flex-start; flex-direction: column; }
+}
+
 @media (min-width: 1050px) {
   body[data-page="trades"] .trade-card .trade-event {
     min-height: 0 !important;

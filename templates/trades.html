@@ -48,7 +48,11 @@
         </div>
       </div>
       <div class="trades-corner-cluster" aria-label="Quick account controls">
-        <button class="corner-avatar" type="button" data-account-open aria-label="Open account">R</button>
+        <button class="corner-avatar" id="account-menu-toggle" type="button" aria-label="Open profile menu" aria-expanded="false">R</button>
+        <div class="corner-account-menu" id="corner-account-menu" hidden>
+          <button id="corner-profile-open" type="button"><i class="ph ph-user" aria-hidden="true"></i><span>Profile</span></button>
+          <button id="corner-account-logout" type="button"><i class="ph ph-sign-out" aria-hidden="true"></i><span>Sign Out</span></button>
+        </div>
       </div>
     </div>
   </header>

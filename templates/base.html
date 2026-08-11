@@ -26,7 +26,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-compact1') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-profile-menu1') }}">{% endif %}
 </head>
 <body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -73,16 +73,31 @@
       <h2 id="account-title">Keep your settings on every device</h2>
       <p class="tracker-dialog-note" id="account-copy">Create an account or sign in to sync your saved bankroll, Personal Tracker, hidden trades, and view preferences.</p>
       <div class="account-authenticated" id="account-authenticated" hidden>
-        <div class="account-identity"><i class="ph ph-check-circle" aria-hidden="true"></i><div><span>Signed in as</span><strong id="account-username"></strong><small id="account-email"></small></div></div>
-        <form class="account-username-form" id="account-username-form">
-          <label class="tracker-dialog-field">Username<input id="account-username-input" type="text" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" autocomplete="username"></label>
-          <button class="button ghost compact" type="submit">Save username</button>
-        </form>
-        <div class="account-membership">
-          <span><small>Subscription</small><strong id="account-plan-status">Billing not connected</strong></span>
-          <a class="button ghost compact" id="account-subscription" href="/api/account/subscription">Manage subscription</a>
-        </div>
-        <button class="button ghost" id="account-logout" type="button">Sign out</button>
+        <nav class="profile-tabs" aria-label="Profile sections">
+          <button class="active" type="button" data-profile-tab="overview" aria-selected="true">Overview</button>
+          <button type="button" data-profile-tab="subscription" aria-selected="false">Manage Subscription</button>
+        </nav>
+        <section class="profile-tab-panel active" data-profile-panel="overview">
+          <header><h3>Overview</h3><p>Update your personal information and display preferences.</p></header>
+          <form class="profile-overview-form" id="profile-overview-form">
+            <label>First Name<input id="profile-first-name" type="text" autocomplete="given-name"></label>
+            <label>Last Name<input id="profile-last-name" type="text" autocomplete="family-name"></label>
+            <label>Email<span class="profile-input-with-icon"><i class="ph ph-envelope-simple"></i><input id="profile-email" type="email" readonly></span></label>
+            <label>Phone Number (Optional)<span class="profile-input-with-icon"><i class="ph ph-phone"></i><input id="profile-phone" type="tel" autocomplete="tel" placeholder="Phone Number (Optional)"></span></label>
+            <label>State<select id="profile-state"><option>Florida</option><option>New York</option><option>New Jersey</option><option>Pennsylvania</option><option>California</option><option>Texas</option><option>Other</option></select></label>
+            <label>Odds Format<select id="profile-odds-format"><option>American</option><option>Decimal</option><option>Fractional</option></select></label>
+            <div class="profile-form-actions"><button class="button ghost" id="profile-cancel" type="button">Cancel</button><button class="button primary" type="submit">Save Changes</button></div>
+          </form>
+        </section>
+        <section class="profile-tab-panel" data-profile-panel="subscription" hidden>
+          <header><h3>Manage Subscription</h3><p>Review your plan and manage billing securely.</p></header>
+          <div class="profile-subscription-card">
+            <div><span>Current plan</span><strong id="account-plan-status">Billing not connected</strong><small id="profile-subscription-email"></small></div>
+            <a class="button primary compact" id="account-subscription" href="/api/account/subscription">Manage Plan</a>
+          </div>
+          <div class="profile-billing-info"><i class="ph ph-credit-card"></i><div><strong>Payment methods and billing history</strong><p>Use the secure billing portal to update payment methods, download invoices, renew, or cancel your plan.</p></div></div>
+        </section>
+        <span id="account-username" hidden></span><span id="account-email" hidden></span><input id="account-username-input" type="hidden"><form id="account-username-form" hidden></form><button id="account-logout" type="button" hidden>Sign out</button>
       </div>
       <form id="account-form" novalidate>
         <a class="account-oauth-button" id="account-google" href="/api/auth/google/start"><i class="ph ph-google-logo" aria-hidden="true"></i><span>Continue with Google</span></a>
@@ -95,7 +110,7 @@
       </form>
     </div>
   </dialog>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-empty-center1') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu1') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version) }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version) }}"></script>{% endif %}
 </body>

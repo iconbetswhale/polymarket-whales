@@ -562,6 +562,12 @@ function renderAccountState(account = {}) {
   const google = document.getElementById("account-google");
   const subscription = document.getElementById("account-subscription");
   const planStatus = document.getElementById("account-plan-status");
+  const dialog = document.getElementById("account-dialog");
+  const title = document.getElementById("account-title");
+  const copy = document.getElementById("account-copy");
+  const profileEmail = document.getElementById("profile-email");
+  const subscriptionEmail = document.getElementById("profile-subscription-email");
+  const avatar = document.getElementById("account-menu-toggle");
   if (status) status.textContent = appState.account.authenticated ? (appState.account.username || "Synced") : "Account";
   if (form) form.hidden = appState.account.authenticated;
   if (authenticated) authenticated.hidden = !appState.account.authenticated;
@@ -581,6 +587,59 @@ function renderAccountState(account = {}) {
   if (planStatus) planStatus.textContent = appState.account.subscriptionManagementAvailable
     ? "Subscription controls ready"
     : "Billing not connected";
+  dialog?.classList.toggle("authenticated-profile", appState.account.authenticated);
+  if (title) title.textContent = appState.account.authenticated ? "Profile" : "Keep your settings on every device";
+  if (copy) copy.hidden = appState.account.authenticated;
+  if (profileEmail) profileEmail.value = appState.account.email || "";
+  if (subscriptionEmail) subscriptionEmail.textContent = appState.account.email || "";
+  if (avatar) avatar.textContent = (appState.account.username || appState.account.email || "R").charAt(0).toUpperCase();
+  loadProfilePreferences();
+}
+
+function loadProfilePreferences() {
+  let profile = {};
+  try { profile = JSON.parse(localStorage.getItem("iconlabs-profile-preferences") || "{}"); } catch (_error) { profile = {}; }
+  const fields = {
+    "profile-first-name": profile.firstName || "",
+    "profile-last-name": profile.lastName || "",
+    "profile-phone": profile.phone || "",
+    "profile-state": profile.state || "Florida",
+    "profile-odds-format": profile.oddsFormat || "American",
+  };
+  Object.entries(fields).forEach(([id, value]) => {
+    const input = document.getElementById(id);
+    if (input) input.value = value;
+  });
+}
+
+function selectProfileTab(tab = "overview") {
+  document.querySelectorAll("[data-profile-tab]").forEach((button) => {
+    const selected = button.dataset.profileTab === tab;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-selected", String(selected));
+  });
+  document.querySelectorAll("[data-profile-panel]").forEach((panel) => {
+    const selected = panel.dataset.profilePanel === tab;
+    panel.classList.toggle("active", selected);
+    panel.hidden = !selected;
+  });
+}
+
+function closeCornerAccountMenu() {
+  const menu = document.getElementById("corner-account-menu");
+  const toggle = document.getElementById("account-menu-toggle");
+  if (menu) menu.hidden = true;
+  toggle?.setAttribute("aria-expanded", "false");
+}
+
+async function logoutAccount() {
+  try {
+    await fetchJson("/api/auth/logout", { method: "POST" });
+    showToast("Signed out. This browser now uses a new private profile.", "success");
+    window.location.reload();
+  } catch (error) {
+    showToast(error.message, "error");
+  }
 }
 
 async function loadAccountState() {
@@ -597,6 +656,7 @@ function openAccountDialog() {
   document.getElementById("account-error").textContent = "";
   if (typeof dialog.showModal === "function") dialog.showModal();
   else dialog.setAttribute("open", "");
+  if (appState.account.authenticated) selectProfileTab("overview");
   if (!appState.account.authenticated) document.getElementById("account-email-input")?.focus();
 }
 
@@ -682,14 +742,44 @@ function bindAccount() {
       error.textContent = requestError.message;
     }
   });
-  document.getElementById("account-logout")?.addEventListener("click", async () => {
-    try {
-      await fetchJson("/api/auth/logout", { method: "POST" });
-      showToast("Signed out. This browser now uses a new private profile.", "success");
-      window.location.reload();
-    } catch (error) {
-      showToast(error.message, "error");
+  document.getElementById("account-logout")?.addEventListener("click", logoutAccount);
+  document.getElementById("corner-account-logout")?.addEventListener("click", logoutAccount);
+  document.getElementById("account-menu-toggle")?.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (!appState.account.authenticated) {
+      openAccountDialog();
+      return;
     }
+    const menu = document.getElementById("corner-account-menu");
+    if (!menu) return;
+    menu.hidden = !menu.hidden;
+    event.currentTarget.setAttribute("aria-expanded", String(!menu.hidden));
+  });
+  document.getElementById("corner-profile-open")?.addEventListener("click", () => {
+    closeCornerAccountMenu();
+    openAccountDialog();
+  });
+  document.addEventListener("click", (event) => {
+    if (!event.target.closest(".trades-corner-cluster")) closeCornerAccountMenu();
+  });
+  document.querySelectorAll("[data-profile-tab]").forEach((button) => {
+    button.addEventListener("click", () => selectProfileTab(button.dataset.profileTab));
+  });
+  document.getElementById("profile-overview-form")?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const profile = {
+      firstName: document.getElementById("profile-first-name")?.value.trim() || "",
+      lastName: document.getElementById("profile-last-name")?.value.trim() || "",
+      phone: document.getElementById("profile-phone")?.value.trim() || "",
+      state: document.getElementById("profile-state")?.value || "Florida",
+      oddsFormat: document.getElementById("profile-odds-format")?.value || "American",
+    };
+    try { localStorage.setItem("iconlabs-profile-preferences", JSON.stringify(profile)); } catch (_error) { /* Local storage may be unavailable. */ }
+    showToast("Profile preferences saved.", "success");
+  });
+  document.getElementById("profile-cancel")?.addEventListener("click", () => {
+    loadProfilePreferences();
+    closeAccountDialog();
   });
   loadAccountState();
   const accountParams = new URLSearchParams(window.location.search);
