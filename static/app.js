@@ -2714,7 +2714,10 @@ async function loadSizingBankroll() {
 }
 
 function renderTradesPayload(payload, filters, list) {
-  const incomingTrades = payload.data || [];
+  const previewEnabled = new URLSearchParams(window.location.search).get("preview") === "trade";
+  const incomingTrades = previewEnabled
+    ? [visualPreviewTrade(), ...(payload.data || [])]
+    : (payload.data || []);
   const mergedTrades = mergeOfficialTrackedTrades(
     incomingTrades,
     payload.officialTracked || [],

@@ -486,18 +486,22 @@ def test_vercel_cron_can_run_model_tracker_with_bearer_secret(
     assert refreshes == [True]
 
 
-def test_trades_javascript_does_not_inject_visual_preview_fixtures():
+def test_trades_javascript_gates_visual_preview_fixture_behind_query_parameter():
     javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
         encoding="utf-8"
     )
-    load_trades = javascript.split("async function loadTrades()", 1)[1].split(
+    load_trades = javascript.split("async function loadTrades(", 1)[1].split(
         "async function", 1
     )[0]
 
     assert "previewEnabled" not in load_trades
     assert "visualPreviewTrade()" not in load_trades
     assert "secondaryVisualPreviewTrade()" not in load_trades
-    assert "const incomingTrades = payload.data || [];" in load_trades
+    render_payload = javascript.split("function renderTradesPayload", 1)[1].split(
+        "async function loadTrades", 1
+    )[0]
+    assert 'get("preview") === "trade"' in render_payload
+    assert "[visualPreviewTrade(), ...(payload.data || [])]" in render_payload
 
 
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
