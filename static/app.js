@@ -1893,10 +1893,6 @@ function tradeCard(trade) {
       <span class="trade-identity">
         <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
         <span class="trade-event-copy">
-          ${trade.isOfficialTracked ? '<span class="official-play-label"><i class="ph ph-lock-key" aria-hidden="true"></i>Official · stake locked</span>' : ""}
-          ${trade.isOfficialTracked && !trade.officialLiveQualified ? '<span class="official-live-status caution"><i class="ph ph-waveform" aria-hidden="true"></i>Live signal changed · official bet remains tracked</span>' : ""}
-          ${trade.isOfficialTracked && trade.officialLiveQualified ? '<span class="official-live-status"><i class="ph ph-waveform" aria-hidden="true"></i>Still qualifies live</span>' : ""}
-          ${trade.isRefreshPending ? '<span class="refresh-pending-label"><i class="ph ph-eye" aria-hidden="true"></i>No longer qualified · monitoring</span>' : ""}
           <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
           <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
           <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
