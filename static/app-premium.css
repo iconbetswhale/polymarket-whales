@@ -1754,6 +1754,45 @@ body[data-page="trades"] .compact-search.corner-search-open {
   body[data-page="trades"] .trades-corner-cluster .corner-wallet { display: none; }
 }
 
+/* Align the full trade toolbar directly above the selected-trade panel. */
+@media (min-width: 1200px) {
+  body[data-page="trades"] .trades-command-bar {
+    position: relative !important;
+    display: block !important;
+    min-height: 42px !important;
+  }
+
+  body[data-page="trades"] .trades-command-primary {
+    width: calc(100% - 620px) !important;
+    min-width: 0 !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions {
+    position: absolute !important;
+    top: 0 !important;
+    right: 0 !important;
+    width: 600px !important;
+    max-width: 600px !important;
+    margin: 0 !important;
+    justify-content: flex-end !important;
+    gap: 6px !important;
+    overflow: visible !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .compact-search {
+    display: flex !important;
+    width: 136px !important;
+    min-width: 116px !important;
+    flex: 1 1 136px !important;
+  }
+
+  body[data-page="trades"] .trades-command-actions .toolbar-bankroll,
+  body[data-page="trades"] .trades-command-actions .personal-pnl-summary,
+  body[data-page="trades"] .trades-command-actions .icon-button {
+    flex: 0 0 auto !important;
+  }
+}
+
 @media (min-width: 1050px) {
   body[data-page="trades"] .trade-card,
   body[data-page="trades"] .trade-card.selected {
