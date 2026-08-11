@@ -2422,3 +2422,63 @@ body[data-page="trades"] .compact-search.corner-search-open {
     display: none !important;
   }
 }
+
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-workspace.empty-trades .trade-list-panel {
+    width: min(900px, 100%) !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state {
+    width: min(860px, calc(100% - 32px)) !important;
+    margin: 12px auto !important;
+    gap: 18px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-message {
+    grid-template-columns: minmax(300px, .9fr) minmax(350px, 1.1fr) !important;
+    gap: 48px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state h2 {
+    font-size: clamp(36px, 3.1vw, 48px) !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy {
+    min-height: 64px !important;
+    padding-left: 22px !important;
+    gap: 14px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy > i {
+    width: 44px !important;
+    height: 44px !important;
+    flex-basis: 44px !important;
+    font-size: 22px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy strong {
+    font-size: 15px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy small {
+    font-size: 11px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .play-activity-chart {
+    padding: 18px 22px 16px !important;
+    border-radius: 14px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades .play-activity-chart ol {
+    height: 150px !important;
+    margin-top: 24px !important;
+    gap: 7px !important;
+  }
+
+  body[data-page="trades"] .trade-workspace.empty-trades #low-inventory-clear {
+    min-width: 180px !important;
+    min-height: 44px !important;
+    border-radius: 10px !important;
+    font-size: 14px !important;
+  }
+}
