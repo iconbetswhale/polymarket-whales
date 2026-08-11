@@ -2450,6 +2450,18 @@ body[data-page="trades"] .compact-search.corner-search-open {
   }
 }
 
+/* Keep the zero-picks headline compact without changing the empty-state layout. */
+body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state h2 {
+  font-size: clamp(30px, 2.7vw, 42px) !important;
+}
+
+@media (max-width: 720px) {
+  body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state h2 {
+    font-size: 30px !important;
+    line-height: 1 !important;
+  }
+}
+
 @media (max-width: 860px) {
   body[data-page="trades"] .low-inventory-message {
     grid-template-columns: 1fr !important;
