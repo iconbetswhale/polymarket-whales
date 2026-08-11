@@ -2749,10 +2749,10 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("trade-league").value = currentLeague;
   document.getElementById("trade-wallet").value = currentWallet;
   const lowInventory = document.getElementById("low-inventory-state");
-  if (lowInventory) lowInventory.hidden = appState.trades.length === 0 || appState.trades.length >= 5;
+  if (lowInventory) lowInventory.hidden = appState.trades.length >= 5;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
-    list.innerHTML = tradeMonitoringWorkspace(payload, sourceTrades, appState.trades);
+    list.replaceChildren();
     document.getElementById("trade-detail").innerHTML = tradeModelActivityPanel(payload, sourceTrades, appState.trades);
     document.getElementById("empty-clear-trade-filters")?.addEventListener("click", () => document.getElementById("clear-trade-filters")?.click());
     return;

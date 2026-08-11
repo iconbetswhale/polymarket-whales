@@ -2170,8 +2170,8 @@ body[data-page="trades"] .exchange-price-copy small {
 }
 
 body[data-page="trades"] .low-inventory-state {
-  width: min(720px, calc(100% - 32px)) !important;
-  margin: 24px auto 0 !important;
+  width: min(900px, calc(100% - 32px)) !important;
+  margin: 36px auto 0 !important;
   padding: 0 !important;
   display: grid !important;
   grid-template-columns: 1fr !important;
@@ -2187,8 +2187,8 @@ body[data-page="trades"] .low-inventory-state[hidden] {
 
 body[data-page="trades"] .low-inventory-message {
   display: grid;
-  grid-template-columns: 28px minmax(210px, .75fr) minmax(230px, 1fr);
-  gap: 13px;
+  grid-template-columns: minmax(210px, .75fr) minmax(300px, 1fr);
+  gap: 48px;
   align-items: start;
 }
 
@@ -2269,6 +2269,23 @@ body[data-page="trades"] .play-activity-chart li:nth-child(20) {
   background: #6bad38;
 }
 
+body[data-page="trades"] .play-activity-chart footer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  padding-top: 5px;
+  color: #718693;
+  font-size: 8px;
+}
+
+body[data-page="trades"] .play-activity-chart footer span:nth-child(2),
+body[data-page="trades"] .play-activity-chart footer span:nth-child(3) {
+  text-align: center;
+}
+
+body[data-page="trades"] .play-activity-chart footer span:last-child {
+  text-align: right;
+}
+
 body[data-page="trades"] #low-inventory-clear {
   justify-self: center;
   min-height: 32px !important;
@@ -2322,10 +2339,11 @@ body[data-page="trades"] #low-inventory-clear {
     max-width: none !important;
   }
   body[data-page="trades"] .low-inventory-message {
-    grid-template-columns: 24px 1fr;
+    grid-template-columns: 1fr;
+    gap: 14px;
   }
   body[data-page="trades"] .low-inventory-copy {
-    grid-column: 2;
+    grid-column: 1;
   }
 }
 

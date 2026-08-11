@@ -110,12 +110,11 @@
       <div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
       <section class="low-inventory-state" id="low-inventory-state" hidden>
         <div class="low-inventory-message">
-          <i class="ph ph-clock-countdown" aria-hidden="true"></i>
           <div><h2>There’ll be more<br>plays later</h2></div>
-          <div class="low-inventory-copy"><p>Come back later or try clearing your filters.</p><strong>Prices refresh every 5 seconds</strong><small>Sharp consensus refreshes every 15 seconds.</small></div>
+          <div class="low-inventory-copy"><p>Come back later or try clearing your filters.</p><strong>Peak window: 5 pm - 7 pm</strong><small>23% of plays land here, peaking at 5 pm.</small></div>
         </div>
         <div class="play-activity-chart" role="img" aria-label="Typical hourly play activity, with the most opportunities appearing in the evening">
-          <header><span>Typical plays by hour</span><small>12a&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6a&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;12p&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;6p</small></header>
+          <header><span>Plays per hour (last 2 weeks)</span><small>MON&nbsp;&nbsp; TUE&nbsp;&nbsp; WED&nbsp;&nbsp; THU&nbsp;&nbsp; FRI&nbsp;&nbsp; SAT&nbsp;&nbsp; SUN</small></header>
           <ol aria-hidden="true">
             <li style="--activity:12%"></li><li style="--activity:18%"></li><li style="--activity:28%"></li><li style="--activity:22%"></li>
             <li style="--activity:18%"></li><li style="--activity:12%"></li><li style="--activity:16%"></li><li style="--activity:30%"></li>
@@ -124,8 +123,9 @@
             <li style="--activity:42%"></li><li style="--activity:58%"></li><li style="--activity:34%"></li><li style="--activity:92%"></li>
             <li style="--activity:54%"></li><li style="--activity:36%"></li><li style="--activity:46%"></li><li style="--activity:32%"></li>
           </ol>
+          <footer><span>12a</span><span>6a</span><span>12p</span><span>6p</span></footer>
         </div>
-        <button class="button ghost compact" id="low-inventory-clear" type="button">Clear filters</button>
+        <button class="button ghost compact" id="low-inventory-clear" type="button"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Clear Your Filters</button>
       </section>
     </div>
     <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite">
