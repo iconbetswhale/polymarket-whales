@@ -1624,7 +1624,9 @@ def build_trades_to_play(
             )
         elif specialist_strategy:
             confidence, breakdown = specialist_confidence_score(
-                unique_wallets, primary.get("category")
+                unique_wallets,
+                primary.get("category"),
+                primary.get("sports_market_type"),
             )
         classification_meta = classification_fields(
             classification, wallet_count, len(opposing_group)
@@ -2046,6 +2048,7 @@ def build_trades_to_play(
                 unique_wallets,
                 units_by_wallet,
                 primary.get("category"),
+                primary.get("sports_market_type"),
             )
             play.update(
                 {

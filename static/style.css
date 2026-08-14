@@ -10237,3 +10237,21 @@ body[data-page="odds-screen"] .nav-links a { padding:0 7px; font-size:10px; }
     padding: 30px 22px;
   }
 }
+
+/* Shadow Lab */
+.shadow-lab-header { margin-bottom: 18px; }
+.shadow-alerts { display: grid; gap: 10px; margin-bottom: 16px; }
+.shadow-alerts > div { display:flex; align-items:center; gap:10px; padding:14px 16px; border:1px solid rgba(98,228,126,.42); border-radius:12px; background:rgba(38,111,55,.16); }
+.shadow-alerts i { color:#70ee8d; font-size:22px; }
+.shadow-alerts span { color:var(--text-secondary); }
+.shadow-wallet-table td { vertical-align:middle; }
+.shadow-wallet-table td:first-child { min-width:220px; }
+.shadow-wallet-table small { display:block; max-width:280px; margin-top:4px; color:var(--text-subtle); line-height:1.35; }
+.shadow-readiness { width:92px; height:6px; overflow:hidden; border-radius:999px; background:rgba(255,255,255,.08); }
+.shadow-readiness span { display:block; height:100%; border-radius:inherit; background:linear-gradient(90deg,#27b8ef,#70ee8d); }
+.shadow-policy-panel summary,.shadow-legacy-panel summary { display:flex; align-items:center; justify-content:space-between; cursor:pointer; }
+.shadow-policy-panel summary span,.shadow-legacy-panel summary span { color:var(--text-subtle); font-size:12px; }
+.shadow-policy-grid { display:grid; grid-template-columns:repeat(6,minmax(110px,1fr)); gap:8px; margin-top:18px; }
+.shadow-policy-grid span { padding:14px; border:1px solid var(--border); border-radius:10px; color:var(--text-secondary); }
+.shadow-policy-grid strong { display:block; margin-bottom:4px; color:var(--text-primary); font-size:18px; }
+@media(max-width:760px){.shadow-policy-grid{grid-template-columns:repeat(2,1fr)}.shadow-lab-header p{max-width:34ch}.shadow-wallet-table td:first-child{min-width:180px}}

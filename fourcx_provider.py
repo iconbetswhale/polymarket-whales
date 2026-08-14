@@ -162,6 +162,12 @@ class FourCXProvider(ExecutionProvider):
             effective, liquidity, fillable = _effective_price(
                 cache.depth.get(market.selection_id, []), stake
             )
+            depth_rows = [
+                row
+                for row in cache.depth.get(market.selection_id, [])
+                if row.get("contract_price") is not None
+                and float(row.get("remaining") or 0) > 0
+            ]
             contract = american_to_probability(market.american_odds)
             available = bool(market.is_available and contract is not None and fillable)
             results[trade.trade_id] = ExecutionOption(
@@ -180,6 +186,14 @@ class FourCXProvider(ExecutionProvider):
                 contract_price=contract,
                 effective_price=effective,
                 available_liquidity=liquidity,
+                top_price=contract,
+                top_price_american_odds=market.american_odds,
+                top_price_liquidity=(
+                    float(depth_rows[0]["remaining"]) if depth_rows else None
+                ),
+                depth_vwap_price=effective,
+                depth_executable_amount=liquidity,
+                depth_levels_used=_levels_used(depth_rows, stake),
                 can_fill_recommended_stake=fillable,
                 fee_rate=0.0,
                 quote_status="OPEN" if available else "INSUFFICIENT_DEPTH",
@@ -430,3 +444,19 @@ def _effective_price(levels: Iterable[dict], stake: float) -> tuple[float | None
         if remaining <= 1e-9:
             return cost / stake, liquidity, True
     return None, liquidity, False
+
+
+def _levels_used(levels: Iterable[dict], stake: float) -> int:
+    if stake <= 0:
+        return 0
+    remaining = stake
+    used = 0
+    for row in levels:
+        available = float(row.get("remaining") or 0)
+        if available <= 0:
+            continue
+        used += 1
+        remaining -= min(remaining, available)
+        if remaining <= 1e-9:
+            break
+    return used

@@ -1873,7 +1873,9 @@ body[data-page="tracker"] .tracker-performance-meta i {
 
 body[data-page="tracker"] .tracker-calendar {
   min-height: 388px;
+  height: auto;
   padding: 18px 20px 20px;
+  overflow: visible;
 }
 
 body[data-page="tracker"] .tracker-calendar-grid {
@@ -1924,8 +1926,8 @@ body[data-page="tracker"] .tracker-calendar-day strong {
 }
 
 body[data-page="tracker"] .tracker-calendar-day.positive {
-  border-color: rgba(0, 229, 101, 0.05);
-  background: rgba(31, 92, 59, 0.52);
+  border-color: transparent;
+  background: transparent;
 }
 
 body[data-page="tracker"] .tracker-calendar-day.positive strong {

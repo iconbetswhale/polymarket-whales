@@ -888,6 +888,65 @@ class TrackerService:
             "last_evaluated_at": evaluated_at,
         }
 
+    def refresh_execution_quotes(self, plays: list[dict], *, force: bool = False) -> None:
+        """Refresh every executable venue before a recommendation is frozen."""
+        token_ids = [
+            str(row.get("clob_token_id") or "")
+            for row in plays
+            if row.get("clob_token_id")
+        ]
+        if token_ids:
+            try:
+                books = self.client.get_order_books(token_ids)
+                observed_at = _iso_now()
+                for play in plays:
+                    book = books.get(str(play.get("clob_token_id") or "")) or {}
+                    levels: list[tuple[float, float]] = []
+                    for level in book.get("asks") or []:
+                        try:
+                            price = float(level.get("price"))
+                            size = float(level.get("size"))
+                        except (TypeError, ValueError):
+                            continue
+                        if 0 < price < 1 and size > 0:
+                            levels.append((price, size))
+                    if not levels:
+                        continue
+                    levels.sort()
+                    stake = _safe_float(
+                        (play.get("card") or {}).get("recommended_amount")
+                        or (play.get("recommendation") or {}).get("recommended_amount")
+                    )
+                    remaining, cost, shares = max(0.0, stake), 0.0, 0.0
+                    levels_used = 0
+                    for price, size in levels:
+                        if remaining <= 1e-9:
+                            break
+                        fill_shares = min(size, remaining / price)
+                        fill_cost = fill_shares * price
+                        if fill_cost > 0:
+                            levels_used += 1
+                        remaining -= fill_cost
+                        cost += fill_cost
+                        shares += fill_shares
+                    can_fill = stake <= 0 or remaining <= 0.01
+                    play["execution_quote"] = {
+                        "best_ask": levels[0][0],
+                        "effective_price": cost / shares if shares and can_fill else levels[0][0],
+                        "available_liquidity": round(sum(price * size for price, size in levels), 2),
+                        "top_price_liquidity": round(levels[0][0] * levels[0][1], 2),
+                        "depth_executable_amount": round(sum(price * size for price, size in levels), 2),
+                        "depth_levels_used": levels_used if stake > 0 else 0,
+                        "can_fill_recommended_stake": can_fill,
+                        "timestamp": book.get("timestamp") or observed_at,
+                    }
+            except Exception as exc:
+                LOGGER.warning("Final Polymarket execution refresh unavailable: %s", exc)
+
+        self.execution_providers.attach_options(plays, force_refresh=force)
+        for play in plays:
+            apply_best_execution_option(play)
+
     def reconcile_user_tracker(
         self,
         user_id: str,
@@ -1011,6 +1070,32 @@ class TrackerService:
                         }
                     )
                     continue
+
+                if user_id == MODEL_TRACKER_USER_ID:
+                    # Re-query every provider at the execution boundary. The
+                    # resulting option is then the sole source for the frozen
+                    # tracker snapshot and its Discord payload.
+                    self.refresh_execution_quotes([play], force=True)
+                    try:
+                        evaluation = self.evaluate_recommendation(
+                            play,
+                            bankroll,
+                            run_now,
+                            user_id=user_id,
+                            include_personal=False,
+                        )
+                    except TypeError as exc:
+                        if "unexpected keyword argument" not in str(exc):
+                            raise
+                        evaluation = self.evaluate_recommendation(play, bankroll, run_now)
+                    if not evaluation.get("model_tracker_eligible"):
+                        result["eligible"] -= 1
+                        result["rejected"] += 1
+                        result["rejections"].append(
+                            self._rejection_row(evaluation, evaluated_at)
+                        )
+                        continue
+                    dedupe_key = evaluation["recommendation_idempotency_key"]
 
                 snapshot = evaluation["snapshot"]
                 discord_payload = None

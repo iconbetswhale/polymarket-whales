@@ -400,17 +400,44 @@ def build_ev_board(
                         fair_by_selection[selection].append(
                             (fair_probability, source_weight, book_key)
                         )
-                    liquidity = outcome.get("bet_limit")
+                    market_limit = outcome.get("bet_limit")
+                    top_price_liquidity = outcome.get("liquidity")
                     try:
-                        liquidity = float(liquidity) if liquidity is not None else None
+                        market_limit = float(market_limit) if market_limit is not None else None
                     except (TypeError, ValueError):
-                        liquidity = None
+                        market_limit = None
+                    try:
+                        top_price_liquidity = (
+                            float(top_price_liquidity)
+                            if top_price_liquidity is not None
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        top_price_liquidity = None
+                    top_american = int(round(float(outcome["price"])))
+                    top_probability = american_to_probability(top_american)
                     quotes_by_selection[selection].append(
                         {
                             "bookKey": book_key,
                             "bookName": str(book.get("title") or book_key),
                             "logoUrl": _book_logo(book_key, book),
-                            "americanOdds": int(round(float(outcome["price"]))),
+                            # Compatibility keys remain, but are explicitly the
+                            # current top-of-book quote and never a depth VWAP.
+                            "americanOdds": top_american,
+                            "top_price": round(top_probability, 10),
+                            "topPrice": round(top_probability, 10),
+                            "top_price_american_odds": top_american,
+                            "topPriceAmericanOdds": top_american,
+                            "top_price_liquidity": top_price_liquidity,
+                            "topPriceLiquidity": top_price_liquidity,
+                            "market_limit": market_limit,
+                            "marketLimit": market_limit,
+                            "depth_vwap_price": outcome.get("depth_vwap_price"),
+                            "depthVwapPrice": outcome.get("depth_vwap_price"),
+                            "depth_executable_amount": outcome.get("depth_executable_amount"),
+                            "depthExecutableAmount": outcome.get("depth_executable_amount"),
+                            "depth_levels_used": outcome.get("depth_levels_used"),
+                            "depthLevelsUsed": outcome.get("depth_levels_used"),
                             "point": outcome.get("point"),
                             "lastUpdated": str(
                                 market.get("last_update") or book.get("last_update") or ""
@@ -419,7 +446,7 @@ def build_ev_board(
                             "deepLink": str(
                                 outcome.get("link") or market.get("link") or book.get("link") or ""
                             ),
-                            "liquidity": liquidity,
+                            "liquidity": top_price_liquidity,
                             "marketHold": round(payload["hold"], 6),
                         }
                     )
@@ -453,13 +480,18 @@ def build_ev_board(
                     if consensus is None:
                         continue
                     effective_decimal = _effective_decimal(
-                        quote["americanOdds"], fees.get(quote["bookKey"], 0.0)
+                        quote["topPriceAmericanOdds"], fees.get(quote["bookKey"], 0.0)
                     )
                     ev = consensus["fairProbability"] * effective_decimal - 1.0
                     execution_status = "executable"
-                    if quote["bookKey"] in EXCHANGE_BOOKS and quote["liquidity"] is None:
+                    execution_capacity = (
+                        quote["topPriceLiquidity"]
+                        if quote["topPriceLiquidity"] is not None
+                        else quote["marketLimit"]
+                    )
+                    if quote["bookKey"] in EXCHANGE_BOOKS and execution_capacity is None:
                         execution_status = "liquidity_unknown"
-                    elif quote["liquidity"] is not None and quote["liquidity"] <= 0:
+                    elif execution_capacity is not None and execution_capacity <= 0:
                         execution_status = "unavailable"
                     enriched = {
                         **quote,
@@ -469,6 +501,7 @@ def build_ev_board(
                         "evPercent": round(ev * 100.0, 4),
                         "executionStatus": execution_status,
                         "fairProbability": round(consensus["fairProbability"], 8),
+                        "executionCapacity": execution_capacity,
                     }
                     evaluated_quotes.append((enriched, consensus))
 
@@ -505,10 +538,16 @@ def build_ev_board(
                 per_bet_cap = bankroll * max_stake_pct
                 recommended_stake = min(confidence_stake, per_bet_cap)
                 warnings: list[str] = []
-                if best["liquidity"] is not None:
-                    if recommended_stake > best["liquidity"]:
-                        warnings.append("Stake reduced to the reported executable limit.")
-                    recommended_stake = min(recommended_stake, best["liquidity"])
+                execution_capacity = best.get("executionCapacity")
+                if execution_capacity is not None:
+                    if recommended_stake > execution_capacity:
+                        qualifier = (
+                            "top-price liquidity"
+                            if best.get("topPriceLiquidity") is not None
+                            else "reported market limit"
+                        )
+                        warnings.append(f"Stake reduced to the {qualifier}.")
+                    recommended_stake = min(recommended_stake, execution_capacity)
                 if best["executionStatus"] == "liquidity_unknown":
                     warnings.append("Verify exchange depth before placing this stake.")
                 if best["quoteAgeSeconds"] is None:
@@ -565,7 +604,7 @@ def build_ev_board(
                         "fullKellyFraction": round(full_kelly, 6),
                         "warnings": warnings,
                         "calculatedAt": now.isoformat(),
-                        "calculationVersion": "ev-optimizer-v2",
+                        "calculationVersion": "ev-optimizer-v3-top-of-book",
                     }
                 )
 
@@ -600,7 +639,7 @@ def build_ev_board(
             ),
             "rejected": sum(rejected.values()),
             "rejectionReasons": dict(sorted(rejected.items())),
-            "calculationVersion": "ev-optimizer-v2",
+            "calculationVersion": "ev-optimizer-v3-top-of-book",
         },
     }
 

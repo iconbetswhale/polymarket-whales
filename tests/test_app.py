@@ -172,15 +172,15 @@ def test_wallet_api_separates_active_roster_from_preserved_hidden_wallets(
     hidden_payload = app_client.get("/api/wallets?view=hidden").get_json()
     all_payload = app_client.get("/api/wallets?view=all").get_json()
 
-    assert [row["address"] for row in active_payload["data"]] == list(
+    assert {row["address"] for row in active_payload["data"]} == set(
         THREE_SHARP_WALLETS
     )
     assert active_payload["view"] == "active"
-    assert active_payload["active_total"] == 3
+    assert active_payload["active_total"] == len(THREE_SHARP_WALLETS)
     assert active_payload["hidden_total"] == 1
     assert [row["label"] for row in hidden_payload["data"]] == ["Archived Sharp"]
     assert hidden_payload["view"] == "hidden"
-    assert len(all_payload["data"]) == 4
+    assert len(all_payload["data"]) == len(THREE_SHARP_WALLETS) + 1
 
 
 def test_wallet_roster_page_exposes_active_and_hidden_views():
@@ -209,7 +209,7 @@ def test_current_best_price_precedes_stale_selected_execution_snapshot():
     assert "EXECUTION_PRICE_TIE_TOLERANCE = 1e-3" in script
     assert 'canonicalExecutionProviderKey(left.providerKey) === "novig"' in function_source
     assert "option.canFillRecommendedStake === true" in function_source
-    assert "number(option.availableLiquidity) > 0" in function_source
+    assert "number(option.availableLiquidity) === null || number(option.availableLiquidity) > 0" in function_source
     assert '"oddsapi__novig"' in script
 
 
@@ -849,9 +849,11 @@ def test_model_tracker_search_filter_and_closed_rows_use_frozen_sharps(app_clien
         "2026-07-15T01:00:00+00:00",
     )
 
-    searched = app_client.get("/api/model-tracker?q=Bagwell306").get_json()
+    searched = app_client.get(
+        "/api/model-tracker?q=Bagwell306&tracker_range=all"
+    ).get_json()
     filtered = app_client.get(
-        "/api/model-tracker?sharp=Wordylittleneck"
+        "/api/model-tracker?sharp=Wordylittleneck&tracker_range=all"
     ).get_json()
 
     assert searched["pagination"]["total"] == 1
@@ -1625,7 +1627,35 @@ def test_excess_slippage_is_absent_from_backend_feed(app_client, monkeypatch):
     response = app_client.get("/api/trades-to-play?date_range=next7")
 
     assert response.status_code == 200
-    assert response.get_json()["pagination"]["total"] == 0
+    payload = response.get_json()
+    assert payload["pagination"]["total"] == 0
+    assert payload["liveRejectedTradeIds"] == ["market-1::outcome-a"]
+
+
+def test_second_live_quote_rejects_then_restores_candidate(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    service._cache["trades_to_play"] = [_actionable_trade()]
+    evaluations = [
+        _evaluation_at(0.4),
+        _evaluation_at(0.491, passes=False, reason="SLIPPAGE_ABOVE_MAX"),
+        _evaluation_at(0.4),
+        _evaluation_at(0.418),
+    ]
+
+    def evaluate(*args, **kwargs):
+        return evaluations.pop(0)(*args, **kwargs)
+
+    monkeypatch.setattr(service, "evaluate_recommendation", evaluate)
+
+    rejected = app_client.get("/api/trades-to-play?date_range=next7").get_json()
+    restored = app_client.get("/api/trades-to-play?date_range=next7").get_json()
+
+    assert rejected["data"] == []
+    assert rejected["pagination"]["total"] == 0
+    assert rejected["liveRejectedTradeIds"] == ["market-1::outcome-a"]
+    assert [trade["id"] for trade in restored["data"]] == ["market-1::outcome-a"]
+    assert restored["pagination"]["total"] == 1
+    assert restored["liveRejectedTradeIds"] == []
 
 
 def test_search_date_sharps_and_entry_price_filters_compose(app_client, monkeypatch):

@@ -31,6 +31,9 @@ from release4_foundation import (
 from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
 from line_shop_foundation import LINE_SHOP_MIGRATION_VERSION, migration_sql as line_shop_migration_sql
 from line_shop_persistence import persistence_records
+from market_quote_foundation import MARKET_QUOTE_MIGRATION_VERSION, migration_sql as market_quote_migration_sql
+from market_quote_persistence import list_history as list_quote_history, record_quotes
+from market_quotes import NormalizedMarketQuote
 
 
 class PostgresUserStore:
@@ -672,6 +675,13 @@ class PostgresUserStore:
             conn.execute(
                 "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
                 (LINE_SHOP_MIGRATION_VERSION, now),
+            )
+            for statement in market_quote_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
+                (MARKET_QUOTE_MIGRATION_VERSION, now),
             )
 
     def get_or_create_user_settings(
@@ -2792,7 +2802,8 @@ class PostgresUserStore:
                 serialized = json.dumps(row, sort_keys=True, separators=(",", ":"))
                 snapshot_hash = stable_hash(
                     user_id, opportunity_id, best.get("bookKey"),
-                    best.get("americanOdds"), best.get("liquidity"),
+                    best.get("topPriceAmericanOdds", best.get("americanOdds")),
+                    best.get("topPriceLiquidity", best.get("liquidity")),
                     row.get("fairProbability"), row.get("recommendedStake"),
                     row.get("executionStatus"), row.get("portfolioStatus"),
                 )
@@ -2811,8 +2822,9 @@ class PostgresUserStore:
                         row.get("commenceTime"), row.get("fairProbability"),
                         best.get("effectiveDecimal"), row.get("evPercent"),
                         row.get("recommendedStake"), row.get("executionStatus"),
-                        best.get("bookKey"), best.get("americanOdds"),
-                        best.get("liquidity"), serialized,
+                        best.get("bookKey"),
+                        best.get("topPriceAmericanOdds", best.get("americanOdds")),
+                        best.get("topPriceLiquidity", best.get("liquidity")), serialized,
                     ),
                 )
                 inserted += max(0, cursor.rowcount)
@@ -2839,6 +2851,18 @@ class PostgresUserStore:
                     ),
                 )
         return {"opportunities": len(rows), "material_snapshots": inserted}
+
+    def record_normalized_market_quotes(
+        self, quotes: list[NormalizedMarketQuote], checkpoint_seconds: int = 900
+    ) -> dict:
+        with self.connection() as conn:
+            return record_quotes(
+                conn, quotes, dialect="postgres", checkpoint_seconds=checkpoint_seconds
+            )
+
+    def get_normalized_market_quote_history(self, **filters) -> list[dict]:
+        with self.connection() as conn:
+            return list_quote_history(conn, dialect="postgres", **filters)
 
     def get_ev_optimizer_history(self, user_id: str, limit: int = 100) -> dict:
         with self.connection() as conn:

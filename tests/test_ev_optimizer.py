@@ -159,6 +159,34 @@ def test_reported_liquidity_caps_recommended_stake():
     assert mets["recommendedStake"] <= 500
 
 
+def test_top_price_drives_display_and_ev_while_depth_stays_diagnostic():
+    event = _event()
+    quote = event["bookmakers"][1]["markets"][0]["outcomes"][0]
+    quote.update({
+        "price": 138,
+        "liquidity": 75,
+        "bet_limit": 5000,
+        "depth_vwap_price": 0.42735,
+        "depth_executable_amount": 5000,
+        "depth_levels_used": 3,
+    })
+    rows = build_ev_candidates(
+        [event], source_weights={"pinnacle": 100}, execution_books=("novig",),
+        min_ev=-100, min_source_books=1, bankroll=1_000_000, max_stake_pct=1,
+    )
+    mets = next(row for row in rows if row["selection"] == "New York Mets")
+    best = mets["bestQuote"]
+    assert best["americanOdds"] == best["topPriceAmericanOdds"] == 138
+    assert best["topPriceLiquidity"] == 75
+    assert best["marketLimit"] == 5000
+    assert best["depthVwapPrice"] == 0.42735
+    assert best["depthExecutableAmount"] == 5000
+    assert best["depthLevelsUsed"] == 3
+    assert best["effectiveDecimal"] == 2.38
+    assert mets["evPercent"] == round((mets["fairProbability"] * 2.38 - 1) * 100, 2)
+    assert mets["recommendedStake"] <= 75
+
+
 def test_optimizer_snapshots_are_material_change_deduplicated(tmp_path):
     database = TrackerDatabase(tmp_path / "ev.db")
     rows = build_ev_candidates(

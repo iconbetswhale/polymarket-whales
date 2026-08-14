@@ -66,10 +66,12 @@ def _primary_execution_candidates(
     price_getter,
     provider_key_getter,
 ) -> list:
-    """Limit the one-click venue to NoVIG/ProphetX, or a superior 4CX quote.
+    """Choose the preferred execution tier without hiding a verified fallback.
 
-    Polymarket and Kalshi remain visible comparison quotes, but their displayed
-    top-of-book prices are not sufficiently stake-aware to drive execution.
+    NoVIG and ProphetX are the primary venues, with 4CX admitted when it is
+    strictly better.  A live, stake-aware Polymarket CLOB quote is the final
+    fallback so a mapped tennis trade never renders without an actionable
+    price merely because the preferred exchanges do not list it.
     """
     def base_key(item) -> str:
         return (
@@ -82,7 +84,9 @@ def _primary_execution_candidates(
     core = [item for item in candidates if base_key(item) in {"novig", "prophetx"}]
     fourcx = [item for item in candidates if base_key(item) in {"4cx", "fourcx"}]
     if not core:
-        return fourcx
+        if fourcx:
+            return fourcx
+        return [item for item in candidates if base_key(item) == "polymarket"]
     best_core_price = min(float(price_getter(item)) for item in core)
     return core + [
         item
@@ -170,6 +174,12 @@ class ExecutionOption:
     is_stale: bool = False
     failure_reason: str | None = None
     quote_max_age_seconds: int | None = None
+    top_price: float | None = None
+    top_price_american_odds: int | None = None
+    top_price_liquidity: float | None = None
+    depth_vwap_price: float | None = None
+    depth_executable_amount: float | None = None
+    depth_levels_used: int | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -213,6 +223,18 @@ class ExecutionOption:
             "isExactMatch": self.is_exact_match,
             "isStale": self.is_stale,
             "failureReason": self.failure_reason,
+            "top_price": self.top_price,
+            "top_price_american_odds": self.top_price_american_odds,
+            "top_price_liquidity": self.top_price_liquidity,
+            "depth_vwap_price": self.depth_vwap_price,
+            "depth_executable_amount": self.depth_executable_amount,
+            "depth_levels_used": self.depth_levels_used,
+            "topPrice": self.top_price,
+            "topPriceAmericanOdds": self.top_price_american_odds,
+            "topPriceLiquidity": self.top_price_liquidity,
+            "depthVwapPrice": self.depth_vwap_price,
+            "depthExecutableAmount": self.depth_executable_amount,
+            "depthLevelsUsed": self.depth_levels_used,
         }
 
 
@@ -229,6 +251,10 @@ class ExecutionProvider(ABC):
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
         """Return exact market-implied or no-vig quotes when supported."""
         return {}
+
+    def invalidate_cache(self) -> None:
+        """Discard cached executable quotes before a final entry lock."""
+        return None
 
 
 class PolymarketProvider(ExecutionProvider):
@@ -278,7 +304,18 @@ class PolymarketProvider(ExecutionProvider):
                 contract_price=current_price,
                 effective_price=_float_or_none(live_quote.get("effective_price")) or current_price,
                 available_liquidity=_float_or_none(live_quote.get("available_liquidity")) if live_quote else _float_or_none(trade.get("polymarket_available_liquidity")),
+                top_price=current_price,
+                top_price_american_odds=american_odds,
+                top_price_liquidity=_float_or_none(live_quote.get("top_price_liquidity")),
+                depth_vwap_price=_float_or_none(live_quote.get("effective_price")) or current_price,
+                depth_executable_amount=_float_or_none(
+                    live_quote.get("depth_executable_amount")
+                    if live_quote.get("depth_executable_amount") is not None
+                    else live_quote.get("available_liquidity")
+                ),
+                depth_levels_used=_int_or_none(live_quote.get("depth_levels_used")),
                 can_fill_recommended_stake=live_quote.get("can_fill_recommended_stake") if live_quote else None,
+                fee_rate=0.0,
                 quote_status="OPEN" if live_quote.get("can_fill_recommended_stake") is not False else "INSUFFICIENT_DEPTH",
                 provider_event_id=str(trade.get("event_slug") or (trade.get("validation_ids") or {}).get("condition_id") or trade_id),
                 native_price_format="CENTS",
@@ -390,6 +427,11 @@ class ProphetXProvider(ExecutionProvider):
         configured = bool(self._access_key and self._secret_key)
         return f"<ProphetXProvider configured={configured}>"
 
+    def invalidate_cache(self) -> None:
+        with self._health_lock:
+            self._market_cache = None
+            self._live_seed_cache = None
+
     def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
         if not self._access_key or not self._secret_key or not trades:
             return {}
@@ -427,6 +469,8 @@ class ProphetXProvider(ExecutionProvider):
                 logo_url=PROPHETX_LOGO_URL,
                 tooltip="ProphetX Current Best Price",
                 american_odds=market.american_odds if available else None,
+                top_price=american_to_probability(market.american_odds) if available else None,
+                top_price_american_odds=market.american_odds if available else None,
             )
 
         with self._health_lock:
@@ -908,6 +952,10 @@ class NoVIGProvider(ExecutionProvider):
                 self._last_matches[trade_id] = option
         return options
 
+    def invalidate_cache(self) -> None:
+        with self._lock:
+            self._cache.clear()
+
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
         if not self.api_key or not trades:
             return {}
@@ -946,6 +994,8 @@ class NoVIGProvider(ExecutionProvider):
             logo_url=NOVIG_LOGO_URL,
             tooltip="NoVIG Current Best Price",
             american_odds=market.american_odds if available else None,
+            top_price=american_to_probability(market.american_odds) if available else None,
+            top_price_american_odds=market.american_odds if available else None,
         )
 
     def _unavailable_last_matches(
@@ -1043,6 +1093,7 @@ class ExecutionProviderRegistry:
         compare_all: bool = False,
         include_non_comparison: bool = False,
         exclude_provider_keys: Iterable[str] = (),
+        force_refresh: bool = False,
     ) -> list[dict]:
         excluded = {
             str(provider_key or "").strip().lower()
@@ -1059,6 +1110,8 @@ class ExecutionProviderRegistry:
             if provider.provider_key.lower() in excluded:
                 continue
             try:
+                if force_refresh:
+                    provider.invalidate_cache()
                 by_provider.append((provider, provider.options_for_trades(trades)))
             except requests.HTTPError as exc:
                 status = getattr(exc.response, "status_code", None)
@@ -1124,14 +1177,18 @@ class ExecutionProviderRegistry:
             executable = [
                 item for item in found
                 if (compare_all or self._is_comparison_key(item.provider_key))
-                and item.is_available
-                and item.is_exact_match
-                and not item.is_stale
-                and item.market_status == "OPEN"
-                and item.can_fill_recommended_stake is True
-                and item.best_executable_price is not None
-                and _valid_deep_link(item.deep_link)
+                and _execution_option_is_eligible(item)
             ]
+            # The sportsbook screen compares every selected book.  The
+            # Prediction Traders flow intentionally narrows one-click venues
+            # to the approved exchange set (with Polymarket as the verified
+            # last fallback).  Do not apply that trading policy to the screen.
+            if executable and not compare_all:
+                executable = _primary_execution_candidates(
+                    executable,
+                    price_getter=lambda item: item.best_executable_price,
+                    provider_key_getter=lambda item: item.provider_key,
+                )
             if executable:
                 best = _best_price_with_novig_tiebreak(
                     executable,
@@ -1231,22 +1288,7 @@ def apply_best_execution_option(trade: dict) -> bool:
     candidates = []
     for option in trade.get("executionOptions") or []:
         price = _float_or_none(option.get("bestExecutablePrice"))
-        liquidity = _float_or_none(option.get("availableLiquidity"))
-        fee_rate = _float_or_none(option.get("feeRate"))
-        if (
-            option.get("isAvailable") is True
-            and option.get("isExactMatch") is True
-            and option.get("isStale") is not True
-            and str(option.get("marketStatus") or "").upper() == "OPEN"
-            and option.get("canFillRecommendedStake") is True
-            and price is not None
-            and 0 < price < 1
-            and liquidity is not None
-            and liquidity > 0
-            and fee_rate is not None
-            and fee_rate >= 0
-            and _valid_deep_link(option.get("directMarketUrl") or option.get("deepLink"))
-        ):
+        if _serialized_execution_option_is_eligible(option):
             # bestExecutablePrice is finalized once as the stake-aware,
             # depth-weighted, fee-inclusive probability cost. Do not add the
             # fee again here or fee-charging exchanges are double-penalized.
@@ -1280,10 +1322,14 @@ def apply_best_execution_option(trade: dict) -> bool:
         price_getter=lambda item: item[0],
         provider_key_getter=lambda item: item[1].get("providerKey"),
     )
-    liquidity_dollars = float(best["availableLiquidity"])
+    liquidity_dollars = _float_or_none(best.get("availableLiquidity"))
     quote_timestamp = best.get("quoteTimestamp") or best.get("lastUpdated")
     trade["orderbook"] = {
-        "asks": [{"price": price, "size": liquidity_dollars / price}],
+        "asks": (
+            [{"price": price, "size": liquidity_dollars / price}]
+            if liquidity_dollars is not None and liquidity_dollars > 0
+            else []
+        ),
         "bids": [],
         "timestamp": quote_timestamp,
         "min_order_size": 0,
@@ -1295,6 +1341,45 @@ def apply_best_execution_option(trade: dict) -> bool:
     trade["execution_orderbook_source"] = str(best.get("providerKey") or "")
     trade["selected_execution_option"] = dict(best)
     return True
+
+
+def _execution_option_is_eligible(option: ExecutionOption) -> bool:
+    """Single source of truth for both the sidebar winner and locked quote."""
+    price = _float_or_none(option.best_executable_price)
+    liquidity = _float_or_none(option.available_liquidity)
+    fee_rate = _float_or_none(option.fee_rate)
+    return bool(
+        option.is_available
+        and option.is_exact_match
+        and not option.is_stale
+        and str(option.market_status or "").upper() == "OPEN"
+        and option.can_fill_recommended_stake is True
+        and price is not None
+        and 0 < price < 1
+        and (liquidity is None or liquidity > 0)
+        and fee_rate is not None
+        and fee_rate >= 0
+        and _valid_deep_link(option.deep_link)
+    )
+
+
+def _serialized_execution_option_is_eligible(option: dict) -> bool:
+    price = _float_or_none(option.get("bestExecutablePrice"))
+    liquidity = _float_or_none(option.get("availableLiquidity"))
+    fee_rate = _float_or_none(option.get("feeRate"))
+    return bool(
+        option.get("isAvailable") is True
+        and option.get("isExactMatch") is True
+        and option.get("isStale") is not True
+        and str(option.get("marketStatus") or "").upper() == "OPEN"
+        and option.get("canFillRecommendedStake") is True
+        and price is not None
+        and 0 < price < 1
+        and (liquidity is None or liquidity > 0)
+        and fee_rate is not None
+        and fee_rate >= 0
+        and _valid_deep_link(option.get("directMarketUrl") or option.get("deepLink"))
+    )
 
 
 def _recommended_stake(trade: dict) -> float:
@@ -1367,6 +1452,13 @@ def _finalize_execution_option(
     elif not option.is_available:
         failure = failure or PROVIDER_UNAVAILABLE
 
+    top_price = (
+        option.top_price
+        if option.top_price is not None
+        else option.contract_price
+        if option.contract_price is not None
+        else american_to_probability(option.american_odds)
+    )
     raw_price = (
         option.effective_price
         if option.effective_price is not None
@@ -1432,6 +1524,22 @@ def _finalize_execution_option(
         can_fill_recommended_stake=can_fill,
         failure_reason=failure,
         is_best_price=False,
+        top_price=top_price,
+        top_price_american_odds=(
+            option.top_price_american_odds
+            if option.top_price_american_odds is not None
+            else option.american_odds
+        ),
+        # Legacy ``available_liquidity`` values are not guaranteed to describe
+        # the exact top level; several providers use that field for total depth.
+        # Never advertise it as top-price liquidity unless the adapter supplied
+        # the explicit field.
+        top_price_liquidity=option.top_price_liquidity,
+        depth_vwap_price=(
+            option.depth_vwap_price
+            if option.depth_vwap_price is not None
+            else option.effective_price
+        ),
     )
 
 
@@ -2337,8 +2445,14 @@ def _league_matches(source: str, provider: str, sport_id: str) -> bool:
     provider_tokens = set(_normalize_name(provider_key).split())
     if {"world", "cup"} <= source_tokens and {"world", "cup"} <= provider_tokens:
         return True
-    if sport_id == "TENNIS" and source in {"TENNIS", "ATP", "WTA", "ITF"}:
-        return provider.startswith(("ATP", "WTA", "ITF", "UTR", "TENNIS"))
+    if sport_id == "TENNIS":
+        tennis_tours = {"atp", "wta", "itf", "utr", "tennis"}
+        source_tour = next((tour for tour in tennis_tours if tour in source_tokens), None)
+        provider_tour = next((tour for tour in tennis_tours if tour in provider_tokens), None)
+        if source_tour == "tennis" or provider_tour == "tennis":
+            return True
+        if source_tour and provider_tour:
+            return source_tour == provider_tour
     return False
 
 
@@ -2409,6 +2523,11 @@ def _float_or_none(value: object) -> float | None:
     except (TypeError, ValueError):
         return None
     return parsed if math.isfinite(parsed) else None
+
+
+def _int_or_none(value: object) -> int | None:
+    parsed = _float_or_none(value)
+    return None if parsed is None else int(parsed)
 
 
 def _american_odds(value: object) -> tuple[int | None, str]:

@@ -10,7 +10,11 @@ from types import MethodType
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import app as app_module
-from execution_providers import NOVIG_LOGO_URL, POLYMARKET_LOGO_URL
+from execution_providers import (
+    NOVIG_LOGO_URL,
+    POLYMARKET_LOGO_URL,
+    PROPHETX_LOGO_URL,
+)
 from flask import redirect
 from personal_tracker import personal_fill_snapshot
 from position_tracker import MODEL_TRACKER_USER_ID
@@ -51,7 +55,7 @@ def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
 def qa_trade(index: int, *, sharps: int, score: int, entry: float, sharp_entry: float) -> dict:
     now = datetime.now(timezone.utc)
     categories = [
-        ("Tennis", "ATP", "Swiss Open: Jaime Faria vs Stan Wawrinka", "Stan Wawrinka", "Moneyline"),
+        ("Baseball", "MLB", "Cincinnati Reds vs St. Louis Cardinals", "Cincinnati Reds", "Moneyline"),
         ("Baseball", "MLB", "New York Yankees vs Boston Red Sox", "Yankees", "Moneyline"),
         ("Soccer", "FIFA World Cup", "Spain vs France", "Spain", "To Advance"),
         ("Basketball", "WNBA", "New York Liberty vs Las Vegas Aces", "Over 167.5", "Game Total"),
@@ -98,9 +102,9 @@ def qa_trade(index: int, *, sharps: int, score: int, entry: float, sharp_entry: 
         "category": category,
         "league": league,
         "sports_market_type": market.lower().replace(" ", "_"),
-        "event_date_et": (now + timedelta(hours=2 + index)).isoformat(),
+        "event_date_et": (now + timedelta(minutes=45 + index * 15)).isoformat(),
         "event_time_et": f"Today, {2 + index}:30 PM",
-        "resolution_time": (now + timedelta(hours=2 + index)).isoformat(),
+        "resolution_time": (now + timedelta(minutes=45 + index * 15)).isoformat(),
         "market_url": "https://polymarket.com/",
         "clob_token_id": f"qa-token-{index + 1}",
         "market_open": True,
@@ -141,10 +145,10 @@ def build_app():
     tracker = flask_app.extensions["tracker_service"]
     now = datetime.now(timezone.utc)
     trades = [
-        qa_trade(0, sharps=1, score=64, entry=0.34, sharp_entry=0.34),
-        qa_trade(1, sharps=3, score=88, entry=0.507, sharp_entry=0.489),
-        qa_trade(2, sharps=2, score=76, entry=0.40, sharp_entry=0.389),
-        qa_trade(3, sharps=2, score=73, entry=0.455, sharp_entry=0.46),
+        qa_trade(0, sharps=3, score=58, entry=0.42, sharp_entry=0.41),
+        qa_trade(1, sharps=3, score=56, entry=0.507, sharp_entry=0.489),
+        qa_trade(2, sharps=2, score=55, entry=0.40, sharp_entry=0.389),
+        qa_trade(3, sharps=2, score=64, entry=0.455, sharp_entry=0.46),
     ]
     snapshot = {
         "trades_to_play": trades,
@@ -160,9 +164,13 @@ def build_app():
     tracker.get_snapshot = MethodType(lambda self: deepcopy(snapshot), tracker)
     tracker.refresh = MethodType(lambda self: None, tracker)
 
-    def evaluate(self, play, bankroll):
+    def evaluate(self, play, bankroll, **_kwargs):
         rec = deepcopy(play["_qa_recommendation"])
+        score_units = {55: 0.10, 56: 0.15, 58: 0.20, 64: 0.25}
+        units = score_units.get(int(play.get("confidence_score") or 0), 0.10)
         rec["bankroll"] = bankroll
+        rec["recommended_units"] = units
+        rec["final_recommended_fraction"] = units / 100
         rec["recommended_amount"] = bankroll * rec["final_recommended_fraction"]
         rec["recommended_shares"] = rec["recommended_amount"] / rec["effective_entry_price"]
         return {
@@ -191,10 +199,77 @@ def build_app():
     }
 
     registry = flask_app.extensions["execution_providers"]
+    odds_fixture_rows = []
+    odds_games = (
+        ("qa-odds-dbacks-nats", "Arizona Diamondbacks vs Washington Nationals", ("Arizona Diamondbacks", "Washington Nationals"), 9.0),
+        ("qa-odds-jays-sox", "Toronto Blue Jays vs Boston Red Sox", ("Toronto Blue Jays", "Boston Red Sox"), 7.5),
+        ("qa-odds-padres-marlins", "San Diego Padres vs Miami Marlins", ("San Diego Padres", "Miami Marlins"), 8.0),
+    )
+    odds_start = now + timedelta(hours=3)
+    for game_index, (event_id, event_title, teams, total_line) in enumerate(odds_games):
+        event_start = odds_start + timedelta(minutes=game_index * 35)
+        market_specs = (
+            ("moneyline", "Moneyline", ((teams[0], None), (teams[1], None))),
+            ("spread", "Spread", ((teams[0], 1.5), (teams[1], -1.5))),
+            ("total", "Total", (("Over", total_line), ("Under", total_line))),
+        )
+        for market_key, market_title, outcomes in market_specs:
+            market_id = f"{event_id}-{market_key}"
+            for outcome_index, (outcome, market_line) in enumerate(outcomes):
+                current = 0.42 + (game_index * 0.025) + (outcome_index * 0.11)
+                odds_fixture_rows.append(
+                    {
+                        "id": f"{market_id}-{outcome_index}",
+                        "condition_id": market_id,
+                        "market_id": market_id,
+                        "event_id": event_id,
+                        "event_slug": event_id,
+                        "event_title": event_title,
+                        "market_title": market_title,
+                        "outcome": outcome,
+                        "category": "Baseball",
+                        "league": "MLB",
+                        "canonical_league_id": "MLB",
+                        "canonical_sport_id": "Baseball",
+                        "sports_market_type": market_title,
+                        "market_line": market_line,
+                        "event_date_et": event_start.isoformat(),
+                        "resolution_time": event_start.isoformat(),
+                        "schedule_date_et": event_start.astimezone().date().isoformat(),
+                        "market_url": "https://polymarket.com/",
+                        "clob_token_id": f"{market_id}-token-{outcome_index}",
+                        "is_sports": True,
+                        "market_open": True,
+                        "card": {"current_actionable_price": current, "recommended_amount": 0},
+                        "recommendation": {
+                            "current_user_entry_price": current,
+                            "recommended_amount": 25,
+                        },
+                        "_qa_recommendation": {
+                            "current_user_entry_price": current,
+                            "recommended_amount": 25,
+                        },
+                    }
+                )
+    flask_app.extensions["polymarket_schedule_feed"].today_and_tomorrow = (
+        lambda _now: deepcopy(odds_fixture_rows)
+    )
+    odds_api_provider = next(
+        (
+            provider
+            for provider in registry.providers
+            if provider.provider_key == "the_odds_api"
+        ),
+        None,
+    )
+    if odds_api_provider is not None:
+        odds_api_provider.odds_screen_rows = lambda **_kwargs: []
+        odds_api_provider.screen_options_for_trades = lambda _rows: {}
 
-    def attach_options(rows):
+    def attach_options(rows, **_kwargs):
         for index, row in enumerate(rows):
-            current = row["recommendation"]["current_user_entry_price"]
+            recommendation_data = row.get("recommendation") or row["_qa_recommendation"]
+            current = recommendation_data["current_user_entry_price"]
             row["executionOptions"] = [
                 {
                     "providerName": "Polymarket",
@@ -226,6 +301,57 @@ def build_app():
                         "lastUpdated": now.isoformat(),
                         "matchingConfidence": "Exact",
                         "tooltip": "NoVIG Current Best Price",
+                    }
+                )
+            providers = (
+                ("polymarket", "Polymarket", POLYMARKET_LOGO_URL, 0.435 if index == 0 else current + 0.012),
+                ("novig", "NoVIG", NOVIG_LOGO_URL, (100 / 233) if index == 0 else current - (0.012 if index != 1 else 0.003)),
+                ("prophetx", "ProphetX", PROPHETX_LOGO_URL, 0.445 if index == 0 else current + 0.006),
+                ("4cx", "4CX", "/static/assets/providers/4cx.png", 0.440 if index == 0 else current - (0.004 if index == 1 else 0.001)),
+                ("kalshi", "Kalshi", "/static/assets/providers/kalshi.png", 0.43708 if index == 0 else current + 0.003),
+            )
+            row["executionOptions"] = []
+            for provider_key, provider_name, logo_url, price in providers:
+                price = min(max(price, 0.02), 0.98)
+                american_odds = None
+                if provider_key not in {"polymarket", "kalshi"}:
+                    american_odds = round(
+                        -100 * price / (1 - price)
+                        if price >= 0.5
+                        else 100 * (1 - price) / price
+                    )
+                raw_contract_price = (
+                    0.42 if provider_key == "kalshi" and index == 0 else price
+                )
+                estimated_fees = (
+                    0.61 if provider_key == "kalshi" and index == 0 else 0.0
+                )
+                row["executionOptions"].append(
+                    {
+                        "providerName": provider_name,
+                        "providerKey": provider_key,
+                        "americanOdds": american_odds,
+                        "contractPrice": raw_contract_price,
+                        "estimatedFees": estimated_fees,
+                        "recommendedStake": recommendation_data["recommended_amount"],
+                        "marketId": f"{provider_key}-{index}",
+                        "selectionId": f"{provider_key}-selection-{index}",
+                        "displayOdds": f"{price * 100:.1f}¢",
+                        "bestExecutablePrice": price,
+                        "availableLiquidity": 1200 + index * 850,
+                        "feeRate": 0.0,
+                        "deepLink": f"https://{provider_key}.com/",
+                        "directMarketUrl": f"https://{provider_key}.com/markets/{index}",
+                        "logoUrl": logo_url,
+                        "isAvailable": True,
+                        "isExactMatch": True,
+                        "isStale": False,
+                        "marketStatus": "OPEN",
+                        "canFillRecommendedStake": True,
+                        "lastUpdated": now.isoformat(),
+                        "quoteTimestamp": now.isoformat(),
+                        "matchingConfidence": "Exact",
+                        "tooltip": f"{provider_name} current executable price",
                     }
                 )
             if index == 0:

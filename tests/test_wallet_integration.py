@@ -22,6 +22,9 @@ REQUESTED_WALLETS = {
     "HomeRunHazard": "0x5268527977f700f9bf9b6d5cd843859e4e70135d",
     "Formal-Cupcake": "0xb8c842bc049bf208f73354c7b037b811d741d8a4",
     "DaBossHogg": "0x6157d529ae129fe08f22a27ed42e741d2eaa9fb4",
+    "Portly-Derivation": "0x8a3ab8120807bd64a3de48695110e390fa2ceb9a",
+    "HuntersMethDealer": "0x398900e95487c704ac3b52fd653e1697d32227b1",
+    "EVhunter69": "0x8ce7eb8a3ad1d6907b24368865c8487a68fb3150",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -40,6 +43,16 @@ EXPECTED_TOP_CATEGORIES = {
     "Formal-Cupcake": "mlb",
     "BreakTheBank": "soccer",
     "DaBossHogg": "tennis",
+    "Portly-Derivation": "nba",
+    "Dingwin": "mlb",
+    "mlbman": "mlb",
+    "Talvez10": "mlb",
+    "jtwyslljy": "soccer",
+    "BaccaratRoulette": "tennis",
+    "UpTheBlues": "mlb",
+    "SnakeBall": "mlb",
+    "HuntersMethDealer": "nfl",
+    "EVhunter69": "mlb",
 }
 
 
@@ -129,6 +142,45 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert daboss.actionable_position_units == 1.0
     assert daboss.category_signal_roles["tennis"]["role"] == "CONDITIONAL_ORIGINATOR"
     assert daboss.category_signal_roles["tennis"]["minimum_originator_units"] == 1.0
+
+    portly = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Portly-Derivation"
+    )
+    assert portly.base_unit == 9450
+    assert portly.primary_top_category_id == "nba"
+    assert portly.actionable_position_units == 1.0
+    assert portly.category_signal_roles["nba"]["unit_baseline_usd"] == 10200
+    assert portly.category_signal_roles["mma"]["unit_baseline_usd"] == 8400
+    assert portly.category_signal_roles["tennis"]["role"] == "RESEARCH"
+    assert portly.wallet_forensics["two_sided_markets"] == 0
+
+    hunters = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "HuntersMethDealer"
+    )
+    assert hunters.base_unit == 400
+    assert hunters.primary_top_category_id == "nfl"
+    assert hunters.actionable_position_units == 1.0
+    assert hunters.minimum_actionable_exposure_dollars == 400
+    assert hunters.lead_sharp_eligible is False
+    assert hunters.supporting_sharp_eligible is False
+    assert hunters.category_signal_roles["nfl"]["role"] == "RESEARCH"
+    assert hunters.category_signal_roles["soccer"]["role"] == "RESEARCH"
+    assert hunters.wallet_forensics["policy"].startswith("SHADOW_ONLY")
+
+    evhunter = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "EVhunter69"
+    )
+    assert evhunter.base_unit == 575
+    assert evhunter.top_category_ids == ("mlb", "tennis")
+    assert evhunter.supporting_weight == 0.5
+    assert evhunter.standard_originator_eligible is True
+    assert evhunter.minimum_actionable_exposure_dollars == 575
+    for category in ("mlb", "tennis"):
+        policy = evhunter.category_signal_roles[category]
+        assert policy["role"] == "CONDITIONAL_ORIGINATOR"
+        assert policy["quality_weight"] == 0.5
+        assert policy["minimum_originator_units"] == 1.0
+        assert policy["allowed_market_types"] == ("Moneyline",)
 
     wallet_4f2 = next(
         wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"

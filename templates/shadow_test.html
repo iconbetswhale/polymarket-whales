@@ -1,16 +1,21 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-header">
-  <div><p class="eyebrow">FORWARD STRATEGY LAB</p><h1>100-Bet Shadow Test</h1><p>Live hybrid consensus versus the broader two-wallet challenger, frozen and settled independently.</p></div>
+<section class="page-header shadow-lab-header">
+  <div><p class="eyebrow">FORWARD WALLET LAB</p><h1>Shadow Lab</h1><p>Independent sport and market sleeves. Review alerts never promote a wallet automatically.</p></div>
 </section>
 <section class="metric-grid" id="shadow-summary"></section>
-<section class="panel">
-  <div class="panel-heading"><div><p class="eyebrow">HEAD TO HEAD</p><h2>Forward Results</h2></div></div>
+<section class="shadow-alerts" id="shadow-alerts" hidden></section>
+<section class="panel shadow-lab-panel">
+  <div class="panel-heading"><div><p class="eyebrow">LIVE MONITOR</p><h2>Wallet sleeves</h2></div><span class="status-label">Forward only</span></div>
+  <div class="table-scroll"><table class="shadow-wallet-table"><thead><tr><th>Wallet</th><th>Sleeve</th><th>Mode</th><th>Unit</th><th>Live</th><th>Record</th><th>Units</th><th>ROI</th><th>Hit</th><th>Drawdown</th><th>Review</th></tr></thead><tbody id="shadow-wallet-sleeves"></tbody></table></div>
+</section>
+<details class="panel shadow-policy-panel">
+  <summary><strong>Promotion review threshold</strong><span>No automatic promotion</span></summary>
+  <div id="shadow-policy"></div>
+</details>
+<details class="panel shadow-legacy-panel">
+  <summary><strong>Legacy model experiment</strong><span>History preserved</span></summary>
   <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Progress</th><th>Settled</th><th>ROI</th><th>P&amp;L</th><th>Max Drawdown</th></tr></thead><tbody id="shadow-comparison"></tbody></table></div>
-</section>
-<section class="panel">
-  <div class="panel-heading"><div><p class="eyebrow">WALLET ATTRIBUTION</p><h2>Forward Contribution Scores</h2></div></div>
-  <p class="muted">Wallets are never auto-removed. A review verdict requires at least 20 settled model bets involving that wallet.</p>
-  <div class="table-scroll"><table><thead><tr><th>Wallet</th><th>Sample</th><th>Shrunk Win Rate</th><th>ROI</th><th>Composite CLV</th><th>Verdict</th></tr></thead><tbody id="wallet-contributions"></tbody></table></div>
-</section>
+</details>
+<div id="wallet-contributions" hidden></div>
 {% endblock %}

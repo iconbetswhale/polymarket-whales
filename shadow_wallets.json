@@ -1,0 +1,29 @@
+{
+  "version": "shadow-lab-v1",
+  "promotion_policy": {
+    "minimum_settled_bets": 50,
+    "minimum_unit_profit": 3.0,
+    "minimum_roi": 0.05,
+    "minimum_hit_rate": 0.52,
+    "maximum_drawdown_units": 8.0,
+    "automatic_promotion": false
+  },
+  "sleeves": [
+    {"id":"breakthebank-mlb-ml","label":"BreakTheBank","address":"0xf0318c32136c2db7fec88b84869aee6a1106c80c","sport":"MLB","market_type":"Moneyline","base_unit_usd":14500,"minimum_units":0.5,"mode":"SHADOW_SIZING_OVERLAY","overlay_weight":0.10,"thesis":"Recent directional MLB moneyline run; global wallet unit is not representative of MLB activity."},
+    {"id":"dingwin-mlb-ml","label":"Dingwin","address":"0x9fad8308ef6b6ed5320e53a290a3bd4ad91f5a9f","sport":"MLB","market_type":"Moneyline","base_unit_usd":1075,"minimum_units":0.5,"mode":"SHADOW_SIZING_OVERLAY","overlay_weight":0.20,"thesis":"Promising directional MLB moneyline record; requires forward validation."},
+    {"id":"mlbman-mlb-ml","label":"mlbman","address":"0x09af203b5af180c61d54eea118a4548a1f209728","sport":"MLB","market_type":"Moneyline","base_unit_usd":650,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"Strong long sample but flat recent 60-day window; 0.5 quality/originator pilot only after forward validation."},
+    {"id":"talvez10-mlb-ml","label":"Talvez10","address":"0xa71093cafc0c099b4ccab24c3cb8018d817923c4","sport":"MLB","market_type":"Moneyline","base_unit_usd":12225,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"Directional MLB candidate awaiting a larger clean forward sample."},
+    {"id":"jtwyslljy-soccer-ml","label":"jtwyslljy","address":"0x9cb990f1862568a63d8601efeebe0304225c32f2","sport":"Soccer","market_type":"Moneyline","base_unit_usd":6475,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"Directional soccer candidate."},
+    {"id":"baccaratroulette-tennis-ml","label":"BaccaratRoulette","address":"0x59f4a4b19fcaa99a4df2e7cdda4919aa5afbc1f1","sport":"Tennis","market_type":"Moneyline","base_unit_usd":975,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Tennis research sleeve; market-making risk remains under review."},
+    {"id":"sportmaster-mlb-total","label":"sportmaster777","address":"0x32ed517a571c01b6e9adecf61ba81ca48ff2f960","sport":"MLB","market_type":"Total","base_unit_usd":4900,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.0,"thesis":"Existing MLB totals specialist benchmark."},
+    {"id":"bagwell-tennis-main","label":"Bagwell306","address":"0x9c76cdb43fb46454da005fbc82047a64a18ec926","sport":"Tennis","market_type":"Main Markets","base_unit_usd":4250,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.0,"thesis":"Existing tennis benchmark."},
+    {"id":"lilybaeum-tennis-main","label":"Lilybaeum","address":"0x01c78f8873c0c86d6b6b92ff627e3802237ee995","sport":"Tennis","market_type":"Main Markets","base_unit_usd":3300,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.0,"thesis":"Existing tennis benchmark."},
+    {"id":"dabosshogg-tennis-main","label":"DaBossHogg","address":"0x6157d529ae129fe08f22a27ed42e741d2eaa9fb4","sport":"Tennis","market_type":"Main Markets","base_unit_usd":5050,"minimum_units":1.0,"mode":"LIVE_BENCHMARK","overlay_weight":0.0,"thesis":"Provisional tennis main-market benchmark."},
+    {"id":"uptheblues-mlb-ml","label":"UpTheBlues","address":"0x2a69660046d7acc4ab204d7cc5ba78b0776cd2f7","sport":"MLB","market_type":"Moneyline","base_unit_usd":1400,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Insufficient clean sample."},
+    {"id":"snakeball-mlb-ml","label":"SnakeBall","address":"0xc29198ad764bd6adaf7bb971a3757a689ece5d74","sport":"MLB","market_type":"Moneyline","base_unit_usd":700,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Directional classification and copyability remain unproven."},
+    {"id":"huntersmethdealer-nfl-ml","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"NFL","market_type":"Moneyline","base_unit_usd":400,"minimum_units":1.0,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction NFL moneyline shadow. Requires at least $400 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
+    {"id":"huntersmethdealer-nfl-total","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"NFL","market_type":"Total","base_unit_usd":400,"minimum_units":1.0,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction NFL totals shadow. Requires at least $400 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
+    {"id":"huntersmethdealer-soccer-ml","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"Soccer","market_type":"Moneyline","base_unit_usd":400,"minimum_units":1.0,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction soccer moneyline shadow. Requires at least $400 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
+    {"id":"huntersmethdealer-soccer-total","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"Soccer","market_type":"Total","base_unit_usd":400,"minimum_units":1.0,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction soccer totals shadow. Requires at least $400 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."}
+  ]
+}

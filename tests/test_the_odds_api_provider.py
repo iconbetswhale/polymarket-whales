@@ -229,6 +229,82 @@ class AlternateSession:
         )
 
 
+class TennisSession:
+    def __init__(self, start: datetime) -> None:
+        self.start = start
+        self.calls: list[dict] = []
+
+    def get(self, url, *, params=None, timeout=None):
+        self.calls.append(
+            {"url": url, "params": dict(params or {}), "timeout": timeout}
+        )
+        updated = datetime.now(timezone.utc).isoformat()
+        event = {
+            "id": "atp-event-1",
+            "sport_key": "tennis_atp_cincinnati",
+            "sport_title": "ATP Cincinnati",
+            "commence_time": self.start.isoformat(),
+            "home_team": "Arthur Fils",
+            "away_team": "Alexander Zverev",
+        }
+        if url.endswith("/sports/"):
+            payload = [
+                {
+                    "key": "tennis_atp_cincinnati",
+                    "group": "Tennis",
+                    "title": "ATP Cincinnati",
+                    "active": True,
+                },
+                {
+                    "key": "tennis_wta_cincinnati",
+                    "group": "Tennis",
+                    "title": "WTA Cincinnati",
+                    "active": True,
+                },
+            ]
+        elif url.endswith("/sports/tennis_atp_cincinnati/events"):
+            payload = [event]
+        elif url.endswith("/sports/tennis_wta_cincinnati/events"):
+            payload = []
+        else:
+            event["bookmakers"] = [
+                {
+                    "key": "novig",
+                    "title": "NoVIG",
+                    "last_update": updated,
+                    "link": "https://novig.us/market/atp-event-1",
+                    "markets": [
+                        {
+                            "key": "h2h",
+                            "last_update": updated,
+                            "outcomes": [
+                                {
+                                    "name": "Arthur Fils",
+                                    "price": 125,
+                                    "sid": "fils-ml",
+                                    "link": "https://novig.us/market/atp-event-1/fils",
+                                },
+                                {
+                                    "name": "Alexander Zverev",
+                                    "price": -145,
+                                    "sid": "zverev-ml",
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ]
+            payload = [event]
+        return FakeResponse(
+            payload,
+            headers={
+                "x-requests-remaining": "99970",
+                "x-requests-used": "30",
+                "x-requests-last": "1",
+            },
+        )
+
+
 def _trade(start: datetime, *, stake: float = 100) -> dict:
     return {
         "id": "trade-1",
@@ -335,6 +411,44 @@ def test_returns_every_exact_bookmaker_and_ranks_best_american_price() -> None:
     assert next(
         item for item in options if item["providerName"] == "FanDuel"
     )["americanOdds"] == 110
+
+
+def test_resolves_active_atp_tournament_before_requesting_tennis_odds() -> None:
+    start = datetime.now(timezone.utc) + timedelta(hours=3)
+    session = TennisSession(start)
+    provider = TheOddsAPIProvider(
+        "server-side-test-key",
+        markets=("h2h",),
+        trade_bookmakers=("novig",),
+        session=session,
+    )
+    trade = {
+        "id": "tennis-trade-1",
+        "category": "Tennis",
+        "canonical_sport_id": "TENNIS",
+        "league": "ATP",
+        "canonical_league_id": "ATP",
+        "event_title": "Arthur Fils vs Alexander Zverev",
+        "market_title": "Moneyline",
+        "sports_market_type": "Moneyline",
+        "outcome": "Arthur Fils",
+        "event_date_et": start.isoformat(),
+        "resolution_time": start.isoformat(),
+        "card": {"recommended_amount": 100},
+        "recommendation": {"recommended_amount": 100},
+    }
+
+    options = provider.options_for_trades([trade])["tennis-trade-1"]
+
+    assert len(options) == 1
+    assert options[0].provider_key == "oddsapi__novig"
+    assert options[0].american_odds == 125
+    paid_calls = [
+        call for call in session.calls
+        if call["url"].endswith("/odds/")
+    ]
+    assert len(paid_calls) == 1
+    assert "/tennis_atp_cincinnati/odds/" in paid_calls[0]["url"]
 
 
 def test_fair_price_quotes_expose_pinnacle_and_betonline_no_vig_sources() -> None:

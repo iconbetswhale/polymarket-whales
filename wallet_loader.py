@@ -192,6 +192,9 @@ def _parse_category_signal_roles(value: Any) -> dict[str, dict[str, Any]]:
             unit_baseline = float(unit_baseline)
             if unit_baseline <= 0:
                 raise ValueError("unit_baseline_usd must be greater than zero")
+        allowed_market_types = _parse_optional_text_list(
+            raw_policy.get("allowed_market_types")
+        )
         parsed[category_ids[0]] = {
             "role": role,
             **({"consensus_role": consensus_role} if consensus_role else {}),
@@ -200,6 +203,11 @@ def _parse_category_signal_roles(value: Any) -> dict[str, dict[str, Any]]:
             "unit_baseline_usd": unit_baseline,
             "requires_clean_directional": _parse_bool(
                 raw_policy.get("requires_clean_directional"), False
+            ),
+            **(
+                {"allowed_market_types": allowed_market_types}
+                if allowed_market_types
+                else {}
             ),
             "source": str(
                 raw_policy.get("source") or "provisional_category_review"

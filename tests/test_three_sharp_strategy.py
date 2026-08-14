@@ -2,11 +2,28 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from bet_sizing import SizingConfig, build_recommendation
+import pytest
+
+from bet_sizing import (
+    SLIPPAGE_ABOVE_MAX,
+    SizingConfig,
+    build_recommendation,
+    entry_movement_stake_multiplier,
+)
 from decision_engine import enrich_trade_decision
 from recommendation_service import evaluate_trade_recommendation
 from three_sharp_strategy import (
+    BREAK_THE_BANK,
+    DINGWIN,
+    EVHUNTER,
+    FERRARI,
+    FORMAL_CUPCAKE,
+    ONE_WIN_STREAK,
+    OX4F2,
+    PHONE_SCULPTOR,
     SHARPS,
+    SOARIN,
+    SPORTSMASTER,
     STRATEGY_ID,
     confidence_score,
     conviction_multiplier,
@@ -20,7 +37,8 @@ from trade_scoring import (
 )
 
 
-FORMAL, PHONE, SOARIN, SPORTSMASTER, ONE_WIN_STREAK, OX4F2, FERRARI = SHARPS.keys()
+FORMAL = FORMAL_CUPCAKE
+PHONE = PHONE_SCULPTOR
 
 
 def test_approved_simulation_sizing_is_precise_by_wallet_and_consensus():
@@ -37,6 +55,22 @@ def test_confidence_uses_approved_high_trust_bands():
     assert confidence_score([PHONE])[0] == 87
     assert confidence_score([FORMAL, SOARIN])[0] == 93
     assert confidence_score([FORMAL, SOARIN, PHONE])[0] == 98
+
+
+def test_evhunter_is_a_half_weight_mlb_originator_without_core_score_inflation():
+    assert recommendation_units([EVHUNTER], {EVHUNTER: 1.0})["units"] == 0.5
+    assert confidence_score([EVHUNTER], {EVHUNTER: 1.0})[0] == 82
+
+    formal_only = recommendation_units([FORMAL], {FORMAL: 1.0})
+    supported = recommendation_units(
+        [FORMAL, EVHUNTER],
+        {FORMAL: 1.0, EVHUNTER: 1.0},
+    )
+    assert supported["units"] > formal_only["units"]
+    assert confidence_score(
+        [FORMAL, EVHUNTER],
+        {FORMAL: 1.0, EVHUNTER: 1.0},
+    )[0] == 91
 
 
 def test_capped_conviction_tiers_scale_each_wallet_against_its_own_unit():
@@ -74,6 +108,71 @@ def test_live_recommendation_amount_uses_scaled_units_not_flat_fallback():
         recommendation["strategy_sizing_mode"]
         == "WEIGHTED_DIRECTIONAL_CONVICTION_UNITS"
     )
+
+
+@pytest.mark.parametrize(
+    ("movement_pct", "expected"),
+    [
+        (3.0, 1.0),
+        (4.0, 0.75),
+        (5.0, 0.50),
+        (5.01, 0.0),
+        (-6.2, 1.062),
+        (-7.5, 1.075),
+        (-20.0, 1.10),
+    ],
+)
+def test_entry_movement_adjustment_is_tapered_and_capped(movement_pct, expected):
+    assert entry_movement_stake_multiplier(movement_pct) == pytest.approx(expected)
+
+
+def test_fixed_unit_strategy_rejects_more_than_five_percent_adverse_movement():
+    play = {
+        **_play(),
+        "average_entry_price": 0.40,
+        "sharp_reference_entry_price": 0.40,
+        "orderbook": {
+            "asks": [{"price": 0.421, "size": 10_000}],
+            "bids": [{"price": 0.42, "size": 10_000}],
+        },
+    }
+    recommendation = build_recommendation(play, 10_000, SizingConfig())
+    evaluation = evaluate_trade_recommendation(
+        play, 10_000, SizingConfig(), now=datetime.now(timezone.utc)
+    )
+
+    assert recommendation["unfavorable_slippage_pct"] == pytest.approx(5.25)
+    assert recommendation["passes_slippage_rule"] is False
+    assert recommendation["slippage_rejection_reason"] == SLIPPAGE_ABOVE_MAX
+    assert evaluation["model_tracker_eligible"] is False
+    assert evaluation["model_tracker_rejection_reason"] == SLIPPAGE_ABOVE_MAX
+
+
+def test_fixed_unit_strategy_tapers_adverse_and_modestly_boosts_favorable_prices():
+    adverse = {
+        **_play(),
+        "strategy_target_units": 1.0,
+        "average_entry_price": 0.40,
+        "sharp_reference_entry_price": 0.40,
+        "orderbook": {"asks": [{"price": 0.416, "size": 10_000}]},
+    }
+    favorable = {
+        **_play(),
+        "strategy_target_units": 1.0,
+        "average_entry_price": 0.48,
+        "sharp_reference_entry_price": 0.48,
+        "orderbook": {"asks": [{"price": 0.45, "size": 10_000}]},
+    }
+
+    adverse_recommendation = build_recommendation(adverse, 10_000, SizingConfig())
+    favorable_recommendation = build_recommendation(favorable, 10_000, SizingConfig())
+
+    assert adverse_recommendation["unfavorable_slippage_pct"] == pytest.approx(4.0)
+    assert adverse_recommendation["entry_movement_stake_multiplier"] == pytest.approx(0.75)
+    assert adverse_recommendation["recommended_amount"] == 75.0
+    assert favorable_recommendation["unfavorable_slippage_pct"] == pytest.approx(-6.25)
+    assert favorable_recommendation["entry_movement_stake_multiplier"] == pytest.approx(1.0625)
+    assert favorable_recommendation["recommended_amount"] == 106.0
 
 
 def test_one_cent_rounding_does_not_hide_formal_cupcake_full_unit():
@@ -211,6 +310,37 @@ def test_opposing_primary_is_a_strict_veto():
     assert decision["reason"] == "MLB_WEIGHTED_PRIMARY_CONFLICT"
 
 
+def test_shadow_overlays_cannot_originate_or_veto_a_live_play():
+    assert recommendation_units([DINGWIN], {DINGWIN: 10.0})["qualified"] is False
+    assert recommendation_units([BREAK_THE_BANK], {BREAK_THE_BANK: 10.0})["qualified"] is False
+
+    baseline = recommendation_units([FORMAL], {FORMAL: 1.0})
+    opposed = recommendation_units(
+        [FORMAL],
+        {FORMAL: 1.0},
+        [DINGWIN, BREAK_THE_BANK],
+        {DINGWIN: 10.0, BREAK_THE_BANK: 10.0},
+    )
+    assert opposed["qualified"] is True
+    assert opposed["units"] < baseline["units"]
+    assert opposed["veto_opposing_portfolio_weight"] == 0.0
+
+
+def test_shadow_overlays_resize_in_the_direction_requested():
+    baseline = recommendation_units([FORMAL], {FORMAL: 1.0})
+    supported = recommendation_units(
+        [FORMAL, DINGWIN, BREAK_THE_BANK],
+        {FORMAL: 1.0, DINGWIN: 1.0, BREAK_THE_BANK: 1.0},
+    )
+    opposed = recommendation_units(
+        [FORMAL],
+        {FORMAL: 1.0},
+        [DINGWIN, BREAK_THE_BANK],
+        {DINGWIN: 1.0, BREAK_THE_BANK: 1.0},
+    )
+    assert supported["units"] > baseline["units"] > opposed["units"]
+
+
 def _play() -> dict:
     now = datetime.now(timezone.utc)
     return {
@@ -227,8 +357,8 @@ def _play() -> dict:
             "asks": [{"price": 0.45, "size": 1000}],
             "bids": [{"price": 0.44, "size": 1000}],
         },
-        "average_entry_price": 0.43,
-        "sharp_reference_entry_price": 0.43,
+        "average_entry_price": 0.45,
+        "sharp_reference_entry_price": 0.45,
         "agreeing_wallet_count": 1,
         "lead_sharp_count": 1,
         "has_lead_sharp": True,

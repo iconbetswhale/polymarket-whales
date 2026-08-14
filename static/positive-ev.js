@@ -15,7 +15,7 @@
     weights: {pinnacle:40,betonlineag:20,novig:10,prophetx:10,fourcx:8,kalshi:7,polymarket:5,fanduel:5,draftkings:5}
   };
   const bookNames = {pinnacle:"Pinnacle",betonlineag:"BetOnline",novig:"Novig",prophetx:"ProphetX",fourcx:"4CX",kalshi:"Kalshi",polymarket:"Polymarket",fanduel:"FanDuel",draftkings:"DraftKings"};
-  const bookLogos = {novig:"https://novig.us/favicon.ico",prophetx:"https://prophetx.co/favicon.ico",kalshi:"https://kalshi.com/favicon.ico",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"https://www.pinnacle.com/favicon.ico",betonlineag:"https://sports.betonline.ag/favicon.ico",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"https://sportsbook.draftkings.com/favicon.ico",fourcx:"/static/assets/providers/4cx.png"};
+  const bookLogos = {novig:"https://novig.us/favicon.ico",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"https://www.pinnacle.com/favicon.ico",betonlineag:"https://sports.betonline.ag/favicon.ico",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"https://sportsbook.draftkings.com/favicon.ico",fourcx:"/static/assets/providers/4cx.png"};
   let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
   try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
@@ -25,7 +25,13 @@
   const money = value => `$${Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2})}`;
   const odds = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0)}`;
   const time = value => { const date = new Date(value); return Number.isNaN(date.valueOf()) ? "" : date.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); };
-  const img = (url, name) => `<img class="ev-book-logo" src="${esc(url || bookLogos[name] || "")}" alt="${esc(bookNames[name] || name)} logo">`;
+  const img = (url, name) => {
+    const label = bookNames[name] || name || "Sportsbook";
+    const source = bookLogos[name] || url || "";
+    return source
+      ? `<span class="ev-book-mark"><img class="ev-book-logo" src="${esc(source)}" alt="${esc(label)} logo"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`
+      : `<span class="ev-book-mark fallback" aria-label="${esc(label)}"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`;
+  };
   const statusLabel = row => row.portfolioStatus !== "qualified" ? "Suppressed" : row.executionStatus === "executable" ? "Executable" : "Verify liquidity";
 
   function renderFilters() {
@@ -93,7 +99,7 @@
         <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong><span>${Math.round(Number(row.fairProbability)*100)}% fair</span><em>${esc(statusLabel(row))}</em></div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong><small>${esc(row.league)} · ${Number(row.sourceCount)} sources</small></div>
         <div class="ev-pick"><small>${esc(row.marketLabel)}</small><strong>${esc(row.selection)}</strong><small>${(Number(row.fairConfidence)*100).toFixed(0)}% model confidence</small></div>
-        <div class="ev-execution"><div class="ev-selection">${esc(row.selection)}<small>${esc(row.marketLabel)}</small></div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong><small>${row.executionStatus === "executable" ? "constrained stake" : `${money(row.theoreticalStake)} raw Kelly`}</small></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.americanOdds)}<small>${esc(quote.bookName||quote.bookKey)}</small></span></a></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(row.selection)}<small>${esc(row.marketLabel)}</small></div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong><small>${row.executionStatus === "executable" ? "constrained stake" : `${money(row.theoreticalStake)} raw Kelly`}</small></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<small>${esc(quote.bookName||quote.bookKey)}</small></span></a></div>
       </button>`;
     }).join("");
     feed.querySelectorAll(".ev-opportunity").forEach(button => button.addEventListener("click", event => { if(event.target.closest("a")) return; select(button.dataset.id); }));
@@ -105,7 +111,7 @@
       <div class="ev-detail-pick"><div><small>CONSTRAINED RECOMMENDATION</small><strong>${esc(row.selection)}</strong></div><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       <section class="ev-section"><header><h3>FAIR-PRICE AUDIT</h3><span>${Number(row.sourceCount)} independent books</span></header><div class="ev-audit-grid"><span><small>Fair probability</small><b>${(Number(row.fairProbability)*100).toFixed(2)}%</b></span><span><small>Fair odds</small><b>${odds(row.fairAmerican)}</b></span><span><small>Confidence</small><b>${(Number(row.fairConfidence)*100).toFixed(0)}%</b></span><span><small>Source spread</small><b>${(Number(row.sourceDispersion)*100).toFixed(2)} pts</b></span></div></section>
-      <section class="ev-section"><header><h3>MARKET ODDS</h3><span>Execution book excluded from its own fair price</span></header><div class="ev-analysis">${row.quotes.slice(0,9).map(q=>`<div class="ev-analysis-row ${q.bookKey===best.bookKey?"best":""}">${img(q.logoUrl,q.bookKey)}<div class="bar"><i style="width:${Math.max(3,Math.abs(Number(q.evPercent||0))/maxEv*100)}%"></i></div><b>${Number(q.evPercent)>=0?"+":""}${Number(q.evPercent).toFixed(2)}%</b></div>`).join("")}</div><div class="ev-quotes">${row.quotes.map(q=>`<a class="ev-quote ${q.bookKey===best.bookKey?"best":""}" href="${esc(q.deepLink||"#")}" target="_blank" rel="noopener">${img(q.logoUrl,q.bookKey)}<span><strong>${esc(q.bookName)}</strong><small>${q.liquidity != null ? `${money(q.liquidity)} reported limit` : `${esc(q.executionStatus.replaceAll("_"," "))} · ${q.quoteAgeSeconds == null ? "age unknown" : `${Math.round(q.quoteAgeSeconds)}s old`}`}</small></span><b>${odds(q.americanOdds)} ↗</b></a>`).join("")}</div></section>
+      <section class="ev-section"><header><h3>MARKET ODDS</h3><span>Execution book excluded from its own fair price</span></header><div class="ev-analysis">${row.quotes.slice(0,9).map(q=>`<div class="ev-analysis-row ${q.bookKey===best.bookKey?"best":""}">${img(q.logoUrl,q.bookKey)}<div class="bar"><i style="width:${Math.max(3,Math.abs(Number(q.evPercent||0))/maxEv*100)}%"></i></div><b>${Number(q.evPercent)>=0?"+":""}${Number(q.evPercent).toFixed(2)}%</b></div>`).join("")}</div><div class="ev-quotes">${row.quotes.map(q=>`<a class="ev-quote ${q.bookKey===best.bookKey?"best":""}" href="${esc(q.deepLink||"#")}" target="_blank" rel="noopener">${img(q.logoUrl,q.bookKey)}<span><strong>${esc(q.bookName)}</strong><small>${q.topPriceLiquidity != null ? `${money(q.topPriceLiquidity)} at top price` : q.marketLimit != null ? `${money(q.marketLimit)} reported limit` : `${esc(q.executionStatus.replaceAll("_"," "))} · ${q.quoteAgeSeconds == null ? "age unknown" : `${Math.round(q.quoteAgeSeconds)}s old`}`}</small></span><b>${odds(q.topPriceAmericanOdds??q.americanOdds)} ↗</b></a>`).join("")}</div></section>
       <section class="ev-section"><header><h3>SIZING AUDIT</h3><span>${(Number(row.fullKellyFraction)*100).toFixed(2)}% full Kelly</span></header><div class="ev-formula">Raw fractional Kelly: <strong>${money(row.theoreticalStake)}</strong><br>After confidence, per-bet, event, variance, and liquidity constraints: <b>${money(row.recommendedStake)}</b><br>Effective line after configured costs: ${odds(best.effectiveAmerican)}. Calculation: (${(Number(row.fairProbability)*100).toFixed(2)}% × ${Number(best.effectiveDecimal).toFixed(3)}) − 1 = <b>+${Number(row.evPercent).toFixed(2)}%</b>.</div></section></article>`;
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     if (matchMedia("(max-width:900px)").matches){ detail.classList.add("open"); scrim.hidden=false; }
@@ -121,11 +127,14 @@
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
   }
-  $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-apply").addEventListener("click",applyFilters);
+  $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports]};renderFilters();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",renderFeed);scrim.addEventListener("click",closeDetail);
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{if(event.target.matches("[data-weight]"))updateWeightTotal();});
+  dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});
+  dialog.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();dialog.close();}});
+  document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
   renderFilters(); load(true);
 })();

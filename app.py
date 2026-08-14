@@ -83,6 +83,7 @@ from sharp_money_live import build_sharp_money_collector
 from trade_scoring import filter_trades_to_play
 from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
 from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
+from shadow_monitor import build_shadow_lab
 from specialist_strategy import SHARPS as SPECIALIST_WALLETS
 from ev_optimizer import (
     ALTERNATE_MARKETS,
@@ -92,6 +93,7 @@ from ev_optimizer import (
     PLAYER_PROP_MARKETS,
     build_ev_board,
 )
+from market_quote_adapters import normalize_odds_api_events
 from whiteboard import (
     canonical_trade_identity as whiteboard_identity,
     dynamic_whiteboard_state,
@@ -665,48 +667,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     def refresh_polymarket_execution_quotes(trades: list[dict]) -> None:
         """Attach current CLOB depth used only for provider line-shopping."""
-        token_ids = [str(row.get("clob_token_id") or "") for row in trades if row.get("clob_token_id")]
-        if not token_ids:
-            return
-        try:
-            books = tracker.client.get_order_books(token_ids)
-        except Exception as exc:
-            LOGGER.warning("Live Polymarket execution depth unavailable: %s", exc)
-            return
-        observed_at = datetime.now(timezone.utc).isoformat()
-        for trade in trades:
-            book = books.get(str(trade.get("clob_token_id") or "")) or {}
-            levels: list[tuple[float, float]] = []
-            for level in book.get("asks") or []:
-                try:
-                    price, size = float(level.get("price")), float(level.get("size"))
-                except (TypeError, ValueError):
-                    continue
-                if 0 < price < 1 and size > 0:
-                    levels.append((price, size))
-            if not levels:
-                continue
-            levels.sort()
-            best_ask = levels[0][0]
-            total_liquidity = sum(price * size for price, size in levels)
-            recommended = _safe_float((trade.get("card") or {}).get("recommended_amount") or (trade.get("recommendation") or {}).get("recommended_amount"))
-            remaining, cost, shares = max(0.0, recommended), 0.0, 0.0
-            for price, size in levels:
-                if remaining <= 1e-9:
-                    break
-                fill_shares = min(size, remaining / price)
-                fill_cost = fill_shares * price
-                shares += fill_shares
-                cost += fill_cost
-                remaining -= fill_cost
-            can_fill = recommended <= 0 or remaining <= 0.01
-            trade["execution_quote"] = {
-                "best_ask": best_ask,
-                "effective_price": (cost / shares) if shares and can_fill else best_ask,
-                "available_liquidity": round(total_liquidity, 2),
-                "can_fill_recommended_stake": can_fill,
-                "timestamp": book.get("timestamp") or observed_at,
-            }
+        tracker.refresh_execution_quotes(trades)
 
     @app.before_request
     def prepare_request():
@@ -1957,6 +1918,17 @@ def create_app(start_background: bool = True) -> Flask:
                 sport_keys=sport_keys,
                 market_keys=market_keys,
             )
+            # Quote history is additive infrastructure.  A persistence issue
+            # must never take the existing EV+ board offline.
+            quote_tracking = {"quotes_received": 0, "material_snapshots": 0, "checkpoints": 0}
+            quote_tracking_warning = None
+            try:
+                normalized_quotes = normalize_odds_api_events(events)
+                quote_tracking = tracker.database.record_normalized_market_quotes(
+                    normalized_quotes
+                )
+            except Exception as exc:  # pragma: no cover - defensive live isolation
+                quote_tracking_warning = type(exc).__name__
             board = build_ev_board(
                 events,
                 source_weights=source_weights,
@@ -2003,6 +1975,8 @@ def create_app(start_background: bool = True) -> Flask:
                 "total": len(rows),
                 "diagnostics": board["diagnostics"],
                 "tracking": tracking,
+                "normalizedQuotePersistence": quote_tracking,
+                "normalizedQuotePersistenceWarning": quote_tracking_warning,
                 "configured": True,
                 "marketGroup": market_group,
                 "marketKeys": list(market_keys),
@@ -2098,6 +2072,12 @@ def create_app(start_background: bool = True) -> Flask:
             )
             trade["isPinnedByCurrentUser"] = pin_id is not None
             trade["whiteboardPinId"] = pin_id
+        live_rejected_trade_ids: set[str] = {
+            str(trade.get("id") or "").strip()
+            for trade in sized
+            if trade.get("tradeFeedRejectionReason") == "SLIPPAGE_ABOVE_MAX"
+            and str(trade.get("id") or "").strip()
+        }
         actionable = [trade for trade in sized if trade["tradeFeedEligible"]]
         price_matched = [
             trade
@@ -2122,6 +2102,7 @@ def create_app(start_background: bool = True) -> Flask:
         # pass establishes a stake for depth checks; this pass makes the venue,
         # displayed odds, and user-sized recommendation agree.
         line_shopped_page: list[dict] = []
+        second_pass_rejected_count = 0
         for trade in page_trades:
             apply_best_execution_option(trade)
             refreshed = public_trade(trade, bankroll)
@@ -2133,8 +2114,25 @@ def create_app(start_background: bool = True) -> Flask:
             )
             refreshed["isPinnedByCurrentUser"] = pin_id is not None
             refreshed["whiteboardPinId"] = pin_id
+            # The stake-aware quote refresh above is the authoritative final
+            # eligibility check.  Do not return a card that passed the first
+            # quote snapshot but moved beyond the 5% entry guard during this
+            # second check.  The candidate remains in TrackerService's source
+            # snapshot, so a later request will automatically restore it when
+            # an executable quote moves back inside the limit.
+            if not refreshed.get("tradeFeedEligible"):
+                if (
+                    refreshed.get("tradeFeedRejectionReason")
+                    == "SLIPPAGE_ABOVE_MAX"
+                ):
+                    rejected_id = str(refreshed.get("id") or "").strip()
+                    if rejected_id:
+                        live_rejected_trade_ids.add(rejected_id)
+                    second_pass_rejected_count += 1
+                continue
             line_shopped_page.append(refreshed)
         page_trades = line_shopped_page
+        visible_total = max(0, len(visible) - second_pass_rejected_count)
         official_records_by_snapshot: dict[str, dict] = {}
         official_filter_rows: list[dict] = []
         for record in tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID):
@@ -2242,6 +2240,7 @@ def create_app(start_background: bool = True) -> Flask:
         return jsonify(
             {
                 "data": page_trades,
+                "liveRejectedTradeIds": sorted(live_rejected_trade_ids),
                 "officialTracked": official_tracked,
                 "bankroll": current_settings,
                 "hiddenCount": len(hidden_records),
@@ -2254,8 +2253,8 @@ def create_app(start_background: bool = True) -> Flask:
                 "pagination": {
                     "page": page,
                     "per_page": per_page,
-                    "total": len(visible),
-                    "has_next": start + per_page < len(visible),
+                    "total": visible_total,
+                    "has_next": start + per_page < visible_total,
                     "has_prev": page > 1,
                 },
                 "status": snapshot["status"],
@@ -4111,6 +4110,7 @@ def create_app(start_background: bool = True) -> Flask:
             ),
             reverse=True,
         )
+        shadow_lab = build_shadow_lab(tracker.database.get_all_tracked_positions())
         return jsonify(
             {
                 "data": {
@@ -4132,6 +4132,7 @@ def create_app(start_background: bool = True) -> Flask:
                         "recent_rows": shadow_rows[:25],
                     },
                     "wallet_contributions": contribution_rows,
+                    "shadow_lab": shadow_lab,
                     "forward_only": True,
                     "automatic_wallet_removal": False,
                 }

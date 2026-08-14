@@ -34,6 +34,9 @@ from release4_foundation import (
 from release5_foundation import RELEASE5_MIGRATION_VERSION, migration_sql as release5_migration_sql, model_version_rows as release5_model_version_rows
 from line_shop_foundation import LINE_SHOP_MIGRATION_VERSION, migration_sql as line_shop_migration_sql
 from line_shop_persistence import persistence_records
+from market_quote_foundation import MARKET_QUOTE_MIGRATION_VERSION, migration_sql as market_quote_migration_sql
+from market_quote_persistence import list_history as list_quote_history, record_quotes
+from market_quotes import NormalizedMarketQuote
 
 
 class SettingsVersionConflict(RuntimeError):
@@ -675,6 +678,11 @@ class TrackerDatabase:
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
                 (LINE_SHOP_MIGRATION_VERSION, now),
             )
+            conn.executescript(market_quote_migration_sql("sqlite"))
+            conn.execute(
+                "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
+                (MARKET_QUOTE_MIGRATION_VERSION, now),
+            )
             conn.executescript(release2_migration_sql("sqlite"))
             conn.execute(
                 "INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (?, ?)",
@@ -857,6 +865,24 @@ class TrackerDatabase:
                 """
             ).fetchall()
         return [json.loads(row["snapshot_json"]) for row in rows]
+
+    def get_all_tracked_positions(self) -> list[dict]:
+        """Return raw forward position rows for independent shadow sleeves."""
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT wallet_address, position_key, status, first_detected_at,
+                       last_seen_at, closed_at, snapshot_json
+                FROM tracked_positions
+                ORDER BY COALESCE(closed_at, last_seen_at) ASC
+                """
+            ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["snapshot"] = json.loads(item.pop("snapshot_json"))
+            result.append(item)
+        return result
 
     def save_open_position(self, snapshot: dict) -> None:
         with self.connection() as conn:
@@ -3641,8 +3667,8 @@ class TrackerDatabase:
                     user_id,
                     opportunity_id,
                     best.get("bookKey"),
-                    best.get("americanOdds"),
-                    best.get("liquidity"),
+                    best.get("topPriceAmericanOdds", best.get("americanOdds")),
+                    best.get("topPriceLiquidity", best.get("liquidity")),
                     row.get("fairProbability"),
                     row.get("recommendedStake"),
                     row.get("executionStatus"),
@@ -3669,8 +3695,8 @@ class TrackerDatabase:
                         row.get("recommendedStake"),
                         row.get("executionStatus"),
                         best.get("bookKey"),
-                        best.get("americanOdds"),
-                        best.get("liquidity"),
+                        best.get("topPriceAmericanOdds", best.get("americanOdds")),
+                        best.get("topPriceLiquidity", best.get("liquidity")),
                         serialized,
                     ),
                 )
@@ -3703,6 +3729,22 @@ class TrackerDatabase:
                     ),
                 )
         return {"opportunities": len(rows), "material_snapshots": inserted}
+
+    def record_normalized_market_quotes(
+        self, quotes: list[NormalizedMarketQuote], checkpoint_seconds: int = 900
+    ) -> dict:
+        if self.user_store:
+            return self.user_store.record_normalized_market_quotes(quotes, checkpoint_seconds)
+        with self.connection() as conn:
+            return record_quotes(
+                conn, quotes, dialect="sqlite", checkpoint_seconds=checkpoint_seconds
+            )
+
+    def get_normalized_market_quote_history(self, **filters) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_normalized_market_quote_history(**filters)
+        with self.connection() as conn:
+            return list_quote_history(conn, dialect="sqlite", **filters)
 
     def get_ev_optimizer_history(self, user_id: str, limit: int = 100) -> dict:
         if self.user_store:

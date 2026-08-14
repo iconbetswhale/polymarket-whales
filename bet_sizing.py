@@ -352,12 +352,16 @@ def volume_weighted_entry(
 
     if total_shares <= 0:
         return None
+    depth_vwap = total_cost / total_shares
     return {
-        "effective_entry_price": total_cost / total_shares,
+        "effective_entry_price": depth_vwap,
+        "depth_vwap_price": depth_vwap,
         "requested_amount": dollar_amount,
         "executable_amount": total_cost,
+        "depth_executable_amount": total_cost,
         "shares": total_shares,
         "levels_used": levels_used,
+        "depth_levels_used": levels_used,
         "liquidity_limited": remaining > 1e-9,
         "unfilled_amount": max(0.0, remaining),
     }
@@ -438,6 +442,49 @@ def slippage_status(
     }
 
 
+ADVERSE_MOVEMENT_TAPER_START_PCT = 3.0
+ADVERSE_MOVEMENT_FLOOR_MULTIPLIER = 0.50
+FAVORABLE_MOVEMENT_FULL_BOOST_PCT = 10.0
+FAVORABLE_MOVEMENT_MAX_MULTIPLIER = 1.10
+
+
+def entry_movement_stake_multiplier(unfavorable_slippage_pct: Any) -> float:
+    """Return a conservative stake adjustment for the executable entry.
+
+    Positive movement means the user is paying more than the sharp. Stakes stay
+    flat through 3%, taper linearly to half-size at the 5% eligibility ceiling,
+    and are rejected separately above 5%. Negative movement is favorable and
+    earns only a small, capped boost: 1% more stake per 1% of improvement, up
+    to a 10% boost. This keeps price improvement from overpowering the sharp
+    signal that established the base stake.
+    """
+    movement_pct = _safe_float(unfavorable_slippage_pct)
+    if movement_pct > MAX_UNFAVORABLE_SLIPPAGE_PCT + 1e-9:
+        return 0.0
+    if movement_pct > ADVERSE_MOVEMENT_TAPER_START_PCT:
+        taper_progress = (
+            movement_pct - ADVERSE_MOVEMENT_TAPER_START_PCT
+        ) / (
+            MAX_UNFAVORABLE_SLIPPAGE_PCT
+            - ADVERSE_MOVEMENT_TAPER_START_PCT
+        )
+        return max(
+            ADVERSE_MOVEMENT_FLOOR_MULTIPLIER,
+            1.0
+            - taper_progress
+            * (1.0 - ADVERSE_MOVEMENT_FLOOR_MULTIPLIER),
+        )
+    if movement_pct < 0:
+        boost_progress = min(
+            abs(movement_pct) / FAVORABLE_MOVEMENT_FULL_BOOST_PCT,
+            1.0,
+        )
+        return 1.0 + boost_progress * (
+            FAVORABLE_MOVEMENT_MAX_MULTIPLIER - 1.0
+        )
+    return 1.0
+
+
 def _build_three_sharp_recommendation(
     play: dict[str, Any],
     bankroll: float,
@@ -452,11 +499,36 @@ def _build_three_sharp_recommendation(
     strategy_label = "SPECIALIST_SIGNAL" if specialist else "THREE_SHARP_SIGNAL"
     target_units = max(0.0, _safe_float(play.get("strategy_target_units")))
     unit_value = bankroll * config.unit_percentage
-    proposed_amount = target_units * unit_value
-    initial_fill = volume_weighted_entry(valid_asks, proposed_amount)
+    base_proposed_amount = target_units * unit_value
+    initial_fill = volume_weighted_entry(valid_asks, base_proposed_amount)
     if not initial_fill:
         return unavailable_recommendation(
             "A live executable ask is unavailable for this outcome.", config
+        )
+
+    reference = _safe_float(
+        play.get("sharp_reference_entry_price") or play.get("average_entry_price"),
+        -1.0,
+    )
+    preliminary_status = slippage_status(
+        reference,
+        valid_asks[0].get("price"),
+        initial_fill.get("effective_entry_price"),
+    )
+    movement_multiplier = entry_movement_stake_multiplier(
+        preliminary_status.get("unfavorable_slippage_pct")
+    )
+    # Preserve the base stake on rejected records so diagnostics can show what
+    # would have been recommended; eligibility below prevents execution.
+    proposed_amount = base_proposed_amount * (
+        movement_multiplier if preliminary_status["passes_slippage_rule"] else 1.0
+    )
+    sizing_fill = volume_weighted_entry(valid_asks, proposed_amount)
+    if not sizing_fill:
+        return unavailable_recommendation(
+            "Order-book depth could not execute the price-adjusted strategy stake.",
+            config,
+            **preliminary_status,
         )
 
     risk_config_value = risk_context.get("config")
@@ -467,7 +539,7 @@ def _build_three_sharp_recommendation(
     )
     portfolio_risk = evaluate_portfolio_risk(
         play,
-        min(proposed_amount, _safe_float(initial_fill.get("executable_amount"))),
+        min(proposed_amount, _safe_float(sizing_fill.get("executable_amount"))),
         bankroll,
         risk_context.get("exposures") or [],
         risk_context.get("account_state")
@@ -520,10 +592,7 @@ def _build_three_sharp_recommendation(
         "quote_timestamp": play.get("orderbook_timestamp"),
         "calculation_version": f"{strategy_slug}-execution-v1",
     }
-    reference = _safe_float(
-        play.get("sharp_reference_entry_price") or play.get("average_entry_price"),
-        -1.0,
-    )
+    status = slippage_status(reference, top_ask, entry_price)
     movement = entry_price - reference if 0 < reference < 1 else None
     return {
         "available": True,
@@ -552,6 +621,7 @@ def _build_three_sharp_recommendation(
         "trade_grade": strategy_label,
         "final_recommended_fraction": final_fraction,
         "recommended_amount": final_amount,
+        "recommended_amount_before_entry_movement": base_proposed_amount,
         "recommended_amount_before_portfolio_risk": proposed_amount,
         "recommended_shares": fill.get("shares", 0.0),
         "recommended_units": final_units,
@@ -567,17 +637,17 @@ def _build_three_sharp_recommendation(
         "sharp_reference_entry_price": reference if 0 < reference < 1 else None,
         "current_top_ask_price": top_ask,
         "price_movement": movement,
-        "slippage_cents": movement * 100 if movement is not None else None,
-        "price_slippage_fraction": movement / reference if movement is not None else None,
-        "unfavorable_slippage_pct": (
-            movement / reference * 100 if movement is not None else None
-        ),
-        "passes_slippage_rule": True,
-        "slippage_rejection_reason": None,
-        "slippage_policy": "MONITORED_NOT_ELIGIBILITY_GATED",
+        "slippage_cents": status["slippage_cents"],
+        "price_slippage_fraction": status["price_slippage_fraction"],
+        "unfavorable_slippage_pct": status["unfavorable_slippage_pct"],
+        "passes_slippage_rule": status["passes_slippage_rule"],
+        "slippage_rejection_reason": status["slippage_rejection_reason"],
+        "max_unfavorable_slippage_pct": MAX_UNFAVORABLE_SLIPPAGE_PCT,
+        "entry_movement_stake_multiplier": movement_multiplier,
+        "slippage_policy": "HARD_REJECT_ABOVE_5_TAPER_3_TO_5_CAPPED_FAVORABLE_BOOST",
         "orderbook_levels_used": fill.get("levels_used", 0),
-        "liquidity_limited": bool(initial_fill.get("liquidity_limited")),
-        "unfilled_amount": initial_fill.get("unfilled_amount", 0.0),
+        "liquidity_limited": bool(sizing_fill.get("liquidity_limited")),
+        "unfilled_amount": sizing_fill.get("unfilled_amount", 0.0),
         "fees_included": bool(play.get("expected_fee_fraction") is not None),
         "expected_fee_fraction": play.get("expected_fee_fraction"),
         "portfolio_risk": portfolio_risk,

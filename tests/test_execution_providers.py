@@ -9,6 +9,7 @@ import requests
 from config import get_settings
 from execution_providers import (
     apply_best_execution_option,
+    _league_matches,
     ExecutionOption,
     ExecutionProviderRegistry,
     MatchConfidence,
@@ -213,6 +214,26 @@ def test_polymarket_provider_prefers_live_line_shop_quote_without_resizing_trade
     assert value["recommendation"]["current_user_entry_price"] == 0.507
     assert option.deep_link == "https://polymarket.com/event/yankees-red-sox"
     assert option.matching_confidence is MatchConfidence.EXACT
+
+
+def test_polymarket_provider_serializes_top_price_separately_from_depth_vwap() -> None:
+    value = trade(execution_quote={
+        "best_ask": 0.42,
+        "effective_price": 0.44,
+        "top_price_liquidity": 75.0,
+        "available_liquidity": 5575.0,
+        "depth_executable_amount": 575.0,
+        "depth_levels_used": 2,
+        "can_fill_recommended_stake": True,
+        "timestamp": "2026-07-17T12:00:00Z",
+    })
+    payload = PolymarketProvider().options_for_trades([value])["trade-1"].to_dict()
+
+    assert payload["topPrice"] == pytest.approx(0.42)
+    assert payload["topPriceLiquidity"] == pytest.approx(75.0)
+    assert payload["depthVwapPrice"] == pytest.approx(0.44)
+    assert payload["depthExecutableAmount"] == pytest.approx(575.0)
+    assert payload["depthLevelsUsed"] == 2
 
 
 def test_polymarket_provider_links_to_exact_child_market_when_identifiers_exist() -> None:
@@ -467,6 +488,50 @@ def test_best_exchange_quote_uses_verified_all_in_price_after_fees() -> None:
     assert value["orderbook"]["asks"] == [
         {"price": 0.447, "size": pytest.approx(240.0 / 0.447)}
     ]
+
+
+def test_explicitly_fillable_novig_quote_without_reported_limit_beats_prophetx() -> None:
+    value = trade(
+        executionOptions=[
+            {
+                "providerName": "NoVIG",
+                "providerKey": "oddsapi__novig",
+                "bestExecutablePrice": 0.44,
+                "availableLiquidity": None,
+                "feeRate": 0.0,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "directMarketUrl": "https://novig.us/market/exact",
+            },
+            {
+                "providerName": "ProphetX",
+                "providerKey": "prophetx",
+                "bestExecutablePrice": 0.46,
+                "availableLiquidity": 500.0,
+                "feeRate": 0.0,
+                "isAvailable": True,
+                "isExactMatch": True,
+                "isStale": False,
+                "marketStatus": "OPEN",
+                "canFillRecommendedStake": True,
+                "directMarketUrl": "https://prophetx.co/market/exact",
+            },
+        ]
+    )
+
+    assert apply_best_execution_option(value) is True
+    assert value["execution_orderbook_source"] == "oddsapi__novig"
+    assert value["current_price"] == pytest.approx(0.44)
+    assert value["orderbook"]["asks"] == []
+
+
+def test_tennis_tournament_labels_match_the_same_tour() -> None:
+    assert _league_matches("ATP", "ATP Cincinnati", "TENNIS") is True
+    assert _league_matches("WTA Montreal", "WTA Toronto", "TENNIS") is True
+    assert _league_matches("ATP", "WTA Cincinnati", "TENNIS") is False
 
 
 def test_unverified_fee_or_liquidity_never_becomes_sizing_depth() -> None:

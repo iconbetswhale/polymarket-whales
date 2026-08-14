@@ -146,10 +146,7 @@ def evaluate_trade_recommendation(
         )
         if not 0 < entry_price < 1:
             rejection_reason = MISSING_ENTRY_PRICE
-        elif (
-            not fixed_unit_strategy
-            and recommendation.get("passes_slippage_rule") is not True
-        ):
+        elif recommendation.get("passes_slippage_rule") is not True:
             rejection_reason = (
                 recommendation.get("slippage_rejection_reason")
                 or MISSING_EXECUTABLE_PRICE

@@ -18,6 +18,9 @@ SPORTSMASTER = "0x32ed517a571c01b6e9adecf61ba81ca48ff2f960"
 ONE_WIN_STREAK = "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705"
 OX4F2 = "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e"
 FERRARI = "0xfe787d2da716d60e8acff57fb87eb13cd4d10319"
+DINGWIN = "0x9fad8308ef6b6ed5320e53a290a3bd4ad91f5a9f"
+BREAK_THE_BANK = "0xf0318c32136c2db7fec88b84869aee6a1106c80c"
+EVHUNTER = "0x8ce7eb8a3ad1d6907b24368865c8487a68fb3150"
 
 CONVICTION_TIERS: tuple[tuple[float, float], ...] = (
     (10.0, 1.55),
@@ -27,8 +30,9 @@ CONVICTION_TIERS: tuple[tuple[float, float], ...] = (
     (0.0, 1.00),
 )
 
-# These are strategy roles, not labels shown on the wallet page. Only the two
-# primaries may originate an MLB play; every other wallet modifies that signal.
+# These are strategy roles, not labels shown on the wallet page. Core primaries
+# originate at full weight; EVhunter may originate only at the configured
+# half-weight. Every other wallet merely modifies an already-qualified signal.
 SHARPS: dict[str, dict[str, Any]] = {
     FORMAL_CUPCAKE: {
         "label": "Formal-Cupcake", "role": "PRIMARY", "copy_weight": 1.00,
@@ -37,6 +41,10 @@ SHARPS: dict[str, dict[str, Any]] = {
     PHONE_SCULPTOR: {
         "label": "phonesculptor", "role": "PRIMARY", "copy_weight": 0.85,
         "minimum_units": 0.50,
+    },
+    EVHUNTER: {
+        "label": "EVhunter69", "role": "PRIMARY", "copy_weight": 0.50,
+        "minimum_units": 1.00,
     },
     SOARIN: {
         "label": "Soarin22", "role": "CONDITIONAL", "copy_weight": 0.40,
@@ -57,6 +65,19 @@ SHARPS: dict[str, dict[str, Any]] = {
     FERRARI: {
         "label": "ferrariChampions2026", "role": "CONFIRMER", "copy_weight": 0.10,
         "minimum_units": 0.20,
+    },
+    # Forward-only shadow overlays. These wallets cannot originate a play. Their
+    # deliberately capped weights only nudge the size of an already-qualified
+    # primary signal while Shadow Lab collects an independent sample.
+    DINGWIN: {
+        "label": "Dingwin", "role": "CONFIRMER", "copy_weight": 0.20,
+        "minimum_units": 0.50,
+        "shadow_only": True,
+    },
+    BREAK_THE_BANK: {
+        "label": "BreakTheBank", "role": "CONFIRMER", "copy_weight": 0.10,
+        "minimum_units": 0.50,
+        "shadow_only": True,
     },
 }
 
@@ -120,11 +141,17 @@ def _eligible_addresses(
     )
 
 
-def _confirmer_signal(addresses: Iterable[str], relative: dict[str, float]) -> float:
+def _confirmer_signal(
+    addresses: Iterable[str],
+    relative: dict[str, float],
+    *,
+    include_shadow: bool = True,
+) -> float:
     return sum(
         copy_weight(address) * min(2.0, math.sqrt(max(0.0, relative.get(address, 0.0))))
         for address in addresses
         if strategy_role(address) == "CONFIRMER"
+        and (include_shadow or not SHARPS.get(address, {}).get("shadow_only"))
     )
 
 
@@ -142,6 +169,15 @@ def evaluate_matchup(
     opposing_primaries = [address for address in opposing if strategy_role(address) == "PRIMARY"]
     confirming_weight = _confirmer_signal(agreeing, agreeing_relative)
     opposing_weight = _confirmer_signal(opposing, opposing_relative)
+    # Shadow-only overlays may resize an already-qualified play, but they do not
+    # participate in the production veto. This keeps forward testing useful
+    # without allowing an unapproved wallet to remove a live recommendation.
+    veto_confirming_weight = _confirmer_signal(
+        agreeing, agreeing_relative, include_shadow=False
+    )
+    veto_opposing_weight = _confirmer_signal(
+        opposing, opposing_relative, include_shadow=False
+    )
 
     reason = None
     if not primaries:
@@ -150,7 +186,7 @@ def evaluate_matchup(
         reason = "MLB_WEIGHTED_PRIMARY_CONFLICT"
     elif SOARIN in opposing and opposing_relative.get(SOARIN, 0.0) >= 1.0:
         reason = "MLB_WEIGHTED_SOARIN_STRONG_VETO"
-    elif opposing_weight > confirming_weight + 0.50:
+    elif veto_opposing_weight > veto_confirming_weight + 0.50:
         reason = "MLB_WEIGHTED_CONFIRMERS_OPPOSE"
 
     return {
@@ -164,6 +200,8 @@ def evaluate_matchup(
         "confirmer_wallet_ids": [a for a in agreeing if strategy_role(a) == "CONFIRMER"],
         "confirming_portfolio_weight": round(confirming_weight, 8),
         "opposing_portfolio_weight": round(opposing_weight, 8),
+        "veto_confirming_portfolio_weight": round(veto_confirming_weight, 8),
+        "veto_opposing_portfolio_weight": round(veto_opposing_weight, 8),
         "agreeing_relative_units": agreeing_relative,
         "opposing_relative_units": opposing_relative,
     }
@@ -202,7 +240,22 @@ def recommendation_units(
         - 0.15 * matchup["opposing_portfolio_weight"],
     )
     consensus *= portfolio_multiplier
-    raw_units = mean(adjusted_primary_weights.values()) * consensus if primaries else 0.0
+    if primaries == [EVHUNTER]:
+        raw_units = adjusted_primary_weights[EVHUNTER]
+    elif EVHUNTER in primaries:
+        # EVhunter is a half-weight originator. When a higher-weight originator
+        # is already present, his agreement may add conviction but must never
+        # dilute that originator's recommendation through an arithmetic mean.
+        legacy_primaries = [address for address in primaries if address != EVHUNTER]
+        legacy_consensus = 1.25 if len(legacy_primaries) >= 2 else 1.0
+        raw_units = (
+            mean(adjusted_primary_weights[address] for address in legacy_primaries)
+            * legacy_consensus
+            * portfolio_multiplier
+            + 0.25 * adjusted_primary_weights[EVHUNTER]
+        )
+    else:
+        raw_units = mean(adjusted_primary_weights.values()) * consensus if primaries else 0.0
     units = min(3.0, max(0.25, raw_units)) if matchup["qualified"] else 0.0
     return {
         **matchup,
@@ -234,14 +287,17 @@ def confidence_score(
         opposing_relative_units_by_wallet,
     )
     primaries = sizing["primary_wallet_ids"]
+    core_primaries = [address for address in primaries if address != EVHUNTER]
     if not sizing["qualified"]:
         score, band = 0, sizing["reason"]
-    elif len(primaries) >= 2:
+    elif len(core_primaries) >= 2:
         score, band = 96, "Two-primary agreement"
-    elif primaries == [FORMAL_CUPCAKE]:
+    elif core_primaries == [FORMAL_CUPCAKE]:
         score, band = 91, "Formal-Cupcake primary"
-    else:
+    elif core_primaries == [PHONE_SCULPTOR]:
         score, band = 87, "PhoneSculptor primary"
+    else:
+        score, band = 82, "EVhunter69 half-weight originator"
     if score:
         if SOARIN in sizing["agreeing_wallet_ids"]:
             score += 2

@@ -47,6 +47,208 @@
   --ev-cyan: var(--app-purple);
 }
 
+/* Final cascade guard for shared readability refinements. */
+@media (min-width: 761px) {
+  html body .app-sidebar .nav-row,
+  html body .app-sidebar .nav-section .nav-row {
+    min-height: 52px !important;
+  }
+
+  html body .app-sidebar .nav-row i,
+  html body .app-sidebar .nav-row svg {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 26px !important;
+  }
+
+  html body .app-sidebar .nav-row .nav-label,
+  html body .app-sidebar .nav-row > span {
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    font-weight: 560 !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-performance-frame,
+body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-calendar {
+  height: auto !important;
+  min-height: 388px !important;
+  overflow: visible !important;
+}
+
+/* Cross-page readability refinements. Keep equivalent controls and data tables
+   on one scale instead of maintaining page-specific font overrides. */
+@media (min-width: 901px) {
+  body:not([data-page="home"]) .app-nav .nav-links a {
+    grid-template-rows: 26px auto !important;
+    min-height: 52px !important;
+  }
+
+  body:not([data-page="home"]) .app-nav .nav-links a > i,
+  body:not([data-page="home"]) .app-nav .sharp-money-nav-icon,
+  body:not([data-page="home"]) .app-nav .sportsbook-nav-icon,
+  body:not([data-page="home"]) .app-nav .live-position-nav-icon {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 26px !important;
+  }
+
+  body:not([data-page="home"]) .app-nav .nav-links a > span[data-short] {
+    font-size: 11px !important;
+    font-weight: 560 !important;
+    line-height: 1.15 !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
+body:not([data-page="home"]) .responsive-table thead th,
+body:not([data-page="home"]) .table-scroll thead th,
+body[data-page="tracker"] .tracker-table thead th,
+body[data-page="shadow-test"] .shadow-wallet-table thead th {
+  font-size: 11px !important;
+  font-weight: 650 !important;
+  line-height: 1.2 !important;
+  letter-spacing: .055em !important;
+  text-rendering: geometricPrecision;
+}
+
+body[data-page="trades"] .trades-view-tabs button,
+body[data-page="trades"] .compact-search input,
+body[data-page="trades"] .toolbar-bankroll,
+body[data-page="trades"] .settings-drawer-header,
+body[data-page="trades"] .settings-scroll,
+body[data-page="trades"] .settings-drawer-actions,
+body[data-page="trades"] .trades-more-menu {
+  font-size: 12px !important;
+}
+
+body[data-page="trades"] .settings-grid label,
+body[data-page="trades"] .settings-static-row,
+body[data-page="trades"] .settings-group-heading,
+body[data-page="trades"] .trades-more-menu button,
+body[data-page="trades"] .trades-more-menu small {
+  font-size: 11px !important;
+  line-height: 1.35 !important;
+}
+
+body[data-page="trades"] .settings-grid select,
+body[data-page="trades"] .settings-grid input,
+body[data-page="trades"] .settings-static-row strong {
+  font-size: 12px !important;
+}
+
+body[data-page="sharp-money"] .sharp-search,
+body[data-page="positive-ev"] .ev-search {
+  isolation: isolate;
+  overflow: hidden;
+  box-shadow: none !important;
+}
+
+body[data-page="sharp-money"] .sharp-search input,
+body[data-page="positive-ev"] .ev-search input {
+  min-width: 0;
+  border: 0 !important;
+  outline: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  appearance: none;
+}
+
+body[data-page="sharp-money"] .sharp-search::before,
+body[data-page="sharp-money"] .sharp-search::after,
+body[data-page="positive-ev"] .ev-search::before,
+body[data-page="positive-ev"] .ev-search::after {
+  content: none !important;
+}
+
+body[data-page="sharp-money"] .sharp-filter-explainer strong {
+  font-size: 13px !important;
+}
+
+body[data-page="positive-ev"] .ev-dialog-close {
+  position: relative;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  cursor: pointer;
+}
+
+body[data-page="positive-ev"] .ev-dialog-close:hover,
+body[data-page="positive-ev"] .ev-dialog-close:focus-visible {
+  color: #fff;
+  border-color: rgba(192, 139, 255, .72);
+  background: rgba(139, 92, 255, .18);
+  outline: 2px solid transparent;
+}
+
+body[data-page="positive-ev"] .ev-book-mark {
+  position: relative;
+  width: 29px;
+  height: 29px;
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 29px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #071014;
+}
+
+body[data-page="positive-ev"] .ev-book-fallback {
+  display: none;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+body[data-page="positive-ev"] .ev-book-mark.fallback .ev-book-fallback { display: block; }
+body[data-page="positive-ev"] .ev-book-mark.fallback .ev-book-logo { display: none; }
+
+.toolbar-date-field {
+  min-width: 132px;
+  display: grid;
+  gap: 4px;
+  color: var(--text-subtle);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .04em;
+}
+
+.toolbar-date-field input { width: 100%; }
+
+body[data-page="shadow-test"] .shadow-lab-panel .panel-heading {
+  min-height: 68px;
+  padding-top: 16px !important;
+  overflow: visible !important;
+}
+
+body[data-page="shadow-test"] .shadow-lab-panel .panel-heading .eyebrow {
+  margin: 0 0 5px !important;
+  line-height: 1.2 !important;
+}
+
+body[data-page="tracker"] .tracker-section-tabs button {
+  min-height: 42px !important;
+  padding-inline: 18px !important;
+  font-size: 13px !important;
+}
+
+body[data-page="tracker"] .tracker-performance-summary > div {
+  min-height: 72px;
+  overflow: visible !important;
+  border: 1px solid rgba(174, 113, 234, .18) !important;
+  border-radius: 10px;
+}
+
+@media (max-width: 760px) {
+  .toolbar-date-field { width: 100%; }
+}
+
 /* Authenticated account menu and profile workspace */
 body[data-page="trades"] .trades-corner-cluster { position: relative; }
 body[data-page="trades"] .corner-account-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 120; width: 164px; padding: 7px; border: 1px solid rgba(145,163,187,.32); border-radius: 10px; background: #142231; box-shadow: 0 16px 38px rgba(0,0,0,.44); }
@@ -2536,4 +2738,35 @@ html body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state
     border-radius: 10px !important;
     font-size: 14px !important;
   }
+}
+
+/* Keep the shared navigation and tracker fixes above later page-specific overrides. */
+@media (min-width: 761px) {
+  html body .app-sidebar .nav-row,
+  html body .app-sidebar .nav-section .nav-row {
+    min-height: 52px !important;
+  }
+
+  html body .app-sidebar .nav-row i,
+  html body .app-sidebar .nav-row svg {
+    width: 26px !important;
+    height: 26px !important;
+    font-size: 26px !important;
+  }
+
+  html body .app-sidebar .nav-row .nav-label,
+  html body .app-sidebar .nav-row > span {
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+    font-weight: 560 !important;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: geometricPrecision;
+  }
+}
+
+body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-performance-frame,
+body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-calendar {
+  height: auto !important;
+  min-height: 388px !important;
+  overflow: visible !important;
 }

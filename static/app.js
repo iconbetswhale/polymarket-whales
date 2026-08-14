@@ -598,7 +598,7 @@ function renderAccountState(account = {}) {
 
 function loadProfilePreferences() {
   let profile = {};
-  try { profile = JSON.parse(localStorage.getItem("iconlabs-profile-preferences") || "{}"); } catch (_error) { profile = {}; }
+  try { profile = JSON.parse(safeStorage.getItem("iconlabs-profile-preferences") || "{}"); } catch (_error) { profile = {}; }
   const fields = {
     "profile-first-name": profile.firstName || "",
     "profile-last-name": profile.lastName || "",
@@ -774,7 +774,7 @@ function bindAccount() {
       state: document.getElementById("profile-state")?.value || "Florida",
       oddsFormat: document.getElementById("profile-odds-format")?.value || "American",
     };
-    try { localStorage.setItem("iconlabs-profile-preferences", JSON.stringify(profile)); } catch (_error) { /* Local storage may be unavailable. */ }
+    safeStorage.setItem("iconlabs-profile-preferences", JSON.stringify(profile));
     showToast("Profile preferences saved.", "success");
   });
   document.getElementById("profile-cancel")?.addEventListener("click", () => {
@@ -1216,20 +1216,6 @@ function bestExecutionOption(trade) {
   // the one-click recommendation is restricted to the backend-approved venue:
   // NoVIG, ProphetX, or a genuinely better 4CX quote.
   const supported = new Set(["4cx", "fourcx", "novig", "prophetx"]);
-  const selected = normalizeExecutionOption(
-    trade.selected_execution_option || trade.selectedExecutionOption || {},
-  );
-  const selectedKey = canonicalExecutionProviderKey(selected.providerKey);
-  if (
-    selectedKey
-    && supported.has(selectedKey)
-    && selected.isAvailable !== false
-    && selected.canFillRecommendedStake !== false
-    && selected.isStale !== true
-    && Boolean(selected.deepLink)
-  ) {
-    return { ...selected, isBestPrice: true };
-  }
   const options = (trade.executionOptions || [])
     .map(normalizeExecutionOption)
     .filter((option) => {
@@ -1239,7 +1225,7 @@ function bestExecutionOption(trade) {
         && option.canFillRecommendedStake === true
         && option.isStale !== true
         && String(option.marketStatus || "").toUpperCase() === "OPEN"
-        && number(option.availableLiquidity) > 0
+        && (number(option.availableLiquidity) === null || number(option.availableLiquidity) > 0)
         && Boolean(option.deepLink)
         && supported.has(canonicalExecutionProviderKey(option.providerKey));
     });
@@ -1261,6 +1247,25 @@ function bestExecutionOption(trade) {
 
   const explicit = options.find(option => option.isBestPrice);
   if (explicit) return explicit;
+
+  // Use the backend snapshot only as a fallback.  Current exact quotes above
+  // must win so a newly better NoVIG/ProphetX/4CX line updates the logo, odds,
+  // and one-click destination together.
+  const selected = normalizeExecutionOption(
+    trade.selected_execution_option || trade.selectedExecutionOption || {},
+  );
+  const selectedKey = canonicalExecutionProviderKey(selected.providerKey);
+  if (
+    selectedKey
+    && supported.has(selectedKey)
+    && selected.isAvailable !== false
+    && selected.canFillRecommendedStake !== false
+    && selected.isStale !== true
+    && executionOptionProbability(selected) !== null
+    && Boolean(selected.deepLink)
+  ) {
+    return { ...selected, isBestPrice: true };
+  }
 
   return null;
 }
@@ -1848,7 +1853,7 @@ function mergeOfficialTrackedTrades(liveTrades, officialRecords) {
   return merged;
 }
 
-function stabilizeTradeFeed(incoming, filters, status = {}) {
+function stabilizeTradeFeed(incoming, filters, status = {}, liveRejectedTradeIds = []) {
   const filterKey = stableTradeFilterKey(filters);
   if (filterKey !== appState.stableTradeFilterKey) {
     appState.stableTradeFeed.clear();
@@ -1857,6 +1862,12 @@ function stabilizeTradeFeed(incoming, filters, status = {}) {
   }
   const now = Date.now();
   restoreStableTradeFeed(filterKey, now);
+  // A confirmed live slippage rejection must bypass the anti-flicker grace
+  // period. This is intentionally not a blacklist: the next qualifying live
+  // payload inserts the same candidate again immediately.
+  (liveRejectedTradeIds || []).forEach((id) => {
+    if (id) appState.stableTradeFeed.delete(String(id));
+  });
   const snapshotAt = Date.parse(status.last_successful_refresh || "") || 0;
   if (snapshotAt && snapshotAt < appState.latestTradeSnapshotAt) {
     return [...appState.stableTradeFeed.values()].map(entry => entry.trade);
@@ -1900,6 +1911,23 @@ function stabilizeTradeFeed(incoming, filters, status = {}) {
   }
   persistStableTradeFeed(filterKey);
   return [...appState.stableTradeFeed.values()].map(entry => entry.trade);
+}
+
+function tradePassesLiveSlippageGuard(trade = {}) {
+  const recommendation = trade.recommendation || {};
+  const card = trade.card || {};
+  const explicitPercent = number(
+    trade.unfavorableSlippagePct
+      ?? trade.unfavorable_slippage_pct
+      ?? recommendation.unfavorable_slippage_pct,
+  );
+  const fraction = number(
+    card.slippage_fraction ?? recommendation.price_slippage_fraction,
+  );
+  const unfavorablePercent = explicitPercent ?? (fraction === null ? null : fraction * 100);
+  if (unfavorablePercent !== null && unfavorablePercent > 5 + 1e-9) return false;
+  if (trade.passesSlippageRule === false || recommendation.passes_slippage_rule === false) return false;
+  return true;
 }
 
 function applyClientTradeFilters(trades, filters) {
@@ -2811,11 +2839,12 @@ function renderTradesPayload(payload, filters, list) {
   const mergedTrades = mergeOfficialTrackedTrades(
     incomingTrades,
     payload.officialTracked || [],
-  );
+  ).filter(tradePassesLiveSlippageGuard);
   const sourceTrades = stabilizeTradeFeed(
     mergedTrades,
     filters,
     payload.status || {},
+    payload.liveRejectedTradeIds || [],
   );
   annotateExecutionMovements(sourceTrades);
   appState.trades = applyClientTradeFilters(sourceTrades, filters);
@@ -3502,7 +3531,12 @@ async function loadPositions() {
     pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadPositions(); }));
     setOptions(document.getElementById("position-sport"), rows.map((row) => row.category), "All sports");
     setOptions(document.getElementById("position-league"), rows.map((row) => row.league), "All leagues");
-    setOptions(document.getElementById("position-market"), rows.map((row) => row.sports_market_type), "All markets");
+    const marketSelect = document.getElementById("position-market");
+    setOptions(marketSelect, rows.map((row) => row.sports_market_type), "All Markets");
+    [...marketSelect.options].forEach((option) => {
+      if (!option.value) return;
+      option.textContent = option.textContent.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+    });
   } catch (error) {
     body.innerHTML = `<tr><td colspan="9">${errorState(error.message)}</td></tr>`;
   }
@@ -4218,6 +4252,24 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
     ctx.textAlign = lowest.x > width * 0.62 ? "right" : "left";
     ctx.fillText(lowLabel, Math.min(width - padX, Math.max(padX, lowest.x)), Math.min(height - 18 * ratio, lowest.y + 30 * ratio));
   }
+
+  // Plot every point, but label only a readable cadence along the x-axis.
+  const maxLabels = width / ratio < 700 ? 4 : 6;
+  const labelStep = Math.max(1, Math.ceil((dated.length - 1) / Math.max(1, maxLabels - 1)));
+  const labelIndexes = [];
+  for (let index = 0; index < dated.length; index += labelStep) labelIndexes.push(index);
+  if (labelIndexes[labelIndexes.length - 1] !== dated.length - 1) labelIndexes.push(dated.length - 1);
+  ctx.fillStyle = "#858991";
+  ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+  ctx.textBaseline = "bottom";
+  labelIndexes.forEach((index, labelIndex) => {
+    const date = new Date(dated[index].timestamp);
+    const label = appState.graphRange === "today"
+      ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
+      : date.toLocaleDateString(undefined, appState.graphRange === "year" ? { month: "short" } : { month: "short", day: "numeric" });
+    ctx.textAlign = labelIndex === 0 ? "left" : labelIndex === labelIndexes.length - 1 ? "right" : "center";
+    ctx.fillText(label, x(index), height - 8 * ratio);
+  });
 }
 
 function renderTrackerCalendar(points = []) {
@@ -6292,32 +6344,51 @@ function shadowStrategyRow(strategy, target) {
 async function loadShadowTest() {
   const summary = document.getElementById("shadow-summary");
   const comparison = document.getElementById("shadow-comparison");
-  const wallets = document.getElementById("wallet-contributions");
+  const sleeves = document.getElementById("shadow-wallet-sleeves");
+  const alerts = document.getElementById("shadow-alerts");
+  const policy = document.getElementById("shadow-policy");
   try {
     const payload = await fetchJson("/api/shadow-test");
     const data = payload.data || {};
     const target = number(data.target_bets) || 100;
+    const lab = data.shadow_lab || {};
+    const rows = lab.sleeves || [];
+    const ready = rows.filter(row => row.promotion_status === "READY_FOR_REVIEW");
     summary.innerHTML = [
-      metricCard("Live Progress", `${data.live.tracked_bets} / ${target}`, "Hybrid consensus frozen bets", "ph-crosshair"),
-      metricCard("Shadow Progress", `${data.shadow.tracked_bets} / ${target}`, "Broad consensus frozen bets", "ph-flask"),
-      metricCard("Comparison Mode", "Forward Only", "No hindsight or reconstructed entries", "ph-lock-key"),
+      metricCard("Shadow sleeves", rows.length, "Exact sport and market cohorts", "ph-binoculars"),
+      metricCard("Forward bets", rows.reduce((total, row) => total + number(row.settled_bets), 0), "Settled after monitoring began", "ph-chart-line-up"),
+      metricCard("Ready for review", ready.length, "Human approval is always required", "ph-bell-ringing"),
     ].join("");
     comparison.innerHTML = [
       shadowStrategyRow(data.live, target),
       shadowStrategyRow(data.shadow, target),
     ].join("");
-    wallets.innerHTML = (data.wallet_contributions || []).length
-      ? data.wallet_contributions.map((row) => `<tr>
-          <td><strong>${escapeHtml(row.display_name || row.wallet_address)}</strong><small>${escapeHtml(row.wallet_address || "")}</small></td>
-          <td>${row.settled_bets}</td>
-          <td>${formatPercent(row.shrunk_win_rate)}</td>
-          <td class="${number(row.roi) >= 0 ? "positive" : "negative"}">${number(row.roi) === null ? "Unavailable" : formatPercent(row.roi)}</td>
-          <td>${number(row.average_composite_probability_point_clv) === null ? "Pending" : formatClvCents(row.average_composite_probability_point_clv)}</td>
-          <td><span class="status-label">${escapeHtml(String(row.verdict).replaceAll("_", " "))}</span></td>
-        </tr>`).join("")
-      : `<tr><td colspan="6">${emptyState("Contribution scoring is collecting", "Scores appear after the first live model bets settle.")}</td></tr>`;
+    sleeves.innerHTML = rows.length ? rows.map(row => `<tr>
+      <td><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.thesis || "")}</small></td>
+      <td><strong>${escapeHtml(row.sport)}</strong><small>${escapeHtml(row.market_type)}</small></td>
+      <td><span class="status-label">${escapeHtml(String(row.mode).replaceAll("_", " "))}</span></td>
+      <td><strong>${formatMoney(row.base_unit_usd)}</strong><small>Min ${number(row.minimum_units).toFixed(2)}u</small></td>
+      <td>${row.open_signals}</td><td>${escapeHtml(row.record)}</td>
+      <td class="${number(row.unit_profit) >= 0 ? "positive" : "negative"}">${number(row.unit_profit).toFixed(2)}u</td>
+      <td class="${row.roi === null ? "" : number(row.roi) >= 0 ? "positive" : "negative"}">${row.roi === null ? "Collecting" : formatPercent(row.roi)}</td>
+      <td>${row.hit_rate === null ? "—" : formatPercent(row.hit_rate)}</td><td>${number(row.max_drawdown_units).toFixed(2)}u</td>
+      <td><div class="shadow-readiness"><span style="width:${number(row.readiness_progress) * 100}%"></span></div><small>${row.promotion_status === "READY_FOR_REVIEW" ? "Review now" : `${Math.round(number(row.readiness_progress) * 100)}%`}</small></td>
+    </tr>`).join("") : `<tr><td colspan="11">${emptyState("Shadow monitor is collecting", "Forward signals appear after the next wallet refresh.")}</td></tr>`;
+    const labAlerts = lab.alerts || [];
+    alerts.hidden = !labAlerts.length;
+    alerts.innerHTML = labAlerts.map(item => `<div><i class="ph ph-bell-ringing"></i><strong>Promotion review ready</strong><span>${escapeHtml(item.message)}</span></div>`).join("");
+    if (labAlerts.length && "Notification" in window && Notification.permission === "granted") {
+      labAlerts.forEach(item => {
+        const alertKey = `iconbets-shadow-alert:${item.sleeve_id || item.message}`;
+        if (safeStorage.getItem(alertKey)) return;
+        new Notification("IconBets Shadow Lab", { body: item.message, tag: alertKey });
+        safeStorage.setItem(alertKey, new Date().toISOString());
+      });
+    }
+    const p = lab.policy || {};
+    policy.innerHTML = `<div class="shadow-policy-grid"><span><strong>${p.minimum_settled_bets}</strong> settled bets</span><span><strong>${formatPercent(p.minimum_roi)}</strong> ROI</span><span><strong>${number(p.minimum_unit_profit).toFixed(1)}u</strong> profit</span><span><strong>${formatPercent(p.minimum_hit_rate)}</strong> hit rate</span><span><strong>≤${number(p.maximum_drawdown_units).toFixed(1)}u</strong> drawdown</span></div>`;
   } catch (error) {
-    comparison.innerHTML = `<tr><td colspan="6">${errorState(error.message)}</td></tr>`;
+    sleeves.innerHTML = `<tr><td colspan="11">${errorState(error.message)}</td></tr>`;
   }
 }
 

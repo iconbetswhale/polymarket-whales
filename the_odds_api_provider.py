@@ -94,6 +94,7 @@ SPORT_ID_BY_PREFIX = {
     "icehockey": "HOCKEY",
     "soccer": "SOCCER",
     "mma": "MMA",
+    "tennis": "TENNIS",
 }
 
 KNOWN_SPORTSBOOKS = {
@@ -742,6 +743,16 @@ class TheOddsAPIProvider(ExecutionProvider):
             "last": None,
             "last_request_at": None,
         }
+        self._sports_catalog: tuple[float, list[dict]] | None = None
+        self._schedule_cache: dict[str, tuple[float, list[dict]]] = {}
+        self._tennis_trade_sports: dict[str, str] = {}
+
+    def invalidate_cache(self) -> None:
+        """Force only paid trade quotes fresh; retain quota-free mappings."""
+        with self._lock:
+            self._cache = {
+                key: value for key, value in self._cache.items() if key[0] != "trade"
+            }
 
     def options_for_trades(
         self, trades: list[dict]
@@ -961,6 +972,12 @@ class TheOddsAPIProvider(ExecutionProvider):
                             tooltip=f"{meta.name} sportsbook quote via The Odds API",
                             american_odds=matched.american_odds,
                             available_liquidity=meta.bet_limit,
+                            top_price=implied_probability,
+                            top_price_american_odds=matched.american_odds,
+                            top_price_liquidity=None,
+                            depth_vwap_price=None,
+                            depth_executable_amount=None,
+                            depth_levels_used=None,
                             can_fill_recommended_stake=can_fill,
                             fee_rate=0.0,
                             quote_status="OPEN",
@@ -1520,8 +1537,88 @@ class TheOddsAPIProvider(ExecutionProvider):
         league = str(trade.league_id or "").upper().replace("-", "_")
         if league in SPORT_KEY_BY_LEAGUE:
             return SPORT_KEY_BY_LEAGUE[league]
+        if trade.sport_id == "TENNIS":
+            return self._tennis_sport_key_for_trade(trade)
         candidates = DEFAULT_KEYS_BY_SPORT.get(trade.sport_id, ())
         return candidates[0] if len(candidates) == 1 else None
+
+    @staticmethod
+    def _participant_key(value: object) -> str:
+        return "".join(character for character in str(value or "").casefold() if character.isalnum())
+
+    def _active_sports(self) -> list[dict]:
+        now = time.monotonic()
+        with self._lock:
+            if self._sports_catalog and now - self._sports_catalog[0] < 600:
+                return self._sports_catalog[1]
+        response = self.session.get(
+            f"{self.base_url}/sports/",
+            params={"apiKey": self.api_key},
+            timeout=self.request_timeout,
+        )
+        self._capture_quota(response)
+        response.raise_for_status()
+        body = response.json()
+        rows = body if isinstance(body, list) else []
+        with self._lock:
+            self._sports_catalog = (now, rows)
+        return rows
+
+    def _sport_schedule(self, sport_key: str) -> list[dict]:
+        now = time.monotonic()
+        with self._lock:
+            cached = self._schedule_cache.get(sport_key)
+            if cached and now - cached[0] < 300:
+                return cached[1]
+        response = self.session.get(
+            f"{self.base_url}/sports/{sport_key}/events",
+            params={"apiKey": self.api_key, "dateFormat": "iso"},
+            timeout=self.request_timeout,
+        )
+        self._capture_quota(response)
+        response.raise_for_status()
+        body = response.json()
+        rows = body if isinstance(body, list) else []
+        with self._lock:
+            self._schedule_cache[sport_key] = (now, rows)
+        return rows
+
+    def _tennis_sport_key_for_trade(self, trade: CanonicalTrade) -> str | None:
+        with self._lock:
+            cached = self._tennis_trade_sports.get(trade.trade_id)
+        if cached:
+            return cached
+        wanted = {self._participant_key(name) for name in trade.participants}
+        league = str(trade.league_id or "").casefold()
+        tour = next((item for item in ("atp", "wta", "itf") if item in league), "")
+        try:
+            sports = [
+                row for row in self._active_sports()
+                if str(row.get("key") or "").startswith("tennis_")
+            ]
+            if tour:
+                sports.sort(key=lambda row: 0 if tour in str(row.get("key") or "").casefold() else 1)
+            for row in sports:
+                sport_key = str(row.get("key") or "").strip()
+                if not sport_key:
+                    continue
+                for event in self._sport_schedule(sport_key):
+                    event_start = _parse_datetime(event.get("commence_time"))
+                    participants = {
+                        self._participant_key(event.get("home_team")),
+                        self._participant_key(event.get("away_team")),
+                    }
+                    if (
+                        event_start is not None
+                        and participants == wanted
+                        and abs((event_start - trade.start_at).total_seconds()) <= 600
+                    ):
+                        with self._lock:
+                            self._tennis_trade_sports[trade.trade_id] = sport_key
+                        return sport_key
+        except requests.RequestException:
+            LOGGER.exception("The Odds API tennis tournament discovery failed")
+        return None
 
     def _screen_sport_keys(
         self, *, sport: str, league: str

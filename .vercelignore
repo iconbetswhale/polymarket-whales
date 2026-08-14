@@ -4,6 +4,8 @@
 .pytest*/
 .pytest*
 .test-tmp*/
+.test-temp*/
+.test-*/
 __pycache__/
 tests/__pycache__/
 tests/
@@ -25,6 +27,8 @@ redesign-*.png
 qa/
 .qa*
 qa-*.png
+artifacts/
+tmp/
 outputs/
 analysis/
 notebooks/

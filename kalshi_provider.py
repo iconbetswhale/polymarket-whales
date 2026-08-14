@@ -70,6 +70,7 @@ class KalshiProvider(ExecutionProvider):
             levels = self._ask_levels(ticker, summary_price, summary_size)
             price = levels[0][0] if levels else summary_price
             effective, liquidity, fillable = _effective_price(levels, stake)
+            top_liquidity = levels[0][0] * levels[0][1] if levels else None
             fee_type, fee_multiplier = self._series_fee_terms(
                 SERIES.get((trade.sport_id, trade.league_id))
             )
@@ -89,6 +90,12 @@ class KalshiProvider(ExecutionProvider):
                 american_odds=_probability_to_american(price) if price is not None else None,
                 contract_price=price, effective_price=effective,
                 available_liquidity=liquidity,
+                top_price=price,
+                top_price_american_odds=_probability_to_american(price) if price is not None else None,
+                top_price_liquidity=top_liquidity,
+                depth_vwap_price=effective,
+                depth_executable_amount=liquidity,
+                depth_levels_used=_levels_used(levels, stake),
                 can_fill_recommended_stake=fillable,
                 fee_rate=fee_rate,
                 estimated_fees=estimated_fees,
@@ -295,6 +302,22 @@ def _effective_price(levels, stake):
         if remaining <= 0.01:
             return cost / shares, liquidity, True
     return None, liquidity, False
+
+
+def _levels_used(levels, stake):
+    if stake <= 0:
+        return 0
+    remaining = stake
+    used = 0
+    for price, size in levels:
+        available = price * size
+        if available <= 0:
+            continue
+        used += 1
+        remaining -= min(remaining, available)
+        if remaining <= 0.01:
+            break
+    return used
 
 
 def _estimated_taker_fee(price, stake, *, fee_type, fee_multiplier):
