@@ -2,6 +2,34 @@
 
 Private read-only Flask dashboard for manually selected Polymarket wallets. The app separates verified upcoming, live, and completed sports positions; calculates bankroll-based recommendations from executable CLOB asks; and keeps an immutable SQLite-backed recommendation tracker.
 
+## Multi-PC Workflow
+
+GitHub is the source of truth. Only one PC should actively modify `main` at a time, and each PC must pull the latest `main` before editing.
+
+PC 1:
+
+```powershell
+git pull origin main
+# work
+# test
+git add .
+git commit
+git push origin main
+```
+
+PC 2:
+
+```powershell
+git pull origin main
+# work
+# test
+git add .
+git commit
+git push origin main
+```
+
+Never hand work to the other PC until the current PC has tested, committed, and pushed its intended changes. The receiving PC must pull before starting work.
+
 ## What Changed
 
 The old leaderboard-driven `top_wallets.json` flow is no longer used by the app.
