@@ -15,6 +15,49 @@
   const escapeHtml = (value) => String(value ?? "")
     .replaceAll("&", "&amp;").replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  const sportsbookLogos = Object.freeze({
+    betmgm: "/static/assets/sportsbooks/betmgm.png",
+    draftkings: "/static/assets/sportsbooks/draftkings.png",
+    fanduel: "/static/assets/sportsbooks/fanduel.png",
+    caesars: "/static/assets/sportsbooks/caesars.png",
+    hardrockbet: "/static/assets/sportsbooks/hard-rock-bet.png",
+    fanatics: "/static/assets/sportsbooks/fanatics.png",
+    betrivers: "/static/assets/sportsbooks/betrivers.png",
+    bet365: "/static/assets/sportsbooks/bet365.png",
+    espnbet: "/static/assets/sportsbooks/espn-bet.png",
+    thescorebet: "/static/assets/sportsbooks/thescore-bet.jpg",
+    bovada: "/static/assets/sportsbooks/bovada.png",
+    betonline: "/static/assets/sportsbooks/betonline.png",
+    fliff: "/static/assets/sportsbooks/fliff.png",
+    rebet: "/static/assets/sportsbooks/rebet.png",
+    polymarket: "/static/assets/sportsbooks/polymarket.png",
+    novig: "/static/assets/sportsbooks/novig.png",
+    prophetx: "/static/assets/sportsbooks/prophetx.png",
+    kalshi: "/static/assets/sportsbooks/kalshi.png",
+  });
+
+  function canonicalBook(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function bookLogoMarkup({ key, name, logo }) {
+    const source = sportsbookLogos[canonicalBook(key)]
+      || sportsbookLogos[canonicalBook(name)]
+      || logo;
+    const initials = String(name || key || "SB")
+      .split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
+    if (!source) {
+      return `<span class="lab-book-logo"><span class="lab-book-fallback">${escapeHtml(initials)}</span></span>`;
+    }
+    return `<span class="lab-book-logo"><img src="${escapeHtml(source)}" alt="${escapeHtml(name || "Sportsbook")}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="lab-book-fallback" hidden>${escapeHtml(initials)}</span></span>`;
+  }
+
+  function setSignedTone(element, value) {
+    const number = Number(value || 0);
+    element.classList.toggle("positive", number > 0);
+    element.classList.toggle("negative", number < 0);
+    element.classList.toggle("neutral", number === 0);
+  }
 
   function amount(value, signed = true) {
     const number = Number(value || 0);
@@ -33,7 +76,9 @@
   }
 
   function rowIcon(item, fallback) {
-    if (item.logo) return `<img src="${escapeHtml(item.logo)}" alt="" loading="lazy">`;
+    if (item.logo || sportsbookLogos[canonicalBook(item.key)] || sportsbookLogos[canonicalBook(item.name)]) {
+      return bookLogoMarkup(item);
+    }
     return `<span class="lab-rank-icon"><i class="ph ${fallback}" aria-hidden="true"></i></span>`;
   }
 
@@ -54,15 +99,16 @@
 
   function betCard(row, open) {
     const pnl = Number(row.profit_loss || 0);
+    const resultClass = open ? "risk" : pnl > 0 ? "win" : pnl < 0 ? "loss" : "push";
     const source = row.source === "positive_ev" ? "+EV" : "Sharp";
     const resultLabel = open ? amount(-Number(row.stake || 100), false) : amount(pnl);
     const time = new Date(row.commence_time || row.created_at);
     const details = Number.isNaN(time.getTime()) ? row.event_title : `${row.event_title} · ${time.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     return `
       <article class="lab-bet-card">
-        <div class="lab-bet-pnl"><strong class="${!open && pnl < 0 ? "loss" : ""}">${resultLabel}</strong><span>${open ? "1.0 u risk" : row.result || "graded"}</span></div>
+        <div class="lab-bet-pnl"><strong class="${resultClass}">${resultLabel}</strong>${open ? `<span>1.0 u risk</span>` : ""}</div>
         <div class="lab-bet-main"><strong><span class="lab-source-pill">${source}</span>${escapeHtml(row.selection)}</strong><p>${escapeHtml(row.market_label)}</p><small>${escapeHtml(details)}</small></div>
-        <div class="lab-bet-book">${row.sportsbook_logo ? `<img src="${escapeHtml(row.sportsbook_logo)}" alt="">` : `<span class="lab-rank-icon"><i class="ph ph-buildings"></i></span>`}<div><span>${escapeHtml(row.sportsbook_name)}</span><strong>${odds(row.entry_american_odds)}</strong></div></div>
+        <div class="lab-bet-book">${bookLogoMarkup({ key: row.sportsbook_key, name: row.sportsbook_name, logo: row.sportsbook_logo })}<div><span>${escapeHtml(row.sportsbook_name)}</span><strong>${odds(row.entry_american_odds)}</strong></div></div>
         ${open && state.scope === "signal" && !state.demo ? `<button class="lab-track-button" type="button" data-personal-bet="${escapeHtml(row.bet_id)}"><i class="ph ph-check"></i> I took this bet</button>` : ""}
       </article>`;
   }
@@ -102,8 +148,8 @@
     const x = (index) => pad.left + chartWidth * (index / Math.max(1, values.length - 1));
     const y = (value) => pad.top + chartHeight * (1 - (value - min) / (max - min));
     ctx.font = "10px DM Sans";
-    ctx.strokeStyle = "rgba(114,132,153,.18)";
-    ctx.fillStyle = "#718095";
+    ctx.strokeStyle = "rgba(181,44,255,.16)";
+    ctx.fillStyle = "#9b8ca8";
     ctx.lineWidth = 1;
     for (let index = 0; index < 4; index += 1) {
       const value = min + (max - min) * (index / 3);
@@ -112,16 +158,17 @@
       ctx.fillText(state.display === "units" ? `${(value / 100).toFixed(1)}u` : `$${Math.round(value)}`, 0, lineY + 3);
     }
     const gradient = ctx.createLinearGradient(0, pad.top, 0, height - pad.bottom);
-    gradient.addColorStop(0, "rgba(22,214,160,.28)");
-    gradient.addColorStop(1, "rgba(22,214,160,0)");
+    gradient.addColorStop(0, "rgba(181,44,255,.3)");
+    gradient.addColorStop(.55, "rgba(130,35,205,.14)");
+    gradient.addColorStop(1, "rgba(181,44,255,0)");
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
     ctx.lineTo(x(values.length - 1), height - pad.bottom); ctx.lineTo(x(0), height - pad.bottom); ctx.closePath();
     ctx.fillStyle = gradient; ctx.fill();
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
-    ctx.strokeStyle = "#16d6a0"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "#16d6a0"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#df72ff"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#df72ff"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
   }
 
   function render() {
@@ -130,6 +177,9 @@
     $("#lab-profit-label").textContent = state.display === "units" ? "Units" : "Profit";
     $("#lab-profit").textContent = amount(summary.profit);
     $("#lab-roi").textContent = `${Number(summary.roi).toFixed(1)}%`;
+    setSignedTone($("#lab-profit"), summary.profit);
+    setSignedTone($("#lab-roi"), summary.roi);
+    setSignedTone($("#lab-chart-total"), summary.profit);
     $("#lab-record").textContent = `${summary.wins}-${summary.losses}${summary.pushes ? `-${summary.pushes}` : ""}`;
     $("#lab-win-rate").textContent = `${Number(summary.winRate).toFixed(1)}%`;
     $("#lab-stake-caption").textContent = state.display === "units" ? "1 u = $100" : "$100 flat bets";

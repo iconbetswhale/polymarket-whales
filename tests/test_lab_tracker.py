@@ -1,7 +1,12 @@
 from datetime import datetime, timedelta, timezone
 
 from database import TrackerDatabase
-from lab_tracker import LAB_TRACKER_GLOBAL_USER_ID, LabTrackerService, demo_dashboard
+from lab_tracker import (
+    DEMO_SPORTSBOOKS,
+    LAB_TRACKER_GLOBAL_USER_ID,
+    LabTrackerService,
+    demo_dashboard,
+)
 
 
 def positive_ev_row() -> dict:
@@ -167,3 +172,12 @@ def test_demo_dashboard_filters_sources_and_personal_preview():
     assert all(row["source"] == "positive_ev" for row in positive_ev["openBets"])
     assert personal["demoOnly"] is True
     assert 0 < personal["summary"]["tracked"] < positive_ev["summary"]["tracked"] * 2
+
+
+def test_demo_sportsbook_logos_are_local_and_served(app_client):
+    assert len(DEMO_SPORTSBOOKS) == 18
+    for _, book_name, logo_path in DEMO_SPORTSBOOKS:
+        assert logo_path.startswith("/static/assets/sportsbooks/")
+        response = app_client.get(logo_path)
+        assert response.status_code == 200, book_name
+        assert response.content_type.startswith("image/"), book_name
