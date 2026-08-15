@@ -19,6 +19,7 @@
   let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
   try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
+  const previewOnly = new URLSearchParams(window.location.search).get("preview") === "1";
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
@@ -46,6 +47,7 @@
   function updateWeightTotal(){ $("ev-weight-total").textContent = `${[...document.querySelectorAll("[data-weight]")].reduce((sum,input)=>sum+Number(input.value||0),0)}%`; }
   function query() {
     const params = new URLSearchParams({group:settings.group,sports:settings.sports.join(","),books:settings.books.join(","),devig:settings.devig,min_ev:settings.minEv,bankroll:settings.bankroll,kelly:settings.kelly,min_sources:settings.minSources,max_quote_age:settings.maxQuoteAge,max_dispersion:settings.maxDispersion,max_stake_pct:settings.maxStakePct,max_event_pct:settings.maxEventPct,weights:JSON.stringify(settings.weights)});
+    if (previewOnly) params.set("preview", "1");
     return `/api/positive-ev?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
@@ -80,11 +82,16 @@
       $("ev-count").textContent = rows.length;
       $("ev-updated").textContent = `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
       let history = {};
-      try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
-      renderDiagnostics(payload.diagnostics || {}, history);
+      if (!payload.previewOnly) {
+        try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
+        renderDiagnostics(payload.diagnostics || {}, history);
+      } else {
+        $("ev-credit-banner").innerHTML = `<i class="ph ph-eye"></i><span><strong>5 temporary preview plays</strong> · Visual fixtures only · never tracked, signaled, or sent to a sportsbook.</span>`;
+      }
       renderFeed();
       if (selectedId && rows.some(row=>row.id===selectedId)) select(selectedId);
-      clearTimeout(timer); timer = setTimeout(load, Number(payload.refreshSeconds || 60) * 1000);
+      clearTimeout(timer);
+      if (!payload.previewOnly && Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
       feed.innerHTML = `<div class="ev-empty"><i class="ph ph-warning-circle"></i><p>${esc(error.message)}</p></div>`;
     }
@@ -96,7 +103,7 @@
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
       return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}">
-        <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong><span>${Math.round(Number(row.fairProbability)*100)}% fair</span><em>${esc(statusLabel(row))}</em></div>
+        <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong><span>${Math.round(Number(row.fairProbability)*100)}% fair</span><em>${row.previewOnly ? "PREVIEW ONLY" : esc(statusLabel(row))}</em></div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong><small>${esc(row.league)} · ${Number(row.sourceCount)} sources</small></div>
         <div class="ev-pick"><small>${esc(row.marketLabel)}</small><strong>${esc(row.selection)}</strong><small>${(Number(row.fairConfidence)*100).toFixed(0)}% model confidence</small></div>
         <div class="ev-execution"><div class="ev-selection">${esc(row.selection)}<small>${esc(row.marketLabel)}</small></div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong><small>${row.executionStatus === "executable" ? "constrained stake" : `${money(row.theoreticalStake)} raw Kelly`}</small></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<small>${esc(quote.bookName||quote.bookKey)}</small></span></a></div>

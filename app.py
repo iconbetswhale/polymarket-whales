@@ -1819,6 +1819,33 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/positive-ev")
     def api_positive_ev():
         """Demand-driven +EV feed. It never mutates Prediction Traders."""
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if preview_requested:
+            from ev_preview import temporary_ev_preview_rows
+
+            rows = temporary_ev_preview_rows()
+            response = jsonify(
+                {
+                    "data": rows,
+                    "total": len(rows),
+                    "configured": bool(settings.the_odds_api_key),
+                    "previewOnly": True,
+                    "diagnostics": {
+                        "qualified": len(rows),
+                        "watchOnly": 0,
+                        "rejected": 0,
+                        "rejectionReasons": {},
+                    },
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
         if not settings.positive_ev_enabled:
             response = jsonify(
                 {

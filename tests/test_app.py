@@ -358,6 +358,22 @@ def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
     }
 
 
+def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
+    response = app_client.get("/api/positive-ev?preview=1")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["previewOnly"] is True
+    assert payload["total"] == 5
+    assert payload["refreshSeconds"] == 0
+    assert len(payload["data"]) == 5
+    assert all(row["previewOnly"] is True for row in payload["data"])
+    assert all(
+        row["calculationVersion"] == "ev-visual-preview-v1"
+        for row in payload["data"]
+    )
+
+
 def test_app_starts_with_no_enabled_wallets(tmp_path):
     wallets_file = tmp_path / "wallets.json"
     wallets_file.write_text(
