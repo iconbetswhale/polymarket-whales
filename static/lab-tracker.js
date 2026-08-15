@@ -147,7 +147,7 @@
     const chartHeight = height - pad.top - pad.bottom;
     const x = (index) => pad.left + chartWidth * (index / Math.max(1, values.length - 1));
     const y = (value) => pad.top + chartHeight * (1 - (value - min) / (max - min));
-    ctx.font = "10px DM Sans";
+    ctx.font = "11px DM Sans";
     ctx.strokeStyle = "rgba(151,164,174,.13)";
     ctx.fillStyle = "#9299a3";
     ctx.lineWidth = 1;
