@@ -136,6 +136,7 @@ def test_lab_tracker_page_and_empty_api_are_separate_from_bet_tracker(app_client
     assert b"Bet Tracker" in page.data
     assert b"Demo View" in page.data
     assert b"5-second verification" not in page.data
+    assert b"Open plays" not in page.data
 
     response = app_client.get("/api/lab-tracker?window=all")
     assert response.status_code == 200
@@ -181,3 +182,14 @@ def test_demo_sportsbook_logos_are_local_and_served(app_client):
         response = app_client.get(logo_path)
         assert response.status_code == 200, book_name
         assert response.content_type.startswith("image/"), book_name
+
+
+def test_lab_tracker_league_logos_are_local_and_served(app_client):
+    league_assets = (
+        "nba.png", "mlb.png", "mls.png", "wnba.png", "wta.png", "nhl.png",
+        "atp.png", "ncaa.png", "nfl.png", "fifa.png", "uefa.png", "epl.png",
+    )
+    for filename in league_assets:
+        response = app_client.get(f"/static/assets/leagues/{filename}")
+        assert response.status_code == 200, filename
+        assert response.content_type.startswith("image/"), filename

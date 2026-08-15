@@ -5,7 +5,6 @@
     source: "all",
     window: "7d",
     display: localStorage.getItem("iconlabs-lab-display") || "dollars",
-    log: "graded",
     demo: initialQuery.get("demo") === "1",
     data: null,
   };
@@ -34,6 +33,38 @@
     novig: "/static/assets/sportsbooks/novig.png",
     prophetx: "/static/assets/sportsbooks/prophetx.png",
     kalshi: "/static/assets/sportsbooks/kalshi.png",
+  });
+  const leagueLogos = Object.freeze({
+    nba: "/static/assets/leagues/nba.png",
+    nationalbasketballassociation: "/static/assets/leagues/nba.png",
+    mlb: "/static/assets/leagues/mlb.png",
+    majorleaguebaseball: "/static/assets/leagues/mlb.png",
+    mls: "/static/assets/leagues/mls.png",
+    majorleaguesoccer: "/static/assets/leagues/mls.png",
+    wnba: "/static/assets/leagues/wnba.png",
+    womensnationalbasketballassociation: "/static/assets/leagues/wnba.png",
+    wta: "/static/assets/leagues/wta.png",
+    wtatour: "/static/assets/leagues/wta.png",
+    nhl: "/static/assets/leagues/nhl.png",
+    nationalhockeyleague: "/static/assets/leagues/nhl.png",
+    atp: "/static/assets/leagues/atp.png",
+    atptour: "/static/assets/leagues/atp.png",
+    ncaa: "/static/assets/leagues/ncaa.png",
+    ncaab: "/static/assets/leagues/ncaa.png",
+    ncaamb: "/static/assets/leagues/ncaa.png",
+    collegebasketball: "/static/assets/leagues/ncaa.png",
+    menscollegebasketball: "/static/assets/leagues/ncaa.png",
+    ncaaf: "/static/assets/leagues/ncaa.png",
+    collegefootball: "/static/assets/leagues/ncaa.png",
+    nfl: "/static/assets/leagues/nfl.png",
+    nationalfootballleague: "/static/assets/leagues/nfl.png",
+    fifa: "/static/assets/leagues/fifa.png",
+    fifaworldcup: "/static/assets/leagues/fifa.png",
+    uefa: "/static/assets/leagues/uefa.png",
+    uefachampionsleague: "/static/assets/leagues/uefa.png",
+    epl: "/static/assets/leagues/epl.png",
+    premierleague: "/static/assets/leagues/epl.png",
+    englishpremierleague: "/static/assets/leagues/epl.png",
   });
 
   function canonicalBook(value) {
@@ -75,14 +106,18 @@
     return number > 0 ? `+${number}` : String(number);
   }
 
-  function rowIcon(item, fallback) {
+  function rowIcon(item, fallback, kind) {
+    if (kind === "league") {
+      const leagueLogo = leagueLogos[canonicalBook(item.key)] || leagueLogos[canonicalBook(item.name)];
+      if (leagueLogo) return bookLogoMarkup({ name: item.name, logo: leagueLogo });
+    }
     if (item.logo || sportsbookLogos[canonicalBook(item.key)] || sportsbookLogos[canonicalBook(item.name)]) {
       return bookLogoMarkup(item);
     }
     return `<span class="lab-rank-icon"><i class="ph ${fallback}" aria-hidden="true"></i></span>`;
   }
 
-  function renderRanking(target, rows, icon) {
+  function renderRanking(target, rows, icon, kind = "") {
     const root = $(target);
     const visible = rows || [];
     if (!visible.length) {
@@ -91,38 +126,34 @@
     }
     root.innerHTML = visible.map((item) => `
       <div class="lab-rank-row">
-        ${rowIcon(item, icon)}
+        ${rowIcon(item, icon, kind)}
         <div class="lab-rank-copy"><strong>${escapeHtml(item.name)}</strong><small>${item.wins}-${item.losses}</small></div>
         <span class="lab-rank-profit ${Number(item.profit) < 0 ? "loss" : ""}">${amount(item.profit)}</span>
       </div>`).join("");
   }
 
-  function betCard(row, open) {
+  function betCard(row) {
     const pnl = Number(row.profit_loss || 0);
-    const resultClass = open ? "risk" : pnl > 0 ? "win" : pnl < 0 ? "loss" : "push";
-    const source = row.source === "positive_ev" ? "+EV" : "Sharp";
-    const resultLabel = open ? amount(-Number(row.stake || 100), false) : amount(pnl);
+    const resultClass = pnl > 0 ? "win" : pnl < 0 ? "loss" : "push";
+    const resultLabel = amount(pnl);
     const time = new Date(row.commence_time || row.created_at);
     const details = Number.isNaN(time.getTime()) ? row.event_title : `${row.event_title} · ${time.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     return `
       <article class="lab-bet-card">
-        <div class="lab-bet-pnl"><strong class="${resultClass}">${resultLabel}</strong>${open ? `<span>1.0 u risk</span>` : ""}</div>
-        <div class="lab-bet-main"><strong><span class="lab-source-pill">${source}</span>${escapeHtml(row.selection)}</strong><p>${escapeHtml(row.market_label)}</p><small>${escapeHtml(details)}</small></div>
-        <div class="lab-bet-book">${bookLogoMarkup({ key: row.sportsbook_key, name: row.sportsbook_name, logo: row.sportsbook_logo })}<div><span>${escapeHtml(row.sportsbook_name)}</span><strong>${odds(row.entry_american_odds)}</strong></div></div>
-        ${open && state.scope === "signal" && !state.demo ? `<button class="lab-track-button" type="button" data-personal-bet="${escapeHtml(row.bet_id)}"><i class="ph ph-check"></i> I took this bet</button>` : ""}
+        <div class="lab-bet-pnl"><strong class="${resultClass}">${resultLabel}</strong></div>
+        <div class="lab-bet-main"><strong>${escapeHtml(row.selection)}</strong><p>${escapeHtml(row.market_label)}</p><small>${escapeHtml(details)}</small></div>
+        <div class="lab-bet-book">${bookLogoMarkup({ key: row.sportsbook_key, name: row.sportsbook_name, logo: row.sportsbook_logo })}<strong>${odds(row.entry_american_odds)}</strong></div>
       </article>`;
   }
 
   function renderLog() {
-    const open = state.log === "open";
-    const rows = open ? state.data.openBets : state.data.lastGraded;
-    $("#lab-log-caption").textContent = open ? `${rows.length} active signals` : "Last 5 graded";
+    const rows = state.data.lastGraded;
+    $("#lab-log-caption").textContent = "Last 5 graded";
     if (!rows.length) {
-      $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ${open ? "ph-radar" : "ph-check-circle"}"></i><strong>${open ? "No open plays" : "No graded plays yet"}</strong><span>${state.scope === "personal" ? "Use I took this bet on an open signal to start your personal LabTracker." : "Verified plays will appear here automatically."}</span></div>`;
+      $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ph-check-circle"></i><strong>No graded plays yet</strong><span>Verified plays will appear here automatically.</span></div>`;
       return;
     }
-    $("#lab-bet-log").innerHTML = rows.map((row) => betCard(row, open)).join("");
-    $$('[data-personal-bet]').forEach((button) => button.addEventListener("click", () => takeBet(button)));
+    $("#lab-bet-log").innerHTML = rows.map((row) => betCard(row)).join("");
   }
 
   function drawChart() {
@@ -176,7 +207,7 @@
     $("#lab-win-rate").textContent = `${Number(summary.winRate).toFixed(1)}%`;
     $("#lab-stake-caption").textContent = state.display === "units" ? "1 u = $100" : "$100 flat bets";
     renderRanking("#lab-sportsbooks", state.data.sportsbooks, "ph-buildings");
-    renderRanking("#lab-leagues", state.data.leagues, "ph-trophy");
+    renderRanking("#lab-leagues", state.data.leagues, "ph-trophy", "league");
     renderRanking("#lab-markets", state.data.markets, "ph-chart-line-up");
     renderLog();
     drawChart();
@@ -242,11 +273,6 @@
     state.window = button.dataset.labWindow;
     $$('[data-lab-window]').forEach((item) => item.classList.toggle("active", item === button));
     load();
-  }));
-  $$('[data-lab-log]').forEach((button) => button.addEventListener("click", () => {
-    state.log = button.dataset.labLog;
-    $$('[data-lab-log]').forEach((item) => item.classList.toggle("active", item === button));
-    if (state.data) renderLog();
   }));
   $("#lab-demo-toggle").addEventListener("click", () => {
     state.demo = !state.demo;
