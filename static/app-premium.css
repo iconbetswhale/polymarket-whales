@@ -3701,3 +3701,288 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
     font-size: 19px !important;
   }
 }
+
+/* +EV market-trend audit: give the persistent inspector enough room for the
+   chart while keeping the opportunity feed dense and fully clickable. */
+@media (min-width: 1501px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr) 520px !important;
+    gap: 18px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-opportunity {
+    grid-template-columns: 110px minmax(260px, .92fr) minmax(240px, .78fr) minmax(330px, 1.15fr) !important;
+    min-height: 112px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1500px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr) 410px !important;
+    gap: 14px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-opportunity {
+    grid-template-columns: 82px minmax(150px, .8fr) minmax(220px, 1.2fr) !important;
+    min-height: 102px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-execution {
+    grid-template-columns: minmax(44px, auto) 138px !important;
+    justify-content: end !important;
+    gap: 10px !important;
+    padding: 14px 12px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-best-button,
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-best-button:hover {
+    min-width: 138px !important;
+    max-width: 138px !important;
+    padding: 6px 8px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-trend-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-trend-metrics > span:nth-child(2) {
+    border-right: 0;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-trend-metrics > span:nth-child(-n+2) {
+    border-bottom: 1px solid rgba(255, 255, 255, .11);
+  }
+}
+
+html body[data-page="positive-ev"] .ev-trend-detail {
+  padding: 14px !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-detail .ev-detail-head {
+  align-items: center !important;
+  padding: 0 0 12px !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-detail .ev-detail-head > strong {
+  color: #43d66b !important;
+  font-size: 27px !important;
+  line-height: 1 !important;
+  text-shadow: none !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-detail .ev-detail-head h2 {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-pick {
+  margin: 11px 0 0 !important;
+  padding: 12px 14px !important;
+  background: rgba(14, 16, 23, .9) !important;
+  border-color: rgba(255, 255, 255, .12) !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-pick > strong {
+  font-size: 15px !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-pick .ev-detail-stake {
+  color: #43d66b !important;
+  font-size: 22px !important;
+  text-shadow: none !important;
+}
+
+html body[data-page="positive-ev"] .ev-market-trend {
+  margin-top: 12px !important;
+  border-color: rgba(154, 103, 215, .35) !important;
+  background: linear-gradient(180deg, rgba(20, 18, 29, .9), rgba(10, 10, 16, .96)) !important;
+}
+
+html body[data-page="positive-ev"] .ev-market-trend > header {
+  padding: 11px 13px !important;
+  border-color: rgba(255, 255, 255, .09) !important;
+}
+
+html body[data-page="positive-ev"] .ev-market-trend > header h3 {
+  font-size: 12px !important;
+  letter-spacing: .06em !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 10px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, .018);
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics > span {
+  min-width: 0;
+  min-height: 58px;
+  padding: 9px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-right: 1px solid rgba(255, 255, 255, .11);
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics > span:last-child {
+  border-right: 0;
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics small {
+  color: #8f8aa0;
+  font-size: 9px;
+  letter-spacing: .08em;
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics b {
+  color: #43d66b;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics em {
+  padding: 2px 4px;
+  border-radius: 4px;
+  color: #acd96b;
+  background: rgba(96, 142, 37, .2);
+  font-size: 7px;
+  font-style: normal;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+html body[data-page="positive-ev"] .ev-trend-chart {
+  margin: 10px;
+  padding: 12px 12px 10px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 9px;
+  background: rgba(17, 19, 28, .72);
+}
+
+html body[data-page="positive-ev"] .ev-trend-chart-title {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 2px;
+  text-align: center;
+}
+
+html body[data-page="positive-ev"] .ev-trend-chart-title strong {
+  color: #f5f3f7;
+  font-size: 13px;
+}
+
+html body[data-page="positive-ev"] .ev-trend-chart-title span {
+  color: #a49eae;
+  font-size: 9px;
+}
+
+html body[data-page="positive-ev"] .ev-trend-chart svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+html body[data-page="positive-ev"] .ev-trend-grid {
+  stroke: rgba(255, 255, 255, .08);
+  stroke-width: 1;
+  stroke-dasharray: 3 4;
+}
+
+html body[data-page="positive-ev"] .ev-trend-line,
+html body[data-page="positive-ev"] .ev-trend-limit {
+  fill: none;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+html body[data-page="positive-ev"] .ev-trend-limit {
+  stroke: #f4f5f8;
+  stroke-width: 2.2;
+}
+
+html body[data-page="positive-ev"] .ev-trend-axis,
+html body[data-page="positive-ev"] .ev-trend-limit-label {
+  fill: #8d8898;
+  font-size: 8px;
+  font-family: inherit;
+}
+
+html body[data-page="positive-ev"] .ev-trend-limit-label {
+  fill: #e8e8ed;
+}
+
+html body[data-page="positive-ev"] .ev-trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 2px 0 5px;
+}
+
+html body[data-page="positive-ev"] .ev-trend-legend span {
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--legend), transparent 48%);
+  border-radius: 6px;
+  color: var(--legend);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+html body[data-page="positive-ev"] .ev-trend-preview-note {
+  margin: 6px 0 0;
+  color: #777383;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+html body[data-page="positive-ev"] .ev-trend-bet {
+  min-height: 48px;
+  margin: 12px auto 2px;
+  padding: 8px 12px;
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 9px;
+  width: min(100%, 300px);
+  border: 1px solid rgba(67, 214, 107, .5);
+  border-radius: 8px;
+  color: #f7f7f9;
+  background: linear-gradient(135deg, rgba(31, 113, 52, .62), rgba(14, 52, 26, .8));
+  text-decoration: none;
+}
+
+html body[data-page="positive-ev"] .ev-trend-bet .ev-book-mark {
+  width: 28px;
+  height: 28px;
+}
+
+html body[data-page="positive-ev"] .ev-trend-bet span {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+html body[data-page="positive-ev"] .ev-trend-bet strong {
+  color: #72ed8d;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  html body[data-page="positive-ev"] .ev-trend-metrics {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  html body[data-page="positive-ev"] .ev-trend-metrics > span:nth-child(2) {
+    border-right: 0;
+  }
+
+  html body[data-page="positive-ev"] .ev-trend-metrics > span:nth-child(-n+2) {
+    border-bottom: 1px solid rgba(255, 255, 255, .11);
+  }
+}

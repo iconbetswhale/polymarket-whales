@@ -36,6 +36,50 @@
       : `<span class="ev-book-mark fallback" aria-label="${esc(label)}"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`;
   };
   const statusLabel = row => row.portfolioStatus !== "qualified" ? "Suppressed" : row.executionStatus === "executable" ? "Executable" : "Verify liquidity";
+  const chartPath = points => points.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(" ");
+  const stableSeed = value => [...String(value || "")].reduce((total, character) => total + character.charCodeAt(0), 0);
+
+  function marketTrendVisual(row) {
+    const best = row.bestQuote || {};
+    const currentOdds = Number(best.topPriceAmericanOdds ?? best.americanOdds ?? row.fairAmerican ?? 100);
+    const fairOdds = Number(row.fairAmerican ?? currentOdds);
+    const seed = stableSeed(row.id);
+    const width = 520, height = 250, left = 46, right = 28, top = 34, bottom = 38;
+    const count = 9;
+    const series = [
+      { key: "pinnacle", name: "Pinnacle", color: "#ff4fa0", end: fairOdds - 2, pattern: [12, 8, 5, 7, 2, 1, 3, 0, 0] },
+      { key: "bookmaker", name: "BookMaker", color: "#f3c324", end: fairOdds + 1, pattern: [-8, -5, -5, -2, 1, -1, 2, 1, 0] },
+      { key: "circa", name: "Circa", color: "#8b5cff", end: fairOdds - 5, pattern: [7, 4, 4, 1, 2, 0, 0, 0, 0] },
+      { key: "selected", name: best.bookName || bookNames[best.bookKey] || "Selected book", color: "#19c6e8", end: currentOdds, pattern: [-15, -10, -4, -7, -1, 2, -2, 0, 0] }
+    ];
+    const allOdds = series.flatMap(item => item.pattern.map((delta, index) => item.end + delta + ((seed + index) % 3 - 1)));
+    const minOdds = Math.min(...allOdds) - 8;
+    const maxOdds = Math.max(...allOdds) + 8;
+    const x = index => left + (index / (count - 1)) * (width - left - right);
+    const y = value => top + ((maxOdds - value) / Math.max(1, maxOdds - minOdds)) * (height - top - bottom);
+    const paths = series.map(item => {
+      const points = item.pattern.map((delta, index) => [x(index), y(item.end + delta + ((seed + index) % 3 - 1))]);
+      return `<path class="ev-trend-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.5" fill="${item.color}"></circle>`).join("")}`;
+    }).join("");
+    const limitValues = [350, 450, 700, 900, 1200, 1450, 1850, 2300, 2800];
+    const limitY = value => top + ((3000 - value) / 3000) * (height - top - bottom);
+    const limitPoints = limitValues.map((value,index)=>[x(index),limitY(value)]);
+    const grid = [0,.25,.5,.75,1].map(ratio=>{
+      const gridY=top+ratio*(height-top-bottom);
+      const label=Math.round(maxOdds-ratio*(maxOdds-minOdds));
+      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
+    }).join("");
+    return `<div class="ev-trend-chart" aria-label="Visual preview of the requested market trend chart">
+      <div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${esc(row.eventTitle)}</span></div>
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview trend lines for selected book, Pinnacle, BookMaker, Circa, and Pinnacle limits">
+        ${grid}<text x="${width-right-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">$3k</text><text x="${width-right-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>
+        ${paths}<path class="ev-trend-limit" d="${chartPath(limitPoints)}"></path>${limitPoints.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="#f4f5f8"></circle>`).join("")}
+        <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${width/2}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">1h</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis">Now</text>
+      </svg>
+      <div class="ev-trend-legend">${series.map(item=>`<span style="--legend:${item.color}">${esc(item.name)}</span>`).join("")}<span style="--legend:#f4f5f8">Pinnacle limits</span></div>
+      <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical movement and limits are collecting; current EV, FV, price, and stake use the selected opportunity.</p>
+    </div>`;
+  }
 
   function renderFilters() {
     document.querySelectorAll('input[name="marketGroup"]').forEach(input => input.checked = input.value === settings.group);
@@ -121,13 +165,18 @@
   }
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
-    renderFeed(); const best=row.bestQuote||{}, quoteEvs=row.quotes.map(q=>Math.abs(Number(q.evPercent || 0))), maxEv=Math.max(1,...quoteEvs);
-    detail.innerHTML = `<article class="ev-detail-card"><div class="ev-detail-head"><strong>${Number(row.evPercent).toFixed(2)}%</strong><div><h2>${esc(row.eventTitle)}</h2><p>${esc(row.marketLabel)} · ${esc(time(row.commenceTime))} · ${esc(statusLabel(row))}</p></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
-      <div class="ev-detail-pick"><div><small>CONSTRAINED RECOMMENDATION</small><strong>${esc(row.selection)}</strong></div><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
+    renderFeed(); const best=row.bestQuote||{};
+    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${Number(row.evPercent).toFixed(2)}%</strong><div><h2>${esc(row.eventTitle)}</h2></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
+      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(row.selection)}</strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
-      <section class="ev-section"><header><h3>FAIR-PRICE AUDIT</h3><span>${Number(row.sourceCount)} independent books</span></header><div class="ev-audit-grid"><span><small>Fair probability</small><b>${(Number(row.fairProbability)*100).toFixed(2)}%</b></span><span><small>Fair odds</small><b>${odds(row.fairAmerican)}</b></span><span><small>Confidence</small><b>${(Number(row.fairConfidence)*100).toFixed(0)}%</b></span><span><small>Source spread</small><b>${(Number(row.sourceDispersion)*100).toFixed(2)} pts</b></span></div></section>
-      <section class="ev-section"><header><h3>MARKET ODDS</h3><span>Execution book excluded from its own fair price</span></header><div class="ev-analysis">${row.quotes.slice(0,9).map(q=>`<div class="ev-analysis-row ${q.bookKey===best.bookKey?"best":""}">${img(q.logoUrl,q.bookKey)}<div class="bar"><i style="width:${Math.max(3,Math.abs(Number(q.evPercent||0))/maxEv*100)}%"></i></div><b>${Number(q.evPercent)>=0?"+":""}${Number(q.evPercent).toFixed(2)}%</b></div>`).join("")}</div><div class="ev-quotes">${row.quotes.map(q=>`<a class="ev-quote ${q.bookKey===best.bookKey?"best":""}" href="${esc(q.deepLink||"#")}" target="_blank" rel="noopener">${img(q.logoUrl,q.bookKey)}<span><strong>${esc(q.bookName)}</strong><small>${q.topPriceLiquidity != null ? `${money(q.topPriceLiquidity)} at top price` : q.marketLimit != null ? `${money(q.marketLimit)} reported limit` : `${esc(q.executionStatus.replaceAll("_"," "))} · ${q.quoteAgeSeconds == null ? "age unknown" : `${Math.round(q.quoteAgeSeconds)}s old`}`}</small></span><b>${odds(q.topPriceAmericanOdds??q.americanOdds)} ↗</b></a>`).join("")}</div></section>
-      <section class="ev-section"><header><h3>SIZING AUDIT</h3><span>${(Number(row.fullKellyFraction)*100).toFixed(2)}% full Kelly</span></header><div class="ev-formula">Raw fractional Kelly: <strong>${money(row.theoreticalStake)}</strong><br>After confidence, per-bet, event, variance, and liquidity constraints: <b>${money(row.recommendedStake)}</b><br>Effective line after configured costs: ${odds(best.effectiveAmerican)}. Calculation: (${(Number(row.fairProbability)*100).toFixed(2)}% × ${Number(best.effectiveDecimal).toFixed(3)}) − 1 = <b>+${Number(row.evPercent).toFixed(2)}%</b>.</div></section></article>`;
+      <section class="ev-section ev-market-trend"><header><h3>MARKET TREND</h3><span>Current values + preview history</span></header><div class="ev-trend-metrics">
+        <span><small>EV</small><b>${Number(row.evPercent).toFixed(2)}%</b></span>
+        <span><small>FV</small><b>${odds(row.fairAmerican)}</b><em>Pinnacle auto</em></span>
+        <span><small>1H</small><b>--</b><em>Collecting</em></span>
+        <span><small>OPEN</small><b>--</b><em>Collecting</em></span>
+      </div>${marketTrendVisual(row)}</section>
+      <a class="ev-trend-bet" href="${esc(best.deepLink||"#")}" target="_blank" rel="noopener">${img(best.logoUrl,best.bookKey)}<span>Place bet at ${esc(best.bookName||bookNames[best.bookKey]||"selected book")}</span><strong>${odds(best.topPriceAmericanOdds??best.americanOdds)} <i class="ph ph-arrow-up-right"></i></strong></a>
+    </article>`;
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     detail.classList.add("open");
     detail.closest(".ev-workspace")?.classList.add("detail-open");
