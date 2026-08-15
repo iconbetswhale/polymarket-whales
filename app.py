@@ -80,6 +80,10 @@ from model_tracker_discord import (
 from model_tracker_checkpoint import timing_outlook
 from sharp_money_sandbox import sandbox_payload
 from sharp_money_live import build_sharp_money_collector
+from lab_tracker import (
+    LAB_TRACKER_GLOBAL_USER_ID,
+    LabTrackerService,
+)
 from trade_scoring import filter_trades_to_play
 from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
 from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
@@ -645,6 +649,7 @@ def create_app(start_background: bool = True) -> Flask:
     app.extensions["sharp_money_collector"] = build_sharp_money_collector(
         execution_providers, settings
     )
+    app.extensions["lab_tracker_service"] = LabTrackerService(tracker.database)
     app.extensions["polymarket_schedule_feed"] = PolymarketScheduleFeed(timeout=settings.request_timeout)
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
@@ -1076,6 +1081,14 @@ def create_app(start_background: bool = True) -> Flask:
     def tracker_page():
         return render_template("tracker.html", title="IconBets Tracker", page="tracker")
 
+    @app.route("/lab-tracker")
+    def lab_tracker_page():
+        return render_template(
+            "lab_tracker.html",
+            title="IconLabs LabTracker",
+            page="lab-tracker",
+        )
+
     @app.route("/shadow-test")
     def shadow_test_page():
         return render_template(
@@ -1461,9 +1474,11 @@ def create_app(start_background: bool = True) -> Flask:
     def api_sharp_money_live():
         # This endpoint only returns the in-memory cache. It never refreshes a
         # provider and is safe to poll while the collector is paused.
-        response = jsonify(
-            app.extensions["sharp_money_collector"].payload()
-        )
+        payload = app.extensions["sharp_money_collector"].payload()
+        payload["labTracker"] = app.extensions[
+            "lab_tracker_service"
+        ].observe_sharp_money(payload.get("signals") or [])
+        response = jsonify(payload)
         response.headers["Cache-Control"] = "private, no-store"
         return response
 
@@ -1983,6 +1998,9 @@ def create_app(start_background: bool = True) -> Flask:
             )
             rows = board["data"]
             tracking = tracker.database.record_ev_board(g.iconbets_user_id, rows)
+            lab_tracking = app.extensions[
+                "lab_tracker_service"
+            ].observe_positive_ev(rows[:250])
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
             return jsonify(
@@ -2002,6 +2020,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "total": len(rows),
                 "diagnostics": board["diagnostics"],
                 "tracking": tracking,
+                "labTracker": lab_tracking,
                 "normalizedQuotePersistence": quote_tracking,
                 "normalizedQuotePersistenceWarning": quote_tracking_warning,
                 "configured": True,
@@ -2017,6 +2036,45 @@ def create_app(start_background: bool = True) -> Flask:
         )
         response.headers["Cache-Control"] = "private, no-store"
         return response
+
+    @app.route("/api/lab-tracker")
+    def api_lab_tracker():
+        requested_scope = request.args.get("scope", "signal").strip().lower()
+        scope = "personal" if requested_scope == "personal" else "signal"
+        source = request.args.get("source", "").strip().lower()
+        if source not in {"positive_ev", "sharp_money"}:
+            source = None
+        window = request.args.get("window", "7d").strip().lower()
+        if window not in {"yesterday", "7d", "30d", "all"}:
+            window = "7d"
+        user_id = (
+            g.iconbets_user_id
+            if scope == "personal"
+            else LAB_TRACKER_GLOBAL_USER_ID
+        )
+        payload = app.extensions["lab_tracker_service"].dashboard(
+            scope=scope,
+            user_id=user_id,
+            source=source,
+            window=window,
+        )
+        response = jsonify({"data": payload})
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.post("/api/lab-tracker/personal")
+    def api_lab_tracker_personal():
+        signal_bet_id = str(
+            (request.get_json(silent=True) or {}).get("betId") or ""
+        ).strip()
+        if not signal_bet_id:
+            return jsonify({"error": "betId is required."}), 400
+        row = app.extensions["lab_tracker_service"].add_personal(
+            g.iconbets_user_id, signal_bet_id
+        )
+        if row is None:
+            return jsonify({"error": "LabTracker play not found."}), 404
+        return jsonify({"data": row}), 201
 
     @app.route("/api/positive-ev/history")
     def api_positive_ev_history():
@@ -4014,6 +4072,87 @@ def create_app(start_background: bool = True) -> Flask:
             result = tracker.reconcile_model_tracker(force=True)
         else:
             result = tracker.database.get_tracking_job_state()
+        return jsonify({"data": result})
+
+    @app.route("/api/admin/lab-tracker/reconcile", methods=["GET", "POST"])
+    def api_lab_tracker_reconcile():
+        if not has_job_authorization():
+            return jsonify({"error": "LabTracker job authorization required."}), 401
+        lab_tracker = app.extensions["lab_tracker_service"]
+        odds_provider = next(
+            (
+                provider
+                for provider in execution_providers.providers
+                if provider.provider_key == "the_odds_api"
+            ),
+            None,
+        )
+        result = {
+            "positiveEV": {"observed": 0, "qualified": 0, "status": "paused"},
+            "sharpMoney": {"observed": 0, "qualified": 0, "status": "unavailable"},
+            "settlement": {"settled": 0, "scoreEvents": 0},
+        }
+        if (
+            settings.positive_ev_enabled
+            and odds_provider is not None
+            and getattr(odds_provider, "api_key", None)
+        ):
+            try:
+                events = odds_provider.ev_events(
+                    sport_keys=("baseball_mlb", "basketball_wnba"),
+                    market_keys=MAIN_MARKETS,
+                )
+                rows = build_ev_board(
+                    events,
+                    min_ev=1.0,
+                    bankroll=10000.0,
+                )["data"][:250]
+                result["positiveEV"] = {
+                    **lab_tracker.observe_positive_ev(rows),
+                    "status": "ok",
+                }
+            except Exception as exc:  # pragma: no cover - live provider isolation
+                LOGGER.warning("LabTracker Positive EV reconcile failed: %s", type(exc).__name__)
+                result["positiveEV"] = {
+                    "observed": 0,
+                    "qualified": 0,
+                    "status": "connection_failed",
+                }
+        try:
+            signals = app.extensions["sharp_money_collector"].refresh_once()
+            result["sharpMoney"] = {
+                **lab_tracker.observe_sharp_money(signals),
+                "status": "ok",
+            }
+        except Exception as exc:  # pragma: no cover - live provider isolation
+            LOGGER.warning("LabTracker Sharp Money reconcile failed: %s", type(exc).__name__)
+            result["sharpMoney"] = {
+                "observed": 0,
+                "qualified": 0,
+                "status": "connection_failed",
+            }
+        if odds_provider is not None and getattr(odds_provider, "api_key", None):
+            pending_sports = sorted(
+                {
+                    str(row.get("sport_key") or "").strip()
+                    for row in lab_tracker.store.pending()
+                    if str(row.get("sport_key") or "").strip()
+                }
+            )
+            if pending_sports:
+                try:
+                    result["settlement"] = lab_tracker.settle(
+                        odds_provider.scores(
+                            sport_keys=pending_sports,
+                            days_from=3,
+                        )
+                    )
+                except Exception as exc:  # pragma: no cover - live provider isolation
+                    LOGGER.warning("LabTracker score reconcile failed: %s", type(exc).__name__)
+                    result["settlement"]["status"] = "connection_failed"
+        result["status"] = "ok"
+        result["qualificationSeconds"] = 5
+        result["unitValue"] = 100
         return jsonify({"data": result})
 
     @app.route("/api/admin/model-tracker/reset-experiments", methods=["POST"])

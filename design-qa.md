@@ -28,3 +28,24 @@
 - Command bar, trade-list, and detail-rail spacing: passed
 
 Final result: passed
+
+## LabTracker
+
+- References: `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.02.41_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-13_at_10.04.12_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.03.27_PM.webp`
+- Route checked: `/lab-tracker`
+- Desktop viewport checked: `1440 x 1000`
+- Mobile viewport checked: `390 x 844`
+- Reference/prototype comparison: `.codex-artifacts/labtracker-comparison.png`
+- Centered workspace maximum width: `1320px`
+- Three-column sportsbook/performance/insight hierarchy: passed
+- Four-metric summary strip and cumulative chart: passed
+- Last five graded-bet cards: passed
+- Dollars/units toggle (`1u = $100`): passed
+- All Signals, Positive EV, Sharp Money, and My Bets controls: passed
+- Desktop horizontal overflow: none
+- Mobile horizontal page overflow: none
+- Mobile stacking and control access: passed
+- Empty and populated states: passed
+- Console errors: none
+
+Final result: passed

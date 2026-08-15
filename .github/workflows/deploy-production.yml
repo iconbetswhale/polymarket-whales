@@ -72,6 +72,17 @@ jobs:
           )
           PY
 
+      - name: Reconcile LabTracker
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/lab-tracker/reconcile
+
       - name: Send requested one-time Discord test
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[discord-test]')
         env:

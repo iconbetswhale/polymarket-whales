@@ -55,6 +55,28 @@ class FakeSession:
         )
 
 
+def test_scores_uses_recent_completed_event_endpoint() -> None:
+    session = FakeSession(
+        [
+            {
+                "id": "mlb-event-1",
+                "completed": True,
+                "scores": [
+                    {"name": "Boston Red Sox", "score": "4"},
+                    {"name": "New York Yankees", "score": "5"},
+                ],
+            }
+        ]
+    )
+    provider = TheOddsAPIProvider("secret", session=session)
+
+    rows = provider.scores(sport_keys=("baseball_mlb",), days_from=9)
+
+    assert rows[0]["completed"] is True
+    assert session.calls[0]["url"].endswith("/sports/baseball_mlb/scores/")
+    assert session.calls[0]["params"]["daysFrom"] == 3
+
+
 def _event(start: datetime) -> dict:
     updated = datetime.now(timezone.utc).isoformat()
     return {

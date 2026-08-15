@@ -253,6 +253,34 @@ class SharpMoneyCollector:
             payload["signals"] = copy.deepcopy(self._signals)
             return payload
 
+    def refresh_once(self) -> list[dict]:
+        """Run one read-only provider snapshot for scheduled consumers."""
+        if self.prophetx is None:
+            return []
+        snapshot = self.prophetx.live_market_snapshot()
+        signals = self._build_signals(snapshot)
+        now = time.monotonic()
+        if (
+            self.odds_provider is not None
+            and signals
+            and now - self._last_comparison_monotonic >= self.comparison_seconds
+        ):
+            self._refresh_comparisons(signals)
+            self._last_comparison_monotonic = now
+        for signal in signals:
+            signal["comparisonLines"] = copy.deepcopy(
+                self._comparisons.get(signal["id"], [])
+            )
+        with self._lock:
+            self._signals = signals
+            self._cycles += 1
+            self._last_snapshot_at = str(
+                snapshot.get("observedAt")
+                or datetime.now(timezone.utc).isoformat()
+            )
+            self._last_error = None
+        return copy.deepcopy(signals)
+
     def _odds_diagnostics(self) -> dict:
         if self.odds_provider is None:
             return {"provider": "the_odds_api", "configured": False}
@@ -270,29 +298,7 @@ class SharpMoneyCollector:
                 continue
             started = time.monotonic()
             try:
-                snapshot = self.prophetx.live_market_snapshot()
-                signals = self._build_signals(snapshot)
-                now = time.monotonic()
-                if (
-                    self.odds_provider is not None
-                    and signals
-                    and now - self._last_comparison_monotonic
-                    >= self.comparison_seconds
-                ):
-                    self._refresh_comparisons(signals)
-                    self._last_comparison_monotonic = now
-                for signal in signals:
-                    signal["comparisonLines"] = copy.deepcopy(
-                        self._comparisons.get(signal["id"], [])
-                    )
-                with self._lock:
-                    self._signals = signals
-                    self._cycles += 1
-                    self._last_snapshot_at = str(
-                        snapshot.get("observedAt")
-                        or datetime.now(timezone.utc).isoformat()
-                    )
-                    self._last_error = None
+                self.refresh_once()
             except Exception:
                 LOGGER.warning(
                     "Local Sharp Money collection cycle failed",

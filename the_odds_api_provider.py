@@ -1242,6 +1242,41 @@ class TheOddsAPIProvider(ExecutionProvider):
             )
         return events
 
+    def scores(
+        self,
+        *,
+        sport_keys: Iterable[str],
+        days_from: int = 3,
+    ) -> list[dict]:
+        """Return official recent score rows without exposing credentials."""
+        if not self.api_key:
+            return []
+        completed: list[dict] = []
+        days = min(3, max(1, int(days_from)))
+        for sport_key in dict.fromkeys(
+            str(key).strip() for key in sport_keys if str(key).strip()
+        ):
+            response = self.session.get(
+                f"{self.base_url}/sports/{sport_key}/scores/",
+                params={
+                    "apiKey": self.api_key,
+                    "daysFrom": days,
+                    "dateFormat": "iso",
+                },
+                timeout=self.request_timeout,
+            )
+            self._capture_quota(response)
+            if response.status_code == 429:
+                raise requests.HTTPError(RATE_LIMITED, response=response)
+            response.raise_for_status()
+            payload = response.json()
+            if not isinstance(payload, list):
+                raise ValueError("The Odds API scores response must be a list")
+            completed.extend(
+                row for row in payload if isinstance(row, dict)
+            )
+        return completed
+
     def health_status(
         self, *, authenticate: bool = False
     ) -> ProviderHealthStatus:

@@ -1,4 +1,4 @@
-name: Reconcile Model Tracker
+name: Reconcile Trackers
 
 on:
   schedule:
@@ -26,3 +26,13 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{"force":false}' \
             https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/model-tracker/reconcile
+      - name: Reconcile LabTracker feeds and results
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          curl --fail-with-body --retry 2 --retry-delay 10 \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            --header "Content-Type: application/json" \
+            --data '{}' \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/lab-tracker/reconcile

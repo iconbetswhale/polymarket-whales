@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="lab-page" aria-labelledby="lab-title">
+  <header class="lab-header">
+    <div>
+      <p class="lab-kicker">ALGORITHM LAB</p>
+      <h1 id="lab-title">LabTracker</h1>
+      <p>Unified performance for Positive EV, Sharp Money, and the plays you take.</p>
+    </div>
+    <div class="lab-feed-state"><span></span><strong>Automatic tracking</strong><small>5-second verification</small></div>
+  </header>
+
+  <div class="lab-command-row">
+    <nav class="lab-tabs" aria-label="LabTracker views">
+      <button class="active" type="button" data-lab-source="all"><i class="ph ph-chart-line-up"></i>All Signals</button>
+      <button type="button" data-lab-source="positive_ev"><i class="ph ph-trend-up"></i>Positive EV</button>
+      <button type="button" data-lab-source="sharp_money"><i class="ph ph-lightning"></i>Sharp Money</button>
+      <button type="button" data-lab-scope="personal"><i class="ph ph-check-square"></i>My Bets</button>
+    </nav>
+    <div class="lab-controls">
+      <div class="lab-segment" aria-label="Value display">
+        <button class="active" type="button" data-lab-display="dollars">Dollars</button>
+        <button type="button" data-lab-display="units">Units</button>
+      </div>
+      <div class="lab-segment lab-range" aria-label="Date range">
+        <button type="button" data-lab-window="yesterday">Yesterday</button>
+        <button class="active" type="button" data-lab-window="7d">7 Days</button>
+        <button type="button" data-lab-window="30d">30 Days</button>
+        <button type="button" data-lab-window="all">All</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="lab-dashboard" aria-live="polite">
+    <aside class="lab-panel lab-books">
+      <header><h2>Sportsbooks</h2><span id="lab-stake-caption">$100 flat bets</span></header>
+      <div class="lab-ranking" id="lab-sportsbooks"></div>
+    </aside>
+
+    <section class="lab-center">
+      <div class="lab-metrics">
+        <article><span id="lab-profit-label">Profit</span><strong id="lab-profit">$0</strong></article>
+        <article><span>ROI</span><strong id="lab-roi">0.0%</strong></article>
+        <article><span>Record</span><strong id="lab-record">0-0</strong></article>
+        <article><span>Win rate</span><strong id="lab-win-rate">0.0%</strong></article>
+      </div>
+      <div class="lab-chart-card">
+        <div class="lab-chart-meta"><span>Cumulative performance</span><strong id="lab-chart-total">$0</strong></div>
+        <canvas id="lab-chart" aria-label="Cumulative LabTracker profit chart"></canvas>
+        <div class="lab-chart-empty" id="lab-chart-empty"><i class="ph ph-chart-line"></i><strong>Waiting for graded plays</strong><span>The curve begins after the first verified result.</span></div>
+      </div>
+      <section class="lab-log">
+        <header>
+          <div><span>Bet log</span><strong id="lab-log-caption">Last 5 graded</strong></div>
+          <div class="lab-log-switch">
+            <button class="active" type="button" data-lab-log="graded">Graded</button>
+            <button type="button" data-lab-log="open">Open plays</button>
+          </div>
+        </header>
+        <div id="lab-bet-log" class="lab-bet-log"></div>
+      </section>
+    </section>
+
+    <aside class="lab-insights">
+      <section class="lab-panel">
+        <header><h2>Leagues</h2></header>
+        <div class="lab-ranking" id="lab-leagues"></div>
+      </section>
+      <section class="lab-panel">
+        <header><h2>Markets</h2></header>
+        <div class="lab-ranking" id="lab-markets"></div>
+      </section>
+    </aside>
+  </div>
+</section>
+{% endblock %}
