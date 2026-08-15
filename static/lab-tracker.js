@@ -157,18 +157,10 @@
       ctx.beginPath(); ctx.moveTo(pad.left, lineY); ctx.lineTo(width - pad.right, lineY); ctx.stroke();
       ctx.fillText(state.display === "units" ? `${(value / 100).toFixed(1)}u` : `$${Math.round(value)}`, 0, lineY + 3);
     }
-    const gradient = ctx.createLinearGradient(0, pad.top, 0, height - pad.bottom);
-    gradient.addColorStop(0, "rgba(22,214,160,.28)");
-    gradient.addColorStop(.55, "rgba(22,214,160,.11)");
-    gradient.addColorStop(1, "rgba(22,214,160,0)");
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
-    ctx.lineTo(x(values.length - 1), height - pad.bottom); ctx.lineTo(x(0), height - pad.bottom); ctx.closePath();
-    ctx.fillStyle = gradient; ctx.fill();
-    ctx.beginPath();
-    values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
-    ctx.strokeStyle = "#16d6a0"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "#16d6a0"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#35e6a1"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#35e6a1"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
   }
 
   function render() {
