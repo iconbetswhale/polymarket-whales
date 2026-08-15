@@ -69,6 +69,8 @@
       if (!response.ok) throw new Error(payload.error || "Unable to load feed");
       if (payload.paused) {
         rows = [];
+        selectedId = "";
+        dismissDetail();
         clearTimeout(timer);
         timer = null;
         $("ev-count").textContent = "0";
@@ -90,17 +92,21 @@
       } else {
         $("ev-credit-banner").innerHTML = `<i class="ph ph-eye"></i><span><strong>5 temporary preview plays</strong> · Visual fixtures only · never tracked, signaled, or sent to a sportsbook.</span>`;
       }
-      renderFeed();
-      if (selectedId && rows.some(row=>row.id===selectedId)) select(selectedId);
+      const nextSelectedId = rows.some(row=>row.id===selectedId) ? selectedId : rows[0]?.id;
+      if (nextSelectedId) select(nextSelectedId);
+      else { selectedId = ""; renderFeed(); dismissDetail(); }
       clearTimeout(timer);
       if (!payload.previewOnly && Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
       feed.innerHTML = `<div class="ev-empty"><i class="ph ph-warning-circle"></i><p>${esc(error.message)}</p></div>`;
     }
   }
-  function renderFeed() {
+  function visibleRows() {
     const search = $("ev-search").value.trim().toLowerCase();
-    const shown = rows.filter(row => !search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search));
+    return rows.filter(row => !search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search));
+  }
+  function renderFeed() {
+    const shown = visibleRows();
     if (!shown.length) { feed.innerHTML = `<div class="ev-empty"><i class="ph ph-shield-check"></i><p>No opportunity passed every validation gate. That is safer than displaying a false edge.</p></div>`; return; }
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
@@ -128,7 +134,19 @@
     $("ev-detail-toggle")?.setAttribute("aria-pressed", "true");
     if (matchMedia("(max-width:900px)").matches) scrim.hidden=false;
   }
-  function closeDetail(){detail.classList.remove("open");detail.closest(".ev-workspace")?.classList.remove("detail-open");scrim.hidden=true;$("ev-detail-toggle")?.setAttribute("aria-pressed", "false");}
+  function dismissDetail(){detail.classList.remove("open");detail.closest(".ev-workspace")?.classList.remove("detail-open");scrim.hidden=true;$("ev-detail-toggle")?.setAttribute("aria-pressed", "false");}
+  function closeDetail(){
+    if (matchMedia("(min-width:901px)").matches && rows.length) {
+      if (!detail.classList.contains("open")) select(rows.some(row=>row.id===selectedId) ? selectedId : rows[0].id);
+      return;
+    }
+    dismissDetail();
+  }
+  function syncSearchSelection(){
+    const shown = visibleRows();
+    if (shown.length && !shown.some(row=>row.id===selectedId)) select(shown[0].id);
+    else renderFeed();
+  }
   function openFilters(){renderFilters();dialog.showModal();}
   function applyFilters(){
     settings.group=document.querySelector('input[name="marketGroup"]:checked').value;
@@ -142,7 +160,7 @@
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
   $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports]};renderFilters();});
-  $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",renderFeed);scrim.addEventListener("click",closeDetail);
+  $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{if(event.target.matches("[data-weight]"))updateWeightTotal();});

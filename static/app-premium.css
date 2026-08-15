@@ -3632,6 +3632,10 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
 /* Final +EV scale refinement: preserve the board layout while reducing the
    last bit of visual bulk in the score and toolbar controls. */
 @media (min-width: 901px) {
+  html body[data-page="positive-ev"] .ev-detail-close {
+    display: none !important;
+  }
+
   html body[data-page="positive-ev"] .ev-score {
     display: flex !important;
     align-items: center !important;
