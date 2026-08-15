@@ -1473,6 +1473,18 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/sharp-money/live")
     def api_sharp_money_live():
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if preview_requested:
+            from sharp_money_preview import temporary_sharp_money_preview_payload
+
+            response = jsonify(temporary_sharp_money_preview_payload())
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
         # This endpoint only returns the in-memory cache. It never refreshes a
         # provider and is safe to poll while the collector is paused.
         payload = app.extensions["sharp_money_collector"].payload()

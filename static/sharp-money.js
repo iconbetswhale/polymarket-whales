@@ -10,6 +10,7 @@
     search: "",
     controlling: false,
     filters: { minimumLiquidity: 0, flow: "", marketType: "" },
+    preview: new URLSearchParams(window.location.search).get("preview") === "1",
   };
   const $ = id => document.getElementById(id);
 
@@ -77,7 +78,7 @@
         <div class="sharp-signal-content">
           <div class="sharp-signal-meta">
             <div>
-              <div class="sharp-signal-overline"><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.market?.name)}</span><time>${escapeHtml(timeLabel(signal.startsAt))} ET</time></div>
+              <div class="sharp-signal-overline"><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.market?.name)}${signal.previewOnly ? '<b class="sharp-preview-tag">Visual preview</b>' : ""}</span><time>${escapeHtml(timeLabel(signal.startsAt))} ET</time></div>
               <strong>${escapeHtml(signal.event)}</strong>
               <div class="sharp-signal-subrow"><em>${escapeHtml(signal.selection)}</em><div class="sharp-signal-badges"><span class="${detected ? "edge" : ""}">${escapeHtml(signal.pressureLabel)}</span><span>${escapeHtml(signal.confidence)} confidence</span></div></div>
             </div>
@@ -180,28 +181,37 @@
     const comparisonsConfigured = payload.comparisonProvider?.configured === true;
     state.visible = state.signals.filter(matches);
     if (!state.visible.some(row => row.id === state.selectedId)) state.selectedId = state.visible[0]?.id || null;
+    const previewOnly = payload.previewOnly === true;
     $("sharp-play").classList.toggle("active", running);
     $("sharp-pause").classList.toggle("active", !running);
-    $("sharp-play").disabled = state.controlling || !prophetxConfigured;
+    $("sharp-play").disabled = previewOnly || state.controlling || !prophetxConfigured;
     $("sharp-play").title = prophetxConfigured
       ? "Start the local read-only collector"
       : "Add ProphetX sandbox credentials to .env.local first";
-    $("sharp-pause").disabled = state.controlling;
+    $("sharp-pause").disabled = previewOnly || state.controlling;
     $("sharp-mode-badge").classList.toggle("live", running);
-    $("sharp-mode-badge").innerHTML = running ? `<i class="ph ph-waveform"></i> Live local feed` : `<i class="ph ph-pause"></i> Paused`;
+    $("sharp-mode-badge").innerHTML = previewOnly
+      ? `<i class="ph ph-eye"></i> Visual preview`
+      : running ? `<i class="ph ph-waveform"></i> Live local feed` : `<i class="ph ph-pause"></i> Paused`;
     $("sharp-feed-notice").classList.toggle("live", running);
-    $("sharp-feed-title").textContent = running
+    $("sharp-feed-title").textContent = previewOnly
+      ? "Five visual preview plays - no provider requests"
+      : running
       ? "Local collector active"
       : prophetxConfigured
         ? "Feed paused - zero new requests"
         : "ProphetX credentials required - zero new requests";
-    $("sharp-feed-copy").textContent = running
+    $("sharp-feed-copy").textContent = previewOnly
+      ? "Synthetic layout fixtures only. Tracking, Discord, provider credits, and model data are disabled."
+      : running
       ? `ProphetX refreshes every ${payload.pollSeconds || 1}s; other-book comparisons every ${payload.comparisonSeconds || 60}s.`
       : prophetxConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add THE_ODDS_API_KEY for other-book comparisons"}.`
         : "Add PROPHETX_ACCESS_KEY and PROPHETX_SECRET_KEY to .env.local, then restart this local preview.";
-    $("sharp-feed-state").innerHTML = `<i></i> ${running ? "Collecting" : "Paused"}`;
-    $("sharp-result-label").textContent = running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
+    $("sharp-feed-state").innerHTML = `<i></i> ${previewOnly ? "Preview" : running ? "Collecting" : "Paused"}`;
+    $("sharp-result-label").textContent = previewOnly
+      ? `${state.visible.length} preview play${state.visible.length === 1 ? "" : "s"}`
+      : running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
     $("sharp-last-updated").textContent = payload.lastError || ageLabel(payload.lastSnapshotAt);
     const liquidity = state.visible.reduce((sum, row) => sum + Number(row.liquidity || 0), 0);
     const flows = state.visible.filter(row => Math.abs(Number(row.pressure)) >= 0.01).length;
@@ -222,7 +232,8 @@
 
   async function load() {
     try {
-      const response = await fetch("/api/sharp-money/live", { cache: "no-store", credentials: "same-origin" });
+      const endpoint = state.preview ? "/api/sharp-money/live?preview=1" : "/api/sharp-money/live";
+      const response = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
       if (!response.ok) throw new Error(`Sharp Money returned ${response.status}`);
       state.payload = await response.json();
       state.signals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
@@ -314,6 +325,6 @@
   if (document.body.dataset.page === "sharp-money") {
     bind();
     load();
-    window.setInterval(load, 2000);
+    if (!state.preview) window.setInterval(load, 2000);
   }
 })();

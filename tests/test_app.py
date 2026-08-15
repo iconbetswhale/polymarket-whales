@@ -619,6 +619,40 @@ def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
     assert payload["trackerWritesEnabled"] is False
 
 
+def test_sharp_money_preview_returns_five_isolated_visual_signals(
+    app_client, monkeypatch
+):
+    collector = app_client.application.extensions["sharp_money_collector"]
+    lab_tracker = app_client.application.extensions["lab_tracker_service"]
+    monkeypatch.setattr(
+        collector,
+        "payload",
+        lambda: (_ for _ in ()).throw(AssertionError("collector was read")),
+    )
+    monkeypatch.setattr(
+        lab_tracker,
+        "observe_sharp_money",
+        lambda *_: (_ for _ in ()).throw(AssertionError("tracker was written")),
+    )
+
+    response = app_client.get("/api/sharp-money/live?preview=1")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["previewOnly"] is True
+    assert payload["trackerWritesEnabled"] is False
+    assert payload["notificationsEnabled"] is False
+    assert payload["executionEnabled"] is False
+    assert payload["signalCount"] == 5
+    assert len(payload["signals"]) == 5
+    assert all(signal["previewOnly"] is True for signal in payload["signals"])
+    assert {signal["market"]["kind"] for signal in payload["signals"]} == {
+        "moneyline",
+        "spread",
+        "game_total",
+    }
+
+
 def test_sharp_money_frontend_uses_explicit_control_gate():
     script = (
         Path(__file__).resolve().parents[1] / "static" / "sharp-money.js"
@@ -627,7 +661,9 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
         Path(__file__).resolve().parents[1] / "static" / "app.js"
     ).read_text(encoding="utf-8")
 
-    assert 'fetch("/api/sharp-money/live"' in script
+    assert '"/api/sharp-money/live"' in script
+    assert '"/api/sharp-money/live?preview=1"' in script
+    assert "fetch(endpoint" in script
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control("play")' in script
     assert 'control("pause")' in script

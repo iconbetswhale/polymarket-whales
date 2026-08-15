@@ -189,6 +189,24 @@ body[data-page="sharp-money"] {
   font-size: 11px;
 }
 
+.sharp-preview-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 19px;
+  margin-left: 7px;
+  padding: 0 7px;
+  border: 1px solid rgba(139, 112, 238, .35);
+  border-radius: 999px;
+  color: #c5b7f7;
+  background: rgba(116, 81, 211, .12);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .05em;
+  line-height: 1;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+
 .sharp-signal-meta strong {
   margin-top: 6px;
   font-size: 18px;
