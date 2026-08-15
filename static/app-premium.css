@@ -3628,3 +3628,72 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
     display: none !important;
   }
 }
+
+/* Final +EV scale refinement: preserve the board layout while reducing the
+   last bit of visual bulk in the score and toolbar controls. */
+@media (min-width: 901px) {
+  html body[data-page="positive-ev"] .ev-score {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-score strong {
+    font-size: 30px !important;
+    line-height: 1 !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-toolbar {
+    min-height: 64px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-title-row {
+    gap: 24px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-title-row h1 {
+    font-size: 38px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-mode-tabs {
+    height: 50px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-mode-tabs button {
+    height: 42px !important;
+    min-width: 84px !important;
+    padding: 0 18px !important;
+    font-size: 15px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-mode-tabs button.active {
+    min-width: 166px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-mode-tabs span {
+    margin-left: 12px !important;
+    padding: 3px 8px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-actions {
+    gap: 10px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-search {
+    width: 230px !important;
+    height: 50px !important;
+    padding: 0 16px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-search input {
+    font-size: 15px !important;
+    padding-left: 10px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-icon-button {
+    width: 50px !important;
+    height: 50px !important;
+    font-size: 19px !important;
+  }
+}
