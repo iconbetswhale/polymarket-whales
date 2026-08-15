@@ -1,49 +1,53 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="ev-page" aria-labelledby="ev-title">
-  <header class="ev-toolbar">
-    <div class="ev-heading">
-      <span class="ev-kicker">MARKET INTELLIGENCE</span>
-      <div class="ev-title-row">
-        <h1 id="ev-title">+EV</h1>
-        <div class="ev-mode-tabs" role="tablist" aria-label="Feed state">
-          <button class="active" type="button">Pre-Match <span id="ev-count">0</span></button>
-          <button type="button" disabled>Live</button>
-        </div>
-      </div>
-      <p>Validated expected value against a leave-one-out fair-price consensus.</p>
-    </div>
-    <div class="ev-actions">
-      <label class="ev-search"><i class="ph ph-magnifying-glass"></i><input id="ev-search" type="search" placeholder="Search teams, players, markets"></label>
-      <button class="ev-icon-button" id="ev-pause" type="button" aria-pressed="false" title="Pause refresh"><i class="ph ph-pause"></i></button>
-      <button class="ev-icon-button" id="ev-filter-open" type="button" title="Customize feed"><i class="ph ph-sliders-horizontal"></i><span class="ev-alert-dot"></span></button>
-      <button class="ev-icon-button" id="ev-refresh" type="button" title="Refresh now"><i class="ph ph-arrows-clockwise"></i></button>
-    </div>
-  </header>
-
   <div class="ev-credit-banner" id="ev-credit-banner">
     <i class="ph ph-shield-check"></i>
     <span><strong>Validating market structure, independent sources, freshness, and execution.</strong></span>
     <button id="ev-adjust-filters" type="button">Adjust filters</button>
   </div>
 
-  <div class="ev-workspace">
-    <div class="ev-feed-column">
-      <div class="ev-feed-status">
-        <span><i class="ev-live-dot"></i><strong id="ev-feed-label">Live market scan</strong></span>
-        <span id="ev-updated">Waiting for first refresh</span>
+  <div class="ev-content">
+    <header class="ev-toolbar">
+      <div class="ev-heading">
+        <div class="ev-title-row">
+          <h1 id="ev-title">+EV</h1>
+          <div class="ev-mode-tabs" role="tablist" aria-label="Feed state">
+            <button class="active" type="button">Pre-Match <span id="ev-count">0</span></button>
+            <button type="button" disabled>Live</button>
+          </div>
+        </div>
       </div>
-      <div class="ev-feed" id="ev-feed" aria-live="polite">
-        <div class="ev-loading"><span></span><p>Building your weighted fair-price board…</p></div>
+      <div class="ev-actions">
+        <label class="ev-search"><i class="ph ph-magnifying-glass"></i><input id="ev-search" type="search" placeholder="Search"></label>
+        <button class="ev-icon-button" id="ev-pause" type="button" aria-pressed="false" title="Pause refresh"><i class="ph ph-pause"></i></button>
+        <button class="ev-icon-button ev-utility-button" type="button" title="Sort opportunities"><i class="ph ph-funnel-simple"></i></button>
+        <button class="ev-icon-button" id="ev-filter-open" type="button" title="Customize feed"><i class="ph ph-sliders-horizontal"></i><span class="ev-alert-dot"></span></button>
+        <button class="ev-icon-button ev-utility-button" type="button" title="Notifications"><i class="ph ph-bell"></i></button>
+        <button class="ev-icon-button" id="ev-refresh" type="button" title="Refresh now"><i class="ph ph-arrows-clockwise"></i></button>
+        <button class="ev-icon-button ev-utility-button" type="button" title="More options"><i class="ph ph-dots-three-vertical"></i></button>
+        <button class="ev-icon-button" id="ev-detail-toggle" type="button" aria-pressed="false" title="Toggle opportunity detail"><i class="ph ph-sidebar-simple"></i></button>
       </div>
+    </header>
+
+    <div class="ev-workspace">
+      <div class="ev-feed-column">
+        <div class="ev-feed-status">
+          <span><i class="ev-live-dot"></i><strong id="ev-feed-label">Live market scan</strong></span>
+          <span id="ev-updated">Waiting for first refresh</span>
+        </div>
+        <div class="ev-feed" id="ev-feed" aria-live="polite">
+          <div class="ev-loading"><span></span><p>Building your weighted fair-price board…</p></div>
+        </div>
+      </div>
+      <aside class="ev-detail" id="ev-detail" aria-label="EV opportunity detail">
+        <div class="ev-detail-empty">
+          <i class="ph ph-chart-line-up"></i>
+          <h2>Select an opportunity</h2>
+          <p>Inspect the fair price, EV calculation, best execution, liquidity, and the full market.</p>
+        </div>
+      </aside>
     </div>
-    <aside class="ev-detail" id="ev-detail" aria-label="EV opportunity detail">
-      <div class="ev-detail-empty">
-        <i class="ph ph-chart-line-up"></i>
-        <h2>Select an opportunity</h2>
-        <p>Inspect the fair price, EV calculation, best execution, liquidity, and the full market.</p>
-      </div>
-    </aside>
   </div>
 </section>
 

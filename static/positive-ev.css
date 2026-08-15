@@ -17,3 +17,44 @@ body[data-page="positive-ev"] .app-shell{padding:0;overflow:hidden}
 .ev-audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:#20343e}.ev-audit-grid span{display:grid;gap:3px;padding:10px;background:#0b171e}.ev-audit-grid small{color:#7f929d;font-size:8px;text-transform:uppercase}.ev-audit-grid b{font-size:13px}
 @media(max-width:1400px) and (min-width:901px){.ev-workspace{grid-template-columns:minmax(0,1fr) 330px}.ev-opportunity{grid-template-columns:86px minmax(135px,.9fr) minmax(145px,.85fr) minmax(220px,1.1fr)}.ev-execution .ev-selection{display:none}.ev-opportunity>div{padding-inline:10px}.ev-best-button{min-width:96px}}
 @media(max-width:900px){.ev-history-stat{display:none}}
+
+/* Compact centered feed structure based on the supplied Positive EV reference. */
+.ev-content{width:min(100%,980px);margin:0 auto;min-height:0;flex:1;display:flex;flex-direction:column;gap:10px}
+@media(min-width:901px){
+body[data-page="positive-ev"] .app-shell{padding:70px 18px 18px;overflow:hidden}
+.ev-page{height:calc(100dvh - 88px);min-height:630px;padding:24px 20px 18px;gap:14px;background:#030708;border:1px solid #1b2c35;border-radius:9px}
+.ev-credit-banner{min-height:46px;padding:0 14px;background:#0c171d;border-color:#1b2d36;color:#84949e;border-radius:7px}
+.ev-credit-banner strong{color:#eef3f5;font-size:11px}.ev-credit-banner button{margin-left:7px}.ev-history-stat{margin-left:auto}
+.ev-toolbar{min-height:48px;align-items:center;gap:18px}.ev-title-row{gap:12px;margin:0}.ev-title-row h1{font-size:23px;letter-spacing:-.02em}.ev-mode-tabs{height:40px;padding:3px;border-color:#263943;border-radius:9px}.ev-mode-tabs button{height:32px;padding:0 13px;font-size:11px}.ev-mode-tabs button.active{background:#1a2c35}
+.ev-actions{gap:7px}.ev-search{width:168px;height:38px;background:#071015;border-color:#22353f}.ev-search input{font-size:11px}.ev-icon-button{width:38px;height:38px;background:#14232b;border-color:#253943;border-radius:7px}.ev-icon-button[aria-pressed="true"]{border-color:#20aee0;box-shadow:0 0 0 1px #20aee0 inset}
+.ev-workspace{display:block;min-height:0;position:relative}.ev-feed-column{height:100%}.ev-feed-status{height:18px;padding:0 3px}.ev-feed{gap:8px;padding:0 3px 12px 0}
+.ev-opportunity{grid-template-columns:112px 188px 168px minmax(320px,1fr);min-height:84px;max-height:84px;background:#0d181f;border-color:#1a2c35;border-radius:9px;box-shadow:0 1px 0 rgba(255,255,255,.015)}
+.ev-opportunity:hover,.ev-opportunity.active{background:#101d24;border-color:#31505e;transform:none}.ev-opportunity.active{box-shadow:inset 2px 0 #169fce}
+.ev-opportunity>div{padding:11px 12px;border-color:#1c2e37;display:flex;flex-direction:column;justify-content:center}
+.ev-score strong{font-size:24px;letter-spacing:-.025em}.ev-score span{width:max-content;margin-top:6px;padding:2px 6px;border-color:#294527;background:#0a1712;color:#77bd58}.ev-score em{display:none}
+.ev-event time{margin:0 0 7px;color:#a1adb4;font-size:10px}.ev-event strong{font-size:11px;line-height:1.28;white-space:normal;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2}.ev-event small{display:none}
+.ev-pick small{font-size:9px;margin-bottom:4px}.ev-pick strong{margin:0;font-size:14px;line-height:1.16}.ev-pick em{margin-top:4px;color:#b8c3c8;font-size:9px;font-style:normal;font-weight:600}
+.ev-execution{padding:10px 11px!important;background:#17242c;display:grid!important;grid-template-columns:minmax(120px,1fr) auto auto;align-items:center;gap:14px}.ev-selection{font-size:15px;line-height:1.15}.ev-selection small{display:none}.ev-stake{margin:0;min-width:44px}.ev-stake strong{font-size:14px}.ev-stake small{display:none}
+.ev-best-button{min-width:92px;grid-template-columns:24px auto;gap:6px;padding:4px 6px;background:#29471f;border-color:#4a742c;border-radius:7px}.ev-best-button img,.ev-book-logo{width:24px;height:24px;border-radius:5px}.ev-best-button span{font-size:15px;white-space:nowrap}.ev-best-button small{display:none}
+.ev-detail{position:fixed;z-index:78;top:70px;right:18px;bottom:18px;width:min(360px,calc(100vw - 36px));min-height:0;box-shadow:-14px 0 30px rgba(0,0,0,.42);transform:translateX(calc(100% + 28px));transition:transform .2s ease}.ev-detail.open{transform:translateX(0)}.ev-detail-close{display:block;margin-left:auto}
+}
+@media(max-width:1180px) and (min-width:901px){
+.ev-content{width:min(100%,900px)}.ev-opportunity{grid-template-columns:96px 164px 150px minmax(260px,1fr)}.ev-opportunity>div{padding-inline:10px}.ev-selection{font-size:14px}
+}
+@media(max-width:900px){
+body[data-page="positive-ev"] .app-shell{overflow:auto}.ev-page{padding-top:14px}.ev-content{width:100%;gap:11px}.ev-credit-banner{order:0}.ev-toolbar{order:1}.ev-workspace{order:2}.ev-title-row{width:100%;justify-content:space-between}.ev-actions{overflow-x:auto;padding-bottom:2px}.ev-search{min-width:190px}.ev-utility-button{flex:0 0 auto}
+.ev-opportunity{min-height:0;max-height:none}.ev-execution{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:9px}.ev-best-button{min-width:88px;padding:5px 7px}.ev-best-button img{width:25px;height:25px}.ev-best-button small{display:none}
+}
+
+/* Keep the reference hierarchy calm: navy surfaces, soft separators, green only for value. */
+body[data-page="positive-ev"] .ev-page{background:#020607!important;border-color:#1b2a31!important}
+body[data-page="positive-ev"] .ev-credit-banner{background:#0c171d!important;border-color:#1c2c34!important}
+body[data-page="positive-ev"] .ev-page .ev-opportunity{background:#0d181f!important;border-color:#1d3039!important;box-shadow:none!important}
+body[data-page="positive-ev"] .ev-opportunity:hover,
+body[data-page="positive-ev"] .ev-page .ev-opportunity.active{background:#101e25!important;border-color:#34505c!important}
+body[data-page="positive-ev"] .ev-page .ev-opportunity.active{box-shadow:inset 2px 0 #189ac5!important}
+body[data-page="positive-ev"] .ev-opportunity>div{border-color:#1c2e36!important}
+body[data-page="positive-ev"] .ev-execution{background:#17252d!important}
+body[data-page="positive-ev"] .ev-best-button{background:#29461f!important;border-color:#52782f!important;box-shadow:none!important}
+body[data-page="positive-ev"] .ev-best-button:hover{background:#315326!important;border-color:#6b9840!important}
+@media(min-width:901px){body[data-page="positive-ev"] .ev-feed-status{display:none}}

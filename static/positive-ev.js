@@ -103,10 +103,10 @@
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
       return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}">
-        <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong><span>${Math.round(Number(row.fairProbability)*100)}% fair</span><em>${row.previewOnly ? "PREVIEW ONLY" : esc(statusLabel(row))}</em></div>
-        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong><small>${esc(row.league)} · ${Number(row.sourceCount)} sources</small></div>
-        <div class="ev-pick"><small>${esc(row.marketLabel)}</small><strong>${esc(row.selection)}</strong><small>${(Number(row.fairConfidence)*100).toFixed(0)}% model confidence</small></div>
-        <div class="ev-execution"><div class="ev-selection">${esc(row.selection)}<small>${esc(row.marketLabel)}</small></div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong><small>${row.executionStatus === "executable" ? "constrained stake" : `${money(row.theoreticalStake)} raw Kelly`}</small></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<small>${esc(quote.bookName||quote.bookKey)}</small></span></a></div>
+        <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong><span><i class="ph ph-cube"></i>${Math.round(Number(row.fairProbability)*100)}%</span></div>
+        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong></div>
+        <div class="ev-pick"><small><i class="ph ph-globe-hemisphere-west"></i>${esc(row.league)}</small><strong>${esc(row.selection)}</strong><em>${esc(row.marketLabel)}</em></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(row.line ?? row.selection)}</div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right"></i></span></a></div>
       </button>`;
     }).join("");
     feed.querySelectorAll(".ev-opportunity").forEach(button => button.addEventListener("click", event => { if(event.target.closest("a")) return; select(button.dataset.id); }));
@@ -121,9 +121,11 @@
       <section class="ev-section"><header><h3>MARKET ODDS</h3><span>Execution book excluded from its own fair price</span></header><div class="ev-analysis">${row.quotes.slice(0,9).map(q=>`<div class="ev-analysis-row ${q.bookKey===best.bookKey?"best":""}">${img(q.logoUrl,q.bookKey)}<div class="bar"><i style="width:${Math.max(3,Math.abs(Number(q.evPercent||0))/maxEv*100)}%"></i></div><b>${Number(q.evPercent)>=0?"+":""}${Number(q.evPercent).toFixed(2)}%</b></div>`).join("")}</div><div class="ev-quotes">${row.quotes.map(q=>`<a class="ev-quote ${q.bookKey===best.bookKey?"best":""}" href="${esc(q.deepLink||"#")}" target="_blank" rel="noopener">${img(q.logoUrl,q.bookKey)}<span><strong>${esc(q.bookName)}</strong><small>${q.topPriceLiquidity != null ? `${money(q.topPriceLiquidity)} at top price` : q.marketLimit != null ? `${money(q.marketLimit)} reported limit` : `${esc(q.executionStatus.replaceAll("_"," "))} · ${q.quoteAgeSeconds == null ? "age unknown" : `${Math.round(q.quoteAgeSeconds)}s old`}`}</small></span><b>${odds(q.topPriceAmericanOdds??q.americanOdds)} ↗</b></a>`).join("")}</div></section>
       <section class="ev-section"><header><h3>SIZING AUDIT</h3><span>${(Number(row.fullKellyFraction)*100).toFixed(2)}% full Kelly</span></header><div class="ev-formula">Raw fractional Kelly: <strong>${money(row.theoreticalStake)}</strong><br>After confidence, per-bet, event, variance, and liquidity constraints: <b>${money(row.recommendedStake)}</b><br>Effective line after configured costs: ${odds(best.effectiveAmerican)}. Calculation: (${(Number(row.fairProbability)*100).toFixed(2)}% × ${Number(best.effectiveDecimal).toFixed(3)}) − 1 = <b>+${Number(row.evPercent).toFixed(2)}%</b>.</div></section></article>`;
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
-    if (matchMedia("(max-width:900px)").matches){ detail.classList.add("open"); scrim.hidden=false; }
+    detail.classList.add("open");
+    $("ev-detail-toggle")?.setAttribute("aria-pressed", "true");
+    if (matchMedia("(max-width:900px)").matches) scrim.hidden=false;
   }
-  function closeDetail(){detail.classList.remove("open");scrim.hidden=true;}
+  function closeDetail(){detail.classList.remove("open");scrim.hidden=true;$("ev-detail-toggle")?.setAttribute("aria-pressed", "false");}
   function openFilters(){renderFilters();dialog.showModal();}
   function applyFilters(){
     settings.group=document.querySelector('input[name="marketGroup"]:checked').value;
@@ -135,6 +137,7 @@
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
   }
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
+  $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports]};renderFilters();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",renderFeed);scrim.addEventListener("click",closeDetail);
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
