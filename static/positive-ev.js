@@ -59,7 +59,7 @@
     const y = value => top + ((maxOdds - value) / Math.max(1, maxOdds - minOdds)) * (height - top - bottom);
     const paths = series.map(item => {
       const points = item.pattern.map((delta, index) => [x(index), y(item.end + delta + ((seed + index) % 3 - 1))]);
-      return `<path class="ev-trend-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.5" fill="${item.color}"></circle>`).join("")}`;
+      return `<g data-series="${item.key}"><path class="ev-trend-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.5" fill="${item.color}"></circle>`).join("")}</g>`;
     }).join("");
     const limitValues = [350, 450, 700, 900, 1200, 1450, 1850, 2300, 2800];
     const limitY = value => top + ((3000 - value) / 3000) * (height - top - bottom);
@@ -69,16 +69,70 @@
       const label=Math.round(maxOdds-ratio*(maxOdds-minOdds));
       return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
     }).join("");
-    return `<div class="ev-trend-chart" aria-label="Visual preview of the requested market trend chart">
-      <div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${esc(row.eventTitle)}</span></div>
-      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview trend lines for selected book, Pinnacle, BookMaker, Circa, and Pinnacle limits">
-        ${grid}<text x="${width-right-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">$3k</text><text x="${width-right-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>
-        ${paths}<path class="ev-trend-limit" d="${chartPath(limitPoints)}"></path>${limitPoints.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="#f4f5f8"></circle>`).join("")}
-        <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${width/2}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">1h</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis">Now</text>
-      </svg>
-      <div class="ev-trend-legend">${series.map(item=>`<span style="--legend:${item.color}">${esc(item.name)}</span>`).join("")}<span style="--legend:#f4f5f8">Pinnacle limits</span></div>
-      <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical movement and limits are collecting; current EV, FV, price, and stake use the selected opportunity.</p>
+    const historySeries = [
+      { key: "history-pinnacle", name: "Pinnacle", color: "#ff4fa0", values: [fairOdds + 9, fairOdds + 2, fairOdds + 7, fairOdds - 1, fairOdds + 3, fairOdds + 3, fairOdds - 2, fairOdds - 2, fairOdds - 10] },
+      { key: "history-bookmaker", name: "BookMaker", color: "#f3c324", values: [fairOdds + 13, fairOdds + 13, fairOdds + 5, fairOdds + 5, fairOdds + 5, fairOdds + 1, fairOdds + 1, fairOdds + 1, fairOdds - 3] },
+      { key: "history-circa", name: "Circa", color: "#8b5cff", values: [fairOdds + 12, fairOdds + 12, fairOdds - 4, fairOdds + 4, fairOdds + 4, fairOdds + 4, fairOdds + 4, fairOdds + 1, fairOdds - 12] }
+    ];
+    const historyValues = historySeries.flatMap(item => item.values);
+    const historyMin = Math.min(...historyValues) - 7;
+    const historyMax = Math.max(...historyValues) + 7;
+    const historyY = value => top + ((historyMax - value) / Math.max(1, historyMax - historyMin)) * (height - top - bottom);
+    const historyPaths = historySeries.map(item => {
+      const points = item.values.map((value, index) => [x(index), historyY(value)]);
+      return `<g data-series="${item.key}"><path class="ev-trend-line ev-history-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="${item.color}"></circle>`).join("")}</g>`;
+    }).join("");
+    const historyGrid = [0,.25,.5,.75,1].map(ratio=>{
+      const gridY=top+ratio*(height-top-bottom);
+      const label=Math.round(historyMax-ratio*(historyMax-historyMin));
+      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
+    }).join("");
+    const legendButton = item => `<button type="button" class="ev-trend-legend-toggle" data-series-toggle="${item.key}" aria-pressed="true" style="--legend:${item.color}">${esc(item.name)}</button>`;
+    return `<div class="ev-trend-chart" aria-label="Visual preview of market trend and line history charts">
+      <div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
+      <div class="ev-chart-view active" data-chart-view="trend">
+        <div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${esc(row.eventTitle)}</span></div>
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview trend lines for selected book, Pinnacle, BookMaker, Circa, and Pinnacle limits">
+          ${grid}<text x="${width-right-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">$3k</text><text x="${width-right-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>
+          ${paths}<g data-series="limits"><path class="ev-trend-limit" d="${chartPath(limitPoints)}"></path>${limitPoints.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="#f4f5f8"></circle>`).join("")}</g>
+          <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${width/2}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">1h</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis">Now</text>
+        </svg>
+        <div class="ev-trend-legend">${series.map(legendButton).join("")}${legendButton({key:"limits",name:"Pinnacle limits",color:"#f4f5f8"})}</div>
+        <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical movement and limits are collecting; current EV, FV, price, and stake use the selected opportunity.</p>
+      </div>
+      <div class="ev-chart-view" data-chart-view="history" hidden>
+        <div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>
+        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview line history for Pinnacle, BookMaker, and Circa">
+          ${historyGrid}${historyPaths}
+          <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${left+(width-left-right)/3}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">12 AM</text><text x="${left+2*(width-left-right)/3}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">6 AM</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">Current</text>
+        </svg>
+        <div class="ev-trend-legend">${historySeries.map(legendButton).join("")}</div>
+        <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical book lines will populate here when the line-history feed is connected.</p>
+      </div>
     </div>`;
+  }
+
+  function bindTrendControls() {
+    detail.querySelectorAll("[data-chart-tab]").forEach(button => button.addEventListener("click", () => {
+      const mode = button.dataset.chartTab;
+      detail.querySelectorAll("[data-chart-tab]").forEach(tab => {
+        const active = tab.dataset.chartTab === mode;
+        tab.classList.toggle("active", active);
+        tab.setAttribute("aria-selected", String(active));
+      });
+      detail.querySelectorAll("[data-chart-view]").forEach(view => {
+        const active = view.dataset.chartView === mode;
+        view.hidden = !active;
+        view.classList.toggle("active", active);
+      });
+    }));
+    detail.querySelectorAll("[data-series-toggle]").forEach(button => button.addEventListener("click", () => {
+      const visible = button.getAttribute("aria-pressed") !== "true";
+      button.setAttribute("aria-pressed", String(visible));
+      button.classList.toggle("off", !visible);
+      const view = button.closest("[data-chart-view]");
+      view?.querySelectorAll(`[data-series="${button.dataset.seriesToggle}"]`).forEach(series => series.classList.toggle("series-hidden", !visible));
+    }));
   }
 
   function marketOddsVisual(row) {
@@ -199,6 +253,7 @@
         <span><small>OPEN</small><b>--</b></span>
       </div>${marketTrendVisual(row)}${marketOddsVisual(row)}</section>
     </article>`;
+    bindTrendControls();
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     detail.classList.add("open");
     detail.closest(".ev-workspace")?.classList.add("detail-open");

@@ -3885,6 +3885,89 @@ html body[data-page="positive-ev"] .ev-trend-chart-title {
   text-align: center;
 }
 
+html body[data-page="positive-ev"] .ev-trend-chart-head {
+  position: relative;
+  display: block;
+  min-height: 31px;
+}
+
+html body[data-page="positive-ev"] .ev-chart-tabs {
+  position: absolute;
+  top: 0;
+  right: 0;
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 6px;
+  background: rgba(7, 8, 13, .72);
+}
+
+html body[data-page="positive-ev"] .ev-chart-tabs button {
+  min-height: 25px;
+  padding: 4px 7px;
+  border: 0;
+  border-radius: 4px;
+  color: #817c8d;
+  background: transparent;
+  font: inherit;
+  font-size: 7px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+html body[data-page="positive-ev"] .ev-chart-tabs button.active {
+  color: #f5f3f7;
+  background: rgba(139, 92, 255, .2);
+  box-shadow: inset 0 0 0 1px rgba(192, 139, 255, .22);
+}
+
+html body[data-page="positive-ev"] .ev-chart-tabs button:focus-visible,
+html body[data-page="positive-ev"] .ev-trend-legend-toggle:focus-visible {
+  outline: 2px solid #c08bff;
+  outline-offset: 2px;
+}
+
+html body[data-page="positive-ev"] .ev-chart-view[hidden] {
+  display: none !important;
+}
+
+html body[data-page="positive-ev"] .ev-chart-view [data-series] {
+  opacity: 1;
+  transition: opacity .2s ease;
+}
+
+html body[data-page="positive-ev"] .ev-chart-view [data-series].series-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+html body[data-page="positive-ev"] .ev-history-heading {
+  display: grid;
+  gap: 3px;
+  margin: 12px 0 -3px;
+  text-align: center;
+}
+
+html body[data-page="positive-ev"] .ev-history-heading strong {
+  color: #f5f3f7;
+  font-size: 12px;
+}
+
+html body[data-page="positive-ev"] .ev-history-heading span {
+  color: #a49eae;
+  font-size: 8px;
+}
+
+html body[data-page="positive-ev"] .ev-history-line {
+  stroke-width: 2.2;
+}
+
+html body[data-page="positive-ev"] .ev-current-axis {
+  fill: #42d7e8;
+  font-weight: 700;
+}
+
 html body[data-page="positive-ev"] .ev-trend-chart-title strong {
   color: #f5f3f7;
   font-size: 13px;
@@ -3939,14 +4022,31 @@ html body[data-page="positive-ev"] .ev-trend-legend {
   padding: 2px 0 5px;
 }
 
-html body[data-page="positive-ev"] .ev-trend-legend span {
+html body[data-page="positive-ev"] .ev-trend-legend-toggle {
   padding: 5px 8px;
   border: 1px solid color-mix(in srgb, var(--legend), transparent 48%);
   border-radius: 6px;
   color: var(--legend);
+  background: color-mix(in srgb, var(--legend), transparent 94%);
+  font-family: inherit;
   font-size: 8px;
   font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: opacity .18s ease, background .18s ease, border-color .18s ease;
 }
+
+html body[data-page="positive-ev"] .ev-trend-legend-toggle:hover {
+  background: color-mix(in srgb, var(--legend), transparent 87%);
+}
+
+html body[data-page="positive-ev"] .ev-trend-legend-toggle.off {
+  border-color: rgba(255, 255, 255, .1);
+  color: #66616f;
+  background: transparent;
+  opacity: .58;
+}
+
 
 html body[data-page="positive-ev"] .ev-trend-preview-note {
   margin: 6px 0 0;
