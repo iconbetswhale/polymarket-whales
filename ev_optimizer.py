@@ -567,6 +567,31 @@ def build_ev_board(
                     }
                     for row in consensus["sourceRows"]
                 ]
+                ordered_market_selections = [selection] + [
+                    item for item in labels if item != selection
+                ]
+                market_sides = []
+                for market_selection in ordered_market_selections:
+                    side_quotes = [
+                        quote
+                        for quote in quotes_by_selection.get(market_selection, [])
+                        if (
+                            quote["quoteAgeSeconds"] is None
+                            or quote["quoteAgeSeconds"] <= max_quote_age_seconds
+                        )
+                    ]
+                    side_quotes.sort(
+                        key=lambda quote: quote["topPriceAmericanOdds"],
+                        reverse=True,
+                    )
+                    market_sides.append(
+                        {
+                            "selection": _selection_label(
+                                market_key, labels[market_selection]
+                            ),
+                            "quotes": side_quotes,
+                        }
+                    )
                 candidate_id = (
                     f"ev::{event_id}::{market_key}::"
                     f"{hashlib.sha256(json.dumps(selection, default=str).encode()).hexdigest()[:16]}"
@@ -596,6 +621,7 @@ def build_ev_board(
                         "sourceBooks": source_books,
                         "bestQuote": best,
                         "quotes": [item[0] for item in evaluated_quotes],
+                        "marketSides": market_sides,
                         "executionStatus": best["executionStatus"],
                         "portfolioStatus": "qualified",
                         "theoreticalStake": round(theoretical_stake, 2),

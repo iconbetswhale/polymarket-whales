@@ -136,26 +136,46 @@
   }
 
   function marketOddsVisual(row) {
-    const quotes = [...(row.quotes || [])].sort((left, right) =>
-      Number(right.topPriceAmericanOdds ?? right.americanOdds ?? -10000) - Number(left.topPriceAmericanOdds ?? left.americanOdds ?? -10000)
-    );
-    if (!quotes.length) return "";
-    const bestOdds = quotes[0].topPriceAmericanOdds ?? quotes[0].americanOdds;
-    const quoteRow = (quote, index) => {
-      const quoteOdds = quote.topPriceAmericanOdds ?? quote.americanOdds;
-      const detailText = quote.topPriceLiquidity != null
-        ? `${money(quote.topPriceLiquidity)} available`
-        : quote.marketLimit != null
-          ? `${money(quote.marketLimit)} limit`
-          : quote.executionStatus === "executable"
-            ? "Executable"
-            : String(quote.executionStatus || "Price available").replaceAll("_", " ");
-      const content = `<span class="ev-market-rank">${index + 1}</span>${img(quote.logoUrl, quote.bookKey)}<span class="ev-market-book"><strong>${esc(quote.bookName || bookNames[quote.bookKey] || quote.bookKey)}</strong><small>${esc(detailText)}</small></span><span class="ev-market-price"><strong>${odds(quoteOdds)}</strong><small>${Number(quote.evPercent) >= 0 ? "+" : ""}${Number(quote.evPercent || 0).toFixed(2)}% EV</small></span>${Number(quoteOdds) === Number(bestOdds) ? '<em>BEST</em>' : ""}`;
+    const suppliedSides = (row.marketSides || []).filter(side => side?.selection && side?.quotes?.length);
+    const sides = suppliedSides.length >= 2
+      ? suppliedSides.slice(0, 2)
+      : [{selection: row.selection, quotes: row.quotes || []}];
+    const sideMaps = sides.map(side => new Map(side.quotes.map(quote => [quote.bookKey, quote])));
+    const bookKeys = [...new Set(sides.flatMap(side => side.quotes.map(quote => quote.bookKey)))];
+    if (!bookKeys.length) return "";
+    const priceOf = quote => Number(quote?.topPriceAmericanOdds ?? quote?.americanOdds ?? -10000);
+    bookKeys.sort((left, right) => priceOf(sideMaps[0].get(right)) - priceOf(sideMaps[0].get(left)));
+    const bestBySide = sideMaps.map(sideMap => Math.max(...[...sideMap.values()].map(priceOf)));
+    const detailText = quote => quote?.topPriceLiquidity != null
+      ? `Liq ${money(quote.topPriceLiquidity)}`
+      : quote?.marketLimit != null
+        ? `Limit ${money(quote.marketLimit)}`
+        : "";
+    const priceCell = (quote, sideIndex) => {
+      if (!quote) return `<span class="ev-compare-price unavailable" aria-label="No price available">—</span>`;
+      const quoteOdds = priceOf(quote);
+      const best = quoteOdds === bestBySide[sideIndex];
+      const content = `<small>${esc(detailText(quote))}</small><strong>${odds(quoteOdds)}</strong><i class="ph ph-arrow-up-right"></i>`;
       return quote.deepLink && quote.deepLink !== "#"
-        ? `<a class="ev-market-quote ${index === 0 ? "best" : ""}" href="${esc(quote.deepLink)}" target="_blank" rel="noopener">${content}<i class="ph ph-arrow-up-right"></i></a>`
-        : `<div class="ev-market-quote ${index === 0 ? "best" : ""}">${content}</div>`;
+        ? `<a class="ev-compare-price ${best ? "best" : ""}" href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName || bookNames[quote.bookKey] || quote.bookKey)} ${esc(sides[sideIndex].selection)} at ${odds(quoteOdds)}">${content}</a>`
+        : `<span class="ev-compare-price ${best ? "best" : ""}">${content}</span>`;
     };
-    return `<section class="ev-market-odds"><header><div><h3>MARKET ODDS</h3><span>${quotes.length} available books</span></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestOdds)}</strong></div></header><div class="ev-market-side"><span>${esc(row.selection)}</span><small>Ranked by available price</small></div><div class="ev-market-quotes">${quotes.map(quoteRow).join("")}</div></section>`;
+    const rowsHtml = bookKeys.map(bookKey => {
+      const left = sideMaps[0].get(bookKey);
+      const right = sideMaps[1]?.get(bookKey);
+      const representative = left || right || {};
+      const label = representative.bookName || bookNames[bookKey] || bookKey;
+      return `<div class="ev-market-compare-row">
+        ${priceCell(left, 0)}
+        <span class="ev-market-book-center" title="${esc(label)}">${img(representative.logoUrl, bookKey)}<span>${esc(label)}</span></span>
+        ${sides.length > 1 ? priceCell(right, 1) : ""}
+      </div>`;
+    }).join("");
+    return `<section class="ev-market-odds ev-market-comparison">
+      <header><div><h3>MARKET ODDS</h3><span>${bookKeys.length} available books · both sides</span></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestBySide[0])}</strong></div></header>
+      <div class="ev-market-compare-head"><strong>${esc(sides[0].selection)}</strong><i class="ph ph-arrows-down-up" aria-hidden="true"></i>${sides.length > 1 ? `<strong>${esc(sides[1].selection)}</strong>` : ""}</div>
+      <div class="ev-market-compare-rows">${rowsHtml}</div>
+    </section>`;
   }
 
   function renderFilters() {

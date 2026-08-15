@@ -15,7 +15,7 @@ _LOGOS = {
     "novig": "/static/assets/providers/novig.png",
     "fourcx": "/static/assets/providers/4cx.png",
     "pinnacle": "https://www.pinnacle.com/favicon.ico",
-    "betonlineag": "https://sports.betonline.ag/favicon.ico",
+    "betonlineag": "/static/assets/sportsbooks/betonline.png",
 }
 
 _NAMES = {

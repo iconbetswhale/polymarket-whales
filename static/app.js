@@ -1118,6 +1118,14 @@ const EXECUTION_PROVIDER_META = {
     name: "Kalshi",
     logoUrl: "/static/assets/providers/kalshi.png",
   },
+  betonline: {
+    name: "BetOnline",
+    logoUrl: "/static/assets/sportsbooks/betonline.png",
+  },
+  betonlineag: {
+    name: "BetOnline",
+    logoUrl: "/static/assets/sportsbooks/betonline.png",
+  },
 };
 
 function canonicalExecutionProviderKey(value) {
@@ -5602,7 +5610,10 @@ function oddsProviderInitials(name) {
 
 function providerLogoMarkup(provider, alt = "") {
   const name = provider?.name || provider?.providerName || "Sportsbook";
-  const logoUrl = provider?.logoUrl || "";
+  const providerKey = normalizedBookName(provider?.key || provider?.providerKey || name);
+  const logoUrl = providerKey === "betonline"
+    ? "/static/assets/sportsbooks/betonline.png"
+    : provider?.logoUrl || "";
   const initials = escapeHtml(oddsProviderInitials(name));
   if (!logoUrl) return `<span class="provider-logo-mark"><b class="book-initials">${initials}</b></span>`;
   return `<span class="provider-logo-mark"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(alt)}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><b class="book-initials" hidden>${initials}</b></span>`;

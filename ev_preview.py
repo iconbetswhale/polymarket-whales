@@ -21,7 +21,11 @@ _LOGOS = {
     "prophetx": "/static/assets/providers/prophetx.ico",
     "fourcx": "/static/assets/providers/4cx.png",
     "pinnacle": "https://www.pinnacle.com/favicon.ico",
-    "betonlineag": "https://sports.betonline.ag/favicon.ico",
+    "betonlineag": "/static/assets/sportsbooks/betonline.png",
+    "kalshi": "/static/assets/providers/kalshi.png",
+    "polymarket": "https://polymarket.com/icons/favicon-32x32.png",
+    "fanduel": "https://sportsbook.fanduel.com/favicon.ico",
+    "draftkings": "https://sportsbook.draftkings.com/favicon.ico",
 }
 
 _NAMES = {
@@ -30,6 +34,10 @@ _NAMES = {
     "fourcx": "4CX",
     "pinnacle": "Pinnacle",
     "betonlineag": "BetOnline",
+    "kalshi": "Kalshi",
+    "polymarket": "Polymarket",
+    "fanduel": "FanDuel",
+    "draftkings": "DraftKings",
 }
 
 
@@ -64,30 +72,37 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
     fixtures = (
         (
             "baseball_mlb", "MLB", "New York Mets vs Philadelphia Phillies",
-            "Moneyline", "Philadelphia Phillies", 5.62, "novig", 118, 84.0, 420,
+            "Moneyline", "Philadelphia Phillies", "New York Mets",
+            5.62, "novig", 118, 84.0, 420,
         ),
         (
             "basketball_wnba", "WNBA", "Las Vegas Aces vs New York Liberty",
-            "Spread", "New York Liberty -3.5", 4.18, "prophetx", 108, 72.0, 310,
+            "Spread", "New York Liberty -3.5", "Las Vegas Aces +3.5",
+            4.18, "prophetx", 108, 72.0, 310,
         ),
         (
             "baseball_mlb", "MLB", "Chicago Cubs vs Milwaukee Brewers",
-            "Game Total", "Under 8.5", 3.41, "fourcx", 105, 58.0, 205,
+            "Game Total", "Under 8.5", "Over 8.5",
+            3.41, "fourcx", 105, 58.0, 205,
         ),
         (
             "tennis_atp", "ATP", "Taylor Fritz vs Ben Shelton", "Moneyline",
-            "Taylor Fritz", 2.76, "novig", -158, 46.0, 690,
+            "Taylor Fritz", "Ben Shelton", 2.76, "novig", -158, 46.0, 690,
         ),
         (
             "basketball_wnba", "WNBA", "Seattle Storm vs Phoenix Mercury",
-            "Game Total", "Over 162.5", 1.93, "prophetx", 102, 34.0, 180,
+            "Game Total", "Over 162.5", "Under 162.5",
+            1.93, "prophetx", 102, 34.0, 180,
         ),
     )
-    books = ("novig", "prophetx", "fourcx", "pinnacle", "betonlineag")
+    books = (
+        "novig", "prophetx", "fourcx", "pinnacle", "betonlineag",
+        "kalshi", "polymarket", "fanduel", "draftkings",
+    )
     rows: list[dict] = []
     for index, fixture in enumerate(fixtures, start=1):
         (
-            sport, league, event, market, selection, ev, best_book,
+            sport, league, event, market, selection, opposing_selection, ev, best_book,
             best_odds, stake, liquidity,
         ) = fixture
         fair = (1.0 + ev / 100.0) / american_to_decimal(best_odds)
@@ -102,6 +117,19 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
             for position, book in enumerate(books)
         ]
         quotes.sort(key=lambda item: item["americanOdds"], reverse=True)
+        opposing_base = probability_to_american(
+            1.0 - american_to_probability(best_odds)
+        )
+        opposing_quotes = [
+            _quote(
+                book,
+                opposing_base - 1 - position,
+                1.0 - fair,
+                round(liquidity * 0.8, 2) if book == best_book else None,
+            )
+            for position, book in enumerate(books)
+        ]
+        opposing_quotes.sort(key=lambda item: item["americanOdds"], reverse=True)
         best = next(item for item in quotes if item["bookKey"] == best_book)
         # Preserve the intentionally chosen headline EV while keeping quote audit
         # values internally coherent enough for the existing visual components.
@@ -127,6 +155,10 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
                 "sourceBooks": [],
                 "bestQuote": best,
                 "quotes": quotes,
+                "marketSides": [
+                    {"selection": selection, "quotes": quotes},
+                    {"selection": opposing_selection, "quotes": opposing_quotes},
+                ],
                 "executionStatus": "executable",
                 "portfolioStatus": "qualified",
                 "theoreticalStake": round(stake * 1.32, 2),
