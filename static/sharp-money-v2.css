@@ -2424,3 +2424,20 @@ body[data-page="sharp-money"] {
     overflow: hidden;
   }
 }
+
+/* Keep the reference two-column composition inside narrower desktop windows.
+   The app sidebar consumes part of the viewport, so fixed column minimums can
+   otherwise create a small horizontal scroll before the tablet breakpoint. */
+@media (min-width: 981px) and (max-width: 1400px) {
+  body[data-page="sharp-money"] .sharp-money-page {
+    padding-inline: 18px;
+  }
+
+  body[data-page="sharp-money"] .sharp-workspace {
+    grid-template-columns: minmax(0, 1.04fr) minmax(0, .96fr);
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
+    grid-template-columns: 100px minmax(0, 1fr) !important;
+  }
+}
