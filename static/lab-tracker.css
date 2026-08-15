@@ -64,12 +64,9 @@ html body[data-page="lab-tracker"] main.app-shell {
 .lab-panel header span { color: #5e6b7c; font-size: 9px; }
 .lab-insights { display: grid; align-content: start; gap: 14px; }
 .lab-ranking { display: grid; gap: 6px; }
-.lab-books .lab-ranking { max-height: 860px; overflow-y: auto; scrollbar-color: rgba(181,44,255,.46) transparent; scrollbar-width: thin; }
-.lab-insights .lab-ranking { max-height: 400px; overflow-y: auto; scrollbar-color: rgba(181,44,255,.46) transparent; scrollbar-width: thin; }
-.lab-ranking::-webkit-scrollbar { width: 3px; }
-.lab-ranking::-webkit-scrollbar-track { background: transparent; }
-.lab-ranking::-webkit-scrollbar-thumb { border-radius: 999px; background: rgba(181,44,255,.72); }
-.lab-ranking::-webkit-scrollbar-thumb:hover { background: rgba(202,78,255,.9); }
+.lab-books .lab-ranking { max-height: 860px; overflow-y: auto; scrollbar-width: none; }
+.lab-insights .lab-ranking { max-height: 400px; overflow-y: auto; scrollbar-width: none; }
+.lab-ranking::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .lab-rank-row { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 49px; padding: 5px 2px; }
 .lab-book-logo, .lab-rank-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(5,7,9,.94); }
 .lab-book-logo { display: grid; place-items: center; overflow: hidden; padding: 2px; border: 1px solid rgba(195,201,208,.14); }
