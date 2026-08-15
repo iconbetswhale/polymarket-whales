@@ -124,9 +124,10 @@ body[data-page="lab-tracker"] .lab-bet-pnl strong.push { color: var(--lab-text) 
 .lab-bet-main p { margin: 3px 0; color: #c3cad3; font-size: 12px; }
 .lab-bet-main small { display: block; overflow: hidden; color: #68768a; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .lab-source-pill { display: inline-block; margin-right: 7px; padding: 2px 5px; border-radius: 3px; color: #afbbc9; background: #273242; font-size: 8px; text-transform: uppercase; }
-.lab-bet-book { display: grid; grid-template-columns: 30px auto; align-items: center; gap: 8px; text-align: right; }
+.lab-bet-book { width: 128px; display: grid; grid-template-columns: 34px minmax(0,1fr); align-items: center; justify-self: end; gap: 8px; text-align: right; }
 .lab-bet-book .lab-book-logo, .lab-bet-book .lab-rank-icon { width: 34px; height: 34px; }
-.lab-bet-book span { display: block; color: #7b889a; font-size: 9px; }
+.lab-bet-book > div { min-width: 0; }
+.lab-bet-book span { display: block; overflow: hidden; color: #7b889a; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .lab-bet-book strong { font-family: "Roboto Condensed", sans-serif; font-size: 14px; }
 .lab-track-button { grid-column: 1 / -1; justify-self: end; border: 1px solid rgba(181,44,255,.55); border-radius: 7px; padding: 7px 10px; color: var(--lab-purple-bright); background: rgba(181,44,255,.08); font-weight: 700; cursor: pointer; }
 .lab-empty { display: grid; min-height: 170px; place-content: center; justify-items: center; color: var(--lab-muted); text-align: center; }
