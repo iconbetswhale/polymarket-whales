@@ -3500,3 +3500,60 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
   min-height: 388px !important;
   overflow: visible !important;
 }
+
+/* Positive EV board lock. Keep this at the physical end of the bundle so legacy
+   shared opportunity rules cannot reintroduce teal surfaces or overflow. */
+@media (min-width: 901px) {
+  html body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 150px minmax(250px, 1.04fr) minmax(230px, .92fr) minmax(340px, 1.34fr) !important;
+    background: linear-gradient(105deg, #0f0d16 0%, #0b0a11 100%) !important;
+    border-color: rgba(137, 104, 158, .34) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity:hover,
+  html body[data-page="positive-ev"] .ev-opportunity.active {
+    background: linear-gradient(105deg, #15111d 0%, #0d0b14 100%) !important;
+    border-color: rgba(166, 119, 190, .5) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-execution {
+    min-width: 0 !important;
+    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    gap: 14px !important;
+    padding: 18px 20px !important;
+    overflow: hidden !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-selection {
+    min-width: 0 !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-best-button,
+  html body[data-page="positive-ev"] .ev-best-button:hover {
+    min-width: 138px !important;
+    width: auto !important;
+    max-width: 154px !important;
+    padding: 8px 11px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  html body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 126px minmax(205px, 1fr) minmax(190px, .9fr) minmax(300px, 1.2fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity > div {
+    padding-inline: 16px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-selection {
+    font-size: 17px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-best-button,
+  html body[data-page="positive-ev"] .ev-best-button:hover {
+    min-width: 122px !important;
+  }
+}
