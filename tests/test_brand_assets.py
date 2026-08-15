@@ -1,4 +1,5 @@
 from io import BytesIO
+from pathlib import Path
 
 from PIL import Image
 
@@ -27,3 +28,11 @@ def test_shared_shell_uses_expanded_wordmark_and_collapsed_mark(app_client):
 def test_home_uses_new_logo_mark(app_client):
     page = app_client.get("/").get_data(as_text=True)
     assert "iconlabs-mark-v2.png" in page
+
+
+def test_shared_shell_keeps_brand_and_ev_toolbar_responsive():
+    css = (Path(__file__).parents[1] / "static" / "sidebar-shell.css").read_text(encoding="utf-8")
+    assert "--sidebar-shell-width: clamp(212px, 15.5vw, 232px)" in css
+    assert "width: 138px !important" in css
+    assert "grid-template-columns: minmax(0, 1fr) repeat(4, 42px)" in css
+    assert "overflow-x: clip !important" in css
