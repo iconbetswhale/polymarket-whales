@@ -288,8 +288,9 @@ def test_demo_dashboard_is_populated_and_never_changes_real_tracker(app_client):
     assert len(payload["leagues"]) >= 10
     assert {item["name"] for item in payload["markets"]} <= {
         "Moneyline", "Spread", "Total", "Team Total", "Player Prop",
-        "To Advance", "Yes / No", "Other",
+        "First 5", "To Advance", "Yes / No",
     }
+    assert "Other" not in {item["name"] for item in payload["markets"]}
     assert len(payload["lastGraded"]) == 5
     assert payload["openBets"]
 

@@ -211,7 +211,7 @@ def _market_category(row: dict) -> str:
 
     if "team total" in combined or "teamtotal" in compact:
         return "Team Total"
-    if any(
+    if market_key.startswith(("player_", "pitcher_", "batter_")) or market_key == "total_bases" or any(
         term in combined
         for term in (
             "player prop",
@@ -225,6 +225,8 @@ def _market_category(row: dict) -> str:
         )
     ):
         return "Player Prop"
+    if "first five" in combined or market_key == "first_five":
+        return "First 5"
     if "spread" in combined or "handicap" in combined:
         return "Spread"
     if market_key in {"h2h", "ml", "moneyline", "match_h2h"} or "moneyline" in combined:
