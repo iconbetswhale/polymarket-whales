@@ -19,7 +19,9 @@
   let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
   try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
-  const previewOnly = new URLSearchParams(window.location.search).get("preview") === "1";
+  // The optimizer is credit-safe for now, so the public board intentionally
+  // renders the isolated five-row visual feed instead of starting paid scans.
+  const previewOnly = true;
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
