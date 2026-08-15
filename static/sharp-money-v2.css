@@ -660,6 +660,812 @@ body[data-page="sharp-money"] {
   }
 }
 
+/* Screenshot-faithful Sharp Money workspace. The original tool's information
+   architecture is preserved while IconLabs' violet treatment replaces cyan. */
+body[data-page="sharp-money"] {
+  background: #050408;
+}
+
+body[data-page="sharp-money"] .app-main {
+  overflow-x: hidden;
+}
+
+.sharp-money-page {
+  width: min(100%, 1450px);
+  max-width: 1450px;
+  margin-inline: auto;
+  padding: 28px 26px 56px;
+}
+
+.sharp-money-header {
+  display: flex;
+  align-items: center;
+  min-height: 54px;
+  margin: 0 0 12px;
+}
+
+.sharp-money-heading {
+  min-width: 0;
+}
+
+.sharp-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sharp-title-row h1 {
+  margin: 0;
+  color: #fbf9ff;
+  font-size: 25px;
+  font-weight: 720;
+  letter-spacing: -.035em;
+}
+
+.sharp-learn-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  padding: 0 11px;
+  border: 1px solid rgba(175, 155, 218, .18);
+  border-radius: 8px;
+  color: #e9e1f7;
+  background: #17121f;
+  font: 650 11px/1 var(--font-body);
+}
+
+.sharp-learn-button i {
+  color: #c4a8ff;
+  font-size: 17px;
+}
+
+.sharp-title-row .sandbox-badge,
+.sharp-utility-state {
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip: rect(0, 0, 0, 0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
+}
+
+.sharp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.sharp-search {
+  width: 180px;
+  min-height: 40px;
+  border: 1px solid rgba(167, 143, 220, .24);
+  border-radius: 8px;
+  background: #09070e;
+}
+
+.sharp-search:focus-within {
+  border-color: rgba(158, 101, 255, .72);
+  box-shadow: 0 0 0 3px rgba(133, 72, 245, .11);
+}
+
+.sharp-feed-control {
+  min-height: 40px;
+  padding: 0;
+  border-color: rgba(167, 143, 220, .22);
+  border-radius: 8px;
+  background: #17131f;
+}
+
+.sharp-feed-control button {
+  min-width: 42px;
+  padding: 0 11px;
+  border-radius: 7px;
+}
+
+.sharp-feed-control button span {
+  display: none;
+}
+
+.sharp-feed-control button.active {
+  color: #fff;
+  background: #241b31;
+  box-shadow: inset 0 0 0 1px rgba(174, 120, 255, .2);
+}
+
+.sharp-icon-button {
+  width: 42px;
+  min-height: 40px;
+  border-color: rgba(167, 143, 220, .22);
+  border-radius: 8px;
+  color: #e9e1f7;
+  background: #17131f;
+}
+
+.sharp-icon-button:hover {
+  border-color: rgba(160, 99, 255, .55);
+  background: #21182d;
+}
+
+.sharp-workspace {
+  display: grid;
+  grid-template-columns: minmax(580px, 1fr) minmax(540px, .96fr);
+  align-items: start;
+  gap: 14px;
+}
+
+.sharp-signal-column {
+  min-width: 0;
+}
+
+.sharp-signal-list {
+  display: grid;
+  gap: 8px;
+}
+
+.sharp-signal-card {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  min-height: 170px;
+  max-height: none;
+  overflow: hidden;
+  border: 1px solid rgba(144, 119, 194, .22);
+  border-radius: 12px;
+  color: #f7f3ff;
+  background: #100d16;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
+}
+
+.sharp-signal-card:hover {
+  border-color: rgba(172, 117, 255, .48);
+  background: #14101c;
+}
+
+.sharp-signal-card.selected {
+  border-color: #9d5cff;
+  background: linear-gradient(105deg, rgba(139, 76, 238, .15), transparent 48%), #151020;
+  box-shadow: inset 3px 0 #a366ff, 0 16px 42px rgba(38, 17, 70, .28);
+}
+
+.sharp-signal-card > div {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+}
+
+.sharp-signal-money.sharp-liquidity-score {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 18px 13px;
+  border-right: 1px solid rgba(150, 124, 202, .15);
+  background: rgba(8, 6, 12, .26);
+}
+
+body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score strong {
+  color: #75e44b;
+  font-size: 23px;
+  line-height: 1;
+}
+
+body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score span {
+  margin-top: 8px;
+  color: #9b8bb7;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sharp-card-body {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  padding: 14px 14px 12px !important;
+}
+
+.sharp-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 1px 10px;
+}
+
+.sharp-card-heading > div {
+  display: grid;
+  min-width: 0;
+}
+
+.sharp-card-heading small {
+  color: #a997c5;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.sharp-card-heading strong {
+  margin-top: 2px;
+  overflow: hidden;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 720;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharp-card-heading em {
+  margin-top: 2px;
+  color: #c078ff;
+  font-size: 11px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.sharp-card-heading time {
+  flex: 0 0 auto;
+  color: #9c8daf;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.sharp-card-market {
+  overflow: hidden;
+  border: 1px solid rgba(157, 129, 209, .19);
+  border-radius: 9px;
+  background: #191522;
+}
+
+.sharp-card-market-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 78px 74px;
+  align-items: center;
+  min-height: 48px;
+  gap: 8px;
+  padding: 5px 8px;
+  color: #9f91b6;
+}
+
+.sharp-card-market-row + .sharp-card-market-row {
+  border-top: 1px solid rgba(157, 129, 209, .13);
+}
+
+.sharp-card-market-row.primary {
+  color: #fff;
+  background: rgba(133, 76, 218, .065);
+}
+
+.sharp-card-market-row > strong {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharp-card-market-row > span {
+  text-align: right;
+}
+
+.sharp-card-market-row > span b,
+.sharp-card-market-row > span small {
+  display: block;
+}
+
+.sharp-card-market-row > span b {
+  color: #f9f6ff;
+  font-size: 12px;
+}
+
+.sharp-card-market-row > span small {
+  color: #998bab;
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.sharp-card-market-row > a {
+  display: grid;
+  grid-template-columns: 22px auto;
+  align-items: center;
+  gap: 4px;
+  min-height: 30px;
+  padding: 3px 6px;
+  border: 1px solid rgba(139, 212, 76, .42);
+  border-radius: 6px;
+  color: #fff;
+  background: #2d4c1f;
+  text-decoration: none;
+}
+
+.sharp-card-market-row > a img,
+.sharp-card-market-row > a span {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.sharp-card-market-row > a b,
+.sharp-opposite-price {
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.sharp-opposite-price {
+  color: #c5b8d7;
+}
+
+.sharp-detail-panel {
+  position: sticky;
+  top: 18px;
+  min-height: 980px;
+  max-height: calc(100vh - 36px);
+  padding: 13px;
+  overflow-y: auto;
+  border: 1px solid #9555ed;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #100d16, #0b0910);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, .35);
+}
+
+.sharp-detail-head {
+  display: grid;
+  grid-template-columns: 92px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 12px;
+  min-height: 82px;
+  padding: 6px 3px 12px;
+  border-bottom: 1px solid rgba(158, 129, 211, .16);
+}
+
+.sharp-detail-liquidity {
+  align-self: center;
+  color: #75e44b;
+  font-size: 21px;
+  font-weight: 760;
+}
+
+.sharp-detail-head > div:nth-child(2) {
+  min-width: 0;
+  padding-left: 12px;
+  border-left: 1px solid rgba(158, 129, 211, .17);
+}
+
+.sharp-detail-head > div > span {
+  color: #a99bbb;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.sharp-detail-head h2 {
+  margin: 2px 0 0;
+  overflow: hidden;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 720;
+  line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharp-detail-head em {
+  color: #c078ff;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 700;
+}
+
+.sharp-detail-time {
+  display: grid;
+  justify-items: end;
+  gap: 20px;
+}
+
+.sharp-detail-time b {
+  color: #a99bbb;
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sharp-detail-icons {
+  display: flex;
+  gap: 10px;
+  color: #9383aa;
+  font-size: 17px;
+}
+
+.sharp-recommendation {
+  display: grid;
+  grid-template-columns: 38px minmax(0, 1fr) 52px 52px 72px 28px;
+  align-items: center;
+  gap: 8px;
+  min-height: 62px;
+  margin-top: 10px;
+  padding: 8px 9px;
+  border: 1px solid rgba(158, 129, 211, .16);
+  border-radius: 9px;
+  background: #1a1622;
+}
+
+.sharp-book-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: #09070d;
+}
+
+.sharp-book-icon img {
+  width: 24px;
+  height: 24px;
+}
+
+.sharp-rec-copy strong {
+  margin: 0;
+  overflow: hidden;
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sharp-rec-stake,
+.sharp-rec-price {
+  text-align: right;
+}
+
+.sharp-rec-stake strong,
+.sharp-rec-price strong {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+}
+
+.sharp-rec-stake span,
+.sharp-rec-price span {
+  color: #9c8eac;
+  font-size: 8px;
+}
+
+.sharp-game-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 36px;
+  border: 1px solid rgba(134, 210, 73, .44);
+  border-radius: 6px;
+  color: #fff;
+  background: #345620;
+  font-size: 11px;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.sharp-add-button {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #964eff;
+}
+
+.sharp-flow-summary {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 55px 72px 22px;
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+  padding: 8px 10px;
+  color: #a99bbb;
+}
+
+.sharp-flow-primary-logo img,
+.sharp-flow-primary-logo span {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.sharp-flow-summary > strong {
+  color: #c5b9d6;
+  font-size: 11px;
+}
+
+.sharp-flow-summary > span b,
+.sharp-flow-summary > span small {
+  display: block;
+  text-align: right;
+}
+
+.sharp-flow-summary > span b {
+  color: #fff;
+  font-size: 11px;
+}
+
+.sharp-flow-summary > span small {
+  font-size: 8px;
+}
+
+.sharp-flow-depth {
+  padding: 0 10px 14px;
+  border-bottom: 1px solid rgba(158, 129, 211, .16);
+}
+
+.sharp-flow-depth-row {
+  display: grid;
+  grid-template-columns: 24px 42px minmax(0, 1fr) 60px;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+}
+
+.sharp-flow-book img,
+.sharp-flow-book span {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+.sharp-flow-depth-row > strong {
+  color: #f1edf7;
+  font-size: 10px;
+  text-align: right;
+}
+
+.sharp-flow-depth-row > small {
+  color: #aa99c1;
+  font-size: 9px;
+}
+
+.sharp-flow-bar {
+  height: 22px;
+  overflow: hidden;
+  background: #191424;
+}
+
+.sharp-flow-bar i {
+  display: block;
+  width: var(--flow-width);
+  height: 100%;
+  background: linear-gradient(90deg, #623d2f, #8b5b38);
+}
+
+.sharp-flow-depth-row:nth-child(-n+2) .sharp-flow-bar i {
+  background: linear-gradient(90deg, #36501f, #547829);
+}
+
+.sharp-market-comparison {
+  padding: 14px 5px 4px;
+}
+
+.sharp-market-table-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  min-height: 46px;
+}
+
+.sharp-market-table-head strong {
+  color: #fff;
+  font-size: 12px;
+  text-align: center;
+}
+
+.sharp-market-table-head button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  margin: auto;
+  padding: 0;
+  place-items: center;
+  border: 1px solid rgba(162, 133, 215, .22);
+  border-radius: 50%;
+  color: #a78fca;
+  background: #17121f;
+}
+
+.sharp-market-table {
+  display: grid;
+  gap: 7px;
+}
+
+.sharp-market-table-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.sharp-market-price {
+  display: grid;
+  min-height: 34px;
+  padding: 4px 9px;
+  border: 1px solid rgba(158, 129, 211, .23);
+  border-radius: 6px;
+  color: #fff;
+  background: #0b0910;
+  text-align: right;
+  text-decoration: none;
+}
+
+.sharp-market-price:last-child {
+  text-align: left;
+}
+
+.sharp-market-price.best {
+  border-color: rgba(119, 214, 65, .42);
+  background: #263c1b;
+}
+
+.sharp-market-price strong {
+  font-size: 11px;
+}
+
+.sharp-market-price small {
+  min-height: 9px;
+  color: #9587a7;
+  font-size: 8px;
+}
+
+.sharp-market-book {
+  display: grid;
+  place-items: center;
+}
+
+.sharp-market-book img,
+.sharp-market-book span {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  object-fit: contain;
+}
+
+@media (max-width: 1280px) {
+  .sharp-workspace {
+    grid-template-columns: minmax(520px, 1fr) minmax(480px, .92fr);
+  }
+
+  .sharp-signal-card {
+    grid-template-columns: 108px minmax(0, 1fr);
+  }
+
+  .sharp-card-market-row {
+    grid-template-columns: minmax(0, 1fr) 68px 68px;
+  }
+}
+
+@media (max-width: 980px) {
+  .sharp-money-page {
+    padding-inline: 18px;
+  }
+
+  .sharp-money-header {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .sharp-header-actions {
+    margin-left: 0;
+  }
+
+  .sharp-search {
+    flex: 1;
+    width: auto;
+  }
+
+  .sharp-workspace {
+    display: block;
+  }
+
+  .sharp-detail-panel {
+    display: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .sharp-money-page {
+    padding: 14px 12px 96px;
+  }
+
+  .sharp-title-row h1 {
+    font-size: 26px;
+  }
+
+  .sharp-learn-button,
+  .sharp-reference-action {
+    display: none;
+  }
+
+  .sharp-header-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+
+  .sharp-search {
+    grid-column: 1 / -1;
+  }
+
+  .sharp-feed-control {
+    width: auto;
+  }
+
+  .sharp-signal-card {
+    grid-template-columns: 92px minmax(0, 1fr);
+    min-height: 178px;
+  }
+
+  .sharp-signal-money.sharp-liquidity-score {
+    grid-row: auto;
+    align-items: flex-start;
+    justify-content: center;
+    border-right: 1px solid rgba(150, 124, 202, .15);
+    border-bottom: 0;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score strong {
+    font-size: 18px;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score span {
+    font-size: 8px;
+    white-space: normal;
+  }
+
+  .sharp-card-body {
+    padding: 11px 10px 10px !important;
+  }
+
+  .sharp-card-heading time {
+    display: none;
+  }
+
+  .sharp-card-market-row {
+    grid-template-columns: minmax(0, 1fr) 52px 64px;
+    padding-inline: 6px;
+  }
+
+  .sharp-card-market-row > strong {
+    font-size: 10px;
+  }
+
+  .sharp-detail-panel.mobile-open {
+    position: fixed;
+    z-index: 180;
+    inset: 70px 0 0;
+    display: block;
+    max-height: none;
+    padding: 12px 10px 90px;
+    overflow-y: auto;
+    border: 0;
+    border-radius: 18px 18px 0 0;
+  }
+
+  .sharp-detail-head {
+    grid-template-columns: 72px minmax(0, 1fr);
+  }
+
+  .sharp-detail-time {
+    display: none;
+  }
+
+  .sharp-recommendation {
+    grid-template-columns: 34px minmax(0, 1fr) 48px 48px;
+  }
+
+  .sharp-game-button,
+  .sharp-add-button {
+    display: none;
+  }
+}
+
 /* Sharp Money feed now shares the compact, scan-first hierarchy used by +EV. */
 .sharp-signal-list {
   gap: 8px;
@@ -1553,5 +2359,68 @@ body[data-page="sharp-money"] {
 
   .sharp-execution-books {
     grid-template-columns: 1fr;
+  }
+}
+
+/* Final screenshot layout guard.
+   The compact +EV-card experiment above predates the two-column Sharp Money
+   composition. Preserve that compact treatment on phones, while preventing it
+   from collapsing the desktop market cards into a single 84px strip. */
+@media (min-width: 901px) {
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr) !important;
+    min-height: 170px !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: hidden !important;
+    border-color: rgba(144, 119, 194, .22);
+    border-radius: 12px;
+    background: #100d16;
+    box-shadow: 0 10px 28px rgba(0, 0, 0, .18);
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card.selected {
+    border-color: #9d5cff;
+    background: linear-gradient(105deg, rgba(139, 76, 238, .15), transparent 48%), #151020;
+    box-shadow: inset 3px 0 #a366ff, 0 16px 42px rgba(38, 17, 70, .28);
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card > div {
+    min-width: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card > .sharp-signal-money {
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    flex-direction: column;
+    padding: 18px 13px;
+    border-right: 1px solid rgba(150, 124, 202, .15);
+    background: rgba(8, 6, 12, .26);
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-card-body {
+    display: grid;
+    grid-template-rows: auto 1fr;
+    width: auto;
+    padding: 14px 14px 12px !important;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    min-height: 48px;
+    gap: 12px;
+    padding: 0 1px 10px;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-card-market {
+    display: block;
+    min-height: 98px;
+    overflow: hidden;
   }
 }

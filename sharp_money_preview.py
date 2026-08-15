@@ -32,6 +32,8 @@ def _comparison(
     american_odds: int,
     liquidity: float | None,
     market_limit: float | None = None,
+    opposite_american_odds: int | None = None,
+    opposite_liquidity: float | None = None,
 ) -> dict:
     return {
         "providerName": _NAMES[provider],
@@ -39,6 +41,8 @@ def _comparison(
         "americanOdds": american_odds,
         "availableLiquidity": liquidity,
         "marketLimit": market_limit,
+        "oppositeAmericanOdds": opposite_american_odds,
+        "oppositeAvailableLiquidity": opposite_liquidity,
         "logoUrl": _LOGOS[provider],
         "isAvailable": True,
         "matchingConfidence": "Exact",
@@ -76,7 +80,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             "pressure": 0.084,
             "confidence": 91,
             "prices": (112, 116, 121, 124, 128),
-            "comparisons": (("novig", 131, 12600, None), ("prophetx", 128, 18400, None), ("fourcx", 125, 9200, None), ("pinnacle", 120, None, 150), ("betonlineag", 118, None, None)),
+            "comparisons": (("novig", 131, 12600, None, -139, 10600), ("prophetx", 128, 18400, None, -136, 4800), ("fourcx", 125, 9200, None, -133, 2200), ("pinnacle", 120, None, 150, -130, None), ("betonlineag", 118, None, None, -128, None)),
         },
         {
             "league": "WNBA",
@@ -91,7 +95,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             "pressure": 0.067,
             "confidence": 87,
             "prices": (-115, -113, -111, -110, -108),
-            "comparisons": (("prophetx", -108, 22700, None), ("novig", -110, 16800, None), ("fourcx", -112, 7500, None), ("pinnacle", -114, None, 500), ("betonlineag", -115, None, None)),
+            "comparisons": (("prophetx", -108, 22700, None, -102, 14100), ("novig", -110, 16800, None, 100, 9400), ("fourcx", -112, 7500, None, 102, 2800), ("pinnacle", -114, None, 500, 104, None), ("betonlineag", -115, None, None, 105, None)),
         },
         {
             "league": "MLB",
@@ -106,7 +110,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             "pressure": 0.052,
             "confidence": 83,
             "prices": (-105, -103, -101, 100, 102),
-            "comparisons": (("fourcx", 104, 9800, None), ("prophetx", 102, 31500, None), ("novig", 100, 24300, None), ("pinnacle", -103, None, 250), ("betonlineag", -105, None, None)),
+            "comparisons": (("fourcx", 104, 9800, None, -114, 6200), ("prophetx", 102, 31500, None, -112, 20100), ("novig", 100, 24300, None, -110, 18200), ("pinnacle", -103, None, 250, -107, None), ("betonlineag", -105, None, None, -105, None)),
         },
         {
             "league": "Tennis",
@@ -121,7 +125,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             "pressure": 0.031,
             "confidence": 74,
             "prices": (-121, -120, -118, -117, -115),
-            "comparisons": (("novig", -112, 6400, None), ("prophetx", -115, 8900, None), ("fourcx", -117, 3100, None), ("pinnacle", -118, None, 100), ("betonlineag", -120, None, None)),
+            "comparisons": (("novig", -112, 6400, None, 102, 5100), ("prophetx", -115, 8900, None, 105, 7200), ("fourcx", -117, 3100, None, 107, 2300), ("pinnacle", -118, None, 100, 108, None), ("betonlineag", -120, None, None, 110, None)),
         },
         {
             "league": "MLB",
@@ -136,7 +140,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             "pressure": 0.006,
             "confidence": 62,
             "prices": (132, 134, 133, 135, 136),
-            "comparisons": (("prophetx", 136, 12700, None), ("novig", 134, 10100, None), ("fourcx", 131, 4200, None), ("pinnacle", 128, None, 300), ("betonlineag", 125, None, None)),
+            "comparisons": (("prophetx", 136, 12700, None, -146, 9300), ("novig", 134, 10100, None, -144, 8400), ("fourcx", 131, 4200, None, -141, 3100), ("pinnacle", 128, None, 300, -138, None), ("betonlineag", 125, None, None, -135, None)),
         },
     )
 
@@ -150,8 +154,8 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
             else fixture["event"].split(" vs. ")[0]
         )
         comparisons = [
-            _comparison(provider, odds, liquidity, market_limit)
-            for provider, odds, liquidity, market_limit in fixture["comparisons"]
+            _comparison(provider, odds, liquidity, market_limit, opposite_odds, opposite_liquidity)
+            for provider, odds, liquidity, market_limit, opposite_odds, opposite_liquidity in fixture["comparisons"]
         ]
         signals.append(
             {

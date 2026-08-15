@@ -80,27 +80,45 @@
     return value == null ? "P Limit unavailable" : `${money(value, false)} P Limit`;
   }
 
+  function marketSides(signal) {
+    const outcomes = Array.isArray(signal.outcomes) ? signal.outcomes : [];
+    const selected = outcomes.find(row => row.name === signal.selection) || outcomes[0] || {};
+    const opposite = outcomes.find(row => row !== selected) || {};
+    return {
+      selected: selected.name || signal.selection || "Selection",
+      opposite: opposite.name || "Opposing side",
+      oppositeOdds: opposite.americanOdds,
+      oppositeLiquidity: opposite.liquidity,
+    };
+  }
+
+  function primaryQuote(signal) {
+    const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
+    return rows.reduce((best, row) => {
+      const price = Number(row.americanOdds);
+      return Number.isFinite(price) && (!best || price > Number(best.americanOdds)) ? row : best;
+    }, null) || signal;
+  }
+
   function signalCard(signal) {
-    const detected = Math.abs(Number(signal.pressure)) >= 0.01;
+    const sides = marketSides(signal);
+    const quote = primaryQuote(signal);
+    const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
           <strong>${escapeHtml(money(signal.liquidity))}</strong>
           <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
-        <div class="sharp-card-event">
-          <time>${escapeHtml(timeLabel(signal.startsAt))} ET</time>
-          <strong>${escapeHtml(signal.event)}</strong>
-        </div>
-        <div class="sharp-card-pick">
-          <small><i class="ph ph-globe-hemisphere-west"></i>${escapeHtml(signal.league)}${signal.previewOnly ? '<b class="sharp-preview-tag">Preview</b>' : ""}</small>
-          <strong>${escapeHtml(signal.selection)}</strong>
-          <em>${escapeHtml(signal.market?.name)}</em>
-        </div>
-        <div class="sharp-card-execution">
-          <div class="sharp-card-side">${escapeHtml(signal.selection)}</div>
-          <div class="sharp-card-flow"><strong>${escapeHtml(signal.confidence)}%</strong><small>${detected ? "Flow confidence" : "Monitoring"}</small></div>
-          <div class="sharp-card-price"><span class="sharp-card-provider">${logo(signal)}</span><strong>${escapeHtml(odds(signal.americanOdds))}</strong></div>
+        <div class="sharp-card-body">
+          <div class="sharp-card-heading">
+            <div><small>${escapeHtml(signal.league)} · ${escapeHtml(signal.sport)}</small><strong>${escapeHtml(signal.event)}</strong><em>${escapeHtml(signal.market?.name)}</em></div>
+            <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
+          </div>
+          <div class="sharp-card-market">
+            <div class="sharp-card-market-row primary"><strong>${escapeHtml(sides.selected)}</strong><span><b>${money(recBet, false)}</b><small>Rec Bet</small></span><a href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>${logo(quote, String(quote.providerName || signal.provider || "?").slice(0, 2))}<b>${escapeHtml(odds(quote.americanOdds ?? signal.americanOdds))}</b></a></div>
+            <div class="sharp-card-market-row"><strong>${escapeHtml(sides.opposite)}</strong><span><b>${escapeHtml(money(sides.oppositeLiquidity))}</b><small>Liquidity</small></span><span class="sharp-opposite-price">${escapeHtml(odds(sides.oppositeOdds))}</span></div>
+          </div>
         </div>
       </article>`;
   }
@@ -114,6 +132,40 @@
         <span class="sharp-depth-track"><i style="--depth:${Math.max(3, (Number(row.liquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
         <strong>${escapeHtml(money(row.liquidity))}</strong>
       </div>`).join("");
+  }
+
+  function flowRows(signal) {
+    const selected = marketSides(signal).selected;
+    const rows = (signal.comparisonLines || []).filter(row => row.availableLiquidity != null).slice(0, 6);
+    const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
+    return rows.map(row => `
+      <div class="sharp-flow-depth-row">
+        <span class="sharp-flow-book">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
+        <strong>${escapeHtml(odds(row.americanOdds))}</strong>
+        <span class="sharp-flow-bar"><i style="--flow-width:${Math.max(4, (Number(row.availableLiquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
+        <small>${escapeHtml(money(row.availableLiquidity))}</small>
+      </div>`).join("") || `<div class="sharp-awaiting-lines">Awaiting quoted depth</div>`;
+  }
+
+  function twoSidedComparison(signal) {
+    const sides = marketSides(signal);
+    const rows = signal.comparisonLines || [];
+    const bestLeft = Math.max(...rows.map(row => Number(row.americanOdds) || -99999));
+    const finiteRight = rows.filter(row => Number.isFinite(Number(row.oppositeAmericanOdds)));
+    const bestRight = finiteRight.length ? Math.max(...finiteRight.map(row => Number(row.oppositeAmericanOdds))) : null;
+    return `
+      <div class="sharp-market-table-head"><strong>${escapeHtml(sides.selected)}</strong><button type="button" aria-label="Swap sides"><i class="ph ph-arrows-down-up"></i></button><strong>${escapeHtml(sides.opposite)}</strong></div>
+      <div class="sharp-market-table">
+        ${rows.map(row => {
+          const leftBest = Number(row.americanOdds) === bestLeft;
+          const rightBest = bestRight != null && Number(row.oppositeAmericanOdds) === bestRight;
+          return `<div class="sharp-market-table-row">
+            <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
+            <span class="sharp-market-book">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
+            <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
+          </div>`;
+        }).join("")}
+      </div>`;
   }
 
   function comparisonRows(signal) {
@@ -143,39 +195,30 @@
   }
 
   function detail(signal) {
-    const detected = Math.abs(Number(signal.pressure)) >= 0.01;
+    const sides = marketSides(signal);
+    const quote = primaryQuote(signal);
+    const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
     return `
       <button class="sharp-mobile-close" id="sharp-detail-close" type="button" aria-label="Close market detail"><i class="ph ph-x"></i></button>
-      <header class="sharp-detail-head"><div>
-        <div class="sharp-detail-eyebrow"><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.market?.name)}</span><div><b>${detected ? "Flow detected" : "Monitoring"}</b><b>Read only</b></div></div>
-        <h2>${escapeHtml(signal.event)}</h2><strong>${escapeHtml(signal.selection)}</strong>
-      </div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))} ET</b><small>ProphetX sandbox</small></div></header>
+      <header class="sharp-detail-head"><strong class="sharp-detail-liquidity">${escapeHtml(money(signal.liquidity))}</strong><div><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.sport)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
       <section class="sharp-recommendation">
-        <span class="sharp-book-icon">${logo(signal)}</span>
-        <div class="sharp-rec-copy"><span>Inferred pressure side</span><strong>${escapeHtml(signal.selection)}</strong></div>
-        <div class="sharp-rec-price"><span>ProphetX quote</span><strong>${escapeHtml(odds(signal.americanOdds))}</strong></div>
-        <div class="sharp-rec-stake"><span>Quoted depth</span><strong>${escapeHtml(money(signal.liquidity))}</strong></div>
-        <span class="sharp-readonly-pill"><i class="ph ph-eye"></i> Read only</span>
+        <span class="sharp-book-icon">${logo(quote)}</span>
+        <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
+        <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
+        <div class="sharp-rec-price"><strong>${escapeHtml(odds(quote.americanOdds ?? signal.americanOdds))}</strong><span>Odds</span></div>
+        <a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>GAME <i class="ph ph-arrow-up-right"></i></a>
+        <button class="sharp-add-button" type="button" aria-label="Add selection"><i class="ph ph-plus"></i></button>
       </section>
-      <section class="sharp-metric-strip">
-        <div><span>Price move</span><strong class="${Number(signal.probabilityDelta) > 0 ? "positive" : ""}">${escapeHtml(pct(signal.probabilityDelta, true))}</strong></div>
-        <div><span>Depth change</span><strong>${escapeHtml(money(signal.liquidityDelta, false))}</strong></div>
-        <div><span>Total market depth</span><strong>${escapeHtml(money(signal.totalLiquidity))}</strong></div>
-        <div><span>Flow confidence</span><strong>${escapeHtml(signal.confidence)}</strong></div>
+      <section class="sharp-flow-summary">
+        <span class="sharp-flow-primary-logo">${logo(signal)}</span><strong>${escapeHtml(sides.opposite)}</strong><span><b>${escapeHtml(odds(signal.americanOdds))}</b><small>Avg</small></span><span><b>${escapeHtml(money(signal.liquidity))}</b><small>Liquidity</small></span><i class="ph ph-question"></i>
       </section>
-      <section class="sharp-panel-section">
-        <header class="sharp-section-head"><span><i class="ph ph-chart-line-up"></i> ProphetX price movement</span><small>Rolling local session</small></header>
-        <div class="sharp-history-chart">${historyChart(signal)}</div>
+      <section class="sharp-flow-depth">
+        ${flowRows(signal)}
       </section>
-      <section class="sharp-panel-section">
-        <header class="sharp-section-head"><span><i class="ph ph-stack"></i> ProphetX quoted depth</span><small>Posted liquidity, not confirmed handle</small></header>
-        <div class="sharp-depth-chart">${outcomeRows(signal)}</div>
+      <section class="sharp-market-comparison">
+        ${twoSidedComparison(signal)}
       </section>
-      <section class="sharp-execution-section">
-        <header><div><span>Exact-line market comparison</span><strong>Other books</strong></div><small>Odds API refreshes only while playing</small></header>
-        <div class="sharp-execution-books">${comparisonRows(signal)}</div>
-      </section>
-      <section class="sharp-inference-note"><i class="ph ph-info"></i><p><strong>What “sharp flow” means here:</strong> price changes plus disappearing quoted depth can indicate aggressive pressure. Until ProphetX sends an explicit trade event, this remains an inference—not a claim about a known bettor.</p></section>`;
+    `;
   }
 
   function matches(signal) {
@@ -317,6 +360,7 @@
       render();
     }));
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
+    $("sharp-refresh")?.addEventListener("click", load);
     $("sharp-filter-close").addEventListener("click", () => openFilters(false));
     $("sharp-filter-backdrop").addEventListener("click", () => openFilters(false));
     $("sharp-filter-apply").addEventListener("click", () => { readFilters(); openFilters(false); });
