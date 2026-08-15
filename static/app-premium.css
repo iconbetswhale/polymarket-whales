@@ -2065,7 +2065,7 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body:not([data-page="home"]) .brand-copy,
   body:not([data-page="home"]) .nav-section-label,
   body:not([data-page="home"]) .mobile-nav-pause { display: none !important; }
-  body:not([data-page="home"]) .nav-links { min-height: calc(100vh - 67px) !important; gap: 2px !important; align-items: stretch !important; overflow-y: auto !important; }
+  body:not([data-page="home"]) .nav-links { min-height: calc(100vh - 67px) !important; gap: 7px !important; align-items: stretch !important; overflow-y: auto !important; }
   body:not([data-page="home"]) .nav-links a {
     display: flex !important;
     width: 100% !important;
@@ -2074,7 +2074,7 @@ body[data-page="trades"] .trade-metric-chip.time strong {
     flex-direction: column !important;
     justify-content: center !important;
     align-items: center !important;
-    min-height: 48px !important;
+    min-height: 50px !important;
     padding: 5px 2px !important;
     gap: 3px !important;
     border-radius: 7px !important;
@@ -2096,7 +2096,7 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body:not([data-page="home"]) .sharp-money-nav-icon svg,
   body:not([data-page="home"]) .sportsbook-nav-icon svg,
   body:not([data-page="home"]) .live-position-nav-icon svg { width: 20px !important; height: 20px !important; }
-  body:not([data-page="home"]) .nav-links a[aria-current="page"] { min-height: 48px !important; box-shadow: inset 2px 0 #b34cff, 0 0 18px rgba(121, 44, 237, .18) !important; }
+  body:not([data-page="home"]) .nav-links a[aria-current="page"] { min-height: 50px !important; box-shadow: inset 2px 0 #b34cff, 0 0 18px rgba(121, 44, 237, .18) !important; }
   body:not([data-page="home"]) .sidebar-account-button {
     display: grid !important;
     grid-template-columns: 1fr !important;
