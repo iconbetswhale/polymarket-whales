@@ -3557,3 +3557,30 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
     min-width: 122px !important;
   }
 }
+
+/* Positive EV execution marks: stable official assets with consistent optical sizing. */
+html body[data-page="positive-ev"] .ev-score > span {
+  display: none !important;
+}
+
+html body[data-page="positive-ev"] .ev-best-button .ev-book-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  overflow: hidden;
+  border-radius: 6px;
+  background: #05070c;
+}
+
+html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  padding: 3px;
+  border-radius: 5px;
+  background: transparent !important;
+  object-fit: contain !important;
+  object-position: center !important;
+}
