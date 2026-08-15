@@ -1,14 +1,15 @@
 (() => {
   const comparisonBooks = [
-    {key:'novig', name:'NoVIG'}, {key:'prophetx', name:'ProphetX'},
-    {key:'fanduel', name:'FanDuel'}, {key:'draftkings', name:'DraftKings'},
-    {key:'kalshi', name:'Kalshi'}, {key:'polymarket', name:'Polymarket'},
-    {key:'caesars', name:'Caesars'}, {key:'hard-rock', name:'Hard Rock'},
-    {key:'fliff', name:'Fliff'}, {key:'sleeper', name:'Sleeper'},
-    {key:'betonline', name:'BetOnline'}, {key:'pinnacle', name:'Pinnacle'},
-    {key:'parlay-play', name:'Parlay Play'}, {key:'propbuilder', name:'PropBuilder'},
-    {key:'bovada', name:'Bovada'}
+    {key:'fanduel', name:'FanDuel'}, {key:'novig', name:'NoVIG'},
+    {key:'pinnacle', name:'Pinnacle'}, {key:'prophetx', name:'ProphetX'},
+    {key:'kalshi', name:'Kalshi'}, {key:'circa', name:'Circa'},
+    {key:'polymarket', name:'Polymarket'}, {key:'draftkings', name:'DraftKings'},
+    {key:'prizepicks', name:'PrizePicks'}, {key:'underdog', name:'Underdog'},
+    {key:'dk-pick6', name:'DK Pick6'}, {key:'betr', name:'Betr'},
+    {key:'dabble', name:'Dabble'}, {key:'sleeper', name:'Sleeper'}
   ];
+  const sourceOddsKeys = ['novig','prophetx','fanduel','draftkings','kalshi','polymarket','caesars','hard-rock','fliff','sleeper','betonline','pinnacle','parlay-play','propbuilder','bovada'];
+  const selectedBookKeys = {'PrizePicks':'prizepicks','Underdog':'underdog','DK Pick6':'dk-pick6','Betr':'betr','Dabble':'dabble'};
   const marketTypes = {
     MLB: ['Bases','Earned Runs','Fantasy Score','Hits','Hits + Runs + RBIs','Home Runs','Pitching Outs','Runs','RBIs','Singles','Stolen Bases','Strikeouts','Total Bases','Walks'],
     WNBA: ['3-Pointers Made','Assists','Blocks','Fantasy Score','Points','Points + Assists','Points + Rebounds','Points + Rebounds + Assists','Rebounds','Steals','Turnovers'],
@@ -35,7 +36,7 @@
   const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
   let activeBook = 'PrizePicks';
-  let compareOrder = comparisonBooks.map(book => book.key);
+  let compareOrder = loadCompareOrder();
   let savedWeights = loadWeights();
   let draftWeights = {...savedWeights};
   let savedPresets = loadPresets();
@@ -54,6 +55,14 @@
   function loadPresets() {
     try { const stored=JSON.parse(localStorage.getItem('dfsDevigPresets')||'[]'); return Array.isArray(stored) ? stored.filter(item=>item&&item.name&&item.weights) : []; }
     catch (_) { return []; }
+  }
+
+  function loadCompareOrder() {
+    const defaults = comparisonBooks.map(book => book.key);
+    try {
+      const stored = JSON.parse(localStorage.getItem('dfsCompareBookOrder') || 'null');
+      return Array.isArray(stored) && stored.length === defaults.length && defaults.every(key => stored.includes(key)) ? stored : defaults;
+    } catch (_) { return defaults; }
   }
 
   function weightsMatch(a,b) { return Object.keys(defaultWeights).every(key => Number(a[key])===Number(b[key])); }
@@ -84,7 +93,12 @@
 
   function reorderHeaders() {
     const row = document.querySelector('#dfs-head-row');
-    compareOrder.forEach(key => row.appendChild(row.querySelector(`[data-book-key="${key}"]`)));
+    const selectedKey = selectedBookKeys[activeBook];
+    compareOrder.forEach(key => {
+      const header = row.querySelector(`[data-book-key="${key}"]`);
+      header.hidden = key === selectedKey;
+      row.appendChild(header);
+    });
   }
 
   function render() {
@@ -96,8 +110,10 @@
     const discrepanciesOnly = document.querySelector('#dfs-discrepancies').checked;
     const visible = rows.filter(r => (!discrepanciesOnly || r.discrepancy !== false) && (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
     body.innerHTML = visible.map(r => {
-      const oddsByKey = Object.fromEntries(comparisonBooks.map((book,index) => [book.key,r.odds[index]]));
-      const cells = compareOrder.map(key => {
+      const oddsByKey = Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds[index]]));
+      oddsByKey.circa = oddsByKey.betonline;
+      Object.entries(selectedBookKeys).forEach(([book,key]) => { oddsByKey[key] = bestSlipOdds[book]; });
+      const cells = compareOrder.filter(key => key !== selectedBookKeys[activeBook]).map(key => {
         const market = oddsByKey[key];
         const unavailable = market === '—';
         const price = typeof market === 'object' ? market.odds : market;
@@ -147,9 +163,9 @@
     syncDevigControls();
   }
 
-  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('[data-dfs-book]').forEach(item => { item.classList.toggle('active', item===btn); item.setAttribute('aria-selected', String(item===btn)); }); activeBook=btn.dataset.dfsBook; const lineHead=document.querySelector('#dfs-line-head'); const logo=btn.querySelector('img').cloneNode(); logo.alt=activeBook; logo.title=`${activeBook} line`; lineHead.replaceChildren(logo); lineHead.setAttribute('aria-label',`${activeBook} line`); document.querySelector('#dfs-summary').textContent=`${activeBook} lines ranked by model edge`; render(); }));
+  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('[data-dfs-book]').forEach(item => { item.classList.toggle('active', item===btn); item.setAttribute('aria-selected', String(item===btn)); }); activeBook=btn.dataset.dfsBook; const lineHead=document.querySelector('#dfs-line-head'); const logo=btn.querySelector('img').cloneNode(); logo.alt=activeBook; logo.title=`${activeBook} line`; lineHead.replaceChildren(logo); lineHead.setAttribute('aria-label',`${activeBook} line`); document.querySelector('#dfs-summary').textContent=`${activeBook} lines ranked by model edge`; reorderHeaders(); render(); }));
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
-  enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); reorderHeaders(); render(); });
+  enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
   ['dfs-date','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   document.querySelector('#dfs-search').addEventListener('input', render);
@@ -179,6 +195,7 @@
     devigDialog.close();
   });
   updateStats();
+  reorderHeaders();
   updateDevigSummary();
   renderPresets();
   syncDevigControls();
