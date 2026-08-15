@@ -104,7 +104,7 @@
     if (!shown.length) { feed.innerHTML = `<div class="ev-empty"><i class="ph ph-shield-check"></i><p>No opportunity passed every validation gate. That is safer than displaying a false edge.</p></div>`; return; }
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
-      return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}">
+      return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}" aria-pressed="${row.id===selectedId}">
         <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong></div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong></div>
         <div class="ev-pick"><small><i class="ph ph-globe-hemisphere-west"></i>${esc(row.league)}</small><strong>${esc(row.selection)}</strong><em>${esc(row.marketLabel)}</em></div>
@@ -124,10 +124,11 @@
       <section class="ev-section"><header><h3>SIZING AUDIT</h3><span>${(Number(row.fullKellyFraction)*100).toFixed(2)}% full Kelly</span></header><div class="ev-formula">Raw fractional Kelly: <strong>${money(row.theoreticalStake)}</strong><br>After confidence, per-bet, event, variance, and liquidity constraints: <b>${money(row.recommendedStake)}</b><br>Effective line after configured costs: ${odds(best.effectiveAmerican)}. Calculation: (${(Number(row.fairProbability)*100).toFixed(2)}% × ${Number(best.effectiveDecimal).toFixed(3)}) − 1 = <b>+${Number(row.evPercent).toFixed(2)}%</b>.</div></section></article>`;
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     detail.classList.add("open");
+    detail.closest(".ev-workspace")?.classList.add("detail-open");
     $("ev-detail-toggle")?.setAttribute("aria-pressed", "true");
     if (matchMedia("(max-width:900px)").matches) scrim.hidden=false;
   }
-  function closeDetail(){detail.classList.remove("open");scrim.hidden=true;$("ev-detail-toggle")?.setAttribute("aria-pressed", "false");}
+  function closeDetail(){detail.classList.remove("open");detail.closest(".ev-workspace")?.classList.remove("detail-open");scrim.hidden=true;$("ev-detail-toggle")?.setAttribute("aria-pressed", "false");}
   function openFilters(){renderFilters();dialog.showModal();}
   function applyFilters(){
     settings.group=document.querySelector('input[name="marketGroup"]:checked').value;

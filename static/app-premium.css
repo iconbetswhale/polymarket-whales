@@ -3584,3 +3584,47 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
   object-fit: contain !important;
   object-position: center !important;
 }
+
+/* Selected +EV rows and audits share the workspace instead of overlapping. */
+@media (min-width: 901px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) 360px !important;
+    gap: 14px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace .ev-detail {
+    display: none !important;
+    position: static !important;
+    inset: auto !important;
+    width: auto !important;
+    height: 100% !important;
+    transform: none !important;
+    box-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-detail.open {
+    display: block !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity.active {
+    border-color: #a45bea !important;
+    background: linear-gradient(90deg, rgba(128, 62, 177, .14), rgba(16, 14, 23, .98) 24%) !important;
+    box-shadow: inset 3px 0 #a45bea, 0 0 0 1px rgba(164, 91, 234, .2) !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1500px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr) 300px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-opportunity {
+    grid-template-columns: 105px minmax(210px, .9fr) minmax(300px, 1.2fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-pick,
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-selection {
+    display: none !important;
+  }
+}
