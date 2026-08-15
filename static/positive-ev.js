@@ -266,7 +266,7 @@
     detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${Number(row.evPercent).toFixed(2)}%</strong><div><h2>${esc(row.eventTitle)}</h2></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
       <div class="ev-detail-pick ev-trend-pick"><strong>${esc(row.selection)} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
-      <section class="ev-section ev-market-trend"><header><h3>MARKET TREND</h3><span>Current values + preview history</span></header><div class="ev-trend-metrics">
+      <section class="ev-section ev-market-trend"><header><h3>MARKET TREND</h3></header><div class="ev-trend-metrics">
         <span><small>EV</small><b>${Number(row.evPercent).toFixed(2)}%</b></span>
         <span><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
         <span><small>1H</small><b>--</b></span>

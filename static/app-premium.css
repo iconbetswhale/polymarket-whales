@@ -4424,3 +4424,60 @@ html body[data-page="positive-ev"] .ev-trend-bet strong {
     border-bottom: 1px solid rgba(255, 255, 255, .11);
   }
 }
+
+/* Flatten the +EV inspector hierarchy while preserving the actionable cards. */
+@media (min-width: 1501px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr) 580px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1500px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open {
+    grid-template-columns: minmax(0, 1fr) 450px !important;
+  }
+}
+
+html body[data-page="positive-ev"] .ev-market-trend {
+  overflow: visible !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+html body[data-page="positive-ev"] .ev-market-trend > header {
+  padding: 7px 0 5px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+html body[data-page="positive-ev"] .ev-trend-metrics,
+html body[data-page="positive-ev"] .ev-trend-chart {
+  margin-inline: 0;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds {
+  margin: 14px 0 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds > header {
+  padding-inline: 0;
+  border-bottom-color: rgba(255, 255, 255, .08);
+  background: transparent;
+}
+
+html body[data-page="positive-ev"] .ev-market-compare-head {
+  padding-inline: 0;
+  background: transparent;
+}
+
+html body[data-page="positive-ev"] .ev-market-compare-rows {
+  padding-inline: 0;
+  padding-bottom: 0;
+}
