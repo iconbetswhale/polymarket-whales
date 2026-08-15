@@ -335,6 +335,12 @@ def test_lab_tracker_league_logos_are_local_and_served(app_client):
         assert response.content_type.startswith("image/"), filename
 
 
+def test_lab_tracker_maps_tennis_and_colors_negative_charts_red():
+    script = Path("static/lab-tracker.js").read_text(encoding="utf-8")
+    assert 'tennis: "/static/assets/leagues/atp.png"' in script
+    assert 'Number(state.data.summary.profit || 0) < 0 ? "#ff4d5e"' in script
+
+
 def test_vercel_runs_lab_tracker_reconciliation_every_minute():
     config = json.loads(Path("vercel.json").read_text(encoding="utf-8"))
     schedules = {

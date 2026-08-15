@@ -47,6 +47,7 @@
     womensnationalbasketballassociation: "/static/assets/leagues/wnba.png",
     wta: "/static/assets/leagues/wta.png",
     wtatour: "/static/assets/leagues/wta.png",
+    tennis: "/static/assets/leagues/atp.png",
     nhl: "/static/assets/leagues/nhl.png",
     nationalhockeyleague: "/static/assets/leagues/nhl.png",
     atp: "/static/assets/leagues/atp.png",
@@ -193,8 +194,9 @@
     }
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
-    ctx.strokeStyle = "#35e6a1"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "#35e6a1"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
+    const performanceColor = Number(state.data.summary.profit || 0) < 0 ? "#ff4d5e" : "#35e6a1";
+    ctx.strokeStyle = performanceColor; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = performanceColor; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
   }
 
   function render() {
