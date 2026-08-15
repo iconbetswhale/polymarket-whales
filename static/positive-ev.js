@@ -15,7 +15,7 @@
     weights: {pinnacle:40,betonlineag:20,novig:10,prophetx:10,fourcx:8,kalshi:7,polymarket:5,fanduel:5,draftkings:5}
   };
   const bookNames = {pinnacle:"Pinnacle",betonlineag:"BetOnline",novig:"Novig",prophetx:"ProphetX",fourcx:"4CX",kalshi:"Kalshi",polymarket:"Polymarket",fanduel:"FanDuel",draftkings:"DraftKings"};
-  const bookLogos = {novig:"/static/assets/providers/novig.png",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"https://www.pinnacle.com/favicon.ico",betonlineag:"https://sports.betonline.ag/favicon.ico",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"https://sportsbook.draftkings.com/favicon.ico",fourcx:"/static/assets/providers/4cx.png"};
+  const bookLogos = {novig:"/static/assets/providers/novig.png",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"/static/assets/providers/pinnacle.png",betonlineag:"/static/assets/sportsbooks/betonline.png",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"https://sportsbook.draftkings.com/favicon.ico",fourcx:"/static/assets/providers/4cx.png"};
   let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
   try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
@@ -79,6 +79,29 @@
       <div class="ev-trend-legend">${series.map(item=>`<span style="--legend:${item.color}">${esc(item.name)}</span>`).join("")}<span style="--legend:#f4f5f8">Pinnacle limits</span></div>
       <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical movement and limits are collecting; current EV, FV, price, and stake use the selected opportunity.</p>
     </div>`;
+  }
+
+  function marketOddsVisual(row) {
+    const quotes = [...(row.quotes || [])].sort((left, right) =>
+      Number(right.topPriceAmericanOdds ?? right.americanOdds ?? -10000) - Number(left.topPriceAmericanOdds ?? left.americanOdds ?? -10000)
+    );
+    if (!quotes.length) return "";
+    const bestOdds = quotes[0].topPriceAmericanOdds ?? quotes[0].americanOdds;
+    const quoteRow = (quote, index) => {
+      const quoteOdds = quote.topPriceAmericanOdds ?? quote.americanOdds;
+      const detailText = quote.topPriceLiquidity != null
+        ? `${money(quote.topPriceLiquidity)} available`
+        : quote.marketLimit != null
+          ? `${money(quote.marketLimit)} limit`
+          : quote.executionStatus === "executable"
+            ? "Executable"
+            : String(quote.executionStatus || "Price available").replaceAll("_", " ");
+      const content = `<span class="ev-market-rank">${index + 1}</span>${img(quote.logoUrl, quote.bookKey)}<span class="ev-market-book"><strong>${esc(quote.bookName || bookNames[quote.bookKey] || quote.bookKey)}</strong><small>${esc(detailText)}</small></span><span class="ev-market-price"><strong>${odds(quoteOdds)}</strong><small>${Number(quote.evPercent) >= 0 ? "+" : ""}${Number(quote.evPercent || 0).toFixed(2)}% EV</small></span>${Number(quoteOdds) === Number(bestOdds) ? '<em>BEST</em>' : ""}`;
+      return quote.deepLink && quote.deepLink !== "#"
+        ? `<a class="ev-market-quote ${index === 0 ? "best" : ""}" href="${esc(quote.deepLink)}" target="_blank" rel="noopener">${content}<i class="ph ph-arrow-up-right"></i></a>`
+        : `<div class="ev-market-quote ${index === 0 ? "best" : ""}">${content}</div>`;
+    };
+    return `<section class="ev-market-odds"><header><div><h3>MARKET ODDS</h3><span>${quotes.length} available books</span></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestOdds)}</strong></div></header><div class="ev-market-side"><span>${esc(row.selection)}</span><small>Ranked by available price</small></div><div class="ev-market-quotes">${quotes.map(quoteRow).join("")}</div></section>`;
   }
 
   function renderFilters() {
@@ -167,15 +190,14 @@
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
     renderFeed(); const best=row.bestQuote||{};
     detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${Number(row.evPercent).toFixed(2)}%</strong><div><h2>${esc(row.eventTitle)}</h2></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
-      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(row.selection)}</strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
+      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(row.selection)} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       <section class="ev-section ev-market-trend"><header><h3>MARKET TREND</h3><span>Current values + preview history</span></header><div class="ev-trend-metrics">
         <span><small>EV</small><b>${Number(row.evPercent).toFixed(2)}%</b></span>
-        <span><small>FV</small><b>${odds(row.fairAmerican)}</b><em>Pinnacle auto</em></span>
-        <span><small>1H</small><b>--</b><em>Collecting</em></span>
-        <span><small>OPEN</small><b>--</b><em>Collecting</em></span>
-      </div>${marketTrendVisual(row)}</section>
-      <a class="ev-trend-bet" href="${esc(best.deepLink||"#")}" target="_blank" rel="noopener">${img(best.logoUrl,best.bookKey)}<span>Place bet at ${esc(best.bookName||bookNames[best.bookKey]||"selected book")}</span><strong>${odds(best.topPriceAmericanOdds??best.americanOdds)} <i class="ph ph-arrow-up-right"></i></strong></a>
+        <span><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
+        <span><small>1H</small><b>--</b></span>
+        <span><small>OPEN</small><b>--</b></span>
+      </div>${marketTrendVisual(row)}${marketOddsVisual(row)}</section>
     </article>`;
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     detail.classList.add("open");

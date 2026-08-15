@@ -3786,6 +3786,13 @@ html body[data-page="positive-ev"] .ev-trend-pick > strong {
   font-size: 15px !important;
 }
 
+html body[data-page="positive-ev"] .ev-trend-pick > strong span {
+  margin-left: 7px;
+  color: #43d66b;
+  font-size: 13px;
+  font-weight: 800;
+}
+
 html body[data-page="positive-ev"] .ev-trend-pick .ev-detail-stake {
   color: #43d66b !important;
   font-size: 22px !important;
@@ -3822,10 +3829,13 @@ html body[data-page="positive-ev"] .ev-trend-metrics > span {
   min-width: 0;
   min-height: 58px;
   padding: 9px 8px;
-  display: flex;
+  display: grid;
+  grid-template-rows: auto auto;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  align-content: center;
+  gap: 4px;
+  text-align: center;
   border-right: 1px solid rgba(255, 255, 255, .11);
 }
 
@@ -3834,14 +3844,17 @@ html body[data-page="positive-ev"] .ev-trend-metrics > span:last-child {
 }
 
 html body[data-page="positive-ev"] .ev-trend-metrics small {
+  display: block;
   color: #8f8aa0;
   font-size: 9px;
   letter-spacing: .08em;
 }
 
 html body[data-page="positive-ev"] .ev-trend-metrics b {
+  display: block;
   color: #43d66b;
   font-size: 15px;
+  line-height: 1.1;
   white-space: nowrap;
 }
 
@@ -3940,6 +3953,161 @@ html body[data-page="positive-ev"] .ev-trend-preview-note {
   color: #777383;
   font-size: 8px;
   line-height: 1.4;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds {
+  margin: 14px 10px 10px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 9px;
+  background: rgba(11, 13, 20, .76);
+}
+
+html body[data-page="positive-ev"] .ev-market-odds > header {
+  min-height: 52px;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+}
+
+html body[data-page="positive-ev"] .ev-market-odds > header > div:first-child,
+html body[data-page="positive-ev"] .ev-market-best {
+  display: grid;
+  gap: 3px;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds h3 {
+  margin: 0;
+  color: #f4f2f7;
+  font-size: 11px;
+  letter-spacing: .07em;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds header span,
+html body[data-page="positive-ev"] .ev-market-best small {
+  color: #7f7a8d;
+  font-size: 8px;
+}
+
+html body[data-page="positive-ev"] .ev-market-best {
+  justify-items: end;
+}
+
+html body[data-page="positive-ev"] .ev-market-best strong {
+  color: #43d66b;
+  font-size: 16px;
+}
+
+html body[data-page="positive-ev"] .ev-market-side {
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #f2eff5;
+  background: rgba(129, 83, 177, .08);
+}
+
+html body[data-page="positive-ev"] .ev-market-side span {
+  font-size: 11px;
+  font-weight: 750;
+}
+
+html body[data-page="positive-ev"] .ev-market-side small {
+  color: #868090;
+  font-size: 8px;
+}
+
+html body[data-page="positive-ev"] .ev-market-quotes {
+  display: grid;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote {
+  position: relative;
+  min-height: 48px;
+  padding: 7px 11px;
+  display: grid;
+  grid-template-columns: 18px 28px minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, .075);
+  color: #efedf2;
+  text-decoration: none;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote:last-child {
+  border-bottom: 0;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote.best {
+  background: linear-gradient(90deg, rgba(40, 120, 61, .2), rgba(20, 55, 30, .07));
+  box-shadow: inset 2px 0 #43d66b;
+}
+
+html body[data-page="positive-ev"] .ev-market-rank {
+  color: #6e6878;
+  font-size: 8px;
+  text-align: center;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote .ev-book-mark {
+  width: 27px;
+  height: 27px;
+}
+
+html body[data-page="positive-ev"] .ev-market-book,
+html body[data-page="positive-ev"] .ev-market-price {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+
+html body[data-page="positive-ev"] .ev-market-book strong,
+html body[data-page="positive-ev"] .ev-market-price strong {
+  overflow: hidden;
+  font-size: 10px;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+html body[data-page="positive-ev"] .ev-market-book small,
+html body[data-page="positive-ev"] .ev-market-price small {
+  color: #777282;
+  font-size: 7px;
+  text-transform: capitalize;
+}
+
+html body[data-page="positive-ev"] .ev-market-price {
+  justify-items: end;
+}
+
+html body[data-page="positive-ev"] .ev-market-price strong {
+  color: #f7f6f8;
+  font-size: 12px;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote.best .ev-market-price strong {
+  color: #67e982;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote > em {
+  padding: 3px 5px;
+  border-radius: 4px;
+  color: #76e990;
+  background: rgba(58, 156, 82, .14);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 800;
+  letter-spacing: .04em;
+}
+
+html body[data-page="positive-ev"] .ev-market-quote > i {
+  color: #777282;
+  font-size: 11px;
 }
 
 html body[data-page="positive-ev"] .ev-trend-bet {
