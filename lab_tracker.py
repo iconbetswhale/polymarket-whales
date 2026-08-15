@@ -52,6 +52,214 @@ def _identity(*parts: object) -> str:
     return f"lab-{digest[:32]}"
 
 
+DEMO_SPORTSBOOKS = (
+    ("betmgm", "BetMGM", "https://sports.betmgm.com/favicon.ico"),
+    ("draftkings", "DraftKings", "https://sportsbook.draftkings.com/favicon.ico"),
+    ("fanduel", "FanDuel", "https://sportsbook.fanduel.com/favicon.ico"),
+    ("caesars", "Caesars", "https://sportsbook.caesars.com/favicon.ico"),
+    ("hard-rock-bet", "Hard Rock Bet", "https://app.hardrock.bet/favicon.ico"),
+    ("fanatics", "Fanatics", "https://sportsbook.fanatics.com/favicon.ico"),
+    ("betrivers", "BetRivers", "https://www.betrivers.com/favicon.ico"),
+    ("bet365", "bet365", "https://www.bet365.com/favicon.ico"),
+    ("espn-bet", "ESPN BET", "https://espnbet.com/favicon.ico"),
+    ("thescore-bet", "theScore Bet", "https://sportsbook.thescore.bet/favicon.ico"),
+    ("bovada", "Bovada", "https://www.bovada.lv/favicon.ico"),
+    ("betonline", "BetOnline", "https://sports.betonline.ag/favicon.ico"),
+    ("fliff", "Fliff", "https://sports.getfliff.com/favicon.ico"),
+    ("rebet", "Rebet", "https://rebet.app/favicon.ico"),
+    ("polymarket", "Polymarket", "https://polymarket.com/icons/favicon-32x32.png"),
+    ("novig", "NoVIG", "https://novig.us/favicon.ico"),
+    ("prophetx", "ProphetX", "https://prophetx.co/favicon.ico"),
+    ("kalshi", "Kalshi", "https://kalshi.com/favicon.ico"),
+)
+
+DEMO_MARKETS = (
+    ("h2h", "Moneyline", "MLB", "Boston Red Sox vs New York Yankees", "New York Yankees"),
+    ("spreads", "Spread", "NBA", "Boston Celtics vs New York Knicks", "Boston Celtics -4.5"),
+    ("totals", "Game Total", "NFL", "Baltimore Ravens vs Buffalo Bills", "Under 47.5"),
+    ("team_totals", "Team Total", "NBA", "Miami Heat vs Orlando Magic", "Miami Heat Over 108.5"),
+    ("player_points", "Player Points", "NBA", "Oklahoma City Thunder vs Denver Nuggets", "Shai Gilgeous-Alexander Over 31.5"),
+    ("player_rebounds", "Player Rebounds", "NBA", "Los Angeles Lakers vs Golden State Warriors", "LeBron James Over 7.5"),
+    ("player_assists", "Player Assists", "NBA", "San Antonio Spurs vs Houston Rockets", "Victor Wembanyama Over 4.5"),
+    ("player_pra", "Player PRA", "NBA", "Dallas Mavericks vs Minnesota Timberwolves", "Luka Doncic Over 46.5"),
+    ("player_threes", "Player Made Threes", "WNBA", "New York Liberty vs Las Vegas Aces", "Sabrina Ionescu Over 3.5"),
+    ("pitcher_strikeouts", "Pitcher Strikeouts", "MLB", "Seattle Mariners vs Houston Astros", "Logan Gilbert Over 6.5"),
+    ("batter_hits", "Batter Hits", "MLB", "Philadelphia Phillies vs New York Mets", "Juan Soto Over 0.5"),
+    ("total_bases", "Total Bases", "MLB", "Chicago Cubs vs Milwaukee Brewers", "Pete Crow-Armstrong Over 1.5"),
+    ("first_five", "First Five Innings", "MLB", "Atlanta Braves vs Miami Marlins", "Atlanta Braves -0.5"),
+    ("first_half_spread", "First Half Spread", "NCAAB", "Duke vs North Carolina", "Duke -1.5"),
+    ("player_shots", "Player Shots on Goal", "NHL", "New York Rangers vs Boston Bruins", "Artemi Panarin Over 3.5"),
+    ("soccer_h2h", "Three-way Moneyline", "MLS", "Inter Miami vs Atlanta United", "Inter Miami"),
+    ("match_h2h", "Match Moneyline", "ATP", "Jannik Sinner vs Carlos Alcaraz", "Jannik Sinner"),
+    ("match_totals", "Match Total Games", "WTA", "Aryna Sabalenka vs Coco Gauff", "Over 21.5"),
+    ("college_spread", "College Football Spread", "NCAAF", "Ohio State vs Michigan", "Ohio State -6.5"),
+)
+
+
+def _dashboard_from_rows(
+    rows: list[dict], *, scope: str, source: str | None, window: str, demo_only: bool = False
+) -> dict:
+    now = _now()
+    if source:
+        rows = [row for row in rows if row.get("source") == source]
+    cutoffs = {
+        "yesterday": now - timedelta(days=1),
+        "7d": now - timedelta(days=7),
+        "30d": now - timedelta(days=30),
+    }
+    cutoff = cutoffs.get(window)
+    if cutoff:
+        rows = [
+            row
+            for row in rows
+            if (_parse_time(row.get("created_at")) or now) >= cutoff
+        ]
+    graded = [row for row in rows if row.get("status") == "graded"]
+    wins = sum(row.get("result") == "won" for row in graded)
+    losses = sum(row.get("result") == "lost" for row in graded)
+    pushes = sum(row.get("result") == "push" for row in graded)
+    profit = round(sum(float(row.get("profit_loss") or 0) for row in graded), 2)
+    risked = sum(
+        float(row.get("stake") or 0)
+        for row in graded
+        if row.get("result") in {"won", "lost"}
+    )
+
+    def breakdown(
+        key: str, name_key: str | None = None, logo_key: str | None = None
+    ) -> list[dict]:
+        groups: dict[str, dict] = {}
+        for row in graded:
+            group_key = str(row.get(key) or "Other")
+            item = groups.setdefault(
+                group_key,
+                {
+                    "key": group_key,
+                    "name": row.get(name_key or key) or group_key,
+                    "logo": row.get(logo_key or "") or "",
+                    "wins": 0,
+                    "losses": 0,
+                    "profit": 0.0,
+                },
+            )
+            item["wins"] += int(row.get("result") == "won")
+            item["losses"] += int(row.get("result") == "lost")
+            item["profit"] += float(row.get("profit_loss") or 0)
+        for item in groups.values():
+            item["profit"] = round(item["profit"], 2)
+        return sorted(groups.values(), key=lambda item: item["profit"], reverse=True)
+
+    curve = []
+    cumulative = 0.0
+    for row in sorted(graded, key=lambda item: item.get("graded_at") or ""):
+        cumulative += float(row.get("profit_loss") or 0)
+        curve.append({"at": row.get("graded_at"), "profit": round(cumulative, 2)})
+    return {
+        "summary": {
+            "profit": profit,
+            "units": round(profit / LAB_TRACKER_STAKE, 2),
+            "roi": round((profit / risked * 100) if risked else 0.0, 2),
+            "wins": wins,
+            "losses": losses,
+            "pushes": pushes,
+            "winRate": round((wins / (wins + losses) * 100) if wins + losses else 0.0, 1),
+            "tracked": len(rows),
+            "open": sum(row.get("status") == "pending" for row in rows),
+            "stake": LAB_TRACKER_STAKE,
+        },
+        "curve": curve,
+        "sportsbooks": breakdown("sportsbook_key", "sportsbook_name", "sportsbook_logo"),
+        "leagues": breakdown("league"),
+        "markets": breakdown("market_key", "market_label"),
+        "lastGraded": sorted(
+            graded, key=lambda row: row.get("graded_at") or "", reverse=True
+        )[:5],
+        "openBets": sorted(
+            (row for row in rows if row.get("status") == "pending"),
+            key=lambda row: row.get("created_at") or "",
+            reverse=True,
+        )[:20],
+        "scope": scope,
+        "source": source or "all",
+        "window": window,
+        "unitValue": LAB_TRACKER_STAKE,
+        "demoOnly": demo_only,
+    }
+
+
+def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
+    """Return deterministic preview rows without touching tracker persistence."""
+    now = _now()
+    results = ("won", "won", "lost", "won", "push", "lost", "won")
+    odds_cycle = (-110, 115, -105, 128, -120, 105, -115, 135)
+    rows: list[dict] = []
+    for index in range(54):
+        book_key, book_name, book_logo = DEMO_SPORTSBOOKS[index % len(DEMO_SPORTSBOOKS)]
+        market_key, market_label, league, event_title, selection = DEMO_MARKETS[index % len(DEMO_MARKETS)]
+        result = results[index % len(results)]
+        odds = odds_cycle[index % len(odds_cycle)]
+        graded_at = now - timedelta(hours=(index * 2.55) + 2)
+        pnl = 0.0
+        if result == "won":
+            pnl = _american_profit(LAB_TRACKER_STAKE, odds)
+        elif result == "lost":
+            pnl = -LAB_TRACKER_STAKE
+        row = {
+            "bet_id": f"demo-graded-{index + 1}",
+            "source": "positive_ev" if index % 2 == 0 else "sharp_money",
+            "league": league,
+            "event_title": event_title,
+            "commence_time": (graded_at - timedelta(hours=3)).isoformat(),
+            "market_key": market_key,
+            "market_label": market_label,
+            "selection": selection,
+            "sportsbook_key": book_key,
+            "sportsbook_name": book_name,
+            "sportsbook_logo": book_logo,
+            "entry_american_odds": odds,
+            "stake": LAB_TRACKER_STAKE,
+            "status": "graded",
+            "result": result,
+            "profit_loss": round(pnl, 2),
+            "graded_at": graded_at.isoformat(),
+            "created_at": (graded_at - timedelta(hours=5)).isoformat(),
+            "demo_personal": index % 4 == 0,
+        }
+        rows.append(row)
+    for index in range(8):
+        book_key, book_name, book_logo = DEMO_SPORTSBOOKS[(index + 5) % len(DEMO_SPORTSBOOKS)]
+        market_key, market_label, league, event_title, selection = DEMO_MARKETS[(index + 7) % len(DEMO_MARKETS)]
+        created_at = now - timedelta(minutes=(index * 19) + 7)
+        rows.append(
+            {
+                "bet_id": f"demo-open-{index + 1}",
+                "source": "positive_ev" if index % 2 == 0 else "sharp_money",
+                "league": league,
+                "event_title": event_title,
+                "commence_time": (now + timedelta(hours=index + 2)).isoformat(),
+                "market_key": market_key,
+                "market_label": market_label,
+                "selection": selection,
+                "sportsbook_key": book_key,
+                "sportsbook_name": book_name,
+                "sportsbook_logo": book_logo,
+                "entry_american_odds": odds_cycle[(index + 3) % len(odds_cycle)],
+                "stake": LAB_TRACKER_STAKE,
+                "status": "pending",
+                "result": None,
+                "profit_loss": None,
+                "graded_at": None,
+                "created_at": created_at.isoformat(),
+                "demo_personal": index % 3 == 0,
+            }
+        )
+    if scope == "personal":
+        rows = [row for row in rows if row.get("demo_personal")]
+    return _dashboard_from_rows(
+        rows, scope=scope, source=source, window=window, demo_only=True
+    )
+
+
 class LabTrackerStore:
     """Portable persistence for the global LabTracker and user-owned copies."""
 
@@ -481,60 +689,6 @@ class LabTrackerService:
 
     def dashboard(self, *, scope: str, user_id: str, source: str | None, window: str) -> dict:
         rows = self.store.rows(scope, user_id, source)
-        now = _now()
-        cutoffs = {
-            "yesterday": now - timedelta(days=1),
-            "7d": now - timedelta(days=7),
-            "30d": now - timedelta(days=30),
-        }
-        cutoff = cutoffs.get(window)
-        if cutoff:
-            rows = [row for row in rows if (_parse_time(row.get("created_at")) or now) >= cutoff]
-        graded = [row for row in rows if row.get("status") == "graded"]
-        wins = sum(row.get("result") == "won" for row in graded)
-        losses = sum(row.get("result") == "lost" for row in graded)
-        pushes = sum(row.get("result") == "push" for row in graded)
-        profit = round(sum(float(row.get("profit_loss") or 0) for row in graded), 2)
-        risked = sum(float(row.get("stake") or 0) for row in graded if row.get("result") in {"won", "lost"})
-
-        def breakdown(key: str, name_key: str | None = None, logo_key: str | None = None) -> list[dict]:
-            groups: dict[str, dict] = {}
-            for row in graded:
-                group_key = str(row.get(key) or "Other")
-                item = groups.setdefault(group_key, {"key": group_key, "name": row.get(name_key or key) or group_key, "logo": row.get(logo_key or "") or "", "wins": 0, "losses": 0, "profit": 0.0})
-                item["wins"] += int(row.get("result") == "won")
-                item["losses"] += int(row.get("result") == "lost")
-                item["profit"] += float(row.get("profit_loss") or 0)
-            for item in groups.values():
-                item["profit"] = round(item["profit"], 2)
-            return sorted(groups.values(), key=lambda item: item["profit"], reverse=True)
-
-        curve = []
-        cumulative = 0.0
-        for row in sorted(graded, key=lambda item: item.get("graded_at") or ""):
-            cumulative += float(row.get("profit_loss") or 0)
-            curve.append({"at": row.get("graded_at"), "profit": round(cumulative, 2)})
-        return {
-            "summary": {
-                "profit": profit,
-                "units": round(profit / LAB_TRACKER_STAKE, 2),
-                "roi": round((profit / risked * 100) if risked else 0.0, 2),
-                "wins": wins,
-                "losses": losses,
-                "pushes": pushes,
-                "winRate": round((wins / (wins + losses) * 100) if wins + losses else 0.0, 1),
-                "tracked": len(rows),
-                "open": sum(row.get("status") == "pending" for row in rows),
-                "stake": LAB_TRACKER_STAKE,
-            },
-            "curve": curve,
-            "sportsbooks": breakdown("sportsbook_key", "sportsbook_name", "sportsbook_logo"),
-            "leagues": breakdown("league"),
-            "markets": breakdown("market_key", "market_label"),
-            "lastGraded": sorted(graded, key=lambda row: row.get("graded_at") or "", reverse=True)[:5],
-            "openBets": sorted((row for row in rows if row.get("status") == "pending"), key=lambda row: row.get("created_at") or "", reverse=True)[:20],
-            "scope": scope,
-            "source": source or "all",
-            "window": window,
-            "unitValue": LAB_TRACKER_STAKE,
-        }
+        return _dashboard_from_rows(
+            rows, scope=scope, source=source, window=window, demo_only=False
+        )

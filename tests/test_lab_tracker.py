@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
 from database import TrackerDatabase
-from lab_tracker import LAB_TRACKER_GLOBAL_USER_ID, LabTrackerService
+from lab_tracker import LAB_TRACKER_GLOBAL_USER_ID, LabTrackerService, demo_dashboard
 
 
 def positive_ev_row() -> dict:
@@ -129,9 +129,41 @@ def test_lab_tracker_page_and_empty_api_are_separate_from_bet_tracker(app_client
     assert page.status_code == 200
     assert b"LabTracker" in page.data
     assert b"Bet Tracker" in page.data
+    assert b"Demo View" in page.data
+    assert b"5-second verification" not in page.data
 
     response = app_client.get("/api/lab-tracker?window=all")
     assert response.status_code == 200
     payload = response.get_json()["data"]
     assert payload["summary"]["tracked"] == 0
     assert payload["unitValue"] == 100.0
+
+
+def test_demo_dashboard_is_populated_and_never_changes_real_tracker(app_client):
+    demo = app_client.get("/api/lab-tracker?window=7d&demo=1")
+    assert demo.status_code == 200
+    payload = demo.get_json()["data"]
+    assert payload["demoOnly"] is True
+    assert payload["summary"]["tracked"] >= 50
+    assert len(payload["sportsbooks"]) == 18
+    assert len(payload["leagues"]) >= 10
+    assert len(payload["markets"]) >= 15
+    assert len(payload["lastGraded"]) == 5
+    assert payload["openBets"]
+
+    real = app_client.get("/api/lab-tracker?window=all")
+    assert real.status_code == 200
+    real_payload = real.get_json()["data"]
+    assert real_payload["demoOnly"] is False
+    assert real_payload["summary"]["tracked"] == 0
+
+
+def test_demo_dashboard_filters_sources_and_personal_preview():
+    positive_ev = demo_dashboard(
+        scope="signal", source="positive_ev", window="7d"
+    )
+    personal = demo_dashboard(scope="personal", source=None, window="7d")
+    assert positive_ev["summary"]["tracked"] > 0
+    assert all(row["source"] == "positive_ev" for row in positive_ev["openBets"])
+    assert personal["demoOnly"] is True
+    assert 0 < personal["summary"]["tracked"] < positive_ev["summary"]["tracked"] * 2

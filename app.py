@@ -83,6 +83,7 @@ from sharp_money_live import build_sharp_money_collector
 from lab_tracker import (
     LAB_TRACKER_GLOBAL_USER_ID,
     LabTrackerService,
+    demo_dashboard,
 )
 from trade_scoring import filter_trades_to_play
 from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
@@ -2052,12 +2053,20 @@ def create_app(start_background: bool = True) -> Flask:
             if scope == "personal"
             else LAB_TRACKER_GLOBAL_USER_ID
         )
-        payload = app.extensions["lab_tracker_service"].dashboard(
-            scope=scope,
-            user_id=user_id,
-            source=source,
-            window=window,
-        )
+        demo_requested = request.args.get("demo", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        if demo_requested:
+            payload = demo_dashboard(scope=scope, source=source, window=window)
+        else:
+            payload = app.extensions["lab_tracker_service"].dashboard(
+                scope=scope,
+                user_id=user_id,
+                source=source,
+                window=window,
+            )
         response = jsonify({"data": payload})
         response.headers["Cache-Control"] = "private, no-store"
         return response

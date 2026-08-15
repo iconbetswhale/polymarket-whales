@@ -1,10 +1,12 @@
 (() => {
+  const initialQuery = new URLSearchParams(window.location.search);
   const state = {
     scope: "signal",
     source: "all",
     window: "7d",
     display: localStorage.getItem("iconlabs-lab-display") || "dollars",
     log: "graded",
+    demo: initialQuery.get("demo") === "1",
     data: null,
   };
 
@@ -37,7 +39,7 @@
 
   function renderRanking(target, rows, icon) {
     const root = $(target);
-    const visible = (rows || []).slice(0, 12);
+    const visible = rows || [];
     if (!visible.length) {
       root.innerHTML = `<div class="lab-empty"><i class="ph ph-hourglass"></i><strong>No graded plays yet</strong><span>Rankings appear after verified results.</span></div>`;
       return;
@@ -61,7 +63,7 @@
         <div class="lab-bet-pnl"><strong class="${!open && pnl < 0 ? "loss" : ""}">${resultLabel}</strong><span>${open ? "1.0 u risk" : row.result || "graded"}</span></div>
         <div class="lab-bet-main"><strong><span class="lab-source-pill">${source}</span>${escapeHtml(row.selection)}</strong><p>${escapeHtml(row.market_label)}</p><small>${escapeHtml(details)}</small></div>
         <div class="lab-bet-book">${row.sportsbook_logo ? `<img src="${escapeHtml(row.sportsbook_logo)}" alt="">` : `<span class="lab-rank-icon"><i class="ph ph-buildings"></i></span>`}<div><span>${escapeHtml(row.sportsbook_name)}</span><strong>${odds(row.entry_american_odds)}</strong></div></div>
-        ${open && state.scope === "signal" ? `<button class="lab-track-button" type="button" data-personal-bet="${escapeHtml(row.bet_id)}"><i class="ph ph-check"></i> I took this bet</button>` : ""}
+        ${open && state.scope === "signal" && !state.demo ? `<button class="lab-track-button" type="button" data-personal-bet="${escapeHtml(row.bet_id)}"><i class="ph ph-check"></i> I took this bet</button>` : ""}
       </article>`;
   }
 
@@ -124,6 +126,7 @@
 
   function render() {
     const summary = state.data.summary;
+    $("#lab-demo-notice").hidden = !state.data.demoOnly;
     $("#lab-profit-label").textContent = state.display === "units" ? "Units" : "Profit";
     $("#lab-profit").textContent = amount(summary.profit);
     $("#lab-roi").textContent = `${Number(summary.roi).toFixed(1)}%`;
@@ -140,6 +143,7 @@
   async function load() {
     const params = new URLSearchParams({ scope: state.scope, window: state.window });
     if (state.source !== "all") params.set("source", state.source);
+    if (state.demo) params.set("demo", "1");
     try {
       const response = await fetch(`/api/lab-tracker?${params}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
@@ -148,6 +152,16 @@
     } catch (error) {
       $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ph-warning-circle"></i><strong>LabTracker is unavailable</strong><span>${escapeHtml(error.message)}</span></div>`;
     }
+  }
+
+  function syncDemoState() {
+    const button = $("#lab-demo-toggle");
+    button.classList.toggle("active", state.demo);
+    button.setAttribute("aria-pressed", String(state.demo));
+    const url = new URL(window.location.href);
+    if (state.demo) url.searchParams.set("demo", "1");
+    else url.searchParams.delete("demo");
+    window.history.replaceState({}, "", url);
   }
 
   async function takeBet(button) {
@@ -192,7 +206,13 @@
     $$('[data-lab-log]').forEach((item) => item.classList.toggle("active", item === button));
     if (state.data) renderLog();
   }));
+  $("#lab-demo-toggle").addEventListener("click", () => {
+    state.demo = !state.demo;
+    syncDemoState();
+    load();
+  });
   $$('[data-lab-display]').forEach((button) => button.classList.toggle("active", button.dataset.labDisplay === state.display));
+  syncDemoState();
   window.addEventListener("resize", () => state.data && drawChart());
   load();
 })();

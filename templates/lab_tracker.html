@@ -7,7 +7,7 @@
       <h1 id="lab-title">LabTracker</h1>
       <p>Unified performance for Positive EV, Sharp Money, and the plays you take.</p>
     </div>
-    <div class="lab-feed-state"><span></span><strong>Automatic tracking</strong><small>5-second verification</small></div>
+    <div class="lab-feed-state"><span></span><strong>Automatic tracking</strong></div>
   </header>
 
   <div class="lab-command-row">
@@ -18,6 +18,7 @@
       <button type="button" data-lab-scope="personal"><i class="ph ph-check-square"></i>My Bets</button>
     </nav>
     <div class="lab-controls">
+      <button class="lab-demo-toggle" id="lab-demo-toggle" type="button" aria-pressed="false"><i class="ph ph-sparkle"></i>Demo View</button>
       <div class="lab-segment" aria-label="Value display">
         <button class="active" type="button" data-lab-display="dollars">Dollars</button>
         <button type="button" data-lab-display="units">Units</button>
@@ -30,6 +31,8 @@
       </div>
     </div>
   </div>
+
+  <div class="lab-demo-notice" id="lab-demo-notice" hidden><i class="ph ph-flask"></i><strong>Simulated data</strong><span>Preview results are isolated and never enter your real LabTracker ledger.</span></div>
 
   <div class="lab-dashboard" aria-live="polite">
     <aside class="lab-panel lab-books">
