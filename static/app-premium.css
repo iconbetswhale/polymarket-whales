@@ -157,7 +157,7 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
     overflow: visible !important;
   }
 
-  html body[data-page="positive-ev"] .ev-opportunity {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity {
     grid-template-columns: 158px minmax(270px, 1.05fr) minmax(260px, .95fr) minmax(360px, 1.35fr) !important;
     min-height: 128px !important;
     max-height: 128px !important;
@@ -168,8 +168,8 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
     transform: none !important;
   }
 
-  html body[data-page="positive-ev"] .ev-opportunity:hover,
-  html body[data-page="positive-ev"] .ev-opportunity.active {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity:hover,
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity.active {
     border-color: rgba(166, 119, 190, .5) !important;
     background: linear-gradient(105deg, rgba(21, 17, 29, .98), rgba(13, 11, 20, .98)) !important;
     box-shadow: none !important;
@@ -3504,14 +3504,14 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
 /* Positive EV board lock. Keep this at the physical end of the bundle so legacy
    shared opportunity rules cannot reintroduce teal surfaces or overflow. */
 @media (min-width: 901px) {
-  html body[data-page="positive-ev"] .ev-opportunity {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity {
     grid-template-columns: 150px minmax(250px, 1.04fr) minmax(230px, .92fr) minmax(340px, 1.34fr) !important;
     background: linear-gradient(105deg, #0f0d16 0%, #0b0a11 100%) !important;
     border-color: rgba(137, 104, 158, .34) !important;
   }
 
-  html body[data-page="positive-ev"] .ev-opportunity:hover,
-  html body[data-page="positive-ev"] .ev-opportunity.active {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity:hover,
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity.active {
     background: linear-gradient(105deg, #15111d 0%, #0d0b14 100%) !important;
     border-color: rgba(166, 119, 190, .5) !important;
   }
@@ -3539,8 +3539,8 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
   }
 }
 
-@media (min-width: 901px) and (max-width: 1180px) {
-  html body[data-page="positive-ev"] .ev-opportunity {
+@media (min-width: 901px) and (max-width: 1399px) {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity {
     grid-template-columns: 126px minmax(205px, 1fr) minmax(190px, .9fr) minmax(300px, 1.2fr) !important;
   }
 
