@@ -4082,14 +4082,14 @@ html body[data-page="positive-ev"] .ev-market-best {
 html body[data-page="positive-ev"] .ev-market-odds h3 {
   margin: 0;
   color: #f4f2f7;
-  font-size: 11px;
+  font-size: 14px;
   letter-spacing: .07em;
 }
 
 html body[data-page="positive-ev"] .ev-market-odds header span,
 html body[data-page="positive-ev"] .ev-market-best small {
   color: #7f7a8d;
-  font-size: 8px;
+  font-size: 9px;
 }
 
 html body[data-page="positive-ev"] .ev-market-best {
@@ -4098,7 +4098,8 @@ html body[data-page="positive-ev"] .ev-market-best {
 
 html body[data-page="positive-ev"] .ev-market-best strong {
   color: #43d66b;
-  font-size: 16px;
+  font-size: 21px;
+  line-height: 1;
 }
 
 html body[data-page="positive-ev"] .ev-market-side {
@@ -4266,24 +4267,13 @@ html body[data-page="positive-ev"] .ev-market-compare-row:last-child {
 html body[data-page="positive-ev"] .ev-market-book-center {
   min-width: 0;
   display: grid;
-  justify-items: center;
-  gap: 2px;
+  place-items: center;
   color: #777282;
 }
 
 html body[data-page="positive-ev"] .ev-market-book-center .ev-book-mark {
   width: 25px;
   height: 25px;
-}
-
-html body[data-page="positive-ev"] .ev-market-book-center > span:last-child {
-  width: 42px;
-  overflow: hidden;
-  font-size: 6px;
-  line-height: 1;
-  text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 html body[data-page="positive-ev"] .ev-compare-price {
@@ -4326,14 +4316,17 @@ html body[data-page="positive-ev"] .ev-compare-price:nth-child(3) i {
 html body[data-page="positive-ev"] .ev-compare-price small {
   min-width: 0;
   overflow: hidden;
-  color: #75818e;
-  font-size: 6.5px;
+  color: #919daa;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1.1;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 html body[data-page="positive-ev"] .ev-compare-price strong {
-  font-size: 10px;
+  font-size: 12px;
+  line-height: 1;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }

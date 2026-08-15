@@ -15,7 +15,7 @@
     weights: {pinnacle:40,betonlineag:20,novig:10,prophetx:10,fourcx:8,kalshi:7,polymarket:5,fanduel:5,draftkings:5}
   };
   const bookNames = {pinnacle:"Pinnacle",betonlineag:"BetOnline",novig:"Novig",prophetx:"ProphetX",fourcx:"4CX",kalshi:"Kalshi",polymarket:"Polymarket",fanduel:"FanDuel",draftkings:"DraftKings"};
-  const bookLogos = {novig:"/static/assets/providers/novig.png",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"/static/assets/providers/pinnacle.png",betonlineag:"/static/assets/sportsbooks/betonline.png",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"https://sportsbook.draftkings.com/favicon.ico",fourcx:"/static/assets/providers/4cx.png"};
+  const bookLogos = {novig:"/static/assets/providers/novig.png",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"/static/assets/providers/pinnacle.png",betonlineag:"/static/assets/sportsbooks/betonline.png?v=20260815",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"/static/assets/sportsbooks/draftkings.png?v=20260815",fourcx:"/static/assets/providers/4cx.png"};
   let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
   try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
@@ -167,12 +167,12 @@
       const label = representative.bookName || bookNames[bookKey] || bookKey;
       return `<div class="ev-market-compare-row">
         ${priceCell(left, 0)}
-        <span class="ev-market-book-center" title="${esc(label)}">${img(representative.logoUrl, bookKey)}<span>${esc(label)}</span></span>
+        <span class="ev-market-book-center" title="${esc(label)}" aria-label="${esc(label)}">${img(representative.logoUrl, bookKey)}</span>
         ${sides.length > 1 ? priceCell(right, 1) : ""}
       </div>`;
     }).join("");
     return `<section class="ev-market-odds ev-market-comparison">
-      <header><div><h3>MARKET ODDS</h3><span>${bookKeys.length} available books · both sides</span></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestBySide[0])}</strong></div></header>
+      <header><div><h3>MARKET ODDS</h3></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestBySide[0])}</strong></div></header>
       <div class="ev-market-compare-head"><strong>${esc(sides[0].selection)}</strong><i class="ph ph-arrows-down-up" aria-hidden="true"></i>${sides.length > 1 ? `<strong>${esc(sides[1].selection)}</strong>` : ""}</div>
       <div class="ev-market-compare-rows">${rowsHtml}</div>
     </section>`;
