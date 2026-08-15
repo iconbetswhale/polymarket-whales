@@ -66,27 +66,41 @@
       : `<span>${escapeHtml(fallback)}</span>`;
   }
 
+  function pinnacleLimit(signal) {
+    const row = (signal.comparisonLines || []).find(item =>
+      String(item.providerKey || item.providerName || "").toLowerCase().includes("pinnacle")
+    );
+    const value = row?.marketLimit ?? row?.betLimit ?? row?.availableLiquidity;
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : null;
+  }
+
+  function pinnacleLimitLabel(signal) {
+    const value = pinnacleLimit(signal);
+    return value == null ? "P Limit unavailable" : `${money(value, false)} P Limit`;
+  }
+
   function signalCard(signal) {
     const detected = Math.abs(Number(signal.pressure)) >= 0.01;
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
-        <div class="sharp-signal-money">
+        <div class="sharp-signal-money sharp-liquidity-score">
           <strong>${escapeHtml(money(signal.liquidity))}</strong>
-          <span>ProphetX depth</span>
-          <small class="${detected ? "flow-hot" : ""}"><i class="ph ph-waveform"></i>${detected ? "Flow detected" : "Monitoring"}</small>
+          <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
-        <div class="sharp-signal-content">
-          <div class="sharp-signal-meta">
-            <div>
-              <div class="sharp-signal-overline"><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.market?.name)}${signal.previewOnly ? '<b class="sharp-preview-tag">Visual preview</b>' : ""}</span><time>${escapeHtml(timeLabel(signal.startsAt))} ET</time></div>
-              <strong>${escapeHtml(signal.event)}</strong>
-              <div class="sharp-signal-subrow"><em>${escapeHtml(signal.selection)}</em><div class="sharp-signal-badges"><span class="${detected ? "edge" : ""}">${escapeHtml(signal.pressureLabel)}</span><span>${escapeHtml(signal.confidence)} confidence</span></div></div>
-            </div>
-          </div>
-          <div class="sharp-market-mini">
-            <div><span>Inferred pressure side</span><strong>${escapeHtml(signal.selection)}</strong><small>Read-only · no orders</small></div>
-            <div class="sharp-rec-bet"><span>ProphetX price</span><strong>${escapeHtml(odds(signal.americanOdds))}</strong><small>${escapeHtml(money(signal.liquidity))} quoted</small></div>
-          </div>
+        <div class="sharp-card-event">
+          <time>${escapeHtml(timeLabel(signal.startsAt))} ET</time>
+          <strong>${escapeHtml(signal.event)}</strong>
+        </div>
+        <div class="sharp-card-pick">
+          <small><i class="ph ph-globe-hemisphere-west"></i>${escapeHtml(signal.league)}${signal.previewOnly ? '<b class="sharp-preview-tag">Preview</b>' : ""}</small>
+          <strong>${escapeHtml(signal.selection)}</strong>
+          <em>${escapeHtml(signal.market?.name)}</em>
+        </div>
+        <div class="sharp-card-execution">
+          <div class="sharp-card-side">${escapeHtml(signal.selection)}</div>
+          <div class="sharp-card-flow"><strong>${escapeHtml(signal.confidence)}%</strong><small>${detected ? "Flow confidence" : "Monitoring"}</small></div>
+          <div class="sharp-card-price"><span class="sharp-card-provider">${logo(signal)}</span><strong>${escapeHtml(odds(signal.americanOdds))}</strong></div>
         </div>
       </article>`;
   }

@@ -651,6 +651,13 @@ def test_sharp_money_preview_returns_five_isolated_visual_signals(
         "spread",
         "game_total",
     }
+    for signal in payload["signals"]:
+        pinnacle = next(
+            row
+            for row in signal["comparisonLines"]
+            if row["providerKey"] == "pinnacle"
+        )
+        assert pinnacle["marketLimit"] > 0
 
 
 def test_sharp_money_frontend_uses_explicit_control_gate():

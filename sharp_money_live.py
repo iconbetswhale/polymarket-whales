@@ -517,6 +517,14 @@ class SharpMoneyCollector:
                 for option in options.get(signal["id"], [])
                 if option.is_available and option.american_odds is not None
             ]
+            # The Odds API exposes Pinnacle's reported bet limit through the
+            # normalized liquidity slot. Preserve that value under an explicit
+            # market-limit field so Sharp Money can render the same secondary
+            # metric as EV+ without guessing at unavailable limits.
+            for row in rows:
+                provider_key = str(row.get("providerKey") or "").lower()
+                if provider_key == "pinnacle" and row.get("marketLimit") is None:
+                    row["marketLimit"] = row.get("availableLiquidity")
             rows.append(
                 {
                     "providerName": "ProphetX",
