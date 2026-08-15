@@ -684,6 +684,16 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     )
 
 
+def test_sharp_money_combined_liquidity_keeps_decimal_for_even_thousands():
+    script = (
+        Path(__file__).resolve().parents[1] / "static" / "sharp-money.js"
+    ).read_text(encoding="utf-8")
+
+    assert "function liquidityMoney(value)" in script
+    assert "(absolute / 1000).toFixed(1)" in script
+    assert "liquidityMoney(combinedDepthLiquidity(signal))" in script
+
+
 def test_sharp_money_frontend_separates_sportsbook_actions_from_depth_sources():
     script = (
         Path(__file__).resolve().parents[1] / "static" / "sharp-money.js"

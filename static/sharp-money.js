@@ -31,6 +31,20 @@
     }).format(number);
   }
 
+  function liquidityMoney(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "N/A";
+    const absolute = Math.abs(number);
+    const sign = number < 0 ? "-" : "";
+    if (absolute >= 1000000) return `${sign}$${(absolute / 1000000).toFixed(1)}M`;
+    if (absolute >= 1000) return `${sign}$${(absolute / 1000).toFixed(1)}K`;
+    return new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 0,
+    }).format(number);
+  }
+
   function odds(value) {
     const number = Number(value);
     if (!Number.isFinite(number)) return "—";
@@ -174,7 +188,7 @@
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
-          <strong title="Combined NoVIG + ProphetX liquidity">${escapeHtml(money(combinedDepthLiquidity(signal)))}</strong>
+          <strong title="Combined NoVIG + ProphetX liquidity">${escapeHtml(liquidityMoney(combinedDepthLiquidity(signal)))}</strong>
           <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
