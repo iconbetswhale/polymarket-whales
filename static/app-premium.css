@@ -1362,6 +1362,14 @@ body[data-page="positive-ev"] .ev-detail {
   box-shadow: inset 0 0 0 1px rgba(232, 130, 255, .17), 0 0 30px rgba(184, 40, 255, .3), 0 20px 48px rgba(0,0,0,.46) !important;
 }
 
+/* Keep the selected trade visible without the previous neon-purple halo. */
+body[data-page="trades"] .trade-card.selected {
+  border-color: rgba(170, 102, 202, .52) !important;
+  box-shadow: inset 0 0 0 1px rgba(201, 147, 220, .045),
+    0 0 14px rgba(142, 72, 174, .075),
+    0 16px 40px rgba(0, 0, 0, .4) !important;
+}
+
 body:not([data-page="home"]) [data-tone="positive"],
 body:not([data-page="home"]) .positive,
 body:not([data-page="home"]) .best-execution-price,
