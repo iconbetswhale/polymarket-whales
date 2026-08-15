@@ -2112,6 +2112,171 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body:not([data-page="home"]) .sidebar-account-caret { display: none !important; }
 }
 
+/* Desktop navigation expands from the compact rail without changing mobile navigation. */
+.desktop-nav-toggle { display: none; }
+
+@media (min-width: 901px) {
+  body:not([data-page="home"]) .app-nav,
+  body:not([data-page="home"]) .app-shell {
+    transition: width .24s ease, margin-left .24s ease, padding .24s ease !important;
+  }
+
+  body:not([data-page="home"]) .desktop-nav-toggle {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    margin: 0 auto 4px;
+    padding: 0;
+    display: grid;
+    flex: 0 0 38px;
+    place-items: center;
+    color: #b8adca;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    cursor: pointer;
+  }
+
+  body:not([data-page="home"]) .desktop-nav-toggle i { font-size: 23px; }
+  body:not([data-page="home"]) .desktop-nav-toggle:hover,
+  body:not([data-page="home"]) .desktop-nav-toggle:focus-visible {
+    color: #fff;
+    border-color: rgba(180, 92, 242, .42);
+    background: rgba(145, 67, 213, .12);
+    outline: none;
+  }
+
+  body:not([data-page="home"]) .nav-links {
+    min-height: 0 !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .app-nav {
+    width: 252px !important;
+    padding: 18px 14px 14px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .app-shell {
+    width: calc(100% - 252px) !important;
+    margin-left: 252px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .desktop-nav-toggle {
+    position: absolute;
+    top: 24px;
+    left: 13px;
+    margin: 0;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand {
+    min-height: 50px !important;
+    margin: 0 0 14px !important;
+    padding: 0 4px 0 42px !important;
+    justify-content: flex-start !important;
+    gap: 10px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-icon,
+  body.sidebar-expanded:not([data-page="home"]) .brand-icon img {
+    width: 34px !important;
+    height: 34px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-copy {
+    display: block !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-copy strong {
+    font-size: 17px !important;
+    letter-spacing: .13em !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links {
+    gap: 4px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a {
+    min-height: 46px !important;
+    padding: 0 13px !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 12px !important;
+    font-size: 14px !important;
+    text-align: left !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a > span[data-short] {
+    width: auto !important;
+    color: inherit;
+    font: 500 14px/1.2 "DM Sans", sans-serif !important;
+    text-align: left !important;
+    white-space: nowrap;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a > span[data-short]::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a i,
+  body.sidebar-expanded:not([data-page="home"]) .sharp-money-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .sportsbook-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .live-position-nav-icon {
+    width: 22px !important;
+    height: 22px !important;
+    flex: 0 0 22px !important;
+    font-size: 22px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sharp-money-nav-icon svg,
+  body.sidebar-expanded:not([data-page="home"]) .sportsbook-nav-icon svg,
+  body.sidebar-expanded:not([data-page="home"]) .live-position-nav-icon svg {
+    width: 22px !important;
+    height: 22px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] {
+    min-height: 48px !important;
+    box-shadow: inset 3px 0 #b34cff, 0 0 18px rgba(121, 44, 237, .15) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-section-label {
+    margin: 10px 7px 4px !important;
+    padding: 6px 4px 0 !important;
+    display: flex !important;
+    font-size: 9px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button {
+    width: 100% !important;
+    min-height: 58px !important;
+    margin: auto 0 0 !important;
+    padding: 9px 11px !important;
+    grid-template-columns: 34px minmax(0, 1fr) 18px !important;
+    column-gap: 10px !important;
+    place-items: center start !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button > i:first-child {
+    width: 34px !important;
+    font-size: 34px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button > span {
+    display: grid !important;
+    gap: 3px !important;
+    text-align: left !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button strong { font-size: 12px !important; }
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button small { font-size: 9px !important; }
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-caret {
+    display: grid !important;
+    justify-self: end !important;
+    font-size: 17px !important;
+  }
+}
+
 /* Slim desktop trade rows. */
 body[data-page="trades"] .trades-corner-cluster {
   display: flex;

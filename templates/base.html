@@ -35,7 +35,10 @@
     <div><strong id="global-risk-title">Model tracking stopped</strong><span id="global-risk-detail"></span></div>
   </div>
   {% if page != 'home' %}
-  <nav class="app-nav" aria-label="Primary navigation">
+  <nav class="app-nav" id="app-navigation" aria-label="Primary navigation">
+    <button class="desktop-nav-toggle" id="desktop-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links" aria-label="Expand navigation">
+      <i class="ph ph-list" aria-hidden="true"></i>
+    </button>
     <button class="mobile-nav-toggle" id="mobile-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links">
       <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
     </button>

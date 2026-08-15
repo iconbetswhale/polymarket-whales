@@ -5367,8 +5367,21 @@ function bindTracker() {
 }
 
 function bindNavigation() {
+  const desktopToggle = document.getElementById("desktop-nav-toggle");
   const toggle = document.getElementById("mobile-nav-toggle");
   const links = document.getElementById("primary-links");
+  const renderDesktopNavigation = (expanded) => {
+    document.body.classList.toggle("sidebar-expanded", expanded);
+    desktopToggle?.setAttribute("aria-expanded", String(expanded));
+    desktopToggle?.setAttribute("aria-label", expanded ? "Collapse navigation" : "Expand navigation");
+    desktopToggle?.setAttribute("title", expanded ? "Collapse navigation" : "Expand navigation");
+  };
+  renderDesktopNavigation(safeStorage.getItem("iconlabs-sidebar-expanded") === "true");
+  desktopToggle?.addEventListener("click", () => {
+    const expanded = !document.body.classList.contains("sidebar-expanded");
+    safeStorage.setItem("iconlabs-sidebar-expanded", String(expanded));
+    renderDesktopNavigation(expanded);
+  });
   const closeMobileNavigation = () => {
     links?.classList.remove("open");
     document.body.classList.remove("mobile-nav-open");
