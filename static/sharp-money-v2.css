@@ -1327,14 +1327,6 @@ body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score span {
   object-fit: contain;
 }
 
-/* BetOnline uses a horizontal official wordmark, so preserve its proportions. */
-.sharp-market-book--betonline img,
-.sharp-market-book--betonlineag img {
-  width: 46px;
-  height: 23px;
-  border-radius: 3px;
-}
-
 @media (max-width: 1280px) {
   .sharp-workspace {
     grid-template-columns: minmax(520px, 1fr) minmax(480px, .92fr);
