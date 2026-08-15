@@ -871,6 +871,42 @@ body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score span {
   white-space: nowrap;
 }
 
+@media (max-width: 1500px) and (min-width: 1181px) {
+  .sharp-signal-card {
+    grid-template-columns: 84px 140px 105px minmax(180px, 1fr);
+  }
+
+  .sharp-signal-card > div,
+  .sharp-signal-money.sharp-liquidity-score {
+    padding-inline: 10px;
+  }
+
+  .sharp-signal-money.sharp-liquidity-score strong {
+    font-size: 20px;
+  }
+
+  .sharp-card-event strong {
+    font-size: 10px;
+  }
+
+  .sharp-card-pick strong {
+    font-size: 12px;
+  }
+
+  .sharp-card-execution {
+    grid-template-columns: minmax(72px, 1fr) auto;
+    gap: 8px;
+  }
+
+  .sharp-card-flow {
+    display: none;
+  }
+
+  .sharp-card-price {
+    min-width: 78px;
+  }
+}
+
 @media (max-width: 1180px) and (min-width: 901px) {
   .sharp-signal-card {
     grid-template-columns: 96px 164px 150px minmax(260px, 1fr);
