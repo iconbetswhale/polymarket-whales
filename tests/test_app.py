@@ -682,6 +682,18 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     )
 
 
+def test_sharp_money_frontend_separates_sportsbook_actions_from_depth_sources():
+    script = (
+        Path(__file__).resolve().parents[1] / "static" / "sharp-money.js"
+    ).read_text(encoding="utf-8")
+
+    assert '"novig", "prophetx", "4cx", "fourcx", "polymarket", "kalshi"' in script
+    assert 'const DEPTH_PROVIDER_ORDER = ["novig", "prophetx"]' in script
+    assert "rows.filter(row => !isMarketIntelligenceProvider(row))" in script
+    assert 'aria-label="NoVIG and ProphetX liquidity intelligence"' in script
+    assert "sportsbookAction(quote, signal.americanOdds)" in script
+
+
 def test_sharp_money_control_routes_to_collector(app_client, monkeypatch):
     collector = app_client.application.extensions["sharp_money_collector"]
     actions = []

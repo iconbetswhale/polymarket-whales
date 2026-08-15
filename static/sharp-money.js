@@ -60,7 +60,18 @@
   }
 
   function logo(row, fallback = "PX") {
-    const url = row?.logoUrl || row?.providerLogo;
+    const localLogos = {
+      pinnacle: "/static/assets/providers/pinnacle.png",
+      betonline: "/static/assets/sportsbooks/betonline.png",
+      betonlineag: "/static/assets/sportsbooks/betonline.png",
+      fanduel: "/static/assets/sportsbooks/fanduel.png",
+      draftkings: "/static/assets/sportsbooks/draftkings.png",
+      betmgm: "/static/assets/sportsbooks/betmgm.png",
+      caesars: "/static/assets/sportsbooks/caesars.png",
+      novig: "/static/assets/providers/novig.png",
+      prophetx: "/static/assets/providers/prophetx.ico",
+    };
+    const url = localLogos[providerKey(row)] || row?.logoUrl || row?.providerLogo;
     return url
       ? `<img src="${escapeHtml(url)}" alt="" loading="lazy">`
       : `<span>${escapeHtml(fallback)}</span>`;
@@ -92,12 +103,59 @@
     };
   }
 
+  const MARKET_INTELLIGENCE_PROVIDERS = new Set([
+    "novig", "prophetx", "4cx", "fourcx", "polymarket", "kalshi",
+  ]);
+  const DEPTH_PROVIDER_ORDER = ["novig", "prophetx"];
+
+  function providerKey(row) {
+    const raw = row?.providerKey || row?.providerName || row?.provider || "";
+    const normalized = String(raw).toLowerCase().replace(/[^a-z0-9]/g, "");
+    return normalized === "fourcx" ? "4cx" : normalized;
+  }
+
+  function isMarketIntelligenceProvider(row) {
+    return MARKET_INTELLIGENCE_PROVIDERS.has(providerKey(row));
+  }
+
+  function bestQuote(rows) {
+    return (rows || []).reduce((best, row) => {
+      const price = Number(row?.americanOdds);
+      return Number.isFinite(price) && (!best || price > Number(best.americanOdds)) ? row : best;
+    }, null);
+  }
+
   function primaryQuote(signal) {
     const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
-    return rows.reduce((best, row) => {
-      const price = Number(row.americanOdds);
-      return Number.isFinite(price) && (!best || price > Number(best.americanOdds)) ? row : best;
-    }, null) || signal;
+    return bestQuote(rows.filter(row => !isMarketIntelligenceProvider(row)));
+  }
+
+  function depthQuotes(signal) {
+    const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
+    const byProvider = new Map(rows.map(row => [providerKey(row), row]));
+    const quotes = DEPTH_PROVIDER_ORDER.map(key => ({ key, row: byProvider.get(key) || null }));
+    const best = bestQuote(quotes.map(item => item.row).filter(Boolean));
+    return quotes.map(item => ({ ...item, isBest: item.row === best }));
+  }
+
+  function sportsbookAction(quote, fallbackOdds) {
+    if (!quote) {
+      return `<span class="sharp-sportsbook-action unavailable"><small>Sportsbook</small><b>Awaiting line</b></span>`;
+    }
+    return `<a class="sharp-sportsbook-action" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>${logo(quote, String(quote.providerName || "?").slice(0, 2))}<span><small>${escapeHtml(quote.providerName || "Sportsbook")}</small><b>${escapeHtml(odds(quote.americanOdds ?? fallbackOdds))}</b></span></a>`;
+  }
+
+  function depthStrip(signal) {
+    return `<div class="sharp-depth-pair" aria-label="NoVIG and ProphetX liquidity intelligence">
+      ${depthQuotes(signal).map(({ key, row, isBest }) => {
+        const label = key === "novig" ? "NoVIG" : "ProphetX";
+        return `<div class="sharp-depth-chip${isBest ? " best" : ""}${row ? "" : " unavailable"}">
+          <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
+          <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} liquidity`}</small></span>
+          <b>${escapeHtml(row ? odds(row.americanOdds) : "—")}</b>
+        </div>`;
+      }).join("")}
+    </div>`;
   }
 
   function signalCard(signal) {
@@ -116,8 +174,8 @@
             <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
           </div>
           <div class="sharp-card-market">
-            <div class="sharp-card-market-row primary"><strong>${escapeHtml(sides.selected)}</strong><span><b>${money(recBet, false)}</b><small>Rec Bet</small></span><a href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>${logo(quote, String(quote.providerName || signal.provider || "?").slice(0, 2))}<b>${escapeHtml(odds(quote.americanOdds ?? signal.americanOdds))}</b></a></div>
-            <div class="sharp-card-market-row"><strong>${escapeHtml(sides.opposite)}</strong><span><b>${escapeHtml(money(sides.oppositeLiquidity))}</b><small>Liquidity</small></span><span class="sharp-opposite-price">${escapeHtml(odds(sides.oppositeOdds))}</span></div>
+            <div class="sharp-card-market-row primary"><strong>${escapeHtml(sides.selected)}</strong><span><b>${money(recBet, false)}</b><small>Rec Bet</small></span>${sportsbookAction(quote, signal.americanOdds)}</div>
+            ${depthStrip(signal)}
           </div>
         </div>
       </article>`;
@@ -135,8 +193,7 @@
   }
 
   function flowRows(signal) {
-    const selected = marketSides(signal).selected;
-    const rows = (signal.comparisonLines || []).filter(row => row.availableLiquidity != null).slice(0, 6);
+    const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.availableLiquidity != null);
     const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
     return rows.map(row => `
       <div class="sharp-flow-depth-row">
@@ -149,9 +206,14 @@
 
   function twoSidedComparison(signal) {
     const sides = marketSides(signal);
-    const rows = signal.comparisonLines || [];
-    const bestLeft = Math.max(...rows.map(row => Number(row.americanOdds) || -99999));
-    const finiteRight = rows.filter(row => Number.isFinite(Number(row.oppositeAmericanOdds)));
+    const rows = [...(signal.comparisonLines || [])].sort((a, b) => {
+      const aIntel = isMarketIntelligenceProvider(a) ? 1 : 0;
+      const bIntel = isMarketIntelligenceProvider(b) ? 1 : 0;
+      return aIntel - bIntel;
+    });
+    const sportsbookRows = rows.filter(row => !isMarketIntelligenceProvider(row));
+    const bestLeft = Math.max(...sportsbookRows.map(row => Number(row.americanOdds) || -99999));
+    const finiteRight = sportsbookRows.filter(row => Number.isFinite(Number(row.oppositeAmericanOdds)));
     const bestRight = finiteRight.length ? Math.max(...finiteRight.map(row => Number(row.oppositeAmericanOdds))) : null;
     return `
       <div class="sharp-market-table-head"><strong>${escapeHtml(sides.selected)}</strong><button type="button" aria-label="Swap sides"><i class="ph ph-arrows-down-up"></i></button><strong>${escapeHtml(sides.opposite)}</strong></div>
@@ -159,7 +221,7 @@
         ${rows.map(row => {
           const leftBest = Number(row.americanOdds) === bestLeft;
           const rightBest = bestRight != null && Number(row.oppositeAmericanOdds) === bestRight;
-          return `<div class="sharp-market-table-row">
+          return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}">
             <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
             <span class="sharp-market-book">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
             <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
@@ -202,11 +264,11 @@
       <button class="sharp-mobile-close" id="sharp-detail-close" type="button" aria-label="Close market detail"><i class="ph ph-x"></i></button>
       <header class="sharp-detail-head"><strong class="sharp-detail-liquidity">${escapeHtml(money(signal.liquidity))}</strong><div><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.sport)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
       <section class="sharp-recommendation">
-        <span class="sharp-book-icon">${logo(quote)}</span>
+        <span class="sharp-book-icon">${logo(quote, "SB")}</span>
         <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
         <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
-        <div class="sharp-rec-price"><strong>${escapeHtml(odds(quote.americanOdds ?? signal.americanOdds))}</strong><span>Odds</span></div>
-        <a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>GAME <i class="ph ph-arrow-up-right"></i></a>
+        <div class="sharp-rec-price"><strong>${escapeHtml(quote ? odds(quote.americanOdds) : "—")}</strong><span>${escapeHtml(quote?.providerName || "No sportsbook line")}</span></div>
+        ${quote ? `<a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : `<span class="sharp-game-button unavailable">WAIT</span>`}
         <button class="sharp-add-button" type="button" aria-label="Add selection"><i class="ph ph-plus"></i></button>
       </section>
       <section class="sharp-flow-summary">
@@ -214,6 +276,9 @@
       </section>
       <section class="sharp-flow-depth">
         ${flowRows(signal)}
+      </section>
+      <section class="sharp-detail-depth-pair">
+        ${depthStrip(signal)}
       </section>
       <section class="sharp-market-comparison">
         ${twoSidedComparison(signal)}

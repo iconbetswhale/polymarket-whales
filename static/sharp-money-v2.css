@@ -2441,3 +2441,274 @@ body[data-page="sharp-money"] {
     grid-template-columns: 100px minmax(0, 1fr) !important;
   }
 }
+
+/* Sharp Money execution semantics and EV-tool visual alignment.
+   Traditional sportsbooks own the wager action. NoVIG and ProphetX remain
+   persistent market-intelligence sources beneath it. */
+body[data-page="sharp-money"] {
+  --sharp-surface: #11141a;
+  --sharp-surface-raised: #171922;
+  --sharp-surface-soft: #1b1c25;
+  --sharp-border: rgba(154, 140, 178, .16);
+  --sharp-border-strong: rgba(165, 145, 194, .26);
+  --sharp-purple: #9f63e9;
+  --sharp-green: #56df6c;
+  --sharp-muted: #978ca8;
+  background: #09080d;
+}
+
+body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
+  border-color: var(--sharp-border) !important;
+  background: var(--sharp-surface) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18) !important;
+}
+
+body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card:hover {
+  border-color: var(--sharp-border-strong) !important;
+  background: #14171e !important;
+}
+
+body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card.selected {
+  border-color: rgba(169, 97, 255, .82) !important;
+  background: linear-gradient(105deg, rgba(137, 70, 210, .12), transparent 50%), #15131b !important;
+  box-shadow: inset 3px 0 #a963ff, 0 15px 38px rgba(55, 25, 78, .25) !important;
+}
+
+body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card > .sharp-signal-money {
+  border-right-color: rgba(154, 140, 178, .11) !important;
+  background: #0e1116 !important;
+}
+
+body[data-page="sharp-money"] .sharp-card-body {
+  background: transparent;
+}
+
+body[data-page="sharp-money"] .sharp-card-heading small,
+body[data-page="sharp-money"] .sharp-card-heading time {
+  color: #948aa2;
+}
+
+body[data-page="sharp-money"] .sharp-card-heading em,
+body[data-page="sharp-money"] .sharp-detail-head em {
+  color: #c180ef;
+}
+
+body[data-page="sharp-money"] .sharp-card-market {
+  border-color: rgba(154, 140, 178, .14);
+  background: #181b22;
+}
+
+body[data-page="sharp-money"] .sharp-card-market-row.primary {
+  grid-template-columns: minmax(0, 1fr) 70px minmax(112px, 132px);
+  min-height: 50px;
+  background: rgba(255, 255, 255, .012);
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 35px;
+  gap: 7px;
+  padding: 4px 8px;
+  border: 1px solid rgba(76, 184, 89, .42);
+  border-radius: 7px;
+  color: #f8fff8;
+  background: #17371f;
+  text-decoration: none;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action > img,
+body[data-page="sharp-money"] .sharp-sportsbook-action > span:first-child {
+  flex: 0 0 24px;
+  width: 24px !important;
+  height: 24px !important;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action > span:not(:first-child) {
+  display: grid;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0;
+  gap: 1px;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action small {
+  overflow: hidden;
+  color: #9cb3a0;
+  font-size: 7px;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action b {
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action.unavailable {
+  display: grid;
+  align-content: center;
+  border-color: rgba(154, 140, 178, .14);
+  color: #796f86;
+  background: #111319;
+}
+
+body[data-page="sharp-money"] .sharp-sportsbook-action.unavailable small,
+body[data-page="sharp-money"] .sharp-sportsbook-action.unavailable b {
+  display: block;
+  text-align: left;
+}
+
+body[data-page="sharp-money"] .sharp-depth-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  border-top: 1px solid rgba(154, 140, 178, .12);
+  background: rgba(154, 140, 178, .10);
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  min-width: 0;
+  min-height: 44px;
+  gap: 7px;
+  padding: 6px 9px;
+  background: #14171d;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip.best {
+  background: linear-gradient(90deg, rgba(62, 136, 55, .14), transparent 72%), #141a18;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip.unavailable {
+  opacity: .58;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip-logo,
+body[data-page="sharp-money"] .sharp-depth-chip-logo img {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 5px;
+  object-fit: contain;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip-copy {
+  display: grid;
+  min-width: 0;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip-copy strong {
+  overflow: hidden;
+  color: #e9e6ee;
+  font-size: 9px;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip-copy small {
+  color: #7f758b;
+  font-size: 7px;
+  white-space: nowrap;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip > b {
+  color: #e7e3ec;
+  font-size: 11px;
+}
+
+body[data-page="sharp-money"] .sharp-depth-chip.best > b {
+  color: var(--sharp-green);
+}
+
+body[data-page="sharp-money"] .sharp-detail-panel {
+  border-color: rgba(160, 93, 232, .62);
+  background: linear-gradient(180deg, #11131a, #0d0f14 64%, #0b0d11);
+  box-shadow: 0 18px 52px rgba(0, 0, 0, .34);
+}
+
+body[data-page="sharp-money"] .sharp-recommendation {
+  border-color: rgba(154, 140, 178, .16);
+  background: #181b22;
+}
+
+body[data-page="sharp-money"] .sharp-game-button {
+  border-color: rgba(73, 173, 82, .45);
+  background: #24451d;
+}
+
+body[data-page="sharp-money"] .sharp-game-button.unavailable {
+  display: grid;
+  place-items: center;
+  color: #776f80;
+  background: #15171d;
+}
+
+body[data-page="sharp-money"] .sharp-flow-summary,
+body[data-page="sharp-money"] .sharp-flow-depth,
+body[data-page="sharp-money"] .sharp-market-comparison,
+body[data-page="sharp-money"] .sharp-detail-depth-pair {
+  border-color: rgba(154, 140, 178, .13);
+  background: #12151b;
+}
+
+body[data-page="sharp-money"] .sharp-detail-depth-pair {
+  margin-top: 8px;
+  overflow: hidden;
+  border: 1px solid rgba(154, 140, 178, .13);
+  border-radius: 9px;
+}
+
+body[data-page="sharp-money"] .sharp-flow-depth {
+  padding-bottom: 7px;
+}
+
+body[data-page="sharp-money"] .sharp-market-table-row.sportsbook .sharp-market-price.best {
+  border-color: rgba(79, 171, 83, .42);
+  background: #1b311b;
+}
+
+body[data-page="sharp-money"] .sharp-market-table-row.intelligence {
+  opacity: .78;
+}
+
+body[data-page="sharp-money"] .sharp-market-table-row.intelligence:first-of-type {
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid rgba(154, 140, 178, .13);
+}
+
+@media (min-width: 901px) {
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
+    min-height: 176px !important;
+  }
+
+  body[data-page="sharp-money"] .sharp-signal-list .sharp-card-market {
+    min-height: 96px;
+  }
+}
+
+@media (max-width: 700px) {
+  body[data-page="sharp-money"] .sharp-card-market-row.primary {
+    grid-template-columns: minmax(0, 1fr) 62px 112px;
+  }
+
+  body[data-page="sharp-money"] .sharp-depth-chip {
+    grid-template-columns: 22px minmax(0, 1fr) auto;
+    padding-inline: 7px;
+  }
+
+  body[data-page="sharp-money"] .sharp-depth-chip-copy strong {
+    font-size: 8px;
+  }
+}
