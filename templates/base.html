@@ -28,8 +28,9 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
   {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-heading2') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-shell.css', v=asset_version ~ '-shared-sidebar2') }}">{% endif %}
 </head>
-<body data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
+<body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="global-risk-banner" id="global-risk-banner" role="alert" hidden>
     <i class="ph ph-warning-octagon" aria-hidden="true"></i>

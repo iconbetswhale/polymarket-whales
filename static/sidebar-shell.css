@@ -1,0 +1,245 @@
+/*
+ * Canonical IconLabs desktop navigation.
+ *
+ * This file is deliberately loaded after every product-specific stylesheet so
+ * Trades, Positive EV, Bet Tracker, and the remaining tools cannot drift into
+ * different sidebar treatments.
+ */
+
+@media (min-width: 901px) {
+  body.sidebar-expanded:not([data-page="home"]) {
+    --sidebar-shell-width: 240px;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .app-nav {
+    width: var(--sidebar-shell-width) !important;
+    box-sizing: border-box !important;
+    padding: 13px 14px 16px 2px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    overflow: hidden !important;
+    border-right: 1px solid rgba(139, 70, 184, .29) !important;
+    background:
+      radial-gradient(circle at 65% 5%, rgba(109, 29, 164, .10), transparent 31%),
+      linear-gradient(180deg, #09050e 0%, #050208 48%, #040106 100%) !important;
+    box-shadow: 16px 0 42px rgba(0, 0, 0, .17) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .app-nav::after {
+    width: 1px !important;
+    height: 100% !important;
+    inset: 0 0 0 auto !important;
+    background: linear-gradient(180deg, rgba(198, 75, 255, .16), rgba(198, 75, 255, .03) 72%, transparent) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .app-shell {
+    width: calc(100% - var(--sidebar-shell-width)) !important;
+    margin-left: var(--sidebar-shell-width) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .desktop-nav-toggle {
+    position: absolute !important;
+    top: 14px !important;
+    left: 3px !important;
+    width: 34px !important;
+    height: 34px !important;
+    min-height: 34px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: grid !important;
+    place-items: center !important;
+    color: #c9bfd2 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .desktop-nav-toggle i {
+    font-size: 22px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .desktop-nav-toggle:hover,
+  body.sidebar-expanded:not([data-page="home"]) .desktop-nav-toggle:focus-visible {
+    color: #fff !important;
+    border-color: rgba(178, 68, 238, .34) !important;
+    background: rgba(149, 52, 207, .12) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand {
+    min-height: 50px !important;
+    margin: 0 0 18px !important;
+    padding: 0 4px 0 36px !important;
+    display: flex !important;
+    flex: 0 0 50px !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 10px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-icon,
+  body.sidebar-expanded:not([data-page="home"]) .brand-icon img {
+    width: 28px !important;
+    height: 36px !important;
+    object-fit: contain !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-copy {
+    display: block !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-copy strong {
+    color: #e8dff0 !important;
+    font: 500 17px/1 "DM Sans", sans-serif !important;
+    letter-spacing: .13em !important;
+    text-transform: uppercase !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-copy small {
+    display: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links {
+    width: 100% !important;
+    min-height: 0 !important;
+    height: calc(100vh - 97px) !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex: 1 1 auto !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 2px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    scrollbar-width: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a {
+    width: 100% !important;
+    min-height: 48px !important;
+    max-width: none !important;
+    padding: 0 14px !important;
+    display: flex !important;
+    flex: 0 0 48px !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 12px !important;
+    color: #e1d9e6 !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    font: 600 14px/1.2 "DM Sans", sans-serif !important;
+    letter-spacing: -.01em !important;
+    text-align: left !important;
+    transform: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a > span[data-short] {
+    width: auto !important;
+    display: inline !important;
+    color: inherit !important;
+    font: inherit !important;
+    line-height: inherit !important;
+    text-align: left !important;
+    white-space: nowrap !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a > span[data-short]::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a > i,
+  body.sidebar-expanded:not([data-page="home"]) .sharp-money-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .sportsbook-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .live-position-nav-icon {
+    width: 21px !important;
+    height: 21px !important;
+    flex: 0 0 21px !important;
+    color: #f2eaf5 !important;
+    font-size: 21px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sharp-money-nav-icon svg,
+  body.sidebar-expanded:not([data-page="home"]) .sportsbook-nav-icon svg,
+  body.sidebar-expanded:not([data-page="home"]) .live-position-nav-icon svg {
+    width: 21px !important;
+    height: 21px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a:hover {
+    color: #fff !important;
+    border-color: rgba(163, 80, 218, .20) !important;
+    background: rgba(126, 47, 170, .09) !important;
+    transform: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] {
+    min-height: 48px !important;
+    color: #fff !important;
+    border-color: #9636d5 !important;
+    background: linear-gradient(90deg, rgba(99, 31, 143, .46), rgba(83, 27, 119, .24)) !important;
+    box-shadow: inset 3px 0 #c948ff, 0 8px 24px rgba(68, 14, 94, .14) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] > i,
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] .sharp-money-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] .sportsbook-nav-icon,
+  body.sidebar-expanded:not([data-page="home"]) .nav-links a[aria-current="page"] .live-position-nav-icon {
+    color: #c85cff !important;
+    filter: drop-shadow(0 0 6px rgba(199, 79, 255, .46)) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .nav-section-label,
+  body.sidebar-expanded:not([data-page="home"]) .mobile-nav-pause {
+    display: none !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button {
+    width: 100% !important;
+    min-height: 48px !important;
+    margin: auto 0 0 !important;
+    padding: 7px 11px !important;
+    grid-template-columns: 30px minmax(0, 1fr) 16px !important;
+    column-gap: 9px !important;
+    color: #d7cedd !important;
+    border: 1px solid transparent !important;
+    border-radius: 8px !important;
+    background: transparent !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button:hover {
+    color: #fff !important;
+    border-color: rgba(163, 80, 218, .20) !important;
+    background: rgba(126, 47, 170, .09) !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button > i:first-child {
+    width: 30px !important;
+    font-size: 27px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button > span {
+    display: grid !important;
+    gap: 2px !important;
+    text-align: left !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button strong {
+    font-size: 12px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-button small {
+    font-size: 9px !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .sidebar-account-caret {
+    display: grid !important;
+  }
+}

@@ -5376,10 +5376,13 @@ function bindNavigation() {
     desktopToggle?.setAttribute("aria-label", expanded ? "Collapse navigation" : "Expand navigation");
     desktopToggle?.setAttribute("title", expanded ? "Collapse navigation" : "Expand navigation");
   };
-  renderDesktopNavigation(safeStorage.getItem("iconlabs-sidebar-expanded") === "true");
+  // Every product route opens with the same full navigation rail. The toggle
+  // remains available for the current page, but route changes intentionally
+  // restore the canonical expanded shell instead of reviving stale per-page
+  // localStorage state.
+  renderDesktopNavigation(true);
   desktopToggle?.addEventListener("click", () => {
     const expanded = !document.body.classList.contains("sidebar-expanded");
-    safeStorage.setItem("iconlabs-sidebar-expanded", String(expanded));
     renderDesktopNavigation(expanded);
   });
   const closeMobileNavigation = () => {

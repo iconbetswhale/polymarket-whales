@@ -29,6 +29,22 @@
 
 Final result: passed
 
+## Shared product sidebar
+
+- Reference: `C:/Users/15617/AppData/Local/Temp/codex-clipboard-8e3387e0-b3ea-4821-b2c5-507ca0a024c1.png`
+- Implementation route captured: `/positive-ev`
+- Reference crop and implementation viewport: `752 x 966`
+- Canonical desktop rail width: `240px`
+- Canonical content offset: `240px`
+- Navigation order, icon column, label column, active purple treatment, and bottom account control: passed
+- Prediction Traders, Positive EV, Sportsbook Screen, Bet Tracker, Sharp Money, and LabTracker route consistency: passed
+- Route navigation always restores the full canonical rail: passed
+- Desktop collapse control remains functional for the current route: passed
+- Mobile header/drawer layout remains isolated from desktop rail styles: passed at `390 x 844`
+- Browser console warnings and errors: none
+
+final result: passed
+
 ## LabTracker
 
 - References: `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.02.41_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-13_at_10.04.12_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.03.27_PM.webp`
@@ -48,4 +64,4 @@ Final result: passed
 - Empty and populated states: passed
 - Console errors: none
 
-Final result: passed
+final result: passed
