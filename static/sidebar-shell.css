@@ -8,12 +8,18 @@
 
 body:not([data-page="home"]) .brand-lockup {
   display: none;
+  overflow: hidden;
+  position: relative;
 }
 
 body:not([data-page="home"]) .brand-lockup img {
   display: block;
-  width: 100%;
+  width: 306px;
   height: auto;
+  max-width: none;
+  position: absolute;
+  top: -31.7px;
+  left: -66.2px;
 }
 
 @media (min-width: 901px) {
@@ -88,10 +94,9 @@ body:not([data-page="home"]) .brand-lockup img {
   }
 
   body.sidebar-expanded:not([data-page="home"]) .brand-lockup {
-    width: 172px !important;
-    height: 36px !important;
-    display: flex !important;
-    align-items: center !important;
+    width: 174px !important;
+    height: 34px !important;
+    display: block !important;
     filter: drop-shadow(0 0 10px rgba(170, 72, 255, .18));
   }
 
@@ -274,9 +279,14 @@ body:not([data-page="home"]) .brand-lockup img {
   body:not([data-page="home"]) .brand-lockup {
     width: 148px !important;
     height: 32px !important;
-    display: flex !important;
-    align-items: center !important;
+    display: block !important;
     filter: drop-shadow(0 0 9px rgba(170, 72, 255, .16));
+  }
+
+  body:not([data-page="home"]) .brand-lockup img {
+    width: 260px;
+    top: -26.9px;
+    left: -56.2px;
   }
 
   body:not([data-page="home"]) .brand-icon {
