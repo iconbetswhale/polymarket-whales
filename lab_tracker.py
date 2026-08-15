@@ -12,6 +12,36 @@ from typing import Iterable, Iterator
 LAB_TRACKER_GLOBAL_USER_ID = "iconlabs-labtracker-global"
 LAB_TRACKER_STAKE = 100.0
 LAB_TRACKER_QUALIFICATION_SECONDS = 5.0
+LAB_TRACKER_SOURCES = frozenset(
+    {"positive_ev", "sharp_money", "prediction_traders"}
+)
+PREDICTION_TRADER_PROVIDERS = {
+    "novig": {
+        "name": "NoVIG",
+        "logo": "/static/assets/sportsbooks/novig.png",
+        "aliases": ("novig",),
+    },
+    "prophetx": {
+        "name": "ProphetX",
+        "logo": "/static/assets/sportsbooks/prophetx.png",
+        "aliases": ("prophetx",),
+    },
+    "polymarket": {
+        "name": "Polymarket",
+        "logo": "/static/assets/sportsbooks/polymarket.png",
+        "aliases": ("polymarket",),
+    },
+    "kalshi": {
+        "name": "Kalshi",
+        "logo": "/static/assets/sportsbooks/kalshi.png",
+        "aliases": ("kalshi",),
+    },
+    "4cx": {
+        "name": "4CX",
+        "logo": "/static/assets/providers/4cx.png",
+        "aliases": ("4cx", "fourcx"),
+    },
+}
 
 
 def _now() -> datetime:
@@ -52,6 +82,77 @@ def _identity(*parts: object) -> str:
     return f"lab-{digest[:32]}"
 
 
+def _provider_key(*values: object) -> str | None:
+    for value in values:
+        token = re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
+        if not token:
+            continue
+        for key, provider in PREDICTION_TRADER_PROVIDERS.items():
+            if any(
+                token == alias or token.endswith(alias)
+                for alias in provider["aliases"]
+            ):
+                return key
+    return None
+
+
+def _probability_from_american(odds: int) -> float | None:
+    if odds == 0:
+        return None
+    return (
+        100.0 / (odds + 100.0)
+        if odds > 0
+        else abs(odds) / (abs(odds) + 100.0)
+    )
+
+
+def _american_from_probability(probability: float) -> int:
+    if probability < 0.5:
+        return int(round(100.0 * (1.0 - probability) / probability))
+    return -int(round(100.0 * probability / (1.0 - probability)))
+
+
+def _entry_terms(snapshot: dict) -> tuple[float | None, int | None]:
+    display = str(snapshot.get("provider_display_odds") or "").strip().lower()
+    displayed_american: int | None = None
+    displayed_probability: float | None = None
+    if display.endswith("c") or display.endswith("¢"):
+        displayed_probability = (_number(display[:-1]) or 0) / 100.0
+    elif re.fullmatch(r"[+-]?\d+", display):
+        displayed_american = int(display)
+        displayed_probability = _probability_from_american(displayed_american)
+
+    probability = next(
+        (
+            value
+            for value in (
+                _number(snapshot.get("provider_entry_price")),
+                _number(snapshot.get("effective_entry_price")),
+                _number(snapshot.get("current_executable_entry_price")),
+                displayed_probability,
+            )
+            if value is not None and 0 < value < 1
+        ),
+        None,
+    )
+    if probability is None:
+        return None, displayed_american
+    return probability, displayed_american or _american_from_probability(probability)
+
+
+def _settlement_terms(
+    status: object, entry_probability: float, stake: float
+) -> tuple[str, str | None, float | None]:
+    normalized = str(status or "unresolved").lower()
+    if normalized == "won":
+        return "graded", "won", stake * ((1.0 / entry_probability) - 1.0)
+    if normalized == "lost":
+        return "graded", "lost", -stake
+    if normalized in {"push", "void", "canceled"}:
+        return "graded", "push", 0.0
+    return "pending", None, None
+
+
 DEMO_SPORTSBOOKS = (
     ("betmgm", "BetMGM", "/static/assets/sportsbooks/betmgm.png"),
     ("draftkings", "DraftKings", "/static/assets/sportsbooks/draftkings.png"),
@@ -71,6 +172,12 @@ DEMO_SPORTSBOOKS = (
     ("novig", "NoVIG", "/static/assets/sportsbooks/novig.png"),
     ("prophetx", "ProphetX", "/static/assets/sportsbooks/prophetx.png"),
     ("kalshi", "Kalshi", "/static/assets/sportsbooks/kalshi.png"),
+    ("4cx", "4CX", "/static/assets/providers/4cx.png"),
+)
+
+DEMO_PREDICTION_SPORTSBOOKS = tuple(
+    (key, provider["name"], provider["logo"])
+    for key, provider in PREDICTION_TRADER_PROVIDERS.items()
 )
 
 DEMO_MARKETS = (
@@ -194,7 +301,15 @@ def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
     odds_cycle = (-110, 115, -105, 128, -120, 105, -115, 135)
     rows: list[dict] = []
     for index in range(54):
-        book_key, book_name, book_logo = DEMO_SPORTSBOOKS[index % len(DEMO_SPORTSBOOKS)]
+        row_source = ("positive_ev", "sharp_money", "prediction_traders")[
+            index % 3
+        ]
+        books = (
+            DEMO_PREDICTION_SPORTSBOOKS
+            if row_source == "prediction_traders"
+            else DEMO_SPORTSBOOKS
+        )
+        book_key, book_name, book_logo = books[index % len(books)]
         market_key, market_label, league, event_title, selection = DEMO_MARKETS[index % len(DEMO_MARKETS)]
         result = results[index % len(results)]
         odds = odds_cycle[index % len(odds_cycle)]
@@ -206,7 +321,7 @@ def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
             pnl = -LAB_TRACKER_STAKE
         row = {
             "bet_id": f"demo-graded-{index + 1}",
-            "source": "positive_ev" if index % 2 == 0 else "sharp_money",
+            "source": row_source,
             "league": league,
             "event_title": event_title,
             "commence_time": (graded_at - timedelta(hours=3)).isoformat(),
@@ -227,13 +342,21 @@ def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
         }
         rows.append(row)
     for index in range(8):
-        book_key, book_name, book_logo = DEMO_SPORTSBOOKS[(index + 5) % len(DEMO_SPORTSBOOKS)]
+        row_source = ("positive_ev", "sharp_money", "prediction_traders")[
+            index % 3
+        ]
+        books = (
+            DEMO_PREDICTION_SPORTSBOOKS
+            if row_source == "prediction_traders"
+            else DEMO_SPORTSBOOKS
+        )
+        book_key, book_name, book_logo = books[(index + 5) % len(books)]
         market_key, market_label, league, event_title, selection = DEMO_MARKETS[(index + 7) % len(DEMO_MARKETS)]
         created_at = now - timedelta(minutes=(index * 19) + 7)
         rows.append(
             {
                 "bet_id": f"demo-open-{index + 1}",
-                "source": "positive_ev" if index % 2 == 0 else "sharp_money",
+                "source": row_source,
                 "league": league,
                 "event_title": event_title,
                 "commence_time": (now + timedelta(hours=index + 2)).isoformat(),
@@ -579,6 +702,168 @@ def normalize_sharp_money(rows: Iterable[dict]) -> list[dict]:
     return records
 
 
+def normalize_model_tracker_records(rows: Iterable[dict]) -> list[dict]:
+    records: list[dict] = []
+    for row in rows:
+        snapshot = row.get("snapshot") or {}
+        provider_key = _provider_key(
+            snapshot.get("provider_key"),
+            snapshot.get("sportsbook"),
+            snapshot.get("entry_price_source"),
+        )
+        if provider_key is None:
+            continue
+        probability, american_odds = _entry_terms(snapshot)
+        if probability is None or american_odds is None:
+            continue
+        provider = PREDICTION_TRADER_PROVIDERS[provider_key]
+        status, result, profit_loss = _settlement_terms(
+            row.get("status"), probability, LAB_TRACKER_STAKE
+        )
+        source_id = str(
+            row.get("dedupe_key") or snapshot.get("dedupe_key") or ""
+        ).strip()
+        if not source_id:
+            continue
+        records.append(
+            {
+                "bet_id": _identity("prediction_traders", source_id),
+                "candidate_id": source_id,
+                "tracker_scope": "signal",
+                "user_id": LAB_TRACKER_GLOBAL_USER_ID,
+                "source": "prediction_traders",
+                "source_id": source_id,
+                "sport_key": snapshot.get("canonical_sport_id")
+                or snapshot.get("category"),
+                "league": snapshot.get("league")
+                or snapshot.get("canonical_league_id")
+                or snapshot.get("category")
+                or "Other",
+                "event_id": snapshot.get("canonical_event_id"),
+                "event_title": snapshot.get("event_title") or "Unknown event",
+                "home_team": snapshot.get("home_team"),
+                "away_team": snapshot.get("away_team"),
+                "commence_time": snapshot.get("event_start_time"),
+                "market_key": snapshot.get("sports_market_type")
+                or snapshot.get("canonical_market_id")
+                or "prediction_market",
+                "market_label": snapshot.get("market_title") or "Prediction market",
+                "selection": snapshot.get("recommended_side") or "Selection",
+                "market_line": snapshot.get("market_line"),
+                "sportsbook_key": provider_key,
+                "sportsbook_name": provider["name"],
+                "sportsbook_logo": provider["logo"],
+                "entry_american_odds": american_odds,
+                "entry_decimal_odds": 1.0 / probability,
+                "ev_percent": (
+                    (_number(snapshot.get("calculated_edge")) or 0.0) * 100.0
+                    if snapshot.get("calculated_edge") is not None
+                    else None
+                ),
+                "stake": LAB_TRACKER_STAKE,
+                "units": 1.0,
+                "status": status,
+                "result": result,
+                "profit_loss": (
+                    round(profit_loss, 2) if profit_loss is not None else None
+                ),
+                "graded_at": row.get("settled_at") if status == "graded" else None,
+                "snapshot_json": json.dumps(
+                    snapshot, sort_keys=True, separators=(",", ":")
+                ),
+                "created_at": row.get("created_at")
+                or snapshot.get("recommendation_timestamp")
+                or _now().isoformat(),
+                "updated_at": row.get("updated_at")
+                or row.get("created_at")
+                or _now().isoformat(),
+            }
+        )
+    return records
+
+
+def normalize_personal_fills(rows: Iterable[dict]) -> list[dict]:
+    records: list[dict] = []
+    for row in rows:
+        probability = _number(row.get("entry_price"))
+        if probability is None or not 0 < probability < 1:
+            continue
+        sportsbook_name = " ".join(
+            str(row.get("sportsbook") or "Polymarket").split()
+        )
+        sportsbook_key = (
+            re.sub(r"[^a-z0-9]+", "", sportsbook_name.lower()) or "other"
+        )
+        status = str(row.get("status") or "unresolved").lower()
+        total_paid = float(
+            _number(row.get("total_paid"), _number(row.get("position_cost"), 0.0)) or 0.0
+        )
+        shares = float(_number(row.get("shares"), 0.0) or 0.0)
+        if status == "won":
+            tracker_status, result, profit_loss = "graded", "won", shares - total_paid
+        elif status == "lost":
+            tracker_status, result, profit_loss = "graded", "lost", -total_paid
+        elif status in {"push", "void", "canceled"}:
+            tracker_status, result, profit_loss = "graded", "push", 0.0
+        else:
+            tracker_status, result, profit_loss = "pending", None, None
+        source_id = str(row.get("fill_id") or "").strip()
+        if not source_id:
+            continue
+        records.append(
+            {
+                "bet_id": _identity("personal_fill", source_id),
+                "candidate_id": source_id,
+                "tracker_scope": "personal",
+                "user_id": row.get("user_id"),
+                "source": "personal",
+                "source_id": source_id,
+                "sport_key": None,
+                "league": "Other",
+                "event_id": row.get("canonical_event_id"),
+                "event_title": row.get("event_title") or "Manual bet",
+                "home_team": None,
+                "away_team": None,
+                "commence_time": row.get("event_start_time"),
+                "market_key": row.get("canonical_market_id") or "personal_market",
+                "market_label": row.get("market_title") or "Market",
+                "selection": row.get("selection") or "Selection",
+                "market_line": row.get("market_line"),
+                "sportsbook_key": sportsbook_key,
+                "sportsbook_name": sportsbook_name,
+                "sportsbook_logo": "",
+                "entry_american_odds": _american_from_probability(probability),
+                "entry_decimal_odds": 1.0 / probability,
+                "ev_percent": None,
+                "stake": total_paid,
+                "units": total_paid / LAB_TRACKER_STAKE,
+                "status": tracker_status,
+                "result": result,
+                "profit_loss": (
+                    round(profit_loss, 2) if profit_loss is not None else None
+                ),
+                "graded_at": row.get("settled_at") if tracker_status == "graded" else None,
+                "snapshot_json": "{}",
+                "created_at": row.get("created_at") or _now().isoformat(),
+                "updated_at": row.get("updated_at")
+                or row.get("created_at")
+                or _now().isoformat(),
+            }
+        )
+    return records
+
+
+def _merge_rows(*groups: Iterable[dict]) -> list[dict]:
+    merged: dict[str, dict] = {}
+    for group in groups:
+        for row in group:
+            identity = row.get("bet_id") or _identity(
+                row.get("source"), row.get("source_id")
+            )
+            merged[str(identity)] = row
+    return sorted(merged.values(), key=lambda row: str(row.get("created_at") or ""))
+
+
 def _score_map(event: dict) -> dict[str, float]:
     return {
         _canonical(score.get("name")): float(score.get("score"))
@@ -653,7 +938,11 @@ def grade_bet(bet: dict, score_event: dict) -> str | None:
 
 
 class LabTrackerService:
-    def __init__(self, tracker_database) -> None:
+    def __init__(
+        self, tracker_database, model_tracker_user_id: str | None = None
+    ) -> None:
+        self.database = tracker_database
+        self.model_tracker_user_id = model_tracker_user_id
         self.store = LabTrackerStore(tracker_database)
 
     def observe_positive_ev(self, rows: Iterable[dict], observed_at: datetime | None = None) -> dict:
@@ -688,7 +977,26 @@ class LabTrackerService:
         return {"settled": settled, "scoreEvents": len(events)}
 
     def dashboard(self, *, scope: str, user_id: str, source: str | None, window: str) -> dict:
-        rows = self.store.rows(scope, user_id, source)
+        if scope == "personal":
+            rows = _merge_rows(
+                self.store.rows(scope, user_id),
+                normalize_personal_fills(
+                    self.database.get_personal_bet_fills(user_id)
+                ),
+            )
+            source = None
+        else:
+            signal_rows = (
+                []
+                if source == "prediction_traders"
+                else self.store.rows(scope, user_id, source)
+            )
+            prediction_rows = []
+            if source in {None, "prediction_traders"} and self.model_tracker_user_id:
+                prediction_rows = normalize_model_tracker_records(
+                    self.database.get_tracker_records(self.model_tracker_user_id)
+                )
+            rows = _merge_rows(signal_rows, prediction_rows)
         return _dashboard_from_rows(
             rows, scope=scope, source=source, window=window, demo_only=False
         )

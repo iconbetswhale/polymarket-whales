@@ -82,6 +82,7 @@ from sharp_money_sandbox import sandbox_payload
 from sharp_money_live import build_sharp_money_collector
 from lab_tracker import (
     LAB_TRACKER_GLOBAL_USER_ID,
+    LAB_TRACKER_SOURCES,
     LabTrackerService,
     demo_dashboard,
 )
@@ -650,7 +651,9 @@ def create_app(start_background: bool = True) -> Flask:
     app.extensions["sharp_money_collector"] = build_sharp_money_collector(
         execution_providers, settings
     )
-    app.extensions["lab_tracker_service"] = LabTrackerService(tracker.database)
+    app.extensions["lab_tracker_service"] = LabTrackerService(
+        tracker.database, model_tracker_user_id=MODEL_TRACKER_USER_ID
+    )
     app.extensions["polymarket_schedule_feed"] = PolymarketScheduleFeed(timeout=settings.request_timeout)
     app.extensions["tracker_starting"] = False
     app.config["SETTINGS"] = settings
@@ -2055,7 +2058,7 @@ def create_app(start_background: bool = True) -> Flask:
         requested_scope = request.args.get("scope", "signal").strip().lower()
         scope = "personal" if requested_scope == "personal" else "signal"
         source = request.args.get("source", "").strip().lower()
-        if source not in {"positive_ev", "sharp_money"}:
+        if source not in LAB_TRACKER_SOURCES:
             source = None
         window = request.args.get("window", "7d").strip().lower()
         if window not in {"yesterday", "7d", "30d", "all"}:

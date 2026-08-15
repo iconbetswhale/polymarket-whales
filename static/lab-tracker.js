@@ -33,6 +33,8 @@
     novig: "/static/assets/sportsbooks/novig.png",
     prophetx: "/static/assets/sportsbooks/prophetx.png",
     kalshi: "/static/assets/sportsbooks/kalshi.png",
+    "4cx": "/static/assets/providers/4cx.png",
+    fourcx: "/static/assets/providers/4cx.png",
   });
   const leagueLogos = Object.freeze({
     nba: "/static/assets/leagues/nba.png",

@@ -4,6 +4,10 @@
     {
       "path": "/api/admin/model-tracker/reconcile",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/admin/lab-tracker/reconcile",
+      "schedule": "* * * * *"
     }
   ]
 }
