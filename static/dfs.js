@@ -19,8 +19,8 @@
   };
   const allMarkets = [...new Set(Object.values(marketTypes).flat())].sort((a,b) => a.localeCompare(b));
   const rows = [
-    {player:'Aaron Judge', match:'Yankees vs Red Sox', sport:'MLB', date:'today', time:'Today · 7:05 PM', side:'Over', stat:'Hits + Runs + RBIs', line:2.5, hit:63.8, discrepancy:true, odds:['-176','-165','-145','-152','—','-160','-148','-150','-142','-112','-155','-168','—','—','-150']},
-    {player:'Paul Skenes', match:'Pirates at Cubs', sport:'MLB', date:'today', time:'Today · 2:20 PM', side:'Over', stat:'Strikeouts', line:6.5, hit:60.4, odds:[{odds:'-185',line:5.5},'-148','-137','-142','-129','-151','-135','-140','-132',{odds:'-118',line:6.0},'-145','-158','-120','—','-138']},
+    {player:'Aaron Judge', match:'Yankees vs Red Sox', sport:'MLB', date:'today', time:'Today · 7:05 PM', side:'Over', stat:'Hits + Runs + RBIs', line:2.5, dfsLines:{underdog:3.5}, hit:63.8, discrepancy:true, odds:['-176','-165','-145','-152','—','-160','-148','-150','-142','-112','-155','-168','—','—','-150']},
+    {player:'Paul Skenes', match:'Pirates at Cubs', sport:'MLB', date:'today', time:'Today · 2:20 PM', side:'Over', stat:'Strikeouts', line:6.5, dfsLines:{'dk-pick6':5.5}, hit:60.4, odds:[{odds:'-185',line:5.5},'-148','-137','-142','-129','-151','-135','-140','-132',{odds:'-118',line:6.0},'-145','-158','-120','—','-138']},
     {player:'A’ja Wilson', match:'Aces vs Mercury', sport:'WNBA', date:'today', time:'Today · 9:30 PM', side:'Over', stat:'Points', line:25.5, hit:58.9, odds:['-143','-138','-124','-130','-120','-141','-128','-126','-121','-115','-133','-146','—',{odds:'-108',line:25.0},'-127']},
     {player:'Caitlin Clark', match:'Fever at Liberty', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Under', stat:'Points', line:21.5, hit:57.6, odds:['-136','-133','-120','-125','-116','-132','-124','-122','-118',{odds:'-115',line:22.5},'-128','-140','-120','—','-121']},
     {player:'Josh Allen', match:'Bills vs Ravens', sport:'NFL', date:'tomorrow', time:'Tomorrow · 7:20 PM', side:'Over', stat:'Passing Yards', line:265.5, hit:56.8, odds:['-131','-128','-115','-120','-112','-127','-119','-118','-114',{odds:'-112',line:264.5},'-123','-134','—',{odds:'-110',line:266.5},'-116']},
@@ -35,6 +35,8 @@
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
   const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
+  const bestSlipOddsByKey = Object.fromEntries(Object.entries(selectedBookKeys).map(([book,key]) => [key,bestSlipOdds[book]]));
+  const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
   let activeBook = 'PrizePicks';
   let compareOrder = loadCompareOrder();
   let savedWeights = loadWeights();
@@ -110,17 +112,24 @@
     const discrepanciesOnly = document.querySelector('#dfs-discrepancies').checked;
     const visible = rows.filter(r => (!discrepanciesOnly || r.discrepancy !== false) && (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
     body.innerHTML = visible.map(r => {
+      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? r.line;
       const oddsByKey = Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds[index]]));
       oddsByKey.circa = oddsByKey.betonline;
-      Object.entries(selectedBookKeys).forEach(([book,key]) => { oddsByKey[key] = bestSlipOdds[book]; });
+      Object.keys(bestSlipOddsByKey).forEach(key => { oddsByKey[key] = bestSlipOddsByKey[key]; });
       const cells = compareOrder.filter(key => key !== selectedBookKeys[activeBook]).map(key => {
+        if (dfsComparisonKeys.has(key)) {
+          const comparisonLine = r.dfsLines?.[key] ?? r.line;
+          const differs = Number(comparisonLine) !== Number(activeLine);
+          const display = differs ? comparisonLine : (bestSlipOddsByKey[key] || comparisonLine);
+          return `<td class="book-cell dfs-market-cell" data-book-cell="${key}"><strong>${esc(display)}</strong></td>`;
+        }
         const market = oddsByKey[key];
         const unavailable = market === '—';
         const price = typeof market === 'object' ? market.odds : market;
-        const alternateLine = typeof market === 'object' && Number(market.line) !== Number(r.line) ? market.line : null;
+        const alternateLine = typeof market === 'object' && Number(market.line) !== Number(activeLine) ? market.line : null;
         return `<td class="book-cell ${unavailable?'muted':''}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${r.line}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairProbability(r).toFixed(1)}%</strong></span></td>${cells}</tr>`;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairProbability(r).toFixed(1)}%</strong></span></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-count').textContent = `${visible.length} prop${visible.length===1?'':'s'}`;
     document.querySelector('#dfs-empty').hidden = visible.length > 0;
