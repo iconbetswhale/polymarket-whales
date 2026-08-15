@@ -77,6 +77,182 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
   min-height: 388px !important;
   overflow: visible !important;
 }
+
+/* Final Positive EV composition: keep this last so shared shell/card rules cannot
+   restore the legacy teal, glow, constrained feed, or reserved detail column. */
+@media (min-width: 901px) {
+  html body[data-page="positive-ev"] .app-shell {
+    padding: 28px 34px 34px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-page,
+  html body[data-page="positive-ev"] .ev-content,
+  html body[data-page="positive-ev"] .ev-workspace,
+  html body[data-page="positive-ev"] .ev-feed-column,
+  html body[data-page="positive-ev"] .ev-feed {
+    width: 100% !important;
+    max-width: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-page {
+    height: auto !important;
+    min-height: calc(100dvh - 62px) !important;
+    padding: 0 !important;
+    gap: 30px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-content {
+    margin: 0 !important;
+    gap: 28px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-credit-banner {
+    min-height: 64px !important;
+    padding: 0 24px !important;
+    border: 1px solid rgba(128, 102, 151, .28) !important;
+    border-radius: 10px !important;
+    background: linear-gradient(105deg, rgba(20, 16, 29, .72), rgba(10, 9, 16, .82)) !important;
+    box-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-toolbar {
+    min-height: 66px !important;
+    gap: 24px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-title-row h1 {
+    font-size: 42px !important;
+    font-weight: 700 !important;
+    text-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-actions {
+    margin-left: auto !important;
+    gap: 12px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-detail:not(.open) {
+    display: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-feed-status {
+    display: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-feed {
+    gap: 12px !important;
+    padding: 0 0 24px !important;
+    overflow: visible !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 158px minmax(270px, 1.05fr) minmax(260px, .95fr) minmax(360px, 1.35fr) !important;
+    min-height: 128px !important;
+    max-height: 128px !important;
+    border: 1px solid rgba(134, 103, 158, .32) !important;
+    border-radius: 10px !important;
+    background: linear-gradient(105deg, rgba(16, 14, 23, .96), rgba(12, 11, 19, .96)) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity:hover,
+  html body[data-page="positive-ev"] .ev-opportunity.active {
+    border-color: rgba(166, 119, 190, .5) !important;
+    background: linear-gradient(105deg, rgba(21, 17, 29, .98), rgba(13, 11, 20, .98)) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity > div {
+    padding: 21px 28px !important;
+    border-color: rgba(139, 108, 160, .17) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-score strong {
+    color: #51c965 !important;
+    font-size: 33px !important;
+    font-weight: 560 !important;
+    text-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-score span {
+    color: #52c866 !important;
+    border-color: rgba(67, 179, 85, .55) !important;
+    background: rgba(20, 64, 28, .13) !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-event strong,
+  html body[data-page="positive-ev"] .ev-pick strong,
+  html body[data-page="positive-ev"] .ev-selection,
+  html body[data-page="positive-ev"] .ev-stake strong {
+    color: #f2eef4 !important;
+    text-shadow: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-execution {
+    display: grid !important;
+    grid-template-columns: minmax(180px, 1fr) auto auto !important;
+    gap: 26px !important;
+    padding: 20px 34px 20px 28px !important;
+    background: transparent !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-selection {
+    display: block !important;
+    font-size: 20px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-best-button,
+  html body[data-page="positive-ev"] .ev-best-button:hover {
+    min-width: 172px !important;
+    padding: 8px 14px !important;
+    border: 1px solid rgba(49, 168, 69, .72) !important;
+    border-radius: 9px !important;
+    background: rgba(17, 56, 23, .42) !important;
+    box-shadow: none !important;
+    filter: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-best-button span {
+    color: #50ca65 !important;
+    text-shadow: none !important;
+  }
+}
+
+@media (min-width: 1400px) {
+  html body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 190px 334px 300px minmax(420px, 1fr) !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  html body[data-page="positive-ev"] .app-shell {
+    padding-inline: 22px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 132px minmax(220px, 1fr) minmax(210px, .9fr) minmax(310px, 1.2fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-opportunity > div {
+    padding-inline: 20px !important;
+  }
+}
 /* Cross-page readability refinements. Keep equivalent controls and data tables
    on one scale instead of maintaining page-specific font overrides. */
 @media (min-width: 901px) {
