@@ -193,6 +193,270 @@ body[data-page="positive-ev"] .nav-links a[aria-current="page"] {
   box-shadow: none !important;
 }
 
+/* Full-width Positive EV board matching the approved compact table reference. */
+@media (min-width: 901px) {
+  body[data-page="positive-ev"] .app-shell {
+    padding: 22px 26px 26px !important;
+    overflow: auto !important;
+  }
+
+  body[data-page="positive-ev"] .ev-page {
+    width: 100% !important;
+    height: auto !important;
+    min-height: calc(100dvh - 48px) !important;
+    padding: 0 !important;
+    gap: 30px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-credit-banner {
+    min-height: 64px !important;
+    padding: 0 24px !important;
+    border: 1px solid rgba(139, 112, 157, 0.28) !important;
+    border-radius: 9px !important;
+    background: rgba(12, 11, 19, 0.78) !important;
+    color: #a7a0b7 !important;
+    font-size: 14px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-credit-banner i {
+    color: #a66bd2 !important;
+    font-size: 17px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-credit-banner strong {
+    color: #f1eef5 !important;
+    font-size: 14px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-credit-banner button,
+  body[data-page="positive-ev"] .ev-credit-banner .ev-history-stat {
+    display: none !important;
+  }
+
+  body[data-page="positive-ev"] .ev-content {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    gap: 28px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-toolbar {
+    min-height: 72px !important;
+    align-items: center !important;
+  }
+
+  body[data-page="positive-ev"] .ev-title-row {
+    gap: 30px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-title-row h1 {
+    font-size: 42px !important;
+    line-height: 1 !important;
+    font-weight: 760 !important;
+    letter-spacing: -0.045em !important;
+  }
+
+  body[data-page="positive-ev"] .ev-mode-tabs {
+    height: 56px !important;
+    padding: 3px !important;
+    border-color: rgba(139, 112, 157, 0.3) !important;
+    border-radius: 9px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-mode-tabs button {
+    height: 48px !important;
+    min-width: 92px !important;
+    padding: 0 22px !important;
+    border-radius: 7px !important;
+    font-size: 16px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-mode-tabs button.active {
+    min-width: 184px !important;
+    background: rgba(98, 68, 119, 0.46) !important;
+  }
+
+  body[data-page="positive-ev"] .ev-mode-tabs span {
+    margin-left: 16px !important;
+    padding: 4px 10px !important;
+    border-radius: 7px !important;
+    background: rgba(197, 159, 222, 0.13) !important;
+    color: #ded5e6 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-actions {
+    gap: 12px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-search {
+    width: 250px !important;
+    height: 56px !important;
+    padding: 0 18px !important;
+    border-radius: 9px !important;
+    font-size: 20px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-search input {
+    font-size: 16px !important;
+    padding-left: 12px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-icon-button {
+    width: 56px !important;
+    height: 56px !important;
+    border-radius: 9px !important;
+    background: rgba(12, 11, 19, 0.84) !important;
+    font-size: 21px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-workspace,
+  body[data-page="positive-ev"] .ev-feed-column {
+    width: 100% !important;
+  }
+
+  body[data-page="positive-ev"] .ev-feed {
+    gap: 12px !important;
+    padding: 0 2px 20px 0 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 190px 334px 300px minmax(420px, 1fr) !important;
+    width: 100% !important;
+    min-height: 128px !important;
+    max-height: 128px !important;
+    border-color: rgba(139, 112, 157, 0.3) !important;
+    border-radius: 10px !important;
+    background: rgba(12, 11, 19, 0.86) !important;
+  }
+
+  body[data-page="positive-ev"] .ev-opportunity:hover,
+  body[data-page="positive-ev"] .ev-opportunity.active {
+    border-color: rgba(163, 118, 190, 0.48) !important;
+    background: rgba(16, 14, 24, 0.94) !important;
+    box-shadow: none !important;
+  }
+
+  body[data-page="positive-ev"] .ev-opportunity > div {
+    padding: 22px 28px !important;
+    border-color: rgba(139, 112, 157, 0.16) !important;
+  }
+
+  body[data-page="positive-ev"] .ev-score strong {
+    color: #54ca68 !important;
+    font-size: 34px !important;
+    font-weight: 560 !important;
+    letter-spacing: -0.025em !important;
+  }
+
+  body[data-page="positive-ev"] .ev-score span {
+    margin-top: 11px !important;
+    padding: 5px 11px !important;
+    gap: 5px !important;
+    border-color: rgba(58, 188, 81, 0.55) !important;
+    background: rgba(25, 78, 34, 0.12) !important;
+    color: #56cf6b !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-event time {
+    margin-bottom: 11px !important;
+    color: #aaa0bd !important;
+    font-size: 14px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-event strong {
+    color: #f0edf3 !important;
+    font-size: 18px !important;
+    font-weight: 620 !important;
+    line-height: 1.35 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-pick small {
+    margin-bottom: 10px !important;
+    color: #ac82c5 !important;
+    font-size: 14px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-pick small i {
+    display: none !important;
+  }
+
+  body[data-page="positive-ev"] .ev-pick strong {
+    color: #f1eef4 !important;
+    font-size: 19px !important;
+    font-weight: 620 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-pick em {
+    margin-top: 7px !important;
+    color: #9d98a7 !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-execution {
+    grid-template-columns: minmax(190px, 1fr) auto auto !important;
+    gap: 28px !important;
+    padding: 20px 34px 20px 28px !important;
+    background: transparent !important;
+  }
+
+  body[data-page="positive-ev"] .ev-selection {
+    color: #f3f0f5 !important;
+    font-size: 20px !important;
+    font-weight: 620 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-stake {
+    min-width: 70px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-stake strong {
+    color: #f4f1f6 !important;
+    font-size: 21px !important;
+    font-weight: 650 !important;
+  }
+
+  body[data-page="positive-ev"] .ev-best-button {
+    min-width: 172px !important;
+    grid-template-columns: 40px auto !important;
+    gap: 14px !important;
+    padding: 8px 14px !important;
+    border-color: rgba(52, 184, 75, 0.68) !important;
+    border-radius: 9px !important;
+    background: rgba(18, 62, 25, 0.25) !important;
+  }
+
+  body[data-page="positive-ev"] .ev-best-button img {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 7px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-best-button span {
+    color: #55ce69 !important;
+    font-size: 21px !important;
+    font-weight: 620 !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1350px) {
+  body[data-page="positive-ev"] .ev-opportunity {
+    grid-template-columns: 150px 260px 240px minmax(350px, 1fr) !important;
+  }
+
+  body[data-page="positive-ev"] .ev-opportunity > div {
+    padding-inline: 20px !important;
+  }
+
+  body[data-page="positive-ev"] .ev-execution {
+    gap: 16px !important;
+  }
+}
+
 body:not([data-page="home"]) .responsive-table thead th,
 body:not([data-page="home"]) .table-scroll thead th,
 body[data-page="tracker"] .tracker-table thead th,
