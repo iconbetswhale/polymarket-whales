@@ -203,6 +203,41 @@ DEMO_MARKETS = (
 )
 
 
+def _market_category(row: dict) -> str:
+    market_key = str(row.get("market_key") or "").lower()
+    market_label = str(row.get("market_label") or "").lower()
+    combined = re.sub(r"[^a-z0-9]+", " ", f"{market_key} {market_label}").strip()
+    compact = combined.replace(" ", "")
+
+    if "team total" in combined or "teamtotal" in compact:
+        return "Team Total"
+    if any(
+        term in combined
+        for term in (
+            "player prop",
+            "player points",
+            "player rebounds",
+            "player assists",
+            "player outs",
+            "player hits",
+            "player strikeouts",
+            "player made",
+        )
+    ):
+        return "Player Prop"
+    if "spread" in combined or "handicap" in combined:
+        return "Spread"
+    if market_key in {"h2h", "ml", "moneyline", "match_h2h"} or "moneyline" in combined:
+        return "Moneyline"
+    if "total" in combined or market_key in {"totals", "match_totals"}:
+        return "Total"
+    if "to advance" in combined or "to qualify" in combined:
+        return "To Advance"
+    if "yes no" in combined or "prediction market" in combined:
+        return "Yes / No"
+    return "Other"
+
+
 def _dashboard_from_rows(
     rows: list[dict], *, scope: str, source: str | None, window: str, demo_only: bool = False
 ) -> dict:
@@ -233,16 +268,20 @@ def _dashboard_from_rows(
     )
 
     def breakdown(
-        key: str, name_key: str | None = None, logo_key: str | None = None
+        key: str,
+        name_key: str | None = None,
+        logo_key: str | None = None,
+        resolver=None,
     ) -> list[dict]:
         groups: dict[str, dict] = {}
         for row in graded:
-            group_key = str(row.get(key) or "Other")
+            resolved_name = resolver(row) if resolver else None
+            group_key = str(resolved_name or row.get(key) or "Other")
             item = groups.setdefault(
                 group_key,
                 {
                     "key": group_key,
-                    "name": row.get(name_key or key) or group_key,
+                    "name": resolved_name or row.get(name_key or key) or group_key,
                     "logo": row.get(logo_key or "") or "",
                     "wins": 0,
                     "losses": 0,
@@ -277,7 +316,7 @@ def _dashboard_from_rows(
         "curve": curve,
         "sportsbooks": breakdown("sportsbook_key", "sportsbook_name", "sportsbook_logo"),
         "leagues": breakdown("league"),
-        "markets": breakdown("market_key", "market_label"),
+        "markets": breakdown("market_key", "market_label", resolver=_market_category),
         "lastGraded": sorted(
             graded, key=lambda row: row.get("graded_at") or "", reverse=True
         )[:5],
@@ -294,21 +333,21 @@ def _dashboard_from_rows(
     }
 
 
-def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
+def demo_dashboard(
+    *,
+    scope: str,
+    source: str | None,
+    window: str,
+    prediction_records: Iterable[dict] | None = None,
+) -> dict:
     """Return deterministic preview rows without touching tracker persistence."""
     now = _now()
     results = ("won", "won", "lost", "won", "push", "lost", "won")
     odds_cycle = (-110, 115, -105, 128, -120, 105, -115, 135)
     rows: list[dict] = []
     for index in range(54):
-        row_source = ("positive_ev", "sharp_money", "prediction_traders")[
-            index % 3
-        ]
-        books = (
-            DEMO_PREDICTION_SPORTSBOOKS
-            if row_source == "prediction_traders"
-            else DEMO_SPORTSBOOKS
-        )
+        row_source = ("positive_ev", "sharp_money")[index % 2]
+        books = DEMO_SPORTSBOOKS
         book_key, book_name, book_logo = books[index % len(books)]
         market_key, market_label, league, event_title, selection = DEMO_MARKETS[index % len(DEMO_MARKETS)]
         result = results[index % len(results)]
@@ -342,14 +381,8 @@ def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
         }
         rows.append(row)
     for index in range(8):
-        row_source = ("positive_ev", "sharp_money", "prediction_traders")[
-            index % 3
-        ]
-        books = (
-            DEMO_PREDICTION_SPORTSBOOKS
-            if row_source == "prediction_traders"
-            else DEMO_SPORTSBOOKS
-        )
+        row_source = ("positive_ev", "sharp_money")[index % 2]
+        books = DEMO_SPORTSBOOKS
         book_key, book_name, book_logo = books[(index + 5) % len(books)]
         market_key, market_label, league, event_title, selection = DEMO_MARKETS[(index + 7) % len(DEMO_MARKETS)]
         created_at = now - timedelta(minutes=(index * 19) + 7)
@@ -378,8 +411,14 @@ def demo_dashboard(*, scope: str, source: str | None, window: str) -> dict:
         )
     if scope == "personal":
         rows = [row for row in rows if row.get("demo_personal")]
+    elif source in {None, "prediction_traders"} and prediction_records is not None:
+        rows.extend(normalize_model_tracker_records(prediction_records))
     return _dashboard_from_rows(
-        rows, scope=scope, source=source, window=window, demo_only=True
+        rows,
+        scope=scope,
+        source=source,
+        window=window,
+        demo_only=source != "prediction_traders",
     )
 
 

@@ -54,6 +54,7 @@ def prediction_snapshot(provider_key: str, sportsbook: str, suffix: str) -> dict
         "canonical_market_id": f"market-{suffix}",
         "event_title": f"Prediction event {suffix}",
         "market_title": "To Win",
+        "sports_market_type": "moneyline",
         "recommended_side": "Yes",
         "category": "Soccer",
         "league": "World Cup",
@@ -206,6 +207,7 @@ def test_prediction_traders_reads_real_model_tracker_and_limits_providers(tmp_pa
         "4CX",
     }
     assert prediction["lastGraded"][0]["source"] == "prediction_traders"
+    assert {item["name"] for item in prediction["markets"]} == {"Moneyline"}
     assert all_signals["summary"]["tracked"] == 5
     assert positive_ev["summary"]["tracked"] == 0
 
@@ -284,7 +286,10 @@ def test_demo_dashboard_is_populated_and_never_changes_real_tracker(app_client):
     assert payload["summary"]["tracked"] >= 50
     assert len(payload["sportsbooks"]) >= 15
     assert len(payload["leagues"]) >= 10
-    assert len(payload["markets"]) >= 15
+    assert {item["name"] for item in payload["markets"]} <= {
+        "Moneyline", "Spread", "Total", "Team Total", "Player Prop",
+        "To Advance", "Yes / No", "Other",
+    }
     assert len(payload["lastGraded"]) == 5
     assert payload["openBets"]
 
@@ -295,20 +300,37 @@ def test_demo_dashboard_is_populated_and_never_changes_real_tracker(app_client):
     assert real_payload["summary"]["tracked"] == 0
 
 
-def test_demo_dashboard_filters_sources_and_personal_preview():
+def test_demo_dashboard_filters_sources_and_keeps_prediction_records_real(tmp_path):
+    database = TrackerDatabase(tmp_path / "demo.db")
+    database.insert_tracker_snapshot(
+        "model-ledger",
+        prediction_snapshot("prophetx", "ProphetX", "real-preview"),
+        status="won",
+    )
+    prediction_records = database.get_tracker_records("model-ledger")
     positive_ev = demo_dashboard(
         scope="signal", source="positive_ev", window="7d"
     )
     personal = demo_dashboard(scope="personal", source=None, window="7d")
     prediction = demo_dashboard(
-        scope="signal", source="prediction_traders", window="7d"
+        scope="signal",
+        source="prediction_traders",
+        window="7d",
+        prediction_records=prediction_records,
+    )
+    all_signals = demo_dashboard(
+        scope="signal",
+        source=None,
+        window="7d",
+        prediction_records=prediction_records,
     )
     assert positive_ev["summary"]["tracked"] > 0
     assert all(row["source"] == "positive_ev" for row in positive_ev["openBets"])
-    assert prediction["summary"]["tracked"] > 0
-    assert {
-        row["sportsbook_key"] for row in prediction["lastGraded"]
-    } <= set(PREDICTION_TRADER_PROVIDERS)
+    assert prediction["summary"]["tracked"] == 1
+    assert prediction["lastGraded"][0]["sportsbook_key"] == "prophetx"
+    assert prediction["demoOnly"] is False
+    assert all_signals["summary"]["tracked"] > prediction["summary"]["tracked"]
+    assert all_signals["demoOnly"] is True
     assert personal["demoOnly"] is True
     assert 0 < personal["summary"]["tracked"] < positive_ev["summary"]["tracked"] * 2
 

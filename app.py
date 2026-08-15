@@ -2073,8 +2073,16 @@ def create_app(start_background: bool = True) -> Flask:
             "true",
             "yes",
         }
-        if demo_requested:
-            payload = demo_dashboard(scope=scope, source=source, window=window)
+        if demo_requested and scope == "signal":
+            prediction_records = app.extensions[
+                "lab_tracker_service"
+            ].database.get_tracker_records(MODEL_TRACKER_USER_ID)
+            payload = demo_dashboard(
+                scope=scope,
+                source=source,
+                window=window,
+                prediction_records=prediction_records,
+            )
         else:
             payload = app.extensions["lab_tracker_service"].dashboard(
                 scope=scope,

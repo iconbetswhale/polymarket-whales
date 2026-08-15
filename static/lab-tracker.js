@@ -5,7 +5,7 @@
     source: "all",
     window: "7d",
     display: localStorage.getItem("iconlabs-lab-display") || "dollars",
-    demo: initialQuery.get("demo") === "1",
+    demo: initialQuery.get("demo") !== "0",
     data: null,
   };
 
@@ -237,8 +237,7 @@
     button.classList.toggle("active", state.demo);
     button.setAttribute("aria-pressed", String(state.demo));
     const url = new URL(window.location.href);
-    if (state.demo) url.searchParams.set("demo", "1");
-    else url.searchParams.delete("demo");
+    url.searchParams.set("demo", state.demo ? "1" : "0");
     window.history.replaceState({}, "", url);
   }
 
