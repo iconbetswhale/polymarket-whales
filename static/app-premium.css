@@ -4474,3 +4474,96 @@ html body[data-page="positive-ev"] .ev-market-compare-rows {
   padding-inline: 0;
   padding-bottom: 0;
 }
+
+/* Compact market taxonomy leaves the actionable selection room to stay on one line. */
+@media (min-width: 901px) {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity {
+    grid-template-columns: 150px minmax(250px, 1.04fr) minmax(130px, .52fr) minmax(390px, 1.55fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-pick strong {
+    margin-top: 5px;
+    font-size: 14px !important;
+    white-space: nowrap;
+  }
+
+  html body[data-page="positive-ev"] .ev-selection {
+    overflow: visible !important;
+    font-size: clamp(16px, 1.05vw, 19px) !important;
+    white-space: nowrap;
+    text-overflow: clip !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1399px) {
+  html body[data-page="positive-ev"] .ev-page .ev-feed .ev-opportunity {
+    grid-template-columns: 116px minmax(190px, 1fr) minmax(112px, .5fr) minmax(320px, 1.42fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-selection {
+    font-size: 15px !important;
+  }
+}
+
+@media (min-width: 901px) and (max-width: 1500px) {
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-opportunity {
+    grid-template-columns: 78px minmax(0, .58fr) minmax(0, 1.42fr) !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-pick {
+    display: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-execution {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    gap: 8px !important;
+    padding-inline: 12px !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-selection {
+    display: block !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+    font-size: 13px !important;
+    text-overflow: ellipsis !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-stake {
+    display: none !important;
+  }
+
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-best-button,
+  html body[data-page="positive-ev"] .ev-workspace.detail-open .ev-best-button:hover {
+    min-width: 96px !important;
+    max-width: 108px !important;
+  }
+}
+
+html body[data-page="positive-ev"] .ev-market-trend > header {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+html body[data-page="positive-ev"] .ev-market-trend > header h3 {
+  width: 100%;
+  font-size: 16px !important;
+  text-align: center;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds > header {
+  position: relative;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds > header > div:first-child {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  text-align: center;
+}
+
+html body[data-page="positive-ev"] .ev-market-odds h3 {
+  font-size: 17px;
+  white-space: nowrap;
+}

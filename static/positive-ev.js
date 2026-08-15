@@ -254,7 +254,7 @@
       return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}" aria-pressed="${row.id===selectedId}">
         <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong></div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong></div>
-        <div class="ev-pick"><small><i class="ph ph-globe-hemisphere-west"></i>${esc(row.league)}</small><strong>${esc(row.selection)}</strong><em>${esc(row.marketLabel)}</em></div>
+        <div class="ev-pick"><small><i class="ph ph-globe-hemisphere-west"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(row.line ?? row.selection)}</div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right"></i></span></a></div>
       </button>`;
     }).join("");
