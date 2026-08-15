@@ -148,8 +148,8 @@
     const x = (index) => pad.left + chartWidth * (index / Math.max(1, values.length - 1));
     const y = (value) => pad.top + chartHeight * (1 - (value - min) / (max - min));
     ctx.font = "10px DM Sans";
-    ctx.strokeStyle = "rgba(181,44,255,.16)";
-    ctx.fillStyle = "#9b8ca8";
+    ctx.strokeStyle = "rgba(151,164,174,.13)";
+    ctx.fillStyle = "#9299a3";
     ctx.lineWidth = 1;
     for (let index = 0; index < 4; index += 1) {
       const value = min + (max - min) * (index / 3);
@@ -158,17 +158,17 @@
       ctx.fillText(state.display === "units" ? `${(value / 100).toFixed(1)}u` : `$${Math.round(value)}`, 0, lineY + 3);
     }
     const gradient = ctx.createLinearGradient(0, pad.top, 0, height - pad.bottom);
-    gradient.addColorStop(0, "rgba(181,44,255,.3)");
-    gradient.addColorStop(.55, "rgba(130,35,205,.14)");
-    gradient.addColorStop(1, "rgba(181,44,255,0)");
+    gradient.addColorStop(0, "rgba(22,214,160,.28)");
+    gradient.addColorStop(.55, "rgba(22,214,160,.11)");
+    gradient.addColorStop(1, "rgba(22,214,160,0)");
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
     ctx.lineTo(x(values.length - 1), height - pad.bottom); ctx.lineTo(x(0), height - pad.bottom); ctx.closePath();
     ctx.fillStyle = gradient; ctx.fill();
     ctx.beginPath();
     values.forEach((value, index) => index ? ctx.lineTo(x(index), y(value)) : ctx.moveTo(x(index), y(value)));
-    ctx.strokeStyle = "#df72ff"; ctx.lineWidth = 2; ctx.stroke();
-    ctx.fillStyle = "#df72ff"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = "#16d6a0"; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = "#16d6a0"; ctx.beginPath(); ctx.arc(x(values.length - 1), y(values.at(-1)), 4, 0, Math.PI * 2); ctx.fill();
   }
 
   function render() {
