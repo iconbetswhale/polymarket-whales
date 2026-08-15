@@ -120,18 +120,18 @@ KNOWN_SPORTSBOOKS = {
     ),
     "fanduel": ("FanDuel", "https://sportsbook.fanduel.com/favicon.ico"),
     "fliff": ("Fliff", "https://sports.getfliff.com/favicon.ico"),
-    "hardrockbet": ("Hard Rock Bet", "https://app.hardrock.bet/favicon.ico"),
+    "hardrockbet": ("Hard Rock Bet", "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815"),
     "hardrockbet_az": (
         "Hard Rock Bet (AZ)",
-        "https://app.hardrock.bet/favicon.ico",
+        "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815",
     ),
     "hardrockbet_fl": (
         "Hard Rock Bet (FL)",
-        "https://app.hardrock.bet/favicon.ico",
+        "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815",
     ),
     "hardrockbet_oh": (
         "Hard Rock Bet (OH)",
-        "https://app.hardrock.bet/favicon.ico",
+        "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815",
     ),
     "lowvig": ("LowVig.ag", "https://sports.lowvig.ag/favicon.ico"),
     "mybookieag": ("MyBookie.ag", "https://www.mybookie.ag/favicon.ico"),

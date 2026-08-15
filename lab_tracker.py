@@ -158,7 +158,7 @@ DEMO_SPORTSBOOKS = (
     ("draftkings", "DraftKings", "/static/assets/sportsbooks/draftkings.png"),
     ("fanduel", "FanDuel", "/static/assets/sportsbooks/fanduel.png"),
     ("caesars", "Caesars", "/static/assets/sportsbooks/caesars.png"),
-    ("hard-rock-bet", "Hard Rock Bet", "/static/assets/sportsbooks/hard-rock-bet.png"),
+    ("hard-rock-bet", "Hard Rock Bet", "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815"),
     ("fanatics", "Fanatics", "/static/assets/sportsbooks/fanatics.png"),
     ("betrivers", "BetRivers", "/static/assets/sportsbooks/betrivers.png"),
     ("bet365", "bet365", "/static/assets/sportsbooks/bet365.png"),

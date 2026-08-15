@@ -19,7 +19,7 @@
     draftkings: "/static/assets/sportsbooks/draftkings.png",
     fanduel: "/static/assets/sportsbooks/fanduel.png",
     caesars: "/static/assets/sportsbooks/caesars.png",
-    hardrockbet: "/static/assets/sportsbooks/hard-rock-bet.png",
+    hardrockbet: "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815",
     fanatics: "/static/assets/sportsbooks/fanatics.png",
     betrivers: "/static/assets/sportsbooks/betrivers.png",
     bet365: "/static/assets/sportsbooks/bet365.png",
