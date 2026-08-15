@@ -2510,10 +2510,15 @@ body[data-page="trades"] .compact-search.corner-search-open {
   }
 
   body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state h2 {
+    font-family: "DM Sans", sans-serif !important;
     font-size: clamp(46px, 4.1vw, 68px) !important;
-    font-weight: 720 !important;
+    font-weight: 600 !important;
     line-height: .94 !important;
-    letter-spacing: -.055em !important;
+    letter-spacing: -.045em !important;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-shadow: none !important;
   }
 
   body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-state h2 span {
@@ -2548,8 +2553,13 @@ body[data-page="trades"] .compact-search.corner-search-open {
 
   body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy strong {
     color: #f5f1f8 !important;
+    font-family: "DM Sans", sans-serif !important;
     font-size: 19px !important;
-    font-weight: 650 !important;
+    font-weight: 600 !important;
+    letter-spacing: -.015em;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    text-shadow: none !important;
   }
 
   body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy strong span {
@@ -2558,7 +2568,13 @@ body[data-page="trades"] .compact-search.corner-search-open {
 
   body[data-page="trades"] .trade-workspace.empty-trades .low-inventory-copy small {
     color: #93899d !important;
+    font-family: "DM Sans", sans-serif !important;
     font-size: 14px !important;
+    font-weight: 400;
+    letter-spacing: -.005em;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    text-shadow: none !important;
   }
 
   body[data-page="trades"] .trade-workspace.empty-trades .play-activity-chart {
@@ -2580,6 +2596,12 @@ body[data-page="trades"] .compact-search.corner-search-open {
     display: flex;
     align-items: center;
     gap: 8px;
+    font-family: "DM Sans", sans-serif !important;
+    font-weight: 500;
+    letter-spacing: .055em;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    text-shadow: none !important;
   }
 
   body[data-page="trades"] .trade-workspace.empty-trades .play-activity-chart header > span i {
