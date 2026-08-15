@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#05080b">
-  <link rel="icon" href="{{ url_for('static', filename='iconlabs-mark.png', v=asset_version) }}" type="image/png">
+  <link rel="icon" href="{{ url_for('static', filename='iconlabs-mark-v2.png', v=asset_version) }}" type="image/png">
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +21,7 @@
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-odds.css', v=asset_version) }}">{% endif %}
   {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version) }}">{% endif %}
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker.css', v=asset_version) }}">{% endif %}
+  {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs.css', v=asset_version) }}">{% endif %}
   <link rel="stylesheet" href="{{ url_for('static', filename='shared-shell.css', v=asset_version ~ '-vertical-rail2') }}">
   {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version) }}">{% endif %}
   {% if page in ['trades', 'tracker'] %}<link rel="stylesheet" href="{{ url_for('static', filename='premium-compact.css', v=asset_version) }}">{% endif %}
@@ -45,14 +46,15 @@
       <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
     </button>
     <a class="brand" href="{{ url_for('index') }}" aria-label="IconLabs home">
-      <span class="brand-icon" aria-hidden="true"><img src="{{ url_for('static', filename='iconlabs-mark.png', v=asset_version) }}" alt=""></span>
-      <span class="brand-copy"><strong>IconLabs</strong><small>Trading Intelligence</small></span>
+      <span class="brand-lockup" aria-hidden="true"><img src="{{ url_for('static', filename='iconlabs-horizontal-v2.webp', v=asset_version) }}" alt=""></span>
+      <span class="brand-icon" aria-hidden="true"><img src="{{ url_for('static', filename='iconlabs-mark-v2.png', v=asset_version) }}" alt=""></span>
     </a>
     <div class="nav-links" id="primary-links">
       <a href="/trades" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span data-short="Traders">Prediction Traders</span></a>
       <a href="/sharp-money" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><span class="sharp-money-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path class="sharp-money-ring" d="M15.8 18.7A8.7 8.7 0 1 1 19.3 15"/><path class="sharp-money-dollar" d="M12 6.7v10.5M14.4 8.4c-.6-.65-1.35-1-2.35-1-1.35 0-2.35.72-2.35 1.82 0 2.8 4.7 1.35 4.7 4.25 0 1.13-1.02 1.95-2.48 1.95-1.1 0-2.02-.42-2.7-1.18"/><path class="sharp-money-trend" d="M16.4 17.2h2l1.05-2.05 1.25 4.15 1.1-2.1H23"/></svg></span><span data-short="Sharp">Sharp Money</span></a>
       <a href="/positive-ev" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span data-short="+EV">Positive EV</span></a>
       <a href="/odds-screen" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><span class="sportsbook-nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><rect x="3" y="3.5" width="18" height="14" rx="1.5"/><path d="M7 8h4M13 8h4M7 11h4M13 11h4M7 14h4M13 14h4M9 20.5h6M12 17.5v3"/></svg></span><span data-short="Screen">Sportsbook Screen</span></a>
+      <a href="/dfs" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-grid-nine"></i><span data-short="DFS">Fantasy Optimizer</span></a>
       <a href="/tracker" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
       <a href="/lab-tracker" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-test-tube"></i><span data-short="LabTracker">LabTracker</span></a>
       <a href="/shadow-test" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="Lab">Shadow Lab</span></a>
@@ -117,6 +119,7 @@
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu1') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version) }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version) }}"></script>{% endif %}
+  {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version) }}"></script>{% endif %}
   {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version) }}"></script>{% endif %}
 </body>
 </html>

@@ -4,7 +4,17 @@
  * This file is deliberately loaded after every product-specific stylesheet so
  * Trades, Positive EV, Bet Tracker, and the remaining tools cannot drift into
  * different sidebar treatments.
- */
+*/
+
+body:not([data-page="home"]) .brand-lockup {
+  display: none;
+}
+
+body:not([data-page="home"]) .brand-lockup img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
 
 @media (min-width: 901px) {
   body.sidebar-expanded:not([data-page="home"]) {
@@ -74,7 +84,19 @@
     flex: 0 0 50px !important;
     justify-content: flex-start !important;
     align-items: center !important;
-    gap: 10px !important;
+    gap: 0 !important;
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-lockup {
+    width: 172px !important;
+    height: 36px !important;
+    display: flex !important;
+    align-items: center !important;
+    filter: drop-shadow(0 0 10px rgba(170, 72, 255, .18));
+  }
+
+  body.sidebar-expanded:not([data-page="home"]) .brand-icon {
+    display: none !important;
   }
 
   body.sidebar-expanded:not([data-page="home"]) .brand-icon,
@@ -241,5 +263,23 @@
 
   body.sidebar-expanded:not([data-page="home"]) .sidebar-account-caret {
     display: grid !important;
+  }
+}
+
+@media (max-width: 900px) {
+  body:not([data-page="home"]) .brand {
+    gap: 0 !important;
+  }
+
+  body:not([data-page="home"]) .brand-lockup {
+    width: 148px !important;
+    height: 32px !important;
+    display: flex !important;
+    align-items: center !important;
+    filter: drop-shadow(0 0 9px rgba(170, 72, 255, .16));
+  }
+
+  body:not([data-page="home"]) .brand-icon {
+    display: none !important;
   }
 }

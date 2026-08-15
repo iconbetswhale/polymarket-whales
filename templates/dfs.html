@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="dfs-page">
+  <header class="dfs-heading">
+    <div><p class="eyebrow">DFS · LINE SHOPPING</p><h1>Fantasy Optimizer</h1><p>Find the strongest projection edge, then compare every available line in one place.</p></div>
+    <div class="dfs-heading-actions"><span class="dfs-live"><i></i> Odds updated 14s ago</span><button type="button" id="dfs-refresh"><i class="ph ph-arrows-clockwise"></i>Refresh</button></div>
+  </header>
+
+  <section class="dfs-control-deck">
+    <div class="dfs-book-row" role="tablist" aria-label="DFS book">
+      {% for book, logo, slip in [('PrizePicks','prizepicks','5 Pick Flex · -119'),('Underdog','underdog','4 Man Flex · -107'),('DK Pick6','dk-pick6','3 Man Power · -122'),('Betr','betr','5 Man Flex · -118'),('Dabble','dabble','3 Man Power · -122')] %}
+      <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
+      {% endfor %}
+      <button class="dfs-devig-button" id="dfs-devig-open" type="button"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span><strong>Devig Settings</strong><small id="dfs-devig-summary">8 sharp books · 0%</small></span></button>
+    </div>
+    <div class="dfs-filter-bar">
+      <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Date</span><select id="dfs-date"><option value="">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="this_week">This week</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Stat</span><select id="dfs-stat"><option value="">All stats</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Side</span><select id="dfs-side"><option value="">Over &amp; under</option><option>Over</option><option>Under</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-search"><span>Player</span><i class="ph ph-magnifying-glass"></i><input id="dfs-search" type="search" placeholder="Search players"></label>
+      <button class="dfs-reset" id="dfs-reset" type="button">Reset</button>
+    </div>
+    <div class="dfs-summary-row"><div><strong id="dfs-count">8 props</strong><span id="dfs-summary">PrizePicks lines ranked by model edge</span></div><label class="dfs-toggle"><input id="dfs-discrepancies" type="checkbox" checked><span></span>Line discrepancies only</label></div>
+  </section>
+
+  <div class="dfs-table-shell">
+    <table class="dfs-table">
+      <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks line"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks line"></th><th>Chance to hit</th>{% for book, logo in [('NoVIG','novig'),('ProphetX','prophetx'),('FanDuel','fanduel'),('DraftKings','draftkings'),('Kalshi','kalshi'),('Polymarket','polymarket'),('Caesars','caesars'),('Hard Rock','hard-rock'),('Fliff','fliff'),('Sleeper','sleeper'),('BetOnline','betonline'),('Pinnacle','pinnacle'),('Parlay Play','parlay-play'),('PropBuilder','propbuilder'),('Bovada','bovada')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
+      <tbody id="dfs-body"></tbody>
+    </table>
+    <div class="dfs-empty" id="dfs-empty" hidden><i class="ph ph-magnifying-glass"></i><strong>No props match these filters</strong><span>Try another player, sport, or side.</span></div>
+  </div>
+</section>
+
+<dialog class="dfs-devig-dialog" id="dfs-devig-dialog" aria-labelledby="dfs-devig-title">
+  <form method="dialog" class="dfs-devig-panel" id="dfs-devig-form">
+    <header><div><p class="eyebrow">FAIR VALUE MODEL</p><h2 id="dfs-devig-title">Devig Settings</h2><p>Blend vig-free probabilities from your sharpest books. Weights must total exactly 100%.</p></div><button class="dfs-devig-close" id="dfs-devig-close" type="button" aria-label="Close Devig Settings"><i class="ph ph-x"></i></button></header>
+    <div class="dfs-devig-presets" aria-label="Fair value presets">
+      <button class="dfs-devig-preset active" id="dfs-algo-preset" type="button"><i class="ph ph-sparkle"></i><span><strong>IconLabs Algo Odds</strong><small>Default model</small></span></button>
+      <div class="dfs-saved-presets" id="dfs-saved-presets"></div>
+      <button class="dfs-devig-save-open" id="dfs-devig-save-open" type="button"><i class="ph ph-bookmark-simple"></i>Save Your Filter</button>
+      <button class="dfs-devig-delete" id="dfs-devig-delete" type="button" hidden><i class="ph ph-trash"></i>Delete Filter</button>
+      <div class="dfs-devig-save-popover" id="dfs-devig-save-popover" hidden><input id="dfs-devig-filter-name" type="text" maxlength="28" placeholder="Name this filter" aria-label="Filter name"><button id="dfs-devig-save-confirm" type="button">Save</button><span id="dfs-devig-save-error" role="status" aria-live="polite"></span></div>
+    </div>
+    <div class="dfs-devig-status"><span>Allocation</span><strong id="dfs-devig-total">100%</strong><div><i id="dfs-devig-progress"></i></div><small id="dfs-devig-message">Ready to apply</small></div>
+    <div class="dfs-devig-list">
+      {% for book, key, logo in [('FanDuel','fanduel','fanduel'),('NoVIG','novig','novig'),('Pinnacle','pinnacle','pinnacle'),('ProphetX','prophetx','prophetx'),('Kalshi','kalshi','kalshi'),('Circa','circa','circa'),('Polymarket','polymarket','polymarket'),('DraftKings','draftkings','draftkings')] %}
+      <label class="dfs-devig-row" data-devig-row="{{ key }}"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>Vig-free market probability</small></span><input class="dfs-devig-range" data-devig-key="{{ key }}" type="range" min="0" max="100" step="1"><span class="dfs-devig-number"><input data-devig-number="{{ key }}" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="{{ book }} weight"><b>%</b></span></label>
+      {% endfor %}
+    </div>
+    <footer><button type="button" class="dfs-devig-reset" id="dfs-devig-reset">Clear all</button><div><button type="button" class="dfs-devig-cancel" id="dfs-devig-cancel">Cancel</button><button type="submit" class="dfs-devig-apply" id="dfs-devig-apply">Apply fair value model</button></div></footer>
+  </form>
+</dialog>
+{% endblock %}

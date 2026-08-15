@@ -982,6 +982,12 @@ def create_app(start_background: bool = True) -> Flask:
     def odds_screen_page():
         return render_template("odds_screen.html", title="IconBets Live Odds Screen", page="odds-screen")
 
+    @app.route("/dfs")
+    def dfs_page():
+        return render_template(
+            "dfs.html", title="IconBets Fantasy Optimizer", page="dfs"
+        )
+
     @app.route("/positive-ev")
     def positive_ev_page():
         return render_template(
