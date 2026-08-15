@@ -1461,6 +1461,139 @@ body[data-page="sharp-money"] .app-shell {
   }
 }
 
+/* Sharp Money toolbar parity and market-intelligence liquidity semantics. */
+.sharp-mode-badge {
+  display: none;
+}
+
+.sharp-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.sharp-search {
+  width: 280px;
+  height: 38px;
+  min-height: 38px;
+  border: 1px solid #22353f;
+  border-radius: 7px;
+  background: #071015;
+}
+
+.sharp-search input {
+  font-size: 11px;
+}
+
+.sharp-icon-button {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  padding: 0;
+  border: 1px solid #253943;
+  border-radius: 7px;
+  color: #d5e0e5;
+  background: #14232b;
+  font-size: 17px;
+}
+
+.sharp-icon-button:hover:not(:disabled) {
+  border-color: #2e647b;
+  color: #fff;
+  background: #172a34;
+}
+
+.sharp-icon-button[aria-pressed="true"] {
+  border-color: #20aee0;
+  box-shadow: inset 0 0 0 1px #20aee0;
+}
+
+.sharp-icon-button:disabled {
+  cursor: not-allowed;
+  opacity: .48;
+}
+
+.sharp-filter-button {
+  width: 49px;
+  min-width: 49px;
+  padding-right: 14px;
+}
+
+.sharp-filter-chevron {
+  position: absolute;
+  top: 13px;
+  right: 5px;
+  font-size: 11px;
+}
+
+.sharp-alert-dot {
+  position: absolute;
+  top: 5px;
+  right: 14px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #15ace6;
+  box-shadow: 0 0 9px #15ace6;
+}
+
+.sharp-filter-count {
+  display: none;
+}
+
+.sharp-filter-button.has-filters .sharp-filter-count {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding: 0 4px;
+  border: 1px solid #061016;
+  border-radius: 999px;
+  color: #061016;
+  background: #27b7eb;
+  font-size: 9px;
+  font-weight: 800;
+}
+
+.sharp-workspace.detail-hidden {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.sharp-workspace.detail-hidden .sharp-detail-panel {
+  display: none;
+}
+
+.sharp-liquidity-score strong {
+  color: #78da48;
+  text-shadow: 0 0 18px rgba(120, 218, 72, .12);
+}
+
+@media (max-width: 900px) {
+  .sharp-header-actions {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .sharp-search {
+    flex: 1 0 190px;
+    width: auto;
+  }
+
+  .sharp-icon-button {
+    flex: 0 0 38px;
+  }
+
+  .sharp-workspace.detail-hidden .sharp-detail-panel.mobile-open {
+    display: block;
+  }
+}
+
 /* July visual refinement: match the calmer OddsJam workspace hierarchy and
    the larger, editorial Prediction Traders cards. */
 body[data-page="sharp-money"],
@@ -2109,5 +2242,40 @@ body[data-page="sharp-money"] {
   .sharp-detail-panel {
     min-height: 0;
     padding: 13px;
+  }
+}
+
+/* Keep the Sharp Money utility bar dimensionally identical to EV+. */
+body[data-page="sharp-money"] .sharp-search {
+  width: 280px;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 7px;
+}
+
+body[data-page="sharp-money"] .sharp-icon-button {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 7px;
+}
+
+body[data-page="sharp-money"] .sharp-filter-button {
+  width: 49px;
+  min-width: 49px;
+}
+
+@media (max-width: 700px) {
+  body[data-page="sharp-money"] .sharp-header-actions {
+    width: 100%;
+    overflow-x: auto;
+    padding-bottom: 3px;
+  }
+
+  body[data-page="sharp-money"] .sharp-search {
+    width: auto;
+    min-width: 190px;
+    flex: 1 0 190px;
   }
 }

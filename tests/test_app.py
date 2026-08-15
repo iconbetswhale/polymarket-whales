@@ -584,8 +584,9 @@ def test_sharp_money_live_page_is_available_and_paused_by_default(app_client):
     assert b"Sharp Money" in response.data
     assert b"Feed paused" in response.data
     assert b"zero new requests" in response.data
-    assert b"sharp-play" in response.data
-    assert b"sharp-pause" in response.data
+    assert b"sharp-feed-toggle" in response.data
+    assert b"sharp-sort" in response.data
+    assert b"sharp-detail-toggle" in response.data
     assert b"sharp-money-initial-payload" not in response.data
     assert b"sharp-money-v2.css" in response.data
 
@@ -672,8 +673,9 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert '"/api/sharp-money/live?preview=1"' in script
     assert "fetch(endpoint" in script
     assert 'fetch("/api/sharp-money/control"' in script
-    assert 'control("play")' in script
-    assert 'control("pause")' in script
+    assert 'control(state.payload?.running ? "pause" : "play")' in script
+    assert "function combinedDepthLiquidity" in script
+    assert 'title="Combined NoVIG + ProphetX liquidity"' in script
     assert "/api/odds-screen" not in script
     assert "active=1" not in script
     assert (

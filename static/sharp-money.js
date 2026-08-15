@@ -10,6 +10,8 @@
     search: "",
     controlling: false,
     filters: { minimumLiquidity: 0, flow: "", marketType: "" },
+    sortDescending: true,
+    detailVisible: true,
     preview: new URLSearchParams(window.location.search).get("preview") === "1",
   };
   const $ = id => document.getElementById(id);
@@ -138,6 +140,13 @@
     return quotes.map(item => ({ ...item, isBest: item.row === best }));
   }
 
+  function combinedDepthLiquidity(signal) {
+    const values = depthQuotes(signal)
+      .map(item => Number(item.row?.availableLiquidity))
+      .filter(value => Number.isFinite(value) && value >= 0);
+    return values.length ? values.reduce((total, value) => total + value, 0) : null;
+  }
+
   function sportsbookAction(quote, fallbackOdds) {
     if (!quote) {
       return `<span class="sharp-sportsbook-action unavailable"><small>Sportsbook</small><b>Awaiting line</b></span>`;
@@ -165,7 +174,7 @@
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
-          <strong>${escapeHtml(money(signal.liquidity))}</strong>
+          <strong title="Combined NoVIG + ProphetX liquidity">${escapeHtml(money(combinedDepthLiquidity(signal)))}</strong>
           <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
@@ -223,7 +232,7 @@
           const rightBest = bestRight != null && Number(row.oppositeAmericanOdds) === bestRight;
           return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}">
             <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
-            <span class="sharp-market-book">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
+            <span class="sharp-market-book sharp-market-book--${providerKey(row)}">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
             <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
           </div>`;
         }).join("")}
@@ -301,16 +310,33 @@
     const running = payload.running === true;
     const prophetxConfigured = payload.provider?.configured === true;
     const comparisonsConfigured = payload.comparisonProvider?.configured === true;
-    state.visible = state.signals.filter(matches);
+    state.visible = state.signals.filter(matches).sort((left, right) => {
+      const leftLiquidity = combinedDepthLiquidity(left) ?? -1;
+      const rightLiquidity = combinedDepthLiquidity(right) ?? -1;
+      return state.sortDescending ? rightLiquidity - leftLiquidity : leftLiquidity - rightLiquidity;
+    });
     if (!state.visible.some(row => row.id === state.selectedId)) state.selectedId = state.visible[0]?.id || null;
     const previewOnly = payload.previewOnly === true;
-    $("sharp-play").classList.toggle("active", running);
-    $("sharp-pause").classList.toggle("active", !running);
-    $("sharp-play").disabled = previewOnly || state.controlling || !prophetxConfigured;
-    $("sharp-play").title = prophetxConfigured
-      ? "Start the local read-only collector"
-      : "Add ProphetX sandbox credentials to .env.local first";
-    $("sharp-pause").disabled = previewOnly || state.controlling;
+    const feedToggle = $("sharp-feed-toggle");
+    feedToggle.innerHTML = `<i class="ph ${running ? "ph-pause" : "ph-play"}"></i>`;
+    feedToggle.classList.toggle("active", running);
+    feedToggle.setAttribute("aria-pressed", String(running));
+    feedToggle.setAttribute("aria-label", running ? "Pause feed" : "Play feed");
+    feedToggle.disabled = previewOnly || state.controlling || (!running && !prophetxConfigured);
+    feedToggle.title = previewOnly
+      ? "Visual preview does not start provider requests"
+      : running
+        ? "Pause the local read-only collector"
+        : prophetxConfigured
+          ? "Start the local read-only collector"
+          : "Add ProphetX sandbox credentials to .env.local first";
+    $("sharp-sort").setAttribute("aria-pressed", String(!state.sortDescending));
+    $("sharp-sort").title = state.sortDescending ? "Combined liquidity: high to low" : "Combined liquidity: low to high";
+    $("sharp-detail-toggle").setAttribute("aria-pressed", String(state.detailVisible));
+    document.querySelector(".sharp-workspace")?.classList.toggle("detail-hidden", !state.detailVisible);
+    const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType));
+    $("sharp-filter-count").textContent = String(activeFilterCount);
+    $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
     $("sharp-mode-badge").classList.toggle("live", running);
     $("sharp-mode-badge").innerHTML = previewOnly
       ? `<i class="ph ph-eye"></i> Visual preview`
@@ -403,13 +429,21 @@
   }
 
   function bind() {
-    $("sharp-play").addEventListener("click", () => control("play"));
-    $("sharp-pause").addEventListener("click", () => control("pause"));
+    $("sharp-feed-toggle").addEventListener("click", () => control(state.payload?.running ? "pause" : "play"));
+    $("sharp-sort").addEventListener("click", () => {
+      state.sortDescending = !state.sortDescending;
+      render();
+    });
+    $("sharp-detail-toggle").addEventListener("click", () => {
+      state.detailVisible = !state.detailVisible;
+      render();
+    });
     $("sharp-search").addEventListener("input", event => { state.search = event.target.value.trim().toLowerCase(); render(); });
     $("sharp-signal-list").addEventListener("click", event => {
       const card = event.target.closest("[data-sharp-signal]");
       if (!card) return;
       state.selectedId = card.dataset.sharpSignal;
+      state.detailVisible = true;
       render();
       $("sharp-detail-panel").classList.add("mobile-open");
       document.body.classList.add("sharp-detail-open");
@@ -426,6 +460,8 @@
     }));
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
     $("sharp-refresh")?.addEventListener("click", load);
+    $("sharp-alerts")?.addEventListener("click", () => window.showToast?.("No new Sharp Money alerts"));
+    $("sharp-more")?.addEventListener("click", () => window.showToast?.("Additional Sharp Money controls are coming soon"));
     $("sharp-filter-close").addEventListener("click", () => openFilters(false));
     $("sharp-filter-backdrop").addEventListener("click", () => openFilters(false));
     $("sharp-filter-apply").addEventListener("click", () => { readFilters(); openFilters(false); });
