@@ -77,7 +77,6 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
   min-height: 388px !important;
   overflow: visible !important;
 }
-
 /* Cross-page readability refinements. Keep equivalent controls and data tables
    on one scale instead of maintaining page-specific font overrides. */
 @media (min-width: 901px) {
@@ -102,6 +101,96 @@ body[data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calenda
     -webkit-font-smoothing: antialiased;
     text-rendering: geometricPrecision;
   }
+}
+
+/* Positive EV uses the IconLabs palette without the fluorescent treatment. */
+body[data-page="positive-ev"] .ev-page {
+  border-color: rgba(143, 104, 166, 0.2) !important;
+  background: #06070b !important;
+  box-shadow: none !important;
+}
+
+body[data-page="positive-ev"] .ev-credit-banner,
+body[data-page="positive-ev"] .ev-search,
+body[data-page="positive-ev"] .ev-icon-button,
+body[data-page="positive-ev"] .ev-mode-tabs,
+body[data-page="positive-ev"] .ev-opportunity,
+body[data-page="positive-ev"] .ev-detail,
+body[data-page="positive-ev"] .ev-section,
+body[data-page="positive-ev"] .ev-detail-pick,
+body[data-page="positive-ev"] .ev-filter-dialog,
+body[data-page="positive-ev"] .ev-filter-nav button,
+body[data-page="positive-ev"] .ev-choice-card,
+body[data-page="positive-ev"] .ev-toggle-row,
+body[data-page="positive-ev"] .ev-weight-row {
+  border-color: rgba(142, 116, 154, 0.22) !important;
+  box-shadow: none !important;
+}
+
+body[data-page="positive-ev"] .ev-search,
+body[data-page="positive-ev"] .ev-icon-button,
+body[data-page="positive-ev"] .ev-mode-tabs,
+body[data-page="positive-ev"] .ev-filter-nav button,
+body[data-page="positive-ev"] .ev-choice-card,
+body[data-page="positive-ev"] .ev-toggle-row,
+body[data-page="positive-ev"] .ev-weight-row {
+  background: #0d0d14 !important;
+}
+
+body[data-page="positive-ev"] .ev-opportunity,
+body[data-page="positive-ev"] .ev-detail,
+body[data-page="positive-ev"] .ev-detail-pick,
+body[data-page="positive-ev"] .ev-section {
+  background: #0b0b11 !important;
+}
+
+body[data-page="positive-ev"] .ev-opportunity:hover,
+body[data-page="positive-ev"] .ev-opportunity.active {
+  border-color: rgba(174, 103, 201, 0.42) !important;
+  background: #100e17 !important;
+}
+
+body[data-page="positive-ev"] .ev-opportunity.active {
+  box-shadow: inset 2px 0 rgba(176, 91, 211, 0.65) !important;
+}
+
+body[data-page="positive-ev"] .ev-mode-tabs button.active,
+body[data-page="positive-ev"] .ev-filter-nav button.active,
+body[data-page="positive-ev"] .ev-chip-grid input:checked + span,
+body[data-page="positive-ev"] .ev-book-grid input:checked + span,
+body[data-page="positive-ev"] .ev-devig-methods input:checked + span {
+  border-color: rgba(176, 91, 211, 0.45) !important;
+  background: rgba(91, 47, 111, 0.28) !important;
+  box-shadow: none !important;
+}
+
+body[data-page="positive-ev"] .ev-alert-dot,
+body[data-page="positive-ev"] .ev-live-dot {
+  box-shadow: none !important;
+}
+
+body[data-page="positive-ev"] .ev-detail-empty i {
+  color: #a774bd !important;
+  filter: none !important;
+}
+
+body[data-page="positive-ev"] .ev-best-button,
+body[data-page="positive-ev"] .ev-quote.best {
+  box-shadow: none !important;
+  filter: none !important;
+}
+
+body[data-page="positive-ev"] .ev-score strong,
+body[data-page="positive-ev"] .ev-detail-stake,
+body[data-page="positive-ev"] .ev-best-button span,
+body[data-page="positive-ev"] .ev-quote.best b {
+  text-shadow: none !important;
+}
+
+body[data-page="positive-ev"] .nav-links a[aria-current="page"] {
+  border-color: rgba(176, 91, 211, 0.38) !important;
+  background: rgba(83, 43, 102, 0.28) !important;
+  box-shadow: none !important;
 }
 
 body:not([data-page="home"]) .responsive-table thead th,
