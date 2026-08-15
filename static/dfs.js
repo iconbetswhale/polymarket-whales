@@ -33,6 +33,7 @@
   const defaultWeights = {fanduel:15, novig:20, pinnacle:20, prophetx:15, kalshi:10, circa:5, polymarket:10, draftkings:5};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
   const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
+  const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
   let activeBook = 'PrizePicks';
   let compareOrder = comparisonBooks.map(book => book.key);
   let savedWeights = loadWeights();
@@ -103,7 +104,7 @@
         const alternateLine = typeof market === 'object' && Number(market.line) !== Number(r.line) ? market.line : null;
         return `<td class="book-cell ${unavailable?'muted':''}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${r.line}</strong></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairProbability(r).toFixed(1)}%</strong></span></td>${cells}</tr>`;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${r.line}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairProbability(r).toFixed(1)}%</strong></span></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-count').textContent = `${visible.length} prop${visible.length===1?'':'s'}`;
     document.querySelector('#dfs-empty').hidden = visible.length > 0;
