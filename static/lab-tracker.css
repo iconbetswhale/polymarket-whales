@@ -68,9 +68,12 @@ html body[data-page="lab-tracker"] main.app-shell {
 .lab-insights .lab-ranking { max-height: 400px; overflow-y: auto; scrollbar-width: none; }
 .lab-ranking::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .lab-rank-row { display: grid; grid-template-columns: 34px minmax(0,1fr) auto; align-items: center; gap: 8px; min-height: 49px; padding: 5px 2px; }
+.lab-rank-row--market { grid-template-columns: minmax(0,1fr) auto; }
 .lab-book-logo, .lab-rank-icon { width: 32px; height: 32px; border-radius: 8px; background: rgba(5,7,9,.94); }
 .lab-book-logo { display: grid; place-items: center; overflow: hidden; padding: 2px; border: 1px solid rgba(195,201,208,.14); }
 .lab-book-logo img { display: block; width: 100%; height: 100%; border-radius: 4px; object-fit: contain; object-position: center; }
+.lab-rank-row--league .lab-league-logo { width: 34px; height: 34px; padding: 0; border: 0; }
+.lab-rank-row--league .lab-league-logo img { border-radius: 7px; object-fit: cover; }
 .lab-book-fallback { display: grid; width: 100%; height: 100%; place-items: center; color: var(--lab-purple-bright); font-size: 9px; font-weight: 800; }
 .lab-book-fallback[hidden] { display: none; }
 .lab-rank-icon { display: grid; place-items: center; color: var(--lab-purple-bright); font-size: 15px; }

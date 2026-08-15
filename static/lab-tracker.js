@@ -71,16 +71,17 @@
     return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
   }
 
-  function bookLogoMarkup({ key, name, logo }) {
+  function bookLogoMarkup({ key, name, logo }, variant = "") {
     const source = sportsbookLogos[canonicalBook(key)]
       || sportsbookLogos[canonicalBook(name)]
       || logo;
+    const logoClass = `lab-book-logo${variant ? ` ${variant}` : ""}`;
     const initials = String(name || key || "SB")
       .split(/\s+/).filter(Boolean).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
     if (!source) {
-      return `<span class="lab-book-logo"><span class="lab-book-fallback">${escapeHtml(initials)}</span></span>`;
+      return `<span class="${logoClass}"><span class="lab-book-fallback">${escapeHtml(initials)}</span></span>`;
     }
-    return `<span class="lab-book-logo"><img src="${escapeHtml(source)}" alt="${escapeHtml(name || "Sportsbook")}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="lab-book-fallback" hidden>${escapeHtml(initials)}</span></span>`;
+    return `<span class="${logoClass}"><img src="${escapeHtml(source)}" alt="${escapeHtml(name || "Sportsbook")}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span class="lab-book-fallback" hidden>${escapeHtml(initials)}</span></span>`;
   }
 
   function setSignedTone(element, value) {
@@ -109,7 +110,7 @@
   function rowIcon(item, fallback, kind) {
     if (kind === "league") {
       const leagueLogo = leagueLogos[canonicalBook(item.key)] || leagueLogos[canonicalBook(item.name)];
-      if (leagueLogo) return bookLogoMarkup({ name: item.name, logo: leagueLogo });
+      if (leagueLogo) return bookLogoMarkup({ name: item.name, logo: leagueLogo }, "lab-league-logo");
     }
     if (item.logo || sportsbookLogos[canonicalBook(item.key)] || sportsbookLogos[canonicalBook(item.name)]) {
       return bookLogoMarkup(item);
@@ -125,8 +126,8 @@
       return;
     }
     root.innerHTML = visible.map((item) => `
-      <div class="lab-rank-row">
-        ${rowIcon(item, icon, kind)}
+      <div class="lab-rank-row${kind ? ` lab-rank-row--${kind}` : ""}">
+        ${kind === "market" ? "" : rowIcon(item, icon, kind)}
         <div class="lab-rank-copy"><strong>${escapeHtml(item.name)}</strong><small>${item.wins}-${item.losses}</small></div>
         <span class="lab-rank-profit ${Number(item.profit) < 0 ? "loss" : ""}">${amount(item.profit)}</span>
       </div>`).join("");
@@ -208,7 +209,7 @@
     $("#lab-stake-caption").textContent = state.display === "units" ? "1 u = $100" : "$100 flat bets";
     renderRanking("#lab-sportsbooks", state.data.sportsbooks, "ph-buildings");
     renderRanking("#lab-leagues", state.data.leagues, "ph-trophy", "league");
-    renderRanking("#lab-markets", state.data.markets, "ph-chart-line-up");
+    renderRanking("#lab-markets", state.data.markets, "ph-chart-line-up", "market");
     renderLog();
     drawChart();
   }
