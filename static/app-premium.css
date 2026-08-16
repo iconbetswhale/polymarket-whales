@@ -3700,6 +3700,20 @@ body[data-page="trades"] .slippage-tooltip .slippage-tier em {
   font-size: 12px !important;
 }
 
+body[data-page="trades"] .slippage-tooltip {
+  height: auto !important;
+  max-height: none !important;
+  box-sizing: border-box;
+  overflow: visible !important;
+}
+
+body[data-page="trades"] .trade-card:has(.slippage-chip:hover),
+body[data-page="trades"] .trade-card:has(.slippage-chip:focus-visible),
+body[data-page="trades"] .trade-card:has(.slippage-chip:focus-within) {
+  z-index: 90;
+  overflow: visible !important;
+}
+
 body[data-page="trades"] .metric-tooltip-chip .metric-tooltip > span:first-child {
   margin-bottom: 0;
 }
