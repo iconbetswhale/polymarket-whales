@@ -13,6 +13,7 @@ dependencies = [
 [project.optional-dependencies]
 simulation = [
   "numpy>=2,<3",
+  "Pillow>=10,<13",
   "pytest>=8,<9",
 ]
 
