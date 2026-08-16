@@ -3670,10 +3670,21 @@ body[data-page="trades"] .trade-metric-chip {
   cursor: default !important;
 }
 
+body[data-page="trades"] .metric-tooltip-chip {
+  position: relative !important;
+  overflow: visible !important;
+}
+
 body[data-page="trades"] .metric-tooltip-chip:hover .metric-tooltip,
 body[data-page="trades"] .metric-tooltip-chip:focus-visible .metric-tooltip,
 body[data-page="trades"] .metric-tooltip-chip:focus-within .metric-tooltip {
   display: block;
+}
+
+body[data-page="trades"] .metric-tooltip-chip:hover,
+body[data-page="trades"] .metric-tooltip-chip:focus-visible,
+body[data-page="trades"] .metric-tooltip-chip:focus-within {
+  z-index: 80;
 }
 
 body[data-page="trades"] .metric-tooltip-chip .metric-tooltip {
