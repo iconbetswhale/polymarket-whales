@@ -2987,9 +2987,13 @@ body[data-page="trades"] .compact-search.corner-search-open {
   }
 
   body[data-page="trades"] .trade-kicker,
-  body[data-page="trades"] .trade-market,
   body[data-page="trades"] .refresh-pending-label {
     font-size: 9px !important;
+    line-height: 1 !important;
+  }
+
+  body[data-page="trades"] .trade-market {
+    font-size: 11px !important;
     line-height: 1 !important;
   }
 
