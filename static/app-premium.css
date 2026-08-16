@@ -2481,7 +2481,7 @@ body[data-page="trades"] .trade-metric-chip.time strong {
   body[data-page="trades"] .trade-bet-size em {
     max-width: 100% !important;
     overflow: hidden !important;
-    font-size: 8px !important;
+    font-size: 10px !important;
     line-height: 1.1 !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
