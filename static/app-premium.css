@@ -3662,6 +3662,16 @@ body[data-page="trades"] .calculation-details > summary > span {
   font-size: 14px !important;
 }
 
+@media (min-width: 1050px) {
+  body[data-page="trades"] .trade-kicker {
+    font-size: 12px !important;
+  }
+
+  body[data-page="trades"] .trade-kicker i {
+    font-size: 14px !important;
+  }
+}
+
 body[data-page="trades"] .exchange-comparison-card .exchange-provider-copy small {
   font-size: 12px !important;
 }
