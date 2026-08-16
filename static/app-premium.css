@@ -3666,6 +3666,39 @@ body[data-page="trades"] .exchange-comparison-card .exchange-provider-copy small
   font-size: 12px !important;
 }
 
+body[data-page="trades"] .trade-metric-chip {
+  cursor: default !important;
+}
+
+body[data-page="trades"] .metric-tooltip-chip:hover .metric-tooltip,
+body[data-page="trades"] .metric-tooltip-chip:focus-visible .metric-tooltip,
+body[data-page="trades"] .metric-tooltip-chip:focus-within .metric-tooltip {
+  display: block;
+}
+
+body[data-page="trades"] .metric-tooltip-chip .metric-tooltip {
+  right: auto;
+  left: 50%;
+  width: min(230px, calc(100vw - 36px));
+  transform: translateX(-50%);
+}
+
+body[data-page="trades"] .metric-tooltip-chip .metric-tooltip > span:first-child {
+  margin-bottom: 0;
+}
+
+body[data-page="trades"] .metric-tooltip-chip:nth-child(2) .metric-tooltip {
+  right: auto;
+  left: 0;
+  transform: none;
+}
+
+body[data-page="trades"] .metric-tooltip-chip:nth-last-child(-n+2) .metric-tooltip {
+  right: 0;
+  left: auto;
+  transform: none;
+}
+
 @media (max-width: 860px) {
   body[data-page="trades"] .why-bet-card .detail-strip-metric strong,
   body[data-page="trades"] .trader-stats-card .detail-strip-metric strong {

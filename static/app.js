@@ -234,7 +234,7 @@ function sportIcon(category) {
 }
 
 function tradeMetricChip(icon, value, tooltip, tone = "") {
-  return `<span class="trade-metric-chip ${tone}" title="${escapeHtml(tooltip)}" aria-label="${escapeHtml(tooltip)}: ${escapeHtml(value)}"><i class="ph ${icon}" aria-hidden="true"></i><strong>${escapeHtml(value)}</strong></span>`;
+  return `<span class="trade-metric-chip metric-tooltip-chip ${tone}" tabindex="0" aria-label="${escapeHtml(tooltip)}: ${escapeHtml(value)}"><i class="ph ${icon}" aria-hidden="true"></i><strong>${escapeHtml(value)}</strong><span class="slippage-tooltip metric-tooltip" role="tooltip"><span>${escapeHtml(tooltip)}</span></span></span>`;
 }
 
 function slippageComparison(userEntry, whaleEntry, providedFraction = null) {
