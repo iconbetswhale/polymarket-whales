@@ -3694,6 +3694,12 @@ body[data-page="trades"] .metric-tooltip-chip .metric-tooltip {
   transform: translateX(-50%);
 }
 
+body[data-page="trades"] .slippage-tooltip,
+body[data-page="trades"] .slippage-tooltip .slippage-tier strong,
+body[data-page="trades"] .slippage-tooltip .slippage-tier em {
+  font-size: 12px !important;
+}
+
 body[data-page="trades"] .metric-tooltip-chip .metric-tooltip > span:first-child {
   margin-bottom: 0;
 }
