@@ -227,6 +227,10 @@ function tradePlayLabel(trade = {}) {
   if (/money\s*line|moneyline|h2h|(^|\s)ml($|\s)/.test(market) && !/(^|\s)(?:ml|moneyline)$/i.test(selection)) {
     return `${selection} ML`;
   }
+  const line = number(trade.market_line);
+  if (/run\s*line|spread|handicap/.test(market) && line !== null && !/[+-]\d+(?:\.\d+)?$/.test(selection)) {
+    return `${selection} ${line > 0 ? "+" : ""}${line}`;
+  }
   return selection;
 }
 
@@ -1742,6 +1746,40 @@ function secondaryVisualPreviewTrade() {
   return trade;
 }
 
+function spreadVisualPreviewTrade() {
+  const trade = visualPreviewTrade();
+  const start = upcomingPreviewStart(19, 30);
+  trade.id = "visual-preview-spread";
+  trade.category = "Basketball";
+  trade.league = "NBA";
+  trade.event_title = "Boston Celtics vs. New York Knicks";
+  trade.market_title = "Spread · Boston Celtics -4.5";
+  trade.sports_market_type = "Spread";
+  trade.outcome = "Boston Celtics";
+  trade.market_line = -4.5;
+  trade.event_time_et = formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+  trade.event_date_et = start.toISOString();
+  trade.resolution_time = start.toISOString();
+  trade.primary_trader = {
+    ...trade.primary_trader,
+    top_category: "NBA Spread",
+  };
+  trade.supporting_wallets = trade.supporting_wallets.map((wallet) => ({
+    ...wallet,
+    top_category_ids: ["NBA Spread"],
+  }));
+  trade.card = {
+    ...trade.card,
+    event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+  };
+  trade.executionOptions = trade.executionOptions.map((option) => ({
+    ...option,
+    marketId: `visual-preview:${option.providerKey}:spread`,
+    selectionId: `visual-preview:${option.providerKey}:celtics-minus-4-5`,
+  }));
+  return trade;
+}
+
 function stableTradeFilterKey(filters) {
   const copy = { ...filters };
   delete copy.sort;
@@ -2851,7 +2889,7 @@ async function loadSizingBankroll() {
 function renderTradesPayload(payload, filters, list) {
   const previewEnabled = new URLSearchParams(window.location.search).get("preview") === "trade";
   const incomingTrades = previewEnabled
-    ? [visualPreviewTrade(), ...(payload.data || [])]
+    ? [visualPreviewTrade(), spreadVisualPreviewTrade(), ...(payload.data || [])]
     : (payload.data || []);
   const mergedTrades = mergeOfficialTrackedTrades(
     incomingTrades,

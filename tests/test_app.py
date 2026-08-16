@@ -513,11 +513,15 @@ def test_trades_javascript_gates_visual_preview_fixture_behind_query_parameter()
     assert "previewEnabled" not in load_trades
     assert "visualPreviewTrade()" not in load_trades
     assert "secondaryVisualPreviewTrade()" not in load_trades
+    assert "spreadVisualPreviewTrade()" not in load_trades
     render_payload = javascript.split("function renderTradesPayload", 1)[1].split(
         "async function loadTrades", 1
     )[0]
     assert 'get("preview") === "trade"' in render_payload
-    assert "[visualPreviewTrade(), ...(payload.data || [])]" in render_payload
+    assert (
+        "[visualPreviewTrade(), spreadVisualPreviewTrade(), ...(payload.data || [])]"
+        in render_payload
+    )
 
 
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
