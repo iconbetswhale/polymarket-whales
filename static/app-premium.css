@@ -3633,25 +3633,30 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
   }
 }
 
-/* Keep the recommendation rationale readable without enlarging trader stats. */
-body[data-page="trades"] .why-bet-card .section-label span {
+/* Keep recommendation rationale and trader stats at the same readable scale. */
+body[data-page="trades"] .why-bet-card .section-label span,
+body[data-page="trades"] .trader-stats-card .section-label span {
   font-size: 14px !important;
 }
 
-body[data-page="trades"] .why-bet-card .detail-strip-metric strong {
+body[data-page="trades"] .why-bet-card .detail-strip-metric strong,
+body[data-page="trades"] .trader-stats-card .detail-strip-metric strong {
   font-size: 13px !important;
 }
 
-body[data-page="trades"] .why-bet-card .detail-strip-metric small {
+body[data-page="trades"] .why-bet-card .detail-strip-metric small,
+body[data-page="trades"] .trader-stats-card .detail-strip-metric small {
   font-size: 12px !important;
 }
 
 @media (max-width: 860px) {
-  body[data-page="trades"] .why-bet-card .detail-strip-metric strong {
+  body[data-page="trades"] .why-bet-card .detail-strip-metric strong,
+  body[data-page="trades"] .trader-stats-card .detail-strip-metric strong {
     font-size: 14px !important;
   }
 
-  body[data-page="trades"] .why-bet-card .detail-strip-metric small {
+  body[data-page="trades"] .why-bet-card .detail-strip-metric small,
+  body[data-page="trades"] .trader-stats-card .detail-strip-metric small {
     font-size: 11px !important;
   }
 }
