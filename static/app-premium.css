@@ -3654,6 +3654,14 @@ body[data-page="trades"] .price-panel .price-legend strong {
   font-size: 12px !important;
 }
 
+body[data-page="trades"] .detail-accordion > summary > span {
+  font-size: 10px !important;
+}
+
+body[data-page="trades"] .calculation-details > summary > span {
+  font-size: 12px !important;
+}
+
 @media (max-width: 860px) {
   body[data-page="trades"] .why-bet-card .detail-strip-metric strong,
   body[data-page="trades"] .trader-stats-card .detail-strip-metric strong {
