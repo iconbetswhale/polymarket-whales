@@ -2557,7 +2557,7 @@ function renderTradeDetail(trade) {
     ` : ""}
     ${detailSelectionPanel(trade)}
     ${executionComparisonLadder(trade)}
-    <section class="detail-strip-card">
+    <section class="detail-strip-card why-bet-card">
       <div class="section-label"><span>Why this bet?</span></div>
       <div class="detail-strip">
         ${detailStripMetric("ph-arrow-up-right", formatRelativeSize(card.relative_bet_size ?? primary.relative_units), "Relative bet size")}
