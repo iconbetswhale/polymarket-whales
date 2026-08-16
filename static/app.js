@@ -221,6 +221,15 @@ function humanizeMarketType(value) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
+function tradePlayLabel(trade = {}) {
+  const selection = String(trade.outcome || "Selection").trim();
+  const market = `${trade.sports_market_type || ""} ${trade.market_title || ""}`.toLowerCase();
+  if (/money\s*line|moneyline|h2h|(^|\s)ml($|\s)/.test(market) && !/(^|\s)(?:ml|moneyline)$/i.test(selection)) {
+    return `${selection} ML`;
+  }
+  return selection;
+}
+
 function sportIcon(category) {
   const icons = {
     baseball: "ph-baseball",
@@ -2067,7 +2076,7 @@ function tradeCard(trade) {
           ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
         </span>
         <span class="trade-selection">
-          <span class="trade-pick"><strong>${escapeHtml(trade.outcome)}</strong></span>
+          <span class="trade-pick"><strong>${escapeHtml(tradePlayLabel(trade))}</strong></span>
           ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
           ${executionToolbar(trade)}
         </span>
