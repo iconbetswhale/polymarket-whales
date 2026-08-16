@@ -3655,11 +3655,11 @@ body[data-page="trades"] .price-panel .price-legend strong {
 }
 
 body[data-page="trades"] .detail-accordion > summary > span {
-  font-size: 11px !important;
+  font-size: 12px !important;
 }
 
 body[data-page="trades"] .calculation-details > summary > span {
-  font-size: 13px !important;
+  font-size: 14px !important;
 }
 
 @media (max-width: 860px) {
