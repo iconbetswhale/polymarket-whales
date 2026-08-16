@@ -3635,24 +3635,24 @@ html body[data-page="positive-ev"] .ev-best-button .ev-book-logo {
 
 /* Keep the recommendation rationale readable without enlarging trader stats. */
 body[data-page="trades"] .why-bet-card .section-label span {
-  font-size: 14px !important;
+  font-size: 16px !important;
 }
 
 body[data-page="trades"] .why-bet-card .detail-strip-metric strong {
-  font-size: 13px !important;
+  font-size: 15px !important;
 }
 
 body[data-page="trades"] .why-bet-card .detail-strip-metric small {
-  font-size: 12px !important;
+  font-size: 14px !important;
 }
 
 @media (max-width: 860px) {
   body[data-page="trades"] .why-bet-card .detail-strip-metric strong {
-    font-size: 14px !important;
+    font-size: 16px !important;
   }
 
   body[data-page="trades"] .why-bet-card .detail-strip-metric small {
-    font-size: 11px !important;
+    font-size: 13px !important;
   }
 }
 
