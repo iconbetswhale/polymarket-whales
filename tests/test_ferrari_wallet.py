@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -380,6 +380,7 @@ def test_ferrari_event_portfolio_conflicts_cannot_originate():
 
 class NoFillSyncClient:
     def get_current_positions(self, wallet_address: str):
+        event_end = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
         return [
             {
                 "conditionId": "0x" + ("1" * 64),
@@ -395,7 +396,7 @@ class NoFillSyncClient:
                 "eventId": "1",
                 "outcome": "Yankees",
                 "oppositeOutcome": "Red Sox",
-                "endDate": "2026-07-14T23:10:00Z",
+                "endDate": event_end,
             }
         ]
 

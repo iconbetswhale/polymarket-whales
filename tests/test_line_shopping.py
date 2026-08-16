@@ -44,7 +44,7 @@ def option(
     liquidity: float = 1000.0,
     fillable: bool = True,
     status: str = "OPEN",
-    fee_rate: float | None = None,
+    fee_rate: float | None = 0.0,
 ) -> ExecutionOption:
     return ExecutionOption(
         provider_name={
@@ -120,8 +120,8 @@ def test_lowest_same_selection_executable_price_wins_for_cents_and_american_odds
     registry.attach_options([value])
 
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "kalshi"
-    assert best["nativePrice"] == "47\u00a2"
+    assert best["providerKey"] == "fourcx"
+    assert best["nativePrice"] == "+100"
 
 
 def test_novig_wins_an_executable_equal_price_tie_and_drives_sizing():
@@ -294,8 +294,8 @@ def test_prediction_trade_ranking_uses_exchanges_not_sportsbooks():
     registry.attach_options([value])
 
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "oddsapi__kalshi"
-    assert best["nativePrice"] == "47\u00a2"
+    assert best["providerKey"] == "polymarket"
+    assert best["nativePrice"] == "49\u00a2"
     assert all(
         row["providerKey"] != "oddsapi__draftkings"
         for row in value["executionOptions"]

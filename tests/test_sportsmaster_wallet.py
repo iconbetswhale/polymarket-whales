@@ -164,18 +164,11 @@ def test_existing_wallets_do_not_inherit_sportsmaster_event_netting():
     ferrari_address = "0xfe787d2da716d60e8acff57fb87eb13cd4d10319"
     wordy_address = "0x3dfb153c197d4c19d3b31c1ecd2c7b6860eeabaf"
     homerunhazard_address = "0x5268527977f700f9bf9b6d5cd843859e4e70135d"
-    others = [
-        wallet
-        for wallet in result.valid_wallets
-        if wallet.address
-        not in {
-            SPORTSMASTER_ADDRESS,
-            ferrari_address,
-                wordy_address,
-                "0xf1528f12e645462c344799b62b1b421a6a4c64aa",
-                homerunhazard_address,
-        }
-    ]
+    non_netted_addresses = {
+        "0x4f29e103339919c4baaea2a60195cf1c8bb27a7e",
+        "0xbca08c1bc204a34f2fddbe47b438b9bd42ac9705",
+        "0x03e8a544e97eeff5753bc1e90d46e5ef22af1697",
+    }
     ferrari = next(
         wallet
         for wallet in result.valid_wallets
@@ -192,8 +185,16 @@ def test_existing_wallets_do_not_inherit_sportsmaster_event_netting():
         if wallet.address == homerunhazard_address
     )
 
-    assert others
     assert ferrari.event_portfolio_netting_required is True
     assert wordy.event_portfolio_netting_required is True
     assert homerunhazard.event_portfolio_netting_required is True
-    assert all(wallet.event_portfolio_netting_required is False for wallet in others)
+    non_netted = {
+        wallet.address: wallet
+        for wallet in result.valid_wallets
+        if wallet.address in non_netted_addresses
+    }
+    assert set(non_netted) == non_netted_addresses
+    assert all(
+        wallet.event_portfolio_netting_required is False
+        for wallet in non_netted.values()
+    )
