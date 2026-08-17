@@ -955,12 +955,12 @@ body[data-page="sharp-money"] .sharp-signal-money.sharp-liquidity-score span {
 
 .sharp-card-market-row > span b {
   color: #f9f6ff;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .sharp-card-market-row > span small {
   color: #998bab;
-  font-size: 8px;
+  font-size: 10px;
   font-weight: 600;
 }
 
