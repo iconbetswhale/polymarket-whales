@@ -2616,7 +2616,8 @@ body[data-page="sharp-money"] .sharp-depth-chip-copy {
 body[data-page="sharp-money"] .sharp-depth-chip-copy strong {
   overflow: hidden;
   color: #e9e6ee;
-  font-size: 9px;
+  font-size: 12px;
+  font-weight: 700;
   line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2624,13 +2625,14 @@ body[data-page="sharp-money"] .sharp-depth-chip-copy strong {
 
 body[data-page="sharp-money"] .sharp-depth-chip-copy small {
   color: #7f758b;
-  font-size: 7px;
+  font-size: 11px;
   white-space: nowrap;
 }
 
 body[data-page="sharp-money"] .sharp-depth-chip > b {
   color: #e7e3ec;
-  font-size: 11px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 body[data-page="sharp-money"] .sharp-depth-chip.best > b {
@@ -2715,6 +2717,6 @@ body[data-page="sharp-money"] .sharp-market-table-row.intelligence:first-of-type
   }
 
   body[data-page="sharp-money"] .sharp-depth-chip-copy strong {
-    font-size: 8px;
+    font-size: 12px;
   }
 }
