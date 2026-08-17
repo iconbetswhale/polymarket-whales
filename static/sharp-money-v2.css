@@ -2558,7 +2558,7 @@ body[data-page="sharp-money"] .sharp-sportsbook-action > span:not(:first-child) 
 body[data-page="sharp-money"] .sharp-sportsbook-action small {
   overflow: hidden;
   color: #9cb3a0;
-  font-size: 7px;
+  font-size: 10px;
   line-height: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2566,7 +2566,8 @@ body[data-page="sharp-money"] .sharp-sportsbook-action small {
 
 body[data-page="sharp-money"] .sharp-sportsbook-action b {
   color: #fff;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 700;
   line-height: 1;
 }
 
