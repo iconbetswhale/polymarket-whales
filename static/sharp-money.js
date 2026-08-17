@@ -185,6 +185,11 @@
     const sides = marketSides(signal);
     const quote = primaryQuote(signal);
     const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
+    const league = String(signal.league || "").trim();
+    const sport = String(signal.sport || "").trim();
+    const competition = league && sport && league.toLowerCase() === sport.toLowerCase()
+      ? league
+      : [league, sport].filter(Boolean).join(" · ");
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
@@ -193,7 +198,7 @@
         </div>
         <div class="sharp-card-body">
           <div class="sharp-card-heading">
-            <div><small>${escapeHtml(signal.league)} · ${escapeHtml(signal.sport)}</small><strong>${escapeHtml(signal.event)}</strong><em>${escapeHtml(signal.market?.name)}</em></div>
+            <div><small>${escapeHtml(competition)}</small><strong>${escapeHtml(signal.event)}</strong><em>${escapeHtml(signal.market?.name)}</em></div>
             <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
           </div>
           <div class="sharp-card-market">

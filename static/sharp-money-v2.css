@@ -2489,9 +2489,17 @@ body[data-page="sharp-money"] .sharp-card-heading time {
   color: #948aa2;
 }
 
+body[data-page="sharp-money"] .sharp-card-heading strong {
+  font-size: 14px;
+}
+
 body[data-page="sharp-money"] .sharp-card-heading em,
 body[data-page="sharp-money"] .sharp-detail-head em {
   color: #c180ef;
+}
+
+body[data-page="sharp-money"] .sharp-card-heading em {
+  font-size: 13px;
 }
 
 body[data-page="sharp-money"] .sharp-card-market {
