@@ -2489,6 +2489,11 @@ body[data-page="sharp-money"] .sharp-card-heading time {
   color: #948aa2;
 }
 
+body[data-page="sharp-money"] .sharp-card-heading time,
+body[data-page="sharp-money"] .sharp-detail-time b {
+  font-size: 12px;
+}
+
 body[data-page="sharp-money"] .sharp-card-heading strong {
   font-size: 14px;
 }
