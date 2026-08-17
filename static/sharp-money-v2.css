@@ -2505,6 +2505,11 @@ body[data-page="sharp-money"] .sharp-card-market-row.primary {
   background: rgba(255, 255, 255, .012);
 }
 
+body[data-page="sharp-money"] .sharp-card-market-row.primary > strong,
+body[data-page="sharp-money"] .sharp-rec-copy strong {
+  font-size: 16px;
+}
+
 body[data-page="sharp-money"] .sharp-sportsbook-action {
   display: flex;
   align-items: center;
