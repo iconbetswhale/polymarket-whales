@@ -2494,7 +2494,8 @@ body[data-page="sharp-money"] .sharp-detail-time b {
   font-size: 12px;
 }
 
-body[data-page="sharp-money"] .sharp-card-heading strong {
+body[data-page="sharp-money"] .sharp-card-heading strong,
+body[data-page="sharp-money"] .sharp-detail-head h2 {
   font-size: 14px;
 }
 
@@ -2503,7 +2504,8 @@ body[data-page="sharp-money"] .sharp-detail-head em {
   color: #c180ef;
 }
 
-body[data-page="sharp-money"] .sharp-card-heading em {
+body[data-page="sharp-money"] .sharp-card-heading em,
+body[data-page="sharp-money"] .sharp-detail-head em {
   font-size: 13px;
 }
 
