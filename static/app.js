@@ -1834,6 +1834,270 @@ function spreadVisualPreviewTrade() {
   return trade;
 }
 
+function configuredVisualPreviewTrade({
+  id,
+  startHour,
+  startMinute,
+  category,
+  league,
+  eventTitle,
+  marketTitle,
+  marketType,
+  outcome,
+  confidence,
+  sharps,
+  currentPrice,
+  sharpEntry,
+  stake,
+  hitRate,
+  sampleSize,
+  relativeSize,
+  bestProvider = "novig",
+}) {
+  const trade = visualPreviewTrade();
+  const start = upcomingPreviewStart(startHour, startMinute);
+  const slippage = (currentPrice - sharpEntry) / sharpEntry;
+  const recommendedUnits = stake / 100;
+  const recommendedShares = stake / currentPrice;
+  const providerOffsets = {
+    novig: 0,
+    "4cx": 0.004,
+    prophetx: 0.007,
+    polymarket: 0.01,
+    kalshi: 0.013,
+  };
+
+  trade.id = id;
+  trade.category = category;
+  trade.league = league;
+  trade.canonical_sport_id = category.toUpperCase();
+  trade.canonical_league_id = league.toUpperCase();
+  trade.event_title = eventTitle;
+  trade.market_title = marketTitle;
+  trade.sports_market_type = marketType;
+  trade.outcome = outcome;
+  trade.event_time_et = formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+  trade.event_date_et = start.toISOString();
+  trade.resolution_time = start.toISOString();
+  trade.confidence_score = confidence;
+  trade.agreeing_wallet_count = sharps;
+  trade.raw_sharp_count = sharps;
+  trade.rawAgreeingSharpCount = sharps;
+  trade.lead_sharp_count = 1;
+  trade.supporting_sharp_count = Math.max(sharps - 1, 0);
+  trade.weighted_sharp_count = 1 + Math.max(sharps - 1, 0) * 0.5;
+  trade.supporting_wallets = trade.supporting_wallets.slice(0, sharps).map((wallet, index) => ({
+    ...wallet,
+    amount: 3400 - index * 475,
+    relative_units: relativeSize + index * 0.25,
+    top_category_ids: [`${league} ${marketType}`],
+  }));
+  trade.primary_trader = {
+    ...trade.supporting_wallets[0],
+    amount: 3400,
+    average_entry: sharpEntry,
+    average_entry_price: sharpEntry,
+    relative_units: relativeSize,
+    top_category: `${league} ${marketType}`,
+    adjusted_hit_rate: hitRate,
+    sample_size: sampleSize,
+  };
+  trade.trade_quality = {
+    grade: confidence >= 60 ? "A" : confidence >= 55 ? "B+" : "B",
+    score: confidence,
+  };
+  trade.recommendation = {
+    ...trade.recommendation,
+    recommended_amount: stake,
+    recommended_units: recommendedUnits,
+    recommended_shares: recommendedShares,
+    current_user_entry_price: currentPrice,
+    current_top_ask_price: currentPrice,
+    effective_entry_price: currentPrice,
+    sharp_average_entry_price: sharpEntry,
+    sharp_reference_entry_price: sharpEntry,
+    price_slippage_fraction: slippage,
+    slippage_cents: (currentPrice - sharpEntry) * 100,
+    unfavorable_slippage_pct: Math.max(slippage, 0),
+    estimated_win_probability: Math.min(currentPrice + 0.08, 0.95),
+    calculated_edge: 0.08,
+    final_recommended_fraction: stake / 10000,
+    confidence_score: confidence,
+    execution_plan: {
+      provider: "NoVIG",
+      maximum_average_price: currentPrice + 0.02,
+      effective_price_for_executable_amount: currentPrice,
+      executable_amount: stake,
+      estimated_fees: 0,
+    },
+  };
+  trade.card = {
+    ...trade.card,
+    recommended_amount: stake,
+    recommended_units: recommendedUnits,
+    recommended_shares: recommendedShares,
+    current_actionable_price: currentPrice,
+    trader_average_entry_price: sharpEntry,
+    trader_bet_amount: 3400,
+    relative_bet_size: relativeSize,
+    category_hit_rate: hitRate,
+    slippage_fraction: slippage,
+    event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
+  };
+  trade.executionOptions = trade.executionOptions.map((option) => {
+    const configuredOffset = option.providerKey === bestProvider
+      ? 0
+      : Math.max(providerOffsets[option.providerKey] || 0.01, 0.003);
+    const price = Math.min(Math.max(currentPrice + configuredOffset, 0.02), 0.98);
+    const americanOdds = Math.round(price >= 0.5
+      ? -100 * price / (1 - price)
+      : 100 * (1 - price) / price);
+    const contractVenue = ["polymarket", "kalshi"].includes(option.providerKey);
+    return {
+      ...option,
+      marketId: `visual-preview:${option.providerKey}:${id}`,
+      selectionId: `visual-preview:${option.providerKey}:${id}:selection`,
+      displayOdds: contractVenue ? `${(price * 100).toFixed(1)}¢` : `${americanOdds > 0 ? "+" : ""}${americanOdds}`,
+      americanOdds,
+      contractPrice: contractVenue ? price : null,
+      bestExecutablePrice: price,
+      effectiveEntryPrice: price,
+      recommendedStake: stake,
+      isBestPrice: option.providerKey === bestProvider,
+    };
+  });
+  trade.orderbook = {
+    asks: [0.006, 0.012, 0.018, 0.026].map((offset, index) => ({
+      price: Math.min(currentPrice + offset, 0.98),
+      size: 42000 - index * 8200,
+    })),
+    bids: [0.004, 0.01, 0.016, 0.024].map((offset, index) => ({
+      price: Math.max(currentPrice - offset, 0.02),
+      size: 39000 - index * 7600,
+    })),
+  };
+  trade.orderbook_summary = {
+    best_ask: Math.min(currentPrice + 0.006, 0.98),
+    best_bid: Math.max(currentPrice - 0.004, 0.02),
+  };
+  trade.demoPriceHistory = [0.018, 0.014, 0.009, 0.004, 0].map((offset, index) => ({
+    timestamp: Date.now() - (4 - index) * 21600000,
+    value: Math.min(Math.max(currentPrice + offset, 0.02), 0.98),
+  }));
+  return trade;
+}
+
+function redsVisualPreviewTrade() {
+  return configuredVisualPreviewTrade({
+    id: "qa-trade-1",
+    startHour: 18,
+    startMinute: 42,
+    category: "Baseball",
+    league: "MLB",
+    eventTitle: "Cincinnati Reds vs. St. Louis Cardinals",
+    marketTitle: "Moneyline · Cincinnati Reds",
+    marketType: "Moneyline",
+    outcome: "Cincinnati Reds ML",
+    confidence: 58,
+    sharps: 3,
+    currentPrice: 0.42,
+    sharpEntry: 0.41,
+    stake: 20,
+    hitRate: 0.5908,
+    sampleSize: 1010,
+    relativeSize: 1.4,
+  });
+}
+
+function yankeesVisualPreviewTrade() {
+  return configuredVisualPreviewTrade({
+    id: "qa-trade-2",
+    startHour: 18,
+    startMinute: 57,
+    category: "Baseball",
+    league: "MLB",
+    eventTitle: "New York Yankees vs. Boston Red Sox",
+    marketTitle: "Moneyline · New York Yankees",
+    marketType: "Moneyline",
+    outcome: "Yankees ML",
+    confidence: 56,
+    sharps: 3,
+    currentPrice: 0.507,
+    sharpEntry: 0.489,
+    stake: 15,
+    hitRate: 0.6028,
+    sampleSize: 880,
+    relativeSize: 1.4,
+    bestProvider: "4cx",
+  });
+}
+
+function soccerVisualPreviewTrade() {
+  return configuredVisualPreviewTrade({
+    id: "qa-trade-3",
+    startHour: 19,
+    startMinute: 12,
+    category: "Soccer",
+    league: "FIFA World Cup",
+    eventTitle: "Spain vs. France",
+    marketTitle: "To Advance · Spain",
+    marketType: "To Advance",
+    outcome: "Spain",
+    confidence: 55,
+    sharps: 2,
+    currentPrice: 0.40,
+    sharpEntry: 0.389,
+    stake: 10,
+    hitRate: 0.6148,
+    sampleSize: 750,
+    relativeSize: 1.4,
+  });
+}
+
+function totalVisualPreviewTrade() {
+  return configuredVisualPreviewTrade({
+    id: "qa-trade-4",
+    startHour: 17,
+    startMinute: 30,
+    category: "Basketball",
+    league: "WNBA",
+    eventTitle: "New York Liberty vs. Las Vegas Aces",
+    marketTitle: "Game Total · Over 167.5",
+    marketType: "Game Total",
+    outcome: "Over 167.5",
+    confidence: 64,
+    sharps: 2,
+    currentPrice: 0.455,
+    sharpEntry: 0.46,
+    stake: 25,
+    hitRate: 0.6268,
+    sampleSize: 620,
+    relativeSize: 1.4,
+  });
+}
+
+function hockeyVisualPreviewTrade() {
+  return configuredVisualPreviewTrade({
+    id: "qa-trade-5",
+    startHour: 20,
+    startMinute: 10,
+    category: "Hockey",
+    league: "NHL",
+    eventTitle: "New York Rangers vs. Boston Bruins",
+    marketTitle: "Moneyline · New York Rangers",
+    marketType: "Moneyline",
+    outcome: "Rangers ML",
+    confidence: 53,
+    sharps: 2,
+    currentPrice: 0.525,
+    sharpEntry: 0.51,
+    stake: 10,
+    hitRate: 0.6388,
+    sampleSize: 490,
+    relativeSize: 1.4,
+  });
+}
+
 function stableTradeFilterKey(filters) {
   const copy = { ...filters };
   delete copy.sort;
@@ -2753,10 +3017,10 @@ function renderTradeDetail(trade) {
         <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
       </div>
     </details>
-    <footer class="mobile-trade-detail-actions">
+    ${trade.isVisualPreview ? "" : `<footer class="mobile-trade-detail-actions">
       <button type="button" data-mobile-detail-hide><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hide</span></button>
       <button type="button" data-mobile-detail-track><i class="ph ph-plus-circle" aria-hidden="true"></i><span>Track</span></button>
-    </footer>
+    </footer>`}
   `;
   panel.querySelectorAll("[data-mobile-detail-close]").forEach((button) => button.addEventListener("click", closeMobileTradeDetail));
   panel.querySelector("[data-mobile-detail-track]")?.addEventListener("click", () => openPersonalTracker(trade));
@@ -3188,21 +3452,32 @@ async function loadSizingBankroll() {
 function renderTradesPayload(payload, filters, list) {
   const previewEnabled = new URLSearchParams(window.location.search).get("preview") === "trade";
   const incomingTrades = previewEnabled
-    ? [visualPreviewTrade(), spreadVisualPreviewTrade(), ...(payload.data || [])]
+    ? [
+        totalVisualPreviewTrade(),
+        redsVisualPreviewTrade(),
+        yankeesVisualPreviewTrade(),
+        soccerVisualPreviewTrade(),
+        hockeyVisualPreviewTrade(),
+      ]
     : (payload.data || []);
-  const mergedTrades = mergeOfficialTrackedTrades(
-    incomingTrades,
-    payload.officialTracked || [],
+  const mergedTrades = (previewEnabled
+    ? incomingTrades
+    : mergeOfficialTrackedTrades(incomingTrades, payload.officialTracked || [])
   ).filter(tradePassesLiveSlippageGuard);
-  const sourceTrades = stabilizeTradeFeed(
-    mergedTrades,
-    filters,
-    payload.status || {},
-    payload.liveRejectedTradeIds || [],
-  );
+  const sourceTrades = previewEnabled
+    ? mergedTrades
+    : stabilizeTradeFeed(
+        mergedTrades,
+        filters,
+        payload.status || {},
+        payload.liveRejectedTradeIds || [],
+      );
   annotateExecutionMovements(sourceTrades);
   appState.trades = applyClientTradeFilters(sourceTrades, filters);
-  updateTradeSummary(payload, sourceTrades, appState.trades);
+  const summaryPayload = previewEnabled
+    ? { ...payload, pagination: { ...(payload.pagination || {}), total: sourceTrades.length } }
+    : payload;
+  updateTradeSummary(summaryPayload, sourceTrades, appState.trades);
   if (payload.bankroll) applySizingBankroll(payload.bankroll);
   updateGlobalStatus(payload.status);
   document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);

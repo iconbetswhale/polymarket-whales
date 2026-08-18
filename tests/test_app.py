@@ -514,14 +514,33 @@ def test_trades_javascript_gates_visual_preview_fixture_behind_query_parameter()
     assert "visualPreviewTrade()" not in load_trades
     assert "secondaryVisualPreviewTrade()" not in load_trades
     assert "spreadVisualPreviewTrade()" not in load_trades
+    assert "redsVisualPreviewTrade()" not in load_trades
+    assert "yankeesVisualPreviewTrade()" not in load_trades
+    assert "soccerVisualPreviewTrade()" not in load_trades
+    assert "totalVisualPreviewTrade()" not in load_trades
+    assert "hockeyVisualPreviewTrade()" not in load_trades
     render_payload = javascript.split("function renderTradesPayload", 1)[1].split(
         "async function loadTrades", 1
     )[0]
     assert 'get("preview") === "trade"' in render_payload
-    assert (
-        "[visualPreviewTrade(), spreadVisualPreviewTrade(), ...(payload.data || [])]"
-        in render_payload
-    )
+    assert "redsVisualPreviewTrade()" in render_payload
+    assert "yankeesVisualPreviewTrade()" in render_payload
+    assert "soccerVisualPreviewTrade()" in render_payload
+    assert "totalVisualPreviewTrade()" in render_payload
+    assert "hockeyVisualPreviewTrade()" in render_payload
+    assert "...(payload.data || [])" not in render_payload
+    assert "const sourceTrades = previewEnabled" in render_payload
+    assert "total: sourceTrades.length" in render_payload
+    for fixture_id in ("qa-trade-1", "qa-trade-2", "qa-trade-3", "qa-trade-4", "qa-trade-5"):
+        assert javascript.count(fixture_id) == 1
+    for title in (
+        "Cincinnati Reds vs. St. Louis Cardinals",
+        "New York Yankees vs. Boston Red Sox",
+        "Spain vs. France",
+        "New York Liberty vs. Las Vegas Aces",
+        "New York Rangers vs. Boston Bruins",
+    ):
+        assert title in javascript
 
 
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
