@@ -226,12 +226,12 @@ def qa_trades(now_utc: datetime | None = None) -> list[dict]:
     ]
 
 
-def build_app():
-    flask_app = app_module.create_app(start_background=False)
-    tracker = flask_app.extensions["tracker_service"]
-    now = datetime.now(timezone.utc)
+def qa_snapshot(now_utc: datetime | None = None) -> dict:
+    """Return a fresh five-trade snapshot so long-running visual QA stays populated."""
+
+    now = now_utc or datetime.now(timezone.utc)
     trades = qa_trades(now)
-    snapshot = {
+    return {
         "trades_to_play": trades,
         "trades": trades,
         "positions": trades,
@@ -242,7 +242,14 @@ def build_app():
         },
     }
 
-    tracker.get_snapshot = MethodType(lambda self: deepcopy(snapshot), tracker)
+
+def build_app():
+    flask_app = app_module.create_app(start_background=False)
+    tracker = flask_app.extensions["tracker_service"]
+    now = datetime.now(timezone.utc)
+    trades = qa_trades(now)
+
+    tracker.get_snapshot = MethodType(lambda self: deepcopy(qa_snapshot()), tracker)
     tracker.refresh = MethodType(lambda self: None, tracker)
 
     def evaluate(self, play, bankroll, **_kwargs):

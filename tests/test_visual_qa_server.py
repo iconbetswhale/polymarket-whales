@@ -8,6 +8,7 @@ from scripts.visual_qa_server import (
     QA_TIMEZONE,
     qa_event_time,
     qa_price_history,
+    qa_snapshot,
     qa_trades,
 )
 
@@ -48,6 +49,26 @@ def test_visual_qa_schedule_stays_future_and_same_day_late_at_night():
     assert len(set(starts)) == 5
     assert all(start > late_now for start in starts)
     assert all(start.date() == late_now.date() for start in starts)
+
+
+def test_visual_qa_snapshot_refreshes_all_five_placeholder_start_times():
+    first_now = datetime(2026, 8, 18, 15, 7, tzinfo=timezone.utc)
+    later_now = datetime(2026, 8, 18, 18, 7, tzinfo=timezone.utc)
+
+    first = qa_snapshot(first_now)
+    later = qa_snapshot(later_now)
+
+    assert len(first["trades_to_play"]) == 5
+    assert len(later["trades_to_play"]) == 5
+    assert first["status"]["last_successful_refresh"] == first_now.isoformat()
+    assert later["status"]["last_successful_refresh"] == later_now.isoformat()
+    assert [trade["id"] for trade in first["trades_to_play"]] == [
+        trade["id"] for trade in later["trades_to_play"]
+    ]
+    assert all(
+        datetime.fromisoformat(trade["event_date_et"]) > later_now.astimezone(QA_TIMEZONE)
+        for trade in later["trades_to_play"]
+    )
 
 
 @pytest.mark.parametrize(
