@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
+from math import pi, sin
 from pathlib import Path
 import os
 import sys
 from types import MethodType
+from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -15,10 +17,72 @@ from execution_providers import (
     POLYMARKET_LOGO_URL,
     PROPHETX_LOGO_URL,
 )
-from flask import redirect
+from flask import g, redirect, request
 from personal_tracker import personal_fill_snapshot
 from position_tracker import MODEL_TRACKER_USER_ID
 from sharp_tracking import sharp_snapshot_from_trade
+
+
+QA_TIMEZONE = ZoneInfo("America/New_York")
+QA_TRADE_COUNT = 5
+QA_HISTORY_START_OFFSETS = (-0.014, -0.018, -0.011, 0.021, -0.016)
+QA_TRADE_SPECS = (
+    {"sharps": 3, "score": 58, "entry": 0.42, "sharp_entry": 0.41},
+    {"sharps": 3, "score": 56, "entry": 0.507, "sharp_entry": 0.489},
+    {"sharps": 2, "score": 55, "entry": 0.40, "sharp_entry": 0.389},
+    {"sharps": 2, "score": 64, "entry": 0.455, "sharp_entry": 0.46},
+    {"sharps": 2, "score": 53, "entry": 0.525, "sharp_entry": 0.51},
+)
+
+
+def qa_event_time(index: int, now_et: datetime) -> datetime:
+    """Return a staggered, still-today start time for stable visual QA."""
+
+    natural_start = (now_et + timedelta(minutes=30)).replace(second=0, microsecond=0)
+    minute_remainder = natural_start.minute % 5
+    if minute_remainder:
+        natural_start += timedelta(minutes=5 - minute_remainder)
+    natural_candidate = natural_start + timedelta(minutes=25 * index)
+    day_end = now_et.replace(hour=23, minute=59, second=30, microsecond=0)
+    if natural_candidate <= day_end:
+        return natural_candidate
+
+    # Late-evening QA still needs five future rows in the default Today view.
+    # Evenly distribute the remaining window instead of rolling events tomorrow.
+    remaining_seconds = max((day_end - now_et).total_seconds(), 1.0)
+    return now_et + timedelta(
+        seconds=remaining_seconds * ((index + 1) / (QA_TRADE_COUNT + 1))
+    )
+
+
+def qa_price_history(
+    current_price: float,
+    *,
+    now: datetime,
+    variation_index: int,
+) -> list[dict]:
+    """Build a deterministic market-like series that ends at the live quote."""
+
+    start_offset = QA_HISTORY_START_OFFSETS[
+        variation_index % len(QA_HISTORY_START_OFFSETS)
+    ]
+    points = []
+    for point_index in range(25):
+        progress = point_index / 24
+        trend = start_offset * (1 - progress)
+        wave = sin(progress * 3 * pi) * sin(progress * pi) * 0.0018
+        price = min(max(current_price + trend + wave, 0.02), 0.98)
+        if point_index == 24:
+            price = current_price
+        points.append(
+            {
+                "t": int(
+                    (now - timedelta(minutes=15 * (24 - point_index))).timestamp()
+                ),
+                "p": f"{price:.4f}",
+            }
+        )
+    return points
 
 
 def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
@@ -52,15 +116,27 @@ def recommendation(entry: float, sharp_entry: float, fraction: float) -> dict:
     }
 
 
-def qa_trade(index: int, *, sharps: int, score: int, entry: float, sharp_entry: float) -> dict:
-    now = datetime.now(timezone.utc)
+def qa_trade(
+    index: int,
+    *,
+    sharps: int,
+    score: int,
+    entry: float,
+    sharp_entry: float,
+    now_utc: datetime | None = None,
+    now_et: datetime | None = None,
+) -> dict:
+    now = now_utc or datetime.now(timezone.utc)
+    local_now = now_et or now.astimezone(QA_TIMEZONE)
     categories = [
         ("Baseball", "MLB", "Cincinnati Reds vs St. Louis Cardinals", "Cincinnati Reds", "Moneyline"),
         ("Baseball", "MLB", "New York Yankees vs Boston Red Sox", "Yankees", "Moneyline"),
         ("Soccer", "FIFA World Cup", "Spain vs France", "Spain", "To Advance"),
         ("Basketball", "WNBA", "New York Liberty vs Las Vegas Aces", "Over 167.5", "Game Total"),
+        ("Hockey", "NHL", "New York Rangers vs Boston Bruins", "Rangers ML", "Moneyline"),
     ]
     category, league, event, outcome, market = categories[index % len(categories)]
+    event_time = qa_event_time(index, local_now)
     wallet_labels = ["Bagwell306", "FerrariChampions2026", "Weflyhigh"]
     supporters = []
     for wallet_index in range(sharps):
@@ -102,9 +178,10 @@ def qa_trade(index: int, *, sharps: int, score: int, entry: float, sharp_entry: 
         "category": category,
         "league": league,
         "sports_market_type": market.lower().replace(" ", "_"),
-        "event_date_et": (now + timedelta(minutes=45 + index * 15)).isoformat(),
-        "event_time_et": f"Today, {2 + index}:30 PM",
-        "resolution_time": (now + timedelta(minutes=45 + index * 15)).isoformat(),
+        # Keep all five visual-QA rows in the active Eastern-time "Today" view.
+        "event_date_et": event_time.isoformat(),
+        "event_time_et": f"Today, {event_time.strftime('%I:%M %p').lstrip('0')}",
+        "resolution_time": (event_time + timedelta(hours=3)).isoformat(),
         "market_url": "https://polymarket.com/",
         "clob_token_id": f"qa-token-{index + 1}",
         "market_open": True,
@@ -140,16 +217,20 @@ def qa_trade(index: int, *, sharps: int, score: int, entry: float, sharp_entry: 
     }
 
 
+def qa_trades(now_utc: datetime | None = None) -> list[dict]:
+    now = now_utc or datetime.now(timezone.utc)
+    now_et = now.astimezone(QA_TIMEZONE)
+    return [
+        qa_trade(index, now_utc=now, now_et=now_et, **spec)
+        for index, spec in enumerate(QA_TRADE_SPECS)
+    ]
+
+
 def build_app():
     flask_app = app_module.create_app(start_background=False)
     tracker = flask_app.extensions["tracker_service"]
     now = datetime.now(timezone.utc)
-    trades = [
-        qa_trade(0, sharps=3, score=58, entry=0.42, sharp_entry=0.41),
-        qa_trade(1, sharps=3, score=56, entry=0.507, sharp_entry=0.489),
-        qa_trade(2, sharps=2, score=55, entry=0.40, sharp_entry=0.389),
-        qa_trade(3, sharps=2, score=64, entry=0.455, sharp_entry=0.46),
-    ]
+    trades = qa_trades(now)
     snapshot = {
         "trades_to_play": trades,
         "trades": trades,
@@ -182,10 +263,23 @@ def build_app():
         }
 
     tracker.evaluate_recommendation = MethodType(evaluate, tracker)
-    tracker.client.get_price_history = lambda token_id, interval="1d", fidelity=15: [
-        {"t": int((now - timedelta(minutes=15 * step)).timestamp()), "p": str(0.31 + step * 0.002)}
-        for step in range(24, -1, -1)
-    ]
+    trade_prices = {
+        trade["clob_token_id"]: (
+            trade["_qa_recommendation"]["current_user_entry_price"],
+            index,
+        )
+        for index, trade in enumerate(trades)
+    }
+
+    def get_price_history(token_id, interval="1d", fidelity=15):
+        current_price, variation_index = trade_prices.get(token_id, (0.45, 0))
+        return qa_price_history(
+            current_price,
+            now=now,
+            variation_index=variation_index,
+        )
+
+    tracker.client.get_price_history = get_price_history
     tracker.client.get_order_books = lambda token_ids: {
         token_id: {
             "bids": [
@@ -270,49 +364,24 @@ def build_app():
         for index, row in enumerate(rows):
             recommendation_data = row.get("recommendation") or row["_qa_recommendation"]
             current = recommendation_data["current_user_entry_price"]
-            row["executionOptions"] = [
-                {
-                    "providerName": "Polymarket",
-                    "providerKey": "polymarket",
-                    "marketId": row["condition_id"],
-                    "selectionId": row["clob_token_id"],
-                    "displayOdds": f"{current * 100:.1f}¢",
-                    "americanOdds": None,
-                    "deepLink": row["market_url"],
-                    "logoUrl": POLYMARKET_LOGO_URL,
-                    "isAvailable": True,
-                    "lastUpdated": now.isoformat(),
-                    "matchingConfidence": "Exact",
-                    "tooltip": "Polymarket Current Best Price",
-                }
-            ]
-            if index in {0, 2}:
-                row["executionOptions"].append(
-                    {
-                        "providerName": "NoVIG",
-                        "providerKey": "novig",
-                        "marketId": f"novig-{index}",
-                        "selectionId": f"novig-selection-{index}",
-                        "displayOdds": "+108" if index == 0 else "-112",
-                        "americanOdds": 108 if index == 0 else -112,
-                        "deepLink": "https://novig.us/",
-                        "logoUrl": NOVIG_LOGO_URL,
-                        "isAvailable": True,
-                        "lastUpdated": now.isoformat(),
-                        "matchingConfidence": "Exact",
-                        "tooltip": "NoVIG Current Best Price",
-                    }
-                )
             providers = (
-                ("polymarket", "Polymarket", POLYMARKET_LOGO_URL, 0.435 if index == 0 else current + 0.012),
-                ("novig", "NoVIG", NOVIG_LOGO_URL, (100 / 233) if index == 0 else current - (0.012 if index != 1 else 0.003)),
-                ("prophetx", "ProphetX", PROPHETX_LOGO_URL, 0.445 if index == 0 else current + 0.006),
-                ("4cx", "4CX", "/static/assets/providers/4cx.png", 0.440 if index == 0 else current - (0.004 if index == 1 else 0.001)),
-                ("kalshi", "Kalshi", "/static/assets/providers/kalshi.png", 0.43708 if index == 0 else current + 0.003),
+                ("polymarket", "Polymarket", POLYMARKET_LOGO_URL, 0.435 if index == 0 else current + 0.012, 5400),
+                ("novig", "NoVIG", NOVIG_LOGO_URL, (100 / 233) if index == 0 else current - (0.012 if index != 1 else 0.003), 3800),
+                ("prophetx", "ProphetX", PROPHETX_LOGO_URL, 0.445 if index == 0 else current + 0.006, 2700),
+                ("4cx", "4CX", "/static/assets/providers/4cx.png", 0.440 if index == 0 else current - (0.004 if index == 1 else 0.001), 4600),
+                ("kalshi", "Kalshi", "/static/assets/providers/kalshi.png", 0.43708 if index == 0 else current + 0.003, 2200),
             )
             row["executionOptions"] = []
-            for provider_key, provider_name, logo_url, price in providers:
+            for provider_index, (
+                provider_key,
+                provider_name,
+                logo_url,
+                price,
+                base_liquidity,
+            ) in enumerate(providers):
                 price = min(max(price, 0.02), 0.98)
+                quote_age = 4 + provider_index * 4 + index
+                quote_time = now - timedelta(seconds=quote_age)
                 american_odds = None
                 if provider_key not in {"polymarket", "kalshi"}:
                     american_odds = round(
@@ -338,7 +407,7 @@ def build_app():
                         "selectionId": f"{provider_key}-selection-{index}",
                         "displayOdds": f"{price * 100:.1f}¢",
                         "bestExecutablePrice": price,
-                        "availableLiquidity": 1200 + index * 850,
+                        "availableLiquidity": base_liquidity + index * 125,
                         "feeRate": 0.0,
                         "deepLink": f"https://{provider_key}.com/",
                         "directMarketUrl": f"https://{provider_key}.com/markets/{index}",
@@ -348,8 +417,9 @@ def build_app():
                         "isStale": False,
                         "marketStatus": "OPEN",
                         "canFillRecommendedStake": True,
-                        "lastUpdated": now.isoformat(),
-                        "quoteTimestamp": now.isoformat(),
+                        "lastUpdated": quote_time.isoformat(),
+                        "quoteTimestamp": quote_time.isoformat(),
+                        "quoteAgeSeconds": quote_age,
                         "matchingConfidence": "Exact",
                         "tooltip": f"{provider_name} current executable price",
                     }
@@ -372,13 +442,13 @@ def build_app():
     registry.attach_options = attach_options
 
     qa_user = "visual-qa-user"
-    clv_values = (25.3644314869, -8.0, 6.25, None)
+    clv_values = (25.3644314869, -8.0, 6.25, None, None)
     for index, trade in enumerate(trades):
         fill = personal_fill_snapshot(
             trade,
             fill_id=f"workspace-qa-fill-{index}",
-            entry_price=(0.40, 0.65, 0.45, 0.70)[index],
-            shares=(100, 60, 80, 40)[index],
+            entry_price=(0.40, 0.65, 0.45, 0.70, 0.52)[index],
+            shares=(100, 60, 80, 40, 50)[index],
             fees=1,
             sportsbook="Polymarket",
         )
@@ -516,8 +586,12 @@ def build_app():
 
     @flask_app.route("/qa/session")
     def qa_session():
+        user_id = request.args.get("user") or qa_user
+        g.iconbets_user_id = user_id
+        g.iconbets_new_user = False
         response = redirect("/trades")
-        response.set_cookie("iconbets_user", qa_user)
+        response.set_cookie("iconbets_user", user_id)
+        response.delete_cookie(app_module.AUTH_SESSION_COOKIE)
         return response
 
     return flask_app

@@ -64,7 +64,8 @@ const LINE_SHOP_REFRESH_MS = Math.max(2000, (number(document.body.dataset.lineSh
 const AUTO_REFRESH_MS = page === "trades" ? LINE_SHOP_REFRESH_MS : 15000;
 const appState = {
   paused: safeStorage.getItem("iconbets-refresh-paused") === "true",
-  selectedTradeId: null,
+  selectedTradeId: new URLSearchParams(window.location.search).get("selected") || null,
+  mobileTradeDetailReturnFocus: null,
   trades: [],
   pageNumber: 1,
   graphRange: "month",
@@ -214,6 +215,30 @@ function formatShares(value) {
   }).format(parsed);
 }
 
+function formatDecisionMoney(value) {
+  const parsed = number(value);
+  if (parsed === null) return "N/A";
+  return formatMoney(parsed, Number.isInteger(parsed) ? 0 : 2);
+}
+
+const TRADE_METRIC_TOOLTIPS = Object.freeze({
+  confidence: "Confidence score on the calibrated 0–100 opportunity scale.",
+  sharps: "Number of qualified sharp traders currently aligned with this side.",
+  relativeSize: "Average trade size relative to this trader's typical position.",
+  hitRate: "Adjusted historical hit rate for this trader in the relevant category.",
+  freshness: "Time since this executable quote was last verified.",
+  entryEdge: "Difference between the current executable entry and the sharp trader's entry.",
+  liquidity: "Estimated available liquidity at this price.",
+  shares: "Estimated shares purchased at the recommended stake and executable price.",
+  topCategory: "The category where this trader has the strongest verified history.",
+  sharpBetSize: "Total tracked sharp exposure currently aligned with this side.",
+  settledSample: "Number of settled trades used for the displayed performance sample.",
+});
+
+function tooltipTriggerMarkup(content, tooltip, ariaLabel, className = "") {
+  return `<span class="il-tooltip-trigger ${escapeHtml(className)}" tabindex="0" role="button" aria-expanded="false" aria-label="${escapeHtml(ariaLabel)}" data-il-tooltip="${escapeHtml(tooltip)}">${content}</span>`;
+}
+
 function humanizeMarketType(value) {
   if (!value) return "Market";
   return String(value)
@@ -232,18 +257,6 @@ function tradePlayLabel(trade = {}) {
     return `${selection} ${line > 0 ? "+" : ""}${line}`;
   }
   return selection;
-}
-
-function sportIcon(category) {
-  const icons = {
-    baseball: "ph-baseball",
-    basketball: "ph-basketball",
-    football: "ph-football",
-    hockey: "ph-hockey",
-    soccer: "ph-soccer-ball",
-    tennis: "ph-tennis-ball",
-  };
-  return icons[String(category || "").toLowerCase()] || "ph-trophy";
 }
 
 function tradeMetricChip(icon, value, tooltip, tone = "") {
@@ -418,25 +431,33 @@ function upcomingPreviewStart(hour, minute = 0) {
 
 function updateTradeSummary(payload = {}, sourceTrades = [], qualifiedTrades = []) {
   const exactProviders = new Set();
-  let mappingWarnings = 0;
   let recommendedExposure = 0;
   sourceTrades.forEach((trade) => {
     const options = trade.executionOptions || [];
     const exactAvailable = options.filter((option) => option.matchingConfidence === "Exact" && option.isAvailable);
     exactAvailable.forEach((option) => exactProviders.add(String(option.providerKey || "").toLowerCase()));
-    if (!exactAvailable.length || options.some((option) => option.matchingConfidence && option.matchingConfidence !== "Exact")) mappingWarnings += 1;
   });
+  const projectedEdges = [];
+  const sharpHitRates = [];
   qualifiedTrades.forEach((trade) => {
     recommendedExposure += number(trade.card?.recommended_amount ?? trade.recommendation?.recommended_amount) || 0;
+    const projectedEdge = number(trade.recommendation?.calculated_edge ?? trade.calculated_edge);
+    const hitRate = number(trade.card?.category_hit_rate ?? trade.primary_trader?.adjusted_hit_rate);
+    if (projectedEdge !== null) projectedEdges.push(projectedEdge);
+    if (hitRate !== null) sharpHitRates.push(hitRate);
   });
+  const average = (values) => values.length
+    ? values.reduce((total, value) => total + value, 0) / values.length
+    : null;
+  const averageProjectedEdge = average(projectedEdges);
+  const averageSharpHitRate = average(sharpHitRates);
 
   const scanned = payload.pagination?.total ?? sourceTrades.length;
   const values = {
     "trade-summary-qualified": String(qualifiedTrades.length),
-    "trade-summary-scanned": Number(scanned || 0).toLocaleString(),
-    "trade-summary-providers": String(exactProviders.size),
-    "trade-summary-exposure": formatMoney(recommendedExposure),
-    "trade-summary-warnings": String(mappingWarnings),
+    "trade-summary-edge": averageProjectedEdge === null ? "—" : formatPercent(averageProjectedEdge, 1),
+    "trade-summary-hit-rate": averageSharpHitRate === null ? "—" : formatPercent(averageSharpHitRate, 1),
+    "trade-summary-exposure": formatDecisionMoney(recommendedExposure),
     "trade-activity-scan": formatDateTime(payload.status?.last_successful_refresh, "Checking"),
     "trade-activity-markets": Number(scanned || 0).toLocaleString(),
     "trade-activity-qualified": String(qualifiedTrades.length),
@@ -446,7 +467,6 @@ function updateTradeSummary(payload = {}, sourceTrades = [], qualifiedTrades = [
     const element = document.getElementById(id);
     if (element) element.textContent = value;
   });
-  document.getElementById("trade-summary-warnings")?.setAttribute("data-warning", String(mappingWarnings > 0));
 }
 
 function tradeModelActivityPanel(payload = {}, sourceTrades = [], qualifiedTrades = []) {
@@ -537,6 +557,21 @@ function setOptions(select, values, label) {
     .map((value) => `<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`)
     .join("");
   select.value = unique.includes(selected) ? selected : "";
+}
+
+function setTradeMarketOptions(select, trades = []) {
+  if (!select) return;
+  const selected = select.value;
+  const markets = [...new Map(trades
+    .map((trade) => String(trade.sports_market_type || "").trim())
+    .filter(Boolean)
+    .map((market) => [market.toLowerCase(), market]))
+    .values()]
+    .sort((left, right) => humanizeMarketType(left).localeCompare(humanizeMarketType(right)));
+  select.innerHTML = '<option value="">All Markets</option>' + markets
+    .map((market) => `<option value="${escapeHtml(market)}">${escapeHtml(humanizeMarketType(market))}</option>`)
+    .join("");
+  select.value = markets.find((market) => market.toLowerCase() === selected.toLowerCase()) || "";
 }
 
 function updateGlobalStatus(status = {}) {
@@ -848,6 +883,10 @@ function confidenceClass(score) {
   return "watch";
 }
 
+function tradeConfidenceTone(score) {
+  return Number(score || 0) >= 55 ? "confidence-positive" : "confidence-warning";
+}
+
 function previewTradeCard(trade) {
   return `
     <a class="preview-trade" href="/trades?selected=${encodeURIComponent(trade.id)}">
@@ -891,6 +930,7 @@ function tradeFiltersFromUrl() {
     min_sharps: params.get("min_sharps") || "0",
     min_confidence: params.get("min_confidence") || "0",
     sport: params.get("sport") || "",
+    market: params.get("market") || "",
     league: params.get("league") || "",
     wallet: params.get("wallet") || "",
     classification: params.get("classification") || "",
@@ -917,6 +957,7 @@ function applyTradeFiltersToControls(filters) {
     "trade-sharps": "min_sharps",
     "trade-confidence": "min_confidence",
     "trade-sport": "sport",
+    "trade-market": "market",
     "trade-league": "league",
     "trade-wallet": "wallet",
     "trade-classification": "classification",
@@ -1009,6 +1050,7 @@ function updateActiveFilterCount() {
     document.getElementById("trade-sharps")?.value !== "0",
     document.getElementById("trade-confidence")?.value !== "0",
     Boolean(document.getElementById("trade-sport")?.value),
+    Boolean(document.getElementById("trade-market")?.value),
     Boolean(document.getElementById("trade-league")?.value),
     Boolean(document.getElementById("trade-wallet")?.value),
     Boolean(document.getElementById("trade-classification")?.value),
@@ -1034,6 +1076,7 @@ function readTradeControls() {
     min_sharps: document.getElementById("trade-sharps").value,
     min_confidence: document.getElementById("trade-confidence").value,
     sport: document.getElementById("trade-sport").value,
+    market: document.getElementById("trade-market").value,
     league: document.getElementById("trade-league").value,
     wallet: document.getElementById("trade-wallet").value,
     classification: document.getElementById("trade-classification").value,
@@ -1106,14 +1149,16 @@ function annotateExecutionMovements(trades) {
   appState.executionOdds = nextOdds;
 }
 
+const POLYMARKET_LOGO_URL = "/static/assets/sportsbooks/polymarket.png";
+
 const EXECUTION_PROVIDER_META = {
   polymarket: {
     name: "Polymarket",
-    logoUrl: "https://polymarket.com/icons/favicon-32x32.png",
+    logoUrl: POLYMARKET_LOGO_URL,
   },
   novig: {
     name: "NoVIG",
-    logoUrl: "https://cdn.prod.website-files.com/642ae772b9f3360398a9d449/6436d7c4d343f31dbf62d683_favicon.png",
+    logoUrl: "/static/assets/providers/novig.png",
   },
   prophetx: {
     name: "ProphetX",
@@ -1413,23 +1458,30 @@ function executionComparisonLadder(trade) {
   return `
     <section class="exchange-comparison-card">
       <div class="section-label">
-        <span><i class="ph ph-scales" aria-hidden="true"></i>Exchange line shop</span>
-        <small>All-in price for this bet size</small>
+        <span>Best available prices</span>
       </div>
       <div class="exchange-comparison-list">
+        <div class="exchange-comparison-head" aria-hidden="true">
+          <span>#</span><span>Provider</span><span>Price</span><span>Liquidity</span><span>Status</span>
+        </div>
         ${options.map((option, index) => {
           const meta = executionProviderMeta(option);
           const key = canonicalExecutionProviderKey(option.providerKey);
           const isBest = key === bestKey && option.isAvailable === true;
+          const liquidity = number(option.availableLiquidity);
+          const executionState = isBest ? "Best executable price" : (option.isAvailable ? "Executable at this stake" : "Currently unavailable");
+          const statusIcon = option.isAvailable ? "ph-check-circle" : "ph-minus-circle";
+          const price = executionComparisonPrice(option);
+          const liquidityLabel = liquidity === null ? "—" : formatCompactMoney(liquidity);
           const body = `
-            <span class="exchange-rank">${isBest ? '<i class="ph ph-crown" aria-hidden="true"></i>' : index + 1}</span>
-            ${providerLogoMarkup({ name: meta.name, logoUrl: meta.logoUrl }, meta.name)}
-            <span class="exchange-provider-copy"><strong>${escapeHtml(meta.name)}</strong><small>${escapeHtml(executionComparisonDetail(option))}</small></span>
-            <span class="exchange-price-copy"><strong>${escapeHtml(executionComparisonPrice(option))}</strong><small>${isBest ? "Best executable" : (option.isAvailable ? "Executable" : "Unavailable")}</small></span>
-            <i class="ph ph-arrow-up-right exchange-open-icon" aria-hidden="true"></i>
+            <span class="exchange-rank">${index + 1}</span>
+            <span class="exchange-provider-copy">${providerLogoMarkup({ name: meta.name, logoUrl: meta.logoUrl }, meta.name)}<strong>${escapeHtml(meta.name)}</strong>${isBest ? "<em>Best</em>" : ""}</span>
+            <span class="exchange-price-copy"><strong>${escapeHtml(price)}</strong></span>
+            <span class="exchange-liquidity" title="${escapeHtml(TRADE_METRIC_TOOLTIPS.liquidity)}">${escapeHtml(liquidityLabel)}</span>
+            <span class="exchange-executable ${option.isAvailable ? "is-executable" : "is-unavailable"}" aria-label="${escapeHtml(executionState)}" title="${escapeHtml(executionState)}"><i class="ph ${statusIcon}" aria-hidden="true"></i></span>
           `;
           return option.isAvailable && option.deepLink
-            ? `<a class="exchange-comparison-row exchange-comparison-row--${escapeHtml(key)} ${isBest ? "is-best" : ""}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer">${body}</a>`
+            ? `<a class="exchange-comparison-row exchange-comparison-row--${escapeHtml(key)} ${isBest ? "is-best" : ""}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${meta.name} ${price}; liquidity ${liquidityLabel}; ${executionState}`)}">${body}</a>`
             : `<div class="exchange-comparison-row exchange-comparison-row--${escapeHtml(key)} is-unavailable">${body}</div>`;
         }).join("")}
       </div>
@@ -1437,7 +1489,7 @@ function executionComparisonLadder(trade) {
   `;
 }
 
-function executionOptionButton(trade, rawOption) {
+function executableQuoteChip(trade, rawOption, { className = "" } = {}) {
   const option = normalizeExecutionOption(rawOption);
   if (option.matchingConfidence !== "Exact") return "";
   const meta = executionProviderMeta(option);
@@ -1448,7 +1500,7 @@ function executionOptionButton(trade, rawOption) {
   const movement = option.priceMovement || "";
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
   const bestClass = option.isBestPrice ? " best-execution-price" : "";
-  const classes = `execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement}`.trim();
+  const classes = `executable-quote-chip execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement} ${className}`.trim();
   const age = number(option.quoteAgeSeconds);
   const details = [
     `Top ${nativeOdds || "Unavailable"}`,
@@ -1469,10 +1521,12 @@ function executionOptionButton(trade, rawOption) {
   const content = `
     ${providerMark}
     <span class="execution-option-copy"><strong>${escapeHtml(displayOdds)}</strong></span>
+    <span class="sr-only">${escapeHtml(providerName)}</span>
     <span class="execution-option-tooltip" role="tooltip">${escapeHtml(tooltip)}</span>
   `;
   if (!option.isAvailable || !option.deepLink || aboveMaximum) {
-    return `<button class="${escapeHtml(classes)} ${aboveMaximum ? "above-maximum" : ""}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(aboveMaximum ? "Above maximum approved price" : `${providerName} is unavailable`)}">${content}${aboveMaximum ? '<em>Above maximum approved price</em>' : ""}</button>`;
+    const unavailableReason = aboveMaximum ? "Above maximum approved price" : `${providerName} is unavailable`;
+    return `<button class="${escapeHtml(classes)} ${aboveMaximum ? "above-maximum" : ""}" type="button" disabled aria-disabled="true" aria-label="${escapeHtml(unavailableReason)}" title="${escapeHtml(unavailableReason)}">${content}</button>`;
   }
   return `
     <a class="${escapeHtml(classes)}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" data-execution-trade-id="${escapeHtml(trade.id)}" aria-label="Open ${escapeHtml(trade.outcome)} on ${escapeHtml(providerName)} at ${escapeHtml(displayOdds)}">
@@ -1487,7 +1541,7 @@ function executionToolbar(trade) {
   }
   const best = bestExecutionOption(trade);
   if (best) {
-    return `<span class="execution-toolbar execution-toolbar--best" aria-label="Best line-shopped exchange price"><span class="execution-options-scroll">${executionOptionButton(trade, { ...best, isBestPrice: true })}</span>${executionVenueStack(trade, best)}</span>`;
+    return `<span class="execution-toolbar execution-toolbar--best" aria-label="Best line-shopped exchange price"><span class="execution-options-scroll">${executionOptionButton(trade, { ...best, isBestPrice: true })}</span></span>`;
   }
   return `<span class="execution-toolbar execution-toolbar--empty"><span class="execution-empty-quote"><i class="ph ph-clock" aria-hidden="true"></i><span><small>Best price</small><strong>Checking exchanges</strong></span></span></span>`;
 }
@@ -1991,6 +2045,10 @@ function applyClientTradeFilters(trades, filters) {
   const filtered = trades.filter((trade) => {
     const recommendation = trade.recommendation || {};
     const card = trade.card || {};
+    if (
+      filters.market
+      && String(trade.sports_market_type || "").toLowerCase() !== String(filters.market).toLowerCase()
+    ) return false;
     const recommendedAmount = number(card.recommended_amount ?? recommendation.recommended_amount) || 0;
     if (recommendedAmount < minimumBet) return false;
     if (filters.execution) {
@@ -2044,6 +2102,8 @@ function syncTradeRows(list, trades) {
     } else {
       const selected = trade.id === appState.selectedTradeId;
       card.classList.toggle("selected", selected);
+      card.classList.toggle("is-selected", selected);
+      card.dataset.selected = String(selected);
       card.setAttribute("aria-pressed", String(selected));
     }
     fragment.append(card);
@@ -2053,12 +2113,14 @@ function syncTradeRows(list, trades) {
 }
 
 function recommendedBetMarkup(amount, units, shares, variant = "") {
-  return `
-    <span class="trade-bet-size ${variant}">
-      <strong>${escapeHtml(formatOptionalMoney(amount))}</strong>
-      <em>${escapeHtml(formatShares(shares))} shares</em>
-    </span>
-  `;
+  const displayAmount = formatDecisionMoney(amount);
+  const displayShares = formatShares(shares);
+  return tooltipTriggerMarkup(
+    `<small>Stake</small><strong>${escapeHtml(displayAmount)}</strong>`,
+    `${TRADE_METRIC_TOOLTIPS.shares} ${displayShares} shares at this quote.`,
+    `Recommended stake ${displayAmount}; estimated ${displayShares} shares`,
+    `trade-bet-size ${variant}`.trim(),
+  );
 }
 
 function tradeCard(trade) {
@@ -2086,40 +2148,58 @@ function tradeCard(trade) {
       .filter(Boolean)
       .map((label) => [String(label).trim().toLowerCase(), String(label).trim()])
   ).values()].join(" · ") || "Sports";
-  const amountTooltip = number(betAmount) === null
-    ? "Trader active exposure unavailable"
-    : `Trader active exposure: ${formatMoney(betAmount)}`;
-  const relativeTooltip = number(relativeSize) === null
-    ? "Relative bet size unavailable"
-    : `${formatRelativeSize(relativeSize)} the trader's normal position size`;
-  const hitRateText = number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 2);
+  const hitRateText = number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 1);
+  const bestExecution = bestExecutionOption(trade);
+  const quoteAge = number(bestExecution?.quoteAgeSeconds);
+  const freshnessText = quoteAge === null
+    ? "Now"
+    : quoteAge < 10
+      ? "Now"
+      : quoteAge < 60
+        ? `${Math.round(quoteAge)}s`
+        : `${Math.max(1, Math.round(quoteAge / 60))}m`;
+  const sharpCount = Number(trade.agreeing_wallet_count) || 0;
+  const signalText = `${sharpCount} sharp${sharpCount === 1 ? "" : "s"} · ${formatRelativeSize(relativeSize).replace("x", "×")} size · ${hitRateText} hit`;
+  const slippageText = !slippage
+    ? "Entry comparison pending"
+    : slippage.tone === "same"
+      ? "At sharp entry"
+      : `${Math.abs(slippage.percent).toFixed(1)}% ${slippage.tone} than sharp entry`;
+  const confidenceValue = Math.max(0, Math.min(100, number(trade.confidence_score) || 0));
   return `
-    <article class="trade-card ${selected ? "selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""} ${trade.isVisualPreview ? "visual-preview-trade" : ""}" role="button" tabindex="0" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" aria-pressed="${selected}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
-      <span class="trade-identity">
-        <span class="trade-score-cluster"><span class="trade-score ${confidenceClass(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong></span>${personalExposureWarning(trade)}${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}</span>
-        <span class="trade-event-copy">
-          <span class="trade-kicker"><i class="ph ${sportIcon(trade.category)}" aria-hidden="true"></i>${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
-          <span class="research-badges">${researchBadges(trade)}${trade.hasContradictingSharps ? `<small>${trade.rawAgreeingSharpCount || 0} For / ${trade.rawContradictingSharpCount || 0} Against</small>` : ""}</span>
-          <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
-          <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))}</span>
-        </span>
+    <article class="trade-card ${selected ? "selected is-selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""} ${trade.isVisualPreview ? "visual-preview-trade" : ""}" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" data-selected="${selected}" aria-current="${selected ? "true" : "false"}" aria-label="${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
+      <span class="trade-score-cluster">
+        ${tooltipTriggerMarkup(
+          `<strong>${escapeHtml(trade.confidence_score)}</strong>`,
+          TRADE_METRIC_TOOLTIPS.confidence,
+          `Confidence ${trade.confidence_score} out of 100`,
+          `trade-score ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}`,
+        )}
+        <small class="trade-score-label">Confidence</small>
+        <span class="trade-confidence-indicator ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}" aria-hidden="true"><i style="width:${confidenceValue}%"></i></span>
+        ${personalExposureWarning(trade)}
+        ${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}
       </span>
-      <span class="trade-decision">
-        <span class="trade-metrics-row">
-          ${tradeMetricChip("ph-calendar-blank", eventClock, "Scheduled event start in Eastern Time", "time")}
-          ${tradeMetricChip("ph-bag", formatOptionalMoney(betAmount, true), amountTooltip)}
-          ${tradeMetricChip("ph-ticket", formatOptionalCents(traderEntry), "Tracked Sharp average entry price")}
-          ${slippageMetricChip(slippage)}
-          ${tradeMetricChip("ph-cloud", formatRelativeSize(relativeSize), relativeTooltip)}
-          ${tradeMetricChip("ph-target", hitRateText, "Adjusted trader hit rate in this category")}
-        </span>
-        <span class="trade-selection">
-          <span class="trade-pick"><strong>${escapeHtml(tradePlayLabel(trade))}</strong></span>
-          ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
-          ${executionToolbar(trade)}
-        </span>
+      <span class="trade-event-copy">
+        <span class="trade-kicker">${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
+        <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
+        <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))}<i aria-hidden="true"></i>${escapeHtml(eventClock)}</span>
+        <span class="trade-signal-summary" title="${escapeHtml(`${TRADE_METRIC_TOOLTIPS.sharps} ${TRADE_METRIC_TOOLTIPS.relativeSize} ${TRADE_METRIC_TOOLTIPS.hitRate}`)}">${escapeHtml(signalText)}</span>
       </span>
-      <i class="ph ph-caret-right trade-caret" aria-hidden="true"></i>
+      <span class="trade-selection">
+        <span class="trade-pick"><strong>${escapeHtml(tradePlayLabel(trade))}</strong>${tooltipTriggerMarkup(
+          escapeHtml(slippageText),
+          TRADE_METRIC_TOOLTIPS.entryEdge,
+          slippage ? `Entry edge ${slippage.formatted}` : "Entry edge pending",
+          `trade-edge ${slippage?.tone || ""}`.trim(),
+        )}</span>
+      </span>
+      <span class="trade-execution-summary">
+        ${executionToolbar(trade)}
+        <small class="quote-freshness" title="${escapeHtml(TRADE_METRIC_TOOLTIPS.freshness)}">${escapeHtml(freshnessText)}</small>
+      </span>
+      ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
+      <button class="trade-view-action" type="button" data-trade-view="${escapeHtml(trade.id)}" aria-label="View ${escapeHtml(trade.event_title || trade.market_title)} details">View <span aria-hidden="true">→</span></button>
     </article>
   `;
 }
@@ -2439,7 +2519,7 @@ function executionRiskDetails(recommendation) {
     ["Risk state", state.state || "Unavailable"],
     ["Drawdown", formatPercent(state.drawdown_fraction)],
   ];
-  return `<details class="detail-accordion execution-risk-panel" open><summary><span><i class="ph ph-shield-check" aria-hidden="true"></i>Execution and portfolio risk</span><small>${escapeHtml(execution.recommended_execution_method || "Unavailable")}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><p class="calculation-note">${escapeHtml(execution.execution_explanation || "A verified execution plan is unavailable.")}</p></details>`;
+  return `<details class="detail-accordion execution-risk-panel"><summary><span><i class="ph ph-shield-check" aria-hidden="true"></i>Execution and portfolio risk</span><small>${escapeHtml(execution.recommended_execution_method || "Unavailable")}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid">${rows.map(([label, value]) => `<div><span>${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong></div>`).join("")}</div><p class="calculation-note">${escapeHtml(execution.execution_explanation || "A verified execution plan is unavailable.")}</p></details>`;
 }
 
 function completionTradeDetails(trade, recommendation) {
@@ -2513,8 +2593,13 @@ function supportersMarkup(trade) {
   }).join("");
 }
 
-function detailStripMetric(icon, value, label, tone = "") {
-  return `<span class="detail-strip-metric ${tone}"><i class="ph ${icon}" aria-hidden="true"></i><span><strong>${escapeHtml(value)}</strong><small>${escapeHtml(label)}</small></span></span>`;
+function detailStripMetric(value, label, tooltip, tone = "") {
+  return tooltipTriggerMarkup(
+    `<strong>${escapeHtml(value)}</strong><small>${escapeHtml(label)}</small>`,
+    tooltip,
+    `${label}: ${value}`,
+    `detail-strip-metric ${tone}`.trim(),
+  );
 }
 
 function tradeOrderBook(trade) {
@@ -2547,24 +2632,41 @@ function tradeOrderBook(trade) {
 function detailSelectionPanel(trade) {
   const recommendation = trade.recommendation || {};
   const card = trade.card || {};
+  const best = bestExecutionOption(trade);
+  const meta = best ? executionProviderMeta(best) : { name: "Checking market", logoUrl: "" };
+  const price = best ? executionComparisonPrice(best) : formatOptionalCents(card.current_actionable_price ?? recommendation.current_user_entry_price);
+  const amount = card.recommended_amount ?? recommendation.recommended_amount;
+  const shares = card.recommended_shares ?? recommendation.recommended_shares;
+  const amountLabel = formatDecisionMoney(amount);
+  const sharesLabel = formatShares(shares);
+  const quote = best
+    ? executableQuoteChip(trade, { ...best, isBestPrice: true }, { className: "execution-summary-quote" })
+    : '<span class="executable-quote-chip execution-summary-quote is-unavailable"><strong>Checking</strong><span class="sr-only">Executable quote unavailable</span></span>';
   return `
-    <section class="detail-selection-panel">
-      <span class="detail-selection-copy"><strong>${escapeHtml(trade.outcome)}</strong></span>
-      ${recommendedBetMarkup(
-        card.recommended_amount ?? recommendation.recommended_amount,
-        card.recommended_units ?? recommendation.recommended_units,
-        card.recommended_shares ?? recommendation.recommended_shares,
-        "detail-bet-size",
-      )}
-      ${executionToolbar(trade)}
+    <section class="detail-selection-panel" aria-labelledby="execution-brief-title">
+      <h3 id="execution-brief-title">Execution</h3>
+      <div class="execution-summary" aria-label="${escapeHtml(`${tradePlayLabel(trade)} on ${meta.name} at ${price} for ${amountLabel}`)}">
+        <strong class="execution-summary-action">${escapeHtml(tradePlayLabel(trade))}</strong>
+        ${quote}
+        ${tooltipTriggerMarkup(
+          `<small>Stake</small><strong>${escapeHtml(amountLabel)}</strong>`,
+          `${TRADE_METRIC_TOOLTIPS.shares} ${sharesLabel} shares at this quote.`,
+          `Recommended stake ${amountLabel}; estimated ${sharesLabel} shares`,
+          "execution-summary-stake",
+        )}
+      </div>
     </section>
   `;
+}
+
+function executionOptionButton(trade, rawOption) {
+  return executableQuoteChip(trade, rawOption);
 }
 
 function contradictorsMarkup(trade) {
   const wallets = trade.contradicting_wallets || [];
   if (!wallets.length) return "";
-  return `<details class="detail-accordion research-opposition" open><summary><span><i class="ph ph-warning" aria-hidden="true"></i>Contradicting Sharps</span><small>${formatMoney(trade.contradictingExposureDollars || 0)} opposing exposure</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="supporter-list">${wallets.map((wallet) => `<div class="supporter-row"><span><strong>${escapeHtml(wallet.wallet_label || wallet.wallet_address)}</strong><small>${escapeHtml(wallet.opposing_selection || "Opposing selection")} / ${escapeHtml(wallet.top_category || "Category unavailable")}</small></span><span><strong>${formatMoney(wallet.amount)}</strong><small>${formatUnits(wallet.relative_units)} / ${formatOptionalCents(wallet.average_entry_price)}</small></span></div>`).join("")}</div></details>`;
+  return `<details class="detail-accordion research-opposition"><summary><span><i class="ph ph-warning" aria-hidden="true"></i>Contradicting Sharps</span><small>${formatMoney(trade.contradictingExposureDollars || 0)} opposing exposure</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="supporter-list">${wallets.map((wallet) => `<div class="supporter-row"><span><strong>${escapeHtml(wallet.wallet_label || wallet.wallet_address)}</strong><small>${escapeHtml(wallet.opposing_selection || "Opposing selection")} / ${escapeHtml(wallet.top_category || "Category unavailable")}</small></span><span><strong>${formatMoney(wallet.amount)}</strong><small>${formatUnits(wallet.relative_units)} / ${formatOptionalCents(wallet.average_entry_price)}</small></span></div>`).join("")}</div></details>`;
 }
 
 function renderTradeDetail(trade) {
@@ -2580,20 +2682,29 @@ function renderTradeDetail(trade) {
   const slippageTone = slippage?.tone === "better" ? "positive" : slippage?.tone === "worse" ? "negative" : "";
   const categoryHitRate = card.category_hit_rate ?? primary.adjusted_hit_rate;
   const currentPrice = card.current_actionable_price ?? recommendation.current_user_entry_price;
-  const selectedExecution = bestExecutionOption(trade);
-  const executableEntryLabel = selectedExecution
-    ? executionComparisonPrice(selectedExecution)
-    : formatOptionalCents(currentPrice);
+  const traderPrice = number(slippage?.whalePrice);
+  const executablePrice = number(currentPrice);
+  const priceDelta = traderPrice !== null && executablePrice !== null ? executablePrice - traderPrice : null;
+  const priceDeltaTone = priceDelta === null || Math.abs(priceDelta) < 0.0001 ? "neutral" : priceDelta < 0 ? "positive" : "negative";
+  const priceDeltaLabel = priceDelta === null
+    ? "Change unavailable"
+    : Math.abs(priceDelta) < 0.0001
+      ? "No change vs trader"
+      : `${priceDelta < 0 ? "↓" : "↑"}${formatCents(Math.abs(priceDelta))} vs trader`;
+  const chartSummary = `Trader entry ${formatOptionalCents(traderPrice)}. Current executable ${formatOptionalCents(executablePrice)}. ${priceDeltaLabel}.`;
+  const priceReferences = [
+    { value: number(slippage?.whalePrice), tone: "trader", label: "Trader" },
+    { value: number(currentPrice), tone: "current", label: "Current" },
+  ].filter((reference) => reference.value !== null);
   panel.innerHTML = `
     <div class="mobile-detail-sheet-header">
       <span aria-hidden="true"></span>
       <button type="button" data-mobile-detail-close aria-label="Close selected trade details"><i class="ph ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="detail-header">
-      <span class="score-badge large ${confidenceClass(trade.confidence_score)}">${escapeHtml(trade.confidence_score)}</span>
+      <span class="detail-confidence ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>
       <div class="detail-title-copy"><p>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</p><h2>${escapeHtml(trade.event_title || trade.market_title)}</h2><span>${escapeHtml(humanizeMarketType(trade.sports_market_type))} · ${escapeHtml(trade.event_time_et || "Time unavailable")}</span></div>
-      <span class="detail-header-actions">${trade.isVisualPreview ? "" : `${personalExposureWarning(trade)}<button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" id="detail-pin-action" type="button" aria-label="${trade.isPinnedByCurrentUser ? "Unpin this trade from" : "Pin this trade to"} your Whiteboard"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button><button class="trade-hide-action" id="detail-hide-action" type="button" aria-label="${trade.isHidden ? "Restore" : "Hide"} this trade"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i></button><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button>`}</span>
-      <span class="live-price"><small>Executable entry</small><strong>${escapeHtml(executableEntryLabel)}</strong><em>${escapeHtml(trade.agreeing_wallet_count + " Sharp" + (trade.agreeing_wallet_count === 1 ? "" : "s"))}</em></span>
+      <span class="detail-header-actions">${trade.isVisualPreview ? "" : `${personalExposureWarning(trade)}<button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" id="detail-pin-action" type="button" aria-label="${trade.isPinnedByCurrentUser ? "Unpin from" : "Pin to"} Whiteboard"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button><details class="detail-action-menu"><summary aria-label="More selected trade actions"><i class="ph ph-dots-three" aria-hidden="true"></i></summary><div><button class="trade-hide-action" id="detail-hide-action" type="button"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i><span>${trade.isHidden ? "Restore trade" : "Hide trade"}</span></button></div></details><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button>`}</span>
     </div>
     ${trade.isOfficialTracked ? `
       <section class="official-play-notice">
@@ -2607,36 +2718,41 @@ function renderTradeDetail(trade) {
     <section class="detail-strip-card why-bet-card">
       <div class="section-label"><span>Why this bet?</span></div>
       <div class="detail-strip">
-        ${detailStripMetric("ph-arrow-up-right", formatRelativeSize(card.relative_bet_size ?? primary.relative_units), "Relative bet size")}
-        ${detailStripMetric("ph-coins", formatOptionalMoney(card.trader_bet_amount ?? primary.amount, true), "Sharp bet size")}
-        ${detailStripMetric("ph-arrows-left-right", slippage?.formatted || "N/A", "Entry slippage", slippageTone)}
+        ${detailStripMetric(formatRelativeSize(card.relative_bet_size ?? primary.relative_units).replace("x", "×"), "Relative size", TRADE_METRIC_TOOLTIPS.relativeSize)}
+        ${detailStripMetric(formatOptionalMoney(card.trader_bet_amount ?? primary.amount, true), "Sharp volume", TRADE_METRIC_TOOLTIPS.sharpBetSize)}
+        ${detailStripMetric(slippage?.formatted || "N/A", "Entry edge", TRADE_METRIC_TOOLTIPS.entryEdge, slippageTone)}
       </div>
     </section>
     <section class="detail-strip-card trader-stats-card">
       <div class="section-label"><span>Trader stats</span></div>
       <div class="detail-strip">
-        ${detailStripMetric("ph-trophy", primary.top_category || trade.category || "N/A", "Top category")}
-        ${detailStripMetric("ph-chart-line-up", number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 2), "Adjusted hit rate")}
-        ${detailStripMetric("ph-list-numbers", number(primary.sample_size) === null ? "N/A" : String(primary.sample_size), "Settled sample")}
+        ${detailStripMetric(primary.top_category || trade.category || "N/A", "Top category", TRADE_METRIC_TOOLTIPS.topCategory)}
+        ${detailStripMetric(number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 1), "Adjusted hit rate", TRADE_METRIC_TOOLTIPS.hitRate)}
+        ${detailStripMetric(number(primary.sample_size) === null ? "N/A" : String(primary.sample_size), "Settled sample", TRADE_METRIC_TOOLTIPS.settledSample)}
       </div>
     </section>
     <section class="detail-section price-panel">
-      <div class="section-label"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>Price</span><span class="price-range-controls"><button class="active" data-price-range="1d" type="button">1D</button><button data-price-range="1w" type="button">1W</button><button data-price-range="1m" type="button">1M</button><button data-price-range="max" type="button">MAX</button></span></div>
-      <div class="price-legend"><span class="trader-entry">Trader entry <strong>${escapeHtml(formatOptionalCents(slippage?.whalePrice))}</strong></span><span class="recommended-entry">Rec entry <strong>${escapeHtml(formatOptionalCents(currentPrice))}</strong></span></div>
+      <div class="section-label"><span>Price movement</span><span class="price-range-controls" role="group" aria-label="Price history range"><button class="active" data-price-range="1d" type="button" aria-pressed="true">1D</button><button data-price-range="1w" type="button" aria-pressed="false">1W</button><button data-price-range="1m" type="button" aria-pressed="false">1M</button><button data-price-range="max" type="button" aria-pressed="false">MAX</button></span></div>
+      <div class="price-legend"><span class="trader-entry">Trader entry <strong>${escapeHtml(formatOptionalCents(traderPrice))}</strong></span><span class="recommended-entry">Current executable <strong>${escapeHtml(formatOptionalCents(executablePrice))}</strong></span><span class="price-change ${priceDeltaTone}">${escapeHtml(priceDeltaLabel)}</span></div>
       <div class="price-chart" id="price-chart"><div class="chart-loading">Loading verified price history…</div></div>
     </section>
-    <section class="detail-section orderbook-panel">
-      <div class="section-label"><span><i class="ph ph-chart-bar-horizontal" aria-hidden="true"></i>Order book</span><small>Verified Polymarket CLOB depth</small></div>
-      <div class="orderbook">${tradeOrderBook(trade)}</div>
-    </section>
-    <details class="detail-accordion"><summary><span><i class="ph ph-users-three" aria-hidden="true"></i>Sharps on this trade</span><small>${escapeHtml(sharpCompositionLabel(trade))}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="research-badges">${researchBadges(trade)}</div><div class="supporter-list">${supportersMarkup(trade)}</div></details>
-    ${contradictorsMarkup(trade)}
-    ${whyScore(trade, recommendation)}
-    ${whySizing(recommendation, trade)}
-    ${executionRiskDetails(recommendation)}
-    ${completionTradeDetails(trade, recommendation)}
-    <details class="detail-accordion personal-exposure-section"><summary><span><i class="ph ph-user-focus" aria-hidden="true"></i>Personal exposure</span><small>Confirmed fills only</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div></details>
-    <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
+    <details class="advanced-details-panel">
+      <summary><span>Advanced details</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+      <div class="advanced-details-content">
+        <details class="detail-section orderbook-panel">
+          <summary><span><i class="ph ph-chart-bar-horizontal" aria-hidden="true"></i>Order book</span><small>Market depth</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+          <div class="orderbook">${tradeOrderBook(trade)}</div>
+        </details>
+        <details class="detail-accordion"><summary><span><i class="ph ph-users-three" aria-hidden="true"></i>Sharps on this trade</span><small>${escapeHtml(sharpCompositionLabel(trade))}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="research-badges">${researchBadges(trade)}</div><div class="supporter-list">${supportersMarkup(trade)}</div></details>
+        ${contradictorsMarkup(trade)}
+        ${whyScore(trade, recommendation)}
+        ${whySizing(recommendation, trade)}
+        ${executionRiskDetails(recommendation)}
+        ${completionTradeDetails(trade, recommendation)}
+        <details class="detail-accordion personal-exposure-section"><summary><span><i class="ph ph-user-focus" aria-hidden="true"></i>Personal exposure</span><small>Confirmed fills only</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div id="personal-exposure-detail"><div class="chart-loading">Loading personal exposure...</div></div></details>
+        <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
+      </div>
+    </details>
     <footer class="mobile-trade-detail-actions">
       <button type="button" data-mobile-detail-hide><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hide</span></button>
       <button type="button" data-mobile-detail-track><i class="ph ph-plus-circle" aria-hidden="true"></i><span>Track</span></button>
@@ -2660,27 +2776,45 @@ function renderTradeDetail(trade) {
     button.setAttribute("aria-expanded", String(button.getAttribute("aria-expanded") !== "true"));
   });
   panel.querySelectorAll("[data-price-range]").forEach((button) => button.addEventListener("click", () => {
-    panel.querySelectorAll("[data-price-range]").forEach((item) => item.classList.toggle("active", item === button));
+    panel.querySelectorAll("[data-price-range]").forEach((item) => {
+      const active = item === button;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-pressed", String(active));
+    });
     if (trade.isVisualPreview) {
       drawLineChart(
         document.getElementById("price-chart"),
         trade.demoPriceHistory || [],
-        { format: formatCents },
+        {
+          format: formatCents,
+          referenceLines: priceReferences,
+          summary: chartSummary,
+          color: tradePriceHistoryColor(document.getElementById("price-chart")),
+          valueLabel: "Price",
+          domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+        },
       );
     } else {
-      loadPriceHistory(trade.clob_token_id, currentPrice, button.dataset.priceRange);
+      loadPriceHistory(trade.clob_token_id, currentPrice, button.dataset.priceRange, priceReferences, chartSummary);
     }
   }));
   if (trade.isVisualPreview) {
     drawLineChart(
       document.getElementById("price-chart"),
       trade.demoPriceHistory || [],
-      { format: formatCents },
+      {
+        format: formatCents,
+        referenceLines: priceReferences,
+        summary: chartSummary,
+        color: tradePriceHistoryColor(document.getElementById("price-chart")),
+        valueLabel: "Price",
+        domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+      },
     );
     const exposure = document.getElementById("personal-exposure-detail");
     if (exposure) exposure.innerHTML = '<p class="personal-exposure-empty"><i class="ph ph-shield-check"></i>Preview data is isolated from Personal Tracker.</p>';
   } else {
-    loadPriceHistory(trade.clob_token_id, currentPrice);
+    loadPriceHistory(trade.clob_token_id, currentPrice, "1d", priceReferences, chartSummary);
     loadPersonalExposureDetails(trade.id);
     loadTradeEdgeEvidence(trade);
   }
@@ -2740,63 +2874,184 @@ async function removePersonalFill(fillId) {
   }
 }
 
+function chartAxisTime(timestamp) {
+  const raw = Number(timestamp);
+  if (!Number.isFinite(raw)) return "";
+  const date = new Date(raw < 1e12 ? raw * 1000 : raw);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" }).format(date).replace(":00", "");
+}
+
+function chartTokenValue(container, token, fallback) {
+  if (!container || typeof window.getComputedStyle !== "function") return fallback;
+  return window.getComputedStyle(container).getPropertyValue(token).trim() || fallback;
+}
+
+function tradePriceHistoryColor(container) {
+  return chartTokenValue(container, "--il-brand-hover", "#8b5cf6");
+}
+
+const PREDICTION_TRADERS_PRICE_DOMAIN = Object.freeze({
+  min: 0,
+  max: 1,
+  minimumPadding: 0.005,
+  minimumSpan: 0.01,
+});
+
 function drawLineChart(container, points, options = {}) {
   if (!container) return;
+  points = points
+    .map((point) => ({ ...point, value: Number(point.value) }))
+    .filter((point) => Number.isFinite(point.value));
   if (!points.length) {
     container.innerHTML = emptyState("No chart data", "Verified history is not available for this range.");
     return;
   }
+  const pixelRatio = window.devicePixelRatio || 1;
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(680, container.clientWidth * window.devicePixelRatio);
-  canvas.height = Math.max(220, container.clientHeight * window.devicePixelRatio);
+  canvas.width = Math.max(280, Math.round(container.clientWidth * pixelRatio));
+  canvas.height = Math.max(150, Math.round(container.clientHeight * pixelRatio));
   canvas.style.width = "100%";
   canvas.style.height = "100%";
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "img");
+  const chartSummary = options.summary || "Historical chart data.";
+  const valueLabel = options.valueLabel || "Value";
+  canvas.setAttribute("aria-label", `${chartSummary} Use left and right arrow keys to inspect points.`);
+  const pointTooltip = document.createElement("div");
+  pointTooltip.className = "chart-point-tooltip";
+  pointTooltip.hidden = true;
   container.innerHTML = "";
-  container.appendChild(canvas);
+  container.append(canvas, pointTooltip);
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
-  const pad = 44 * window.devicePixelRatio;
+  const leftPad = 46 * pixelRatio;
+  const rightPad = 12 * pixelRatio;
+  const topPad = 18 * pixelRatio;
+  const bottomPad = 30 * pixelRatio;
   const values = points.map((point) => Number(point.value));
-  let min = Math.min(...values);
-  let max = Math.max(...values);
-  if (min === max) { min -= 0.01; max += 0.01; }
-  const x = (index) => pad + (index / Math.max(1, points.length - 1)) * (width - pad * 1.5);
-  const y = (value) => height - pad - ((value - min) / (max - min)) * (height - pad * 1.7);
-  ctx.strokeStyle = options.gridColor || "rgba(195, 183, 238, 0.10)";
+  const referenceLines = (options.referenceLines || []).filter((reference) => Number.isFinite(Number(reference.value)));
+  const referenceColors = {
+    trader: chartTokenValue(container, "--il-warning", "#f5a524"),
+    current: chartTokenValue(container, "--il-positive", "#39d66f"),
+  };
+  const seriesMin = Math.min(...values);
+  const seriesMax = Math.max(...values);
+  const seriesMagnitude = Math.max(Math.abs(seriesMin), Math.abs(seriesMax), 1);
+  const domainOptions = options.domain || {};
+  const configuredMinimumPadding = number(domainOptions.minimumPadding);
+  const minimumPadding = configuredMinimumPadding === null ? seriesMagnitude * 0.01 : Math.max(0, configuredMinimumPadding);
+  const domainPadding = Math.max((seriesMax - seriesMin) * 0.12, minimumPadding);
+  const domainMinimum = number(domainOptions.min);
+  const domainMaximum = number(domainOptions.max);
+  let min = seriesMin - domainPadding;
+  let max = seriesMax + domainPadding;
+  if (domainMinimum !== null) min = Math.max(domainMinimum, min);
+  if (domainMaximum !== null) max = Math.min(domainMaximum, max);
+  const configuredMinimumSpan = number(domainOptions.minimumSpan);
+  const minimumSpan = configuredMinimumSpan === null ? minimumPadding * 2 : Math.max(0, configuredMinimumSpan);
+  if (max - min < minimumSpan) {
+    const center = (min + max) / 2;
+    min = center - minimumSpan / 2;
+    max = center + minimumSpan / 2;
+    if (domainMinimum !== null && min < domainMinimum) {
+      max += domainMinimum - min;
+      min = domainMinimum;
+    }
+    if (domainMaximum !== null && max > domainMaximum) {
+      min -= max - domainMaximum;
+      max = domainMaximum;
+    }
+    if (domainMinimum !== null) min = Math.max(domainMinimum, min);
+    if (domainMaximum !== null) max = Math.min(domainMaximum, max);
+  }
+  const x = (index) => leftPad + (index / Math.max(1, points.length - 1)) * (width - leftPad - rightPad);
+  const y = (value) => height - bottomPad - ((value - min) / (max - min)) * (height - topPad - bottomPad);
+  ctx.font = `${11.5 * pixelRatio}px ${options.fontFamily || '"DM Sans"'}`;
+  ctx.textBaseline = "middle";
+  ctx.strokeStyle = options.gridColor || "rgba(126, 145, 169, 0.09)";
   ctx.lineWidth = 1;
   for (let i = 0; i < 4; i += 1) {
-    const lineY = pad + (i / 3) * (height - pad * 1.7);
-    ctx.beginPath(); ctx.moveTo(pad, lineY); ctx.lineTo(width - pad / 2, lineY); ctx.stroke();
+    const ratio = i / 3;
+    const lineY = topPad + ratio * (height - topPad - bottomPad);
+    const labelValue = max - ratio * (max - min);
+    ctx.beginPath(); ctx.moveTo(leftPad, lineY); ctx.lineTo(width - rightPad, lineY); ctx.stroke();
+    ctx.fillStyle = options.labelColor || "#7d899a";
+    ctx.fillText(options.format ? options.format(labelValue) : String(labelValue), 2 * pixelRatio, lineY);
   }
-  const gradient = ctx.createLinearGradient(0, pad, 0, height - pad);
-  gradient.addColorStop(0, options.areaColor || "rgba(19, 183, 237, 0.2)");
-  gradient.addColorStop(1, options.areaFade || "rgba(105, 199, 232, 0)");
+  referenceLines.filter((reference) => Number(reference.value) >= min && Number(reference.value) <= max).forEach((reference) => {
+    const referenceY = y(Number(reference.value));
+    ctx.save();
+    ctx.setLineDash([4 * pixelRatio, 4 * pixelRatio]);
+    ctx.strokeStyle = reference.color || referenceColors[reference.tone] || chartTokenValue(container, "--il-text-muted", "#758296");
+    ctx.globalAlpha = 0.72;
+    ctx.beginPath(); ctx.moveTo(leftPad, referenceY); ctx.lineTo(width - rightPad, referenceY); ctx.stroke();
+    ctx.restore();
+  });
   ctx.beginPath();
   points.forEach((point, index) => {
     const px = x(index); const py = y(point.value);
     if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
   });
-  ctx.lineTo(x(points.length - 1), height - pad);
-  ctx.lineTo(x(0), height - pad);
-  ctx.closePath();
-  ctx.fillStyle = gradient;
-  ctx.fill();
-  ctx.beginPath();
-  points.forEach((point, index) => {
-    const px = x(index); const py = y(point.value);
-    if (index === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-  });
-  ctx.strokeStyle = options.color || "#13b7ed";
-  ctx.lineWidth = 2.5 * window.devicePixelRatio;
+  const priceHistoryColor = options.color || "#13b7ed";
+  ctx.strokeStyle = priceHistoryColor;
+  ctx.lineWidth = 2.25 * pixelRatio;
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
   ctx.stroke();
-  ctx.fillStyle = options.labelColor || "#81798f";
-  ctx.font = `${11 * window.devicePixelRatio}px ${options.fontFamily || '"Roboto Condensed"'}`;
-  ctx.fillText(options.format ? options.format(max) : String(max), 4, pad);
-  ctx.fillText(options.format ? options.format(min) : String(min), 4, height - pad);
+  const lastPoint = points[points.length - 1];
+  ctx.beginPath();
+  ctx.arc(x(points.length - 1), y(lastPoint.value), 2.5 * pixelRatio, 0, Math.PI * 2);
+  ctx.fillStyle = priceHistoryColor;
+  ctx.fill();
+  ctx.fillStyle = options.labelColor || "#7d899a";
+  ctx.textBaseline = "alphabetic";
+  const axisIndices = [...new Set([0, Math.floor((points.length - 1) / 2), points.length - 1])];
+  axisIndices.forEach((index) => {
+    const label = chartAxisTime(points[index].timestamp);
+    if (!label) return;
+    const labelWidth = ctx.measureText(label).width;
+    const labelX = Math.min(width - rightPad - labelWidth, Math.max(leftPad, x(index) - labelWidth / 2));
+    ctx.fillText(label, labelX, height - 7 * pixelRatio);
+  });
+
+  let activePointIndex = points.length - 1;
+  const showPoint = (index) => {
+    activePointIndex = Math.max(0, Math.min(points.length - 1, index));
+    const point = points[activePointIndex];
+    const value = options.format ? options.format(point.value) : String(point.value);
+    const valueNode = document.createElement("strong");
+    valueNode.textContent = value;
+    const timeNode = document.createElement("span");
+    timeNode.textContent = chartAxisTime(point.timestamp);
+    pointTooltip.replaceChildren(valueNode, timeNode);
+    pointTooltip.hidden = false;
+    const markerX = x(activePointIndex) / pixelRatio;
+    const markerY = y(point.value) / pixelRatio;
+    const maxLeft = Math.max(8, container.clientWidth - pointTooltip.offsetWidth - 8);
+    pointTooltip.style.left = `${Math.min(maxLeft, Math.max(8, markerX - pointTooltip.offsetWidth / 2))}px`;
+    pointTooltip.style.top = `${Math.max(8, markerY - pointTooltip.offsetHeight - 10)}px`;
+    canvas.setAttribute("aria-label", `${chartSummary} ${valueLabel} ${value} at ${chartAxisTime(point.timestamp)}. Use left and right arrow keys to inspect points.`);
+  };
+  canvas.addEventListener("pointermove", (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const pointerX = (event.clientX - rect.left) * pixelRatio;
+    const chartWidth = width - leftPad - rightPad;
+    const ratio = Math.max(0, Math.min(1, (pointerX - leftPad) / Math.max(1, chartWidth)));
+    showPoint(Math.round(ratio * (points.length - 1)));
+  });
+  canvas.addEventListener("pointerleave", () => { if (document.activeElement !== canvas) pointTooltip.hidden = true; });
+  canvas.addEventListener("focus", () => showPoint(activePointIndex));
+  canvas.addEventListener("blur", () => { pointTooltip.hidden = true; });
+  canvas.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    showPoint(activePointIndex + (event.key === "ArrowRight" ? 1 : -1));
+  });
 }
 
-async function loadPriceHistory(tokenId, fallbackPrice, interval = "1d") {
+async function loadPriceHistory(tokenId, fallbackPrice, interval = "1d", referenceLines = [], summary = "") {
   const container = document.getElementById("price-chart");
   if (!container || !tokenId) {
     if (container) container.innerHTML = emptyState("Price history unavailable", "This trade does not have a verified outcome token.");
@@ -2806,28 +3061,67 @@ async function loadPriceHistory(tokenId, fallbackPrice, interval = "1d") {
     const payload = await fetchJson(`/api/price-history?token_id=${encodeURIComponent(tokenId)}&interval=${encodeURIComponent(interval)}`);
     const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
     if (!points.length && number(fallbackPrice) !== null) points.push({ timestamp: Date.now(), value: Number(fallbackPrice) });
-    drawLineChart(container, points, { format: formatCents });
+    drawLineChart(container, points, {
+      format: formatCents,
+      referenceLines,
+      summary,
+      color: tradePriceHistoryColor(container),
+      valueLabel: "Price",
+      domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+    });
   } catch (error) {
     container.innerHTML = emptyState("Live chart unavailable", "The trade remains sized from the verified order book; only chart history could not be loaded.");
   }
 }
 
-function closeMobileTradeDetail() {
-  document.body.classList.remove("mobile-trade-detail-open");
+function syncMobileTradeDetailAccessibility() {
   const backdrop = document.getElementById("mobile-trade-detail-backdrop");
-  if (backdrop) backdrop.hidden = true;
   const panel = document.getElementById("trade-detail");
-  panel?.removeAttribute("aria-modal");
+  if (!panel) return;
+  const mobile = window.innerWidth <= 1320;
+  const open = mobile && document.body.classList.contains("mobile-trade-detail-open");
+  if (backdrop) backdrop.hidden = !open;
+  if (!mobile) {
+    document.body.classList.remove("mobile-trade-detail-open");
+    panel.removeAttribute("role");
+    panel.removeAttribute("aria-modal");
+    panel.removeAttribute("aria-hidden");
+    panel.removeAttribute("inert");
+    return;
+  }
+  if (open) {
+    panel.setAttribute("role", "dialog");
+    panel.setAttribute("aria-modal", "true");
+    panel.setAttribute("aria-hidden", "false");
+    panel.removeAttribute("inert");
+  } else {
+    panel.removeAttribute("role");
+    panel.removeAttribute("aria-modal");
+    panel.setAttribute("aria-hidden", "true");
+    panel.setAttribute("inert", "");
+  }
+}
+
+function closeMobileTradeDetail() {
+  const wasOpen = document.body.classList.contains("mobile-trade-detail-open");
+  document.body.classList.remove("mobile-trade-detail-open");
+  syncMobileTradeDetailAccessibility();
+  const returnFocus = appState.mobileTradeDetailReturnFocus;
+  appState.mobileTradeDetailReturnFocus = null;
+  if (wasOpen && returnFocus?.isConnected) {
+    window.requestAnimationFrame(() => returnFocus.focus({ preventScroll: true }));
+  }
 }
 
 function openMobileTradeDetail() {
-  if (window.innerWidth > 860) return;
+  if (window.innerWidth > 1320) return;
+  if (!document.body.classList.contains("mobile-trade-detail-open")) {
+    appState.mobileTradeDetailReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
   document.body.classList.add("mobile-trade-detail-open");
-  const backdrop = document.getElementById("mobile-trade-detail-backdrop");
-  if (backdrop) backdrop.hidden = false;
   const panel = document.getElementById("trade-detail");
   if (!panel) return;
-  panel.setAttribute("aria-modal", "true");
+  syncMobileTradeDetailAccessibility();
   panel.scrollTop = 0;
   window.requestAnimationFrame(() => panel.querySelector("[data-mobile-detail-close]")?.focus({ preventScroll: true }));
 }
@@ -2839,12 +3133,13 @@ function selectTrade(id, scroll = false) {
   document.querySelectorAll(".trade-card").forEach((card) => {
     const selected = card.dataset.tradeId === id;
     card.classList.toggle("selected", selected);
-    card.setAttribute("aria-pressed", String(selected));
+    card.classList.toggle("is-selected", selected);
+    card.dataset.selected = String(selected);
+    card.setAttribute("aria-current", selected ? "true" : "false");
   });
   renderTradeDetail(trade);
   updateTradeUrl(readTradeControls());
-  if (scroll && window.innerWidth <= 860) openMobileTradeDetail();
-  else if (scroll && window.innerWidth < 980) document.getElementById("trade-detail").scrollIntoView({ behavior: "smooth", block: "start" });
+  if (scroll && window.innerWidth <= 1320) openMobileTradeDetail();
 }
 
 function applySizingBankroll(settings, { forceInput = false } = {}) {
@@ -2861,7 +3156,11 @@ function applySizingBankroll(settings, { forceInput = false } = {}) {
   }
   if (button) button.disabled = false;
   if (bankroll !== null) {
-    document.getElementById("unit-value").textContent = formatMoney(bankroll * Number(settings.unit_percentage || 0.01));
+    const unitAmount = bankroll * Number(settings.unit_percentage || 0.01);
+    const unitValue = document.getElementById("unit-value");
+    const toolbarUnitValue = document.getElementById("unit-toolbar-value");
+    if (unitValue) unitValue.textContent = formatMoney(unitAmount);
+    if (toolbarUnitValue) toolbarUnitValue.textContent = formatDecisionMoney(unitAmount);
     const toolbarValue = document.getElementById("bankroll-toolbar-value");
     if (toolbarValue) toolbarValue.textContent = formatMoney(bankroll, bankroll >= 100 ? 0 : 2);
   }
@@ -2909,23 +3208,27 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
   document.getElementById("whiteboard-count").textContent = String(payload.whiteboardCount || 0);
   document.getElementById("trades-tab-count").textContent = String(appState.trades.length);
-  document.getElementById("trade-result-count").textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
+  const resultCount = document.getElementById("trade-result-count");
+  if (resultCount) resultCount.textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
   document.getElementById("trade-freshness").textContent = payload.fastMode
     ? "Loading live prices in the background"
     : `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
-  const currentSport = document.getElementById("trade-sport").value;
+  const currentSport = document.getElementById("trade-sport").value || filters.sport;
+  const currentMarket = document.getElementById("trade-market").value || filters.market;
   const currentLeague = document.getElementById("trade-league").value;
   const currentWallet = document.getElementById("trade-wallet").value;
   setOptions(document.getElementById("trade-sport"), sourceTrades.map((trade) => trade.category), "All Sports");
+  setTradeMarketOptions(document.getElementById("trade-market"), sourceTrades);
   setOptions(document.getElementById("trade-league"), sourceTrades.map((trade) => trade.league), "All leagues");
   setOptions(document.getElementById("trade-wallet"), sourceTrades.flatMap((trade) => (trade.supporting_wallets || []).map((wallet) => wallet.wallet_label)), "All wallets");
   document.getElementById("trade-sport").value = currentSport;
+  document.getElementById("trade-market").value = currentMarket;
   document.getElementById("trade-league").value = currentLeague;
   document.getElementById("trade-wallet").value = currentWallet;
   const lowInventory = document.getElementById("low-inventory-state");
   const tradeWorkspace = document.querySelector(".trade-workspace");
   tradeWorkspace?.classList.toggle("empty-trades", appState.trades.length === 0);
-  if (lowInventory) lowInventory.hidden = appState.trades.length >= 5;
+  if (lowInventory) lowInventory.hidden = appState.trades.length > 5;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
     list.replaceChildren();
@@ -2933,9 +3236,9 @@ function renderTradesPayload(payload, filters, list) {
     return;
   }
   const selectedParam = new URLSearchParams(window.location.search).get("selected");
-  if (!appState.trades.some((trade) => trade.id === appState.selectedTradeId)) {
-    appState.selectedTradeId = appState.trades.some((trade) => trade.id === selectedParam) ? selectedParam : appState.trades[0].id;
-  }
+  const selectedParamIsVisible = appState.trades.some((trade) => trade.id === selectedParam);
+  if (selectedParamIsVisible) appState.selectedTradeId = selectedParam;
+  else if (!appState.trades.some((trade) => trade.id === appState.selectedTradeId)) appState.selectedTradeId = appState.trades[0].id;
   syncTradeRows(list, appState.trades);
   selectTrade(appState.selectedTradeId);
 }
@@ -3067,7 +3370,8 @@ function personalPositionRow(position, closed = false) {
   const pnl = closed ? position.realizedPnl : position.totalPnl;
   const selectedId = closed ? appState.selectedClosedPositionId : appState.selectedPersonalPositionId;
   const status = closed ? (position.closureMethod || "closed") : position.status;
-  return `<article class="personal-position-row ${String(selectedId) === String(position.positionId) ? "selected" : ""}" data-position-id="${escapeHtml(position.positionId)}" data-position-state="${closed ? "closed" : "open"}" tabindex="0">
+  const selected = String(selectedId) === String(position.positionId);
+  return `<article class="personal-position-row ${selected ? "selected" : ""}" data-position-id="${escapeHtml(position.positionId)}" data-position-state="${closed ? "closed" : "open"}" role="button" tabindex="0" aria-pressed="${selected}">
     <div class="position-return ${pnlTone(pnl)}"><strong>${closed ? signedMoney(pnl) : positionReturn(position)}</strong><small>${closed ? positionReturn(position) : signedMoney(position.unrealizedPnl)}</small></div>
     <div class="position-copy"><span class="position-status ${closed ? "closed" : ""}">${escapeHtml(String(status).replaceAll("_", " "))}</span><small>${escapeHtml(position.provider)} · ${escapeHtml(formatDateTime(position.eventStartTime))}</small><h3>${escapeHtml(position.eventTitle || position.marketTitle)}</h3><p>${escapeHtml(position.marketTitle || "Market")}</p></div>
     <div class="position-selection"><span><strong>${escapeHtml(position.selection)}</strong><small>${formatShares(closed ? position.totalPurchasedShares : position.remainingShares)} shares · ${formatCents(position.averageBuyEntry)} entry</small></span>${closed ? `<strong class="closure-price">${number(position.averageSellEntry) !== null ? formatExitCents(position.averageSellEntry) : number(position.settlementPrice) !== null ? `${formatExitCents(position.settlementPrice)} settled` : "Closed"}</strong>` : personalSellButton(position, true)}</div>
@@ -3102,7 +3406,13 @@ async function loadPersonalPositionHistory(position, closed, interval = "1d") {
   try {
     const payload = await fetchJson(`/api/personal-positions/${encodeURIComponent(position.positionId)}/price-history?interval=${encodeURIComponent(interval)}`);
     const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
-    drawLineChart(container, points, { format: formatExitCents });
+    drawLineChart(container, points, {
+      format: formatExitCents,
+      summary: `${closed ? "Closed" : "Open"} position price history for ${position.selection || "the selected position"}.`,
+      valueLabel: "Price",
+      color: tradePriceHistoryColor(container),
+      domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+    });
   } catch (error) {
     container.innerHTML = emptyState("Price history unavailable", "This provider does not expose verified price history here.");
   }
@@ -3136,7 +3446,11 @@ function selectPersonalPosition(positionId, closed) {
   else appState.selectedPersonalPositionId = positionId;
   const rows = closed ? appState.personalClosed : appState.personalPositions;
   const list = document.getElementById(closed ? "personal-closed-list" : "personal-position-list");
-  list.querySelectorAll(".personal-position-row").forEach((row) => row.classList.toggle("selected", row.dataset.positionId === positionId));
+  list.querySelectorAll(".personal-position-row").forEach((row) => {
+    const selected = row.dataset.positionId === positionId;
+    row.classList.toggle("selected", selected);
+    row.setAttribute("aria-pressed", String(selected));
+  });
   renderPersonalPositionDetail(rows.find((item) => item.positionId === positionId), closed);
 }
 
@@ -3152,7 +3466,8 @@ function selectWorkspaceTab(tab, { syncUrl = true } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  document.getElementById("trade-result-count").hidden = appState.workspaceTab !== "trades";
+  const resultCount = document.getElementById("trade-result-count");
+  if (resultCount) resultCount.hidden = appState.workspaceTab !== "trades";
   document.querySelector(".model-status-pill").hidden = appState.workspaceTab !== "trades";
   document.getElementById("trade-search").placeholder = appState.workspaceTab === "trades" ? "Search" : "Search personal positions";
   if (appState.workspaceTab === "positions") loadPersonalPositions("open");
@@ -3182,7 +3497,7 @@ async function loadPersonalPnl(period = appState.pnlPeriod) {
   appState.pnlPeriod = period;
   const payload = await fetchJson(`/api/personal-pnl?period=${encodeURIComponent(period)}`);
   const data = payload.data;
-  const labels = { today: "TODAY", week: "PAST WEEK", month: "THIS MONTH", year: "THIS YEAR", all: "ALL TIME" };
+  const labels = { today: "1D P&L", week: "1W P&L", month: "1M P&L", year: "1Y P&L", all: "ALL P&L" };
   document.getElementById("personal-pnl-period-label").textContent = labels[period] || labels.week;
   [["personal-pnl-period-value", data.realizedPnl], ["personal-pnl-today-value", data.todayPnl], ["personal-pnl-expanded-value", data.realizedPnl], ["personal-pnl-expanded-today", data.todayPnl], ["personal-pnl-yesterday", data.yesterdayPnl]].forEach(([id, value]) => { const node = document.getElementById(id); node.textContent = `${signedMoney(value)}${id.includes("today") ? " Today" : id.includes("yesterday") ? " Yesterday" : ""}`; node.className = pnlTone(value); });
   document.getElementById("personal-pnl-chart").innerHTML = pnlChart(data.graph || []);
@@ -3262,7 +3577,118 @@ async function saveBankroll() {
   }
 }
 
+let iconLabsTooltipActiveTrigger = null;
+let iconLabsTooltipShowTimer = 0;
+let iconLabsTooltipHideTimer = 0;
+
+function iconLabsTooltipElement() {
+  let tooltip = document.getElementById("iconlabs-tooltip");
+  if (tooltip) return tooltip;
+  tooltip = document.createElement("div");
+  tooltip.id = "iconlabs-tooltip";
+  tooltip.className = "il-tooltip-popover";
+  tooltip.setAttribute("role", "tooltip");
+  tooltip.hidden = true;
+  document.body.appendChild(tooltip);
+  return tooltip;
+}
+
+function positionIconLabsTooltip(trigger, tooltip) {
+  const triggerRect = trigger.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const edge = 10;
+  const gap = 9;
+  let top = triggerRect.top - tooltipRect.height - gap;
+  if (top < edge) top = triggerRect.bottom + gap;
+  const left = Math.min(
+    window.innerWidth - tooltipRect.width - edge,
+    Math.max(edge, triggerRect.left + (triggerRect.width - tooltipRect.width) / 2),
+  );
+  tooltip.style.left = `${Math.round(left)}px`;
+  tooltip.style.top = `${Math.round(top)}px`;
+}
+
+function hideIconLabsTooltip(delay = 70) {
+  window.clearTimeout(iconLabsTooltipShowTimer);
+  window.clearTimeout(iconLabsTooltipHideTimer);
+  iconLabsTooltipHideTimer = window.setTimeout(() => {
+    const tooltip = document.getElementById("iconlabs-tooltip");
+    if (iconLabsTooltipActiveTrigger) iconLabsTooltipActiveTrigger.setAttribute("aria-expanded", "false");
+    iconLabsTooltipActiveTrigger = null;
+    if (!tooltip) return;
+    tooltip.classList.remove("is-visible");
+    window.setTimeout(() => {
+      if (!tooltip.classList.contains("is-visible")) tooltip.hidden = true;
+    }, 140);
+  }, delay);
+}
+
+function showIconLabsTooltip(trigger, delay = 240) {
+  const copy = trigger?.dataset.ilTooltip;
+  if (!copy) return;
+  window.clearTimeout(iconLabsTooltipShowTimer);
+  window.clearTimeout(iconLabsTooltipHideTimer);
+  iconLabsTooltipShowTimer = window.setTimeout(() => {
+    const tooltip = iconLabsTooltipElement();
+    if (iconLabsTooltipActiveTrigger && iconLabsTooltipActiveTrigger !== trigger) {
+      iconLabsTooltipActiveTrigger.setAttribute("aria-expanded", "false");
+    }
+    iconLabsTooltipActiveTrigger = trigger;
+    trigger.setAttribute("aria-expanded", "true");
+    tooltip.textContent = copy;
+    tooltip.hidden = false;
+    positionIconLabsTooltip(trigger, tooltip);
+    window.requestAnimationFrame(() => tooltip.classList.add("is-visible"));
+  }, delay);
+}
+
+function bindIconLabsTooltipSystem() {
+  if (document.body.dataset.ilTooltipsBound === "true") return;
+  document.body.dataset.ilTooltipsBound = "true";
+  document.addEventListener("pointerover", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (trigger && event.pointerType !== "touch") showIconLabsTooltip(trigger);
+  });
+  document.addEventListener("pointerout", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (trigger && !trigger.contains(event.relatedTarget)) hideIconLabsTooltip();
+  });
+  document.addEventListener("focusin", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (trigger) showIconLabsTooltip(trigger, 0);
+  });
+  document.addEventListener("focusout", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (trigger && !trigger.contains(event.relatedTarget)) hideIconLabsTooltip();
+  });
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (!trigger) {
+      hideIconLabsTooltip(0);
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    // Pointer focus fires before click in desktop browsers. Keep the first
+    // click/tap open; an outside click, Escape, scroll, or resize dismisses it.
+    showIconLabsTooltip(trigger, 0);
+  });
+  document.addEventListener("keydown", (event) => {
+    const trigger = event.target.closest?.("[data-il-tooltip]");
+    if (trigger && ["Enter", " "].includes(event.key)) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (trigger.getAttribute("aria-expanded") === "true") hideIconLabsTooltip(0);
+      else showIconLabsTooltip(trigger, 0);
+    }
+    if (event.key === "Escape") hideIconLabsTooltip(0);
+  });
+  window.addEventListener("resize", () => hideIconLabsTooltip(0));
+  document.addEventListener("scroll", () => hideIconLabsTooltip(0), true);
+}
+
 function bindTrades() {
+  bindIconLabsTooltipSystem();
   const initial = tradeFiltersFromUrl();
   applyTradeFiltersToControls(initial);
   const reload = debounce(() => {
@@ -3270,7 +3696,8 @@ function bindTrades() {
     else if (appState.workspaceTab === "closed") loadPersonalPositions("closed");
     else loadTrades();
   }, 280);
-  const filterDefaults = { q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", league: "", wallet: "", classification: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false, execution: "", min_bet: "0", max_slippage: "", sort: "confidence-desc" };
+  const filterDefaults = { q: "", date_range: "today", min_sharps: "0", min_confidence: "0", sport: "", market: "", league: "", wallet: "", classification: "", minEntryCents: "", maxEntryCents: "", custom_start: "", custom_end: "", show_hidden: false, execution: "", min_bet: "0", max_slippage: "", sort: "confidence-desc" };
+  const immediateOpportunityFilters = new Set(["trade-sport", "trade-market", "trade-confidence", "trade-sort"]);
   const applyPriceFields = () => {
     appState.appliedEntryPriceFilters = {
       minEntryCents: document.getElementById("min-entry-cents").value.trim(),
@@ -3287,13 +3714,14 @@ function bindTrades() {
     loadTrades();
   };
   document.getElementById("trade-search").addEventListener("input", reload);
-  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-league", "trade-wallet", "trade-classification", "custom-start", "custom-end", "show-hidden-trades", "trade-execution", "trade-min-bet", "trade-max-slippage", "trade-sort"].forEach((id) => {
+  ["trade-date-range", "trade-sharps", "trade-confidence", "trade-sport", "trade-market", "trade-league", "trade-wallet", "trade-classification", "custom-start", "custom-end", "show-hidden-trades", "trade-execution", "trade-min-bet", "trade-max-slippage", "trade-sort"].forEach((id) => {
     document.getElementById(id).addEventListener("change", () => {
       if (id === "trade-date-range") {
         const custom = document.getElementById(id).value === "custom";
         document.querySelectorAll(".custom-time").forEach((field) => { field.hidden = !custom; });
       }
       updateActiveFilterCount();
+      if (immediateOpportunityFilters.has(id)) reload();
     });
   });
   document.getElementById("more-filters-button").addEventListener("click", () => {
@@ -3419,11 +3847,18 @@ function bindTrades() {
   });
   document.getElementById("mobile-trade-detail-backdrop")?.addEventListener("click", closeMobileTradeDetail);
   window.addEventListener("resize", () => {
-    if (window.innerWidth > 860) closeMobileTradeDetail();
+    if (window.innerWidth > 1320) closeMobileTradeDetail();
+    else syncMobileTradeDetailAccessibility();
   });
   const list = document.getElementById("trade-list");
   list.addEventListener("click", (event) => {
     const target = event.target;
+    if (target.closest("[data-il-tooltip]")) return;
+    const viewAction = target.closest("[data-trade-view]");
+    if (viewAction) {
+      selectTrade(viewAction.dataset.tradeView, true);
+      return;
+    }
     const executionLink = target.closest("[data-execution-trade-id]");
     if (executionLink) {
       const trade = appState.trades.find((item) => String(item.id) === executionLink.dataset.executionTradeId);
@@ -3467,13 +3902,23 @@ function bindTrades() {
     }
   });
   document.getElementById("whiteboard-sort")?.addEventListener("change", () => loadWhiteboard());
-  ["personal-position-list", "personal-closed-list"].forEach((id) => document.getElementById(id)?.addEventListener("click", (event) => {
-    const sell = event.target.closest("[data-sell-position]");
+  ["personal-position-list", "personal-closed-list"].forEach((id) => {
+    const positionList = document.getElementById(id);
     const closed = id === "personal-closed-list";
-    const rows = closed ? appState.personalClosed : appState.personalPositions;
-    if (sell) { const position = rows.find((item) => item.positionId === sell.dataset.sellPosition); if (position) openSellDialog(position); return; }
-    const row = event.target.closest(".personal-position-row"); if (row) selectPersonalPosition(row.dataset.positionId, closed);
-  }));
+    positionList?.addEventListener("click", (event) => {
+      const sell = event.target.closest("[data-sell-position]");
+      const rows = closed ? appState.personalClosed : appState.personalPositions;
+      if (sell) { const position = rows.find((item) => item.positionId === sell.dataset.sellPosition); if (position) openSellDialog(position); return; }
+      const row = event.target.closest(".personal-position-row"); if (row) selectPersonalPosition(row.dataset.positionId, closed);
+    });
+    positionList?.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key) || event.target.closest("a, button, input, select, textarea, [data-il-tooltip]")) return;
+      const row = event.target.closest(".personal-position-row");
+      if (!row) return;
+      event.preventDefault();
+      selectPersonalPosition(row.dataset.positionId, closed);
+    });
+  });
   ["personal-position-detail", "personal-closed-detail"].forEach((id) => document.getElementById(id)?.addEventListener("click", (event) => {
     const sell = event.target.closest("[data-sell-position]");
     const closed = id === "personal-closed-detail";
@@ -3491,13 +3936,6 @@ function bindTrades() {
   ["personal-sell-shares", "personal-sell-price", "personal-sell-fees"].forEach((id) => document.getElementById(id)?.addEventListener("input", updateSellCalculation));
   document.getElementById("sell-full-position")?.addEventListener("click", () => { document.getElementById("personal-sell-shares").value = appState.sellPosition?.remainingShares || ""; updateSellCalculation(); });
   document.getElementById("sell-half-position")?.addEventListener("click", () => { document.getElementById("personal-sell-shares").value = ((appState.sellPosition?.remainingShares || 0) / 2).toFixed(2); updateSellCalculation(); });
-  list.addEventListener("keydown", (event) => {
-    if (!['Enter', ' '].includes(event.key) || event.target.closest("a, button")) return;
-    const card = event.target.closest(".trade-card");
-    if (!card) return;
-    event.preventDefault();
-    selectTrade(card.dataset.tradeId, true);
-  });
   document.addEventListener("click", (event) => {
     if (!event.target.closest(".toolbar-popover-shell")) {
       togglePopover("bankroll-popover-button", "bankroll-popover", false);
@@ -3506,6 +3944,26 @@ function bindTrades() {
     }
   });
   document.addEventListener("keydown", (event) => {
+    if (event.key === "Tab" && document.body.classList.contains("mobile-trade-detail-open")) {
+      const panel = document.getElementById("trade-detail");
+      if (!panel) return;
+      const focusable = Array.from(panel?.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])') || [])
+        .filter((item) => !item.hidden && item.getAttribute("aria-hidden") !== "true");
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+      return;
+    }
     if (event.key !== "Escape") return;
     closeMobileTradeDetail();
     setMoreFiltersExpanded(false);
@@ -3526,6 +3984,7 @@ function bindTrades() {
     }
   });
   const requestedTab = new URLSearchParams(window.location.search).get("tab") || safeStorage.getItem("iconbets-trades-workspace-tab") || "trades";
+  syncMobileTradeDetailAccessibility();
   selectWorkspaceTab(requestedTab, { syncUrl: false });
   if (validateSharePriceControls()) loadTrades({ initial: true });
   runWhenIdle(() => {
@@ -3738,7 +4197,7 @@ function walletCard(wallet) {
     <article class="wallet-card wallet-roster-card ${active ? "is-active-sharp" : "is-hidden-wallet"}">
       <header class="wallet-roster-card-head">
         <div class="wallet-identity">
-          ${providerLogoMarkup({ name: "Polymarket", logoUrl: "https://polymarket.com/icons/favicon-32x32.png" }, "Polymarket")}
+          ${providerLogoMarkup({ name: "Polymarket", logoUrl: POLYMARKET_LOGO_URL }, "Polymarket")}
           <div><span>POLYMARKET SHARP</span><h2>${escapeHtml(wallet.label)}</h2></div>
         </div>
         <div class="wallet-card-badges"><strong class="wallet-sport-badge">${escapeHtml(summary.sport || "MLB")}</strong><span class="wallet-sync-dot ${escapeHtml(sync)}" title="${escapeHtml(sync)}"></span></div>
@@ -4019,7 +4478,7 @@ function trackerProviderMeta(name = "Polymarket") {
   if (normalized.includes("prophet")) return { name: "ProphetX", logoUrl: "/static/assets/providers/prophetx.ico" };
   if (normalized.includes("kalshi")) return { name: "Kalshi", logoUrl: "/static/assets/providers/kalshi.png" };
   if (normalized.includes("4cx")) return { name: "4CX", logoUrl: "/static/assets/providers/4cx.png" };
-  if (normalized.includes("poly")) return { name: "Polymarket", logoUrl: "https://polymarket.com/icons/favicon-32x32.png" };
+  if (normalized.includes("poly")) return { name: "Polymarket", logoUrl: POLYMARKET_LOGO_URL };
   return { name: String(name || "Sportsbook"), logoUrl: "" };
 }
 
@@ -4844,6 +5303,8 @@ function drawPersonalTrackerChart(graph, hasTrackedBets) {
     .filter((point) => Number.isFinite(point.value));
   drawLineChart(container, points, {
     format: (value) => formatCompactMoney(value),
+    summary: "Personal Tracker bankroll history.",
+    valueLabel: "Bankroll",
     color: "#a99af5",
     areaColor: "rgba(169, 154, 245, 0.20)",
     areaFade: "rgba(169, 154, 245, 0)",
@@ -5616,7 +6077,7 @@ function bindIntelligence() {
 }
 
 const ODDS_BASE_PROVIDER_CATALOG = {
-  polymarket: {key:"polymarket", name:"Polymarket", logoUrl:"https://polymarket.com/icons/favicon-32x32.png", source:"exchange"},
+  polymarket: {key:"polymarket", name:"Polymarket", logoUrl:POLYMARKET_LOGO_URL, source:"exchange"},
   kalshi: {key:"kalshi", name:"Kalshi", logoUrl:"/static/assets/providers/kalshi.png", source:"exchange"},
   "4cx": {key:"4cx", name:"4CX", logoUrl:"/static/assets/providers/4cx.png", source:"exchange"},
   "oddsapi__novig": {key:"oddsapi__novig", name:"NoVIG", logoUrl:"https://cdn.prod.website-files.com/642ae772b9f3360398a9d449/6436d7c4d343f31dbf62d683_favicon.png", source:"exchange"},

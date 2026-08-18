@@ -2,67 +2,68 @@
 {% block content %}
 <section class="trades-page">
   <header class="trades-command-bar">
-    <div class="trades-command-primary">
+    <div class="trades-heading-row">
       <div class="trades-title-block">
-        <h1>Traders</h1>
+        <h1>Prediction Traders</h1>
+        <p>Verified sharp positions. Executable pricing.</p>
       </div>
+      <div class="trades-live-state" aria-label="Current model state">
+        <span class="model-status-pill"><span class="status-dot"></span>Model live</span>
+        <span class="result-badge" id="trade-result-count">0 Picks</span>
+      </div>
+    </div>
+    <div class="trades-command-actions">
       <div class="trades-view-tabs workspace-tabs" role="tablist" aria-label="Personal trading workspace">
         <button class="active" type="button" role="tab" data-workspace-tab="trades" aria-selected="true">Trades <span id="trades-tab-count">0</span></button>
         <button type="button" role="tab" data-workspace-tab="positions" aria-selected="false">Positions <span id="positions-tab-count">0</span></button>
         <button type="button" role="tab" data-workspace-tab="closed" aria-selected="false">Closed <span id="closed-tab-count">0</span></button>
       </div>
-      <span class="result-badge" id="trade-result-count">0 Picks</span>
-      <span class="model-status-pill"><span class="status-dot"></span>Model live</span>
-    </div>
-    <div class="trades-command-actions">
-      <label class="search-control compact-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search" autocomplete="off"></label>
-      <div class="toolbar-popover-shell">
-        <button class="toolbar-bankroll" id="bankroll-popover-button" type="button" aria-expanded="false" aria-controls="bankroll-popover"><span id="bankroll-toolbar-value">Loading</span></button>
-        <section class="bankroll-popover" id="bankroll-popover" aria-label="Bankroll settings" hidden>
-          <div class="popover-heading"><span>Trades to Play Bankroll</span><small>Controls recommendation sizing only</small></div>
-          <label class="money-input bankroll-loading"><span>$</span><input id="bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Trades to Play sizing bankroll" disabled></label>
-          <div class="unit-readout"><span>1 Unit</span><strong id="unit-value">Loading</strong><small>1% of saved bankroll</small></div>
-          <span class="save-state" id="bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
-          <button class="button compact primary" id="save-bankroll" type="button" disabled>Save Bankroll</button>
-        </section>
-      </div>
-      <div class="toolbar-popover-shell personal-pnl-shell">
-        <button class="personal-pnl-summary" id="personal-pnl-button" type="button" aria-expanded="false" aria-controls="personal-pnl-popover"><span id="personal-pnl-period-label">PAST WEEK</span><strong id="personal-pnl-period-value">$0.00</strong><em id="personal-pnl-today-value">$0.00 Today</em><i class="ph ph-caret-down" aria-hidden="true"></i></button>
-        <section class="personal-pnl-popover" id="personal-pnl-popover" hidden>
-          <div class="pnl-range-controls" role="group" aria-label="Realized P and L range"><button data-pnl-period="today">1D</button><button class="active" data-pnl-period="week">1W</button><button data-pnl-period="month">1M</button><button data-pnl-period="year">1Y</button><button data-pnl-period="all">MAX</button></div>
-          <div class="pnl-popover-summary"><strong id="personal-pnl-expanded-value">$0.00</strong><span><em id="personal-pnl-expanded-today">$0.00 Today</em><em id="personal-pnl-yesterday">$0.00 Yesterday</em></span></div>
-          <div class="personal-pnl-chart" id="personal-pnl-chart"></div>
-          <small>Realized Personal Tracker P&amp;L only · America/New_York</small>
-        </section>
-      </div>
-      <button class="icon-button trades-pause-control" type="button" data-refresh-toggle aria-pressed="false" aria-label="Pause automatic refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
-      <button class="icon-button settings-trigger" id="more-filters-button" type="button" aria-expanded="false" aria-controls="more-filters" aria-label="Open trade settings"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="active-filter-count" id="active-filter-count">0</span></button>
-      <button class="icon-button" id="trade-refresh-button" type="button" aria-label="Refresh live trade data" title="Refresh live trade data"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
-      <div class="toolbar-popover-shell">
-        <button class="icon-button" id="trades-more-button" type="button" aria-expanded="false" aria-controls="trades-more-menu" aria-label="More trade actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
-        <div class="trades-more-menu" id="trades-more-menu" hidden>
-          <button class="menu-action" id="open-whiteboard-button" type="button"><i class="ph ph-push-pin" aria-hidden="true"></i><span>Whiteboard</span><strong id="whiteboard-count">0</strong></button>
-          <button class="menu-action hidden-trades-button" id="hidden-trades-button" type="button"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Manage hidden trades</span><strong id="hidden-trades-count">0</strong></button>
-          <div class="menu-status"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span></div>
-          <small>All event times shown in ET</small>
+      <label class="search-control compact-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search opportunities" autocomplete="off"></label>
+      <div class="trades-finance-actions" aria-label="Trading settings">
+        <div class="toolbar-popover-shell">
+          <button class="toolbar-bankroll" id="bankroll-popover-button" type="button" aria-expanded="false" aria-controls="bankroll-popover"><small>Bankroll</small><span id="bankroll-toolbar-value">Loading</span></button>
+          <section class="bankroll-popover" id="bankroll-popover" aria-label="Bankroll settings" hidden>
+            <div class="popover-heading"><span>Trades to Play Bankroll</span><small>Controls recommendation sizing only</small></div>
+            <label class="money-input bankroll-loading"><span>$</span><input id="bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Trades to Play sizing bankroll" disabled></label>
+            <div class="unit-readout"><span>1 Unit</span><strong id="unit-value">Loading</strong><small>1% of saved bankroll</small></div>
+            <span class="save-state" id="bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
+            <button class="button compact primary" id="save-bankroll" type="button" disabled>Save Bankroll</button>
+          </section>
         </div>
+        <span class="toolbar-unit-size"><small>Unit size</small><strong id="unit-toolbar-value">Loading</strong></span>
       </div>
-      <div class="trades-corner-cluster" aria-label="Quick account controls">
-        <button class="corner-avatar" id="account-menu-toggle" type="button" aria-label="Open profile menu" aria-expanded="false">R</button>
-        <div class="corner-account-menu" id="corner-account-menu" hidden>
-          <button id="corner-profile-open" type="button"><i class="ph ph-user" aria-hidden="true"></i><span>Profile</span></button>
-          <button id="corner-account-logout" type="button"><i class="ph ph-sign-out" aria-hidden="true"></i><span>Sign Out</span></button>
+      <div class="trades-utility-actions" aria-label="Trade workspace tools">
+        <button class="icon-button settings-trigger" id="more-filters-button" type="button" aria-expanded="false" aria-controls="more-filters" aria-label="Open trade settings"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="active-filter-count" id="active-filter-count">0</span></button>
+        <div class="toolbar-popover-shell">
+          <button class="icon-button" id="trades-more-button" type="button" aria-expanded="false" aria-controls="trades-more-menu" aria-label="More trade actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
+          <div class="trades-more-menu" id="trades-more-menu" hidden>
+            <div class="toolbar-popover-shell personal-pnl-shell">
+              <button class="menu-action personal-pnl-summary" id="personal-pnl-button" type="button" aria-expanded="false" aria-controls="personal-pnl-popover"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span id="personal-pnl-period-label">Personal P&amp;L · 1W</span><strong id="personal-pnl-period-value">$0.00</strong><em id="personal-pnl-today-value">$0.00 Today</em></button>
+              <section class="personal-pnl-popover" id="personal-pnl-popover" hidden>
+                <div class="pnl-range-controls" role="group" aria-label="Realized P and L range"><button data-pnl-period="today">1D</button><button class="active" data-pnl-period="week">1W</button><button data-pnl-period="month">1M</button><button data-pnl-period="year">1Y</button><button data-pnl-period="all">MAX</button></div>
+                <div class="pnl-popover-summary"><strong id="personal-pnl-expanded-value">$0.00</strong><span><em id="personal-pnl-expanded-today">$0.00 Today</em><em id="personal-pnl-yesterday">$0.00 Yesterday</em></span></div>
+                <div class="personal-pnl-chart" id="personal-pnl-chart"></div>
+                <small>Realized Personal Tracker P&amp;L only · America/New_York</small>
+              </section>
+            </div>
+            <button class="menu-action" id="trade-refresh-button" type="button"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh live data</span></button>
+            <button class="menu-action trades-pause-control" type="button" data-refresh-toggle aria-pressed="false" aria-label="Pause automatic refresh"><i class="ph ph-pause" aria-hidden="true"></i><span>Page refresh: Active</span></button>
+            <button class="menu-action" id="open-whiteboard-button" type="button"><i class="ph ph-push-pin" aria-hidden="true"></i><span>Whiteboard</span><strong id="whiteboard-count">0</strong></button>
+            <button class="menu-action hidden-trades-button" id="hidden-trades-button" type="button"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Manage hidden trades</span><strong id="hidden-trades-count">0</strong></button>
+            <div class="menu-status"><span class="status-dot"></span><span id="trade-freshness">Checking live markets</span></div>
+            <small>All event times shown in ET</small>
+          </div>
+        </div>
+        <div class="trades-corner-cluster" aria-label="Quick account controls">
+          <button class="corner-avatar" id="account-menu-toggle" type="button" aria-label="Open profile menu" aria-expanded="false">R</button>
+          <div class="corner-account-menu" id="corner-account-menu" hidden>
+            <button id="corner-profile-open" type="button"><i class="ph ph-user" aria-hidden="true"></i><span>Profile</span></button>
+            <button id="corner-account-logout" type="button"><i class="ph ph-sign-out" aria-hidden="true"></i><span>Sign Out</span></button>
+          </div>
         </div>
       </div>
     </div>
   </header>
-  <section class="trade-summary-strip" aria-label="Prediction Traders summary">
-    <div class="summary-metric"><span>Qualified plays</span><strong id="trade-summary-qualified">—</strong><small>Actionable now</small></div>
-    <div class="summary-metric"><span>Candidates scanned</span><strong id="trade-summary-scanned">—</strong><small>Current view</small></div>
-    <div class="summary-metric"><span>Active providers</span><strong id="trade-summary-providers">—</strong><small>Exact executable feeds</small></div>
-    <div class="summary-metric"><span>Recommended exposure</span><strong id="trade-summary-exposure">—</strong><small>Across qualified plays</small></div>
-    <div class="summary-metric warning-metric"><span>Mapping warnings</span><strong id="trade-summary-warnings">—</strong><small>Require review</small></div>
-  </section>
 
   <div class="trades-drawer-backdrop" id="trades-drawer-backdrop" hidden></div>
   <aside class="more-filters trades-settings-drawer" id="more-filters" aria-labelledby="trades-settings-title" hidden>
@@ -83,15 +84,12 @@
       <section class="settings-group settings-grid">
         <label>Date Range<select id="trade-date-range"><option value="today">Today</option><option value="next24">Next 24 Hours</option><option value="next7">Next 7 Days</option><option value="custom">Custom</option></select></label>
         <label>Sharps Count<select id="trade-sharps"><option value="0">All Sharps</option><option value="1">1 Sharp</option><option value="2">2+ Sharps</option><option value="3">3+ Sharps</option><option value="4">4+ Sharps</option><option value="5">5+ Sharps</option></select></label>
-        <label>Minimum Score<select id="trade-confidence"><option value="0">Any Score</option><option value="60">60+ Score</option><option value="70">70+ Score</option><option value="80">80+ Score</option><option value="90">90+ Score</option></select></label>
-        <label>Sport<select id="trade-sport"><option value="">All Sports</option></select></label>
         <label>League<select id="trade-league"><option value="">All leagues</option></select></label>
         <label>Sharp Wallet<select id="trade-wallet"><option value="">All wallets</option></select></label>
         <label>Classification<select id="trade-classification"><option value="">All Trades</option><option value="STANDARD">Standard</option><option value="CONTRADICTING_SHARPS">Contradicting Sharps</option><option value="SHARP_NON_CATEGORY">Sharp Non-Category</option><option value="RESEARCH_ONLY">Research Only</option></select></label>
         <label>Execution Venue<select id="trade-execution"><option value="">All exact exchanges</option><option value="polymarket">Polymarket</option><option value="novig">NoVIG exact matches</option><option value="prophetx">ProphetX exact matches</option><option value="4cx">4CX exact matches</option><option value="kalshi">Kalshi exact matches</option></select></label>
         <label>Minimum Rec. Bet<select id="trade-min-bet"><option value="0">Any amount</option><option value="10">$10+</option><option value="25">$25+</option><option value="50">$50+</option><option value="100">$100+</option></select></label>
         <label>Maximum Slippage<select id="trade-max-slippage"><option value="">Model limit</option><option value="0.03">3% or better</option><option value="0.05">5% or better</option></select></label>
-        <label>Sorting<select id="trade-sort"><option value="confidence-desc">Confidence score</option><option value="sharps-desc">Sharps count</option><option value="consensus-desc">Weighted consensus</option><option value="recommendation-desc">Recommended bet size</option><option value="trader-bet-desc">Trader bet size</option><option value="relative-desc">Relative bet size</option><option value="start-asc">Event start time</option><option value="price-asc">Current price</option><option value="slippage-asc">Slippage</option></select></label>
         <label class="custom-time">Custom start<input id="custom-start" type="datetime-local"></label>
         <label class="custom-time">Custom end<input id="custom-end" type="datetime-local"></label>
       </section>
@@ -110,27 +108,59 @@
   </aside>
 
   <section class="trade-workspace">
-    <div class="trade-list-panel" aria-label="Trades to Play results">
-      <div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
-      <section class="low-inventory-state" id="low-inventory-state" hidden>
-        <div class="low-inventory-message">
-          <div><h2>More signals<br>are <span>coming.</span></h2></div>
-          <div class="low-inventory-copy"><i class="ph ph-chart-line-up" aria-hidden="true"></i><div><strong>Peak activity: <span>5 PM – 7 PM</span></strong><small>23% of plays historically land during this window.</small></div></div>
+    <div class="trade-master-column">
+      <section class="trade-summary-strip" aria-label="Current opportunity summary">
+        <div class="summary-metric">
+          <i class="ph ph-lightning" aria-hidden="true"></i>
+          <span><strong id="trade-summary-qualified">—</strong><small>Qualified opportunities</small></span>
         </div>
-        <div class="play-activity-chart" role="img" aria-label="Typical hourly play activity, with the most opportunities appearing in the evening">
-          <header><span><i></i>Plays per hour (last 2 weeks)</span><small><b>MON</b><b>TUE</b><b class="active">WED</b><b>THU</b><b>FRI</b><b>SAT</b><b>SUN</b></small></header>
-          <ol aria-hidden="true">
-            <li style="--activity:12%"></li><li style="--activity:18%"></li><li style="--activity:28%"></li><li style="--activity:22%"></li>
-            <li style="--activity:18%"></li><li style="--activity:12%"></li><li style="--activity:16%"></li><li style="--activity:30%"></li>
-            <li style="--activity:22%"></li><li style="--activity:48%"></li><li style="--activity:72%"></li><li style="--activity:56%"></li>
-            <li style="--activity:78%"></li><li style="--activity:62%"></li><li style="--activity:38%"></li><li style="--activity:28%"></li>
-            <li style="--activity:42%"></li><li style="--activity:58%"></li><li style="--activity:34%"></li><li style="--activity:92%"></li>
-            <li style="--activity:54%"></li><li style="--activity:36%"></li><li style="--activity:46%"></li><li style="--activity:32%"></li>
-          </ol>
-          <footer><span>12a</span><span>6a</span><span>12p</span><span>6p</span></footer>
+        <div class="summary-metric">
+          <i class="ph ph-trend-up" aria-hidden="true"></i>
+          <span><strong id="trade-summary-edge">—</strong><small>Average projected edge</small></span>
         </div>
-        <button class="button ghost compact" id="low-inventory-clear" type="button"><i class="ph ph-funnel-x" aria-hidden="true"></i>Clear Filters</button>
+        <div class="summary-metric">
+          <i class="ph ph-target" aria-hidden="true"></i>
+          <span><strong id="trade-summary-hit-rate">—</strong><small>Average sharp hit rate</small></span>
+        </div>
+        <div class="summary-metric">
+          <i class="ph ph-wallet" aria-hidden="true"></i>
+          <span><strong id="trade-summary-exposure">—</strong><small>Recommended exposure</small></span>
+        </div>
       </section>
+      <div class="trade-list-panel" aria-label="Trades to Play results">
+        <header class="opportunity-list-toolbar">
+          <h2>Top Opportunities</h2>
+          <div class="opportunity-filter-bar" aria-label="Top opportunity filters">
+            <label><span class="sr-only">Sport</span><select id="trade-sport" aria-label="Filter by sport"><option value="">All Sports</option></select></label>
+            <label><span class="sr-only">Market</span><select id="trade-market" aria-label="Filter by market"><option value="">All Markets</option></select></label>
+            <label><span class="sr-only">Minimum confidence</span><select id="trade-confidence" aria-label="Minimum confidence"><option value="0">Minimum Confidence</option><option value="60">60+ Confidence</option><option value="70">70+ Confidence</option><option value="80">80+ Confidence</option><option value="90">90+ Confidence</option></select></label>
+            <label><span class="sr-only">Sort opportunities</span><select id="trade-sort" aria-label="Sort opportunities"><option value="confidence-desc">Sort: Confidence</option><option value="sharps-desc">Sort: Sharps</option><option value="consensus-desc">Sort: Consensus</option><option value="recommendation-desc">Sort: Stake</option><option value="trader-bet-desc">Sort: Sharp volume</option><option value="relative-desc">Sort: Relative size</option><option value="start-asc">Sort: Start time</option><option value="price-asc">Sort: Current price</option><option value="slippage-asc">Sort: Entry edge</option></select></label>
+          </div>
+        </header>
+        <div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div>
+      </div>
+      <details class="low-inventory-state" id="low-inventory-state" hidden>
+        <summary>
+          <span><strong>Signal Activity</strong><small>Peak window: 5 PM–7 PM</small></span>
+          <span class="signal-activity-preview" aria-hidden="true"><i style="--activity:24%"></i><i style="--activity:38%"></i><i style="--activity:54%"></i><i style="--activity:82%"></i><i style="--activity:66%"></i><i style="--activity:42%"></i><i style="--activity:30%"></i></span>
+          <i class="ph ph-caret-down" aria-hidden="true"></i>
+        </summary>
+        <div class="signal-activity-expanded">
+          <div class="play-activity-chart" role="img" aria-label="Typical hourly play activity, with the most opportunities appearing in the evening">
+            <header><span>Plays per hour · last 2 weeks</span></header>
+            <ol aria-hidden="true">
+              <li style="--activity:12%"></li><li style="--activity:18%"></li><li style="--activity:28%"></li><li style="--activity:22%"></li>
+              <li style="--activity:18%"></li><li style="--activity:12%"></li><li style="--activity:16%"></li><li style="--activity:30%"></li>
+              <li style="--activity:22%"></li><li style="--activity:48%"></li><li style="--activity:72%"></li><li style="--activity:56%"></li>
+              <li style="--activity:78%"></li><li style="--activity:62%"></li><li style="--activity:38%"></li><li style="--activity:28%"></li>
+              <li style="--activity:42%"></li><li style="--activity:58%"></li><li style="--activity:34%"></li><li style="--activity:92%"></li>
+              <li style="--activity:54%"></li><li style="--activity:36%"></li><li style="--activity:46%"></li><li style="--activity:32%"></li>
+            </ol>
+            <footer><span>12a</span><span>6a</span><span>12p</span><span>6p</span></footer>
+          </div>
+          <button class="button ghost compact" id="low-inventory-clear" type="button">Clear filters</button>
+        </div>
+      </details>
     </div>
     <aside class="trade-detail" id="trade-detail" aria-label="Selected trade details" aria-live="polite">
       <div class="model-activity-state">

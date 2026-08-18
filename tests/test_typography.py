@@ -4,110 +4,280 @@ import re
 from pathlib import Path
 
 
-STYLE_PATH = Path(__file__).resolve().parents[1] / "static" / "style.css"
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "static" / "app.js"
-TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "templates" / "base.html"
+ROOT = Path(__file__).resolve().parents[1]
+STYLE_PATH = ROOT / "static" / "style.css"
+DESIGN_SYSTEM_PATH = ROOT / "static" / "design-system.css"
+TRADES_STYLE_PATH = ROOT / "static" / "stage2-trades.css"
+SCRIPT_PATH = ROOT / "static" / "app.js"
+TEMPLATE_PATH = ROOT / "templates" / "base.html"
+TRADES_TEMPLATE_PATH = ROOT / "templates" / "trades.html"
 
 
-def _rule(css: str, selector: str) -> str:
-    matches = re.findall(
-        rf"(?ms)^{re.escape(selector)}\s*\{{(.*?)^\}}",
-        css,
-    )
-    assert matches, f"Missing CSS rule for {selector}"
-    return matches[-1]
+def _function(source: str, name: str) -> str:
+    start = source.index(f"function {name}(")
+    next_function = source.find("\nfunction ", start + 1)
+    return source[start:] if next_function == -1 else source[start:next_function]
 
 
-def test_display_headings_use_loaded_font_weights_and_safe_line_height():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-
-    assert "font-weight: 750" not in css
-    assert "line-height: 0.98" not in css
-    assert "line-height: 1.05" not in css
-    assert "text-rendering: optimizeLegibility" not in css
-    assert "font-weight: 800" in _rule(css, "h2")
-    assert "line-height: 1.12" in _rule(css, "h2")
+def _rule_bodies(css: str, selector_fragment: str) -> list[str]:
+    return [
+        body
+        for selector, body in re.findall(r"(?s)([^{}]+)\{([^{}]*)\}", css)
+        if selector_fragment in selector
+    ]
 
 
-def test_typography_uses_warm_display_and_readable_tabular_data_fonts():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-    script = SCRIPT_PATH.read_text(encoding="utf-8")
+def test_product_foundation_defines_semantic_visual_tokens():
+    css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+
+    for token in (
+        "--il-bg-app",
+        "--il-bg-sidebar",
+        "--il-surface-1",
+        "--il-surface-2",
+        "--il-surface-elevated",
+        "--il-surface-hover",
+        "--il-surface-selected",
+        "--il-border-subtle",
+        "--il-border-standard",
+        "--il-border-interactive",
+        "--il-text-primary",
+        "--il-text-secondary",
+        "--il-text-muted",
+        "--il-brand",
+        "--il-brand-hover",
+        "--il-positive",
+        "--il-negative",
+        "--il-warning",
+    ):
+        assert token in css
+
+    assert '--il-font-ui: "DM Sans", Inter, sans-serif' in css
+    assert '--il-font-data: "Roboto Condensed", "DM Sans", sans-serif' in css
+    assert "font-variant-numeric: tabular-nums lining-nums" in css
+
+
+def test_prediction_traders_opts_into_the_v2_foundation_last():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert '--font-display: "Fraunces", Georgia, serif' in css
-    assert '--font-body: "DM Sans", sans-serif' in css
-    assert '--font-data: "Roboto Condensed", sans-serif' in css
-    assert "font-variant-numeric: tabular-nums lining-nums" in css
+    assert 'data-design-system="{% if page == \'trades\' %}v2' in template
+    assert "filename='trades-hierarchy.css'" not in template
+    assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
+
+    late_foundation = template.rindex("foundation-v5")
+    late_trades = template.rindex("pilot-v6")
+    assert late_foundation > template.index("filename='app-premium.css'")
+    assert late_foundation > template.index("filename='sidebar-shell.css'")
+    assert late_trades > late_foundation
+
+
+def test_prediction_traders_does_not_reload_legacy_override_layers():
+    template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+    trades_css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+
+    for stylesheet in (
+        "legacy-design-system.css",
+        "stage2-art-direction.css",
+        "shared-shell.css",
+        "mobile-product.css",
+        "app-premium.css",
+        "sidebar-shell.css",
+    ):
+        excluded_for_trades = (
+            f"page != 'trades' %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            in template
+        )
+        excluded_for_home_and_trades = (
+            f"page not in ['home', 'trades'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            in template
+        )
+        assert excluded_for_trades or (
+            stylesheet in {"app-premium.css", "sidebar-shell.css"}
+            and excluded_for_home_and_trades
+        )
+
+    assert design_css.count("!important") <= 4
+    assert trades_css.count("!important") <= 3
+
+
+def test_prediction_feed_uses_separated_cards_and_a_six_track_scan_path():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    assert (
+        "--trade-row-grid: 76px minmax(270px, 1fr) minmax(150px, 190px) "
+        "132px 68px 78px"
+    ) in css
+    assert "grid-template-columns: var(--trade-row-grid)" in css
+
+    list_rules = "\n".join(_rule_bodies(css, ".trade-list"))
+    card_rules = "\n".join(_rule_bodies(css, ".trade-card"))
+    assert "gap: 8px" in list_rules
+    assert "min-height: 112px" in card_rules
+    assert "border: 1px solid var(--il-border-subtle)" in card_rules
+    assert "border-radius: 9px" in card_rules
+    assert "background: var(--il-surface-1)" in card_rules
+    assert ".trade-card.is-selected" in css
+
+    assert '<h2>Top Opportunities</h2>' in template
+    assert "trade-view-action" in script
+    assert "max-width: 1160px" not in css
+    assert "trades-hierarchy" not in css
+
+
+def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    card_function = _function(script, "tradeCard")
+    quote_function = _function(script, "executableQuoteChip")
+
+    assert "trade-confidence-indicator" in card_function
+    assert "trade-signal-summary" in card_function
+    for phrase in ("sharp", "size", "hit"):
+        assert phrase in card_function.lower()
+    assert "metricIconMarkup" not in script
+    stake_function = _function(script, "recommendedBetMarkup")
+    assert "trade-bet-size" in stake_function
+    assert "<small>Stake</small>" in stake_function
+    assert "trade-view-action" in card_function
+
+    assert "executable-quote-chip" in quote_function
+    assert "providerLogoMarkup" in quote_function
+    assert "displayOdds" in quote_function
+    assert "providerName" in quote_function
+    assert "aria-label" in quote_function
+    assert "<small>" not in quote_function
+
+    quote_rules = "\n".join(_rule_bodies(css, ".execution-option"))
+    assert "min-height: 48px" in quote_rules
+    assert "border: 1px solid var(--il-positive)" in quote_rules
+    assert "border-radius: 7px" in quote_rules
+    assert "background: rgba(80, 217, 119, .035)" in quote_rules
+
+    provider_rules = _rule_bodies(css, ".provider-logo")
+    assert provider_rules
+    assert all(
+        re.search(r"(?<!-)filter\s*:", body) is None for body in provider_rules
+    )
+
+
+def test_prediction_summary_and_filters_match_the_four_metric_contract():
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    summary_ids = (
+        "trade-summary-qualified",
+        "trade-summary-edge",
+        "trade-summary-hit-rate",
+        "trade-summary-exposure",
+    )
+    for summary_id in summary_ids:
+        assert template.count(f'id="{summary_id}"') == 1
+        assert summary_id in script
+    for superseded_id in (
+        "trade-summary-scanned",
+        "trade-summary-providers",
+        "trade-summary-warnings",
+    ):
+        assert superseded_id not in template
+
+    for filter_id in ("trade-sport", "trade-market", "trade-confidence", "trade-sort"):
+        assert template.count(f'id="{filter_id}"') == 1
+
+
+def test_prediction_evidence_and_signal_activity_use_progressive_disclosure():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
+    evidence_function = _function(script, "detailStripMetric")
+
+    assert "TRADE_METRIC_TOOLTIPS" in script
+    assert "bindIconLabsTooltipSystem" in script
+    assert "chart-point-tooltip" in script
+    assert "trade-confidence-meter" not in css + script
+    assert "<strong>${escapeHtml(value)}</strong>" in evidence_function
+    assert "<small>${escapeHtml(label)}</small>" in evidence_function
+
+    assert '<details class="low-inventory-state"' in template
+    signal_opening_tag = template.split('<details class="low-inventory-state"', 1)[1].split(">", 1)[0]
+    assert " open" not in signal_opening_tag
+    assert "signal-activity-preview" in template
+    assert "signal-activity-expanded" in template
+    assert "play-activity-chart" in template
+    assert "min-height: 228px" not in css
+
+
+def test_prediction_traders_responsive_rules_prevent_horizontal_overflow():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+
+    for breakpoint in (1920, 1480, 1320, 980, 640):
+        assert f"@media (max-width: {breakpoint}px)" in css
+    assert "overflow-x: hidden" in css
+    assert re.search(r"overflow-x:\s*(?:auto|scroll)", css) is None
+    assert re.search(r"min-width:\s*[1-9][0-9]{3,}px", css) is None
+    assert "grid-template-columns: minmax(0, 1fr) clamp(450px, 24vw, 480px)" in css
+    assert "grid-template-columns: minmax(0, 1fr) 420px" in css
+    assert "grid-template-columns: minmax(0, 1fr);" in css
+    assert "width: min(500px, 92vw)" in css
+    assert '"score event event event"' in css
+    assert '"execution execution stake action"' in css
+    assert '"selection selection selection"' in css
+    assert '"execution execution stake"' in css
+    assert "width: 100%" in css
+    assert "transform: translateY(102%)" in css
+    assert ".mobile-trade-detail-open .trade-detail { transform: translateY(0); }" in css
+
+
+def test_prediction_price_chart_is_compact_data_aware_and_accessible():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert "const seriesMin = Math.min(...values)" in script
+    assert "const seriesMax = Math.max(...values)" in script
+    assert "const PREDICTION_TRADERS_PRICE_DOMAIN" in script
+    assert "minimumPadding: 0.005" in script
+    assert "minimumSpan: 0.01" in script
+    assert "* 0.12, minimumPadding" in script
+    assert "domain: PREDICTION_TRADERS_PRICE_DOMAIN" in script
+    assert "domainValues" not in script
+    assert 'chartTokenValue(container, "--il-brand-hover", "#8b5cf6")' in script
+    assert 'chartTokenValue(container, "--il-warning", "#f5a524")' in script
+    assert 'chartTokenValue(container, "--il-positive", "#39d66f")' in script
+    assert '{ value: number(slippage?.whalePrice), tone: "trader", label: "Trader" }' in script
+    assert '{ value: number(currentPrice), tone: "current", label: "Current" }' in script
+    assert "reference.value) >= min && Number(reference.value) <= max" in script
+    assert "color: tradePriceHistoryColor(container)" in script
+    assert "Current executable" in script
+    assert "priceDeltaLabel" in script
+    assert 'canvas.setAttribute("role", "img")' in script
+    assert 'canvas.addEventListener("pointermove"' in script
+    assert 'canvas.addEventListener("focus"' in script
+    assert 'canvas.addEventListener("keydown"' in script
+    assert '"ArrowLeft", "ArrowRight"' in script
+    chart_rule = re.search(r"\.price-chart\s*\{(?P<body>[^}]*)\}", css)
+    assert chart_rule
+    assert "min-height: 150px" in chart_rule.group("body")
+    assert "min-height: 220px" not in chart_rule.group("body")
+
+
+def test_prediction_controls_expose_selected_and_focus_states():
+    design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert ":focus-visible" in design_css
+    assert "outline: 2px solid var(--il-focus)" in design_css
+    assert 'role="group" aria-label="Price history range"' in script
+    assert 'item.setAttribute("aria-pressed", String(active))' in script
+
+
+def test_existing_brand_fonts_and_wordmark_assets_remain_available():
+    template = TEMPLATE_PATH.read_text(encoding="utf-8")
+    style = STYLE_PATH.read_text(encoding="utf-8")
+
     assert "family=DM+Sans" in template
     assert "family=Fraunces" in template
     assert "family=Roboto+Condensed" in template
-    assert '"Roboto Condensed"' in script
-    assert "Chivo Mono" not in template + css + script
-    assert "Sometype Mono" not in template + css + script
-    assert "IBM Plex Sans" not in template + css + script
-    assert "JetBrains Mono" not in template + css + script
-    assert "League Spartan" not in template + css + script
-
-
-def test_empty_state_heading_keeps_full_glyph_box_visible():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-    empty_heading_rule = _rule(css, ".empty-state h2,\n.empty-detail h2")
-
-    assert "max-width: 100%" in empty_heading_rule
-    assert "overflow: visible" in empty_heading_rule
-    assert "font-weight: 700" in empty_heading_rule
-    assert "line-height: 1.2" in empty_heading_rule
-    assert "text-rendering: geometricPrecision" in empty_heading_rule
-
-
-def test_trades_workspace_is_centered_and_capped_on_ultrawide_screens():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-    trades_page_rule = _rule(css, ".trades-page")
-
-    assert "width: min(100%, 1520px)" in trades_page_rule
-    assert "margin-inline: auto" in trades_page_rule
-
-
-def test_readability_refinement_enlarges_dense_trade_microcopy():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-
-    trade_context_rule = _rule(css, ".trade-kicker,\n.trade-market")
-    provider_label_rule = _rule(css, ".trade-selection small,\n.execution-option > span small")
-    orderbook_rule = _rule(
-        css,
-        ".live-price small,\n.live-price em,\n.detail-selection-size small,\n.detail-strip-metric small,\n.price-range-controls button,\n.price-legend,\n.orderbook-side > small,\n.orderbook-row,\n.orderbook-row > strong,\n.orderbook-summary,\n.orderbook-empty small,\n.detail-accordion > summary > small,\n.calculation-grid strong,\n.calculation-note,\n.supporter-row small",
-    )
-
-    assert "/* Readability and depth refinements */" in css
-    assert "font-size: 11px" in trade_context_rule
-    assert "font-size: 9.5px" in provider_label_rule
-    assert "font-size: 10px" in orderbook_rule
-
-
-def test_depth_refinement_uses_cool_neutral_dimension():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-    root_rule = _rule(css, ":root")
-    trades_rule = _rule(css, 'body[data-page="trades"]')
-
-    assert "--muted: #83949e" in root_rule
-    assert "rgba(255, 255, 255, 0.06)" in root_rule
-    assert "--trade-score: #73d247" in trades_rule
-    assert "radial-gradient(ellipse at 18% -18%" in css
-    assert "background-attachment: fixed" in css
-
-
-def test_oddsjam_graphite_theme_controls_primary_visual_tokens():
-    css = STYLE_PATH.read_text(encoding="utf-8")
-    script = SCRIPT_PATH.read_text(encoding="utf-8")
-    root_rule = _rule(css, ":root")
-    trades_rule = _rule(css, 'body[data-page="trades"]')
-
-    assert "/* OddsJam-inspired graphite theme */" in css
-    assert "--bg: #05080b" in root_rule
-    assert "--text: #f4f7f8" in root_rule
-    assert "--cyan: #13b7ed" in root_rule
-    assert "--green: #6fd34a" in root_rule
-    assert "--trade-border-active: #13b7ed" in trades_rule
-    assert "--trade-accent: #13b7ed" in trades_rule
-    assert 'options.color || "#13b7ed"' in script
-    assert "rgba(19, 183, 237, 0.2)" in script
+    assert "iconlabs-wordmark-only-4k-transparent.webp" in template
+    assert '--font-display: "Fraunces", Georgia, serif' in style

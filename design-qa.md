@@ -1,67 +1,60 @@
-# Design QA
+# Prediction Traders — Approved Mockup Implementation QA
 
-## Positive EV structure
+## Evidence
 
-- Reference: `C:/Users/15617/Desktop/Screenshot_2026-07-29_at_9.22.15_AM.webp`
-- Route checked: `/positive-ev?preview=1`
-- Desktop viewport checked: `1887 x 894`
-- Mobile viewport checked: `390 x 844`
-- Centered feed width: `980px`
-- Preview opportunities rendered: `5`
-- Desktop opportunity height: `84px`
-- Four-zone row rhythm (EV, event, market, execution): passed
-- Muted navy surfaces and soft separators: passed
-- Compact bookmaker and odds capsule: passed
-- Search and utility toolbar density: passed
-- Desktop horizontal overflow: none
-- Mobile horizontal page overflow: none
-- Opportunity detail open and close behavior: passed
-- Filter dialog open and close behavior: passed
-- Preview fixtures remain visually marked and non-production: passed
+- Visual target: `C:\Users\15617\Downloads\ChatGPT Image Aug 18, 2026, 11_40_06 AM.png` (1635 × 962).
+- Final desktop implementation: `.codex-artifacts/final-prediction-traders-1920x1080.png` (1920 × 1080).
+- Final mobile implementation: `.codex-artifacts/final-prediction-traders-mobile-390x844.png` (390 × 844).
+- Verified route: `http://localhost:5001/trades?selected=qa-trade-2`.
+- State: five same-day placeholder opportunities with New York Yankees vs Boston Red Sox selected.
 
-## Existing Prediction Traders refinement
+The reference and final desktop capture were opened together in the same comparison input before this result was recorded.
 
-- Route checked: `/trades`
-- Desktop hierarchy and dark-surface consistency: passed
-- Existing layout and interactions preserved: passed
-- Sidebar label scale and icon alignment: passed
-- Command bar, trade-list, and detail-rail spacing: passed
+## Visual match
 
-Final result: passed
+- The 232px IconLabs navigation, deep navy canvas, compact command bar, four-metric summary, Top Opportunities filter row, five separated opportunity cards, green executable quote chips, restrained selected-card purple border, compact Signal Activity strip, and persistent 480px detail rail all match the approved direction.
+- Opportunity scan order is Confidence → Event → Selection → Executable quote → Stake → View.
+- The detail rail preserves the approved hierarchy: event identity, execution, best prices, Why this bet, Trader stats, semantic price movement, then advanced evidence.
+- DM Sans, tabular numerics, border radii, surface contrast, and semantic purple/green/red usage are consistent with the mockup and the existing IconLabs system.
+- Signal Activity now includes the compact purple bar preview visible in the approved reference.
+- The 390px composition retains the brand, tabs, search, bankroll/unit controls, 2 × 2 summary, filters, and usable card actions without horizontal overflow.
 
-## Shared product sidebar
+## Intentional differences
 
-- Reference: `C:/Users/15617/AppData/Local/Temp/codex-clipboard-8e3387e0-b3ea-4821-b2c5-507ca0a024c1.png`
-- Implementation route captured: `/positive-ev`
-- Reference crop and implementation viewport: `752 x 966`
-- Canonical desktop rail width: `240px`
-- Canonical content offset: `240px`
-- Navigation order, icon column, label column, active purple treatment, and bottom account control: passed
-- Prediction Traders, Positive EV, Sportsbook Screen, Bet Tracker, Sharp Money, and LabTracker route consistency: passed
-- Route navigation always restores the full canonical rail: passed
-- Desktop collapse control remains functional for the current route: passed
-- Mobile header/drawer layout remains isolated from desktop rail styles: passed at `390 x 844`
-- Browser console warnings and errors: none
+- The supplied target image is 1635 × 962, while the required production QA target is 1920 × 1080. Proportions follow the brief’s explicit 232px sidebar and 450–480px rail rather than scaling every source pixel.
+- Summary values, event times, execution prices, liquidity, and chart history come from the actual QA data path instead of being hard-coded from the generated mockup.
+- Unit size remains the real configured 1% of the $10,000 bankroll ($100), rather than the mockup’s illustrative $25, because sizing business logic was explicitly out of scope.
+- “Recommended exposure” replaces “Current exposure” because the value is the sum of recommended stakes, not held-position exposure.
+- Existing risk, whiteboard, and personal-tracker actions remain available in the detail header. The title may wrap to two lines rather than truncate when these real actions consume rail width.
 
-final result: passed
+## Interaction and accessibility QA
 
-## LabTracker
+- Deep link preserves and selects `qa-trade-2` before cached/live payload reconciliation.
+- View selects the requested trade; at desktop it updates the rail, and at ≤1320px it opens an accessible modal drawer.
+- Mobile drawer has `role=dialog`, `aria-modal=true`, focus containment, Escape/backdrop close, background scroll lock, and `inert`/`aria-hidden` while closed.
+- Sport filtering reduced the feed to the two Baseball opportunities and synchronized the URL.
+- Signal Activity expands/collapses correctly.
+- Price range controls update pressed state and redraw the chart.
+- Price canvas remains keyboard focusable with Left/Right point navigation and caller-specific accessible summaries.
+- Fresh-page browser console: no errors.
 
-- References: `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.02.41_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-13_at_10.04.12_PM.webp`, `C:/Users/15617/Desktop/Screenshot_2026-08-14_at_11.03.27_PM.webp`
-- Route checked: `/lab-tracker`
-- Desktop viewport checked: `1440 x 1000`
-- Mobile viewport checked: `390 x 844`
-- Reference/prototype comparison: `.codex-artifacts/labtracker-comparison.png`
-- Centered workspace maximum width: `1320px`
-- Three-column sportsbook/performance/insight hierarchy: passed
-- Four-metric summary strip and cumulative chart: passed
-- Last five graded-bet cards: passed
-- Dollars/units toggle (`1u = $100`): passed
-- All Signals, Positive EV, Sharp Money, and My Bets controls: passed
-- Desktop horizontal overflow: none
-- Mobile horizontal page overflow: none
-- Mobile stacking and control access: passed
-- Empty and populated states: passed
-- Console errors: none
+## Responsive and overflow QA
+
+| Viewport | Result |
+| --- | --- |
+| 1920 × 1080 | Persistent 480px rail, five cards, no page overflow |
+| 1440 × 900 | Persistent 420px rail, composed wrapping header, no page overflow |
+| 1280 × 800 | Detail drawer mode, visible bankroll/unit controls, no page overflow |
+| 390 × 844 | Mobile stack, inert closed drawer, no page overflow |
+
+## Automated verification
+
+- Focused design/fixture contracts: 18 passed.
+- Broader trade-route regression suite: 164 passed.
+- `node --check static/app.js`: passed.
+- `python -m py_compile scripts/visual_qa_server.py`: passed.
+- `git diff --check`: passed (line-ending notices only).
+- Shared chart renderer remains generic for Bet Tracker bankroll values; Prediction Traders probability clamping is caller-scoped.
+- No production business logic or unrelated IconLabs route was redesigned.
 
 final result: passed
