@@ -2368,7 +2368,6 @@ function syncTradeRows(list, trades) {
       card.classList.toggle("selected", selected);
       card.classList.toggle("is-selected", selected);
       card.dataset.selected = String(selected);
-      card.setAttribute("aria-pressed", String(selected));
     }
     fragment.append(card);
   });
@@ -2429,7 +2428,6 @@ function tradeCard(trade) {
     : slippage.tone === "same"
       ? "At sharp entry"
       : `${Math.abs(slippage.percent).toFixed(1)}% ${slippage.tone} than sharp entry`;
-  const confidenceValue = Math.max(0, Math.min(100, number(trade.confidence_score) || 0));
   return `
     <article class="trade-card ${selected ? "selected is-selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""} ${trade.isVisualPreview ? "visual-preview-trade" : ""}" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" data-selected="${selected}" aria-current="${selected ? "true" : "false"}" aria-label="${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
       <span class="trade-score-cluster">
@@ -2440,13 +2438,12 @@ function tradeCard(trade) {
           `trade-score ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}`,
         )}
         <small class="trade-score-label">Confidence</small>
-        <span class="trade-confidence-indicator ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}" aria-hidden="true"><i style="width:${confidenceValue}%"></i></span>
         ${personalExposureWarning(trade)}
         ${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}
       </span>
       <span class="trade-event-copy">
         <span class="trade-kicker">${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
-        <strong class="trade-event">${escapeHtml(trade.event_title || trade.market_title)}</strong>
+        <button class="trade-event trade-event-action" type="button" data-trade-view="${escapeHtml(trade.id)}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}">${escapeHtml(trade.event_title || trade.market_title)}</button>
         <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))}<i aria-hidden="true"></i>${escapeHtml(eventClock)}</span>
         <span class="trade-signal-summary" title="${escapeHtml(`${TRADE_METRIC_TOOLTIPS.sharps} ${TRADE_METRIC_TOOLTIPS.relativeSize} ${TRADE_METRIC_TOOLTIPS.hitRate}`)}">${escapeHtml(signalText)}</span>
       </span>
@@ -2463,7 +2460,6 @@ function tradeCard(trade) {
         <small class="quote-freshness" title="${escapeHtml(TRADE_METRIC_TOOLTIPS.freshness)}">${escapeHtml(freshnessText)}</small>
       </span>
       ${recommendedBetMarkup(recommendedAmount, recommendedUnits, recommendedShares)}
-      <button class="trade-view-action" type="button" data-trade-view="${escapeHtml(trade.id)}" aria-label="View ${escapeHtml(trade.event_title || trade.market_title)} details">View <span aria-hidden="true">→</span></button>
     </article>
   `;
 }

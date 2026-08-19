@@ -101,14 +101,14 @@ def test_prediction_traders_does_not_reload_legacy_override_layers():
     assert trades_css.count("!important") <= 3
 
 
-def test_prediction_feed_uses_separated_cards_and_a_six_track_scan_path():
+def test_prediction_feed_uses_separated_cards_and_a_five_track_scan_path():
     css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
     script = SCRIPT_PATH.read_text(encoding="utf-8")
     template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
 
     assert (
         "--trade-row-grid: 76px minmax(270px, 1fr) minmax(150px, 190px) "
-        "132px 68px 78px"
+        "132px 68px"
     ) in css
     assert "grid-template-columns: var(--trade-row-grid)" in css
 
@@ -122,7 +122,8 @@ def test_prediction_feed_uses_separated_cards_and_a_six_track_scan_path():
     assert ".trade-card.is-selected" in css
 
     assert '<h2>Top Opportunities</h2>' in template
-    assert "trade-view-action" in script
+    assert "trade-view-action" not in script
+    assert "data-trade-view" in script
     assert "max-width: 1160px" not in css
     assert "trades-hierarchy" not in css
 
@@ -133,7 +134,8 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
     card_function = _function(script, "tradeCard")
     quote_function = _function(script, "executableQuoteChip")
 
-    assert "trade-confidence-indicator" in card_function
+    assert "trade-confidence-indicator" not in card_function
+    assert ".trade-confidence-indicator" not in css
     assert "trade-signal-summary" in card_function
     for phrase in ("sharp", "size", "hit"):
         assert phrase in card_function.lower()
@@ -141,7 +143,8 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
     stake_function = _function(script, "recommendedBetMarkup")
     assert "trade-bet-size" in stake_function
     assert "<small>Stake</small>" in stake_function
-    assert "trade-view-action" in card_function
+    assert "trade-view-action" not in card_function
+    assert "trade-event-action" in card_function
 
     assert "executable-quote-chip" in quote_function
     assert "providerLogoMarkup" in quote_function
@@ -222,7 +225,7 @@ def test_prediction_traders_responsive_rules_prevent_horizontal_overflow():
     assert "grid-template-columns: minmax(0, 1fr);" in css
     assert "width: min(500px, 92vw)" in css
     assert '"score event event event"' in css
-    assert '"execution execution stake action"' in css
+    assert '"execution execution execution stake"' in css
     assert '"selection selection selection"' in css
     assert '"execution execution stake"' in css
     assert "width: 100%" in css
