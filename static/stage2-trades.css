@@ -992,12 +992,11 @@ body[data-design-system="v2"][data-page="trades"] .trade-bet-size {
   text-align: left;
 }
 
-body[data-design-system="v2"][data-page="trades"] .trade-bet-size::before {
-  content: "Stake";
-  margin-bottom: 2px;
+body[data-design-system="v2"][data-page="trades"] .trade-bet-size small {
   color: var(--il-text-muted);
   font-size: 11px;
   font-weight: 550;
+  white-space: nowrap;
 }
 
 body[data-design-system="v2"][data-page="trades"] .trade-bet-size strong {
@@ -1421,6 +1420,7 @@ body[data-design-system="v2"][data-page="trades"] .execution-summary-stake small
   color: var(--il-text-muted);
   font-size: 10px;
   font-weight: 550;
+  white-space: nowrap;
 }
 
 body[data-design-system="v2"][data-page="trades"] .execution-summary-stake strong { font-size: 16px; }

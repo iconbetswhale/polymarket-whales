@@ -2379,7 +2379,7 @@ function recommendedBetMarkup(amount, units, shares, variant = "") {
   const displayAmount = formatDecisionMoney(amount);
   const displayShares = formatShares(shares);
   return tooltipTriggerMarkup(
-    `<small>Stake</small><strong>${escapeHtml(displayAmount)}</strong>`,
+    `<small>Bet Size</small><strong>${escapeHtml(displayAmount)}</strong>`,
     `${TRADE_METRIC_TOOLTIPS.shares} ${displayShares} shares at this quote.`,
     `Recommended stake ${displayAmount}; estimated ${displayShares} shares`,
     `trade-bet-size ${variant}`.trim(),
@@ -2909,7 +2909,7 @@ function detailSelectionPanel(trade) {
         <strong class="execution-summary-action">${escapeHtml(tradePlayLabel(trade))}</strong>
         ${quote}
         ${tooltipTriggerMarkup(
-          `<small>Stake</small><strong>${escapeHtml(amountLabel)}</strong>`,
+          `<small>Bet Size</small><strong>${escapeHtml(amountLabel)}</strong>`,
           `${TRADE_METRIC_TOOLTIPS.shares} ${sharesLabel} shares at this quote.`,
           `Recommended stake ${amountLabel}; estimated ${sharesLabel} shares`,
           "execution-summary-stake",

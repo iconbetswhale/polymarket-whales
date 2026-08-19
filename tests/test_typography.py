@@ -142,7 +142,8 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
     assert "metricIconMarkup" not in script
     stake_function = _function(script, "recommendedBetMarkup")
     assert "trade-bet-size" in stake_function
-    assert "<small>Stake</small>" in stake_function
+    assert "<small>Bet Size</small>" in stake_function
+    assert '.trade-bet-size::before' not in css
     assert "trade-view-action" not in card_function
     assert "trade-event-action" in card_function
 
