@@ -502,45 +502,24 @@ def test_vercel_cron_can_run_model_tracker_with_bearer_secret(
     assert refreshes == [True]
 
 
-def test_trades_javascript_gates_visual_preview_fixture_behind_query_parameter():
+def test_trades_javascript_keeps_placeholder_fixtures_out_of_production_bundle():
     javascript = (Path(__file__).parents[1] / "static" / "app.js").read_text(
         encoding="utf-8"
     )
-    load_trades = javascript.split("async function loadTrades(", 1)[1].split(
-        "async function", 1
-    )[0]
-
-    assert "previewEnabled" not in load_trades
-    assert "visualPreviewTrade()" not in load_trades
-    assert "secondaryVisualPreviewTrade()" not in load_trades
-    assert "spreadVisualPreviewTrade()" not in load_trades
-    assert "redsVisualPreviewTrade()" not in load_trades
-    assert "yankeesVisualPreviewTrade()" not in load_trades
-    assert "soccerVisualPreviewTrade()" not in load_trades
-    assert "totalVisualPreviewTrade()" not in load_trades
-    assert "hockeyVisualPreviewTrade()" not in load_trades
     render_payload = javascript.split("function renderTradesPayload", 1)[1].split(
         "async function loadTrades", 1
     )[0]
-    assert 'get("preview") === "trade"' in render_payload
-    assert "redsVisualPreviewTrade()" in render_payload
-    assert "yankeesVisualPreviewTrade()" in render_payload
-    assert "soccerVisualPreviewTrade()" in render_payload
-    assert "totalVisualPreviewTrade()" in render_payload
-    assert "hockeyVisualPreviewTrade()" in render_payload
-    assert "...(payload.data || [])" not in render_payload
-    assert "const sourceTrades = previewEnabled" in render_payload
-    assert "total: sourceTrades.length" in render_payload
+    assert 'get("preview") === "trade"' not in render_payload
+    assert "VisualPreviewTrade" not in javascript
+    assert "visualPreviewTrade" not in javascript
+    assert "isVisualPreview" not in javascript
+    assert "visual-preview" not in javascript
+    assert "Design preview" not in javascript
+    assert "const incomingTrades = payload.data || []" in render_payload
+    assert "mergeOfficialTrackedTrades" in render_payload
+    assert "stabilizeTradeFeed" in render_payload
     for fixture_id in ("qa-trade-1", "qa-trade-2", "qa-trade-3", "qa-trade-4", "qa-trade-5"):
-        assert javascript.count(fixture_id) == 1
-    for title in (
-        "Cincinnati Reds vs. St. Louis Cardinals",
-        "New York Yankees vs. Boston Red Sox",
-        "Spain vs. France",
-        "New York Liberty vs. Las Vegas Aces",
-        "New York Rangers vs. Boston Bruins",
-    ):
-        assert title in javascript
+        assert fixture_id not in javascript
 
 
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):

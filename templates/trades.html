@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="trades-page">
-  <header class="trades-command-bar">
+  <header class="trades-command-bar il-page-header">
     <div class="trades-heading-row">
-      <div class="trades-title-block">
+      <div class="trades-title-block il-page-title">
         <h1>Prediction Traders</h1>
         <p>Verified sharp positions. Executable pricing.</p>
       </div>
@@ -19,7 +19,7 @@
         <button type="button" role="tab" data-workspace-tab="closed" aria-selected="false">Closed <span id="closed-tab-count">0</span></button>
       </div>
       <label class="search-control compact-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search opportunities" autocomplete="off"></label>
-      <div class="trades-finance-actions" aria-label="Trading settings">
+      <div class="trades-finance-actions il-finance-controls" aria-label="Trading settings">
         <div class="toolbar-popover-shell">
           <button class="toolbar-bankroll" id="bankroll-popover-button" type="button" aria-expanded="false" aria-controls="bankroll-popover"><small>Bankroll</small><span id="bankroll-toolbar-value">Loading</span></button>
           <section class="bankroll-popover" id="bankroll-popover" aria-label="Bankroll settings" hidden>
@@ -109,20 +109,20 @@
 
   <section class="trade-workspace">
     <div class="trade-master-column">
-      <section class="trade-summary-strip" aria-label="Current opportunity summary">
-        <div class="summary-metric">
+      <section class="trade-summary-strip il-kpi-strip" aria-label="Current opportunity summary">
+        <div class="summary-metric il-kpi-metric">
           <i class="ph ph-lightning" aria-hidden="true"></i>
           <span><strong id="trade-summary-qualified">—</strong><small>Qualified opportunities</small></span>
         </div>
-        <div class="summary-metric">
+        <div class="summary-metric il-kpi-metric">
           <i class="ph ph-trend-up" aria-hidden="true"></i>
           <span><strong id="trade-summary-edge">—</strong><small>Average projected edge</small></span>
         </div>
-        <div class="summary-metric">
+        <div class="summary-metric il-kpi-metric">
           <i class="ph ph-target" aria-hidden="true"></i>
           <span><strong id="trade-summary-hit-rate">—</strong><small>Average sharp hit rate</small></span>
         </div>
-        <div class="summary-metric">
+        <div class="summary-metric il-kpi-metric">
           <i class="ph ph-wallet" aria-hidden="true"></i>
           <span><strong id="trade-summary-exposure">—</strong><small>Recommended exposure</small></span>
         </div>
@@ -130,7 +130,7 @@
       <div class="trade-list-panel" aria-label="Trades to Play results">
         <header class="opportunity-list-toolbar">
           <h2>Top Opportunities</h2>
-          <div class="opportunity-filter-bar" aria-label="Top opportunity filters">
+          <div class="opportunity-filter-bar il-filter-bar" aria-label="Top opportunity filters">
             <label><span class="sr-only">Sport</span><select id="trade-sport" aria-label="Filter by sport"><option value="">All Sports</option></select></label>
             <label><span class="sr-only">Market</span><select id="trade-market" aria-label="Filter by market"><option value="">All Markets</option></select></label>
             <label><span class="sr-only">Minimum confidence</span><select id="trade-confidence" aria-label="Minimum confidence"><option value="0">Minimum Confidence</option><option value="60">60+ Confidence</option><option value="70">70+ Confidence</option><option value="80">80+ Confidence</option><option value="90">90+ Confidence</option></select></label>

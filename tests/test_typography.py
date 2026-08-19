@@ -53,8 +53,22 @@ def test_product_foundation_defines_semantic_visual_tokens():
         assert token in css
 
     assert '--il-font-ui: "DM Sans", Inter, sans-serif' in css
-    assert '--il-font-data: "Roboto Condensed", "DM Sans", sans-serif' in css
+    assert '--il-font-data: "DM Sans", Inter, sans-serif' in css
     assert "font-variant-numeric: tabular-nums lining-nums" in css
+    for role in (
+        "--il-type-page-title",
+        "--il-type-section-title",
+        "--il-type-card-title",
+        "--il-type-primary-metric",
+        "--il-type-body",
+        "--il-type-metadata",
+        "--il-type-micro-label",
+        "--il-type-table-header",
+        "--il-type-numeric-data",
+        "--il-type-sidebar-nav",
+        "--il-type-control",
+    ):
+        assert role in css
 
 
 def test_prediction_traders_opts_into_the_v2_foundation_last():
@@ -64,8 +78,8 @@ def test_prediction_traders_opts_into_the_v2_foundation_last():
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
-    late_foundation = template.rindex("foundation-v5")
-    late_trades = template.rindex("pilot-v6")
+    late_foundation = template.rindex("foundation-v6")
+    late_trades = template.rindex("canonical-v1")
     assert late_foundation > template.index("filename='app-premium.css'")
     assert late_foundation > template.index("filename='sidebar-shell.css'")
     assert late_trades > late_foundation
@@ -154,13 +168,14 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
     assert "aria-label" in quote_function
     assert "<small>" not in quote_function
 
-    quote_rules = "\n".join(_rule_bodies(css, ".execution-option"))
+    design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+    quote_rules = "\n".join(_rule_bodies(design_css, ".il-executable-quote"))
     assert "min-height: 48px" in quote_rules
     assert "border: 1px solid var(--il-positive)" in quote_rules
-    assert "border-radius: 7px" in quote_rules
-    assert "background: rgba(80, 217, 119, .035)" in quote_rules
+    assert "border-radius: var(--il-radius-control)" in quote_rules
+    assert "background: var(--il-surface-positive-subtle)" in quote_rules
 
-    provider_rules = _rule_bodies(css, ".provider-logo")
+    provider_rules = _rule_bodies(design_css + css, ".il-provider-logo")
     assert provider_rules
     assert all(
         re.search(r"(?<!-)filter\s*:", body) is None for body in provider_rules
@@ -260,10 +275,49 @@ def test_prediction_price_chart_is_compact_data_aware_and_accessible():
     assert 'canvas.addEventListener("focus"' in script
     assert 'canvas.addEventListener("keydown"' in script
     assert '"ArrowLeft", "ArrowRight"' in script
-    chart_rule = re.search(r"\.price-chart\s*\{(?P<body>[^}]*)\}", css)
+    design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+    chart_rule = re.search(r"\.il-chart-container\s*\{(?P<body>[^}]*)\}", design_css)
     assert chart_rule
     assert "min-height: 150px" in chart_rule.group("body")
     assert "min-height: 220px" not in chart_rule.group("body")
+
+
+def test_prediction_traders_uses_shared_component_contracts_without_preview_artifacts():
+    design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
+    trades_css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
+
+    for component in (
+        ".il-page-header",
+        ".il-kpi-strip",
+        ".il-filter-bar",
+        ".il-confidence-display",
+        ".il-executable-quote",
+        ".il-provider-row",
+        ".il-metric-group",
+        ".il-detail-section",
+        ".il-chart-container",
+        ".il-state",
+    ):
+        assert component in design_css
+
+    for hook in (
+        "il-page-header",
+        "il-kpi-strip",
+        "il-filter-bar",
+        "il-confidence-display",
+        "il-executable-quote",
+        "il-provider-row",
+        "il-metric-group",
+        "il-detail-section",
+        "il-chart-container",
+    ):
+        assert hook in template + script
+
+    assert "--il-bg-app:" not in trades_css
+    assert "visual-preview" not in script + trades_css
+    assert "Design preview" not in script + template
 
 
 def test_prediction_controls_expose_selected_and_focus_states():

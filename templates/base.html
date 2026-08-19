@@ -27,8 +27,8 @@
   {% if page not in ['home', 'trades'] %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-heading2') }}">{% endif %}
   {% if page not in ['home', 'trades'] %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-shell.css', v=asset_version ~ '-shared-sidebar2') }}">{% endif %}
   {% if page == 'trades' %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css', v=asset_version ~ '-foundation-v5') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-pilot-v6') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css', v=asset_version ~ '-foundation-v6') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-canonical-v1') }}">
   {% endif %}
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page == 'trades' %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">

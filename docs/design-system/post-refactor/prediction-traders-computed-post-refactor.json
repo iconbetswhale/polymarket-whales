@@ -1,0 +1,1092 @@
+{
+  "sourceUrl": "http://localhost:5001/trades?selected=qa-trade-2",
+  "capturedAt": "2026-08-19T07:39:49.646Z",
+  "viewports": {
+    "1920x1080": {
+      "cards": [
+        {
+          "height": 112,
+          "id": "qa-trade-4",
+          "width": 1171.203125,
+          "x": 250,
+          "y": 251
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-1",
+          "width": 1171.203125,
+          "x": 250,
+          "y": 371
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-2",
+          "width": 1171.203125,
+          "x": 250,
+          "y": 491
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-3",
+          "width": 1171.203125,
+          "x": 250,
+          "y": 611
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-5",
+          "width": 1171.203125,
+          "x": 250,
+          "y": 731
+        }
+      ],
+      "elements": {
+        "appNav": {
+          "rect": {
+            "height": 1080,
+            "width": 232,
+            "x": 0,
+            "y": 0
+          },
+          "selector": ".app-nav",
+          "styles": {
+            "backgroundColor": "rgb(6, 17, 26)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "6px",
+            "gridTemplateColumns": "auto minmax(0px, 1fr) auto",
+            "height": "1080px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "60px",
+            "padding": "14px 10px 16px",
+            "position": "fixed",
+            "width": "232px"
+          }
+        },
+        "card": {
+          "rect": {
+            "height": 112,
+            "width": 1171.203125,
+            "x": 250,
+            "y": 251
+          },
+          "selector": ".trade-card",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "9px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "12px",
+            "gridTemplateColumns": "76px 629.203px 190px 132px 68px",
+            "height": "112px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "112px",
+            "padding": "12px 12px 12px 14px",
+            "position": "relative",
+            "width": "1171.2px"
+          }
+        },
+        "chart": {
+          "rect": {
+            "height": 170,
+            "width": 412.796875,
+            "x": 1460.203125,
+            "y": 838
+          },
+          "selector": ".price-chart",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "170px",
+            "lineHeight": "20.3px",
+            "margin": "10px 0px 0px",
+            "minHeight": "150px",
+            "padding": "0px",
+            "position": "relative",
+            "width": "412.797px"
+          }
+        },
+        "commandBar": {
+          "rect": {
+            "height": 79,
+            "width": 1652,
+            "x": 250,
+            "y": 0
+          },
+          "selector": ".trades-command-bar",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "0px 18px",
+            "gridTemplateColumns": "544.719px 943.234px 120.047px",
+            "height": "79px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "78px",
+            "padding": "0px 4px",
+            "position": "static",
+            "width": "1652px"
+          }
+        },
+        "detail": {
+          "rect": {
+            "height": 976,
+            "width": 460.796875,
+            "x": 1441.203125,
+            "y": 93
+          },
+          "selector": ".trade-detail",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "rgba(0, 0, 0, 0.32) 0px 16px 34px 0px",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "976px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "sticky",
+            "width": "460.797px"
+          }
+        },
+        "metricGroup": {
+          "rect": {
+            "height": 42,
+            "width": 412.796875,
+            "x": 1460.203125,
+            "y": 593.328125
+          },
+          "selector": ".detail-strip",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "137.594px 137.594px 137.594px",
+            "height": "42px",
+            "lineHeight": "20.3px",
+            "margin": "7px 0px 1px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "static",
+            "width": "412.797px"
+          }
+        },
+        "providerRow": {
+          "rect": {
+            "height": 34,
+            "width": 416.796875,
+            "x": 1458.203125,
+            "y": 363.328125
+          },
+          "selector": ".exchange-comparison-row",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.055)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "rgb(80, 217, 119) 2px 0px 0px 0px inset",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "6px",
+            "gridTemplateColumns": "18px 198.797px 62px 70px 34px",
+            "height": "34px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "34px",
+            "padding": "1px 5px",
+            "position": "static",
+            "width": "416.797px"
+          }
+        },
+        "quote": {
+          "rect": {
+            "height": 48,
+            "width": 98.015625,
+            "x": 1213.1875,
+            "y": 285.5
+          },
+          "selector": ".execution-option",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.035)",
+            "border": "1px solid rgb(80, 217, 119)",
+            "borderRadius": "7px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "8px",
+            "gridTemplateColumns": "none",
+            "height": "48px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "48px",
+            "padding": "0px 11px",
+            "position": "relative",
+            "width": "98.0156px"
+          }
+        },
+        "summary": {
+          "rect": {
+            "height": 94,
+            "width": 1173.203125,
+            "x": 250,
+            "y": 93
+          },
+          "selector": ".trade-summary-strip",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "10px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "282.797px 282.797px 282.797px 282.812px",
+            "height": "94px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "94px",
+            "padding": "0px 20px",
+            "position": "static",
+            "width": "1173.2px"
+          }
+        },
+        "summaryMetric": {
+          "rect": {
+            "height": 58,
+            "width": 282.796875,
+            "x": 271,
+            "y": 111
+          },
+          "selector": ".summary-metric",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "11px",
+            "gridTemplateColumns": "none",
+            "height": "58px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "58px",
+            "padding": "4px 22px 4px 0px",
+            "position": "static",
+            "width": "282.797px"
+          }
+        }
+      },
+      "tokens": {
+        "--il-bg-app": "#030a11",
+        "--il-bg-sidebar": "#06111a",
+        "--il-bg-workspace": "#030a11",
+        "--il-border-standard": "rgba(83, 126, 151, .34)",
+        "--il-border-subtle": "rgba(83, 126, 151, .2)",
+        "--il-brand": "#8d44f6",
+        "--il-control-height": "44px",
+        "--il-detail-panel-max": "480px",
+        "--il-header-height": "78px",
+        "--il-negative": "#ff5b70",
+        "--il-opportunity-card-height": "112px",
+        "--il-positive": "#50d977",
+        "--il-sidebar-width": "232px",
+        "--il-surface-1": "#07131c",
+        "--il-surface-2": "#0a1822",
+        "--il-surface-elevated": "#0d1d28",
+        "--il-surface-hover": "#0d202b",
+        "--il-surface-selected": "rgba(141, 68, 246, .08)",
+        "--il-text-muted": "#7d899a",
+        "--il-text-primary": "#f5f7fa",
+        "--il-text-secondary": "#b4becc",
+        "--il-warning": "#e9b85e"
+      },
+      "viewport": {
+        "docHeight": 1080,
+        "docWidth": 1920,
+        "dpr": 1,
+        "height": 1080,
+        "width": 1920
+      }
+    },
+    "1440x900": {
+      "cards": [
+        {
+          "height": 112,
+          "id": "qa-trade-4",
+          "width": 732,
+          "x": 250,
+          "y": 293.328125
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-1",
+          "width": 732,
+          "x": 250,
+          "y": 413.328125
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-2",
+          "width": 732,
+          "x": 250,
+          "y": 533.328125
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-3",
+          "width": 732,
+          "x": 250,
+          "y": 653.328125
+        },
+        {
+          "height": 112,
+          "id": "qa-trade-5",
+          "width": 732,
+          "x": 250,
+          "y": 773.328125
+        }
+      ],
+      "elements": {
+        "appNav": {
+          "rect": {
+            "height": 900,
+            "width": 232,
+            "x": 0,
+            "y": 0
+          },
+          "selector": ".app-nav",
+          "styles": {
+            "backgroundColor": "rgb(6, 17, 26)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "6px",
+            "gridTemplateColumns": "auto minmax(0px, 1fr) auto",
+            "height": "900px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "60px",
+            "padding": "14px 10px 16px",
+            "position": "fixed",
+            "width": "232px"
+          }
+        },
+        "card": {
+          "rect": {
+            "height": 112,
+            "width": 732,
+            "x": 250,
+            "y": 293.328125
+          },
+          "selector": ".trade-card",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "9px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "12px 7px",
+            "gridTemplateColumns": "54px 329px 135px 104px 54px",
+            "height": "112px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "112px",
+            "padding": "12px 12px 12px 14px",
+            "position": "relative",
+            "width": "732px"
+          }
+        },
+        "chart": {
+          "rect": {
+            "height": 170,
+            "width": 372,
+            "x": 1021,
+            "y": 880.328125
+          },
+          "selector": ".price-chart",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "170px",
+            "lineHeight": "20.3px",
+            "margin": "10px 0px 0px",
+            "minHeight": "150px",
+            "padding": "0px",
+            "position": "relative",
+            "width": "372px"
+          }
+        },
+        "commandBar": {
+          "rect": {
+            "height": 121.328125,
+            "width": 1172,
+            "x": 250,
+            "y": 0
+          },
+          "selector": ".trades-command-bar",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "8px 18px",
+            "gridTemplateColumns": "1025.95px 120.047px",
+            "height": "121.328px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "78px",
+            "padding": "10px 4px",
+            "position": "static",
+            "width": "1172px"
+          }
+        },
+        "detail": {
+          "rect": {
+            "height": 772,
+            "width": 420,
+            "x": 1002,
+            "y": 135.328125
+          },
+          "selector": ".trade-detail",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "rgba(0, 0, 0, 0.32) 0px 16px 34px 0px",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "772px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "sticky",
+            "width": "420px"
+          }
+        },
+        "metricGroup": {
+          "rect": {
+            "height": 42,
+            "width": 372,
+            "x": 1021,
+            "y": 635.65625
+          },
+          "selector": ".detail-strip",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "124px 124px 124px",
+            "height": "42px",
+            "lineHeight": "20.3px",
+            "margin": "7px 0px 1px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "static",
+            "width": "372px"
+          }
+        },
+        "providerRow": {
+          "rect": {
+            "height": 34,
+            "width": 376,
+            "x": 1019,
+            "y": 405.65625
+          },
+          "selector": ".exchange-comparison-row",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.055)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "rgb(80, 217, 119) 2px 0px 0px 0px inset",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "5px",
+            "gridTemplateColumns": "16px 188px 54px 58px 30px",
+            "height": "34px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "34px",
+            "padding": "1px 5px",
+            "position": "static",
+            "width": "376px"
+          }
+        },
+        "quote": {
+          "rect": {
+            "height": 48,
+            "width": 98.015625,
+            "x": 806.984375,
+            "y": 327.828125
+          },
+          "selector": ".execution-option",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.035)",
+            "border": "1px solid rgb(80, 217, 119)",
+            "borderRadius": "7px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "8px",
+            "gridTemplateColumns": "none",
+            "height": "48px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "48px",
+            "padding": "0px 11px",
+            "position": "relative",
+            "width": "98.0156px"
+          }
+        },
+        "summary": {
+          "rect": {
+            "height": 94,
+            "width": 734,
+            "x": 250,
+            "y": 135.328125
+          },
+          "selector": ".trade-summary-strip",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "10px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "173px 173px 173px 173px",
+            "height": "94px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "94px",
+            "padding": "0px 20px",
+            "position": "static",
+            "width": "734px"
+          }
+        },
+        "summaryMetric": {
+          "rect": {
+            "height": 58,
+            "width": 173,
+            "x": 271,
+            "y": 153.328125
+          },
+          "selector": ".summary-metric",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "11px",
+            "gridTemplateColumns": "none",
+            "height": "58px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "58px",
+            "padding": "4px 22px 4px 0px",
+            "position": "static",
+            "width": "173px"
+          }
+        }
+      },
+      "tokens": {
+        "--il-bg-app": "#030a11",
+        "--il-bg-sidebar": "#06111a",
+        "--il-bg-workspace": "#030a11",
+        "--il-border-standard": "rgba(83, 126, 151, .34)",
+        "--il-border-subtle": "rgba(83, 126, 151, .2)",
+        "--il-brand": "#8d44f6",
+        "--il-control-height": "44px",
+        "--il-detail-panel-max": "480px",
+        "--il-header-height": "78px",
+        "--il-negative": "#ff5b70",
+        "--il-opportunity-card-height": "112px",
+        "--il-positive": "#50d977",
+        "--il-sidebar-width": "232px",
+        "--il-surface-1": "#07131c",
+        "--il-surface-2": "#0a1822",
+        "--il-surface-elevated": "#0d1d28",
+        "--il-surface-hover": "#0d202b",
+        "--il-surface-selected": "rgba(141, 68, 246, .08)",
+        "--il-text-muted": "#7d899a",
+        "--il-text-primary": "#f5f7fa",
+        "--il-text-secondary": "#b4becc",
+        "--il-warning": "#e9b85e"
+      },
+      "viewport": {
+        "docHeight": 900,
+        "docWidth": 1440,
+        "dpr": 1,
+        "height": 900,
+        "width": 1440
+      }
+    },
+    "390x844": {
+      "cards": [
+        {
+          "height": 188.21875,
+          "id": "qa-trade-4",
+          "width": 354.109375,
+          "x": 12,
+          "y": 629.21875
+        },
+        {
+          "height": 188.21875,
+          "id": "qa-trade-1",
+          "width": 354.109375,
+          "x": 12,
+          "y": 825.4375
+        },
+        {
+          "height": 188.21875,
+          "id": "qa-trade-2",
+          "width": 354.109375,
+          "x": 12,
+          "y": 1021.65625
+        },
+        {
+          "height": 188.21875,
+          "id": "qa-trade-3",
+          "width": 354.109375,
+          "x": 12,
+          "y": 1217.875
+        },
+        {
+          "height": 188.21875,
+          "id": "qa-trade-5",
+          "width": 354.109375,
+          "x": 12,
+          "y": 1414.09375
+        }
+      ],
+      "elements": {
+        "appNav": {
+          "rect": {
+            "height": 60,
+            "width": 375,
+            "x": 0,
+            "y": 0
+          },
+          "selector": ".app-nav",
+          "styles": {
+            "backgroundColor": "rgb(6, 17, 26)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "10px",
+            "gridTemplateColumns": "42px 250px 42px",
+            "height": "60px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "60px",
+            "padding": "14px 10px 16px",
+            "position": "fixed",
+            "width": "375px"
+          }
+        },
+        "card": {
+          "rect": {
+            "height": 188.21875,
+            "width": 354.109375,
+            "x": 12,
+            "y": 629.21875
+          },
+          "selector": ".trade-card",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "9px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "10px 11px",
+            "gridTemplateColumns": "44px 108.109px 72px 74px",
+            "height": "188.219px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "176px",
+            "padding": "13px 12px 13px 9px",
+            "position": "relative",
+            "width": "354.109px"
+          }
+        },
+        "chart": {
+          "rect": {
+            "height": 170,
+            "width": 335,
+            "x": 15,
+            "y": 1522.1556396484375
+          },
+          "selector": ".price-chart",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "170px",
+            "lineHeight": "20.3px",
+            "margin": "10px 0px 0px",
+            "minHeight": "150px",
+            "padding": "0px",
+            "position": "relative",
+            "width": "335px"
+          }
+        },
+        "commandBar": {
+          "rect": {
+            "height": 265.0625,
+            "width": 351,
+            "x": 12,
+            "y": 72
+          },
+          "selector": ".trades-command-bar",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "12px",
+            "gridTemplateColumns": "343px",
+            "height": "265.062px",
+            "lineHeight": "20.3px",
+            "margin": "0px 0px 12px",
+            "minHeight": "78px",
+            "padding": "10px 4px 12px",
+            "position": "relative",
+            "width": "351px"
+          }
+        },
+        "detail": {
+          "rect": {
+            "height": 786,
+            "width": 375,
+            "x": 0,
+            "y": 596.5931396484375
+          },
+          "selector": ".trade-detail",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "14px 14px 0px 0px",
+            "boxShadow": "rgba(0, 0, 0, 0.48) -24px 0px 60px 0px",
+            "color": "rgb(245, 247, 250)",
+            "display": "block",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "none",
+            "height": "786px",
+            "lineHeight": "20.3px",
+            "margin": "10px 0px 0px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "fixed",
+            "width": "375px"
+          }
+        },
+        "metricGroup": {
+          "rect": {
+            "height": 42,
+            "width": 335,
+            "x": 15,
+            "y": 1223.7962646484375
+          },
+          "selector": ".detail-strip",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "0px none rgb(245, 247, 250)",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "7px",
+            "gridTemplateColumns": "107px 107px 107px",
+            "height": "42px",
+            "lineHeight": "20.3px",
+            "margin": "7px 0px 1px",
+            "minHeight": "0px",
+            "padding": "0px",
+            "position": "static",
+            "width": "335px"
+          }
+        },
+        "providerRow": {
+          "rect": {
+            "height": 44,
+            "width": 335,
+            "x": 15,
+            "y": 943.7962646484375
+          },
+          "selector": ".exchange-comparison-row",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.055)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "rgb(80, 217, 119) 2px 0px 0px 0px inset",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "5px",
+            "gridTemplateColumns": "16px 176.859px 34.1406px 54px 24px",
+            "height": "44px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "44px",
+            "padding": "1px 5px",
+            "position": "static",
+            "width": "335px"
+          }
+        },
+        "quote": {
+          "rect": {
+            "height": 38,
+            "width": 186,
+            "x": 24,
+            "y": 763.4375
+          },
+          "selector": ".execution-option",
+          "styles": {
+            "backgroundColor": "rgba(80, 217, 119, 0.035)",
+            "border": "1px solid rgb(80, 217, 119)",
+            "borderRadius": "7px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "8px",
+            "gridTemplateColumns": "none",
+            "height": "38px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "38px",
+            "padding": "0px 8px",
+            "position": "relative",
+            "width": "186px"
+          }
+        },
+        "summary": {
+          "rect": {
+            "height": 142,
+            "width": 356.109375,
+            "x": 12,
+            "y": 361.0625
+          },
+          "selector": ".trade-summary-strip",
+          "styles": {
+            "backgroundColor": "rgb(7, 19, 28)",
+            "border": "1px solid rgba(83, 126, 151, 0.2)",
+            "borderRadius": "10px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "grid",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "normal",
+            "gridTemplateColumns": "163.047px 163.062px",
+            "height": "142px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "142px",
+            "padding": "0px 14px",
+            "position": "static",
+            "width": "356.109px"
+          }
+        },
+        "summaryMetric": {
+          "rect": {
+            "height": 70,
+            "width": 163.046875,
+            "x": 27,
+            "y": 362.0625
+          },
+          "selector": ".summary-metric",
+          "styles": {
+            "backgroundColor": "rgba(0, 0, 0, 0)",
+            "border": "",
+            "borderRadius": "0px",
+            "boxShadow": "none",
+            "color": "rgb(245, 247, 250)",
+            "display": "flex",
+            "fontFamily": "\"DM Sans\", Inter, sans-serif",
+            "fontSize": "14px",
+            "fontWeight": "400",
+            "gap": "11px",
+            "gridTemplateColumns": "none",
+            "height": "70px",
+            "lineHeight": "20.3px",
+            "margin": "0px",
+            "minHeight": "70px",
+            "padding": "10px 14px",
+            "position": "static",
+            "width": "163.047px"
+          }
+        }
+      },
+      "tokens": {
+        "--il-bg-app": "#030a11",
+        "--il-bg-sidebar": "#06111a",
+        "--il-bg-workspace": "#030a11",
+        "--il-border-standard": "rgba(83, 126, 151, .34)",
+        "--il-border-subtle": "rgba(83, 126, 151, .2)",
+        "--il-brand": "#8d44f6",
+        "--il-control-height": "44px",
+        "--il-detail-panel-max": "480px",
+        "--il-header-height": "78px",
+        "--il-negative": "#ff5b70",
+        "--il-opportunity-card-height": "112px",
+        "--il-positive": "#50d977",
+        "--il-sidebar-width": "232px",
+        "--il-surface-1": "#07131c",
+        "--il-surface-2": "#0a1822",
+        "--il-surface-elevated": "#0d1d28",
+        "--il-surface-hover": "#0d202b",
+        "--il-surface-selected": "rgba(141, 68, 246, .08)",
+        "--il-text-muted": "#7d899a",
+        "--il-text-primary": "#f5f7fa",
+        "--il-text-secondary": "#b4becc",
+        "--il-warning": "#e9b85e"
+      },
+      "viewport": {
+        "docHeight": 844,
+        "docWidth": 375,
+        "dpr": 1,
+        "height": 844,
+        "width": 390
+      }
+    }
+  }
+}

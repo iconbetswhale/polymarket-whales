@@ -358,15 +358,15 @@ function showToast(message, tone = "neutral") {
 }
 
 function emptyState(title, copy) {
-  return `<div class="empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p></div>`;
+  return `<div class="empty-state il-state il-state-empty"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>${escapeHtml(title)}</h2><p>${escapeHtml(copy)}</p></div>`;
 }
 
 function trackerEmptyState() {
-  return `<div class="empty-state"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>No model recommendations tracked yet</h2><p>The shared Model Tracker automatically records every positive-stake recommendation from the Today tab.</p></div>`;
+  return `<div class="empty-state il-state il-state-empty"><i class="ph ph-binoculars" aria-hidden="true"></i><h2>No model recommendations tracked yet</h2><p>The shared Model Tracker automatically records every positive-stake recommendation from the Today tab.</p></div>`;
 }
 
 function errorState(message) {
-  return `<div class="empty-state error-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><h2>Could not load this view</h2><p>${escapeHtml(message)}</p></div>`;
+  return `<div class="empty-state error-state il-state il-state-error"><i class="ph ph-warning-circle" aria-hidden="true"></i><h2>Could not load this view</h2><p>${escapeHtml(message)}</p></div>`;
 }
 
 function formatRefreshDateTime(value, fallback = "Waiting") {
@@ -419,14 +419,6 @@ function formatScheduledClock(value, fallback = "Time unavailable") {
     hour: "numeric",
     minute: "2-digit",
   }).format(parsed);
-}
-
-function upcomingPreviewStart(hour, minute = 0) {
-  const now = new Date();
-  const start = new Date(now);
-  start.setHours(hour, minute, 0, 0);
-  if (start <= now) start.setDate(start.getDate() + 1);
-  return start;
 }
 
 function updateTradeSummary(payload = {}, sourceTrades = [], qualifiedTrades = []) {
@@ -1456,12 +1448,12 @@ function executionComparisonLadder(trade) {
   const best = bestExecutionOption(trade);
   const bestKey = canonicalExecutionProviderKey(best?.providerKey);
   return `
-    <section class="exchange-comparison-card">
+    <section class="exchange-comparison-card il-detail-section">
       <div class="section-label">
         <span>Best available prices</span>
       </div>
-      <div class="exchange-comparison-list">
-        <div class="exchange-comparison-head" aria-hidden="true">
+      <div class="exchange-comparison-list il-provider-list">
+        <div class="exchange-comparison-head il-provider-head" aria-hidden="true">
           <span>#</span><span>Provider</span><span>Price</span><span>Liquidity</span><span>Status</span>
         </div>
         ${options.map((option, index) => {
@@ -1474,15 +1466,15 @@ function executionComparisonLadder(trade) {
           const price = executionComparisonPrice(option);
           const liquidityLabel = liquidity === null ? "—" : formatCompactMoney(liquidity);
           const body = `
-            <span class="exchange-rank">${index + 1}</span>
-            <span class="exchange-provider-copy">${providerLogoMarkup({ name: meta.name, logoUrl: meta.logoUrl }, meta.name)}<strong>${escapeHtml(meta.name)}</strong>${isBest ? "<em>Best</em>" : ""}</span>
-            <span class="exchange-price-copy"><strong>${escapeHtml(price)}</strong></span>
-            <span class="exchange-liquidity" title="${escapeHtml(TRADE_METRIC_TOOLTIPS.liquidity)}">${escapeHtml(liquidityLabel)}</span>
-            <span class="exchange-executable ${option.isAvailable ? "is-executable" : "is-unavailable"}" aria-label="${escapeHtml(executionState)}" title="${escapeHtml(executionState)}"><i class="ph ${statusIcon}" aria-hidden="true"></i></span>
+            <span class="exchange-rank il-provider-rank">${index + 1}</span>
+            <span class="exchange-provider-copy il-provider-identity">${providerLogoMarkup({ name: meta.name, logoUrl: meta.logoUrl }, meta.name)}<strong>${escapeHtml(meta.name)}</strong>${isBest ? "<em>Best</em>" : ""}</span>
+            <span class="exchange-price-copy il-provider-price"><strong>${escapeHtml(price)}</strong></span>
+            <span class="exchange-liquidity il-provider-liquidity" title="${escapeHtml(TRADE_METRIC_TOOLTIPS.liquidity)}">${escapeHtml(liquidityLabel)}</span>
+            <span class="exchange-executable il-provider-status ${option.isAvailable ? "is-executable" : "is-unavailable"}" aria-label="${escapeHtml(executionState)}" title="${escapeHtml(executionState)}"><i class="ph ${statusIcon}" aria-hidden="true"></i></span>
           `;
           return option.isAvailable && option.deepLink
-            ? `<a class="exchange-comparison-row exchange-comparison-row--${escapeHtml(key)} ${isBest ? "is-best" : ""}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${meta.name} ${price}; liquidity ${liquidityLabel}; ${executionState}`)}">${body}</a>`
-            : `<div class="exchange-comparison-row exchange-comparison-row--${escapeHtml(key)} is-unavailable">${body}</div>`;
+            ? `<a class="exchange-comparison-row il-provider-row exchange-comparison-row--${escapeHtml(key)} ${isBest ? "is-best" : ""}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(`${meta.name} ${price}; liquidity ${liquidityLabel}; ${executionState}`)}">${body}</a>`
+            : `<div class="exchange-comparison-row il-provider-row exchange-comparison-row--${escapeHtml(key)} is-unavailable">${body}</div>`;
         }).join("")}
       </div>
     </section>
@@ -1500,7 +1492,7 @@ function executableQuoteChip(trade, rawOption, { className = "" } = {}) {
   const movement = option.priceMovement || "";
   const polymarketClass = providerKey === "polymarket" ? " polymarket-price-link" : "";
   const bestClass = option.isBestPrice ? " best-execution-price" : "";
-  const classes = `executable-quote-chip execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement} ${className}`.trim();
+  const classes = `executable-quote-chip il-executable-quote execution-option execution-option--${providerKey}${polymarketClass}${bestClass} ${movement} ${className}`.trim();
   const age = number(option.quoteAgeSeconds);
   const details = [
     `Top ${nativeOdds || "Unavailable"}`,
@@ -1582,520 +1574,6 @@ function persistStableTradeFeed(filterKey) {
     latestTradeSnapshotAt: appState.latestTradeSnapshotAt,
     entries: [...appState.stableTradeFeed.values()].slice(0, 20),
   }));
-}
-
-function visualPreviewTrade() {
-  const start = upcomingPreviewStart(14, 0);
-  const timestamp = new Date().toISOString();
-  const makeOption = (providerName, providerKey, displayOdds, price, americanOdds, liquidity, deepLink) => ({
-    providerName, providerKey, displayOdds, deepLink,
-    marketId: `visual-preview:${providerKey}:moneyline`,
-    selectionId: `visual-preview:${providerKey}:phillies`,
-    isAvailable: true,
-    lastUpdated: timestamp,
-    matchingConfidence: "Exact",
-    americanOdds,
-    contractPrice: ["polymarket", "kalshi"].includes(providerKey) ? price : null,
-    bestExecutablePrice: price,
-    effectiveEntryPrice: price,
-    availableLiquidity: liquidity,
-    canFillRecommendedStake: true,
-    quoteStatus: "OPEN",
-    marketStatus: "OPEN",
-    isExactMatch: true,
-    isStale: false,
-    isBestPrice: providerKey === "novig",
-    recommendedStake: 35,
-    estimatedFees: providerKey === "kalshi" ? 0.31 : 0,
-    quoteAgeSeconds: providerKey === "novig" ? 2 : 4,
-  });
-  const supportingWallets = [
-    { wallet_label: "FerrariChampion2026", wallet_address: "preview-ferrari", wallet_profile_url: "#", amount: 3390, average_entry_price: 0.43, relative_units: 1.7, role: "Lead Sharp", is_lead_sharp: true, top_category_ids: ["MLB Moneyline"], category_weight: 1 },
-    { wallet_label: "WordyLittleNeck", wallet_address: "preview-wordy", wallet_profile_url: "#", amount: 2180, average_entry_price: 0.44, relative_units: 1.3, role: "Supporting Sharp", is_lead_sharp: false, top_category_ids: ["MLB"], category_weight: 1 },
-    { wallet_label: "SportMaster777", wallet_address: "preview-sportmaster", wallet_profile_url: "#", amount: 1280, average_entry_price: 0.445, relative_units: 0.9, role: "Supporting Sharp", is_lead_sharp: false, top_category_ids: ["Baseball"], category_weight: 1 },
-  ];
-  const recommendation = {
-    available: true,
-    recommended_amount: 35,
-    recommended_units: 0.35,
-    recommended_shares: 84.34,
-    current_user_entry_price: 0.415,
-    sharp_average_entry_price: 0.438,
-    price_slippage_fraction: -0.0525,
-    raw_fair_probability: 0.468,
-    fee_adjusted_fair_probability: 0.464,
-    composite_fair_probability: 0.464,
-    estimated_win_probability: 0.472,
-    calculated_edge: 0.057,
-    evidence_score: 0.81,
-    edge_reliability_factor: 0.92,
-    full_kelly_fraction: 0.098,
-    half_kelly_fraction: 0.049,
-    final_recommended_fraction: 0.0035,
-    trade_grade: "A",
-    confidence_score: 82,
-    calculation_version: "visual-preview",
-    recommendation_version: "visual-preview",
-    execution_plan: { provider: "NoVIG", maximum_average_price: 0.445, effective_price_for_executable_amount: 0.415, executable_amount: 35, estimated_fees: 0 },
-  };
-  return {
-    id: "visual-preview-trade",
-    isVisualPreview: true,
-    tradeFeedEligible: true,
-    modelTrackerEligible: false,
-    modelTrackerRejectionReason: "Visual preview only — never tracked or signaled",
-    category: "Baseball",
-    league: "MLB",
-    canonical_sport_id: "BASEBALL",
-    canonical_league_id: "MLB",
-    event_title: "Philadelphia Phillies vs. New York Mets",
-    market_title: "Moneyline · Philadelphia Phillies",
-    sports_market_type: "Moneyline",
-    outcome: "Philadelphia Phillies",
-    event_time_et: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-    event_date_et: start.toISOString(),
-    resolution_time: start.toISOString(),
-    confidence_score: 82,
-    agreeing_wallet_count: 3,
-    raw_sharp_count: 3,
-    rawAgreeingSharpCount: 3,
-    rawContradictingSharpCount: 0,
-    lead_sharp_count: 1,
-    supporting_sharp_count: 2,
-    weighted_sharp_count: 3,
-    supporting_wallets: supportingWallets,
-    primary_trader: { ...supportingWallets[0], amount: 6850, average_entry: 0.438, relative_units: 1.7, top_category: "MLB Moneyline", adjusted_hit_rate: 0.637, sample_size: 147 },
-    trade_quality: { grade: "A", score: 82 },
-    recommendation,
-    card: {
-      recommended_amount: 35, recommended_units: 0.35, recommended_shares: 84.34,
-      current_actionable_price: 0.415, trader_average_entry_price: 0.438,
-      trader_bet_amount: 6850, relative_bet_size: 1.7, category_hit_rate: 0.637,
-      slippage_fraction: -0.0525,
-      event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-    },
-    executionOptions: [
-      makeOption("NoVIG", "novig", "+141", 0.415, 141, 18400, "https://novig.us/"),
-      makeOption("4CX", "4cx", "+136", 0.4237, 136, 9200, "https://4cx.io/"),
-      makeOption("ProphetX", "prophetx", "+133", 0.4292, 133, 7100, "https://prophetx.co/"),
-      makeOption("Polymarket", "polymarket", "44¢", 0.44, 127, 32800, "https://polymarket.com/"),
-      makeOption("Kalshi", "kalshi", "45¢", 0.45, 122, 12600, "https://kalshi.com/"),
-    ],
-    orderbook: {
-      asks: [{ price: 0.44, size: 52000 }, { price: 0.45, size: 31000 }, { price: 0.46, size: 18500 }, { price: 0.47, size: 8200 }],
-      bids: [{ price: 0.43, size: 41000 }, { price: 0.42, size: 33500 }, { price: 0.41, size: 19000 }, { price: 0.40, size: 9700 }],
-    },
-    orderbook_summary: { best_ask: 0.44, best_bid: 0.43 },
-    demoPriceHistory: [
-      { timestamp: Date.now() - 86400000, value: 0.402 },
-      { timestamp: Date.now() - 64800000, value: 0.421 },
-      { timestamp: Date.now() - 43200000, value: 0.414 },
-      { timestamp: Date.now() - 21600000, value: 0.438 },
-      { timestamp: Date.now(), value: 0.415 },
-    ],
-    personalExposureSummary: { type: "none" },
-  };
-}
-
-function secondaryVisualPreviewTrade() {
-  const trade = visualPreviewTrade();
-  const start = upcomingPreviewStart(16, 5);
-  const quoteConfig = {
-    novig: { displayOdds: "+145", price: 0.4082, americanOdds: 145, liquidity: 14200 },
-    "4cx": { displayOdds: "+148", price: 0.4032, americanOdds: 148, liquidity: 11800 },
-    prophetx: { displayOdds: "+142", price: 0.4132, americanOdds: 142, liquidity: 9600 },
-    polymarket: { displayOdds: "42¢", price: 0.42, americanOdds: 138, liquidity: 27400 },
-    kalshi: { displayOdds: "43¢", price: 0.43, americanOdds: 133, liquidity: 15600 },
-  };
-  trade.id = "visual-preview-trade-2";
-  trade.category = "MLB";
-  trade.league = "MLB";
-  trade.event_title = "Arizona Diamondbacks vs. Washington Nationals";
-  trade.market_title = "Moneyline · Arizona Diamondbacks";
-  trade.outcome = "Arizona Diamondbacks";
-  trade.event_time_et = formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-  trade.event_date_et = start.toISOString();
-  trade.resolution_time = start.toISOString();
-  trade.confidence_score = 73;
-  trade.agreeing_wallet_count = 2;
-  trade.raw_sharp_count = 2;
-  trade.rawAgreeingSharpCount = 2;
-  trade.lead_sharp_count = 1;
-  trade.supporting_sharp_count = 1;
-  trade.weighted_sharp_count = 2;
-  trade.supporting_wallets = trade.supporting_wallets.slice(0, 2).map((wallet, index) => ({
-    ...wallet,
-    amount: index === 0 ? 2780 : 1420,
-    average_entry_price: index === 0 ? 0.426 : 0.432,
-    relative_units: index === 0 ? 1.2 : 0.8,
-  }));
-  trade.primary_trader = {
-    ...trade.supporting_wallets[0],
-    amount: 4200,
-    average_entry: 0.428,
-    relative_units: 1.2,
-    top_category: "MLB Moneyline",
-    adjusted_hit_rate: 0.591,
-    sample_size: 96,
-  };
-  trade.trade_quality = { grade: "B+", score: 73 };
-  trade.recommendation = {
-    ...trade.recommendation,
-    recommended_amount: 20,
-    recommended_units: 0.2,
-    recommended_shares: 49.63,
-    current_user_entry_price: 0.4032,
-    sharp_average_entry_price: 0.428,
-    price_slippage_fraction: -0.0579,
-    confidence_score: 73,
-    trade_grade: "B+",
-    execution_plan: {
-      provider: "4CX",
-      maximum_average_price: 0.435,
-      effective_price_for_executable_amount: 0.4032,
-      executable_amount: 20,
-      estimated_fees: 0,
-    },
-  };
-  trade.card = {
-    ...trade.card,
-    recommended_amount: 20,
-    recommended_units: 0.2,
-    recommended_shares: 49.63,
-    current_actionable_price: 0.4032,
-    trader_average_entry_price: 0.428,
-    trader_bet_amount: 4200,
-    relative_bet_size: 1.2,
-    category_hit_rate: 0.591,
-    slippage_fraction: -0.0579,
-    event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-  };
-  trade.executionOptions = trade.executionOptions.map((option) => {
-    const config = quoteConfig[option.providerKey];
-    return {
-      ...option,
-      ...config,
-      marketId: `visual-preview:${option.providerKey}:moneyline-2`,
-      selectionId: `visual-preview:${option.providerKey}:diamondbacks`,
-      contractPrice: ["polymarket", "kalshi"].includes(option.providerKey) ? config.price : null,
-      bestExecutablePrice: config.price,
-      effectiveEntryPrice: config.price,
-      availableLiquidity: config.liquidity,
-      recommendedStake: 20,
-      isBestPrice: option.providerKey === "4cx",
-    };
-  });
-  trade.orderbook = {
-    asks: [{ price: 0.43, size: 39000 }, { price: 0.44, size: 24000 }, { price: 0.45, size: 13200 }],
-    bids: [{ price: 0.42, size: 36000 }, { price: 0.41, size: 27000 }, { price: 0.40, size: 14500 }],
-  };
-  trade.orderbook_summary = { best_ask: 0.43, best_bid: 0.42 };
-  trade.demoPriceHistory = [
-    { timestamp: Date.now() - 86400000, value: 0.447 },
-    { timestamp: Date.now() - 64800000, value: 0.438 },
-    { timestamp: Date.now() - 43200000, value: 0.426 },
-    { timestamp: Date.now() - 21600000, value: 0.414 },
-    { timestamp: Date.now(), value: 0.4032 },
-  ];
-  return trade;
-}
-
-function spreadVisualPreviewTrade() {
-  const trade = visualPreviewTrade();
-  const start = upcomingPreviewStart(19, 30);
-  trade.id = "visual-preview-spread";
-  trade.category = "Basketball";
-  trade.league = "NBA";
-  trade.event_title = "Boston Celtics vs. New York Knicks";
-  trade.market_title = "Spread · Boston Celtics -4.5";
-  trade.sports_market_type = "Spread";
-  trade.outcome = "Boston Celtics";
-  trade.market_line = -4.5;
-  trade.event_time_et = formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-  trade.event_date_et = start.toISOString();
-  trade.resolution_time = start.toISOString();
-  trade.primary_trader = {
-    ...trade.primary_trader,
-    top_category: "NBA Spread",
-  };
-  trade.supporting_wallets = trade.supporting_wallets.map((wallet) => ({
-    ...wallet,
-    top_category_ids: ["NBA Spread"],
-  }));
-  trade.card = {
-    ...trade.card,
-    event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-  };
-  trade.executionOptions = trade.executionOptions.map((option) => ({
-    ...option,
-    marketId: `visual-preview:${option.providerKey}:spread`,
-    selectionId: `visual-preview:${option.providerKey}:celtics-minus-4-5`,
-  }));
-  return trade;
-}
-
-function configuredVisualPreviewTrade({
-  id,
-  startHour,
-  startMinute,
-  category,
-  league,
-  eventTitle,
-  marketTitle,
-  marketType,
-  outcome,
-  confidence,
-  sharps,
-  currentPrice,
-  sharpEntry,
-  stake,
-  hitRate,
-  sampleSize,
-  relativeSize,
-  bestProvider = "novig",
-}) {
-  const trade = visualPreviewTrade();
-  const start = upcomingPreviewStart(startHour, startMinute);
-  const slippage = (currentPrice - sharpEntry) / sharpEntry;
-  const recommendedUnits = stake / 100;
-  const recommendedShares = stake / currentPrice;
-  const providerOffsets = {
-    novig: 0,
-    "4cx": 0.004,
-    prophetx: 0.007,
-    polymarket: 0.01,
-    kalshi: 0.013,
-  };
-
-  trade.id = id;
-  trade.category = category;
-  trade.league = league;
-  trade.canonical_sport_id = category.toUpperCase();
-  trade.canonical_league_id = league.toUpperCase();
-  trade.event_title = eventTitle;
-  trade.market_title = marketTitle;
-  trade.sports_market_type = marketType;
-  trade.outcome = outcome;
-  trade.event_time_et = formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-  trade.event_date_et = start.toISOString();
-  trade.resolution_time = start.toISOString();
-  trade.confidence_score = confidence;
-  trade.agreeing_wallet_count = sharps;
-  trade.raw_sharp_count = sharps;
-  trade.rawAgreeingSharpCount = sharps;
-  trade.lead_sharp_count = 1;
-  trade.supporting_sharp_count = Math.max(sharps - 1, 0);
-  trade.weighted_sharp_count = 1 + Math.max(sharps - 1, 0) * 0.5;
-  trade.supporting_wallets = trade.supporting_wallets.slice(0, sharps).map((wallet, index) => ({
-    ...wallet,
-    amount: 3400 - index * 475,
-    relative_units: relativeSize + index * 0.25,
-    top_category_ids: [`${league} ${marketType}`],
-  }));
-  trade.primary_trader = {
-    ...trade.supporting_wallets[0],
-    amount: 3400,
-    average_entry: sharpEntry,
-    average_entry_price: sharpEntry,
-    relative_units: relativeSize,
-    top_category: `${league} ${marketType}`,
-    adjusted_hit_rate: hitRate,
-    sample_size: sampleSize,
-  };
-  trade.trade_quality = {
-    grade: confidence >= 60 ? "A" : confidence >= 55 ? "B+" : "B",
-    score: confidence,
-  };
-  trade.recommendation = {
-    ...trade.recommendation,
-    recommended_amount: stake,
-    recommended_units: recommendedUnits,
-    recommended_shares: recommendedShares,
-    current_user_entry_price: currentPrice,
-    current_top_ask_price: currentPrice,
-    effective_entry_price: currentPrice,
-    sharp_average_entry_price: sharpEntry,
-    sharp_reference_entry_price: sharpEntry,
-    price_slippage_fraction: slippage,
-    slippage_cents: (currentPrice - sharpEntry) * 100,
-    unfavorable_slippage_pct: Math.max(slippage, 0),
-    estimated_win_probability: Math.min(currentPrice + 0.08, 0.95),
-    calculated_edge: 0.08,
-    final_recommended_fraction: stake / 10000,
-    confidence_score: confidence,
-    execution_plan: {
-      provider: "NoVIG",
-      maximum_average_price: currentPrice + 0.02,
-      effective_price_for_executable_amount: currentPrice,
-      executable_amount: stake,
-      estimated_fees: 0,
-    },
-  };
-  trade.card = {
-    ...trade.card,
-    recommended_amount: stake,
-    recommended_units: recommendedUnits,
-    recommended_shares: recommendedShares,
-    current_actionable_price: currentPrice,
-    trader_average_entry_price: sharpEntry,
-    trader_bet_amount: 3400,
-    relative_bet_size: relativeSize,
-    category_hit_rate: hitRate,
-    slippage_fraction: slippage,
-    event_time: formatScheduledClock(start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })),
-  };
-  trade.executionOptions = trade.executionOptions.map((option) => {
-    const configuredOffset = option.providerKey === bestProvider
-      ? 0
-      : Math.max(providerOffsets[option.providerKey] || 0.01, 0.003);
-    const price = Math.min(Math.max(currentPrice + configuredOffset, 0.02), 0.98);
-    const americanOdds = Math.round(price >= 0.5
-      ? -100 * price / (1 - price)
-      : 100 * (1 - price) / price);
-    const contractVenue = ["polymarket", "kalshi"].includes(option.providerKey);
-    return {
-      ...option,
-      marketId: `visual-preview:${option.providerKey}:${id}`,
-      selectionId: `visual-preview:${option.providerKey}:${id}:selection`,
-      displayOdds: contractVenue ? `${(price * 100).toFixed(1)}¢` : `${americanOdds > 0 ? "+" : ""}${americanOdds}`,
-      americanOdds,
-      contractPrice: contractVenue ? price : null,
-      bestExecutablePrice: price,
-      effectiveEntryPrice: price,
-      recommendedStake: stake,
-      isBestPrice: option.providerKey === bestProvider,
-    };
-  });
-  trade.orderbook = {
-    asks: [0.006, 0.012, 0.018, 0.026].map((offset, index) => ({
-      price: Math.min(currentPrice + offset, 0.98),
-      size: 42000 - index * 8200,
-    })),
-    bids: [0.004, 0.01, 0.016, 0.024].map((offset, index) => ({
-      price: Math.max(currentPrice - offset, 0.02),
-      size: 39000 - index * 7600,
-    })),
-  };
-  trade.orderbook_summary = {
-    best_ask: Math.min(currentPrice + 0.006, 0.98),
-    best_bid: Math.max(currentPrice - 0.004, 0.02),
-  };
-  trade.demoPriceHistory = [0.018, 0.014, 0.009, 0.004, 0].map((offset, index) => ({
-    timestamp: Date.now() - (4 - index) * 21600000,
-    value: Math.min(Math.max(currentPrice + offset, 0.02), 0.98),
-  }));
-  return trade;
-}
-
-function redsVisualPreviewTrade() {
-  return configuredVisualPreviewTrade({
-    id: "qa-trade-1",
-    startHour: 18,
-    startMinute: 42,
-    category: "Baseball",
-    league: "MLB",
-    eventTitle: "Cincinnati Reds vs. St. Louis Cardinals",
-    marketTitle: "Moneyline · Cincinnati Reds",
-    marketType: "Moneyline",
-    outcome: "Cincinnati Reds ML",
-    confidence: 58,
-    sharps: 3,
-    currentPrice: 0.42,
-    sharpEntry: 0.41,
-    stake: 20,
-    hitRate: 0.5908,
-    sampleSize: 1010,
-    relativeSize: 1.4,
-  });
-}
-
-function yankeesVisualPreviewTrade() {
-  return configuredVisualPreviewTrade({
-    id: "qa-trade-2",
-    startHour: 18,
-    startMinute: 57,
-    category: "Baseball",
-    league: "MLB",
-    eventTitle: "New York Yankees vs. Boston Red Sox",
-    marketTitle: "Moneyline · New York Yankees",
-    marketType: "Moneyline",
-    outcome: "Yankees ML",
-    confidence: 56,
-    sharps: 3,
-    currentPrice: 0.507,
-    sharpEntry: 0.489,
-    stake: 15,
-    hitRate: 0.6028,
-    sampleSize: 880,
-    relativeSize: 1.4,
-    bestProvider: "4cx",
-  });
-}
-
-function soccerVisualPreviewTrade() {
-  return configuredVisualPreviewTrade({
-    id: "qa-trade-3",
-    startHour: 19,
-    startMinute: 12,
-    category: "Soccer",
-    league: "FIFA World Cup",
-    eventTitle: "Spain vs. France",
-    marketTitle: "To Advance · Spain",
-    marketType: "To Advance",
-    outcome: "Spain",
-    confidence: 55,
-    sharps: 2,
-    currentPrice: 0.40,
-    sharpEntry: 0.389,
-    stake: 10,
-    hitRate: 0.6148,
-    sampleSize: 750,
-    relativeSize: 1.4,
-  });
-}
-
-function totalVisualPreviewTrade() {
-  return configuredVisualPreviewTrade({
-    id: "qa-trade-4",
-    startHour: 17,
-    startMinute: 30,
-    category: "Basketball",
-    league: "WNBA",
-    eventTitle: "New York Liberty vs. Las Vegas Aces",
-    marketTitle: "Game Total · Over 167.5",
-    marketType: "Game Total",
-    outcome: "Over 167.5",
-    confidence: 64,
-    sharps: 2,
-    currentPrice: 0.455,
-    sharpEntry: 0.46,
-    stake: 25,
-    hitRate: 0.6268,
-    sampleSize: 620,
-    relativeSize: 1.4,
-  });
-}
-
-function hockeyVisualPreviewTrade() {
-  return configuredVisualPreviewTrade({
-    id: "qa-trade-5",
-    startHour: 20,
-    startMinute: 10,
-    category: "Hockey",
-    league: "NHL",
-    eventTitle: "New York Rangers vs. Boston Bruins",
-    marketTitle: "Moneyline · New York Rangers",
-    marketType: "Moneyline",
-    outcome: "Rangers ML",
-    confidence: 53,
-    sharps: 2,
-    currentPrice: 0.525,
-    sharpEntry: 0.51,
-    stake: 10,
-    hitRate: 0.6388,
-    sampleSize: 490,
-    relativeSize: 1.4,
-  });
 }
 
 function stableTradeFilterKey(filters) {
@@ -2429,20 +1907,20 @@ function tradeCard(trade) {
       ? "At sharp entry"
       : `${Math.abs(slippage.percent).toFixed(1)}% ${slippage.tone} than sharp entry`;
   return `
-    <article class="trade-card ${selected ? "selected is-selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""} ${trade.isVisualPreview ? "visual-preview-trade" : ""}" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" data-selected="${selected}" aria-current="${selected ? "true" : "false"}" aria-label="${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
+    <article class="trade-card ${selected ? "selected is-selected" : ""} ${trade.isHidden ? "hidden-trade" : ""} ${trade.isRefreshPending ? "refresh-pending" : ""} ${trade.isOfficialTracked ? "official-trade" : ""}" data-testid="trade-card" data-trade-id="${escapeHtml(trade.id)}" data-selected="${selected}" aria-current="${selected ? "true" : "false"}" aria-label="${escapeHtml(trade.event_title || trade.market_title)}, ${escapeHtml(trade.outcome)}">
       <span class="trade-score-cluster">
         ${tooltipTriggerMarkup(
           `<strong>${escapeHtml(trade.confidence_score)}</strong>`,
           TRADE_METRIC_TOOLTIPS.confidence,
           `Confidence ${trade.confidence_score} out of 100`,
-          `trade-score ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}`,
+          `trade-score il-confidence-display ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}`,
         )}
         <small class="trade-score-label">Confidence</small>
         ${personalExposureWarning(trade)}
         ${trade.isHidden ? '<span class="hidden-badge">Hidden</span>' : ""}
       </span>
       <span class="trade-event-copy">
-        <span class="trade-kicker">${escapeHtml(sportLeagueLabel)}${trade.isVisualPreview ? '<em class="visual-preview-badge">Design preview</em>' : ""}</span>
+        <span class="trade-kicker">${escapeHtml(sportLeagueLabel)}</span>
         <button class="trade-event trade-event-action" type="button" data-trade-view="${escapeHtml(trade.id)}" aria-label="Open details for ${escapeHtml(trade.event_title || trade.market_title)}">${escapeHtml(trade.event_title || trade.market_title)}</button>
         <span class="trade-market">${escapeHtml(humanizeMarketType(trade.sports_market_type))}<i aria-hidden="true"></i>${escapeHtml(eventClock)}</span>
         <span class="trade-signal-summary" title="${escapeHtml(`${TRADE_METRIC_TOOLTIPS.sharps} ${TRADE_METRIC_TOOLTIPS.relativeSize} ${TRADE_METRIC_TOOLTIPS.hitRate}`)}">${escapeHtml(signalText)}</span>
@@ -2858,7 +2336,7 @@ function detailStripMetric(value, label, tooltip, tone = "") {
     `<strong>${escapeHtml(value)}</strong><small>${escapeHtml(label)}</small>`,
     tooltip,
     `${label}: ${value}`,
-    `detail-strip-metric ${tone}`.trim(),
+    `detail-strip-metric il-metric ${tone}`.trim(),
   );
 }
 
@@ -2903,7 +2381,7 @@ function detailSelectionPanel(trade) {
     ? executableQuoteChip(trade, { ...best, isBestPrice: true }, { className: "execution-summary-quote" })
     : '<span class="executable-quote-chip execution-summary-quote is-unavailable"><strong>Checking</strong><span class="sr-only">Executable quote unavailable</span></span>';
   return `
-    <section class="detail-selection-panel" aria-labelledby="execution-brief-title">
+    <section class="detail-selection-panel il-detail-section" aria-labelledby="execution-brief-title">
       <h3 id="execution-brief-title">Execution</h3>
       <div class="execution-summary" aria-label="${escapeHtml(`${tradePlayLabel(trade)} on ${meta.name} at ${price} for ${amountLabel}`)}">
         <strong class="execution-summary-action">${escapeHtml(tradePlayLabel(trade))}</strong>
@@ -2962,9 +2440,9 @@ function renderTradeDetail(trade) {
       <button type="button" data-mobile-detail-close aria-label="Close selected trade details"><i class="ph ph-x" aria-hidden="true"></i></button>
     </div>
     <div class="detail-header">
-      <span class="detail-confidence ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>
+      <span class="detail-confidence il-confidence-display ${confidenceClass(trade.confidence_score)} ${tradeConfidenceTone(trade.confidence_score)}"><strong>${escapeHtml(trade.confidence_score)}</strong><small>Confidence</small></span>
       <div class="detail-title-copy"><p>${escapeHtml(trade.category || "Sports")} · ${escapeHtml(trade.league || "Market")}</p><h2>${escapeHtml(trade.event_title || trade.market_title)}</h2><span>${escapeHtml(humanizeMarketType(trade.sports_market_type))} · ${escapeHtml(trade.event_time_et || "Time unavailable")}</span></div>
-      <span class="detail-header-actions">${trade.isVisualPreview ? "" : `${personalExposureWarning(trade)}<button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" id="detail-pin-action" type="button" aria-label="${trade.isPinnedByCurrentUser ? "Unpin from" : "Pin to"} Whiteboard"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button><details class="detail-action-menu"><summary aria-label="More selected trade actions"><i class="ph ph-dots-three" aria-hidden="true"></i></summary><div><button class="trade-hide-action" id="detail-hide-action" type="button"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i><span>${trade.isHidden ? "Restore trade" : "Hide trade"}</span></button></div></details><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button>`}</span>
+      <span class="detail-header-actions">${personalExposureWarning(trade)}<button class="trade-pin-action ${trade.isPinnedByCurrentUser ? "active" : ""}" id="detail-pin-action" type="button" aria-label="${trade.isPinnedByCurrentUser ? "Unpin from" : "Pin to"} Whiteboard"><i class="ph ${trade.isPinnedByCurrentUser ? "ph-push-pin-fill" : "ph-push-pin"}" aria-hidden="true"></i></button><details class="detail-action-menu"><summary aria-label="More selected trade actions"><i class="ph ph-dots-three" aria-hidden="true"></i></summary><div><button class="trade-hide-action" id="detail-hide-action" type="button"><i class="ph ${trade.isHidden ? "ph-arrow-counter-clockwise" : "ph-eye-slash"}" aria-hidden="true"></i><span>${trade.isHidden ? "Restore trade" : "Hide trade"}</span></button></div></details><button class="tracker-quick-action" id="detail-track-action" type="button" aria-label="Track this personal trade"><i class="ph ph-plus" aria-hidden="true"></i></button></span>
     </div>
     ${trade.isOfficialTracked ? `
       <section class="official-play-notice">
@@ -2975,26 +2453,26 @@ function renderTradeDetail(trade) {
     ` : ""}
     ${detailSelectionPanel(trade)}
     ${executionComparisonLadder(trade)}
-    <section class="detail-strip-card why-bet-card">
+    <section class="detail-strip-card il-detail-section why-bet-card">
       <div class="section-label"><span>Why this bet?</span></div>
-      <div class="detail-strip">
+      <div class="detail-strip il-metric-group">
         ${detailStripMetric(formatRelativeSize(card.relative_bet_size ?? primary.relative_units).replace("x", "×"), "Relative size", TRADE_METRIC_TOOLTIPS.relativeSize)}
         ${detailStripMetric(formatOptionalMoney(card.trader_bet_amount ?? primary.amount, true), "Sharp volume", TRADE_METRIC_TOOLTIPS.sharpBetSize)}
         ${detailStripMetric(slippage?.formatted || "N/A", "Entry edge", TRADE_METRIC_TOOLTIPS.entryEdge, slippageTone)}
       </div>
     </section>
-    <section class="detail-strip-card trader-stats-card">
+    <section class="detail-strip-card il-detail-section trader-stats-card">
       <div class="section-label"><span>Trader stats</span></div>
-      <div class="detail-strip">
+      <div class="detail-strip il-metric-group">
         ${detailStripMetric(primary.top_category || trade.category || "N/A", "Top category", TRADE_METRIC_TOOLTIPS.topCategory)}
         ${detailStripMetric(number(categoryHitRate) === null ? "N/A" : formatPercent(categoryHitRate, 1), "Adjusted hit rate", TRADE_METRIC_TOOLTIPS.hitRate)}
         ${detailStripMetric(number(primary.sample_size) === null ? "N/A" : String(primary.sample_size), "Settled sample", TRADE_METRIC_TOOLTIPS.settledSample)}
       </div>
     </section>
-    <section class="detail-section price-panel">
+    <section class="detail-section il-detail-section price-panel">
       <div class="section-label"><span>Price movement</span><span class="price-range-controls" role="group" aria-label="Price history range"><button class="active" data-price-range="1d" type="button" aria-pressed="true">1D</button><button data-price-range="1w" type="button" aria-pressed="false">1W</button><button data-price-range="1m" type="button" aria-pressed="false">1M</button><button data-price-range="max" type="button" aria-pressed="false">MAX</button></span></div>
       <div class="price-legend"><span class="trader-entry">Trader entry <strong>${escapeHtml(formatOptionalCents(traderPrice))}</strong></span><span class="recommended-entry">Current executable <strong>${escapeHtml(formatOptionalCents(executablePrice))}</strong></span><span class="price-change ${priceDeltaTone}">${escapeHtml(priceDeltaLabel)}</span></div>
-      <div class="price-chart" id="price-chart"><div class="chart-loading">Loading verified price history…</div></div>
+      <div class="price-chart il-chart-container" id="price-chart"><div class="chart-loading il-state-loading">Loading verified price history…</div></div>
     </section>
     <details class="advanced-details-panel">
       <summary><span>Advanced details</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
@@ -3013,16 +2491,15 @@ function renderTradeDetail(trade) {
         <details class="detail-accordion"><summary><span><i class="ph ph-cpu" aria-hidden="true"></i>Model and market details</span><small>${trade.modelTrackerEligible ? "Tracker eligible" : "Not tracker eligible"}</small><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="calculation-grid"><div><span>Weighted consensus</span><strong>${escapeHtml(weightedSharpLabel(trade.weighted_sharp_count))}</strong></div><div><span>Lead / Supporting</span><strong>${escapeHtml(`${trade.lead_sharp_count || 0} / ${trade.supporting_sharp_count || 0}`)}</strong></div><div><span>Estimated win</span><strong>${escapeHtml(formatPercent(recommendation.estimated_win_probability))}</strong></div><div><span>Final stake</span><strong>${escapeHtml(formatPercent(recommendation.final_recommended_fraction, 2))}</strong></div><div><span>Model Tracker</span><strong>${trade.modelTrackerEligible ? "Eligible" : "Excluded"}</strong></div><div><span>Market type</span><strong>${escapeHtml(humanizeMarketType(trade.sports_market_type))}</strong></div></div>${trade.modelTrackerRejectionReason ? `<p class="calculation-note">${escapeHtml(trade.modelTrackerRejectionReason)}</p>` : ""}</details>
       </div>
     </details>
-    ${trade.isVisualPreview ? "" : `<footer class="mobile-trade-detail-actions">
+    <footer class="mobile-trade-detail-actions">
       <button type="button" data-mobile-detail-hide><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hide</span></button>
       <button type="button" data-mobile-detail-track><i class="ph ph-plus-circle" aria-hidden="true"></i><span>Track</span></button>
-    </footer>`}
+    </footer>
   `;
   panel.querySelectorAll("[data-mobile-detail-close]").forEach((button) => button.addEventListener("click", closeMobileTradeDetail));
   panel.querySelector("[data-mobile-detail-track]")?.addEventListener("click", () => openPersonalTracker(trade));
   panel.querySelector("[data-mobile-detail-hide]")?.addEventListener("click", () => {
-    if (trade.isVisualPreview) closeMobileTradeDetail();
-    else if (trade.isHidden) restoreHiddenTrade(trade.hiddenRecordId);
+    if (trade.isHidden) restoreHiddenTrade(trade.hiddenRecordId);
     else hideTrade(trade.id);
   });
   panel.querySelector("#detail-track-action")?.addEventListener("click", () => openPersonalTracker(trade));
@@ -3041,43 +2518,11 @@ function renderTradeDetail(trade) {
       item.classList.toggle("active", active);
       item.setAttribute("aria-pressed", String(active));
     });
-    if (trade.isVisualPreview) {
-      drawLineChart(
-        document.getElementById("price-chart"),
-        trade.demoPriceHistory || [],
-        {
-          format: formatCents,
-          referenceLines: priceReferences,
-          summary: chartSummary,
-          color: tradePriceHistoryColor(document.getElementById("price-chart")),
-          valueLabel: "Price",
-          domain: PREDICTION_TRADERS_PRICE_DOMAIN,
-        },
-      );
-    } else {
-      loadPriceHistory(trade.clob_token_id, currentPrice, button.dataset.priceRange, priceReferences, chartSummary);
-    }
+    loadPriceHistory(trade.clob_token_id, currentPrice, button.dataset.priceRange, priceReferences, chartSummary);
   }));
-  if (trade.isVisualPreview) {
-    drawLineChart(
-      document.getElementById("price-chart"),
-      trade.demoPriceHistory || [],
-      {
-        format: formatCents,
-        referenceLines: priceReferences,
-        summary: chartSummary,
-        color: tradePriceHistoryColor(document.getElementById("price-chart")),
-        valueLabel: "Price",
-        domain: PREDICTION_TRADERS_PRICE_DOMAIN,
-      },
-    );
-    const exposure = document.getElementById("personal-exposure-detail");
-    if (exposure) exposure.innerHTML = '<p class="personal-exposure-empty"><i class="ph ph-shield-check"></i>Preview data is isolated from Personal Tracker.</p>';
-  } else {
-    loadPriceHistory(trade.clob_token_id, currentPrice, "1d", priceReferences, chartSummary);
-    loadPersonalExposureDetails(trade.id);
-    loadTradeEdgeEvidence(trade);
-  }
+  loadPriceHistory(trade.clob_token_id, currentPrice, "1d", priceReferences, chartSummary);
+  loadPersonalExposureDetails(trade.id);
+  loadTradeEdgeEvidence(trade);
 }
 
 function personalExposureGroup(title, group, tone = "") {
@@ -3446,34 +2891,18 @@ async function loadSizingBankroll() {
 }
 
 function renderTradesPayload(payload, filters, list) {
-  const previewEnabled = new URLSearchParams(window.location.search).get("preview") === "trade";
-  const incomingTrades = previewEnabled
-    ? [
-        totalVisualPreviewTrade(),
-        redsVisualPreviewTrade(),
-        yankeesVisualPreviewTrade(),
-        soccerVisualPreviewTrade(),
-        hockeyVisualPreviewTrade(),
-      ]
-    : (payload.data || []);
-  const mergedTrades = (previewEnabled
-    ? incomingTrades
-    : mergeOfficialTrackedTrades(incomingTrades, payload.officialTracked || [])
-  ).filter(tradePassesLiveSlippageGuard);
-  const sourceTrades = previewEnabled
-    ? mergedTrades
-    : stabilizeTradeFeed(
-        mergedTrades,
-        filters,
-        payload.status || {},
-        payload.liveRejectedTradeIds || [],
-      );
+  const incomingTrades = payload.data || [];
+  const mergedTrades = mergeOfficialTrackedTrades(incomingTrades, payload.officialTracked || [])
+    .filter(tradePassesLiveSlippageGuard);
+  const sourceTrades = stabilizeTradeFeed(
+    mergedTrades,
+    filters,
+    payload.status || {},
+    payload.liveRejectedTradeIds || [],
+  );
   annotateExecutionMovements(sourceTrades);
   appState.trades = applyClientTradeFilters(sourceTrades, filters);
-  const summaryPayload = previewEnabled
-    ? { ...payload, pagination: { ...(payload.pagination || {}), total: sourceTrades.length } }
-    : payload;
-  updateTradeSummary(summaryPayload, sourceTrades, appState.trades);
+  updateTradeSummary(payload, sourceTrades, appState.trades);
   if (payload.bankroll) applySizingBankroll(payload.bankroll);
   updateGlobalStatus(payload.status);
   document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
@@ -6394,8 +5823,8 @@ function providerLogoMarkup(provider, alt = "") {
     ? "/static/assets/sportsbooks/betonline.png"
     : provider?.logoUrl || "";
   const initials = escapeHtml(oddsProviderInitials(name));
-  if (!logoUrl) return `<span class="provider-logo-mark"><b class="book-initials">${initials}</b></span>`;
-  return `<span class="provider-logo-mark"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(alt)}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><b class="book-initials" hidden>${initials}</b></span>`;
+  if (!logoUrl) return `<span class="provider-logo-mark il-provider-logo"><b class="book-initials">${initials}</b></span>`;
+  return `<span class="provider-logo-mark il-provider-logo"><img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(alt)}" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><b class="book-initials" hidden>${initials}</b></span>`;
 }
 
 function syncOddsProviderCatalog(entries = []) {
