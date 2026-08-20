@@ -124,3 +124,22 @@ def test_new_segmented_wallets_are_zero_weight_shadow_only():
     assert canoflanagan[0]["minimum_units"] == 0.5
     assert all(item["mode"] in {"SHADOW", "RESEARCH"} for item in [*positive, *canoflanagan])
     assert all(item["overlay_weight"] == 0.0 for item in [*positive, *canoflanagan])
+
+
+def test_undisputa_is_segmented_by_size_and_never_affects_production():
+    config = load_shadow_config()
+    sleeves = [item for item in config["sleeves"] if item["label"] == "Undisputa"]
+    by_id = {item["id"]: item for item in sleeves}
+
+    assert set(by_id) == {
+        "undisputa-nba-ml",
+        "undisputa-soccer-ml",
+        "undisputa-nhl-ml",
+        "undisputa-mlb-ml",
+    }
+    assert by_id["undisputa-nba-ml"]["minimum_units"] == 0.5
+    assert by_id["undisputa-soccer-ml"]["minimum_units"] == 0.5
+    assert by_id["undisputa-nhl-ml"]["minimum_units"] == 1.0
+    assert by_id["undisputa-mlb-ml"]["mode"] == "RESEARCH"
+    assert all(item["base_unit_usd"] == 1300 for item in sleeves)
+    assert all(item["overlay_weight"] == 0.0 for item in sleeves)

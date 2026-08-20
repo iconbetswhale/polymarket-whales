@@ -27,6 +27,7 @@ REQUESTED_WALLETS = {
     "EVhunter69": "0x8ce7eb8a3ad1d6907b24368865c8487a68fb3150",
     "Positive-Console": "0x684baa57c338c2549aec0aa3f034f695d72a8409",
     "Canoflanagan": "0x21468ad63a833f5f9ea5c2835fb4e9dec57ad41b",
+    "Undisputa": "0x986c0ba5ae79c5cf171cfa8e85afe186412a3180",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -57,6 +58,7 @@ EXPECTED_TOP_CATEGORIES = {
     "EVhunter69": "mlb",
     "Positive-Console": "mlb",
     "Canoflanagan": "wnba",
+    "Undisputa": "nba",
 }
 
 
@@ -216,6 +218,21 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
         "Spread",
     )
     assert canoflanagan.wallet_forensics["two_sided_markets"] == 72
+
+    undisputa = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Undisputa"
+    )
+    assert undisputa.base_unit == 1300
+    assert undisputa.top_category_ids == ("nba", "soccer", "nhl")
+    assert undisputa.lead_sharp_eligible is False
+    assert undisputa.supporting_sharp_eligible is False
+    assert undisputa.minimum_actionable_exposure_dollars == 650
+    assert undisputa.category_signal_roles["nba"]["minimum_originator_units"] == 0.5
+    assert undisputa.category_signal_roles["soccer"]["minimum_originator_units"] == 0.5
+    assert undisputa.category_signal_roles["nhl"]["minimum_originator_units"] == 1.0
+    assert undisputa.wallet_forensics["one_unit_clean_nhl_moneyline_markets"] == 66
+    assert undisputa.wallet_forensics["nfl_moneyline_markets"] == 3
+    assert undisputa.wallet_forensics["policy"].startswith("SHADOW_ONLY")
 
     wallet_4f2 = next(
         wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"
