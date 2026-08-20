@@ -25,6 +25,8 @@ REQUESTED_WALLETS = {
     "Portly-Derivation": "0x8a3ab8120807bd64a3de48695110e390fa2ceb9a",
     "HuntersMethDealer": "0x398900e95487c704ac3b52fd653e1697d32227b1",
     "EVhunter69": "0x8ce7eb8a3ad1d6907b24368865c8487a68fb3150",
+    "Positive-Console": "0x684baa57c338c2549aec0aa3f034f695d72a8409",
+    "Canoflanagan": "0x21468ad63a833f5f9ea5c2835fb4e9dec57ad41b",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -53,6 +55,8 @@ EXPECTED_TOP_CATEGORIES = {
     "SnakeBall": "mlb",
     "HuntersMethDealer": "nfl",
     "EVhunter69": "mlb",
+    "Positive-Console": "mlb",
+    "Canoflanagan": "wnba",
 }
 
 
@@ -157,14 +161,19 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     hunters = next(
         wallet for wallet in result.valid_wallets if wallet.label == "HuntersMethDealer"
     )
-    assert hunters.base_unit == 400
+    assert hunters.base_unit == 900
     assert hunters.primary_top_category_id == "nfl"
-    assert hunters.actionable_position_units == 1.0
-    assert hunters.minimum_actionable_exposure_dollars == 400
+    assert hunters.actionable_position_units == 0.5
+    assert hunters.minimum_actionable_exposure_dollars == 450
     assert hunters.lead_sharp_eligible is False
     assert hunters.supporting_sharp_eligible is False
     assert hunters.category_signal_roles["nfl"]["role"] == "RESEARCH"
     assert hunters.category_signal_roles["soccer"]["role"] == "RESEARCH"
+    assert hunters.category_signal_roles["nfl"]["allowed_market_types"] == (
+        "Moneyline",
+        "Total",
+    )
+    assert hunters.wallet_forensics["measured_unit_usd"] == 900
     assert hunters.wallet_forensics["policy"].startswith("SHADOW_ONLY")
 
     evhunter = next(
@@ -181,6 +190,32 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
         assert policy["quality_weight"] == 0.5
         assert policy["minimum_originator_units"] == 1.0
         assert policy["allowed_market_types"] == ("Moneyline",)
+
+    positive_console = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Positive-Console"
+    )
+    assert positive_console.base_unit == 6575
+    assert positive_console.top_category_ids == ("mlb", "wnba")
+    assert positive_console.lead_sharp_eligible is False
+    assert positive_console.supporting_sharp_eligible is False
+    assert positive_console.minimum_actionable_exposure_dollars == 3287.5
+    assert positive_console.category_signal_roles["wnba"]["allowed_market_types"] == (
+        "Spread",
+    )
+    assert positive_console.wallet_forensics["policy"].startswith("SHADOW_ONLY")
+
+    canoflanagan = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "Canoflanagan"
+    )
+    assert canoflanagan.base_unit == 2175
+    assert canoflanagan.primary_top_category_id == "wnba"
+    assert canoflanagan.lead_sharp_eligible is False
+    assert canoflanagan.supporting_sharp_eligible is False
+    assert canoflanagan.minimum_actionable_exposure_dollars == 1087.5
+    assert canoflanagan.category_signal_roles["wnba"]["allowed_market_types"] == (
+        "Spread",
+    )
+    assert canoflanagan.wallet_forensics["two_sided_markets"] == 72
 
     wallet_4f2 = next(
         wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"

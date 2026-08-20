@@ -76,7 +76,23 @@ The dashboard now tracks:
 - `scoring.py`: position conviction scoring
 - `templates/` and `static/`: dashboard UI
 - `tests/`: mocked automated test suite
+- `scripts/discover_nfl_wallet_candidates.py`: research-only NFL wallet screen using current game-market holders, sports leaderboards, and settled full-game history
 - `scripts/ingest_top_wallets.py`: optional legacy utility only
+
+## NFL Wallet Research Screen
+
+Run the NFL screen without changing the live wallet registry:
+
+```powershell
+python scripts/discover_nfl_wallet_candidates.py --output outputs/nfl-wallet-candidates-latest.json
+```
+
+The scanner evaluates clean directional full-game moneylines, spreads, and
+totals, includes registered NFL wallets as benchmarks, and labels candidates as
+priority research, watchlist, or insufficient/negative. It never edits
+`wallets.json` and never promotes a wallet automatically. Full executed-fill
+extraction and forward executable-price tracking are required before any live
+role review.
 
 ## Install Python
 

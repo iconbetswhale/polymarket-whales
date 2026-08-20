@@ -94,7 +94,33 @@ def test_huntersmethdealer_is_split_into_high_conviction_shadow_sleeves():
         "huntersmethdealer-soccer-ml",
         "huntersmethdealer-soccer-total",
     }
-    assert all(item["base_unit_usd"] == 400 for item in sleeves)
-    assert all(item["minimum_units"] == 1.0 for item in sleeves)
+    assert all(item["base_unit_usd"] == 900 for item in sleeves)
+    assert all(item["minimum_units"] == 0.5 for item in sleeves)
     assert all(item["mode"] == "SHADOW" for item in sleeves)
     assert all(item["overlay_weight"] == 0.0 for item in sleeves)
+
+
+def test_new_segmented_wallets_are_zero_weight_shadow_only():
+    config = load_shadow_config()
+    positive = [
+        item for item in config["sleeves"] if item["label"] == "Positive-Console"
+    ]
+    canoflanagan = [
+        item for item in config["sleeves"] if item["label"] == "Canoflanagan"
+    ]
+
+    assert {item["id"] for item in positive} == {
+        "positive-console-wnba-spread",
+        "positive-console-mlb-spread",
+        "positive-console-mlb-total",
+        "positive-console-mlb-ml",
+    }
+    assert {item["id"] for item in canoflanagan} == {
+        "canoflanagan-wnba-spread"
+    }
+    assert all(item["base_unit_usd"] == 6575 for item in positive)
+    assert all(item["minimum_units"] == 0.5 for item in positive)
+    assert canoflanagan[0]["base_unit_usd"] == 2175
+    assert canoflanagan[0]["minimum_units"] == 0.5
+    assert all(item["mode"] in {"SHADOW", "RESEARCH"} for item in [*positive, *canoflanagan])
+    assert all(item["overlay_weight"] == 0.0 for item in [*positive, *canoflanagan])
