@@ -1,12 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="odds-screen-page">
-  <header class="odds-screen-toolbar">
-    <div class="odds-context">
+<section class="odds-screen-page il-data-grid-page" data-odds-preview="{{ 'true' if odds_screen_preview else 'false' }}">
+  {% if odds_screen_preview %}
+  <section class="odds-preview-banner" aria-label="Preview mode">
+    <i class="ph ph-eye" aria-hidden="true"></i>
+    <strong>Three temporary preview matchups</strong>
+    <span>Visual fixtures only · no provider requests or sportsbook credits.</span>
+  </section>
+  {% endif %}
+  <header class="odds-screen-toolbar il-page-header">
+    <div class="odds-context il-page-title">
       <div><span class="page-kicker">Live market comparison</span><h1>Sportsbook Screen</h1></div>
       <p>Exact-market prices across connected books and exchanges</p>
     </div>
-    <div class="odds-filter-row">
+    <div class="odds-filter-row il-filter-bar">
       <button class="odds-pill active" data-odds-all>All</button>
       <button class="odds-pill" data-odds-favorite>Favorites</button>
 
@@ -58,8 +65,8 @@
         </section>
       </div>
 
-      <label class="odds-search"><i class="ph ph-magnifying-glass"></i><input id="odds-search" type="search" placeholder="Search teams"></label>
-      <button class="odds-refresh" id="odds-refresh" title="Refresh now"><i class="ph ph-arrows-clockwise"></i></button>
+      <label class="odds-search search-control"><i class="ph ph-magnifying-glass"></i><input id="odds-search" type="search" placeholder="Search teams"></label>
+      <button class="odds-refresh icon-button" id="odds-refresh" title="Refresh now" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
     </div>
     <div class="odds-market-tabs">
       <button class="active" data-odds-kind="">Main Markets</button><button data-odds-kind="moneyline">Moneyline</button><button data-odds-kind="spread">Run Line / Spread</button><button data-odds-kind="alternate_spread">Alt Spreads</button><button data-odds-kind="game_total">Game Totals</button><button data-odds-kind="alternate_total">Alt Totals</button>
@@ -94,7 +101,7 @@
     </div>
     <div class="mobile-odds-games" id="mobile-odds-games" aria-live="polite"></div>
   </section>
-  <div class="odds-grid-shell">
+  <div class="odds-grid-shell il-data-grid">
     <div class="odds-grid-head">
       <span>START</span><span>TEAM / SELECTION</span>
       <span class="book-head poly" data-odds-column="polymarket" data-book-column="polymarket" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Polymarket column. Drag to reorder."><img src="https://polymarket.com/icons/favicon-32x32.png" alt="Polymarket"><small>POLYMARKET</small></span>

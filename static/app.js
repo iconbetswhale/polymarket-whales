@@ -5810,7 +5810,7 @@ try {
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
   : initialOddsProviderOrder.filter(key => ODDS_PROVIDER_KEYS.includes(key));
-const oddsState = { rows: [], sport: "", league: "", kind: "", search: "", favoritesOnly: false, catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
+const oddsState = { rows: [], sport: "", league: "", kind: "", search: "", favoritesOnly: false, catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, preview: new URLSearchParams(window.location.search).get("preview") === "1", mobileEventKey: "", mobileMarketKind: "main" };
 
 function oddsProviderInitials(name) {
   return String(name || "?").split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("").toUpperCase();
@@ -6126,7 +6126,8 @@ function renderMobileOddsBoard(rows) {
   if (!board) return;
   if (status) {
     status.classList.toggle("live", oddsState.feedActive);
-    status.querySelector("span").textContent = oddsState.feedActive ? "Live" : "Paused";
+    status.classList.toggle("preview", oddsState.preview);
+    status.querySelector("span").textContent = oddsState.preview ? "Preview" : oddsState.feedActive ? "Live" : "Paused";
   }
   if (!rows.length) {
     board.innerHTML = oddsState.feedActive
@@ -6312,6 +6313,7 @@ async function loadOddsScreen() {
     if (oddsState.league) params.set("league", oddsState.league);
     if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
     params.set("active", "1");
+    if (oddsState.preview) params.set("preview", "1");
     const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
@@ -6325,26 +6327,32 @@ async function loadOddsScreen() {
 }
 
 function setOddsFeedActive(active) {
-  oddsState.feedActive = Boolean(active);
+  oddsState.feedActive = oddsState.preview ? true : Boolean(active);
   const toggle = document.getElementById("odds-feed-toggle");
   const state = document.getElementById("odds-live-state");
   const label = document.getElementById("odds-live-label");
   if (oddsState.timer) window.clearInterval(oddsState.timer);
   oddsState.timer = null;
   state?.classList.toggle("paused", !oddsState.feedActive);
-  if (label) label.textContent = oddsState.feedActive ? "LIVE" : "PAUSED";
+  state?.classList.toggle("preview", oddsState.preview);
+  if (label) label.textContent = oddsState.preview ? "PREVIEW" : oddsState.feedActive ? "LIVE" : "PAUSED";
   if (toggle) {
-    toggle.innerHTML = oddsState.feedActive
+    toggle.disabled = oddsState.preview;
+    toggle.innerHTML = oddsState.preview
+      ? '<i class="ph ph-eye"></i><span>Preview feed</span>'
+      : oddsState.feedActive
       ? '<i class="ph ph-pause"></i><span>Pause feed</span>'
       : '<i class="ph ph-play"></i><span>Start feed</span>';
-    toggle.title = oddsState.feedActive
+    toggle.title = oddsState.preview
+      ? "Visual preview uses no provider requests"
+      : oddsState.feedActive
       ? "Pause the live odds feed"
       : "Start the live odds feed";
   }
   if (oddsState.feedActive) {
     document.getElementById("odds-latency").textContent = "Starting";
     loadOddsScreen();
-    oddsState.timer = window.setInterval(loadOddsScreen, 60000);
+    if (!oddsState.preview) oddsState.timer = window.setInterval(loadOddsScreen, 60000);
   } else {
     document.getElementById("odds-latency").textContent = "Credit saver";
     document.getElementById("odds-updated").textContent = "Paused to protect credits";
@@ -6556,7 +6564,7 @@ function bindOddsScreen() {
     });
   });
   document.addEventListener("click", event => { if (!event.target.closest(".odds-menu-shell")) closeOddsMenus(); });
-  setOddsFeedActive(false);
+  setOddsFeedActive(oddsState.preview);
 }
 
 function shadowStrategyRow(strategy, target) {

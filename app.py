@@ -1055,7 +1055,18 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/odds-screen")
     def odds_screen_page():
-        return render_template("odds_screen.html", title="IconBets Live Odds Screen", page="odds-screen")
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        return render_template(
+            "odds_screen.html",
+            title="IconBets Live Odds Screen",
+            page="odds-screen",
+            odds_screen_preview=preview_requested,
+        )
 
     @app.route("/dfs")
     def dfs_page():
@@ -1602,6 +1613,18 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/odds-screen")
     def api_odds_screen():
         """Live read-only odds universe, independent of recommendation eligibility."""
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        if preview_requested:
+            from odds_screen_preview import temporary_odds_screen_preview_payload
+
+            response = jsonify(temporary_odds_screen_preview_payload())
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
         if request.args.get("active", "").strip().lower() not in {
             "1",
             "true",

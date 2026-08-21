@@ -74,7 +74,7 @@ def test_product_foundation_defines_semantic_visual_tokens():
 def test_canonical_pages_opt_into_the_v2_foundation_last():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert 'data-design-system="{% if page in [\'trades\', \'positive-ev\', \'sharp-money\'] %}v2' in template
+    assert 'data-design-system="{% if page in [\'trades\', \'positive-ev\', \'sharp-money\', \'odds-screen\'] %}v2' in template
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
@@ -82,11 +82,13 @@ def test_canonical_pages_opt_into_the_v2_foundation_last():
     late_trades = template.index("filename='stage2-trades.css'", late_foundation)
     late_positive_ev = template.index("filename='positive-ev.css'", late_foundation)
     late_sharp_money = template.index("filename='sharp-money-v2.css'", late_foundation)
+    late_odds_screen = template.index("filename='odds-screen-v2.css'", late_foundation)
     assert late_foundation > template.index("filename='app-premium.css'")
     assert late_foundation > template.index("filename='sidebar-shell.css'")
     assert late_trades > late_foundation
     assert late_positive_ev > late_foundation
     assert late_sharp_money > late_foundation
+    assert late_odds_screen > late_foundation
 
 
 def test_canonical_pages_do_not_reload_legacy_override_layers():
@@ -103,11 +105,11 @@ def test_canonical_pages_do_not_reload_legacy_override_layers():
         "sidebar-shell.css",
     ):
         excluded_for_canonical_pages = (
-            f"page not in ['trades', 'positive-ev', 'sharp-money'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            f"page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
         excluded_for_home_and_canonical_pages = (
-            f"page not in ['home', 'trades', 'positive-ev', 'sharp-money'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            f"page not in ['home', 'trades', 'positive-ev', 'sharp-money', 'odds-screen'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
         assert excluded_for_canonical_pages or (
