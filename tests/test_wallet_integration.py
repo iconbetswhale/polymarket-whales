@@ -6,7 +6,12 @@ from pathlib import Path
 
 from config import Settings
 from database import TrackerDatabase
-from position_tracker import TrackerService
+from position_tracker import (
+    TrackerService,
+    canonical_sports_market_type,
+    category_signal_policy_for_market,
+    scoped_category_signal_policy,
+)
 from wallet_loader import load_wallets
 
 
@@ -168,15 +173,20 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert hunters.actionable_position_units == 0.5
     assert hunters.minimum_actionable_exposure_dollars == 450
     assert hunters.lead_sharp_eligible is False
-    assert hunters.supporting_sharp_eligible is False
-    assert hunters.category_signal_roles["nfl"]["role"] == "RESEARCH"
+    assert hunters.supporting_sharp_eligible is True
+    assert hunters.supporting_weight == 0.25
+    assert hunters.category_signal_roles["nfl"]["role"] == "CONFIRMER"
+    assert (
+        hunters.category_signal_roles["nfl"]["consensus_role"]
+        == "NETTED_CONFIRMER"
+    )
+    assert hunters.category_signal_roles["nfl"]["quality_weight"] == 0.25
     assert hunters.category_signal_roles["soccer"]["role"] == "RESEARCH"
     assert hunters.category_signal_roles["nfl"]["allowed_market_types"] == (
         "Moneyline",
-        "Total",
     )
     assert hunters.wallet_forensics["measured_unit_usd"] == 900
-    assert hunters.wallet_forensics["policy"].startswith("SHADOW_ONLY")
+    assert hunters.wallet_forensics["policy"].startswith("LIMITED_CONFIRMER_0_25")
 
     evhunter = next(
         wallet for wallet in result.valid_wallets if wallet.label == "EVhunter69"
@@ -225,14 +235,26 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert undisputa.base_unit == 1300
     assert undisputa.top_category_ids == ("nba", "soccer", "nhl")
     assert undisputa.lead_sharp_eligible is False
-    assert undisputa.supporting_sharp_eligible is False
+    assert undisputa.supporting_sharp_eligible is True
+    assert undisputa.supporting_weight == 0.25
     assert undisputa.minimum_actionable_exposure_dollars == 650
+    for category in ("nba", "soccer"):
+        assert undisputa.category_signal_roles[category]["role"] == "CONFIRMER"
+        assert (
+            undisputa.category_signal_roles[category]["consensus_role"]
+            == "NETTED_CONFIRMER"
+        )
+        assert undisputa.category_signal_roles[category]["quality_weight"] == 0.25
+        assert undisputa.category_signal_roles[category]["allowed_market_types"] == (
+            "Moneyline",
+        )
     assert undisputa.category_signal_roles["nba"]["minimum_originator_units"] == 0.5
     assert undisputa.category_signal_roles["soccer"]["minimum_originator_units"] == 0.5
+    assert undisputa.category_signal_roles["nhl"]["role"] == "RESEARCH"
     assert undisputa.category_signal_roles["nhl"]["minimum_originator_units"] == 1.0
     assert undisputa.wallet_forensics["one_unit_clean_nhl_moneyline_markets"] == 66
     assert undisputa.wallet_forensics["nfl_moneyline_markets"] == 3
-    assert undisputa.wallet_forensics["policy"].startswith("SHADOW_ONLY")
+    assert undisputa.wallet_forensics["policy"].startswith("LIMITED_CONFIRMER_0_25")
 
     wallet_4f2 = next(
         wallet for wallet in result.valid_wallets if wallet.label == "0x4f2"
@@ -330,6 +352,34 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
     assert surfandturf.sub_top_categories == ("UFC",)
     assert surfandturf.sub_top_category_ids == ("mma",)
     assert surfandturf.top_category_ids == ("nba", "mma")
+
+
+def test_market_type_restrictions_are_enforced_fail_closed():
+    policy = {
+        "role": "CONFIRMER",
+        "consensus_role": "NETTED_CONFIRMER",
+        "quality_weight": 0.25,
+        "allowed_market_types": ("Moneyline",),
+        "source": "test",
+    }
+
+    assert canonical_sports_market_type("money_line") == "Moneyline"
+    assert canonical_sports_market_type("game_total") == "Total"
+    assert scoped_category_signal_policy(policy, "Moneyline") is policy
+
+    for market_type in ("Total", "Spread", None):
+        restricted = scoped_category_signal_policy(policy, market_type)
+        assert restricted["role"] == "RESEARCH"
+        assert restricted["consensus_role"] == "RESEARCH"
+        assert restricted["quality_weight"] == 0.0
+        assert restricted["source"].endswith(":market_type_excluded")
+
+    excluded_category = category_signal_policy_for_market(
+        {"nfl": policy}, "nba", "Moneyline"
+    )
+    assert excluded_category["role"] == "RESEARCH"
+    assert excluded_category["quality_weight"] == 0.0
+    assert excluded_category["source"] == "registry:category_excluded"
 
 
 def test_every_enabled_wallet_has_an_authoritative_top_category():

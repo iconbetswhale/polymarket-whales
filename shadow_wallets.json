@@ -1,11 +1,12 @@
 {
-  "version": "shadow-lab-v1",
+  "version": "shadow-lab-v2",
   "promotion_policy": {
     "minimum_settled_bets": 50,
     "minimum_unit_profit": 3.0,
     "minimum_roi": 0.05,
     "minimum_hit_rate": 0.52,
     "maximum_drawdown_units": 8.0,
+    "minimum_decided_rate": 0.8,
     "automatic_promotion": false
   },
   "sleeves": [
@@ -21,7 +22,7 @@
     {"id":"dabosshogg-tennis-main","label":"DaBossHogg","address":"0x6157d529ae129fe08f22a27ed42e741d2eaa9fb4","sport":"Tennis","market_type":"Main Markets","base_unit_usd":5050,"minimum_units":1.0,"mode":"LIVE_BENCHMARK","overlay_weight":0.0,"thesis":"Provisional tennis main-market benchmark."},
     {"id":"uptheblues-mlb-ml","label":"UpTheBlues","address":"0x2a69660046d7acc4ab204d7cc5ba78b0776cd2f7","sport":"MLB","market_type":"Moneyline","base_unit_usd":1400,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Insufficient clean sample."},
     {"id":"snakeball-mlb-ml","label":"SnakeBall","address":"0xc29198ad764bd6adaf7bb971a3757a689ece5d74","sport":"MLB","market_type":"Moneyline","base_unit_usd":700,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Directional classification and copyability remain unproven."},
-    {"id":"huntersmethdealer-nfl-ml","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"NFL","market_type":"Moneyline","base_unit_usd":900,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction NFL moneyline shadow. Requires at least $450 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
+    {"id":"huntersmethdealer-nfl-ml","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"NFL","market_type":"Moneyline","base_unit_usd":900,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.25,"thesis":"Limited NFL moneyline confirmer at 0.25 weight. Requires at least $450 clean net directional exposure and cannot originate, resize, veto, or auto-promote."},
     {"id":"huntersmethdealer-nfl-total","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"NFL","market_type":"Total","base_unit_usd":900,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction NFL totals shadow. Requires at least $450 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
     {"id":"huntersmethdealer-soccer-ml","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"Soccer","market_type":"Moneyline","base_unit_usd":900,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction soccer moneyline shadow. Requires at least $450 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
     {"id":"huntersmethdealer-soccer-total","label":"HuntersMethDealer","address":"0x398900e95487c704ac3b52fd653e1697d32227b1","sport":"Soccer","market_type":"Total","base_unit_usd":900,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"High-conviction soccer totals shadow. Requires at least $450 clean net directional exposure; cannot originate, confirm, resize, veto, or auto-promote."},
@@ -30,8 +31,8 @@
     {"id":"positive-console-mlb-total","label":"Positive-Console","address":"0x684baa57c338c2549aec0aa3f034f695d72a8409","sport":"MLB","market_type":"Total","base_unit_usd":6575,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Flat-copy and wallet-sizing evidence conflict; retain as zero-weight research only."},
     {"id":"positive-console-mlb-ml","label":"Positive-Console","address":"0x684baa57c338c2549aec0aa3f034f695d72a8409","sport":"MLB","market_type":"Moneyline","base_unit_usd":6575,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Modest normalized edge but negative account turnover ROI at high conviction; research only."},
     {"id":"canoflanagan-wnba-spread","label":"Canoflanagan","address":"0x21468ad63a833f5f9ea5c2835fb4e9dec57ad41b","sport":"WNBA","market_type":"Spread","base_unit_usd":2175,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Provisional 30-market WNBA spread niche inside an otherwise non-copyable portfolio; research only."},
-    {"id":"undisputa-nba-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"NBA","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"Large positive NBA moneyline sample, but the 1u subset is negative; zero-weight size-sensitive forward shadow only."},
-    {"id":"undisputa-soccer-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"Soccer","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":0.5,"mode":"SHADOW","overlay_weight":0.0,"thesis":"Positive soccer moneyline evidence at 0.5u, with a negative 1u subset; forward shadow only."},
+    {"id":"undisputa-nba-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"NBA","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.25,"thesis":"Limited NBA moneyline confirmer at 0.25 weight. Requires at least $650 clean net directional exposure and cannot originate, resize, veto, or auto-promote."},
+    {"id":"undisputa-soccer-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"Soccer","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":0.5,"mode":"LIVE_BENCHMARK","overlay_weight":0.25,"thesis":"Limited soccer moneyline confirmer at 0.25 weight. Requires at least $650 clean net directional exposure and cannot originate, resize, veto, or auto-promote."},
     {"id":"undisputa-nhl-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"NHL","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":1.0,"mode":"SHADOW","overlay_weight":0.0,"thesis":"The 66-market clean 1u NHL moneyline subset was positive under both normalized and account sizing; forward shadow only."},
     {"id":"undisputa-mlb-ml","label":"Undisputa","address":"0x986c0ba5ae79c5cf171cfa8e85afe186412a3180","sport":"MLB","market_type":"Moneyline","base_unit_usd":1300,"minimum_units":0.5,"mode":"RESEARCH","overlay_weight":0.0,"thesis":"Broad MLB account ROI was negative despite a positive 0.5u clean subset; research lab only."}
   ]

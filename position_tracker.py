@@ -133,6 +133,85 @@ def _wallet_signal_tier(
     return "unusually-large"
 
 
+def canonical_sports_market_type(
+    explicit: Any = None,
+    market_slug: Any = None,
+    market_title: Any = None,
+) -> str | None:
+    """Return a narrow canonical main-market type without guessing unknowns."""
+    normalized = str(explicit or "").strip().lower().replace("_", " ")
+    if normalized:
+        if "total" in normalized or normalized in {"over under", "o/u"}:
+            return "Total"
+        if any(token in normalized for token in ("spread", "run line", "handicap")):
+            return "Spread"
+        if any(token in normalized for token in ("moneyline", "money line")) or normalized in {
+            "h2h",
+            "winner",
+        }:
+            return "Moneyline"
+
+    slug = str(market_slug or "").strip().lower().replace("_", "-")
+    title = str(market_title or "").strip().lower()
+    if any(token in slug for token in ("-total-", "-game-total-")) or any(
+        token in title for token in ("total points", "total runs", "total goals", "o/u")
+    ):
+        return "Total"
+    if any(token in slug for token in ("-spread-", "-run-line-", "-handicap-")) or any(
+        token in title for token in ("spread", "run line", "handicap")
+    ):
+        return "Spread"
+    if "-moneyline-" in slug or any(
+        token in title for token in ("moneyline", "money line", "match winner")
+    ):
+        return "Moneyline"
+    return None
+
+
+def scoped_category_signal_policy(
+    policy: dict[str, Any], market_type: str | None
+) -> dict[str, Any]:
+    """Downgrade restricted policies to research outside their approved markets."""
+    allowed = tuple(policy.get("allowed_market_types") or ())
+    if not allowed:
+        return policy
+    canonical_allowed = {
+        canonical
+        for value in allowed
+        if (canonical := canonical_sports_market_type(value)) is not None
+    }
+    canonical_actual = canonical_sports_market_type(market_type)
+    if canonical_actual in canonical_allowed:
+        return policy
+    restricted = dict(policy)
+    restricted.update(
+        {
+            "role": "RESEARCH",
+            "consensus_role": "RESEARCH",
+            "quality_weight": 0.0,
+            "source": f"{policy.get('source') or 'registry'}:market_type_excluded",
+        }
+    )
+    return restricted
+
+
+def category_signal_policy_for_market(
+    category_policies: dict[str, dict[str, Any]],
+    category_id: str | None,
+    market_type: str | None,
+) -> dict[str, Any]:
+    """Apply explicit category and market scopes; configured registries fail closed."""
+    policy = category_policies.get(category_id or "", {})
+    if not policy and category_policies:
+        return {
+            "role": "RESEARCH",
+            "consensus_role": "RESEARCH",
+            "quality_weight": 0.0,
+            "source": "registry:category_excluded",
+        }
+    return scoped_category_signal_policy(policy, market_type)
+
+
 def polymarket_market_url(event_slug: Any, market_slug: Any = None) -> str:
     event_value = str(event_slug or "").strip()
     market_value = str(market_slug or "").strip()
@@ -3015,8 +3094,35 @@ class TrackerService:
                 if configured_top_category_ids
                 else wallet_category_metrics.get("top_category_verified_at")
             )
-            category_signal_policy = wallet.category_signal_roles.get(
-                canonical_category_id(classification.category) or "", {}
+            trade_category_id = canonical_category_id(classification.category)
+            configured_category_signal_policy = wallet.category_signal_roles.get(
+                trade_category_id or "", {}
+            )
+            raw_sports_market_type = (
+                market.get("sportsMarketType")
+                or market.get("marketType")
+                or position.get("sportsMarketType")
+                or position.get("marketType")
+            )
+            sports_market_type = canonical_sports_market_type(
+                raw_sports_market_type,
+                position.get("slug"),
+                position.get("title"),
+            )
+            category_signal_policy = category_signal_policy_for_market(
+                wallet.category_signal_roles,
+                trade_category_id,
+                sports_market_type,
+            )
+            allowed_market_types = list(
+                configured_category_signal_policy.get("allowed_market_types") or ()
+            )
+            category_signal_market_type_eligible = (
+                bool(configured_category_signal_policy)
+                and (
+                    not allowed_market_types
+                    or category_signal_policy is configured_category_signal_policy
+                )
             )
 
             row = {
@@ -3077,6 +3183,11 @@ class TrackerService:
                     "requires_clean_directional", False
                 ),
                 "category_signal_policy_source": category_signal_policy.get("source"),
+                "category_signal_allowed_market_types": allowed_market_types,
+                "category_signal_category_eligible": bool(
+                    configured_category_signal_policy
+                ),
+                "category_signal_market_type_eligible": category_signal_market_type_eligible,
                 "provisional_unit": wallet.provisional_unit,
                 "minimum_meaningful_originator_position_usd": wallet.minimum_meaningful_originator_position_usd,
                 "shadow_rejection_reason": (
@@ -3114,8 +3225,7 @@ class TrackerService:
                 "event_time_source": event_time_source,
                 "clob_token_id": token_id,
                 "market_line": market.get("line"),
-                "sports_market_type": market.get("sportsMarketType")
-                or market.get("marketType"),
+                "sports_market_type": sports_market_type or raw_sports_market_type,
                 "event_active": event.get("active") if event else None,
                 "event_closed": event.get("closed") if event else None,
                 "event_archived": event.get("archived") if event else None,

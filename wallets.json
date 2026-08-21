@@ -1418,14 +1418,14 @@
     "label": "HuntersMethDealer",
     "enabled": true,
     "base_unit": 900,
-    "notes": "Forward-only high-conviction NFL and soccer shadow (current Polymarket profile: Legal-Butcher). Track only clean net moneylines and totals with at least $450 directional exposure (0.5 measured unit). Historical broad flat copying was negative, so this wallet cannot originate, confirm, resize, veto, or enter production without manual review.",
+    "notes": "Limited 0.25-weight NFL moneyline confirmer (current Polymarket profile: Legal-Butcher). Require at least $450 clean net directional exposure (0.5 measured unit). NFL totals and soccer remain zero-weight shadows; this wallet cannot originate, resize, or veto.",
     "top_category": "NFL",
     "top_categories": ["NFL", "Soccer"],
     "primary_top_category": "NFL",
     "top_category_source": "legal_butcher_full_extraction_2026_08_14",
     "top_category_verified_at": "2026-08-14T00:00:00Z",
-    "registry_status": "NFL_SOCCER_HIGH_CONVICTION_SHADOW",
-    "supporting_sharp_eligible": false,
+    "registry_status": "NFL_MONEYLINE_LIMITED_CONFIRMER",
+    "supporting_sharp_eligible": true,
     "lead_sharp_eligible": false,
     "standard_originator_eligible": false,
     "research_candidate_originator_eligible": false,
@@ -1439,12 +1439,12 @@
     "event_portfolio_netting_required": true,
     "historical_fill_backfill": false,
     "bettor_type": "Highly directional multi-sport bettor with concentrated high-conviction sizing",
-    "trader_type": "DIRECTIONAL_HIGH_CONVICTION_SHADOW",
-    "copyability": "Shadow only in NFL and soccer moneylines/totals at $450+ clean net exposure",
-    "copyability_code": "SHADOW_HIGH_CONVICTION_ONLY",
-    "general_strategy": "Forward-track clean net NFL and soccer moneylines and totals at or above $450. Reject material opposing exposure and never affect live recommendations before manual promotion review.",
+    "trader_type": "DIRECTIONAL_LIMITED_CONFIRMER",
+    "copyability": "Limited 0.25 confirmer for clean NFL moneylines at $450+; NFL totals and soccer remain shadow only",
+    "copyability_code": "NFL_MONEYLINE_LIMITED_CONFIRMER_0_25",
+    "general_strategy": "Confirm only clean net NFL moneylines at or above $450 with 0.25 quality weight. Reject material opposing exposure. NFL totals and soccer remain research-only, and this wallet cannot originate, resize, or veto.",
     "category_signal_roles": {
-      "NFL": {"role":"RESEARCH","consensus_role":"RESEARCH","quality_weight":0.0,"minimum_originator_units":0.5,"unit_baseline_usd":900,"requires_clean_directional":true,"allowed_market_types":["Moneyline","Total"],"source":"legal_butcher_full_extraction_2026_08_14"},
+      "NFL": {"role":"CONFIRMER","consensus_role":"NETTED_CONFIRMER","quality_weight":0.25,"minimum_originator_units":0.5,"unit_baseline_usd":900,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"legal_butcher_nfl_moneyline_limited_confirmer_2026_08_20"},
       "Soccer": {"role":"RESEARCH","consensus_role":"RESEARCH","quality_weight":0.0,"minimum_originator_units":0.5,"unit_baseline_usd":900,"requires_clean_directional":true,"allowed_market_types":["Moneyline","Total"],"source":"legal_butcher_full_extraction_2026_08_14"}
     },
     "wallet_forensics": {
@@ -1468,7 +1468,8 @@
       "high_conviction_nfl_total_flat_copy_roi": 0.449,
       "measured_unit_usd": 900,
       "shadow_minimum_net_exposure_usd": 450,
-      "policy": "SHADOW_ONLY; NFL_AND_SOCCER_MONEYLINES_AND_TOTALS; NO_PRODUCTION_EFFECT"
+      "policy": "LIMITED_CONFIRMER_0_25; NFL_MONEYLINES_AT_0_5U; NFL_TOTALS_AND_SOCCER_SHADOW; NO_ORIGINATION",
+      "promotion_decision_at": "2026-08-20T00:00:00Z"
     }
   },
   {
@@ -1648,17 +1649,18 @@
     "label": "Undisputa",
     "enabled": true,
     "base_unit": 1300,
-    "notes": "Segmented zero-weight research shadow (current Polymarket profile: Corrupt-Marines). NBA and soccer moneylines are positive overall and at 0.5u, but their 1.0u subsets are flat-to-negative; NHL moneylines improve at 1.0u. This non-monotonic sizing prevents any production role.",
+    "notes": "Limited 0.25-weight NBA and soccer moneyline confirmer (current Polymarket profile: Corrupt-Marines). Require at least $650 clean net directional exposure (0.5 measured unit). NHL and MLB remain zero-weight research sleeves; this wallet cannot originate, resize, or veto.",
     "top_category": "NBA",
     "top_categories": ["NBA", "Soccer", "NHL"],
     "primary_top_category": "NBA",
     "top_category_source": "corrupt_marines_full_extraction_2026_08_20",
     "top_category_verified_at": "2026-08-20T00:00:00Z",
-    "registry_status": "NBA_SOCCER_NHL_SEGMENTED_RESEARCH_SHADOW",
-    "supporting_sharp_eligible": false,
+    "registry_status": "NBA_SOCCER_MONEYLINE_LIMITED_CONFIRMER",
+    "supporting_sharp_eligible": true,
     "lead_sharp_eligible": false,
     "standard_originator_eligible": false,
     "research_candidate_originator_eligible": false,
+    "supporting_weight": 0.25,
     "minimum_position_units": 0.5,
     "actionable_position_units": 0.5,
     "minimum_actionable_exposure_dollars": 650,
@@ -1668,15 +1670,15 @@
     "event_portfolio_netting_required": true,
     "historical_fill_backfill": false,
     "bettor_type": "High-frequency directional multi-sport bettor",
-    "trader_type": "DIRECTIONAL_SIZE_SENSITIVE_RESEARCH_SHADOW",
-    "copyability": "Shadow only for clean NBA and soccer moneylines at $650+ and NHL moneylines at $1,300+",
-    "copyability_code": "SEGMENTED_SIZE_SENSITIVE_SHADOW_ONLY",
+    "trader_type": "DIRECTIONAL_SIZE_SENSITIVE_LIMITED_CONFIRMER",
+    "copyability": "Limited 0.25 confirmer for clean NBA and soccer moneylines at $650+; NHL and MLB remain research only",
+    "copyability_code": "NBA_SOCCER_MONEYLINE_LIMITED_CONFIRMER_0_25",
     "execution_style": "Highly fragmented BUY-dominant execution with minimal exits",
     "execution_style_code": "HFT_FRAGMENTED_DIRECTIONAL_LOW_SELL",
-    "general_strategy": "Forward-track clean NBA and soccer moneylines at or above $650 and NHL moneylines at or above $1,300. Track MLB moneylines only in the research lab. Exclude NFL and UFC because their samples are too small. Never originate, confirm, resize, veto, or auto-promote from this wallet.",
+    "general_strategy": "Confirm only clean NBA and soccer moneylines at or above $650 with 0.25 quality weight. Keep NHL moneylines at $1,300+ and MLB moneylines at $650+ in the research lab. Exclude NFL and UFC. Never originate, resize, veto, or auto-promote from this wallet.",
     "category_signal_roles": {
-      "NBA": {"role":"RESEARCH","consensus_role":"RESEARCH","quality_weight":0.0,"minimum_originator_units":0.5,"unit_baseline_usd":1300,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"corrupt_marines_full_extraction_2026_08_20"},
-      "Soccer": {"role":"RESEARCH","consensus_role":"RESEARCH","quality_weight":0.0,"minimum_originator_units":0.5,"unit_baseline_usd":1300,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"corrupt_marines_full_extraction_2026_08_20"},
+      "NBA": {"role":"CONFIRMER","consensus_role":"NETTED_CONFIRMER","quality_weight":0.25,"minimum_originator_units":0.5,"unit_baseline_usd":1300,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"corrupt_marines_nba_soccer_moneyline_limited_confirmer_2026_08_20"},
+      "Soccer": {"role":"CONFIRMER","consensus_role":"NETTED_CONFIRMER","quality_weight":0.25,"minimum_originator_units":0.5,"unit_baseline_usd":1300,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"corrupt_marines_nba_soccer_moneyline_limited_confirmer_2026_08_20"},
       "NHL": {"role":"RESEARCH","consensus_role":"RESEARCH","quality_weight":0.0,"minimum_originator_units":1.0,"unit_baseline_usd":1300,"requires_clean_directional":true,"allowed_market_types":["Moneyline"],"source":"corrupt_marines_full_extraction_2026_08_20"}
     },
     "wallet_forensics": {
@@ -1723,7 +1725,8 @@
       "half_unit_clean_mlb_moneyline_flat_copy_roi": 0.0804213351,
       "half_unit_clean_mlb_moneyline_account_roi": 0.0502179462,
       "nfl_moneyline_markets": 3,
-      "policy": "SHADOW_ONLY; NBA_AND_SOCCER_MONEYLINES_AT_0_5U; NHL_MONEYLINES_AT_1U; MLB_MONEYLINES_RESEARCH_AT_0_5U; EXCLUDE_NFL_AND_UFC; NO_PRODUCTION_EFFECT"
+      "policy": "LIMITED_CONFIRMER_0_25; NBA_AND_SOCCER_MONEYLINES_AT_0_5U; NHL_AND_MLB_RESEARCH; EXCLUDE_NFL_AND_UFC; NO_ORIGINATION",
+      "promotion_decision_at": "2026-08-20T00:00:00Z"
     }
   }
 ]

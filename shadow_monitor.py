@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -42,10 +43,20 @@ def _sport_matches(snapshot: dict[str, Any], sport: str) -> bool:
 
 
 def _market_type(snapshot: dict[str, Any]) -> str:
+    explicit = str(snapshot.get("sports_market_type") or "").strip().lower()
+    if "total" in explicit or explicit in {"over_under", "over under", "o/u"}:
+        return "Total"
+    if any(token in explicit for token in ("spread", "run line", "handicap")):
+        return "Spread"
+    if any(token in explicit for token in ("moneyline", "money line")) or explicit in {
+        "h2h",
+        "winner",
+    }:
+        return "Moneyline"
     text = " ".join(str(snapshot.get(key) or "") for key in (
-        "sports_market_type", "market_slug", "market_title"
+        "market_slug", "market_title"
     )).lower()
-    if any(token in text for token in ("total", "over", "under", "o/u")):
+    if "total" in text or "o/u" in text or re.search(r"\b(?:over|under)\b", text):
         return "Total"
     if any(token in text for token in ("spread", "run line", "handicap")):
         return "Spread"
@@ -67,6 +78,27 @@ def build_shadow_lab(rows: list[dict[str, Any]], config: dict[str, Any] | None =
     policy = config["promotion_policy"]
     sleeves: list[dict[str, Any]] = []
     alerts: list[dict[str, Any]] = []
+    configured_addresses = {
+        str(sleeve.get("address") or "").lower()
+        for sleeve in config.get("sleeves") or []
+        if sleeve.get("address")
+    }
+    observed_addresses = {
+        str(row.get("wallet_address") or "").lower()
+        for row in rows
+        if row.get("wallet_address")
+    }
+    observation_times = [
+        str(value)
+        for row in rows
+        for value in (
+            row.get("last_seen_at"),
+            row.get("closed_at"),
+            (row.get("snapshot") or {}).get("last_seen_at"),
+            (row.get("snapshot") or {}).get("closed_at"),
+        )
+        if value
+    ]
     for sleeve in config.get("sleeves") or []:
         address = str(sleeve["address"]).lower()
         accepted: list[dict[str, Any]] = []
@@ -101,9 +133,11 @@ def build_shadow_lab(rows: list[dict[str, Any]], config: dict[str, Any] | None =
         wins = sum(item["result"] == "WIN" for item in settled)
         losses = sum(item["result"] == "LOSS" for item in settled)
         pushes = sum(item["result"] == "PUSH" for item in settled)
+        decided = wins + losses
+        decision_coverage = decided / len(settled) if settled else None
         unit_profit = sum(_number(item["profit_units"]) for item in settled)
-        roi = unit_profit / len(settled) if settled else None
-        hit_rate = wins / (wins + losses) if wins + losses else None
+        roi = unit_profit / decided if decided else None
+        hit_rate = wins / decided if decided else None
         running = peak = max_drawdown = 0.0
         for item in sorted(settled, key=lambda x: str(x["row"].get("closed_at") or x["snapshot"].get("closed_at") or "")):
             running += _number(item["profit_units"])
@@ -112,18 +146,31 @@ def build_shadow_lab(rows: list[dict[str, Any]], config: dict[str, Any] | None =
         clvs = [_number(item["snapshot"].get("clv_pct")) for item in settled if item["snapshot"].get("clv_pct") is not None]
         positive_clv_rate = sum(value > 0 for value in clvs) / len(clvs) if clvs else None
         checks = {
-            "sample": len(settled) >= int(policy["minimum_settled_bets"]),
+            "sample": decided >= int(policy["minimum_settled_bets"]),
             "profit": unit_profit >= _number(policy["minimum_unit_profit"]),
             "roi": roi is not None and roi >= _number(policy["minimum_roi"]),
             "hit_rate": hit_rate is not None and hit_rate >= _number(policy["minimum_hit_rate"]),
             "drawdown": max_drawdown <= _number(policy["maximum_drawdown_units"]),
+            "data_quality": (
+                decision_coverage is not None
+                and decision_coverage
+                >= _number(policy.get("minimum_decided_rate"), 0.8)
+            ),
         }
-        ready = all(checks.values())
+        promotion_eligible = sleeve.get("mode") in {"SHADOW", "RESEARCH"}
+        ready = promotion_eligible and all(checks.values())
         result = {
             **sleeve,
+            "tracked_rows": len(accepted),
             "open_signals": len(accepted) - len(settled),
             "settled_bets": len(settled),
+            "decided_bets": decided,
             "record": f"{wins}-{losses}-{pushes}",
+            "decision_coverage": (
+                round(decision_coverage, 4)
+                if decision_coverage is not None
+                else None
+            ),
             "unit_profit": round(unit_profit, 3),
             "roi": round(roi, 4) if roi is not None else None,
             "hit_rate": round(hit_rate, 4) if hit_rate is not None else None,
@@ -131,9 +178,25 @@ def build_shadow_lab(rows: list[dict[str, Any]], config: dict[str, Any] | None =
             "positive_clv_rate": round(positive_clv_rate, 4) if positive_clv_rate is not None else None,
             "readiness_checks": checks,
             "readiness_progress": round(sum(checks.values()) / len(checks), 3),
+            "eligible_for_promotion_review": promotion_eligible,
             "promotion_status": "READY_FOR_REVIEW" if ready else "COLLECTING",
         }
         sleeves.append(result)
         if ready:
             alerts.append({"sleeve_id": sleeve["id"], "label": sleeve["label"], "message": f"{sleeve['label']} {sleeve['sport']} {sleeve['market_type']} reached every promotion-review threshold."})
-    return {"version": config["version"], "policy": policy, "sleeves": sleeves, "alerts": alerts, "automatic_promotion": False}
+    input_coverage = {
+        "tracked_rows": len(rows),
+        "configured_wallets": len(configured_addresses),
+        "observed_wallets": len(configured_addresses & observed_addresses),
+        "missing_wallet_addresses": sorted(configured_addresses - observed_addresses),
+        "sleeves_with_rows": sum(item["tracked_rows"] > 0 for item in sleeves),
+        "latest_observation_at": max(observation_times) if observation_times else None,
+    }
+    return {
+        "version": config["version"],
+        "policy": policy,
+        "sleeves": sleeves,
+        "alerts": alerts,
+        "input_coverage": input_coverage,
+        "automatic_promotion": False,
+    }

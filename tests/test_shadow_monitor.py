@@ -62,7 +62,9 @@ def test_breakthebank_uses_mlb_specific_unit_and_exact_market():
 def test_ready_wallet_only_creates_manual_review_alert():
     config = load_shadow_config()
     config = deepcopy(config)
-    config["sleeves"] = [config["sleeves"][0]]
+    config["sleeves"] = [
+        next(item for item in config["sleeves"] if item["mode"] == "SHADOW")
+    ]
     config["promotion_policy"].update({
         "minimum_settled_bets": 2,
         "minimum_unit_profit": 1,
@@ -80,6 +82,8 @@ def test_ready_wallet_only_creates_manual_review_alert():
     assert "clv" not in result["sleeves"][0]["readiness_checks"]
     assert result["sleeves"][0]["positive_clv_rate"] == 1.0
     assert len(result["alerts"]) == 1
+    assert result["input_coverage"]["tracked_rows"] == 2
+    assert result["input_coverage"]["observed_wallets"] == 1
     assert result["automatic_promotion"] is False
 
 
@@ -96,8 +100,16 @@ def test_huntersmethdealer_is_split_into_high_conviction_shadow_sleeves():
     }
     assert all(item["base_unit_usd"] == 900 for item in sleeves)
     assert all(item["minimum_units"] == 0.5 for item in sleeves)
-    assert all(item["mode"] == "SHADOW" for item in sleeves)
-    assert all(item["overlay_weight"] == 0.0 for item in sleeves)
+    by_id = {item["id"]: item for item in sleeves}
+    assert by_id["huntersmethdealer-nfl-ml"]["mode"] == "LIVE_BENCHMARK"
+    assert by_id["huntersmethdealer-nfl-ml"]["overlay_weight"] == 0.25
+    for sleeve_id in (
+        "huntersmethdealer-nfl-total",
+        "huntersmethdealer-soccer-ml",
+        "huntersmethdealer-soccer-total",
+    ):
+        assert by_id[sleeve_id]["mode"] == "SHADOW"
+        assert by_id[sleeve_id]["overlay_weight"] == 0.0
 
 
 def test_new_segmented_wallets_are_zero_weight_shadow_only():
@@ -126,7 +138,7 @@ def test_new_segmented_wallets_are_zero_weight_shadow_only():
     assert all(item["overlay_weight"] == 0.0 for item in [*positive, *canoflanagan])
 
 
-def test_undisputa_is_segmented_by_size_and_never_affects_production():
+def test_undisputa_is_limited_to_nba_and_soccer_moneyline_confirmation():
     config = load_shadow_config()
     sleeves = [item for item in config["sleeves"] if item["label"] == "Undisputa"]
     by_id = {item["id"]: item for item in sleeves}
@@ -140,6 +152,91 @@ def test_undisputa_is_segmented_by_size_and_never_affects_production():
     assert by_id["undisputa-nba-ml"]["minimum_units"] == 0.5
     assert by_id["undisputa-soccer-ml"]["minimum_units"] == 0.5
     assert by_id["undisputa-nhl-ml"]["minimum_units"] == 1.0
+    assert by_id["undisputa-nba-ml"]["mode"] == "LIVE_BENCHMARK"
+    assert by_id["undisputa-soccer-ml"]["mode"] == "LIVE_BENCHMARK"
+    assert by_id["undisputa-nba-ml"]["overlay_weight"] == 0.25
+    assert by_id["undisputa-soccer-ml"]["overlay_weight"] == 0.25
+    assert by_id["undisputa-nhl-ml"]["mode"] == "SHADOW"
     assert by_id["undisputa-mlb-ml"]["mode"] == "RESEARCH"
     assert all(item["base_unit_usd"] == 1300 for item in sleeves)
-    assert all(item["overlay_weight"] == 0.0 for item in sleeves)
+    assert by_id["undisputa-nhl-ml"]["overlay_weight"] == 0.0
+    assert by_id["undisputa-mlb-ml"]["overlay_weight"] == 0.0
+
+
+def test_zero_pnl_closures_cannot_create_false_graduation_readiness():
+    config = deepcopy(load_shadow_config())
+    config["sleeves"] = [config["sleeves"][0]]
+    config["promotion_policy"].update({
+        "minimum_settled_bets": 2,
+        "minimum_unit_profit": 1,
+        "minimum_roi": 0.1,
+        "minimum_hit_rate": 0.5,
+        "maximum_drawdown_units": 8,
+        "minimum_decided_rate": 0.8,
+    })
+    address = config["sleeves"][0]["address"]
+    rows = [
+        _row(address, pnl=100, entry=0.5, exposure=20000),
+        _row(address, pnl=100, entry=0.5, exposure=20000),
+        *[_row(address, pnl=0, entry=0.5, exposure=20000) for _ in range(8)],
+    ]
+
+    result = build_shadow_lab(rows, config)["sleeves"][0]
+
+    assert result["settled_bets"] == 10
+    assert result["decided_bets"] == 2
+    assert result["decision_coverage"] == 0.2
+    assert result["readiness_checks"]["data_quality"] is False
+    assert result["promotion_status"] == "COLLECTING"
+
+
+def test_team_names_containing_under_do_not_become_totals():
+    config = deepcopy(load_shadow_config())
+    config["sleeves"] = [config["sleeves"][0]]
+    config["sleeves"][0].update({
+        "sport": "NBA",
+        "market_type": "Moneyline",
+        "base_unit_usd": 1000,
+        "minimum_units": 0.5,
+    })
+    address = config["sleeves"][0]["address"]
+    row = _row(address, pnl=100, exposure=1000)
+    row["snapshot"].update({
+        "canonical_league_id": "nba",
+        "canonical_category_id": "nba",
+        "sports_market_type": None,
+        "market_title": "Oklahoma City Thunder vs Boston Celtics",
+    })
+
+    result = build_shadow_lab([row], config)["sleeves"][0]
+
+    assert result["tracked_rows"] == 1
+    assert result["record"] == "1-0-0"
+
+
+def test_live_benchmarks_never_emit_graduation_alerts():
+    config = deepcopy(load_shadow_config())
+    live = next(item for item in config["sleeves"] if item["mode"] == "LIVE_BENCHMARK")
+    config["sleeves"] = [live]
+    config["promotion_policy"].update({
+        "minimum_settled_bets": 1,
+        "minimum_unit_profit": 0,
+        "minimum_roi": 0,
+        "minimum_hit_rate": 0,
+        "maximum_drawdown_units": 8,
+        "minimum_decided_rate": 0,
+    })
+    row = _row(live["address"], pnl=100, exposure=live["base_unit_usd"])
+    row["snapshot"].update({
+        "canonical_league_id": live["sport"].lower(),
+        "canonical_category_id": live["sport"].lower(),
+        "sports_market_type": (
+            "Moneyline" if live["market_type"] == "Main Markets" else live["market_type"]
+        ),
+    })
+
+    result = build_shadow_lab([row], config)
+
+    assert result["sleeves"][0]["eligible_for_promotion_review"] is False
+    assert result["sleeves"][0]["promotion_status"] == "COLLECTING"
+    assert result["alerts"] == []
