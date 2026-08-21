@@ -924,3 +924,50 @@ No actionable P0, P1, or P2 findings remain.
 - `git diff --check`: passed with line-ending notices only.
 
 final result: passed
+
+---
+
+# Positive EV — Typography Balance Follow-up QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-6e28089d-0282-45d3-add8-c24cbd6dd114.png` (953 × 541 px).
+- Final browser implementation: `artifacts/positive-ev-card-polish/positive-ev-type-balance-1783x900.png` (1783 × 900 px).
+- Verified route, viewport, and density: `http://127.0.0.1:5025/positive-ev?preview=1`, 1783 × 900 CSS px, DPR 1.
+- State: five-play desktop preview with a 953px-wide feed rail and the Philadelphia Phillies opportunity selected.
+
+The source is a focused crop of the play rail. The implementation was captured in the complete product shell at a viewport that produces the same 953px feed width. Both images were inspected together; the focused comparison used the measured feed region (953 × 520 px) so global sidebar and detail-rail chrome were not treated as card differences.
+
+## Findings and comparison history
+
+- P1 — Market-type labels were much larger than adjacent card copy and wrapped “Game Total” onto two lines.
+  - Fix: reduced the reference-width market type to 15px with a 1.1 line height and enforced single-line labels. Added 12px and 10px responsive steps for narrower desktop feed widths.
+  - Post-fix evidence: Moneyline, Spread, and Game Total have 0px internal overflow at 1783px, 1440px, and 1280px viewports and compute to one line at every tested width.
+- P1 — The selected play inside the purple box was left aligned.
+  - Fix: centered the flex content and text alignment while keeping every play on one line.
+  - Post-fix evidence: all five selections compute to `justify-content: center`, `text-align: center`, and 0px internal overflow at the matching 953px feed width.
+- P2 — League artwork competed with the market text.
+  - Fix: reduced watermark opacity from 0.16 to 0.10 without altering the source assets, crop, or league-specific sizing.
+  - Post-fix evidence: all five watermark images compute to 0.10 opacity and remain behind the market labels.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the card now uses a controlled hierarchy—27px EV, 16px matchup, 15px market, and 12.5–14px selection at the reference width—with all requested labels kept on one line.
+- Spacing and layout rhythm: selection content is centered horizontally and vertically; card geometry, metrics, and best-odds controls remain unchanged.
+- Colors and visual tokens: the existing purple selection, green EV/pricing, and graphite surfaces are preserved.
+- Image quality and assets: the original league watermark PNGs remain sharp and correctly cropped; only opacity changed.
+- Copy and content: all five plays, market names, bet amounts, payouts, and odds are unchanged.
+
+## Interaction and automated verification
+
+- Selected the New York Liberty card, confirmed `positive-ev-preview-2` became active, and restored the Philadelphia Phillies card.
+- Responsive checks at 1783 × 900, 1440 × 900, and 1280 × 800 retain five cards, one-line market and selection labels, and 0px page overflow.
+- Browser diagnostics: no warnings or errors.
+- Positive EV design-system suite: 9 passed.
+- Positive EV page/preview integration checks: 2 passed.
+- `node --check static/positive-ev.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed

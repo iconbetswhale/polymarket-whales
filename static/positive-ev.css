@@ -210,7 +210,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { colo
   object-fit: contain;
   object-position: right center;
   image-rendering: auto;
-  opacity: .16;
+  opacity: .1;
   pointer-events: none;
   transform: translateX(18%);
   user-select: none;
@@ -235,7 +235,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { colo
 .ev-team-logo { width: 34px; height: 34px; flex: 0 0 34px; object-fit: contain; image-rendering: auto; }
 .ev-team-name { min-width: 0; font-size: 18px; letter-spacing: -.025em; }
 .ev-matchup-vs { color: var(--il-text-muted); font-size: .78em; font-weight: 650; text-transform: lowercase; }
-.ev-pick strong { width: 100%; color: var(--il-text-primary); font: 700 20px/1.25 var(--il-font-ui); text-align: center; }
+.ev-pick strong { width: 100%; color: var(--il-text-primary); font: 700 15px/1.1 var(--il-font-ui); text-align: center; white-space: nowrap; }
 
 .ev-opportunity > .ev-execution {
   min-width: 0;
@@ -253,12 +253,14 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { colo
   padding: 0 10px;
   display: flex;
   align-items: center;
+  justify-content: center;
   overflow: hidden;
   border: 2px solid var(--il-brand-hover);
   border-radius: var(--il-radius-control);
   background: var(--il-surface-elevated);
   color: var(--il-text-primary);
-  font: 700 12px/1.14 var(--il-font-ui);
+  font: 700 14px/1.14 var(--il-font-ui);
+  text-align: center;
   white-space: nowrap;
   box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow);
 }
@@ -539,6 +541,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-track-button.button.compact { min-width: 54px; padding-inline: 6px; }
   .ev-event { padding-inline: 6px; }
   .ev-event strong { font-size: 16px; }
+  .ev-pick strong { font-size: 12px; }
   .ev-matchup-inline { gap: 4px; }
   .ev-matchup-inline .ev-team-name { font-size: 16px; }
   .ev-team-logo { width: 28px; height: 28px; flex-basis: 28px; }
@@ -560,8 +563,8 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 20px; }
   .ev-track-button.button.compact { min-width: 50px; font-size: 9px; }
   .ev-event { padding-inline: 3px; }
-  .ev-event strong,
-  .ev-pick strong { font-size: 12px; }
+  .ev-event strong { font-size: 13px; }
+  .ev-pick strong { font-size: 10px; }
   .ev-matchup-inline { gap: 2px; }
   .ev-matchup-inline .ev-team-name { font-size: 13px; letter-spacing: -.035em; }
   .ev-team-logo { width: 24px; height: 24px; flex-basis: 24px; }

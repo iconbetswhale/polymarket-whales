@@ -138,8 +138,8 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
         "font-size: 16px",
         "font: var(--il-type-metadata)",
         "font: 700 18px/1.25 var(--il-font-ui)",
-        "font: 700 20px/1.25 var(--il-font-ui)",
-        "font: 700 12px/1.14 var(--il-font-ui)",
+        "font: 700 15px/1.1 var(--il-font-ui)",
+        "font: 700 14px/1.14 var(--il-font-ui)",
         "font: 650 10px/1.2 var(--il-font-ui)",
         "font: 700 16px/1 var(--il-font-data)",
         "font: 700 24px/1 var(--il-font-data)",
@@ -157,6 +157,8 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     assert "box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow)" in CSS
     assert "grid-template-columns: minmax(152px, 1fr) auto auto" in CSS
     assert "white-space: nowrap" in CSS
+    assert "justify-content: center" in CSS
+    assert "opacity: .1" in CSS
 
 
 def test_positive_ev_uses_real_league_logo_watermarks() -> None:
@@ -167,7 +169,7 @@ def test_positive_ev_uses_real_league_logo_watermarks() -> None:
     assert 'const leagueLogo = row =>' in SCRIPT
     assert 'return source ? `<img class="ev-league-watermark"' in SCRIPT
     assert ".ev-pick { position: relative; isolation: isolate; overflow: hidden; }" in CSS
-    assert "opacity: .16" in CSS
+    assert "opacity: .1" in CSS
     assert "pointer-events: none" in CSS
 
 
