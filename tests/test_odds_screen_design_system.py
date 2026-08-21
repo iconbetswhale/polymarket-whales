@@ -29,9 +29,29 @@ def test_odds_screen_preview_is_read_only_and_populated(app_client):
     assert payload["previewOnly"] is True
     assert payload["providerRequestsEnabled"] is False
     assert payload["trackerWritesEnabled"] is False
-    assert len(payload["data"]) == 18
-    assert len({row["event_id"] for row in payload["data"]}) == 3
+    assert len(payload["data"]) == 144
+    assert len({row["event_id"] for row in payload["data"]}) == 12
     assert all(row["executionOptions"] for row in payload["data"])
+    market_titles = {row["sports_market_type"] for row in payload["data"]}
+    assert market_titles == {
+        "Moneyline",
+        "Run Line / Spread",
+        "Alternate Spread",
+        "Game Total",
+        "Alternate Total",
+        "Player Hits",
+    }
+    assert all(
+        len(
+            {
+                row["event_id"]
+                for row in payload["data"]
+                if row["sports_market_type"] == title
+            }
+        )
+        == 12
+        for title in market_titles
+    )
 
 
 def test_odds_screen_template_uses_approved_terminal_structure():
@@ -50,6 +70,8 @@ def test_odds_screen_template_uses_approved_terminal_structure():
     ):
         assert hook in template
     assert 'id="odds-market-trigger"' not in template
+    assert "odds-history-head" not in template
+    assert "odds-history-cell" not in template
     assert "Main Markets" not in template
     for label in (
         "Moneyline",
@@ -81,6 +103,8 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert ".mobile-odds-board" in stylesheet
     assert ".mobile-odds-sheet" in stylesheet
     assert "overflow-x: hidden" in stylesheet
+    assert "border-collapse: collapse" in stylesheet
+    assert ".odds-price-stack .odds-price + .odds-price" in stylesheet
 
 
 def test_odds_screen_preview_client_does_not_start_polling():

@@ -38,10 +38,30 @@ PROVIDERS = (
 )
 
 PARTICIPANT_LOGOS = {
+    "Atlanta Braves": "https://a.espncdn.com/i/teamlogos/mlb/500/atl.png",
+    "Milwaukee Brewers": "https://a.espncdn.com/i/teamlogos/mlb/500/mil.png",
+    "St. Louis Cardinals": "https://a.espncdn.com/i/teamlogos/mlb/500/stl.png",
+    "Philadelphia Phillies": "https://a.espncdn.com/i/teamlogos/mlb/500/phi.png",
+    "Toronto Blue Jays": "https://a.espncdn.com/i/teamlogos/mlb/500/tor.png",
     "New York Yankees": "https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png",
+    "Washington Nationals": "https://a.espncdn.com/i/teamlogos/mlb/500/wsh.png",
+    "Miami Marlins": "https://a.espncdn.com/i/teamlogos/mlb/500/mia.png",
+    "San Francisco Giants": "https://a.espncdn.com/i/teamlogos/mlb/500/sf.png",
     "Boston Red Sox": "https://a.espncdn.com/i/teamlogos/mlb/500/bos.png",
-    "New York Liberty": "https://a.espncdn.com/i/teamlogos/wnba/500/ny.png",
-    "Las Vegas Aces": "https://a.espncdn.com/i/teamlogos/wnba/500/lv.png",
+    "Tampa Bay Rays": "https://a.espncdn.com/i/teamlogos/mlb/500/tb.png",
+    "Baltimore Orioles": "https://a.espncdn.com/i/teamlogos/mlb/500/bal.png",
+    "Los Angeles Dodgers": "https://a.espncdn.com/i/teamlogos/mlb/500/lad.png",
+    "Chicago Cubs": "https://a.espncdn.com/i/teamlogos/mlb/500/chc.png",
+    "New York Mets": "https://a.espncdn.com/i/teamlogos/mlb/500/nym.png",
+    "Seattle Mariners": "https://a.espncdn.com/i/teamlogos/mlb/500/sea.png",
+    "Houston Astros": "https://a.espncdn.com/i/teamlogos/mlb/500/hou.png",
+    "Texas Rangers": "https://a.espncdn.com/i/teamlogos/mlb/500/tex.png",
+    "Cleveland Guardians": "https://a.espncdn.com/i/teamlogos/mlb/500/cle.png",
+    "Detroit Tigers": "https://a.espncdn.com/i/teamlogos/mlb/500/det.png",
+    "Cincinnati Reds": "https://a.espncdn.com/i/teamlogos/mlb/500/cin.png",
+    "Pittsburgh Pirates": "https://a.espncdn.com/i/teamlogos/mlb/500/pit.png",
+    "San Diego Padres": "https://a.espncdn.com/i/teamlogos/mlb/500/sd.png",
+    "Minnesota Twins": "https://a.espncdn.com/i/teamlogos/mlb/500/min.png",
 }
 
 
@@ -96,9 +116,11 @@ def _market_rows(
     odds: tuple[int, int],
     liquidity: int,
     line: float | tuple[float, float] | None = None,
+    player_name: str = "",
     seed: int = 0,
 ) -> list[dict]:
     market_id = f"{event_id}-{kind}-{str(line).replace('.', '-') if line is not None else 'main'}"
+    event_participants = tuple(part.strip() for part in event_title.split(" vs ", 1))
     rows = []
     for index, outcome in enumerate(outcomes):
         row_line = line[index] if isinstance(line, tuple) else line
@@ -125,7 +147,7 @@ def _market_rows(
                 "previewOnly": True,
                 "participant_logos": {
                     participant: PARTICIPANT_LOGOS[participant]
-                    for participant in outcomes
+                    for participant in (*event_participants, *outcomes)
                     if participant in PARTICIPANT_LOGOS
                 },
                 "card": {"recommended_amount": 0},
@@ -135,42 +157,40 @@ def _market_rows(
                 ),
             }
         )
+        if player_name:
+            rows[-1]["player_name"] = player_name
     return rows
 
 
 def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
     base = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
-    events = (
+    matchup_data = (
+        ("braves-brewers", "Atlanta Braves", "Milwaukee Brewers", (133, -134), 8.5, "Ronald Acuña Jr."),
+        ("cardinals-phillies", "St. Louis Cardinals", "Philadelphia Phillies", (233, -239), 8.0, "Bryce Harper"),
+        ("blue-jays-yankees", "Toronto Blue Jays", "New York Yankees", (187, -190), 8.5, "Aaron Judge"),
+        ("nationals-marlins", "Washington Nationals", "Miami Marlins", (140, -138), 7.5, "James Wood"),
+        ("giants-red-sox", "San Francisco Giants", "Boston Red Sox", (163, -166), 9.0, "Rafael Devers"),
+        ("rays-orioles", "Tampa Bay Rays", "Baltimore Orioles", (118, -118), 8.0, "Gunnar Henderson"),
+        ("dodgers-cubs", "Los Angeles Dodgers", "Chicago Cubs", (-146, 132), 9.5, "Shohei Ohtani"),
+        ("mets-mariners", "New York Mets", "Seattle Mariners", (-122, 108), 7.5, "Francisco Lindor"),
+        ("astros-rangers", "Houston Astros", "Texas Rangers", (115, -129), 8.5, "Corey Seager"),
+        ("guardians-tigers", "Cleveland Guardians", "Detroit Tigers", (104, -116), 7.0, "José Ramírez"),
+        ("reds-pirates", "Cincinnati Reds", "Pittsburgh Pirates", (-108, -102), 9.0, "Elly De La Cruz"),
+        ("padres-twins", "San Diego Padres", "Minnesota Twins", (-132, 119), 8.0, "Fernando Tatis Jr."),
+    )
+    events = tuple(
         {
-            "event_id": "preview-yankees-red-sox",
-            "event_title": "New York Yankees vs Boston Red Sox",
+            "event_id": f"preview-{slug}",
+            "event_title": f"{away} vs {home}",
             "sport": "Baseball",
             "league": "MLB",
-            "starts_at": base + timedelta(hours=2),
-            "moneyline": (("New York Yankees", "Boston Red Sox"), (118, -126)),
-            "spread": (("New York Yankees", "Boston Red Sox"), (-108, -112), (-1.5, 1.5)),
-            "total": (("Over", "Under"), (-105, -115), 8.5),
-        },
-        {
-            "event_id": "preview-liberty-aces",
-            "event_title": "New York Liberty vs Las Vegas Aces",
-            "sport": "Basketball",
-            "league": "WNBA",
-            "starts_at": base + timedelta(hours=3),
-            "moneyline": (("New York Liberty", "Las Vegas Aces"), (-154, 138)),
-            "spread": (("New York Liberty", "Las Vegas Aces"), (-110, -110), (-3.5, 3.5)),
-            "total": (("Over", "Under"), (-108, -112), 162.5),
-        },
-        {
-            "event_id": "preview-sinner-tiafoe",
-            "event_title": "Jannik Sinner vs Frances Tiafoe",
-            "sport": "Tennis",
-            "league": "ATP",
-            "starts_at": base + timedelta(hours=4),
-            "moneyline": (("Jannik Sinner", "Frances Tiafoe"), (-158, 142)),
-            "spread": (("Jannik Sinner", "Frances Tiafoe"), (-112, -108), (-2.5, 2.5)),
-            "total": (("Over", "Under"), (-110, -110), 22.5),
-        },
+            "starts_at": base + timedelta(hours=2 + index, minutes=(index % 3) * 10),
+            "teams": (away, home),
+            "moneyline_odds": moneyline_odds,
+            "total_line": total_line,
+            "player_name": player_name,
+        }
+        for index, (slug, away, home, moneyline_odds, total_line, player_name) in enumerate(matchup_data)
     )
 
     rows: list[dict] = []
@@ -182,42 +202,78 @@ def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
             "league": event["league"],
             "starts_at": event["starts_at"],
         }
-        moneyline_outcomes, moneyline_odds = event["moneyline"]
         rows.extend(
             _market_rows(
                 **common,
                 kind="moneyline",
                 market_title="Moneyline",
-                outcomes=moneyline_outcomes,
-                odds=moneyline_odds,
+                outcomes=event["teams"],
+                odds=event["moneyline_odds"],
                 liquidity=12600 + (event_index * 2200),
                 seed=event_index,
             )
         )
-        spread_outcomes, spread_odds, spread_line = event["spread"]
+        spread_line = (1.5, -1.5) if event["moneyline_odds"][0] > 0 else (-1.5, 1.5)
         rows.extend(
             _market_rows(
                 **common,
                 kind="spread",
                 market_title="Run Line / Spread",
-                outcomes=spread_outcomes,
-                odds=spread_odds,
+                outcomes=event["teams"],
+                odds=(-108 - (event_index % 3), -112 + (event_index % 3)),
                 liquidity=9800 + (event_index * 1800),
                 line=spread_line,
                 seed=event_index + 2,
             )
         )
-        total_outcomes, total_odds, total_line = event["total"]
+        alternate_spread_line = (2.5, -2.5) if spread_line[0] > 0 else (-2.5, 2.5)
+        rows.extend(
+            _market_rows(
+                **common,
+                kind="alternate-spread",
+                market_title="Alternate Spread",
+                outcomes=event["teams"],
+                odds=(-104 - (event_index % 4), -116 + (event_index % 4)),
+                liquidity=9100 + (event_index * 1500),
+                line=alternate_spread_line,
+                seed=event_index + 3,
+            )
+        )
         rows.extend(
             _market_rows(
                 **common,
                 kind="game-total",
                 market_title="Game Total",
-                outcomes=total_outcomes,
-                odds=total_odds,
+                outcomes=("Over", "Under"),
+                odds=(-105 - (event_index % 4), -115 + (event_index % 4)),
                 liquidity=8400 + (event_index * 1400),
-                line=total_line,
+                line=event["total_line"],
                 seed=event_index + 4,
+            )
+        )
+        rows.extend(
+            _market_rows(
+                **common,
+                kind="alternate-total",
+                market_title="Alternate Total",
+                outcomes=("Over", "Under"),
+                odds=(-102 - (event_index % 5), -118 + (event_index % 5)),
+                liquidity=7600 + (event_index * 1200),
+                line=event["total_line"] + 1.0,
+                seed=event_index + 5,
+            )
+        )
+        rows.extend(
+            _market_rows(
+                **common,
+                kind="player-hits",
+                market_title="Player Hits",
+                outcomes=("Over", "Under"),
+                odds=(104 + (event_index % 5), -124 + (event_index % 5)),
+                liquidity=6800 + (event_index * 1000),
+                line=1.5,
+                player_name=event["player_name"],
+                seed=event_index + 6,
             )
         )
 

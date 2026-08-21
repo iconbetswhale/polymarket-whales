@@ -1,42 +1,62 @@
-# Approved Odds Screen visual QA
+# Odds Screen table refinement visual QA
 
-Reference: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-3a6243a3-068c-4f0a-8147-353de5ec4814.png`
+## Visual truth
 
-Implementation: `http://127.0.0.1:5024/odds-screen?preview=1`
+- Primary spacing, gray-surface, logo, and odds-hierarchy reference: `C:\Users\15617\Desktop\Screenshot_2026-08-21_at_11.15.36_AM (1).webp`
+- Removal reference for the graph/history column: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-ed3cf65d-7cac-44c4-b203-0dc29c19c8d7.png`
+- Grid-line defect reference: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-a5fcd53d-d073-4e70-9f7a-e18a973e5b69.png`
+- Implementation route: `http://127.0.0.1:5024/odds-screen?preview=1`
+- First implementation capture: `artifacts/approved-odds-screen/odds-screen-grid-pass1-1280x720.png`
+- Final implementation capture: `artifacts/approved-odds-screen/odds-screen-grid-final-1280x720.png`
 
-## Pass 1 — five largest visible mismatches
+## Normalization and state
 
-1. The inherited legacy grid rules forced semantic table cells into a wrapping CSS grid. Fixed by restoring native table row, row-group, and table-cell display behavior in the page-owned stylesheet.
-2. Exchange cells showed contract cents and American odds together, making the matrix noisier than the approved terminal. Fixed by using the feed's American display odds as the provider-cell headline and retaining executable limits beneath it.
-3. The preview disclosure pushed the title, toolbar, tabs, and matrix roughly 40px below the approved vertical positions. Fixed by moving the read-only disclosure out of desktop document flow; the title now starts at 18px, tabs at 152px, and the matrix at 206px.
-4. Event participants rendered as initials even when real team artwork could be supplied. Fixed by consuming participant logo fields from live rows and adding real logo URLs to the isolated preview fixture for teams where artwork is available.
-5. The footer used a generic provider message and did not communicate refresh cadence or time zone. Fixed with live/paused state copy, the preserved 60-second Odds Screen polling cadence, update time, and ET disclosure.
+- Source pixels: 1280 × 986 WebP.
+- Implementation pixels: 1248 × 720 PNG from the in-app browser.
+- Browser CSS viewport: 1280 × 720, device scale 1.
+- Both artifacts show the dark desktop Moneyline state with the same first MLB matchups. The 32-pixel implementation capture-width difference comes from the in-app browser surface; comparison used the full view for composition and the table region for cell-level fidelity.
+- The product sidebar is intentionally retained because it is part of the existing IconLabs site shell. The source's graph column is intentionally not reproduced because the user explicitly removed it.
 
-## Pass 2 — verification
+## Pass 1 findings and fixes
 
-- Compared the approved source and the 1920×1080 implementation together.
-- Confirmed the separate top market dropdown and all `Main Markets` labels are absent.
-- Confirmed the six primary market controls are directly above the matrix.
-- Confirmed dynamic provider headers and body cells remain column-aligned.
-- Confirmed only best executable provider values receive purple emphasis.
-- Confirmed average odds are derived from average implied probability, not raw American-odds arithmetic.
-- Confirmed search, primary tabs, player-props disclosure, feed controls, provider filters, favorites, refresh, mobile event cards, and mobile market sheet bindings remain active.
-- Confirmed paused state retains the full matrix header and provider set.
-- Confirmed the in-app browser console is clear and focused automated tests pass.
+- [P1] Duplicate cell dividers made the provider grid look doubled.
+  - Evidence: inherited `style.css` added a right border to `.odds-price-stack` in addition to the table-cell border, and added a top border to every second price and best-odds item.
+  - Fix: the canonical Odds Screen stylesheet now clears the nested right border and both second-item top borders. The matrix uses `border-collapse: collapse` and one border per table-cell edge.
+- [P1] The graph/history column remained in both the header and every market row.
+  - Fix: removed the history header, history body cell, modal, event listener, and associated CSS; all dynamic colspans now use four fixed columns.
+- [P2] Preview coverage was too sparse for visual editing.
+  - Fix: expanded the read-only fixture to 12 MLB games across Moneyline, Run Line / Spread, Alternate Spread, Game Total, Alternate Total, and Player Hits, yielding 12 visible games in every tab.
+- [P2] Event identity and visual hierarchy did not fully match the reference.
+  - Fix: event cells now keep the two matchup teams and load real ESPN team-logo assets; every best executable quote is purple while average and non-best provider odds are white.
+- [P2] Rows were too dark and compressed.
+  - Fix: changed the table to layered graphite gray surfaces, 132-pixel event rows, 142-pixel provider columns, and roomier 14-pixel cell padding.
 
-## Saved captures
+## Pass 2 post-fix evidence
 
-- `artifacts/approved-odds-screen/odds-screen-1920x1080.png`
-- `artifacts/approved-odds-screen/odds-screen-1440x900.png`
-- `artifacts/approved-odds-screen/odds-screen-mobile-390x844.png`
-- `artifacts/approved-odds-screen/odds-screen-paused-verified-1440x900.png`
+- Full-view comparison: the final table matches the reference's graphite density, roomy event rows, clear team-logo rhythm, centered time/best/average columns, and subdued limits. The site shell and extra product controls are intentional existing-product constraints.
+- Focused table comparison: computed styles confirm collapsed borders, zero nested stack borders, zero graph/history cells, purple `rgb(158, 92, 255)` for best quotes, and white `rgb(247, 247, 248)` for all other provider and average odds.
+- Typography: existing IconLabs UI font, weights, compact uppercase headers, and small limit labels remain consistent and readable.
+- Spacing and layout: fixed column widths, 132-pixel rows, 14-pixel cell padding, and a single squared grid create the requested more spacious, aligned table.
+- Colors and tokens: gray row surfaces are `rgb(39, 41, 42)` with alternating darker graphite; purple is reserved for best odds.
+- Image quality and assets: all 24 team slots visible in the first 12 Moneyline games use real remote team-logo images with intrinsic aspect ratio preserved; provider logos remain source assets.
+- Copy and content: the preview disclosure now states 12 matchups and all six requested tabs use realistic placeholder games.
 
-## Data-bound differences from the approved mockup
+## Interaction and runtime verification
 
-- The read-only preview fixture currently contains three real-format matchups, while the mockup depicts six illustrative MLB rows.
-- The visible provider set and order come from the current provider catalog and saved user order, so ProphetX is not fabricated when absent from the payload.
-- Preview rows do not include verified line-history token IDs, so history actions correctly remain unavailable instead of opening a fabricated chart.
-- No player-prop markets are present in the preview payload; the disclosure populates dynamically when the selected live sport returns player-level markets.
+- Moneyline: 12 games.
+- Run Line / Spread: 12 games.
+- Alt Spreads: 12 games.
+- Game Totals: 12 games.
+- Alt Totals: 12 games.
+- Player Props → Player Hits: 12 games.
+- The in-app browser console contains no warnings or errors.
+- The final browser tab remains open on the local preview.
+
+## Residual differences
+
+- The reference includes a graph column; its absence is required by the user's latest direction.
+- The reference omits the IconLabs sidebar; the implementation keeps the approved global site shell.
+- The provider set is limited to the current preview catalog rather than fabricating additional connected providers.
 
 final result: passed
 
