@@ -126,7 +126,7 @@
     if (first?.logo && second?.logo) {
       return `<span class="ev-matchup-inline"><img class="ev-team-logo" src="${esc(first.logo)}" alt="" aria-hidden="true" decoding="async"><span class="ev-team-name">${esc(first.short)}</span><span class="ev-matchup-vs">vs</span><span class="ev-team-name">${esc(second.short)}</span><img class="ev-team-logo" src="${esc(second.logo)}" alt="" aria-hidden="true" decoding="async"></span>`;
     }
-    return `<span class="ev-matchup-line">${esc(`${sides[1]} vs`)}</span><span class="ev-matchup-line">${esc(sides[2])}</span>`;
+    return `<span class="ev-matchup-line"><span class="ev-matchup-players"><span class="ev-player-name">${esc(sides[1])}</span><span class="ev-matchup-vs">vs</span><span class="ev-player-name">${esc(sides[2])}</span></span></span>`;
   };
   const sportIcon = row => {
     const sport = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
@@ -679,7 +679,7 @@
         timer = null;
         $("ev-count").textContent = "0";
         $("ev-updated").textContent = "Optimizer paused";
-        $("ev-feed-label").textContent = "Credit-safe pause";
+        if ($("ev-feed-label")) $("ev-feed-label").textContent = "Credit-safe pause";
         $("ev-pause").setAttribute("aria-pressed", "true");
         $("ev-pause").innerHTML = '<i class="ph ph-play"></i>';
         $("ev-credit-banner").innerHTML = `<i class="ph ph-shield-check" aria-hidden="true"></i><span><strong>EV optimizer paused</strong> · No paid odds requests or refreshes are running.</span>`;
@@ -725,7 +725,7 @@
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
         <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong><button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button></div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
-        <div class="ev-pick">${leagueWatermark(row)}<small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
+        <div class="ev-pick" data-sport-icon="${sportIcon(row)}">${leagueWatermark(row)}<strong>${esc(row.marketLabel)}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
       </article>`;
     }).join("");
@@ -823,7 +823,7 @@
   $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
-  $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
+  $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;if($("ev-feed-label"))$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{
     if(event.target.matches("[data-market-group-toggle]")){

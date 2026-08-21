@@ -81,6 +81,9 @@ def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     assert "matchup(row)" in feed
     assert 'class="ev-league-watermark"' in SCRIPT
     assert 'alt="" aria-hidden="true"' in SCRIPT
+    assert "Live market scan" not in TEMPLATE
+    assert 'id="ev-feed-label"' not in TEMPLATE
+    assert '<small><i class="ph ${sportIcon(row)}"' not in feed
 
     select = _function("select")
     assert select.index("marketOddsVisual(row)") < select.index("ev-market-trend")
@@ -130,14 +133,13 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
 
 def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     for rule in (
-        "font: 700 30px/1 var(--il-font-data)",
+        "font: 700 27px/1 var(--il-font-data)",
         "font: 700 12px/1 var(--il-font-ui)",
         "font-size: 16px",
         "font: var(--il-type-metadata)",
         "font: 700 18px/1.25 var(--il-font-ui)",
-        "font: 650 14px/1.2 var(--il-font-ui)",
         "font: 700 20px/1.25 var(--il-font-ui)",
-        "font: 700 18px/1.14 var(--il-font-ui)",
+        "font: 700 12px/1.14 var(--il-font-ui)",
         "font: 650 10px/1.2 var(--il-font-ui)",
         "font: 700 16px/1 var(--il-font-data)",
         "font: 700 24px/1 var(--il-font-data)",
@@ -153,6 +155,8 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     assert "min-width: 98px" in CSS
     assert "border: 2px solid var(--il-brand-hover)" in CSS
     assert "box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow)" in CSS
+    assert "grid-template-columns: minmax(152px, 1fr) auto auto" in CSS
+    assert "white-space: nowrap" in CSS
 
 
 def test_positive_ev_uses_real_league_logo_watermarks() -> None:
@@ -186,10 +190,14 @@ def test_positive_ev_matchups_use_high_resolution_team_assets() -> None:
     assert '.ev-league-watermark[src$="/mlb.png"]' in CSS
     assert "height: 118%" in CSS
     assert '.ev-league-watermark[src$="/atp.png"]' in CSS
+    assert 'class="ev-matchup-players"' in SCRIPT
+    assert 'class="ev-player-name"' in SCRIPT
+    assert ".ev-matchup-players" in CSS
+    assert "column-gap: 7px" in CSS
 
 
 def test_positive_ev_responsive_and_accessibility_contracts() -> None:
-    for breakpoint in (1600, 1320, 980, 640, 420):
+    for breakpoint in (1800, 1600, 1320, 980, 640, 420):
         assert f"@media (max-width: {breakpoint}px)" in CSS
 
     assert "grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr)" in CSS

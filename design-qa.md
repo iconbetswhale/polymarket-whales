@@ -878,3 +878,49 @@ No actionable P0, P1, or P2 findings remain.
 - `git diff --check`: passed with line-ending notices only.
 
 final result: passed
+
+---
+
+# Positive EV — Card Readability Polish QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-6a022f4d-e536-41c9-b102-297e10aca515.png` (1674 × 818 px).
+- Final browser implementation: `artifacts/positive-ev-card-polish/positive-ev-card-polish-1674x818.png` (1674 × 818 px).
+- Verified route, viewport, and density: `http://127.0.0.1:5025/positive-ev?preview=1`, 1674 × 818 CSS px, DPR 1.
+- State: desktop five-play preview with the first Philadelphia Phillies opportunity selected and its detail rail open.
+
+The source and implementation were inspected together at matching pixel dimensions. The existing global IconLabs shell was retained while the requested card-level typography, metadata, spacing, and alignment were corrected.
+
+## Findings and implementation
+
+- P1 — League abbreviations above Moneyline, Spread, and Game Total added redundant hierarchy and pushed the market labels off center.
+  - Fix: removed the visible MLB, WNBA, and ATP labels while retaining the league watermark and centered the market type in its full cell.
+  - Post-fix evidence: no `.ev-pick small` elements render, and all five market labels report centered alignment.
+- P1 — Several purple selection fields wrapped valid plays onto two lines.
+  - Fix: increased the selection allocation, applied single-line text behavior, and tuned the execution rail across desktop breakpoints.
+  - Post-fix evidence: selection widths are 158px at the reference viewport, 132px at 1440px, and 120px at 1280px; every selection has equal client and scroll width with `white-space: nowrap`.
+- P1 — The tennis matchup visually joined “vs” to the player names.
+  - Fix: rendered both names and “vs” as separate flex items with a 7px column gap and non-wrapping player names.
+  - Post-fix evidence: the Taylor Fritz / Ben Shelton card exposes a distinct “vs” token with clear spacing on both sides.
+- P2 — The green EV value overpowered adjacent card information, and the “Live market scan” label duplicated the update status.
+  - Fix: reduced the main and detail EV typography to 27px and removed the redundant live-scan label while preserving the updated timestamp.
+  - Post-fix evidence: both EV displays compute to 27px at the reference viewport, and no live-scan label exists in the page markup.
+- P1 — At narrower desktop widths, base minimum widths could override breakpoint values and clip the best-odds rail.
+  - Fix: added a reference-width execution breakpoint and matched selector specificity for responsive best-odds controls.
+  - Post-fix evidence: all five best-odds buttons stay inside their cards at 1674px, 1440px, and 1280px; page horizontal overflow is 0px.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Interaction and automated verification
+
+- Selected the New York Liberty opportunity and confirmed the active card changed to `positive-ev-preview-2`, then restored the Philadelphia Phillies card.
+- Opened the Philadelphia Phillies tracking dialog, verified the populated odds and stake fields, and canceled without saving.
+- Responsive checks: 1674 × 818, 1440 × 900, and 1280 × 800 all retain five cards, one-line selections, visible best-odds buttons, and 0px page overflow.
+- Browser diagnostics: no warnings or errors.
+- Positive EV design-system suite: 9 passed.
+- Positive EV page/preview integration checks: 2 passed.
+- `node --check static/positive-ev.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed
