@@ -1,11 +1,11 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="wallet-roster-page">
-  <header class="wallet-roster-header">
-    <div>
+<section class="wallet-roster-page il-data-grid-page" aria-labelledby="wallets-title">
+  <header class="wallet-roster-header il-page-header">
+    <div class="il-page-title">
       <p class="eyebrow">SHARP INTELLIGENCE</p>
       <div class="title-line">
-        <h1>Sharp Wallets</h1>
+        <h1 id="wallets-title">Sharp Wallets</h1>
         <span class="wallet-live-badge"><span aria-hidden="true"></span>Live roster</span>
       </div>
       <p class="wallet-page-subtitle">The three directional MLB wallets powering the active model.</p>
@@ -17,20 +17,20 @@
     </div>
   </header>
 
-  <nav class="wallet-view-tabs" aria-label="Wallet views">
-    <button class="wallet-view-tab is-active" type="button" data-wallet-view="active" aria-selected="true">
+  <nav class="wallet-view-tabs il-segmented" aria-label="Wallet views" role="tablist">
+    <button class="wallet-view-tab is-active" type="button" data-wallet-view="active" aria-selected="true" role="tab">
       <i class="ph ph-crosshair" aria-hidden="true"></i>
       Active Sharps
       <span id="wallet-active-tab-count">3</span>
     </button>
-    <button class="wallet-view-tab" type="button" data-wallet-view="hidden" aria-selected="false">
+    <button class="wallet-view-tab" type="button" data-wallet-view="hidden" aria-selected="false" role="tab">
       <i class="ph ph-eye-slash" aria-hidden="true"></i>
       Hidden Wallets
       <span id="wallet-hidden-tab-count">0</span>
     </button>
   </nav>
 
-  <section class="wallet-hidden-toolbar" id="wallet-hidden-toolbar" hidden>
+  <section class="wallet-hidden-toolbar il-toolbar" id="wallet-hidden-toolbar" aria-label="Hidden wallet filters" hidden>
     <div>
       <strong>Archived wallet research</strong>
       <span>These wallets are preserved for history and review, but do not power the active model.</span>
@@ -54,7 +54,7 @@
     </select>
   </section>
 
-  <section class="wallet-roster-section">
+  <section class="wallet-roster-section" aria-labelledby="wallet-section-title">
     <div class="wallet-section-heading">
       <div>
         <p class="eyebrow" id="wallet-section-eyebrow">ACTIVE MODEL ROSTER</p>
@@ -67,9 +67,9 @@
     </section>
   </section>
 
-  <aside class="wallet-clv-note">
+  <aside class="wallet-clv-note il-panel">
     <i class="ph ph-chart-line-up" aria-hidden="true"></i>
     <div><strong>Wallet-level CLV</strong><span>Each Sharp is measured from its Polymarket entry price to the final available Polymarket closing price. Missing closing data stays unavailable—it is never estimated.</span></div>
   </aside>
-</div>
+</section>
 {% endblock %}

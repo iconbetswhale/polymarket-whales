@@ -11,19 +11,19 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Fraunces:wght@600;700&family=Inter:wght@400;500;600;700&family=Roboto+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/regular/style.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css', v=asset_version) }}">
-  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='legacy-design-system.css', v=asset_version) }}">{% endif %}
-  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-art-direction.css', v=asset_version) }}">{% endif %}
+  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='legacy-design-system.css', v=asset_version) }}">{% endif %}
+  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-art-direction.css', v=asset_version) }}">{% endif %}
   {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money.css', v=asset_version) }}">{% endif %}
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-odds.css', v=asset_version) }}">{% endif %}
   {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs.css', v=asset_version) }}">{% endif %}
-  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='shared-shell.css', v=asset_version ~ '-vertical-rail2') }}">{% endif %}
+  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='shared-shell.css', v=asset_version ~ '-vertical-rail2') }}">{% endif %}
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='premium-compact.css', v=asset_version) }}">{% endif %}
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
-  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">{% endif %}
+  {% if page not in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">{% endif %}
   {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version) }}">{% endif %}
-  {% if page not in ['home', 'trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-heading2') }}">{% endif %}
-  {% if page not in ['home', 'trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-shell.css', v=asset_version ~ '-shared-sidebar2') }}">{% endif %}
-  {% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}
+  {% if page not in ['home', 'trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-heading2') }}">{% endif %}
+  {% if page not in ['home', 'trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-shell.css', v=asset_version ~ '-shared-sidebar2') }}">{% endif %}
+  {% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}
   <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css', v=asset_version ~ '-foundation-v6') }}">
   {% endif %}
   {% if page == 'trades' %}
@@ -37,8 +37,9 @@
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'shadow-test' %}<link rel="stylesheet" href="{{ url_for('static', filename='shadow-lab-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'live-positions' %}<link rel="stylesheet" href="{{ url_for('static', filename='live-positions-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
+  {% if page == 'wallets' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-wallets-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
 </head>
-<body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
+<body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
   <div class="global-risk-banner" id="global-risk-banner" role="alert" hidden>
     <i class="ph ph-warning-octagon" aria-hidden="true"></i>
