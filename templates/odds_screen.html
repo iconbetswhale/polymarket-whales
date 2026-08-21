@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="odds-screen-page il-data-grid-page" data-odds-preview="{{ 'true' if odds_screen_preview else 'false' }}">
+<section class="odds-screen-page" data-odds-preview="{{ 'true' if odds_screen_preview else 'false' }}">
   {% if odds_screen_preview %}
   <section class="odds-preview-banner" aria-label="Preview mode">
     <i class="ph ph-eye" aria-hidden="true"></i>
@@ -8,135 +8,135 @@
     <span>Visual fixtures only · no provider requests or sportsbook credits.</span>
   </section>
   {% endif %}
-  <header class="odds-screen-toolbar il-page-header">
-    <div class="odds-context il-page-title">
-      <div><span class="page-kicker">Live market comparison</span><h1>Sportsbook Screen</h1></div>
-      <p>Exact-market prices across connected books and exchanges</p>
+
+  <header class="odds-screen-header">
+    <div class="odds-title-block">
+      <h1>Odds Screen</h1>
+      <p>Compare odds across sportsbooks in real time</p>
     </div>
-    <div class="odds-filter-row il-filter-bar">
-      <button class="odds-pill active" data-odds-all>All</button>
-      <button class="odds-pill" data-odds-favorite>Favorites</button>
 
-      <div class="odds-menu-shell">
-        <button class="odds-menu-trigger" id="odds-league-trigger" type="button" aria-expanded="false" aria-controls="odds-league-menu"><span id="odds-league-label">All Leagues</span><i class="ph ph-caret-down"></i></button>
-        <section class="odds-mega-menu odds-league-menu" id="odds-league-menu" hidden>
-          <div class="odds-menu-heading"><strong>Popular Leagues</strong><button type="button" data-close-menu><i class="ph ph-x"></i></button></div>
-          <div class="league-menu-grid">
-            <div><button data-odds-league="NFL" data-odds-sport="Football">NFL</button><button data-odds-league="NBA" data-odds-sport="Basketball">NBA</button><button data-odds-league="NCAAB" data-odds-sport="Basketball">NCAAB</button><button data-odds-league="MLB" data-odds-sport="Baseball">MLB</button><button data-odds-league="NHL" data-odds-sport="Hockey">NHL</button><button data-odds-league="WNBA" data-odds-sport="Basketball">WNBA</button><button data-odds-league="ATP" data-odds-sport="Tennis">ATP</button><button data-odds-league="WTA" data-odds-sport="Tennis">WTA</button></div>
-            <div><button data-odds-league="" data-odds-sport="Baseball">Baseball</button><button data-odds-league="" data-odds-sport="Basketball">Basketball</button><button data-odds-league="" data-odds-sport="Football">Football</button><button data-odds-league="" data-odds-sport="Hockey">Hockey</button><button data-odds-league="" data-odds-sport="Soccer">Soccer</button><button data-odds-league="" data-odds-sport="Tennis">Tennis</button><button data-odds-league="" data-odds-sport="Golf">Golf</button><button data-odds-league="" data-odds-sport="MMA">MMA</button></div>
-          </div>
-        </section>
+    <div class="odds-toolbar" aria-label="Odds screen controls">
+      <div class="odds-toolbar-left">
+        <div class="odds-menu-shell">
+          <button class="odds-control odds-sport-trigger" id="odds-league-trigger" type="button" aria-expanded="false" aria-controls="odds-league-menu">
+            <span class="odds-sport-icon"><i class="ph ph-trophy"></i></span>
+            <span id="odds-league-label">All Sports</span>
+            <i class="ph ph-caret-down"></i>
+          </button>
+          <section class="odds-popover odds-league-menu" id="odds-league-menu" hidden>
+            <div class="odds-menu-heading"><strong>Sports &amp; leagues</strong><button type="button" data-close-menu aria-label="Close"><i class="ph ph-x"></i></button></div>
+            <div class="league-menu-grid">
+              <div><button data-odds-league="NFL" data-odds-sport="Football">NFL</button><button data-odds-league="NBA" data-odds-sport="Basketball">NBA</button><button data-odds-league="NCAAB" data-odds-sport="Basketball">NCAAB</button><button data-odds-league="MLB" data-odds-sport="Baseball">MLB</button><button data-odds-league="NHL" data-odds-sport="Hockey">NHL</button><button data-odds-league="WNBA" data-odds-sport="Basketball">WNBA</button><button data-odds-league="ATP" data-odds-sport="Tennis">ATP</button><button data-odds-league="WTA" data-odds-sport="Tennis">WTA</button></div>
+              <div><button data-odds-league="" data-odds-sport="Baseball">Baseball</button><button data-odds-league="" data-odds-sport="Basketball">Basketball</button><button data-odds-league="" data-odds-sport="Football">Football</button><button data-odds-league="" data-odds-sport="Hockey">Hockey</button><button data-odds-league="" data-odds-sport="Soccer">Soccer</button><button data-odds-league="" data-odds-sport="Tennis">Tennis</button><button data-odds-league="" data-odds-sport="Golf">Golf</button><button data-odds-league="" data-odds-sport="MMA">MMA</button></div>
+            </div>
+          </section>
+        </div>
+
+        <button class="odds-control odds-live-control" id="odds-feed-toggle" type="button" title="Start the live odds feed">
+          <span class="odds-live-state paused" id="odds-live-state"><i></i><strong id="odds-live-label">PAUSED</strong></span>
+          <i class="ph ph-caret-right" aria-hidden="true"></i>
+        </button>
+
+        <label class="odds-control odds-auto-refresh">
+          <span>Auto-refresh</span>
+          <input id="odds-auto-refresh" type="checkbox" checked>
+          <span class="odds-switch" aria-hidden="true"></span>
+        </label>
       </div>
 
-      <div class="odds-menu-shell">
-        <button class="odds-menu-trigger" id="odds-market-trigger" type="button" aria-expanded="false" aria-controls="odds-market-menu"><span id="odds-market-label">All Markets</span><i class="ph ph-caret-down"></i></button>
-        <section class="odds-mega-menu odds-market-menu" id="odds-market-menu" hidden>
-          <div class="odds-menu-heading"><strong>Market Types</strong><small>Exact feed coverage</small><button type="button" data-close-menu><i class="ph ph-x"></i></button></div>
-          <div class="market-menu-grid">
-            <div><h3>Main Markets</h3><button data-market-kind="">All main markets</button><button data-market-kind="moneyline">Moneyline</button><button data-market-kind="spread">Run Line / Spread</button><button data-market-kind="game_total">Game Total</button><button data-market-kind="alternate_spread">Alternate Spreads</button><button data-market-kind="alternate_total">Alternate Totals</button><button data-market-kind="team_total">Team Total</button><button data-market-kind="yes_no">Yes / No</button></div>
-            <div><h3>Period Markets</h3><button data-market-kind="first_half_moneyline">1st Half Moneyline <em>when available</em></button><button data-market-kind="first_half_spread">1st Half Spread <em>when available</em></button><button data-market-kind="first_half_total">1st Half Total <em>when available</em></button><button data-market-kind="first_period_moneyline">1st Period Moneyline <em>when available</em></button><button data-market-kind="first_period_total">1st Period Total <em>when available</em></button></div>
-            <div><h3>Total Markets</h3><button data-market-kind="total_cards">Total Cards <em>feed dependent</em></button><button data-market-kind="total_corners">Total Corners <em>feed dependent</em></button><button data-market-kind="total_goals">Total Goals <em>feed dependent</em></button><button data-market-kind="total_shots">Total Shots <em>feed dependent</em></button><button data-market-kind="total_offsides">Total Offsides <em>feed dependent</em></button><button data-market-kind="total_fouls">Total Fouls <em>feed dependent</em></button></div>
-            <div><h3>Player Props</h3><button data-market-kind="player_goals">Player Goals <em>feed dependent</em></button><button data-market-kind="player_shots">Player Shots <em>feed dependent</em></button><button data-market-kind="player_assists">Player Assists <em>feed dependent</em></button><button data-market-kind="player_saves">Player Saves <em>feed dependent</em></button><button data-market-kind="player_passes">Player Passes <em>feed dependent</em></button></div>
-          </div>
-        </section>
+      <div class="odds-toolbar-right">
+        <div class="odds-menu-shell">
+          <button class="odds-icon-button" id="odds-search-trigger" type="button" aria-label="Search teams" aria-expanded="false" aria-controls="odds-search-panel"><i class="ph ph-magnifying-glass"></i></button>
+          <section class="odds-popover odds-search-panel" id="odds-search-panel" hidden>
+            <label class="odds-search"><i class="ph ph-magnifying-glass"></i><input id="odds-search" type="search" placeholder="Search teams and markets" autocomplete="off"></label>
+          </section>
+        </div>
+
+        <div class="odds-menu-shell odds-books-shell">
+          <button class="odds-icon-button" id="odds-books-trigger" type="button" aria-label="Filter sportsbooks" aria-expanded="false" aria-controls="odds-books-menu"><i class="ph ph-funnel"></i></button>
+          <section class="odds-books-menu" id="odds-books-menu" hidden>
+            <div class="odds-books-summary">
+              <strong id="odds-books-count">3 selected</strong>
+              <span class="odds-books-bulk-actions"><button type="button" id="odds-books-none">Deselect all</button><button type="button" id="odds-books-all">Select all</button></span>
+            </div>
+            <label class="odds-books-search"><i class="ph ph-magnifying-glass"></i><input id="odds-books-search" type="search" placeholder="Search providers"></label>
+            <div class="odds-book-list">
+              <label><input type="checkbox" value="polymarket" checked><img src="https://polymarket.com/icons/favicon-32x32.png" alt="">Polymarket</label>
+              <label><input type="checkbox" value="kalshi" checked><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="">Kalshi</label>
+              <label><input type="checkbox" value="4cx" checked><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="">4CX</label>
+            </div>
+            <button class="odds-books-apply" id="odds-books-apply" type="button">Apply filters</button>
+            <small>Provider order and selection are saved on this device.</small>
+          </section>
+        </div>
+
+        <button class="odds-icon-button" id="odds-notifications" type="button" aria-label="Odds alerts"><i class="ph ph-bell"></i></button>
+        <button class="odds-icon-button" id="odds-refresh" type="button" title="Refresh now" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
+
+        <div class="odds-menu-shell">
+          <button class="odds-icon-button" id="odds-more-trigger" type="button" aria-label="More odds options" aria-expanded="false" aria-controls="odds-more-menu"><i class="ph ph-dots-three-vertical"></i></button>
+          <section class="odds-popover odds-more-menu" id="odds-more-menu" hidden>
+            <button type="button" data-odds-all><i class="ph ph-list"></i>All events</button>
+            <button type="button" data-odds-favorite><i class="ph ph-star"></i>Favorites only</button>
+            <span id="odds-latency">Credit saver</span>
+          </section>
+        </div>
       </div>
-
-      <span class="odds-live-state paused" id="odds-live-state"><i></i><strong id="odds-live-label">PAUSED</strong><small id="odds-latency">Credit saver</small></span>
-      <button class="odds-refresh odds-feed-toggle" id="odds-feed-toggle" type="button" title="Start the live odds feed"><i class="ph ph-play"></i><span>Start feed</span></button>
-
-      <div class="odds-menu-shell odds-books-shell">
-        <button class="odds-menu-trigger" id="odds-books-trigger" type="button" aria-expanded="false" aria-controls="odds-books-menu"><span>Sportsbooks</span><i class="ph ph-caret-down"></i></button>
-        <section class="odds-books-menu" id="odds-books-menu" hidden>
-          <div class="odds-books-summary">
-            <strong id="odds-books-count">3 selected</strong>
-            <span class="odds-books-bulk-actions">
-              <button type="button" id="odds-books-none">Deselect All</button>
-              <button type="button" id="odds-books-all">Select All</button>
-            </span>
-          </div>
-          <label class="odds-books-search"><i class="ph ph-magnifying-glass"></i><input id="odds-books-search" type="search" placeholder="Search"></label>
-          <div class="odds-book-list">
-            <label><input type="checkbox" value="polymarket" checked><img src="https://polymarket.com/icons/favicon-32x32.png" alt="">Polymarket</label>
-            <label><input type="checkbox" value="kalshi" checked><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="">Kalshi</label>
-            <label><input type="checkbox" value="4cx" checked><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="">4CX</label>
-          </div>
-          <button class="odds-books-apply" id="odds-books-apply" type="button">Apply</button>
-          <small>Read-only exchange and sportsbook feeds</small>
-        </section>
-      </div>
-
-      <label class="odds-search search-control"><i class="ph ph-magnifying-glass"></i><input id="odds-search" type="search" placeholder="Search teams"></label>
-      <button class="odds-refresh icon-button" id="odds-refresh" title="Refresh now" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
-    </div>
-    <div class="odds-market-tabs">
-      <button class="active" data-odds-kind="">Main Markets</button><button data-odds-kind="moneyline">Moneyline</button><button data-odds-kind="spread">Run Line / Spread</button><button data-odds-kind="alternate_spread">Alt Spreads</button><button data-odds-kind="game_total">Game Totals</button><button data-odds-kind="alternate_total">Alt Totals</button>
-      <span><i class="ph ph-shield-check" aria-hidden="true"></i> Exact markets only · read-only feeds</span>
     </div>
   </header>
+
+  <div class="odds-market-bar">
+    <nav class="odds-market-tabs" aria-label="Market type">
+      <button class="active" data-odds-kind="moneyline" type="button">Moneyline</button>
+      <button data-odds-kind="spread" type="button">Run Line / Spread</button>
+      <button data-odds-kind="alternate_spread" type="button">Alt Spreads</button>
+      <button data-odds-kind="game_total" type="button">Game Totals</button>
+      <button data-odds-kind="alternate_total" type="button">Alt Totals</button>
+      <div class="odds-menu-shell odds-props-shell">
+        <button id="odds-props-trigger" type="button" aria-expanded="false" aria-controls="odds-props-menu">Player Props <i class="ph ph-caret-down"></i></button>
+        <section class="odds-popover odds-props-menu" id="odds-props-menu" hidden>
+          <div class="odds-menu-heading"><strong>Detected player props</strong><button type="button" data-close-menu aria-label="Close"><i class="ph ph-x"></i></button></div>
+          <div id="odds-props-list"><span>No player props in the current feed.</span></div>
+        </section>
+      </div>
+    </nav>
+    <span class="odds-feed-status"><i></i><span id="odds-feed-status-label">Odds feed paused</span></span>
+  </div>
+
   <section class="mobile-odds-board" aria-label="Mobile sportsbook screen">
-    <div class="mobile-odds-titlebar">
-      <div class="mobile-odds-title"><span class="mobile-odds-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>Odds</strong></div>
-      <span class="mobile-odds-status" id="mobile-odds-status"><i></i><span>Paused</span></span>
-    </div>
+    <div class="mobile-odds-titlebar"><div class="mobile-odds-title"><span class="mobile-odds-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>Odds</strong></div><span class="mobile-odds-status" id="mobile-odds-status"><i></i><span>Paused</span></span></div>
     <div class="mobile-odds-controls">
-      <label class="mobile-odds-league">
-        <span class="sr-only">League</span>
-        <select id="mobile-odds-league">
-          <option value="">All</option>
-          <option value="Baseball|MLB">MLB</option>
-          <option value="Basketball|WNBA">WNBA</option>
-          <option value="Basketball|NBA">NBA</option>
-          <option value="Football|NFL">NFL</option>
-          <option value="Hockey|NHL">NHL</option>
-          <option value="Tennis|ATP">ATP</option>
-          <option value="Tennis|WTA">WTA</option>
-        </select>
-        <i class="ph ph-caret-down" aria-hidden="true"></i>
-      </label>
-      <label class="mobile-odds-search">
-        <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
-        <input id="mobile-odds-search" type="search" placeholder="Search teams...">
-      </label>
+      <label class="mobile-odds-league"><span class="sr-only">League</span><select id="mobile-odds-league"><option value="">All</option><option value="Baseball|MLB">MLB</option><option value="Basketball|WNBA">WNBA</option><option value="Basketball|NBA">NBA</option><option value="Football|NFL">NFL</option><option value="Hockey|NHL">NHL</option><option value="Tennis|ATP">ATP</option><option value="Tennis|WTA">WTA</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="mobile-odds-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mobile-odds-search" type="search" placeholder="Search teams..."></label>
       <button class="mobile-odds-refresh" id="mobile-odds-refresh" type="button" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
     </div>
     <div class="mobile-odds-games" id="mobile-odds-games" aria-live="polite"></div>
   </section>
-  <div class="odds-grid-shell il-data-grid">
-    <div class="odds-grid-head">
-      <span>START</span><span>TEAM / SELECTION</span>
-      <span class="book-head poly" data-odds-column="polymarket" data-book-column="polymarket" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Polymarket column. Drag to reorder."><img src="https://polymarket.com/icons/favicon-32x32.png" alt="Polymarket"><small>POLYMARKET</small></span>
-      <span class="book-head kalshi" data-odds-column="kalshi" data-book-column="kalshi" draggable="true" title="Drag to reorder sportsbook columns" aria-label="Kalshi column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="Kalshi"><small>KALSHI</small></span>
-      <span class="book-head fourcx" data-odds-column="4cx" data-book-column="4cx" draggable="true" title="Drag to reorder sportsbook columns" aria-label="4CX column. Drag to reorder."><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="4CX"><small>4CX</small></span>
-      <span class="book-head best-column-head" data-odds-column="best" draggable="true" title="Drag to reorder the best-price column" aria-label="Best price column. Drag to reorder."><i class="ph ph-trophy"></i><small>BEST</small></span>
-    </div>
-    <div id="odds-grid" class="odds-grid-body" aria-live="polite">
-      <div class="odds-loading table-loading-state" role="status">
-        <span class="loading-pulse" aria-hidden="true"></span>
-        <strong>Odds Screen paused</strong>
-        <small>Start the feed when you need the full sportsbook board. The Trade Tool remains active.</small>
-      </div>
-    </div>
+
+  <div class="odds-grid-shell">
+    <table class="odds-matrix">
+      <thead class="odds-grid-head">
+        <tr>
+          <th class="odds-event-head" scope="col">EVENT</th>
+          <th class="odds-time-head" scope="col">TIME</th>
+          <th class="odds-best-head" scope="col">BEST ODDS</th>
+          <th class="odds-average-head" scope="col">AVG. ODDS</th>
+          <th class="odds-history-head" scope="col"><i class="ph ph-chart-line-up" aria-label="Line history"></i></th>
+        </tr>
+      </thead>
+      <tbody id="odds-grid" class="odds-grid-body" aria-live="polite">
+        <tr class="odds-state-row"><td colspan="9"><div class="odds-loading" role="status"><span class="loading-pulse" aria-hidden="true"></span><strong>Odds Screen paused</strong><small>Start the feed when you need the full comparison board.</small></div></td></tr>
+      </tbody>
+    </table>
   </div>
-  <footer class="odds-footer"><span><i class="status-dot"></i> Trade Tool active · Odds Screen on demand</span><span id="odds-updated">Paused to protect credits</span></footer>
+
+  <footer class="odds-footer"><span><i class="status-dot"></i><span id="odds-footer-status">Odds feed paused</span></span><span class="odds-footer-meta"><span id="odds-updated">Paused to protect credits</span><span>All times shown in ET</span></span></footer>
 </section>
+
 <div class="mobile-odds-sheet-backdrop" id="mobile-odds-sheet-backdrop" hidden></div>
 <section class="mobile-odds-sheet" id="mobile-odds-sheet" role="dialog" aria-modal="true" aria-labelledby="mobile-odds-sheet-title" hidden>
-  <header class="mobile-odds-sheet-header">
-    <div class="mobile-odds-sheet-handle" aria-hidden="true"></div>
-    <div class="mobile-odds-sheet-heading">
-      <span></span>
-      <h2 id="mobile-odds-sheet-title">Markets</h2>
-      <button type="button" id="mobile-odds-sheet-close" aria-label="Close markets"><i class="ph ph-x"></i></button>
-    </div>
-    <p id="mobile-odds-sheet-meta"></p>
-    <strong id="mobile-odds-sheet-event"></strong>
-  </header>
-  <nav class="mobile-odds-sheet-tabs" aria-label="Market type">
-    <button class="active" type="button" data-mobile-market-kind="main">Main Markets</button>
-    <button type="button" data-mobile-market-kind="moneyline">Moneyline</button>
-    <button type="button" data-mobile-market-kind="spread">Run Line</button>
-    <button type="button" data-mobile-market-kind="total">Total Runs</button>
-  </nav>
+  <header class="mobile-odds-sheet-header"><div class="mobile-odds-sheet-handle" aria-hidden="true"></div><div class="mobile-odds-sheet-heading"><span></span><h2 id="mobile-odds-sheet-title">Markets</h2><button type="button" id="mobile-odds-sheet-close" aria-label="Close markets"><i class="ph ph-x"></i></button></div><p id="mobile-odds-sheet-meta"></p><strong id="mobile-odds-sheet-event"></strong></header>
+  <nav class="mobile-odds-sheet-tabs" aria-label="Market type"><button class="active" type="button" data-mobile-market-kind="main">All</button><button type="button" data-mobile-market-kind="moneyline">Moneyline</button><button type="button" data-mobile-market-kind="spread">Run Line</button><button type="button" data-mobile-market-kind="total">Total</button></nav>
   <div class="mobile-odds-sheet-content" id="mobile-odds-sheet-content"></div>
 </section>
 {% endblock %}

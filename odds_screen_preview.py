@@ -37,6 +37,13 @@ PROVIDERS = (
     },
 )
 
+PARTICIPANT_LOGOS = {
+    "New York Yankees": "https://a.espncdn.com/i/teamlogos/mlb/500/nyy.png",
+    "Boston Red Sox": "https://a.espncdn.com/i/teamlogos/mlb/500/bos.png",
+    "New York Liberty": "https://a.espncdn.com/i/teamlogos/wnba/500/ny.png",
+    "Las Vegas Aces": "https://a.espncdn.com/i/teamlogos/wnba/500/lv.png",
+}
+
 
 def _implied_probability(american_odds: int) -> float:
     if american_odds > 0:
@@ -116,6 +123,11 @@ def _market_rows(
                 "canonical_league_id": league,
                 "is_sports": True,
                 "previewOnly": True,
+                "participant_logos": {
+                    participant: PARTICIPANT_LOGOS[participant]
+                    for participant in outcomes
+                    if participant in PARTICIPANT_LOGOS
+                },
                 "card": {"recommended_amount": 0},
                 "recommendation": {"recommended_amount": 0},
                 "executionOptions": _options(
