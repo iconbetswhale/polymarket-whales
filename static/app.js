@@ -116,6 +116,8 @@ const appState = {
   sellPosition: null,
   intelligence: { candidates: [], proposals: [], violations: [], diagnostics: null },
 };
+const TRACKER_PREVIEW = page === "tracker"
+  && document.querySelector(".tracker-page")?.dataset.trackerPreview === "true";
 
 function researchBadges(trade) {
   const badges = [];
@@ -5100,8 +5102,105 @@ function trackerRequestParams(view) {
   return new URLSearchParams(params);
 }
 
+const TRACKER_PREVIEW_ROWS = [
+  {
+    status: "won", result: "won", profit_loss: 99.12, recommended_amount: 84,
+    tracked_at: "2026-08-16T23:43:00Z", settled_at: "2026-08-17T03:12:00Z",
+    snapshot: { sportsbook: "NoVIG", event_title: "New York Mets vs Philadelphia Phillies", market_title: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
+    sharp_snapshot: { primary_sharp: { display_name: "Bagwell306", wallet_address: "0xbagwell306", average_entry: 0.446, amount: 420 } },
+    clv: { clv_status: "captured", clv_pct: 5.62, clv_cents: 2.6, provider: "NoVIG", entry_native_odds: 118, entry_price: 0.4587, closing_effective_price: 0.4845, closing_midpoint: 0.482, midpoint_clv_pct: 5.08, comparison_stake: 84, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T00:40:00Z", official_event_start_timestamp: "2026-08-17T01:10:00Z", quote_age_ms: 28000 },
+  },
+  {
+    status: "lost", result: "lost", profit_loss: -72, recommended_amount: 72,
+    tracked_at: "2026-08-17T00:43:00Z", settled_at: "2026-08-17T04:05:00Z",
+    snapshot: { sportsbook: "ProphetX", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
+    sharp_snapshot: { primary_sharp: { display_name: "CourtsideCap", wallet_address: "0xcourtsidecap", average_entry: 0.468, amount: 365 } },
+    clv: { clv_status: "captured", clv_pct: 4.18, clv_cents: 2.0, provider: "ProphetX", entry_native_odds: 108, entry_price: 0.4808, closing_effective_price: 0.5009, closing_midpoint: 0.499, midpoint_clv_pct: 3.79, comparison_stake: 72, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T01:55:00Z", official_event_start_timestamp: "2026-08-17T02:15:00Z", quote_age_ms: 21000 },
+  },
+  {
+    status: "won", result: "won", profit_loss: 60.9, recommended_amount: 58,
+    tracked_at: "2026-08-17T01:43:00Z", settled_at: "2026-08-17T05:18:00Z",
+    snapshot: { sportsbook: "4CX", event_title: "Chicago Cubs vs Milwaukee Brewers", market_title: "Game Total", recommended_side: "Under 8.5 Runs", provider_entry_price: 0.4878, provider_display_odds: "+105", effective_entry_price: 0.4878, sharp_average_entry_price: 0.474, market_url: "" },
+    sharp_snapshot: { primary_sharp: { display_name: "NorthSideEdge", wallet_address: "0xnorthsideedge", average_entry: 0.474, amount: 288 } },
+    clv: { clv_status: "captured", clv_pct: 3.41, clv_cents: 1.7, provider: "4CX", entry_native_odds: 105, entry_price: 0.4878, closing_effective_price: 0.5044, closing_midpoint: 0.502, midpoint_clv_pct: 2.91, comparison_stake: 58, liquidity_quality: "Excellent", closing_snapshot_timestamp: "2026-08-17T02:50:00Z", official_event_start_timestamp: "2026-08-17T03:05:00Z", quote_age_ms: 17000 },
+  },
+  {
+    status: "live", result: null, profit_loss: null, recommended_amount: 46,
+    tracked_at: "2026-08-17T02:43:00Z", settled_at: null,
+    snapshot: { sportsbook: "NoVIG", event_title: "Taylor Fritz vs Ben Shelton", market_title: "Moneyline", recommended_side: "Taylor Fritz", provider_entry_price: 0.6124, provider_display_odds: "-158", effective_entry_price: 0.6124, sharp_average_entry_price: 0.598, market_url: "" },
+    sharp_snapshot: { primary_sharp: { display_name: "BaselineAlpha", wallet_address: "0xbaselinealpha", average_entry: 0.598, amount: 204 } },
+    clv: { clv_status: "pending", clv_unavailable_reason: "Event has not reached the verified closing window" },
+  },
+  {
+    status: "won", result: "won", profit_loss: 34.68, recommended_amount: 34,
+    tracked_at: "2026-08-17T03:43:00Z", settled_at: "2026-08-17T06:48:00Z",
+    snapshot: { sportsbook: "ProphetX", event_title: "Seattle Storm vs Phoenix Mercury", market_title: "Game Total", recommended_side: "Over 162.5 Points", provider_entry_price: 0.495, provider_display_odds: "+102", effective_entry_price: 0.495, sharp_average_entry_price: 0.486, market_url: "" },
+    sharp_snapshot: { primary_sharp: { display_name: "DesertTotals", wallet_address: "0xdeserttotals", average_entry: 0.486, amount: 178 } },
+    clv: { clv_status: "captured", clv_pct: 1.93, clv_cents: 1.0, provider: "ProphetX", entry_native_odds: 102, entry_price: 0.495, closing_effective_price: 0.5046, closing_midpoint: 0.503, midpoint_clv_pct: 1.62, comparison_stake: 34, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T04:50:00Z", official_event_start_timestamp: "2026-08-17T05:10:00Z", quote_age_ms: 19000 },
+  },
+];
+
+function trackerPreviewPayload(params) {
+  const search = String(params.get("q") || "").trim().toLowerCase();
+  const status = String(params.get("status") || "").toLowerCase();
+  const result = String(params.get("result") || "").toLowerCase();
+  const sharp = String(params.get("sharp") || "").toLowerCase();
+  const selectedBooks = new Set(String(params.get("sportsbook") || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
+  const rows = TRACKER_PREVIEW_ROWS.filter((row) => {
+    const snapshot = row.snapshot || {};
+    const sharpName = row.sharp_snapshot?.primary_sharp?.display_name || "";
+    const haystack = [snapshot.event_title, snapshot.market_title, snapshot.recommended_side, snapshot.sportsbook, sharpName].join(" ").toLowerCase();
+    if (search && !haystack.includes(search)) return false;
+    if (status && String(row.status || "").toLowerCase() !== status) return false;
+    if (result && String(row.result || row.status || "").toLowerCase() !== result) return false;
+    if (sharp && sharpName.toLowerCase() !== sharp) return false;
+    if (selectedBooks.size && !selectedBooks.has(String(snapshot.sportsbook || "").toLowerCase())) return false;
+    return true;
+  });
+  const baseSummary = {
+    starting_bankroll: 10000, current_bankroll: 10122.7, realized_profit_loss: 122.7,
+    open_exposure: 46, potential_payout: 75.11, total_wagered: 294, settled_wagered: 248,
+    wins: 3, losses: 1, pushes_voids: 0, total_tracked_bets: 5, roi: 0.01227,
+    win_rate: 0.75, maximum_drawdown: 0.0072,
+  };
+  const clvPeriod = { stake_weighted_clv_pct: 4.02, average_clv_pct: 3.79, median_clv_pct: 3.8, positive_clv_rate: 1, bets_measured: 4 };
+  const clvRecords = TRACKER_PREVIEW_ROWS.filter((row) => row.clv?.clv_status === "captured").map((row) => ({
+    record_timestamp: row.settled_at,
+    sportsbook: row.snapshot.sportsbook,
+    clv: { ...row.clv, entry_stake: row.recommended_amount, provider_closes: [{ provider_name: row.snapshot.sportsbook, closing_probability: row.clv.closing_effective_price, mapping_confidence: "EXACT" }] },
+  }));
+  return {
+    data: rows,
+    pagination: { page: 1, per_page: 50, total: rows.length, has_prev: false, has_next: false },
+    bankroll: { tracker_bankroll: 10000 }, summary: baseSummary, period_summary: baseSummary,
+    tracking: { status: "running" },
+    graph: [
+      { timestamp: "2026-08-12T12:00:00Z", bankroll: 10000, daily_profit: 0 },
+      { timestamp: "2026-08-13T12:00:00Z", bankroll: 10048, daily_profit: 48 },
+      { timestamp: "2026-08-14T12:00:00Z", bankroll: 10021, daily_profit: -27 },
+      { timestamp: "2026-08-15T12:00:00Z", bankroll: 10074, daily_profit: 53 },
+      { timestamp: "2026-08-16T12:00:00Z", bankroll: 10038, daily_profit: -36 },
+      { timestamp: "2026-08-17T12:00:00Z", bankroll: 10122.7, daily_profit: 84.7 },
+    ],
+    filter_options: { sportsbooks: ["4CX", "NoVIG", "ProphetX"], sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"] },
+    sportsbook_summaries: [
+      { sportsbook: "NoVIG", realized_profit_loss: 99.12, wins: 1, losses: 0, total_tracked_bets: 2 },
+      { sportsbook: "ProphetX", realized_profit_loss: -37.32, wins: 1, losses: 1, total_tracked_bets: 2 },
+      { sportsbook: "4CX", realized_profit_loss: 60.9, wins: 1, losses: 0, total_tracked_bets: 1 },
+    ],
+    clv: { periods: { all: clvPeriod, today: clvPeriod, "7d": clvPeriod, month: clvPeriod, year: clvPeriod } },
+    clv_records: clvRecords,
+  };
+}
+
 async function loadTracker({ initial = false } = {}) {
   const params = trackerRequestParams("model");
+  if (TRACKER_PREVIEW) {
+    const payload = trackerPreviewPayload(params);
+    appState.trackerCache.model = payload;
+    renderModelTracker(payload);
+    return;
+  }
   const cacheKey = pagePayloadCacheKey("tracker-model", params.toString());
   if (initial) {
     const cachedPayload = readPagePayloadCache(cacheKey, 30 * 60 * 1000)
@@ -5168,6 +5267,7 @@ function selectTrackerSection(section, { updateUrl = true } = {}) {
     url.searchParams.set("section", normalized);
     window.history.replaceState({}, "", `${url.pathname}?${url.searchParams.toString()}`);
   }
+  window.scrollTo({ top: 0, behavior: "auto" });
 }
 
 function configureTrackerShell(view) {

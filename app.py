@@ -1189,7 +1189,18 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/tracker")
     def tracker_page():
-        return render_template("tracker.html", title="IconBets Tracker", page="tracker")
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        return render_template(
+            "tracker.html",
+            title="IconBets Tracker",
+            page="tracker",
+            tracker_preview=preview_requested,
+        )
 
     @app.route("/lab-tracker")
     def lab_tracker_page():
