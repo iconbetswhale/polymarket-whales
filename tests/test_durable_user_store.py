@@ -101,6 +101,26 @@ def test_postgres_rejection_replacement_uses_cursor_batch():
     assert connection.fake_cursor.batches[0][1][0][0] == "user-1"
 
 
+def test_postgres_open_positions_use_cursor_batch():
+    connection = FakeConnection()
+    store = _store_with_connection(connection)
+    snapshot = {
+        "wallet_address": "0xABC",
+        "position_key": "market::yes",
+        "first_detected_at": "2026-08-21T00:00:00+00:00",
+        "last_seen_at": "2026-08-21T00:00:00+00:00",
+        "last_changed_at": "2026-08-21T00:00:00+00:00",
+    }
+
+    store.save_open_positions([snapshot])
+
+    assert len(connection.fake_cursor.batches) == 1
+    query, values = connection.fake_cursor.batches[0]
+    assert "INSERT INTO tracked_positions" in query
+    assert values[0][0] == "0xabc"
+    assert values[0][1] == "market::yes"
+
+
 def test_postgres_tracker_bankroll_update_preserves_trade_bankroll():
     connection = ReturningConnection(
         {

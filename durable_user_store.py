@@ -833,29 +833,30 @@ class PostgresUserStore:
             for snapshot in snapshots
         ]
         with self.connection() as conn:
-            conn.executemany(
-                """
-                INSERT INTO tracked_positions (
-                    wallet_address, position_key, status, category, league,
-                    market_title, outcome, resolution_time, first_detected_at,
-                    last_seen_at, last_changed_at, closed_at, snapshot_json
+            with conn.cursor() as cursor:
+                cursor.executemany(
+                    """
+                    INSERT INTO tracked_positions (
+                        wallet_address, position_key, status, category, league,
+                        market_title, outcome, resolution_time, first_detected_at,
+                        last_seen_at, last_changed_at, closed_at, snapshot_json
+                    )
+                    VALUES (%s, %s, 'open', %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s)
+                    ON CONFLICT(wallet_address, position_key) DO UPDATE SET
+                        status = 'open',
+                        category = EXCLUDED.category,
+                        league = EXCLUDED.league,
+                        market_title = EXCLUDED.market_title,
+                        outcome = EXCLUDED.outcome,
+                        resolution_time = EXCLUDED.resolution_time,
+                        first_detected_at = EXCLUDED.first_detected_at,
+                        last_seen_at = EXCLUDED.last_seen_at,
+                        last_changed_at = EXCLUDED.last_changed_at,
+                        closed_at = NULL,
+                        snapshot_json = EXCLUDED.snapshot_json
+                    """,
+                    values,
                 )
-                VALUES (%s, %s, 'open', %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s)
-                ON CONFLICT(wallet_address, position_key) DO UPDATE SET
-                    status = 'open',
-                    category = EXCLUDED.category,
-                    league = EXCLUDED.league,
-                    market_title = EXCLUDED.market_title,
-                    outcome = EXCLUDED.outcome,
-                    resolution_time = EXCLUDED.resolution_time,
-                    first_detected_at = EXCLUDED.first_detected_at,
-                    last_seen_at = EXCLUDED.last_seen_at,
-                    last_changed_at = EXCLUDED.last_changed_at,
-                    closed_at = NULL,
-                    snapshot_json = EXCLUDED.snapshot_json
-                """,
-                values,
-            )
 
     def save_open_position(self, snapshot: dict[str, Any]) -> None:
         self.save_open_positions([snapshot])
