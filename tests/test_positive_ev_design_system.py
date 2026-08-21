@@ -77,6 +77,10 @@ def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     assert feed.index('class="ev-bet-metrics"') < feed.index('class="ev-best-button')
     assert '<div class="ev-selection">' in feed
     assert '<input class="ev-selection"' not in feed
+    assert "leagueWatermark(row)" in feed
+    assert "matchup(row)" in feed
+    assert 'class="ev-league-watermark"' in SCRIPT
+    assert 'alt="" aria-hidden="true"' in SCRIPT
 
     select = _function("select")
     assert select.index("marketOddsVisual(row)") < select.index("ev-market-trend")
@@ -109,11 +113,13 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     ):
         assert token in CSS
 
-    assert "grid-template-columns: minmax(0, 1fr) clamp(420px, 25vw, 480px)" in CSS
-    assert "grid-template-columns: 202px minmax(210px, 1fr)" in CSS
+    assert "grid-template-columns: minmax(0, 1fr) 550px" in CSS
+    assert "grid-template-columns: 202px minmax(200px, .9fr) minmax(140px, .65fr) minmax(447px, 1.8fr)" in CSS
     assert "grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr)" in CSS
     assert ".ev-selection" in CSS
-    assert "box-shadow: inset 3px 0 0 var(--il-brand)" in CSS
+    assert "box-shadow: inset 4px 0 0 var(--il-brand), 0 0 10px var(--il-brand-glow)" in CSS
+    assert ".ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-hover); transform: none; }" in CSS
+    assert '.ev-opportunity.active {\n  border-width: 1px;' in CSS
     assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong' in CSS
     assert ".ev-bet-metrics { display: grid; grid-template-columns: auto auto; align-items: stretch; gap: var(--il-space-1); }" in CSS
     assert "border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-elevated)" in CSS
@@ -122,9 +128,71 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     assert ".ev-execution" in CSS and "background: transparent" in CSS
 
 
+def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
+    for rule in (
+        "font: 700 30px/1 var(--il-font-data)",
+        "font: 700 12px/1 var(--il-font-ui)",
+        "font-size: 16px",
+        "font: var(--il-type-metadata)",
+        "font: 700 18px/1.25 var(--il-font-ui)",
+        "font: 650 14px/1.2 var(--il-font-ui)",
+        "font: 700 20px/1.25 var(--il-font-ui)",
+        "font: 700 18px/1.14 var(--il-font-ui)",
+        "font: 650 10px/1.2 var(--il-font-ui)",
+        "font: 700 16px/1 var(--il-font-data)",
+        "font: 700 24px/1 var(--il-font-data)",
+        "font: 700 20px/1.2 var(--il-font-ui)",
+        "font: 700 14px/1.25 var(--il-font-ui)",
+        "font: 600 11px/1.1 var(--il-font-data)",
+        "font: 700 18px/1 var(--il-font-data)",
+    ):
+        assert rule in CSS
+
+    assert ".ev-opportunity > .ev-score { padding: 11px 0 11px 9px; }" in CSS
+    assert "width: 72px" in CSS
+    assert "min-width: 98px" in CSS
+    assert "border: 2px solid var(--il-brand-hover)" in CSS
+    assert "box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow)" in CSS
+
+
+def test_positive_ev_uses_real_league_logo_watermarks() -> None:
+    for league in ("mlb", "wnba", "atp", "wta", "nba", "nfl", "nhl", "ncaa", "mls", "epl", "uefa", "fifa"):
+        assert f'/static/assets/leagues/{league}.png' in SCRIPT
+        assert (ROOT / "static" / "assets" / "leagues" / f"{league}.png").is_file()
+
+    assert 'const leagueLogo = row =>' in SCRIPT
+    assert 'return source ? `<img class="ev-league-watermark"' in SCRIPT
+    assert ".ev-pick { position: relative; isolation: isolate; overflow: hidden; }" in CSS
+    assert "opacity: .16" in CSS
+    assert "pointer-events: none" in CSS
+
+
+def test_positive_ev_matchups_use_high_resolution_team_assets() -> None:
+    expected_counts = {"mlb": 30, "wnba": 13}
+    for league, expected_count in expected_counts.items():
+        assets = sorted((ROOT / "static" / "assets" / "teams" / league).glob("*.png"))
+        assert len(assets) == expected_count
+        for asset in assets:
+            assert f'/static/assets/teams/{league}/{asset.name}' in SCRIPT
+
+    assert 'class="ev-matchup-inline"' in SCRIPT
+    assert SCRIPT.count('class="ev-team-logo"') == 2
+    assert 'alt="" aria-hidden="true"' in SCRIPT
+    assert ".ev-team-logo { width: 34px; height: 34px" in CSS
+    assert "grid-template-rows: auto minmax(0, 1fr)" in CSS
+    assert "text-align: center" in CSS
+    assert ".ev-matchup-inline .ev-team-name { font-size: 13px" in CSS
+    assert ".ev-team-logo { width: 24px; height: 24px; flex-basis: 24px; }" in CSS
+    assert '.ev-league-watermark[src$="/mlb.png"]' in CSS
+    assert "height: 118%" in CSS
+    assert '.ev-league-watermark[src$="/atp.png"]' in CSS
+
+
 def test_positive_ev_responsive_and_accessibility_contracts() -> None:
     for breakpoint in (1600, 1320, 980, 640, 420):
         assert f"@media (max-width: {breakpoint}px)" in CSS
+
+    assert "grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr)" in CSS
 
     assert "overflow-x: hidden" in CSS
     assert "transform: translateY(102%)" in CSS

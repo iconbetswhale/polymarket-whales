@@ -316,13 +316,13 @@ def test_demo_dashboard_filters_sources_and_keeps_prediction_records_real(tmp_pa
     prediction = demo_dashboard(
         scope="signal",
         source="prediction_traders",
-        window="7d",
+        window="all",
         prediction_records=prediction_records,
     )
     all_signals = demo_dashboard(
         scope="signal",
         source=None,
-        window="7d",
+        window="all",
         prediction_records=prediction_records,
     )
     assert positive_ev["summary"]["tracked"] > 0

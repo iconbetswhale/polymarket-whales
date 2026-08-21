@@ -108,7 +108,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .brand-icon { display: no
   min-height: 0;
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) clamp(420px, 25vw, 480px);
+  grid-template-columns: minmax(0, 1fr) 550px;
   gap: var(--il-space-3);
   overflow: hidden;
 }
@@ -145,7 +145,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .brand-icon { display: no
   min-height: 96px;
   flex: 0 0 96px;
   display: grid;
-  grid-template-columns: 202px minmax(210px, 1fr) minmax(150px, .7fr) minmax(460px, 1.8fr);
+  grid-template-columns: 202px minmax(200px, .9fr) minmax(140px, .65fr) minmax(447px, 1.8fr);
   overflow: hidden;
   border: 1px solid var(--il-border-subtle);
   border-radius: var(--il-radius-panel);
@@ -153,21 +153,29 @@ body[data-design-system="v2"][data-page="positive-ev"] .brand-icon { display: no
   color: var(--il-text-primary);
   transition: border-color var(--il-motion-fast) ease, background var(--il-motion-fast) ease, transform var(--il-motion-fast) ease;
 }
-.ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-hover); transform: translateY(-1px); }
-.ev-opportunity.active { border-color: var(--il-brand-outline-strong); background: var(--il-surface-selected-quiet); box-shadow: inset 3px 0 0 var(--il-brand); }
+.ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-hover); transform: none; }
+.ev-opportunity.active {
+  border-width: 1px;
+  border-color: var(--il-brand-hover);
+  background: var(--il-surface-selected-quiet);
+  box-shadow: inset 4px 0 0 var(--il-brand), 0 0 10px var(--il-brand-glow);
+}
 .ev-opportunity.watch { border-color: var(--il-warning-border); }
 .ev-card-open { position: absolute; z-index: 1; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; border-radius: inherit; background: transparent; cursor: pointer; }
 .ev-card-open:focus-visible { outline: var(--il-focus-width) solid var(--il-focus); outline-offset: -3px; }
 .ev-opportunity > div { min-width: 0; padding: var(--il-space-3); border-right: 1px solid var(--il-border-hairline); }
 
-.ev-score { display: flex; align-items: center; gap: var(--il-space-2); font-variant-numeric: tabular-nums lining-nums; }
-body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 25px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
+.ev-opportunity > .ev-score { padding: 11px 0 11px 9px; }
+.ev-score { display: flex; align-items: center; gap: var(--il-space-3); text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 30px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
 .ev-opportunity.watch .ev-score.il-confidence-display > strong { color: var(--il-warning); }
-.ev-track-button.button.compact {
+body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button.button.compact {
   position: relative;
   z-index: 2;
-  min-width: 58px;
-  min-height: 30px;
+  width: 72px;
+  min-width: 72px;
+  height: 28px;
+  min-height: 28px;
   padding: 0 7px;
   display: inline-flex;
   align-items: center;
@@ -176,28 +184,64 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-d
   border-color: var(--il-border-standard);
   background: var(--il-surface-2);
   color: var(--il-text-secondary);
-  font-size: 10px;
+  font: 700 12px/1 var(--il-font-ui);
   white-space: nowrap;
 }
-.ev-track-button i { color: var(--il-brand-hover); font-size: 13px; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { color: var(--il-brand-hover); font-size: 16px; }
 .ev-track-button:hover { color: var(--il-text-primary); }
 .ev-track-button.tracked { border-color: var(--il-positive); background: var(--il-surface-positive-subtle); color: var(--il-positive-hover); }
 .ev-track-button.tracked i { color: var(--il-positive); }
 
-.ev-event,
+.ev-event {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  align-items: stretch;
+  row-gap: 2px;
+  padding-block: 8px;
+}
 .ev-pick { display: flex; flex-direction: column; justify-content: center; }
+.ev-pick { position: relative; isolation: isolate; overflow: hidden; }
+.ev-pick > :not(.ev-league-watermark) { position: relative; z-index: 1; }
+.ev-league-watermark {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  width: 112px;
+  height: 100%;
+  object-fit: contain;
+  object-position: right center;
+  image-rendering: auto;
+  opacity: .16;
+  pointer-events: none;
+  transform: translateX(18%);
+  user-select: none;
+}
+.ev-league-watermark[src$="/atp.png"] { width: 118px; height: auto; top: 50%; filter: brightness(0) invert(1); transform: translate(12%, -50%); }
+.ev-league-watermark[src$="/mlb.png"] {
+  top: -9%;
+  width: auto;
+  height: 118%;
+  object-fit: contain;
+  object-position: right center;
+  transform: translateX(8%);
+}
 .ev-event time,
-.ev-pick small { color: var(--il-text-muted); font: var(--il-type-table-header); }
-.ev-event time { margin-bottom: 6px; }
-.ev-event strong,
-.ev-pick strong { color: var(--il-text-primary); font: var(--il-type-card-title); }
-.ev-matchup { min-width: 0; }
+.ev-pick small { color: var(--il-text-muted); }
+.ev-event time { font: var(--il-type-metadata); }
+.ev-event time { width: 100%; margin: 0; align-self: start; text-align: center; }
+.ev-event strong { color: var(--il-text-primary); font: 700 18px/1.25 var(--il-font-ui); }
+.ev-matchup { min-width: 0; display: flex; align-items: center; justify-content: center; }
 .ev-matchup-line { display: block; overflow-wrap: anywhere; }
-.ev-pick small { margin-bottom: 5px; display: flex; align-items: center; gap: 5px; text-transform: uppercase; }
-.ev-pick small i { color: var(--il-brand-hover); font-size: 12px; }
-.ev-pick strong { font-size: 14px; }
+.ev-matchup-inline { min-width: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
+.ev-team-logo { width: 34px; height: 34px; flex: 0 0 34px; object-fit: contain; image-rendering: auto; }
+.ev-team-name { min-width: 0; font-size: 18px; letter-spacing: -.025em; }
+.ev-matchup-vs { color: var(--il-text-muted); font-size: .78em; font-weight: 650; text-transform: lowercase; }
+.ev-pick small { margin-bottom: 5px; display: flex; align-items: center; gap: 5px; font: 650 14px/1.2 var(--il-font-ui); text-transform: uppercase; }
+.ev-pick small i { color: var(--il-brand-hover); font-size: 14px; }
+.ev-pick strong { color: var(--il-text-primary); font: 700 20px/1.25 var(--il-font-ui); }
 
-.ev-execution {
+.ev-opportunity > .ev-execution {
   min-width: 0;
   padding: 9px 10px;
   display: grid;
@@ -214,25 +258,26 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-d
   display: flex;
   align-items: center;
   overflow: hidden;
-  border: 1px solid var(--il-border-subtle);
+  border: 2px solid var(--il-brand-hover);
   border-radius: var(--il-radius-control);
   background: var(--il-surface-elevated);
   color: var(--il-text-primary);
-  font: 700 14px/1.2 var(--il-font-ui);
+  font: 700 18px/1.14 var(--il-font-ui);
   overflow-wrap: anywhere;
+  box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow);
 }
-.ev-opportunity.active .ev-selection { border-color: var(--il-border-standard); }
 .ev-bet-metrics { display: grid; grid-template-columns: auto auto; align-items: stretch; gap: var(--il-space-1); }
-.ev-bet-metric { min-width: 62px; min-height: 44px; padding: 3px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-elevated); text-align: center; font-variant-numeric: tabular-nums lining-nums; }
-.ev-bet-metric small { color: var(--il-text-muted); font: var(--il-type-table-header); text-transform: uppercase; white-space: nowrap; }
-.ev-bet-metric strong { margin-top: 4px; color: var(--il-text-primary); font: 700 14px/1 var(--il-font-data); white-space: nowrap; }
+.ev-bet-metric { min-width: 72px; min-height: 46px; padding: 4px 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-elevated); text-align: center; font-variant-numeric: tabular-nums lining-nums; }
+.ev-bet-metric.ev-to-win { min-width: 96px; }
+.ev-bet-metric small { color: var(--il-text-muted); font: 650 10px/1.2 var(--il-font-ui); text-transform: uppercase; white-space: nowrap; }
+.ev-bet-metric strong { margin-top: 4px; color: var(--il-text-primary); font: 700 16px/1 var(--il-font-data); white-space: nowrap; }
 .ev-bet-metric.ev-to-win strong { color: var(--il-positive); }
 
-.ev-best-button.il-executable-quote { position: relative; z-index: 2; min-width: 82px; min-height: 44px; padding: 0 8px; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums lining-nums; }
-.ev-best-button .ev-book-mark,
-.ev-best-button .ev-book-logo { width: 22px; height: 22px; flex-basis: 22px; }
-.ev-best-button > span:last-child { display: inline-flex; align-items: center; gap: 3px; color: var(--il-text-primary); font: 700 15px/1 var(--il-font-data); white-space: nowrap; }
-.ev-best-button > span:last-child i { color: var(--il-positive); font-size: 11px; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { position: relative; z-index: 2; min-width: 98px; min-height: 46px; padding: 0 9px; justify-content: center; gap: 6px; font-variant-numeric: tabular-nums lining-nums; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-mark,
+body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 26px; height: 26px; flex-basis: 26px; }
+.ev-best-button > span:last-child { display: inline-flex; align-items: center; gap: 3px; color: var(--il-text-primary); font: 700 16px/1 var(--il-font-data); white-space: nowrap; }
+.ev-best-button > span:last-child i { color: var(--il-positive); font-size: 14px; }
 .ev-best-button.watch { border-color: var(--il-warning); background: var(--il-surface-warning-subtle); }
 .ev-book-mark { min-width: 0; overflow: hidden; border-radius: var(--il-radius-sm); background: var(--il-surface-2); }
 .ev-book-logo { display: block; background: transparent; }
@@ -247,15 +292,15 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-d
 .ev-detail-empty p { max-width: 260px; margin: 0; }
 .ev-detail-card { padding: var(--il-space-3); }
 .ev-detail-head { padding: 2px 0 var(--il-space-3); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--il-space-2); border-bottom: 1px solid var(--il-border-subtle); }
-.ev-detail-head > strong { color: var(--il-positive); font: 700 21px/1 var(--il-font-data); white-space: nowrap; }
+.ev-detail-head > strong { color: var(--il-positive); font: 700 30px/1 var(--il-font-data); white-space: nowrap; }
 .ev-detail-head > div { min-width: 0; text-align: right; }
-.ev-detail-head h2 { margin: 0; color: var(--il-text-primary); font: 700 14px/1.25 var(--il-font-ui); overflow-wrap: anywhere; }
-.ev-detail-start { display: block; margin-top: 3px; color: var(--il-text-muted); font: var(--il-type-table-header); }
+.ev-detail-head h2 { margin: 0; color: var(--il-text-primary); font: 700 18px/1.2 var(--il-font-ui); overflow-wrap: anywhere; }
+.ev-detail-start { display: block; margin-top: 3px; color: var(--il-text-muted); font: var(--il-type-metadata); }
 body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-close { display: none; }
 .ev-detail-pick { min-height: 54px; margin: var(--il-space-2) 0 0; padding: 0 var(--il-space-3); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--il-space-3); border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-elevated); }
-.ev-detail-pick strong { min-width: 0; color: var(--il-text-primary); font: 700 14px/1.2 var(--il-font-ui); overflow-wrap: anywhere; }
+.ev-detail-pick strong { min-width: 0; color: var(--il-text-primary); font: 700 18px/1.2 var(--il-font-ui); overflow-wrap: anywhere; }
 .ev-detail-pick strong span { margin-left: 5px; color: var(--il-positive); font-family: var(--il-font-data); }
-.ev-detail-stake { color: var(--il-positive); font: 700 20px/1 var(--il-font-data); white-space: nowrap; }
+.ev-detail-stake { color: var(--il-positive); font: 700 24px/1 var(--il-font-data); white-space: nowrap; }
 .ev-warning-list { display: grid; gap: 6px; margin: var(--il-space-2) 0 0; }
 .ev-warning-list span { padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 7px; border: 1px solid var(--il-warning-border); border-radius: var(--il-radius-control); background: var(--il-surface-warning-subtle); color: var(--il-warning); font: 600 10px/1.4 var(--il-font-ui); }
 
@@ -264,26 +309,28 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-close { displa
 .ev-section > header,
 .ev-market-odds > header { min-height: 46px; padding: 0 var(--il-space-3); display: flex; align-items: center; justify-content: center; border-bottom: 1px solid var(--il-border-subtle); }
 .ev-section > header h3,
-.ev-market-odds > header h3,
 .ev-detail-accordion summary h3 { margin: 0; color: var(--il-text-primary); font: 700 14px/1.2 var(--il-font-ui); letter-spacing: .04em; }
+.ev-market-odds > header h3 { margin: 0; color: var(--il-text-primary); font: 700 20px/1.2 var(--il-font-ui); letter-spacing: .04em; }
 .ev-market-compare-head,
 .ev-market-compare-row { display: grid; grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr); align-items: center; gap: var(--il-space-2); }
+.ev-market-compare-head,
+.ev-market-compare-rows { width: 100%; max-width: 448px; margin-inline: auto; }
 .ev-market-compare-head { min-height: 44px; padding: 0 var(--il-space-3); color: var(--il-text-secondary); }
-.ev-market-compare-head strong { min-width: 0; font: 700 12px/1.2 var(--il-font-ui); text-align: center; overflow-wrap: anywhere; }
+.ev-market-compare-head strong { min-width: 0; font: 700 14px/1.25 var(--il-font-ui); text-align: center; overflow-wrap: anywhere; }
 .ev-market-compare-head i { justify-self: center; color: var(--il-text-muted); font-size: 13px; }
 .ev-market-compare-rows { padding: 0 var(--il-space-3) var(--il-space-2); }
-.ev-market-compare-row { min-height: 42px; border-top: 1px solid var(--il-border-hairline); }
+.ev-market-compare-row { min-height: 45px; border-top: 1px solid var(--il-border-hairline); }
 .ev-market-compare-row:first-child { border-top: 0; }
 .ev-market-book-center { display: grid; place-items: center; }
 .ev-market-book-center .ev-book-mark,
 .ev-market-book-center .ev-book-logo { width: 22px; height: 22px; flex-basis: 22px; }
-.ev-compare-price { min-width: 0; min-height: 28px; padding: 0 7px; display: grid; grid-template-columns: minmax(0, 1fr) auto 11px; align-items: center; gap: 5px; border: 1px solid var(--il-border-standard); border-radius: var(--il-radius-sm); background: var(--il-surface-2); color: var(--il-text-primary); text-decoration: none; font-variant-numeric: tabular-nums lining-nums; }
-.ev-market-compare-row > .ev-compare-price:last-child { grid-template-columns: 11px auto minmax(0, 1fr); }
+.ev-compare-price { min-width: 0; min-height: 30px; padding: 0 7px; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 5px; border: 1px solid var(--il-border-standard); border-radius: var(--il-radius-sm); background: var(--il-surface-2); color: var(--il-text-primary); text-decoration: none; font-variant-numeric: tabular-nums lining-nums; }
+.ev-market-compare-row > .ev-compare-price:last-child { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
 .ev-market-compare-row > .ev-compare-price:last-child i { grid-column: 1; grid-row: 1; transform: scaleX(-1); }
 .ev-market-compare-row > .ev-compare-price:last-child strong { grid-column: 2; grid-row: 1; }
 .ev-market-compare-row > .ev-compare-price:last-child small { grid-column: 3; grid-row: 1; text-align: right; }
-.ev-compare-price small { min-width: 0; overflow: hidden; color: var(--il-text-muted); font: 600 9px/1 var(--il-font-data); text-overflow: ellipsis; white-space: nowrap; }
-.ev-compare-price strong { color: var(--il-text-primary); font: 700 14px/1 var(--il-font-data); }
+.ev-compare-price small { min-width: 0; overflow: hidden; color: var(--il-text-muted); font: 600 11px/1.1 var(--il-font-data); text-overflow: ellipsis; white-space: nowrap; }
+.ev-compare-price strong { color: var(--il-text-primary); font: 700 18px/1 var(--il-font-data); text-align: center; }
 .ev-compare-price i { color: var(--il-text-muted); font-size: 10px; }
 .ev-compare-price.best { border-color: var(--il-positive); background: var(--il-surface-positive-subtle); }
 .ev-compare-price.best strong,
@@ -473,8 +520,12 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-opportunity > div { padding-inline: 10px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 24px; }
   .ev-track-button.button.compact { min-width: 54px; padding-inline: 6px; }
-  .ev-event strong { font-size: 14px; }
-  .ev-execution { grid-template-columns: minmax(92px, 1fr) auto auto; gap: 6px; padding-inline: 8px; }
+  .ev-event { padding-inline: 6px; }
+  .ev-event strong { font-size: 16px; }
+  .ev-matchup-inline { gap: 4px; }
+  .ev-matchup-inline .ev-team-name { font-size: 16px; }
+  .ev-team-logo { width: 28px; height: 28px; flex-basis: 28px; }
+  .ev-opportunity > .ev-execution { grid-template-columns: minmax(92px, 1fr) auto auto; gap: 6px; padding-inline: 8px; }
   .ev-selection { padding-inline: 8px; font-size: 12px; }
   .ev-bet-metric { min-width: 56px; padding-inline: 6px; }
   .ev-bet-metric.ev-to-win { min-width: 72px; }
@@ -486,14 +537,18 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
 @media (max-width: 1320px) and (min-width: 981px) {
   body[data-design-system="v2"][data-page="positive-ev"] .app-shell { padding-inline: var(--il-space-3); }
   .ev-workspace { grid-template-columns: minmax(0, 1fr) 320px; gap: var(--il-space-2); }
-  .ev-opportunity { grid-template-columns: 170px minmax(110px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr); }
+  .ev-opportunity { grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr); }
   .ev-opportunity > div { padding-inline: 8px; }
   .ev-score { gap: 5px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 22px; }
   .ev-track-button.button.compact { min-width: 50px; font-size: 9px; }
+  .ev-event { padding-inline: 3px; }
   .ev-event strong,
   .ev-pick strong { font-size: 12px; }
-  .ev-execution { grid-template-columns: minmax(64px, 1fr) auto auto; gap: 4px; padding-inline: 6px; }
+  .ev-matchup-inline { gap: 2px; }
+  .ev-matchup-inline .ev-team-name { font-size: 13px; letter-spacing: -.035em; }
+  .ev-team-logo { width: 24px; height: 24px; flex-basis: 24px; }
+  .ev-opportunity > .ev-execution { grid-template-columns: minmax(64px, 1fr) auto auto; gap: 4px; padding-inline: 6px; }
   .ev-selection { min-height: 42px; padding-inline: 6px; font-size: 11px; }
   .ev-bet-metric { min-width: 52px; min-height: 42px; padding-inline: 4px; }
   .ev-bet-metric.ev-to-win { min-width: 66px; }

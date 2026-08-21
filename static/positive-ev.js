@@ -70,10 +70,62 @@
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const trackerDialog = $("ev-tracker-dialog");
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
-  const matchup = value => {
-    const label = String(value ?? "").trim();
+  const teamBranding = Object.freeze({
+    arizonadiamondbacks: {short:"Diamondbacks", logo:"/static/assets/teams/mlb/ari.png"},
+    atlantabraves: {short:"Braves", logo:"/static/assets/teams/mlb/atl.png"},
+    baltimoreorioles: {short:"Orioles", logo:"/static/assets/teams/mlb/bal.png"},
+    bostonredsox: {short:"Red Sox", logo:"/static/assets/teams/mlb/bos.png"},
+    chicagocubs: {short:"Cubs", logo:"/static/assets/teams/mlb/chc.png"},
+    chicagowhitesox: {short:"White Sox", logo:"/static/assets/teams/mlb/chw.png"},
+    cincinnatireds: {short:"Reds", logo:"/static/assets/teams/mlb/cin.png"},
+    clevelandguardians: {short:"Guardians", logo:"/static/assets/teams/mlb/cle.png"},
+    coloradorockies: {short:"Rockies", logo:"/static/assets/teams/mlb/col.png"},
+    detroittigers: {short:"Tigers", logo:"/static/assets/teams/mlb/det.png"},
+    houstonastros: {short:"Astros", logo:"/static/assets/teams/mlb/hou.png"},
+    kansascityroyals: {short:"Royals", logo:"/static/assets/teams/mlb/kc.png"},
+    losangelesangels: {short:"Angels", logo:"/static/assets/teams/mlb/laa.png"},
+    losangelesdodgers: {short:"Dodgers", logo:"/static/assets/teams/mlb/lad.png"},
+    miamimarlins: {short:"Marlins", logo:"/static/assets/teams/mlb/mia.png"},
+    milwaukeebrewers: {short:"Brewers", logo:"/static/assets/teams/mlb/mil.png"},
+    minnesotatwins: {short:"Twins", logo:"/static/assets/teams/mlb/min.png"},
+    newyorkmets: {short:"Mets", logo:"/static/assets/teams/mlb/nym.png"},
+    newyorkyankees: {short:"Yankees", logo:"/static/assets/teams/mlb/nyy.png"},
+    athletics: {short:"Athletics", logo:"/static/assets/teams/mlb/oak.png"},
+    oaklandathletics: {short:"Athletics", logo:"/static/assets/teams/mlb/oak.png"},
+    philadelphiaphillies: {short:"Phillies", logo:"/static/assets/teams/mlb/phi.png"},
+    pittsburghpirates: {short:"Pirates", logo:"/static/assets/teams/mlb/pit.png"},
+    sandiegopadres: {short:"Padres", logo:"/static/assets/teams/mlb/sd.png"},
+    sanfranciscogiants: {short:"Giants", logo:"/static/assets/teams/mlb/sf.png"},
+    seattlemariners: {short:"Mariners", logo:"/static/assets/teams/mlb/sea.png"},
+    stlouiscardinals: {short:"Cardinals", logo:"/static/assets/teams/mlb/stl.png"},
+    tampabayrays: {short:"Rays", logo:"/static/assets/teams/mlb/tb.png"},
+    texasrangers: {short:"Rangers", logo:"/static/assets/teams/mlb/tex.png"},
+    torontobluejays: {short:"Blue Jays", logo:"/static/assets/teams/mlb/tor.png"},
+    washingtonnationals: {short:"Nationals", logo:"/static/assets/teams/mlb/wsh.png"},
+    atlantadream: {short:"Dream", logo:"/static/assets/teams/wnba/atl.png"},
+    chicagosky: {short:"Sky", logo:"/static/assets/teams/wnba/chi.png"},
+    connecticutsun: {short:"Sun", logo:"/static/assets/teams/wnba/connecticut.png"},
+    dallaswings: {short:"Wings", logo:"/static/assets/teams/wnba/dal.png"},
+    goldenstatevalkyries: {short:"Valkyries", logo:"/static/assets/teams/wnba/gs.png"},
+    indianafever: {short:"Fever", logo:"/static/assets/teams/wnba/ind.png"},
+    lasvegasaces: {short:"Aces", logo:"/static/assets/teams/wnba/lv.png"},
+    losangelessparks: {short:"Sparks", logo:"/static/assets/teams/wnba/la.png"},
+    minnesotalynx: {short:"Lynx", logo:"/static/assets/teams/wnba/min.png"},
+    newyorkliberty: {short:"Liberty", logo:"/static/assets/teams/wnba/ny.png"},
+    phoenixmercury: {short:"Mercury", logo:"/static/assets/teams/wnba/phx.png"},
+    seattlestorm: {short:"Storm", logo:"/static/assets/teams/wnba/sea.png"},
+    washingtonmystics: {short:"Mystics", logo:"/static/assets/teams/wnba/wsh.png"},
+  });
+  const canonicalTeam = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const teamBrand = value => teamBranding[canonicalTeam(value)] || null;
+  const matchup = row => {
+    const label = String(row?.eventTitle ?? "").trim();
     const sides = label.match(/^(.*?)\s+vs\.?\s+(.*)$/i);
     if (!sides) return esc(label);
+    const first = teamBrand(sides[1]), second = teamBrand(sides[2]);
+    if (first?.logo && second?.logo) {
+      return `<span class="ev-matchup-inline"><img class="ev-team-logo" src="${esc(first.logo)}" alt="" aria-hidden="true" decoding="async"><span class="ev-team-name">${esc(first.short)}</span><span class="ev-matchup-vs">vs</span><span class="ev-team-name">${esc(second.short)}</span><img class="ev-team-logo" src="${esc(second.logo)}" alt="" aria-hidden="true" decoding="async"></span>`;
+    }
     return `<span class="ev-matchup-line">${esc(`${sides[1]} vs`)}</span><span class="ev-matchup-line">${esc(sides[2])}</span>`;
   };
   const sportIcon = row => {
@@ -86,6 +138,47 @@
     if (/soccer|epl|mls/.test(sport)) return "ph-soccer-ball";
     if (/golf|pga/.test(sport)) return "ph-golf";
     return "ph-trophy";
+  };
+  const leagueLogos = Object.freeze({
+    nba: "/static/assets/leagues/nba.png",
+    nationalbasketballassociation: "/static/assets/leagues/nba.png",
+    mlb: "/static/assets/leagues/mlb.png",
+    majorleaguebaseball: "/static/assets/leagues/mlb.png",
+    mls: "/static/assets/leagues/mls.png",
+    majorleaguesoccer: "/static/assets/leagues/mls.png",
+    wnba: "/static/assets/leagues/wnba.png",
+    womensnationalbasketballassociation: "/static/assets/leagues/wnba.png",
+    wta: "/static/assets/leagues/wta.png",
+    wtatour: "/static/assets/leagues/wta.png",
+    nhl: "/static/assets/leagues/nhl.png",
+    nationalhockeyleague: "/static/assets/leagues/nhl.png",
+    atp: "/static/assets/leagues/atp.png",
+    atptour: "/static/assets/leagues/atp.png",
+    ncaa: "/static/assets/leagues/ncaa.png",
+    ncaab: "/static/assets/leagues/ncaa.png",
+    ncaamb: "/static/assets/leagues/ncaa.png",
+    ncaaf: "/static/assets/leagues/ncaa.png",
+    collegebasketball: "/static/assets/leagues/ncaa.png",
+    collegefootball: "/static/assets/leagues/ncaa.png",
+    nfl: "/static/assets/leagues/nfl.png",
+    nationalfootballleague: "/static/assets/leagues/nfl.png",
+    fifa: "/static/assets/leagues/fifa.png",
+    fifaworldcup: "/static/assets/leagues/fifa.png",
+    uefa: "/static/assets/leagues/uefa.png",
+    uefachampionsleague: "/static/assets/leagues/uefa.png",
+    epl: "/static/assets/leagues/epl.png",
+    premierleague: "/static/assets/leagues/epl.png",
+    englishpremierleague: "/static/assets/leagues/epl.png",
+  });
+  const leagueLogo = row => {
+    const canonical = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+    const league = canonical(row?.league);
+    const sport = canonical(row?.sportKey);
+    return leagueLogos[league] || leagueLogos[sport] || "";
+  };
+  const leagueWatermark = row => {
+    const source = leagueLogo(row);
+    return source ? `<img class="ev-league-watermark" src="${esc(source)}" alt="" aria-hidden="true">` : "";
   };
   const fullSelection = row => {
     const label = String(row?.line ?? row?.selection ?? "").trim();
@@ -631,8 +724,8 @@
       return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
         <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong><button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button></div>
-        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row.eventTitle)}</strong></div>
-        <div class="ev-pick"><small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
+        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
+        <div class="ev-pick">${leagueWatermark(row)}<small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
       </article>`;
     }).join("");

@@ -435,7 +435,9 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'fetch("/api/positive-ev/personal-bets"' in positive_ev_javascript
     assert "Rec Bet" in positive_ev_javascript
     assert 'class="ev-matchup-line"' in positive_ev_javascript
-    assert "matchup(row.eventTitle)" in positive_ev_javascript
+    assert "matchup(row)" in positive_ev_javascript
+    assert 'class="ev-matchup-inline"' in positive_ev_javascript
+    assert 'class="ev-team-logo"' in positive_ev_javascript
     assert "Total payout" in positive_ev_javascript
     assert "quotePayout(row.recommendedStake, quote)" in positive_ev_javascript
     assert "fullSelection(row)" in positive_ev_javascript
