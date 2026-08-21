@@ -3714,7 +3714,8 @@ function positionRow(row) {
 }
 
 function positionCard(row) {
-  return `<article class="mobile-result-card"><div><span class="status-label live">Live</span><small>${escapeHtml(row.wallet_label)}</small></div><h2>${escapeHtml(row.event_title || row.market_title)}</h2><strong>${escapeHtml(row.outcome)}</strong><dl><div><dt>Position</dt><dd>${formatMoney(row.position_size_usd)}</dd></div><div><dt>Current</dt><dd>${formatCents(row.current_price)}</dd></div><div><dt>P&amp;L</dt><dd>${formatMoney(row.unrealized_pnl)}</dd></div></dl></article>`;
+  const pnl = number(row.unrealized_pnl) || 0;
+  return `<article class="mobile-result-card"><div><span class="status-label live">Live</span><small>${escapeHtml(row.wallet_label)}</small></div><h2>${escapeHtml(row.event_title || row.market_title)}</h2><strong>${escapeHtml(row.outcome)}</strong><dl><div><dt>Position</dt><dd>${formatMoney(row.position_size_usd)}</dd></div><div><dt>Current</dt><dd>${formatCents(row.current_price)}</dd></div><div><dt>P&amp;L</dt><dd class="${pnl >= 0 ? "positive" : "negative"}">${formatMoney(pnl)}</dd></div></dl></article>`;
 }
 
 function paginationMarkup(pagination, action) {
@@ -3741,7 +3742,9 @@ async function loadPositions() {
     updateGlobalStatus(payload.status);
     document.getElementById("position-result-count").textContent = `${payload.pagination.total} position${payload.pagination.total === 1 ? "" : "s"}`;
     body.innerHTML = rows.length ? rows.map(positionRow).join("") : `<tr><td colspan="9">${emptyState("No live positions", "Upcoming trades remain in Trades to Play. Completed markets move to history.")}</td></tr>`;
-    document.getElementById("positions-cards").innerHTML = rows.map(positionCard).join("");
+    document.getElementById("positions-cards").innerHTML = rows.length
+      ? rows.map(positionCard).join("")
+      : `<article class="live-empty-mobile">${emptyState("No live positions", "Upcoming trades remain in Trades to Play. Completed markets move to history.")}</article>`;
     const pagination = document.getElementById("positions-pagination");
     pagination.innerHTML = paginationMarkup(payload.pagination);
     pagination.querySelectorAll("button[data-page]").forEach((button) => button.addEventListener("click", () => { appState.pageNumber = Number(button.dataset.page); loadPositions(); }));
