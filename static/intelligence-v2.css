@@ -1,0 +1,632 @@
+body[data-design-system="v2"][data-page="intelligence"] {
+  min-width: 0;
+  overflow-x: hidden;
+  background: var(--il-bg-app);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .app-shell {
+  min-width: 0;
+  background: var(--il-bg-app);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .brand-icon {
+  display: none;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-page,
+body[data-design-system="v2"][data-page="intelligence"] .intel-page *,
+body[data-design-system="v2"][data-page="intelligence"] .intel-page *::before,
+body[data-design-system="v2"][data-page="intelligence"] .intel-page *::after {
+  box-sizing: border-box;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-page {
+  width: 100%;
+  max-width: none;
+  min-width: 0;
+  min-height: 100vh;
+  margin: 0;
+  padding: var(--il-gutter-desktop);
+  display: flex;
+  flex-direction: column;
+  gap: var(--il-space-3);
+  background: var(--il-bg-app);
+  color: var(--il-text-primary);
+  font-family: var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-page > * {
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-hero {
+  min-height: var(--il-header-height);
+  padding: 4px 0 var(--il-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--il-space-6);
+  border: 0;
+  border-bottom: 1px solid var(--il-border-hairline);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-hero .il-page-title {
+  min-width: 0;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-hero .eyebrow,
+body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog > .eyebrow {
+  margin: 0 0 var(--il-space-1);
+  color: var(--il-brand-hover);
+  font: var(--il-type-table-header);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-hero h1 {
+  margin: 0;
+  color: var(--il-text-primary);
+  font: var(--il-type-page-title);
+  letter-spacing: -.025em;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-hero .il-page-title > p:last-child {
+  max-width: 760px;
+  margin: var(--il-space-1) 0 0;
+  color: var(--il-text-secondary);
+  font: var(--il-type-metadata);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-security {
+  width: 236px;
+  min-width: 236px;
+  min-height: 68px;
+  padding: 10px var(--il-space-3);
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  align-content: center;
+  align-items: center;
+  gap: 3px 9px;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-1);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-security i {
+  grid-row: 1 / 3;
+  color: var(--il-brand-hover);
+  font-size: 20px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-security strong {
+  color: var(--il-text-primary);
+  font: var(--il-type-micro-label);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-security small {
+  color: var(--il-text-muted);
+  font-size: 10px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login {
+  min-height: 268px;
+  padding: var(--il-space-8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-panel);
+  background: var(--il-surface-1);
+  box-shadow: none;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login[hidden],
+body[data-design-system="v2"][data-page="intelligence"] #intel-workspace[hidden],
+body[data-design-system="v2"][data-page="intelligence"] [data-intel-panel][hidden] {
+  display: none;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login form {
+  width: min(430px, 100%);
+  margin: 0;
+  display: grid;
+  gap: var(--il-space-3);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login label {
+  display: grid;
+  gap: var(--il-space-2);
+  color: var(--il-text-secondary);
+  font: var(--il-type-micro-label);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login input {
+  width: 100%;
+  min-height: var(--il-control-height);
+  padding: 0 var(--il-space-3);
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  outline: 0;
+  background: var(--il-surface-2);
+  color: var(--il-text-primary);
+  font: var(--il-type-body);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login input:focus {
+  border-color: var(--il-brand-outline-strong);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login .button.primary {
+  min-height: var(--il-control-height);
+  border-color: var(--il-brand);
+  background: var(--il-brand);
+  color: var(--il-text-on-brand);
+  font: var(--il-type-control);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login .button.primary:hover {
+  border-color: var(--il-brand-hover);
+  background: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-login p {
+  min-height: 16px;
+  margin: 0;
+  color: var(--il-negative);
+  font-size: 11px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] #intel-workspace {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--il-space-3);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-summary {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--il-space-2);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-summary article {
+  min-width: 0;
+  min-height: 70px;
+  padding: var(--il-space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--il-space-2);
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-panel);
+  background: var(--il-surface-1);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-summary span {
+  min-width: 0;
+  color: var(--il-text-muted);
+  font: var(--il-type-micro-label);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-summary strong {
+  flex: 0 0 auto;
+  color: var(--il-text-primary);
+  font: var(--il-type-numeric-data);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-tabs {
+  min-height: var(--il-control-height);
+  padding: 3px;
+  display: flex;
+  gap: 2px;
+  overflow-x: auto;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-1);
+  scrollbar-color: var(--il-scrollbar) transparent;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-tabs button {
+  min-height: 36px;
+  padding: 0 var(--il-space-3);
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--il-text-muted);
+  font: var(--il-type-control);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-tabs button:hover {
+  background: var(--il-surface-hover);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-tabs button.active {
+  background: var(--il-brand);
+  color: var(--il-text-on-brand);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel {
+  min-height: 236px;
+  overflow: hidden;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-panel);
+  background: var(--il-surface-1);
+  box-shadow: none;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head {
+  min-height: 76px;
+  padding: var(--il-space-3) var(--il-space-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--il-space-6);
+  border-bottom: 1px solid var(--il-border-hairline);
+  background: var(--il-surface-1);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head h2 {
+  margin: 0;
+  color: var(--il-text-primary);
+  font: var(--il-type-section-title);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head p {
+  margin: var(--il-space-1) 0 0;
+  color: var(--il-text-muted);
+  font: var(--il-type-metadata);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head label {
+  min-width: 196px;
+  display: grid;
+  gap: var(--il-space-1);
+  color: var(--il-text-muted);
+  font: var(--il-type-table-header);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head select {
+  width: 196px;
+  min-width: 196px;
+  min-height: 38px;
+  padding: 0 30px 0 11px;
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  outline: 0;
+  background-color: var(--il-surface-2);
+  color: var(--il-text-secondary);
+  font: var(--il-type-control);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head select:focus {
+  border-color: var(--il-brand-outline-strong);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-list {
+  min-width: 0;
+  display: grid;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row {
+  min-width: 0;
+  min-height: 70px;
+  padding: var(--il-space-3) var(--il-space-4);
+  display: grid;
+  grid-template-columns: minmax(260px, 2fr) minmax(220px, 1fr) minmax(170px, .7fr);
+  align-items: center;
+  gap: var(--il-space-4);
+  border-bottom: 1px solid var(--il-border-hairline);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row:last-child {
+  border-bottom: 0;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row:hover {
+  background: var(--il-surface-hover);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row > span {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row > span:last-child {
+  justify-items: end;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row strong,
+body[data-design-system="v2"][data-page="intelligence"] .intel-row small {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row strong {
+  color: var(--il-text-primary);
+  font: var(--il-type-micro-label);
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row b {
+  color: var(--il-brand-hover);
+  font: var(--il-type-table-header);
+  letter-spacing: .05em;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row small {
+  color: var(--il-text-muted);
+  font-size: 10px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row .button.compact {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-2);
+  color: var(--il-text-secondary);
+  font-size: 11px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-row .button.compact:hover {
+  border-color: var(--il-border-interactive);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-list .empty-state {
+  min-height: 210px;
+  padding: var(--il-space-6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: var(--il-space-2);
+  color: var(--il-text-muted);
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-list .empty-state strong {
+  color: var(--il-text-primary);
+  font: var(--il-type-card-title);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-diagnostics {
+  max-height: 640px;
+  margin: 0;
+  padding: var(--il-space-4);
+  overflow: auto;
+  border: 0;
+  background: var(--il-bg-workspace);
+  color: var(--il-info);
+  font: 500 11px/1.55 var(--il-font-data);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog {
+  width: min(880px, 92vw);
+  max-height: 88vh;
+  margin: auto;
+  padding: var(--il-space-6);
+  overflow: auto;
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-overlay);
+  background: var(--il-surface-elevated);
+  color: var(--il-text-primary);
+  box-shadow: var(--il-shadow-elevated);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog::backdrop {
+  background: var(--il-backdrop);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog > .icon-button {
+  position: absolute;
+  top: var(--il-space-3);
+  right: var(--il-space-3);
+  width: 36px;
+  min-height: 36px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog h2 {
+  margin: 0 42px var(--il-space-4) 0;
+  color: var(--il-text-primary);
+  font: var(--il-type-section-title);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage {
+  padding: var(--il-space-3) 0;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: var(--il-space-3);
+  border-bottom: 1px solid var(--il-border-hairline);
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage > span {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--il-brand-outline-strong);
+  border-radius: 50%;
+  background: var(--il-surface-selected-badge);
+  color: var(--il-brand-hover);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage div {
+  min-width: 0;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage strong,
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage small {
+  display: block;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage strong {
+  color: var(--il-text-primary);
+  font: var(--il-type-micro-label);
+  text-transform: capitalize;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage small {
+  margin-top: 2px;
+  color: var(--il-text-muted);
+  font-size: 10px;
+}
+
+body[data-design-system="v2"][data-page="intelligence"] .trace-stage pre {
+  max-height: 160px;
+  margin: var(--il-space-2) 0 0;
+  padding: var(--il-space-3);
+  overflow: auto;
+  border: 1px solid var(--il-border-hairline);
+  border-radius: var(--il-radius-control);
+  background: var(--il-bg-workspace);
+  color: var(--il-text-secondary);
+  font: 500 10px/1.5 var(--il-font-data);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 1100px) {
+  body[data-design-system="v2"][data-page="intelligence"] .intel-summary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  body[data-design-system="v2"][data-page="intelligence"] .app-shell {
+    padding-top: 60px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-page {
+    padding: var(--il-space-3);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row {
+    grid-template-columns: minmax(0, 1fr) minmax(190px, .8fr);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row > span:last-child {
+    grid-column: 1 / -1;
+    justify-items: start;
+  }
+}
+
+@media (max-width: 700px) {
+  body[data-design-system="v2"][data-page="intelligence"] .intel-page {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-hero {
+    min-height: 0;
+    padding: 8px 0 12px;
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-hero .eyebrow {
+    display: none;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-hero h1 {
+    font-size: 22px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-hero .il-page-title > p:last-child {
+    font-size: 11px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-security {
+    width: 100%;
+    min-width: 0;
+    min-height: 58px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-login {
+    min-height: 280px;
+    padding: var(--il-space-4);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-summary article {
+    min-height: 68px;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: var(--il-space-1);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-tabs {
+    position: sticky;
+    top: 60px;
+    z-index: var(--il-z-sticky);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head {
+    padding: var(--il-space-3);
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head h2 {
+    font-size: 16px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head p {
+    font-size: 11px;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head label,
+  body[data-design-system="v2"][data-page="intelligence"] .intel-panel-head select {
+    width: 100%;
+    min-width: 0;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row {
+    padding: var(--il-space-3);
+    grid-template-columns: 1fr;
+    gap: var(--il-space-3);
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row > span:last-child {
+    grid-column: auto;
+    justify-items: start;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row strong,
+  body[data-design-system="v2"][data-page="intelligence"] .intel-row small {
+    white-space: normal;
+  }
+
+  body[data-design-system="v2"][data-page="intelligence"] .intel-trace-dialog {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 80px);
+    padding: var(--il-space-4);
+  }
+}
