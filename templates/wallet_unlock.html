@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="wallet-lock-shell" aria-labelledby="wallet-lock-title">
-  <div class="wallet-lock-card">
+<section class="wallet-lock-shell il-dashboard-page" aria-labelledby="wallet-lock-title">
+  <div class="wallet-lock-card il-panel">
     <span class="wallet-lock-icon" aria-hidden="true"><i class="ph ph-lock-key"></i></span>
     <p class="eyebrow">PRIVATE WORKSPACE</p>
     <h1 id="wallet-lock-title">Sharp Wallets are locked</h1>
@@ -22,7 +22,7 @@
         required
         aria-describedby="wallet-lock-error"
       >
-      <p class="wallet-lock-error" id="wallet-lock-error" role="alert">{{ error or "" }}</p>
+      <p class="wallet-lock-error" id="wallet-lock-error" role="alert" aria-live="polite">{{ error or "" }}</p>
       <button class="button primary" type="submit"><i class="ph ph-lock-open"></i> Unlock wallets</button>
     </form>
     <small>The wallet page locks again when this browser session ends.</small>

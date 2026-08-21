@@ -1,0 +1,184 @@
+body[data-design-system="v2"][data-page="wallet-lock"] {
+  min-width: 0;
+  overflow-x: hidden;
+  background: var(--il-bg-app);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .app-shell {
+  min-width: 0;
+  background: var(--il-bg-app);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .brand-icon {
+  display: none;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell,
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell *,
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell *::before,
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell *::after {
+  box-sizing: border-box;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell {
+  width: 100%;
+  min-width: 0;
+  min-height: 100vh;
+  margin: 0;
+  padding: var(--il-gutter-desktop);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--il-bg-app);
+  color: var(--il-text-primary);
+  font-family: var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card {
+  width: min(440px, 100%);
+  min-height: 480px;
+  margin: 0;
+  padding: var(--il-space-8);
+  display: flex;
+  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-overlay);
+  background: var(--il-surface-1);
+  box-shadow: none;
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-icon {
+  width: 54px;
+  height: 54px;
+  margin-bottom: var(--il-space-4);
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--il-brand-outline-strong);
+  border-radius: var(--il-radius-panel);
+  background: var(--il-surface-selected-badge);
+  color: var(--il-brand-hover);
+  font-size: 24px;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card > .eyebrow {
+  margin: 0 0 var(--il-space-2);
+  color: var(--il-brand-hover);
+  font: var(--il-type-table-header);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card h1 {
+  margin: 0;
+  color: var(--il-text-primary);
+  font: 700 24px/1.15 var(--il-font-ui);
+  letter-spacing: -.025em;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card > p:not(.eyebrow) {
+  max-width: 330px;
+  margin: var(--il-space-2) 0 var(--il-space-6);
+  color: var(--il-text-secondary);
+  font: var(--il-type-metadata);
+  line-height: 1.45;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form {
+  width: 100%;
+  display: grid;
+  gap: var(--il-space-2);
+  text-align: left;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form label {
+  color: var(--il-text-muted);
+  font: var(--il-type-table-header);
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form input {
+  width: 100%;
+  min-height: 58px;
+  padding: 0 var(--il-space-4);
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  outline: 0;
+  background: var(--il-surface-2);
+  color: var(--il-text-primary);
+  font: 700 22px/1 var(--il-font-data);
+  letter-spacing: .35em;
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form input:focus {
+  border-color: var(--il-brand-outline-strong);
+  box-shadow: var(--il-focus-shadow);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-error {
+  min-height: 17px;
+  margin: 0;
+  color: var(--il-negative);
+  font-size: 11px;
+  text-align: left;
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form .button.primary {
+  width: 100%;
+  min-height: var(--il-control-height);
+  margin-top: var(--il-space-1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--il-space-2);
+  border-color: var(--il-brand);
+  border-radius: var(--il-radius-control);
+  background: var(--il-brand);
+  color: var(--il-text-on-brand);
+  font: var(--il-type-control);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form .button.primary:hover {
+  border-color: var(--il-brand-hover);
+  background: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card > small {
+  margin-top: var(--il-space-4);
+  color: var(--il-text-muted);
+  font-size: 10px;
+}
+
+@media (max-width: 980px) {
+  body[data-design-system="v2"][data-page="wallet-lock"] .app-shell {
+    padding-top: 60px;
+  }
+
+  body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell {
+    min-height: calc(100vh - 60px);
+    padding: var(--il-space-3);
+  }
+}
+
+@media (max-width: 520px) {
+  body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-shell {
+    padding: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card {
+    min-height: 460px;
+    padding: var(--il-space-6) var(--il-space-4);
+  }
+
+  body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-card h1 {
+    font-size: 22px;
+  }
+
+  body[data-design-system="v2"][data-page="wallet-lock"] .wallet-lock-form input {
+    min-height: 54px;
+  }
+}
