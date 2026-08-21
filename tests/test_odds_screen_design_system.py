@@ -105,6 +105,8 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert "overflow-x: hidden" in stylesheet
     assert "border-collapse: collapse" in stylesheet
     assert ".odds-price-stack .odds-price + .odds-price" in stylesheet
+    assert ".odds-best-stack .provider-logo-mark" in stylesheet
+    assert "font-size: 16px" in stylesheet
 
 
 def test_odds_screen_preview_client_does_not_start_polling():

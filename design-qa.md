@@ -58,6 +58,19 @@
 - The reference omits the IconLabs sidebar; the implementation keeps the approved global site shell.
 - The provider set is limited to the current preview catalog rather than fabricating additional connected providers.
 
+## Best Odds typography refinement
+
+- Selected baseline: `artifacts/approved-odds-screen/odds-screen-grid-final-1280x720.png`.
+- Updated implementation: `artifacts/approved-odds-screen/odds-screen-best-odds-fonts-1280x720.png`.
+- Pixel dimensions: 1248 × 720 for both captures; browser CSS viewport 1280 × 720 at device scale 1.
+- State: desktop Moneyline preview with 12 MLB games and the same provider order.
+- Full-view comparison: row height, grid alignment, provider columns, gray surfaces, and purple/white hierarchy remain unchanged.
+- Focused Best Odds comparison: provider logos increased from 24px to 32px; the logo and price now use a centered horizontal row with a 10px gap. Computed group center and cell center differ by less than 0.01px.
+- Typography: Best Odds values increased from 14px to 16px; average and provider odds increased from 13px to 15px. Mobile best-quote values also increased by 2px, and mobile sheet prices receive an explicit 14px size.
+- Colors and assets: best values remain purple, all other odds remain white, and the original provider image assets preserve their aspect ratios.
+- Interaction and runtime: all 12 Moneyline rows render, the browser console is clear, and no layout or grid regressions are visible.
+- Comparison history: the first refinement pass satisfied the specified layout and exact +2px type adjustment, so no actionable P0/P1/P2 findings remained.
+
 final result: passed
 
 ---

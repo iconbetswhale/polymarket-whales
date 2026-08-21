@@ -444,9 +444,10 @@ body[data-design-system="v2"][data-page="odds-screen"] .odds-price {
   justify-content: center;
 }
 
-body[data-design-system="v2"][data-page="odds-screen"] .odds-best-stack > span { gap: 8px; }
-body[data-design-system="v2"][data-page="odds-screen"] .odds-best-stack strong { color: var(--il-brand-hover); font-size: 14px; font-weight: 700; }
-body[data-design-system="v2"][data-page="odds-screen"] .odds-average-stack > span { color: #f7f7f8; font-size: 13px; font-weight: 600; }
+body[data-design-system="v2"][data-page="odds-screen"] .odds-best-stack > span { flex-direction: row; gap: 10px; }
+body[data-design-system="v2"][data-page="odds-screen"] .odds-best-stack .provider-logo-mark { width: 32px; height: 32px; flex-basis: 32px; border-radius: 7px; }
+body[data-design-system="v2"][data-page="odds-screen"] .odds-best-stack strong { color: var(--il-brand-hover); font-size: 16px; font-weight: 700; }
+body[data-design-system="v2"][data-page="odds-screen"] .odds-average-stack > span { color: #f7f7f8; font-size: 15px; font-weight: 600; }
 body[data-design-system="v2"][data-page="odds-screen"] .odds-provider-cell { padding: 0 9px !important; }
 
 body[data-design-system="v2"][data-page="odds-screen"] .odds-price {
@@ -458,7 +459,7 @@ body[data-design-system="v2"][data-page="odds-screen"] .odds-price {
   text-align: center;
 }
 
-body[data-design-system="v2"][data-page="odds-screen"] .odds-price strong { color: #f7f7f8; font-size: 13px; font-weight: 650; }
+body[data-design-system="v2"][data-page="odds-screen"] .odds-price strong { color: #f7f7f8; font-size: 15px; font-weight: 650; }
 body[data-design-system="v2"][data-page="odds-screen"] .odds-price small { max-width: 100%; overflow: hidden; color: #92989e; text-overflow: ellipsis; white-space: nowrap; font-size: 8.5px; }
 body[data-design-system="v2"][data-page="odds-screen"] .odds-price.best-price strong { color: var(--il-brand-hover); }
 body[data-design-system="v2"][data-page="odds-screen"] .odds-price.stale { opacity: .58; }
@@ -536,7 +537,7 @@ body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-backdr
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-team-prices > span { min-width: 0; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-best-quote { min-height: 36px; display: flex; align-items: center; justify-content: center; gap: 4px; border: 1px solid var(--il-border-subtle); border-radius: 6px; background: #0a1118; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-best-quote .provider-logo-mark { width: 15px; height: 15px; flex-basis: 15px; }
-  body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-best-quote b { color: var(--il-brand-hover); font-size: 9px; }
+  body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-best-quote b { color: var(--il-brand-hover); font-size: 11px; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-empty { min-height: 280px; padding: 30px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--il-text-muted); text-align: center; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-empty > i { color: var(--il-brand-hover); font-size: 28px; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-empty strong { color: var(--il-text-primary); }
@@ -561,6 +562,7 @@ body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-backdr
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-book-row { min-height: 50px; display: grid; grid-template-columns: 1fr 82px 1fr; gap: 6px; align-items: center; border-bottom: 1px solid var(--il-border-subtle); }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-provider { display: flex; flex-direction: column; align-items: center; gap: 2px; color: var(--il-text-muted); font-size: 8px; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-price { min-height: 36px; padding: 0 7px; display: flex; align-items: center; justify-content: space-between; border: 1px solid var(--il-border-subtle); border-radius: 6px; color: var(--il-text-primary); background: #0a1118; text-decoration: none; }
+  body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-price > b { font-size: 14px; }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-price.best b { color: var(--il-brand-hover); }
   body[data-design-system="v2"][data-page="odds-screen"] .mobile-odds-sheet-price small { color: var(--il-text-muted); font-size: 7px; }
 }
