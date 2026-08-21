@@ -42,6 +42,9 @@
   {% if page == 'position-history' %}<link rel="stylesheet" href="{{ url_for('static', filename='bet-history-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'edge-map' %}<link rel="stylesheet" href="{{ url_for('static', filename='edge-map-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'intelligence' %}<link rel="stylesheet" href="{{ url_for('static', filename='intelligence-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
+  {% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='sidebar-v2.css', v=asset_version ~ '-canonical-v3') }}">
+  {% endif %}
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>

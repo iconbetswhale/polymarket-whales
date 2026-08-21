@@ -1,0 +1,161 @@
+/* Canonical IconLabs v2 desktop sidebar.
+   This sheet loads after every page-owned stylesheet so route-specific layouts
+   cannot change the shared navigation rail. Mobile navigation remains owned by
+   the v2 foundation. */
+
+@media (min-width: 981px) {
+  body[data-design-system="v2"].sidebar-expanded .app-nav {
+    padding: 14px 10px 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    overflow: hidden;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .app-nav::after {
+    content: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle {
+    position: absolute;
+    top: 14px;
+    left: 10px;
+    width: 34px;
+    height: 34px;
+    min-height: 34px;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    border: 1px solid transparent;
+    border-radius: var(--il-radius-control);
+    background: transparent;
+    color: var(--il-text-secondary);
+    font-size: 22px;
+    box-shadow: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle:hover,
+  body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle:focus-visible {
+    border-color: var(--il-border-interactive);
+    background: var(--il-surface-hover);
+    color: var(--il-text-primary);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .mobile-nav-toggle {
+    display: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .brand {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    flex: 0 0 48px;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 10px;
+    box-sizing: border-box;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .brand-icon {
+    display: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    padding: 0;
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    scrollbar-width: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links::-webkit-scrollbar {
+    display: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a,
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"] {
+    width: 100%;
+    max-width: none;
+    min-height: 44px;
+    margin: 0;
+    padding-inline: 10px;
+    display: flex;
+    flex: 0 0 44px;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 11px;
+    font-size: 14px;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a > i,
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a > svg {
+    font-size: 18px;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"] {
+    background: var(--il-surface-selected-quiet);
+    box-shadow: inset 2px 0 0 var(--il-brand);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-section-label,
+  body[data-design-system="v2"].sidebar-expanded .mobile-nav-pause {
+    display: none;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button {
+    width: 100%;
+    min-height: 54px;
+    margin: auto 0 0;
+    padding: 7px 10px;
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 9px;
+    border: 1px solid transparent;
+    border-radius: var(--il-radius-control);
+    background: transparent;
+    color: var(--il-text-secondary);
+    text-align: left;
+    box-shadow: none;
+    box-sizing: border-box;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button:hover {
+    border-color: var(--il-border-interactive);
+    background: var(--il-surface-hover);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button > span {
+    min-width: 0;
+    display: grid;
+    gap: 2px;
+    text-align: left;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button strong,
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button strong {
+    color: var(--il-text-primary);
+    font: 650 14px/1.2 var(--il-font-ui);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button small {
+    color: var(--il-text-secondary);
+    font: 500 11.5px/1.3 var(--il-font-ui);
+  }
+}
