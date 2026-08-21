@@ -5798,11 +5798,11 @@ function renderEdgeMap(payload) {
     return;
   }
   body.innerHTML = rows.map((row) => `<tr>
-    <td><strong>${escapeHtml(row.segment_value)}</strong><span>${escapeHtml(row.dimension.replaceAll("_", " "))}</span></td>
-    <td><span class="edge-status" data-status="${escapeHtml(row.status)}">${escapeHtml(row.status.replaceAll("_", " "))}</span></td>
-    <td>${row.candidate_count}</td><td>${row.played_count} / ${row.passed_count}</td><td>${row.settled_count}</td>
-    <td>${edgeMetric(row.roi)}</td><td>${edgeMetric(row.stake_weighted_exchange_clv)}</td><td>${edgeMetric(row.stake_weighted_composite_clv)}</td>
-    <td><div class="reliability-meter"><span style="width:${Math.max(0, Math.min(100, Number(row.statistical_reliability || 0) * 100))}%"></span></div><small>${(Number(row.statistical_reliability || 0) * 100).toFixed(0)}%</small></td>
+    <td data-label="Segment"><strong>${escapeHtml(row.segment_value)}</strong><span>${escapeHtml(row.dimension.replaceAll("_", " "))}</span></td>
+    <td data-label="Status"><span class="edge-status" data-status="${escapeHtml(row.status)}">${escapeHtml(row.status.replaceAll("_", " "))}</span></td>
+    <td data-label="Candidates">${row.candidate_count}</td><td data-label="Played / Passed">${row.played_count} / ${row.passed_count}</td><td data-label="Settled">${row.settled_count}</td>
+    <td data-label="ROI">${edgeMetric(row.roi)}</td><td data-label="Exchange CLV">${edgeMetric(row.stake_weighted_exchange_clv)}</td><td data-label="Composite CLV">${edgeMetric(row.stake_weighted_composite_clv)}</td>
+    <td data-label="Reliability"><div class="reliability-meter"><span style="width:${Math.max(0, Math.min(100, Number(row.statistical_reliability || 0) * 100))}%"></span></div><small>${(Number(row.statistical_reliability || 0) * 100).toFixed(0)}%</small></td>
   </tr>`).join("");
 }
 
