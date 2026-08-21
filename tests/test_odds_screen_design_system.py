@@ -82,6 +82,16 @@ def test_odds_screen_template_uses_approved_terminal_structure():
         "Player Props",
     ):
         assert label in template
+    for icon in (
+        "ph-currency-dollar",
+        "ph-sliders-horizontal",
+        "ph-arrows-down-up",
+        "ph-chart-bar",
+        "ph-plus-minus",
+        "ph-user",
+    ):
+        assert icon in template
+    assert template.count('class="odds-tab-icon"') == 6
 
 
 def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():

@@ -87,13 +87,32 @@
 
   <div class="odds-market-bar">
     <nav class="odds-market-tabs" aria-label="Market type">
-      <button class="active" data-odds-kind="moneyline" type="button">Moneyline</button>
-      <button data-odds-kind="spread" type="button">Run Line / Spread</button>
-      <button data-odds-kind="alternate_spread" type="button">Alt Spreads</button>
-      <button data-odds-kind="game_total" type="button">Game Totals</button>
-      <button data-odds-kind="alternate_total" type="button">Alt Totals</button>
+      <button class="active" data-odds-kind="moneyline" type="button">
+        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-currency-dollar"></i></span>
+        <span class="odds-tab-label">Moneyline</span>
+      </button>
+      <button data-odds-kind="spread" type="button">
+        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-sliders-horizontal"></i></span>
+        <span class="odds-tab-label">Run Line / Spread</span>
+      </button>
+      <button data-odds-kind="alternate_spread" type="button">
+        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-arrows-down-up"></i></span>
+        <span class="odds-tab-label">Alt Spreads</span>
+      </button>
+      <button data-odds-kind="game_total" type="button">
+        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-chart-bar"></i></span>
+        <span class="odds-tab-label">Game Totals</span>
+      </button>
+      <button data-odds-kind="alternate_total" type="button">
+        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-plus-minus"></i></span>
+        <span class="odds-tab-label">Alt Totals</span>
+      </button>
       <div class="odds-menu-shell odds-props-shell">
-        <button id="odds-props-trigger" type="button" aria-expanded="false" aria-controls="odds-props-menu">Player Props <i class="ph ph-caret-down"></i></button>
+        <button id="odds-props-trigger" type="button" aria-expanded="false" aria-controls="odds-props-menu">
+          <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-user"></i></span>
+          <span class="odds-tab-label">Player Props</span>
+          <i class="ph ph-caret-down odds-tab-caret" aria-hidden="true"></i>
+        </button>
         <section class="odds-popover odds-props-menu" id="odds-props-menu" hidden>
           <div class="odds-menu-heading"><strong>Detected player props</strong><button type="button" data-close-menu aria-label="Close"><i class="ph ph-x"></i></button></div>
           <div id="odds-props-list"><span>No player props in the current feed.</span></div>

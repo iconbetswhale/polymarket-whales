@@ -832,3 +832,49 @@ No actionable P0, P1, or P2 findings remain.
 - No deploy, commit, or push was performed.
 
 final result: passed
+
+---
+
+# Odds Screen — Glossy Icon Market Tabs QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\15617\Desktop\0adbba14-d576-4b61-b484-3f5bced69667.png` (2119 × 744 px).
+- Final browser implementation: `artifacts/approved-odds-screen/odds-screen-glossy-icon-tabs-1280x720.png` (1280 × 720 px).
+- Verified route, viewport, and density: `http://127.0.0.1:5024/odds-screen?preview=1`, 1280 × 720 CSS px, DPR 1.
+- State: desktop Moneyline preview with 12 placeholder games and the global IconLabs sidebar retained.
+
+The source is a focused, wide component mockup while the implementation capture shows the rail in the complete application. Both were inspected together at native scale; the rail was adapted proportionately to the 982px available content width without changing its six-part hierarchy.
+
+## Findings and implementation
+
+- P1 — The previous market navigation was a compact set of plain rectangular labels and did not reproduce the selected high-tech rail.
+  - Fix: replaced it with one connected 70px graphite capsule, rounded silver keyline, glossy surface, single segment dividers, icon tiles, and a layered purple active state.
+  - Post-fix evidence: the final rail is 982 × 70px with six 68px-high controls and a 19px outer radius. The longer Run Line / Spread segment receives proportional width so no label truncates.
+- P1 — The selected reference relies on a distinct purple pictogram for every tab.
+  - Fix: added six semantic Phosphor icons from the site's existing library: dollar, sliders, vertical arrows, bar chart, plus/minus, and user. No custom SVG or raster approximation was introduced.
+  - Post-fix evidence: all six icon tiles render at 31 × 31px at the 1280px desktop breakpoint with `rgb(169, 85, 255)` icon color.
+- P2 — Player Props needed to keep its existing dynamic submenu while participating visually in the connected rail.
+  - Fix: retained the original trigger and popover behavior inside the rounded final segment, with the person icon, label, and caret aligned as one control.
+  - Post-fix evidence: the menu opens without clipping, exposes Player Hits, closes after selection, and displays 12 prop games.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing IconLabs font remains; labels use a compact 12px weight at the tested viewport so all six segments fit without wrapping or collision.
+- Spacing and layout rhythm: six connected segments use one outer border and one internal divider per edge; icons, labels, and caret remain vertically centered.
+- Colors and tokens: inactive tabs use graphite gradients and restrained silver borders; the active Moneyline segment adds violet fill, a 3px purple bottom rail, and a controlled glow.
+- Image quality and assets: the installed Phosphor icon library is reused at native vector sharpness; the change adds no fabricated brand asset.
+- Copy and content: all approved labels and the complete market-selection behavior remain unchanged.
+
+## Interaction and automated verification
+
+- Moneyline, Run Line / Spread, Alt Spreads, Game Totals, and Alt Totals each activate correctly and render 12 games.
+- Player Props opens, Player Hits activates, and 12 games render; returning to Moneyline restores the initial state.
+- Browser diagnostics: no warnings or errors.
+- Odds Screen and provider suite: 23 passed.
+- `node --check static/app.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed
