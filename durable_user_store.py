@@ -37,7 +37,7 @@ from market_quotes import NormalizedMarketQuote
 
 
 class PostgresUserStore:
-    """Durable storage for user-owned state in serverless deployments."""
+    """Durable storage for tracker and user state in serverless deployments."""
 
     def __init__(self, database_url: str) -> None:
         try:
@@ -110,6 +110,59 @@ class PostgresUserStore:
             """
             CREATE INDEX IF NOT EXISTS idx_auth_sessions_user
                 ON auth_sessions(user_id, expires_at)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS tracked_positions (
+                wallet_address TEXT NOT NULL,
+                position_key TEXT NOT NULL,
+                status TEXT NOT NULL,
+                category TEXT,
+                league TEXT,
+                market_title TEXT,
+                outcome TEXT,
+                resolution_time TEXT,
+                first_detected_at TEXT NOT NULL,
+                last_seen_at TEXT NOT NULL,
+                last_changed_at TEXT NOT NULL,
+                closed_at TEXT,
+                snapshot_json TEXT NOT NULL,
+                PRIMARY KEY (wallet_address, position_key)
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_tracked_positions_status
+                ON tracked_positions(status)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_tracked_positions_category
+                ON tracked_positions(category, league)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_tracked_positions_resolution
+                ON tracked_positions(resolution_time)
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS position_events (
+                id BIGSERIAL PRIMARY KEY,
+                wallet_address TEXT NOT NULL,
+                position_key TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                event_hash TEXT NOT NULL UNIQUE,
+                detected_at TEXT NOT NULL,
+                category TEXT,
+                league TEXT,
+                market_title TEXT,
+                outcome TEXT,
+                event_json TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_position_events_wallet_detected
+                ON position_events(wallet_address, detected_at DESC)
+            """,
+            """
+            CREATE INDEX IF NOT EXISTS idx_position_events_type_detected
+                ON position_events(event_type, detected_at DESC)
             """,
             """
             CREATE TABLE IF NOT EXISTS bet_tracker (
@@ -683,6 +736,266 @@ class PostgresUserStore:
                 "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
                 (MARKET_QUOTE_MIGRATION_VERSION, now),
             )
+
+    @staticmethod
+    def _tracked_position_row(row: dict[str, Any]) -> dict[str, Any]:
+        payload = dict(row)
+        payload["snapshot"] = json.loads(payload.pop("snapshot_json"))
+        return payload
+
+    def get_open_positions_for_wallet(
+        self, wallet_address: str
+    ) -> dict[str, dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT position_key, snapshot_json
+                FROM tracked_positions
+                WHERE wallet_address = %s AND status = 'open'
+                """,
+                (str(wallet_address or "").lower(),),
+            ).fetchall()
+        return {
+            str(row["position_key"]): json.loads(row["snapshot_json"])
+            for row in rows
+        }
+
+    def get_all_open_positions(self) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT snapshot_json
+                FROM tracked_positions
+                WHERE status = 'open'
+                ORDER BY resolution_time ASC, market_title ASC
+                """
+            ).fetchall()
+        return [json.loads(row["snapshot_json"]) for row in rows]
+
+    def get_all_tracked_positions(self) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT wallet_address, position_key, status, first_detected_at,
+                       last_seen_at, closed_at, snapshot_json
+                FROM tracked_positions
+                ORDER BY COALESCE(closed_at, last_seen_at) ASC
+                """
+            ).fetchall()
+        return [self._tracked_position_row(row) for row in rows]
+
+    def save_open_positions(self, snapshots: list[dict[str, Any]]) -> None:
+        if not snapshots:
+            return
+        values = [
+            (
+                str(snapshot["wallet_address"]).lower(),
+                snapshot["position_key"],
+                snapshot.get("category"),
+                snapshot.get("league"),
+                snapshot.get("market_title"),
+                snapshot.get("outcome"),
+                snapshot.get("resolution_time"),
+                snapshot.get("first_detected_at"),
+                snapshot.get("last_seen_at"),
+                snapshot.get("last_changed_at"),
+                json.dumps(snapshot),
+            )
+            for snapshot in snapshots
+        ]
+        with self.connection() as conn:
+            conn.executemany(
+                """
+                INSERT INTO tracked_positions (
+                    wallet_address, position_key, status, category, league,
+                    market_title, outcome, resolution_time, first_detected_at,
+                    last_seen_at, last_changed_at, closed_at, snapshot_json
+                )
+                VALUES (%s, %s, 'open', %s, %s, %s, %s, %s, %s, %s, %s, NULL, %s)
+                ON CONFLICT(wallet_address, position_key) DO UPDATE SET
+                    status = 'open',
+                    category = EXCLUDED.category,
+                    league = EXCLUDED.league,
+                    market_title = EXCLUDED.market_title,
+                    outcome = EXCLUDED.outcome,
+                    resolution_time = EXCLUDED.resolution_time,
+                    first_detected_at = EXCLUDED.first_detected_at,
+                    last_seen_at = EXCLUDED.last_seen_at,
+                    last_changed_at = EXCLUDED.last_changed_at,
+                    closed_at = NULL,
+                    snapshot_json = EXCLUDED.snapshot_json
+                """,
+                values,
+            )
+
+    def save_open_position(self, snapshot: dict[str, Any]) -> None:
+        self.save_open_positions([snapshot])
+
+    def close_position(self, snapshot: dict[str, Any]) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                """
+                UPDATE tracked_positions
+                SET status = 'closed', category = %s, league = %s,
+                    market_title = %s, outcome = %s, resolution_time = %s,
+                    last_seen_at = %s, last_changed_at = %s, closed_at = %s,
+                    snapshot_json = %s
+                WHERE wallet_address = %s AND position_key = %s
+                """,
+                (
+                    snapshot.get("category"),
+                    snapshot.get("league"),
+                    snapshot.get("market_title"),
+                    snapshot.get("outcome"),
+                    snapshot.get("resolution_time"),
+                    snapshot.get("last_seen_at"),
+                    snapshot.get("last_changed_at"),
+                    snapshot.get("closed_at"),
+                    json.dumps(snapshot),
+                    str(snapshot["wallet_address"]).lower(),
+                    snapshot["position_key"],
+                ),
+            )
+
+    def insert_event(self, event: dict[str, Any]) -> bool:
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                INSERT INTO position_events (
+                    wallet_address, position_key, event_type, event_hash,
+                    detected_at, category, league, market_title, outcome,
+                    event_json
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(event_hash) DO NOTHING
+                RETURNING event_hash
+                """,
+                (
+                    str(event["wallet_address"]).lower(),
+                    event["position_key"],
+                    event["event_type"],
+                    event["event_hash"],
+                    event["detected_at"],
+                    event.get("category"),
+                    event.get("league"),
+                    event.get("market_title"),
+                    event.get("outcome"),
+                    json.dumps(event),
+                ),
+            ).fetchone()
+        return row is not None
+
+    def get_recent_events(self, limit: int = 200) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT event_json
+                FROM position_events
+                ORDER BY detected_at DESC, id DESC
+                LIMIT %s
+                """,
+                (max(1, int(limit)),),
+            ).fetchall()
+        return [json.loads(row["event_json"]) for row in rows]
+
+    def get_events_for_wallet(
+        self, wallet_address: str, limit: int = 200
+    ) -> list[dict[str, Any]]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT event_json
+                FROM position_events
+                WHERE wallet_address = %s
+                ORDER BY detected_at DESC, id DESC
+                LIMIT %s
+                """,
+                (str(wallet_address or "").lower(), max(1, int(limit))),
+            ).fetchall()
+        return [json.loads(row["event_json"]) for row in rows]
+
+    def get_wallet_history_counts(self) -> dict[str, int]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT wallet_address, COUNT(*) AS count
+                FROM position_events
+                GROUP BY wallet_address
+                """
+            ).fetchall()
+        return {
+            str(row["wallet_address"]).lower(): int(row["count"])
+            for row in rows
+        }
+
+    def get_events_page(
+        self,
+        page: int = 1,
+        per_page: int = 50,
+        *,
+        search: str = "",
+        wallet: str = "",
+        sport: str = "",
+        league: str = "",
+        event_type: str = "",
+        start: str = "",
+        end: str = "",
+        sort: str = "desc",
+    ) -> dict[str, Any]:
+        page = max(1, int(page or 1))
+        per_page = max(1, min(100, int(per_page or 50)))
+        offset = (page - 1) * per_page
+        where: list[str] = []
+        params: list[Any] = []
+        if search:
+            where.append(
+                "(market_title ILIKE %s OR outcome ILIKE %s OR event_json ILIKE %s)"
+            )
+            needle = f"%{search}%"
+            params.extend([needle, needle, needle])
+        if wallet:
+            where.append("(wallet_address = %s OR event_json ILIKE %s)")
+            params.extend([wallet.lower(), f'%"wallet_label": "{wallet}%'])
+        if sport:
+            where.append("category = %s")
+            params.append(sport)
+        if league:
+            where.append("league = %s")
+            params.append(league)
+        if event_type:
+            where.append("event_type = %s")
+            params.append(event_type)
+        if start:
+            where.append("detected_at >= %s")
+            params.append(start)
+        if end:
+            where.append("detected_at <= %s")
+            params.append(end)
+        where_sql = f"WHERE {' AND '.join(where)}" if where else ""
+        direction = "ASC" if str(sort).lower() == "asc" else "DESC"
+        with self.connection() as conn:
+            total = conn.execute(
+                f"SELECT COUNT(*) AS count FROM position_events {where_sql}",
+                params,
+            ).fetchone()["count"]
+            rows = conn.execute(
+                f"""
+                SELECT event_json
+                FROM position_events
+                {where_sql}
+                ORDER BY detected_at {direction}, id {direction}
+                LIMIT %s OFFSET %s
+                """,
+                [*params, per_page, offset],
+            ).fetchall()
+        return {
+            "data": [json.loads(row["event_json"]) for row in rows],
+            "page": page,
+            "per_page": per_page,
+            "total": total,
+            "has_next": offset + per_page < total,
+            "has_prev": page > 1,
+        }
 
     def get_or_create_user_settings(
         self, user_id: str, default_bankroll: float, unit_percentage: float

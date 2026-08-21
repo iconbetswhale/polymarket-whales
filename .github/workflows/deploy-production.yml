@@ -60,6 +60,7 @@ jobs:
           import json, os
           data = json.loads(os.environ["DISCORD_RESULT"]).get("data", {})
           discord = data.get("discord_notifications", {})
+          shadow = data.get("shadow", {})
           print(
               "Discord Model Tracker: "
               f"enabled={bool(discord.get('enabled'))} "
@@ -70,6 +71,19 @@ jobs:
               f"retrying={int(discord.get('retrying') or 0)} "
               f"failed={int(discord.get('failed') or 0)}"
           )
+          print(
+              "Shadow Tracker: "
+              f"enabled={bool(shadow.get('enabled'))} "
+              f"status={shadow.get('status', 'unknown')} "
+              f"inserted={int(shadow.get('records_inserted') or 0)} "
+              f"errors={int(shadow.get('errors') or 0)}"
+          )
+          if data.get("status") == "failed":
+              raise SystemExit("Model/shadow reconciliation failed")
+          if not shadow.get("enabled") or shadow.get("status") != "ACTIVE_FORWARD_TRACKING":
+              raise SystemExit("Shadow Tracker is not active")
+          if int(shadow.get("errors") or 0):
+              raise SystemExit("Shadow Tracker reconciliation reported errors")
           PY
 
       - name: Reconcile LabTracker
@@ -82,6 +96,30 @@ jobs:
             --header "Content-Type: application/json" \
             --data '{}' \
             https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/lab-tracker/reconcile
+
+      - name: Verify durable Shadow Lab storage
+        run: |
+          response="$(curl --silent --show-error --fail-with-body \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/shadow-test)"
+          SHADOW_RESULT="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ["SHADOW_RESULT"]).get("data", {})
+          shadow = data.get("shadow", {})
+          persistence = data.get("persistence", {})
+          print(
+              "Shadow persistence: "
+              f"enabled={bool(shadow.get('enabled'))} "
+              f"status={shadow.get('status', 'unknown')} "
+              f"backend={persistence.get('backend', 'unknown')} "
+              f"persistent={bool(persistence.get('position_history_persistent'))}"
+          )
+          if not shadow.get("enabled") or shadow.get("status") != "ACTIVE_FORWARD_TRACKING":
+              raise SystemExit("Shadow Tracker status verification failed")
+          if persistence.get("backend") != "postgresql":
+              raise SystemExit("Shadow position history is not using PostgreSQL")
+          if not persistence.get("position_history_persistent"):
+              raise SystemExit("Shadow position history is not persistent")
+          PY
 
       - name: Send requested one-time Discord test
         if: github.event_name == 'push' && contains(github.event.head_commit.message, '[discord-test]')

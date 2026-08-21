@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+import database as database_module
 from config import Settings
 from database import TrackerDatabase
 from position_tracker import (
@@ -215,6 +216,116 @@ def test_duplicate_event_prevention(tmp_path):
     service.refresh()
     events = database.get_recent_events()
     assert len([event for event in events if event["event_type"] == "new_entry"]) == 1
+
+
+def test_position_history_uses_durable_store_when_configured(tmp_path, monkeypatch):
+    class FakeDurableStore:
+        def __init__(self, database_url):
+            self.database_url = database_url
+            self.positions = {}
+            self.events = []
+
+        def save_open_positions(self, snapshots):
+            for snapshot in snapshots:
+                key = (snapshot["wallet_address"].lower(), snapshot["position_key"])
+                self.positions[key] = dict(snapshot)
+
+        def get_open_positions_for_wallet(self, wallet_address):
+            return {
+                key: dict(snapshot)
+                for (address, key), snapshot in self.positions.items()
+                if address == wallet_address.lower()
+                and str(snapshot.get("status") or "open").lower() == "open"
+            }
+
+        def get_all_open_positions(self):
+            return [
+                dict(snapshot)
+                for snapshot in self.positions.values()
+                if str(snapshot.get("status") or "open").lower() == "open"
+            ]
+
+        def get_all_tracked_positions(self):
+            return [
+                {
+                    "wallet_address": address,
+                    "position_key": key,
+                    "status": snapshot.get("status", "open"),
+                    "first_detected_at": snapshot["first_detected_at"],
+                    "last_seen_at": snapshot["last_seen_at"],
+                    "closed_at": snapshot.get("closed_at"),
+                    "snapshot": dict(snapshot),
+                }
+                for (address, key), snapshot in self.positions.items()
+            ]
+
+        def close_position(self, snapshot):
+            key = (snapshot["wallet_address"].lower(), snapshot["position_key"])
+            self.positions[key] = dict(snapshot)
+
+        def insert_event(self, event):
+            if any(row["event_hash"] == event["event_hash"] for row in self.events):
+                return False
+            self.events.append(dict(event))
+            return True
+
+        def get_recent_events(self, limit=200):
+            return list(reversed(self.events))[:limit]
+
+        def get_events_for_wallet(self, wallet_address, limit=200):
+            return [
+                row
+                for row in reversed(self.events)
+                if row["wallet_address"].lower() == wallet_address.lower()
+            ][:limit]
+
+        def get_wallet_history_counts(self):
+            return {
+                address: sum(
+                    row["wallet_address"].lower() == address for row in self.events
+                )
+                for address, _key in self.positions
+            }
+
+        def health(self):
+            return {"backend": "postgresql", "persistent": True, "status": "ok"}
+
+    monkeypatch.setattr(database_module, "PostgresUserStore", FakeDurableStore)
+    database = TrackerDatabase(
+        tmp_path / "tracker.db", "postgresql://durable.example/iconbets"
+    )
+    now = datetime.now(timezone.utc).isoformat()
+    snapshot = {
+        "wallet_address": "0xABC",
+        "position_key": "market::yes",
+        "status": "open",
+        "first_detected_at": now,
+        "last_seen_at": now,
+        "last_changed_at": now,
+        "market_title": "Example",
+        "outcome": "Yes",
+    }
+    event = {
+        "wallet_address": "0xABC",
+        "position_key": "market::yes",
+        "event_type": "new_entry",
+        "event_hash": "event-1",
+        "detected_at": now,
+    }
+
+    database.save_open_position(snapshot)
+    assert database.insert_event(event) is True
+    assert database.insert_event(event) is False
+    assert database.get_open_positions_for_wallet("0xabc")
+    assert database.get_all_tracked_positions()[0]["snapshot"]["market_title"] == "Example"
+    assert database.get_recent_events()[0]["event_hash"] == "event-1"
+
+    closed = {**snapshot, "status": "closed", "closed_at": now}
+    database.close_position(closed)
+    assert database.get_all_open_positions() == []
+    health = database.health()
+    assert health["position_history_persistent"] is True
+    assert health["position_history_backend"] == "postgresql"
 
 
 def test_discord_notifications_skip_initial_scan_but_send_later_changes(tmp_path):

@@ -843,6 +843,8 @@ class TrackerDatabase:
         return {str(row["wallet_address"]).lower(): int(row["count"]) for row in rows}
 
     def get_open_positions_for_wallet(self, wallet_address: str) -> dict[str, dict]:
+        if self.user_store:
+            return self.user_store.get_open_positions_for_wallet(wallet_address)
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -855,6 +857,8 @@ class TrackerDatabase:
         return {row["position_key"]: json.loads(row["snapshot_json"]) for row in rows}
 
     def get_all_open_positions(self) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_all_open_positions()
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -868,6 +872,8 @@ class TrackerDatabase:
 
     def get_all_tracked_positions(self) -> list[dict]:
         """Return raw forward position rows for independent shadow sleeves."""
+        if self.user_store:
+            return self.user_store.get_all_tracked_positions()
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -884,9 +890,14 @@ class TrackerDatabase:
             result.append(item)
         return result
 
-    def save_open_position(self, snapshot: dict) -> None:
+    def save_open_positions(self, snapshots: list[dict]) -> None:
+        if not snapshots:
+            return
+        if self.user_store:
+            self.user_store.save_open_positions(snapshots)
+            return
         with self.connection() as conn:
-            conn.execute(
+            conn.executemany(
                 """
                 INSERT INTO tracked_positions (
                     wallet_address,
@@ -917,22 +928,31 @@ class TrackerDatabase:
                     closed_at = NULL,
                     snapshot_json = excluded.snapshot_json
                 """,
-                (
-                    snapshot["wallet_address"],
-                    snapshot["position_key"],
-                    snapshot.get("category"),
-                    snapshot.get("league"),
-                    snapshot.get("market_title"),
-                    snapshot.get("outcome"),
-                    snapshot.get("resolution_time"),
-                    snapshot.get("first_detected_at"),
-                    snapshot.get("last_seen_at"),
-                    snapshot.get("last_changed_at"),
-                    json.dumps(snapshot),
-                ),
+                [
+                    (
+                        snapshot["wallet_address"],
+                        snapshot["position_key"],
+                        snapshot.get("category"),
+                        snapshot.get("league"),
+                        snapshot.get("market_title"),
+                        snapshot.get("outcome"),
+                        snapshot.get("resolution_time"),
+                        snapshot.get("first_detected_at"),
+                        snapshot.get("last_seen_at"),
+                        snapshot.get("last_changed_at"),
+                        json.dumps(snapshot),
+                    )
+                    for snapshot in snapshots
+                ],
             )
 
+    def save_open_position(self, snapshot: dict) -> None:
+        self.save_open_positions([snapshot])
+
     def close_position(self, snapshot: dict) -> None:
+        if self.user_store:
+            self.user_store.close_position(snapshot)
+            return
         with self.connection() as conn:
             conn.execute(
                 """
@@ -965,6 +985,8 @@ class TrackerDatabase:
             )
 
     def insert_event(self, event: dict) -> bool:
+        if self.user_store:
+            return self.user_store.insert_event(event)
         with self.connection() as conn:
             cursor = conn.execute(
                 """
@@ -998,6 +1020,8 @@ class TrackerDatabase:
             return cursor.rowcount > 0
 
     def get_recent_events(self, limit: int = 200) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_recent_events(limit)
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -1024,6 +1048,19 @@ class TrackerDatabase:
         end: str = "",
         sort: str = "desc",
     ) -> dict:
+        if self.user_store:
+            return self.user_store.get_events_page(
+                page,
+                per_page,
+                search=search,
+                wallet=wallet,
+                sport=sport,
+                league=league,
+                event_type=event_type,
+                start=start,
+                end=end,
+                sort=sort,
+            )
         page = max(1, int(page or 1))
         per_page = max(1, min(100, int(per_page or 50)))
         offset = (page - 1) * per_page
@@ -1080,6 +1117,8 @@ class TrackerDatabase:
     def get_events_for_wallet(
         self, wallet_address: str, limit: int = 200
     ) -> list[dict]:
+        if self.user_store:
+            return self.user_store.get_events_for_wallet(wallet_address, limit)
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -1110,6 +1149,8 @@ class TrackerDatabase:
         return {row["key"]: row["value"] for row in rows}
 
     def get_wallet_history_counts(self) -> dict[str, int]:
+        if self.user_store:
+            return self.user_store.get_wallet_history_counts()
         with self.connection() as conn:
             rows = conn.execute(
                 """
@@ -3865,6 +3906,10 @@ class TrackerDatabase:
             "database_path": str(self.path),
             "status": "ok" if self.path.exists() else "initializing",
             "user_data_persistent": bool(self.user_store),
+            "position_history_persistent": bool(self.user_store),
+            "position_history_backend": (
+                "postgresql" if self.user_store else "sqlite"
+            ),
         }
         if self.user_store:
             durable_health = self.user_store.health()

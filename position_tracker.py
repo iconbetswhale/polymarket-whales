@@ -96,6 +96,7 @@ LOGGER = logging.getLogger(__name__)
 # replay.
 MODEL_TRACKER_USER_ID = "iconbets-model-tracker-weighted-mlb-tennis-v1"
 SHADOW_TRACKER_USER_ID = "iconbets-shadow-broad-consensus-2"
+SHADOW_STRATEGY_ID = "BROAD_CONSENSUS_2"
 
 
 def _utc_now() -> datetime:
@@ -532,7 +533,7 @@ class TrackerService:
             status["app_status"] = "degraded"
 
         if not loader.enabled_wallets:
-            self.reconcile_model_tracker([])
+            self.reconcile_model_tracker([], shadow_plays=[])
             self._update_tracker_statuses({})
             snapshot = {
                 "positions": [],
@@ -764,10 +765,18 @@ class TrackerService:
         for play in specialist_plays:
             play["model_strategy"] = SPECIALIST_STRATEGY_ID
         trades_to_play.extend(specialist_plays)
-        # Shadow records remain preserved in the database, but no shadow cohort
-        # is generated, reconciled, or allowed to consume provider refresh work.
-        shadow_trades: list[dict[str, Any]] = []
-        strategy_plays = trades_to_play
+        shadow_exclusions: list[dict[str, Any]] = []
+        shadow_trades = build_trades_to_play(
+            strategy_positions,
+            trades,
+            unit_map,
+            tracked_wallet_count=len(THREE_SHARP_WALLETS),
+            diagnostics=shadow_exclusions,
+            strategy_mode=SHADOW_STRATEGY_ID,
+        )
+        for play in shadow_trades:
+            play["model_strategy"] = SHADOW_STRATEGY_ID
+        strategy_plays = [*trades_to_play, *shadow_trades]
         for play in strategy_plays:
             # Provider selection is all-in for the complete intended flat stake.
             # Make the bankroll available before the first quote evaluation.
@@ -782,8 +791,17 @@ class TrackerService:
             fair_prices[str(play.get("id") or "")] = fair_price
             apply_best_execution_option(play)
             enrich_trade_decision(play, fair_price)
+            tracker_user_id = (
+                SHADOW_TRACKER_USER_ID
+                if play.get("model_strategy") == SHADOW_STRATEGY_ID
+                else MODEL_TRACKER_USER_ID
+            )
             preliminary = self.evaluate_recommendation(
-                play, self.settings.default_bankroll, _utc_now()
+                play,
+                self.settings.default_bankroll,
+                _utc_now(),
+                user_id=tracker_user_id,
+                include_personal=False,
             )
             play["recommendation"] = preliminary["recommendation"]
         self.execution_providers.attach_options(strategy_plays)
@@ -797,7 +815,9 @@ class TrackerService:
         measurement = self._record_candidate_measurements(
             trades_to_play, trade_exclusions, _utc_now()
         )
-        self.reconcile_model_tracker(trades_to_play)
+        tracking = self.reconcile_model_tracker(
+            trades_to_play, shadow_plays=shadow_trades
+        )
         self._update_tracker_statuses(events)
         success_time = _iso_now()
         status["last_successful_refresh"] = success_time
@@ -830,6 +850,7 @@ class TrackerService:
         status["app_status"] = "ok" if status["api_status"] != "error" else "degraded"
         status["database"] = self.database.health()
         status["measurement_foundation"] = measurement
+        status["shadow_tracking"] = tracking.get("shadow", {})
 
         self.database.set_refresh_state("last_refresh_attempt", attempt_time)
         self.database.set_refresh_state("last_successful_refresh", success_time)
@@ -841,6 +862,7 @@ class TrackerService:
                 "trades": trades,
                 "trades_to_play": trades_to_play,
                 "shadow_trades_to_play": shadow_trades,
+                "shadow_trade_exclusions": shadow_exclusions,
                 "trade_exclusions": trade_exclusions,
                 "consensus": consensus,
                 "unit_analysis": unit_analysis,
@@ -1250,6 +1272,8 @@ class TrackerService:
         plays: list[dict] | None = None,
         now: datetime | None = None,
         force: bool = False,
+        *,
+        shadow_plays: list[dict] | None = None,
     ) -> dict:
         prior = self.database.get_tracking_job_state()
         attempted = (now or _utc_now()).astimezone(timezone.utc)
@@ -1268,7 +1292,7 @@ class TrackerService:
             "deferred_until_pregame": 0,
             "errors": 0,
             "error_details": [],
-            "user_configurations": 1,
+            "user_configurations": 2,
             "tracker_scope": "global",
             "interval_seconds": self.settings.tracker_job_interval_seconds,
             "pregame_window_minutes": THREE_SHARP_TRACKER_ENTRY_WINDOW_MINUTES,
@@ -1278,6 +1302,11 @@ class TrackerService:
                 with self._lock:
                     plays = json.loads(
                         json.dumps(self._cache.get("trades_to_play", []))
+                    )
+            if shadow_plays is None:
+                with self._lock:
+                    shadow_plays = json.loads(
+                        json.dumps(self._cache.get("shadow_trades_to_play", []))
                     )
             tracker_result = self.reconcile_user_tracker(
                 MODEL_TRACKER_USER_ID,
@@ -1293,6 +1322,32 @@ class TrackerService:
             state["deferred_until_pregame"] = tracker_result["deferred_until_pregame"]
             state["errors"] = tracker_result["errors"]
             state["error_details"] = tracker_result["error_details"]
+            shadow_result = self.reconcile_user_tracker(
+                SHADOW_TRACKER_USER_ID,
+                self.settings.default_bankroll,
+                shadow_plays,
+                attempted,
+            )
+            state["shadow"] = {
+                "enabled": True,
+                "status": "ACTIVE_FORWARD_TRACKING",
+                "strategy": SHADOW_STRATEGY_ID,
+                "recommendations_evaluated": shadow_result["evaluated"],
+                "eligible_recommendations": shadow_result["eligible"],
+                "records_inserted": shadow_result["inserted"],
+                "records_skipped_duplicates": shadow_result["existing"],
+                "records_rejected": shadow_result["rejected"],
+                "deferred_until_pregame": shadow_result[
+                    "deferred_until_pregame"
+                ],
+                "errors": shadow_result["errors"],
+                "error_details": shadow_result["error_details"],
+            }
+            state["errors"] += shadow_result["errors"]
+            state["error_details"].extend(
+                {**detail, "tracker": "shadow"}
+                for detail in shadow_result["error_details"]
+            )
             if state["errors"]:
                 state["status"] = "failed"
             else:
@@ -3644,8 +3699,12 @@ class TrackerService:
                 self._record_event(event, initial_scan=is_initial_wallet_scan)
 
             row["last_seen_at"] = now
-            self.database.save_open_position(row)
             output.append(row)
+
+        # Persist one wallet snapshot per transaction. This keeps PostgreSQL
+        # durable tracking efficient on serverless refreshes while preserving
+        # the single-row method for callers outside the refresh pipeline.
+        self.database.save_open_positions(list(current_by_key.values()))
 
         # Candidate rows are date-filtered before enrichment, but exit detection
         # must compare against every position returned by the wallet endpoint.

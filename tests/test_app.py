@@ -1645,6 +1645,19 @@ def test_trade_feed_includes_polymarket_execution_option(app_client, monkeypatch
     assert options[0]["deepLink"] == "https://polymarket.com/event/example"
 
 
+def test_shadow_status_reports_active_tracking_and_storage_backend(app_client):
+    response = app_client.get("/api/shadow-test")
+
+    assert response.status_code == 200
+    payload = response.get_json()["data"]
+    assert payload["shadow"]["enabled"] is True
+    assert payload["shadow"]["status"] == "ACTIVE_FORWARD_TRACKING"
+    assert payload["persistence"] == {
+        "position_history_persistent": False,
+        "backend": "sqlite",
+    }
+
+
 @pytest.mark.parametrize(
     ("query", "entry", "expected_total"),
     [

@@ -20,12 +20,30 @@ jobs:
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
         run: |
-          curl --fail-with-body --retry 2 --retry-delay 10 \
+          response="$(curl --silent --show-error --fail-with-body --retry 2 --retry-delay 10 \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
             --header "Content-Type: application/json" \
             --data '{"force":false}' \
-            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/model-tracker/reconcile
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/admin/model-tracker/reconcile)"
+          TRACKER_RESULT="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ["TRACKER_RESULT"]).get("data", {})
+          shadow = data.get("shadow", {})
+          print(
+              "Tracker reconcile: "
+              f"status={data.get('status', 'unknown')} "
+              f"live_errors={int(data.get('errors') or 0)} "
+              f"shadow_status={shadow.get('status', 'unknown')} "
+              f"shadow_errors={int(shadow.get('errors') or 0)}"
+          )
+          if data.get("status") == "failed":
+              raise SystemExit("Tracker reconciliation failed")
+          if not shadow.get("enabled") or shadow.get("status") != "ACTIVE_FORWARD_TRACKING":
+              raise SystemExit("Shadow Tracker is not active")
+          if int(shadow.get("errors") or 0):
+              raise SystemExit("Shadow Tracker reconciliation reported errors")
+          PY
       - name: Reconcile LabTracker feeds and results
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}

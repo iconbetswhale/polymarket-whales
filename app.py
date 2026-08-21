@@ -52,6 +52,7 @@ from personal_positions import (
 )
 from position_tracker import (
     MODEL_TRACKER_USER_ID,
+    SHADOW_STRATEGY_ID,
     SHADOW_TRACKER_USER_ID,
     TrackerService,
 )
@@ -4315,6 +4316,7 @@ def create_app(start_background: bool = True) -> Flask:
             reverse=True,
         )
         shadow_lab = build_shadow_lab(tracker.database.get_all_tracked_positions())
+        database_health = tracker.database.health()
         return jsonify(
             {
                 "data": {
@@ -4327,9 +4329,9 @@ def create_app(start_background: bool = True) -> Flask:
                         "timing": timing_outlook(live_rows),
                     },
                     "shadow": {
-                        "strategy": "BROAD_CONSENSUS_2",
-                        "enabled": False,
-                        "status": "DISABLED_HISTORY_PRESERVED",
+                        "strategy": SHADOW_STRATEGY_ID,
+                        "enabled": True,
+                        "status": "ACTIVE_FORWARD_TRACKING",
                         "summary": shadow_summary,
                         "tracked_bets": len(shadow_rows),
                         "timing": timing_outlook(shadow_rows),
@@ -4337,6 +4339,12 @@ def create_app(start_background: bool = True) -> Flask:
                     },
                     "wallet_contributions": contribution_rows,
                     "shadow_lab": shadow_lab,
+                    "persistence": {
+                        "position_history_persistent": bool(
+                            database_health.get("position_history_persistent")
+                        ),
+                        "backend": database_health.get("position_history_backend"),
+                    },
                     "forward_only": True,
                     "automatic_wallet_removal": False,
                 }

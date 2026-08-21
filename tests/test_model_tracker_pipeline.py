@@ -7,7 +7,12 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from bet_sizing import SLIPPAGE_ABOVE_MAX
-from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
+from position_tracker import (
+    MODEL_TRACKER_USER_ID,
+    SHADOW_STRATEGY_ID,
+    SHADOW_TRACKER_USER_ID,
+    TrackerService,
+)
 from three_sharp_strategy import STRATEGY_ID
 from recommendation_service import (
     EVENT_ALREADY_STARTED,
@@ -251,6 +256,30 @@ def test_repeated_backend_runs_insert_once_without_opening_a_page(
     records = db.get_tracker_records(MODEL_TRACKER_USER_ID)
     assert len(records) == 1
     assert records[0]["status"] == "scheduled"
+
+
+def test_shadow_recommendations_are_reconciled_into_their_own_ledger(
+    temp_settings, db
+):
+    service = TrackerService(temp_settings, database=db, auto_start=False)
+    shadow_play = _play(start=NOW + timedelta(minutes=30))
+    shadow_play["model_strategy"] = SHADOW_STRATEGY_ID
+
+    first = service.reconcile_model_tracker(
+        [], NOW, shadow_plays=[shadow_play]
+    )
+    repeated = service.reconcile_model_tracker(
+        [], NOW + timedelta(seconds=5), shadow_plays=[shadow_play]
+    )
+
+    assert first["records_inserted"] == 0
+    assert first["shadow"]["enabled"] is True
+    assert first["shadow"]["status"] == "ACTIVE_FORWARD_TRACKING"
+    assert first["shadow"]["records_inserted"] == 1
+    assert repeated["shadow"]["records_inserted"] == 0
+    assert repeated["shadow"]["records_skipped_duplicates"] == 1
+    assert db.get_tracker_records(MODEL_TRACKER_USER_ID) == []
+    assert len(db.get_tracker_records(SHADOW_TRACKER_USER_ID)) == 1
 
 
 def test_recommendation_version_upgrade_does_not_duplicate_same_market(
