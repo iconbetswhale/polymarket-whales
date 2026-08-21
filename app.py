@@ -1168,8 +1168,17 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/wallets")
     def wallets_page():
         if not wallet_page_is_unlocked():
+            preview_requested = request.args.get("preview", "").strip().lower() in {
+                "1",
+                "true",
+                "yes",
+                "on",
+            }
+            unlock_args = {"next": request.full_path}
+            if preview_requested:
+                unlock_args["preview"] = "1"
             response = make_response(
-                redirect(url_for("wallet_unlock_page", next=request.full_path))
+                redirect(url_for("wallet_unlock_page", **unlock_args))
             )
             response.headers["Cache-Control"] = "no-store"
             return response

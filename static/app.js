@@ -1097,8 +1097,9 @@ function updateTradeUrl(filters) {
   });
   if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
   if (appState.workspaceTab !== "trades") params.set("tab", appState.workspaceTab);
-  if (new URLSearchParams(window.location.search).get("preview") === "trade") {
-    params.set("preview", "trade");
+  const previewMode = new URLSearchParams(window.location.search).get("preview");
+  if (["1", "true", "yes", "on", "trade"].includes(previewMode)) {
+    params.set("preview", previewMode);
   }
   const query = params.toString();
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
