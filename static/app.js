@@ -3977,13 +3977,13 @@ function bindWallets() {
 function historyRow(event) {
   return `
     <tr>
-      <td><strong>${formatDateTime(event.detected_at)}</strong></td>
-      <td><span class="event-type">${escapeHtml(String(event.event_type || "").replaceAll("_", " "))}</span></td>
-      <td><strong>${escapeHtml(event.wallet_label)}</strong><small>${escapeHtml(event.wallet_address)}</small></td>
-      <td><strong>${escapeHtml(event.market_title)}</strong></td>
-      <td>${escapeHtml(event.outcome)}</td>
-      <td>${escapeHtml(event.league || event.category)}</td>
-      <td class="mono">${formatMoney(event.current_value ?? event.position_size_usd)}</td>
+      <td data-label="Detected"><strong>${formatDateTime(event.detected_at)}</strong></td>
+      <td data-label="Change"><span class="event-type">${escapeHtml(String(event.event_type || "").replaceAll("_", " "))}</span></td>
+      <td data-label="Wallet"><strong>${escapeHtml(event.wallet_label)}</strong><small>${escapeHtml(event.wallet_address)}</small></td>
+      <td data-label="Event / Market"><strong>${escapeHtml(event.market_title)}</strong></td>
+      <td data-label="Selection">${escapeHtml(event.outcome)}</td>
+      <td data-label="League">${escapeHtml(event.league || event.category)}</td>
+      <td data-label="Position Value" class="mono">${formatMoney(event.current_value ?? event.position_size_usd)}</td>
     </tr>
   `;
 }
