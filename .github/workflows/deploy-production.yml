@@ -99,11 +99,15 @@ jobs:
 
       - name: Verify durable Shadow Lab storage
         run: |
-          response="$(curl --silent --show-error --fail-with-body \
-            https://iconbets-polymarket-wallet-tracker.vercel.app/api/shadow-test)"
-          SHADOW_RESULT="$response" python - <<'PY'
-          import json, os
-          data = json.loads(os.environ["SHADOW_RESULT"]).get("data", {})
+          response_file="$(mktemp)"
+          trap 'rm -f "$response_file"' EXIT
+          curl --silent --show-error --fail-with-body \
+            --output "$response_file" \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/shadow-test
+          python - "$response_file" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding="utf-8") as response:
+              data = json.load(response).get("data", {})
           shadow = data.get("shadow", {})
           persistence = data.get("persistence", {})
           print(
