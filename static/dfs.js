@@ -180,7 +180,18 @@
   document.querySelector('#dfs-search').addEventListener('input', render);
   document.querySelector('#dfs-discrepancies').addEventListener('change', render);
   document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); document.querySelector('#dfs-search').value=''; updateStats(); render(); });
-  document.querySelector('#dfs-refresh').addEventListener('click', event => { event.currentTarget.classList.add('spinning'); setTimeout(()=>event.currentTarget.classList.remove('spinning'),700); });
+  document.querySelector('#dfs-refresh').addEventListener('click', event => {
+    const button = event.currentTarget;
+    const live = document.querySelector('#dfs-live');
+    const preview = document.querySelector('.dfs-page')?.dataset.dfsPreview === 'true';
+    button.classList.add('spinning');
+    button.disabled = true;
+    window.setTimeout(() => {
+      button.classList.remove('spinning');
+      button.disabled = false;
+      if (live) live.lastChild.textContent = preview ? ' Preview refreshed just now' : ' Odds updated just now';
+    },700);
+  });
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
   document.querySelectorAll('[data-devig-number]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigNumber,event.target.value)));
   document.querySelector('#dfs-devig-open').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset=''; document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });

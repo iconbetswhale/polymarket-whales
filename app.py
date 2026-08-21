@@ -1070,8 +1070,17 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/dfs")
     def dfs_page():
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         return render_template(
-            "dfs.html", title="IconBets Fantasy Optimizer", page="dfs"
+            "dfs.html",
+            title="IconBets Fantasy Optimizer",
+            page="dfs",
+            dfs_preview=preview_requested,
         )
 
     @app.route("/positive-ev")

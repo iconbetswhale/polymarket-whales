@@ -1,19 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="dfs-page">
-  <header class="dfs-heading">
-    <div><p class="eyebrow">DFS · LINE SHOPPING</p><h1>Fantasy Optimizer</h1><p>Find the strongest projection edge, then compare every available line in one place.</p></div>
-    <div class="dfs-heading-actions"><span class="dfs-live"><i></i> Odds updated 14s ago</span><button type="button" id="dfs-refresh"><i class="ph ph-arrows-clockwise"></i>Refresh</button></div>
+<section class="dfs-page il-data-grid-page" data-dfs-preview="{{ 'true' if dfs_preview else 'false' }}">
+  {% if dfs_preview %}
+  <section class="dfs-preview-banner" aria-label="Preview mode">
+    <i class="ph ph-eye" aria-hidden="true"></i>
+    <strong>Eight temporary optimizer props</strong>
+    <span>Visual fixtures only · line comparisons do not create a fantasy entry.</span>
+  </section>
+  {% endif %}
+  <header class="dfs-heading il-page-header">
+    <div class="il-page-title"><p class="eyebrow">DFS · LINE SHOPPING</p><h1>Fantasy Optimizer</h1><p>Find the strongest projection edge, then compare every available line in one place.</p></div>
+    <div class="dfs-heading-actions"><span class="dfs-live" id="dfs-live" aria-live="polite"><i></i>{{ ' Preview fixtures' if dfs_preview else ' Odds updated 14s ago' }}</span><button class="icon-button" type="button" id="dfs-refresh"><i class="ph ph-arrows-clockwise"></i><span>Refresh</span></button></div>
   </header>
 
-  <section class="dfs-control-deck">
+  <section class="dfs-control-deck il-data-grid">
     <div class="dfs-book-row" role="tablist" aria-label="DFS book">
       {% for book, logo, slip in [('PrizePicks','prizepicks','5 Pick Flex · -119'),('Underdog','underdog','4 Man Flex · -107'),('DK Pick6','dk-pick6','3 Man Power · -122'),('Betr','betr','5 Man Flex · -118'),('Dabble','dabble','3 Man Power · -122')] %}
       <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
       {% endfor %}
       <button class="dfs-devig-button" id="dfs-devig-open" type="button"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span><strong>Devig Settings</strong><small id="dfs-devig-summary">8 sharp books · 0%</small></span></button>
     </div>
-    <div class="dfs-filter-bar">
+    <div class="dfs-filter-bar il-filter-bar">
       <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Date</span><select id="dfs-date"><option value="">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="this_week">This week</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Stat</span><select id="dfs-stat"><option value="">All stats</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
