@@ -6707,15 +6707,15 @@ async function loadShadowTest() {
       shadowStrategyRow(data.shadow, target),
     ].join("");
     sleeves.innerHTML = rows.length ? rows.map(row => `<tr>
-      <td><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.thesis || "")}</small></td>
-      <td><strong>${escapeHtml(row.sport)}</strong><small>${escapeHtml(row.market_type)}</small></td>
-      <td><span class="status-label">${escapeHtml(String(row.mode).replaceAll("_", " "))}</span></td>
-      <td><strong>${formatMoney(row.base_unit_usd)}</strong><small>Min ${number(row.minimum_units).toFixed(2)}u</small></td>
-      <td>${row.open_signals}</td><td>${escapeHtml(row.record)}</td>
-      <td class="${number(row.unit_profit) >= 0 ? "positive" : "negative"}">${number(row.unit_profit).toFixed(2)}u</td>
-      <td class="${row.roi === null ? "" : number(row.roi) >= 0 ? "positive" : "negative"}">${row.roi === null ? "Collecting" : formatPercent(row.roi)}</td>
-      <td>${row.hit_rate === null ? "—" : formatPercent(row.hit_rate)}</td><td>${number(row.max_drawdown_units).toFixed(2)}u</td>
-      <td><div class="shadow-readiness"><span style="width:${number(row.readiness_progress) * 100}%"></span></div><small>${row.promotion_status === "READY_FOR_REVIEW" ? "Review now" : `${Math.round(number(row.readiness_progress) * 100)}%`}</small></td>
+      <td data-label="Wallet"><strong>${escapeHtml(row.label)}</strong><small>${escapeHtml(row.thesis || "")}</small></td>
+      <td data-label="Sleeve"><strong>${escapeHtml(row.sport)}</strong><small>${escapeHtml(row.market_type)}</small></td>
+      <td data-label="Mode"><span class="status-label">${escapeHtml(String(row.mode).replaceAll("_", " "))}</span></td>
+      <td data-label="Unit"><strong>${formatMoney(row.base_unit_usd)}</strong><small>Min ${number(row.minimum_units).toFixed(2)}u</small></td>
+      <td data-label="Live">${row.open_signals}</td><td data-label="Record">${escapeHtml(row.record)}</td>
+      <td data-label="Units" class="${number(row.unit_profit) >= 0 ? "positive" : "negative"}">${number(row.unit_profit).toFixed(2)}u</td>
+      <td data-label="ROI" class="${row.roi === null ? "" : number(row.roi) >= 0 ? "positive" : "negative"}">${row.roi === null ? "Collecting" : formatPercent(row.roi)}</td>
+      <td data-label="Hit">${row.hit_rate === null ? "—" : formatPercent(row.hit_rate)}</td><td data-label="Drawdown">${number(row.max_drawdown_units).toFixed(2)}u</td>
+      <td data-label="Review"><div class="shadow-readiness"><span style="width:${number(row.readiness_progress) * 100}%"></span></div><small>${row.promotion_status === "READY_FOR_REVIEW" ? "Review now" : `${Math.round(number(row.readiness_progress) * 100)}%`}</small></td>
     </tr>`).join("") : `<tr><td colspan="11">${emptyState("Shadow monitor is collecting", "Forward signals appear after the next wallet refresh.")}</td></tr>`;
     const labAlerts = lab.alerts || [];
     alerts.hidden = !labAlerts.length;

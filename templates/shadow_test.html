@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="page-header shadow-lab-header">
-  <div><p class="eyebrow">FORWARD WALLET LAB</p><h1>Shadow Lab</h1><p>Independent sport and market sleeves. Review alerts never promote a wallet automatically.</p></div>
+<section class="shadow-page il-data-grid-page" aria-labelledby="shadow-title">
+<section class="page-header shadow-lab-header il-page-header">
+  <div class="il-page-title"><p class="eyebrow">FORWARD WALLET LAB</p><h1 id="shadow-title">Shadow Lab</h1><p>Independent sport and market sleeves. Review alerts never promote a wallet automatically.</p></div>
 </section>
-<section class="metric-grid" id="shadow-summary"></section>
+<section class="metric-grid il-kpi-strip" id="shadow-summary" aria-label="Shadow Lab summary"></section>
 <section class="shadow-alerts" id="shadow-alerts" hidden></section>
 <section class="panel shadow-lab-panel">
   <div class="panel-heading"><div><p class="eyebrow">LIVE MONITOR</p><h2>Wallet sleeves</h2></div><span class="status-label">Forward only</span></div>
@@ -18,4 +19,5 @@
   <div class="table-scroll"><table><thead><tr><th>Strategy</th><th>Progress</th><th>Settled</th><th>ROI</th><th>P&amp;L</th><th>Max Drawdown</th></tr></thead><tbody id="shadow-comparison"></tbody></table></div>
 </details>
 <div id="wallet-contributions" hidden></div>
+</section>
 {% endblock %}
