@@ -8,6 +8,8 @@ from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Iterator
 
+from sharp_tracking import sharp_snapshot_from_fill
+
 
 LAB_TRACKER_GLOBAL_USER_ID = "iconlabs-labtracker-global"
 LAB_TRACKER_STAKE = 100.0
@@ -829,6 +831,7 @@ def normalize_personal_fills(rows: Iterable[dict]) -> list[dict]:
         probability = _number(row.get("entry_price"))
         if probability is None or not 0 < probability < 1:
             continue
+        tracking_snapshot = sharp_snapshot_from_fill(row)
         sportsbook_name = " ".join(
             str(row.get("sportsbook") or "Polymarket").split()
         )
@@ -859,8 +862,8 @@ def normalize_personal_fills(rows: Iterable[dict]) -> list[dict]:
                 "user_id": row.get("user_id"),
                 "source": "personal",
                 "source_id": source_id,
-                "sport_key": None,
-                "league": "Other",
+                "sport_key": tracking_snapshot.get("sport_key"),
+                "league": tracking_snapshot.get("league") or "Other",
                 "event_id": row.get("canonical_event_id"),
                 "event_title": row.get("event_title") or "Manual bet",
                 "home_team": None,
@@ -872,10 +875,18 @@ def normalize_personal_fills(rows: Iterable[dict]) -> list[dict]:
                 "market_line": row.get("market_line"),
                 "sportsbook_key": sportsbook_key,
                 "sportsbook_name": sportsbook_name,
-                "sportsbook_logo": "",
-                "entry_american_odds": _american_from_probability(probability),
+                "sportsbook_logo": tracking_snapshot.get("sportsbook_logo") or "",
+                "entry_american_odds": int(
+                    round(
+                        _number(
+                            tracking_snapshot.get("entry_american_odds"),
+                            _american_from_probability(probability),
+                        )
+                        or _american_from_probability(probability)
+                    )
+                ),
                 "entry_decimal_odds": 1.0 / probability,
-                "ev_percent": None,
+                "ev_percent": _number(tracking_snapshot.get("ev_percent")),
                 "stake": total_paid,
                 "units": total_paid / LAB_TRACKER_STAKE,
                 "status": tracker_status,

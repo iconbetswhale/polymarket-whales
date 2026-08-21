@@ -358,20 +358,281 @@ def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
     }
 
 
-def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
+def test_positive_ev_preview_returns_seven_isolated_visual_rows(app_client):
     response = app_client.get("/api/positive-ev?preview=1")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["previewOnly"] is True
-    assert payload["total"] == 5
+    assert payload["total"] == 7
     assert payload["refreshSeconds"] == 0
-    assert len(payload["data"]) == 5
+    assert len(payload["data"]) == 7
     assert all(row["previewOnly"] is True for row in payload["data"])
     assert all(
         row["calculationVersion"] == "ev-visual-preview-v1"
         for row in payload["data"]
     )
+    assert all(len(row["sourceBooks"]) == 5 for row in payload["data"])
+    assert {
+        source["bookKey"] for source in payload["data"][0]["sourceBooks"]
+    } == {
+        "pinnacle",
+        "circa",
+        "bookmakereu",
+        "betfairexchange",
+        "fanduel",
+    }
+
+    filtered_response = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "preview": 1,
+            "sports": "baseball_mlb,basketball_wnba",
+            "markets": "h2h,batter_total_bases",
+        },
+    )
+    assert filtered_response.status_code == 200
+    filtered_payload = filtered_response.get_json()
+    assert filtered_payload["total"] == 2
+    assert {row["marketKey"] for row in filtered_payload["data"]} == {
+        "h2h",
+        "batter_total_bases",
+    }
+
+
+def test_positive_ev_page_uses_live_85_book_catalog(app_client):
+    response = app_client.get("/positive-ev")
+
+    assert response.status_code == 200
+    body = response.get_data(as_text=True)
+    assert 'id="ev-config"' in body
+    assert '"catalogVersion": 3' in body
+    assert '"name": "Pinnacle"' in body
+    assert '"name": "theScore Bet"' in body
+    assert '"devigBooks"' in body
+    assert "De-vig source allocation" in body
+    assert "Positive EV Filter" in body
+    assert 'data-market-group="main"' in body
+    assert 'data-market-group="props"' in body
+    assert 'data-market-group="alternate"' in body
+    assert 'data-market-group-toggle="main"' in body
+    assert 'data-market-group-toggle="props"' in body
+    assert 'data-market-group-toggle="alternate"' in body
+    assert 'data-market-key="batter_total_bases"' in body
+    assert 'data-market-key="alternate_totals"' in body
+    assert "Selecting props or alternates" not in body
+    assert "Multiplicative" not in body
+    assert '"previewOnly": false' in body
+    positive_ev_javascript = Path("static/positive-ev.js").read_text(
+        encoding="utf-8"
+    )
+    assert "WHY IS THIS +EV?" in positive_ev_javascript
+    assert "SHARP ODDS USED FOR FAIR VALUE" in positive_ev_javascript
+    assert '<details class="ev-section ev-detail-accordion' in positive_ev_javascript
+    assert "${marketOddsVisual(row)}" in positive_ev_javascript
+    assert 'class="ev-track-button' in positive_ev_javascript
+    assert 'class="ev-card-open"' in positive_ev_javascript
+    assert 'fetch("/api/positive-ev/personal-bets"' in positive_ev_javascript
+    assert "Rec Bet" in positive_ev_javascript
+    assert 'class="ev-matchup-line"' in positive_ev_javascript
+    assert "matchup(row.eventTitle)" in positive_ev_javascript
+    assert "Total payout" in positive_ev_javascript
+    assert "quotePayout(row.recommendedStake, quote)" in positive_ev_javascript
+    assert "fullSelection(row)" in positive_ev_javascript
+    assert "sportIcon(row)" in positive_ev_javascript
+    assert 'return "ph-baseball"' in positive_ev_javascript
+    assert 'return "ph-basketball"' in positive_ev_javascript
+    assert 'return "ph-tennis-ball"' in positive_ev_javascript
+    assert "iconlabs-ev-hidden-opportunities" in positive_ev_javascript
+    assert 'event.submitter?.id === "ev-tracker-hide-submit"' in positive_ev_javascript
+    assert "iconlabs-ev-tracked-opportunities" in positive_ev_javascript
+    assert 'class="ev-book-option"' in positive_ev_javascript
+    assert 'class="ev-book-name"' in positive_ev_javascript
+    positive_ev_premium_css = Path("static/app-premium.css").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        "grid-template-columns: minmax(0, 1fr) 550px !important"
+        in positive_ev_premium_css
+    )
+    assert "width: calc(100% + 14px) !important" in positive_ev_premium_css
+    assert "width: 550px !important" in positive_ev_premium_css
+    assert "max-width: none !important" in positive_ev_premium_css
+    assert "container-name: ev-play-feed" in positive_ev_premium_css
+    assert "@container ev-play-feed (min-width: 680px)" in positive_ev_premium_css
+    assert 'grid-template-areas: "score event pick execution" !important' in positive_ev_premium_css
+    assert "grid-template-areas:" in positive_ev_premium_css
+    assert ".ev-detail-accordion[open] > summary" in positive_ev_premium_css
+    assert (
+        "grid-template-columns: minmax(78px, 1fr) auto "
+        "minmax(78px, auto) !important"
+        in positive_ev_premium_css
+    )
+    assert "width: 22px !important" in positive_ev_premium_css
+    assert "transform: translateY(3px)" in positive_ev_premium_css
+    assert (
+        "grid-template-columns: minmax(88px, 1fr) 164px 94px !important"
+        in positive_ev_premium_css
+    )
+    assert "grid-template-columns: 70px 90px !important" in positive_ev_premium_css
+    assert "align-items: center;\n  text-align: center;" in positive_ev_premium_css
+    assert "width: 94px !important" in positive_ev_premium_css
+    assert "grid-template-columns: 24px auto !important" in positive_ev_premium_css
+    assert "justify-content: center !important" in positive_ev_premium_css
+    assert "width: 24px !important" in positive_ev_premium_css
+    assert (
+        "grid-template-columns: 90px minmax(235px, 1.35fr) "
+        "minmax(150px, 1fr) minmax(316px, 2.1fr) !important"
+        in positive_ev_premium_css
+    )
+    assert "@container ev-play-feed (min-width: 910px)" in positive_ev_premium_css
+    assert (
+        "grid-template-columns: 202px minmax(186px, 1.35fr) "
+        "minmax(120px, 1fr) minmax(401px, 2.1fr) !important"
+        in positive_ev_premium_css
+    )
+    assert (
+        "#ev-feed .ev-score strong {\n    flex: 0 0 auto;"
+        in positive_ev_premium_css
+    )
+    assert "font-size: 30px !important" in positive_ev_premium_css
+    assert "flex-direction: row !important" in positive_ev_premium_css
+    assert "gap: 12px !important" in positive_ev_premium_css
+    assert "flex: 0 0 72px" in positive_ev_premium_css
+    assert "font-size: 20px !important" in positive_ev_premium_css
+    assert "padding-left: 14px !important" in positive_ev_premium_css
+    assert "overflow-wrap: normal !important" in positive_ev_premium_css
+    assert "display: inline-block !important" in positive_ev_premium_css
+    assert (
+        "#ev-feed .ev-pick > strong {\n  font-size: 18px !important"
+        in positive_ev_premium_css
+    )
+    assert (
+        "#ev-feed .ev-bet-metric small {\n  font-size: 10px !important"
+        in positive_ev_premium_css
+    )
+    assert (
+        "#ev-feed .ev-bet-metric strong {\n  font-size: 16px !important"
+        in positive_ev_premium_css
+    )
+    assert (
+        "#ev-feed .ev-best-button > span:not(.ev-book-mark) {\n"
+        "  font-size: 16px !important"
+        in positive_ev_premium_css
+    )
+
+    assert 'id="ev-tracker-dialog"' in body
+    assert 'id="ev-tracker-hide-submit"' in body
+    assert "Track a sportsbook bet" in body
+    assert "Track and Hide" in body
+    assert "Bet Tracker and LabTracker" in body
+
+    preview_response = app_client.get("/positive-ev?preview=1")
+    assert preview_response.status_code == 200
+    assert '"previewOnly": true' in preview_response.get_data(as_text=True)
+
+
+def test_positive_ev_live_scan_prefers_sports_game_odds(
+    app_client, temp_settings, monkeypatch
+):
+    object.__setattr__(temp_settings, "positive_ev_enabled", True)
+    object.__setattr__(temp_settings, "novig_api_key", "all-lines-key")
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "novig"
+    )
+    provider.api_key = "all-lines-key"
+    calls = []
+
+    def ev_events(*, sport_keys, market_keys):
+        calls.append((tuple(sport_keys), tuple(market_keys)))
+        return []
+
+    monkeypatch.setattr(provider, "ev_events", ev_events)
+    monkeypatch.setattr(
+        provider,
+        "diagnostics",
+        lambda authenticate=False: {
+            "provider": "sports_game_odds",
+            "quota": {},
+        },
+    )
+
+    response = app_client.get("/api/positive-ev")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert calls == [
+        (("baseball_mlb", "basketball_wnba"), ("h2h", "spreads", "totals"))
+    ]
+    assert payload["dataSource"] == "sports_game_odds"
+    assert set(payload["sourceWeights"]) == {
+        "pinnacle",
+        "circa",
+        "bookmakereu",
+        "fanduel",
+        "betfairexchange",
+    }
+    assert sum(payload["sourceWeights"].values()) == 100.0
+    assert payload["devigMethod"] == "power"
+    assert payload["minimumFairSources"] == 3
+    assert "prizepicks" not in payload["executionBooks"]
+    assert "pinnacle" in payload["executionBooks"]
+
+    custom_response = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "weights": json.dumps({"pinnacle": 100}),
+            "min_sources": 5,
+        },
+    )
+    assert custom_response.status_code == 200
+    custom_payload = custom_response.get_json()
+    assert custom_payload["sourceWeights"] == {
+        "pinnacle": 100.0,
+        "circa": 0.0,
+        "bookmakereu": 0.0,
+        "fanduel": 0.0,
+        "betfairexchange": 0.0,
+    }
+    assert custom_payload["minimumFairSources"] == 1
+
+    custom_markets = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "group": "custom",
+            "markets": "h2h,batter_total_bases,alternate_totals",
+        },
+    )
+    assert custom_markets.status_code == 200
+    assert calls[-1] == (
+        ("baseball_mlb", "basketball_wnba"),
+        ("h2h", "batter_total_bases", "alternate_totals"),
+    )
+
+    missing_custom_markets = app_client.get(
+        "/api/positive-ev", query_string={"group": "custom"}
+    )
+    assert missing_custom_markets.status_code == 400
+    assert missing_custom_markets.get_json()["error"] == "INVALID_MARKETS"
+
+    bad_total = app_client.get(
+        "/api/positive-ev",
+        query_string={"weights": json.dumps({"pinnacle": 99})},
+    )
+    assert bad_total.status_code == 400
+    assert bad_total.get_json()["error"] == "INVALID_DEVIG_ALLOCATION"
+    assert bad_total.get_json()["totalPercent"] == 99.0
+
+    bad_source = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "weights": json.dumps({"pinnacle": 100, "draftkings": 0})
+        },
+    )
+    assert bad_source.status_code == 400
+    assert bad_source.get_json()["error"] == "INVALID_DEVIG_SOURCE"
+    assert len(calls) == 3
 
 
 def test_app_starts_with_no_enabled_wallets(tmp_path):
@@ -1881,6 +2142,96 @@ def test_manual_personal_bet_is_saved_without_model_recommendation(app_client):
     tracker = app_client.get("/api/personal-tracker").get_json()
     assert tracker["pagination"]["total"] == 1
     assert tracker["data"][0]["position_cost"] == pytest.approx(250)
+
+
+def test_positive_ev_bet_is_shared_with_bet_tracker_and_lab_my_bets(app_client):
+    app_client.set_cookie("iconbets_user", "positive-ev-personal-user")
+    purchase = {
+        "source_id": "positive-ev-phillies-118",
+        "event_title": "New York Mets vs Philadelphia Phillies",
+        "market_title": "Moneyline",
+        "selection": "Philadelphia Phillies",
+        "event_start_time": "2026-08-20T23:10:00+00:00",
+        "sport_key": "baseball_mlb",
+        "league": "MLB",
+        "market_key": "h2h",
+        "canonical_event_id": "mlb-nym-phi-2026-08-20",
+        "american_odds": 118,
+        "stake": 84,
+        "fees": 0,
+        "sportsbook": "DraftKings",
+        "sportsbook_logo": "/static/assets/sportsbooks/draftkings.png",
+        "market_url": "https://sportsbook.example/positive-ev-play",
+        "ev_percent": 5.62,
+        "tags": ["Evening card"],
+    }
+
+    response = app_client.post("/api/positive-ev/personal-bets", json=purchase)
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload["source"] == "positive_ev"
+    assert payload["destinations"] == {
+        "betTracker": "/tracker?view=personal",
+        "labTracker": "/lab-tracker?scope=personal",
+    }
+    assert payload["data"]["entry_price"] == pytest.approx(100 / 218)
+    assert payload["data"]["position_cost"] == pytest.approx(84)
+
+    bet_tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    assert bet_tracker["pagination"]["total"] == 1
+    assert bet_tracker["data"][0]["selection"] == "Philadelphia Phillies"
+    assert bet_tracker["data"][0]["sportsbook"] == "DraftKings"
+
+    lab_tracker = app_client.get(
+        "/api/lab-tracker?scope=personal&window=all"
+    ).get_json()["data"]
+    assert lab_tracker["summary"]["tracked"] == 1
+    assert lab_tracker["summary"]["open"] == 1
+    assert lab_tracker["openBets"][0]["selection"] == "Philadelphia Phillies"
+    assert lab_tracker["openBets"][0]["league"] == "MLB"
+    assert lab_tracker["openBets"][0]["entry_american_odds"] == 118
+    assert lab_tracker["openBets"][0]["stake"] == pytest.approx(84)
+
+    duplicate = app_client.post("/api/positive-ev/personal-bets", json=purchase)
+    assert duplicate.status_code == 409
+    assert duplicate.get_json()["confirmationRequired"] == "duplicate"
+
+
+def test_positive_ev_track_and_hide_persists_across_feed_refreshes(app_client):
+    app_client.set_cookie("iconbets_user", "positive-ev-track-and-hide-user")
+    preview = app_client.get("/api/positive-ev?preview=1").get_json()
+    row = preview["data"][2]
+    quote = row["bestQuote"]
+    purchase = {
+        "source_id": row["id"],
+        "event_title": row["eventTitle"],
+        "market_title": row["marketLabel"],
+        "selection": row["selection"],
+        "event_start_time": row["commenceTime"],
+        "sport_key": row["sportKey"],
+        "league": row["league"],
+        "market_key": row.get("marketKey") or row["marketLabel"],
+        "market_line": quote.get("point") or row.get("line"),
+        "canonical_event_id": row["eventId"],
+        "american_odds": quote["topPriceAmericanOdds"],
+        "stake": row["recommendedStake"],
+        "fees": 0,
+        "sportsbook": quote["bookName"],
+        "ev_percent": row["evPercent"],
+        "hide_after_track": True,
+    }
+
+    tracked = app_client.post("/api/positive-ev/personal-bets", json=purchase)
+
+    assert tracked.status_code == 201
+    assert tracked.get_json()["hidden"]["selection"] == row["selection"]
+    refreshed = app_client.get("/api/positive-ev?preview=1").get_json()
+    assert refreshed["total"] == 6
+    assert row["id"] not in {item["id"] for item in refreshed["data"]}
+    hidden = app_client.get("/api/hidden-trades").get_json()
+    assert hidden["total"] == 1
+    assert hidden["data"][0]["selection"] == row["selection"]
 
 
 def test_manual_personal_bet_rejects_invalid_price(app_client):

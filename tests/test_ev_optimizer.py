@@ -1,4 +1,4 @@
-from ev_optimizer import build_ev_board, build_ev_candidates
+from ev_optimizer import DEFAULT_SOURCE_WEIGHTS, build_ev_board, build_ev_candidates
 from database import TrackerDatabase
 
 
@@ -42,6 +42,17 @@ def _event():
     }
 
 
+def test_default_fair_price_mix_uses_only_the_five_configurable_sources():
+    assert set(DEFAULT_SOURCE_WEIGHTS) == {
+        "pinnacle",
+        "circa",
+        "bookmakereu",
+        "fanduel",
+        "betfairexchange",
+    }
+    assert sum(DEFAULT_SOURCE_WEIGHTS.values()) == 100.0
+
+
 def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     rows = build_ev_candidates(
         [_event()],
@@ -55,13 +66,63 @@ def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     mets = next(row for row in rows if row["selection"] == "New York Mets")
     assert mets["bestQuote"]["bookKey"] == "novig"
     assert mets["bestQuote"]["americanOdds"] == 135
-    assert mets["sourceBooks"] == [
-        {
-            "bookKey": "pinnacle",
-            "weight": 100.0,
-            "fairProbability": mets["sourceBooks"][0]["fairProbability"],
-        }
-    ]
+    assert len(mets["sourceBooks"]) == 1
+    source = mets["sourceBooks"][0]
+    assert source["bookKey"] == "pinnacle"
+    assert source["bookName"] == "Pinnacle"
+    assert source["americanOdds"] == 120
+    assert source["weight"] == 100.0
+    assert 0 < source["fairProbability"] < 1
+
+
+def test_opportunity_exposes_each_current_sharp_price_used_in_consensus():
+    event = _event()
+    for key, title, away_price, home_price in (
+        ("circa", "Circa", 118, -128),
+        ("bookmakereu", "Bookmaker.eu", 122, -132),
+        ("fanduel", "FanDuel", 115, -125),
+    ):
+        event["bookmakers"].append(
+            {
+                "key": key,
+                "title": title,
+                "markets": [
+                    {
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "New York Mets", "price": away_price},
+                            {"name": "Philadelphia Phillies", "price": home_price},
+                        ],
+                    }
+                ],
+            }
+        )
+    rows = build_ev_candidates(
+        [event],
+        source_weights={
+            "pinnacle": 35,
+            "circa": 28,
+            "bookmakereu": 28,
+            "fanduel": 9,
+        },
+        execution_books=("novig",),
+        min_ev=-100,
+        min_source_books=3,
+    )
+
+    mets = next(row for row in rows if row["selection"] == "New York Mets")
+    sharp_prices = {
+        source["bookKey"]: source["americanOdds"]
+        for source in mets["sourceBooks"]
+    }
+    assert sharp_prices == {
+        "pinnacle": 120,
+        "circa": 118,
+        "bookmakereu": 122,
+        "fanduel": 115,
+    }
+    assert all(source["bookName"] for source in mets["sourceBooks"])
+    assert sum(source["weight"] for source in mets["sourceBooks"]) == 100
 
 
 def test_missing_weighted_books_are_not_fabricated():

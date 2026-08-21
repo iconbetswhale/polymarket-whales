@@ -53,23 +53,55 @@
 <dialog class="ev-filter-dialog" id="ev-filter-dialog" aria-labelledby="ev-filter-title">
   <form method="dialog" class="ev-filter-shell">
     <header>
-      <div><span>CUSTOMIZE</span><h2 id="ev-filter-title">Positive EV filters</h2></div>
+      <div><span>CUSTOMIZE</span><h2 id="ev-filter-title">Positive EV Filter</h2></div>
       <button class="ev-dialog-close" id="ev-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
     </header>
     <div class="ev-filter-layout">
       <nav class="ev-filter-nav" aria-label="Filter categories">
         <button class="active" type="button" data-panel="markets"><i class="ph ph-list-checks"></i><span>Market</span><small id="ev-market-count">3 selected</small></button>
         <button type="button" data-panel="sportsbooks"><i class="ph ph-storefront"></i><span>Sportsbooks</span><small>Execution</small></button>
-        <button type="button" data-panel="devig"><i class="ph ph-function"></i><span>De-vig Settings</span><small>Icon weights</small></button>
+        <button type="button" data-panel="devig"><i class="ph ph-function"></i><span>De-vig Settings</span><small>Source mix</small></button>
         <button type="button" data-panel="thresholds"><i class="ph ph-sliders"></i><span>Thresholds</span><small>EV &amp; bankroll</small></button>
         <button type="button" data-panel="warnings"><i class="ph ph-warning-circle"></i><span>Bet Warnings</span><small>3 enabled</small></button>
       </nav>
       <div class="ev-filter-panels">
         <section class="ev-filter-panel active" data-filter-panel="markets">
-          <h3>Markets</h3><p>Selecting props or alternates activates higher-cost event-level API requests.</p>
-          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="main" checked><span><strong>Main Markets</strong><small>Moneyline, spread, game total</small></span><b>3</b></label>
-          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="props"><span><strong>Player Props</strong><small>MLB and WNBA supported markets</small></span><b>12</b></label>
-          <label class="ev-choice-card"><input type="radio" name="marketGroup" value="alternate"><span><strong>Alternate Markets</strong><small>Alternate spreads and totals</small></span><b>2</b></label>
+          <h3>Markets</h3>
+          <div class="ev-market-filter-groups">
+            <details class="ev-market-filter-group" data-market-group="main">
+              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Main Markets"><input type="checkbox" data-market-group-toggle="main" aria-label="Select all Main Markets" checked><span aria-hidden="true"></span></label><strong>Main Markets</strong></span><small>Moneyline, spread, and game total</small></span><span class="ev-market-group-meta"><b data-market-group-count="main">3/3</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+              <div class="ev-market-options">
+                <label><input type="checkbox" name="markets" value="h2h" data-market-key="h2h" checked><span>Moneyline</span></label>
+                <label><input type="checkbox" name="markets" value="spreads" data-market-key="spreads" checked><span>Spread</span></label>
+                <label><input type="checkbox" name="markets" value="totals" data-market-key="totals" checked><span>Game Total</span></label>
+              </div>
+            </details>
+            <details class="ev-market-filter-group" data-market-group="props">
+              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Player Props"><input type="checkbox" data-market-group-toggle="props" aria-label="Select all Player Props"><span aria-hidden="true"></span></label><strong>Player Props</strong></span><small>MLB and WNBA supported markets</small></span><span class="ev-market-group-meta"><b data-market-group-count="props">0/12</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+              <div class="ev-market-options">
+                <label><input type="checkbox" name="markets" value="batter_hits" data-market-key="batter_hits" data-market-sport="baseball_mlb"><span>Batter Hits</span></label>
+                <label><input type="checkbox" name="markets" value="batter_total_bases" data-market-key="batter_total_bases" data-market-sport="baseball_mlb"><span>Batter Total Bases</span></label>
+                <label><input type="checkbox" name="markets" value="batter_home_runs" data-market-key="batter_home_runs" data-market-sport="baseball_mlb"><span>Batter Home Runs</span></label>
+                <label><input type="checkbox" name="markets" value="batter_rbis" data-market-key="batter_rbis" data-market-sport="baseball_mlb"><span>Batter RBIs</span></label>
+                <label><input type="checkbox" name="markets" value="batter_runs_scored" data-market-key="batter_runs_scored" data-market-sport="baseball_mlb"><span>Batter Runs Scored</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_strikeouts" data-market-key="pitcher_strikeouts" data-market-sport="baseball_mlb"><span>Pitcher Strikeouts</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_hits_allowed" data-market-key="pitcher_hits_allowed" data-market-sport="baseball_mlb"><span>Pitcher Hits Allowed</span></label>
+                <label><input type="checkbox" name="markets" value="player_points" data-market-key="player_points" data-market-sport="basketball_wnba"><span>Player Points</span></label>
+                <label><input type="checkbox" name="markets" value="player_rebounds" data-market-key="player_rebounds" data-market-sport="basketball_wnba"><span>Player Rebounds</span></label>
+                <label><input type="checkbox" name="markets" value="player_assists" data-market-key="player_assists" data-market-sport="basketball_wnba"><span>Player Assists</span></label>
+                <label><input type="checkbox" name="markets" value="player_threes" data-market-key="player_threes" data-market-sport="basketball_wnba"><span>Player Three-Pointers</span></label>
+                <label><input type="checkbox" name="markets" value="player_points_rebounds_assists" data-market-key="player_points_rebounds_assists" data-market-sport="basketball_wnba"><span>Points + Rebounds + Assists</span></label>
+              </div>
+            </details>
+            <details class="ev-market-filter-group" data-market-group="alternate">
+              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Alternate Markets"><input type="checkbox" data-market-group-toggle="alternate" aria-label="Select all Alternate Markets"><span aria-hidden="true"></span></label><strong>Alternate Markets</strong></span><small>Alternate spreads and totals</small></span><span class="ev-market-group-meta"><b data-market-group-count="alternate">0/2</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+              <div class="ev-market-options">
+                <label><input type="checkbox" name="markets" value="alternate_spreads" data-market-key="alternate_spreads"><span>Alternate Spreads</span></label>
+                <label><input type="checkbox" name="markets" value="alternate_totals" data-market-key="alternate_totals"><span>Alternate Totals</span></label>
+              </div>
+            </details>
+          </div>
+          <p class="ev-market-error" id="ev-market-error" role="status"></p>
           <h4>Leagues</h4>
           <div class="ev-chip-grid">
             <label><input type="checkbox" name="sports" value="baseball_mlb" checked><span>MLB</span></label>
@@ -77,18 +109,14 @@
           </div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="sportsbooks">
-          <h3>Execution sportsbooks</h3><p>The feed uses the highest executable price from the books selected here.</p>
+          <h3>Execution sportsbooks</h3><p>All 85 subscribed books are listed. Sportsbooks and exchanges are selected by default; DFS pick'em platforms remain visible but require separate multi-pick payout math.</p>
           <div class="ev-book-grid" id="ev-execution-books"></div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="devig">
-          <h3>Icon fair-price weights</h3><p>Each available source is de-vigged first, then blended using these weights. Missing books are automatically reweighted—never fabricated.</p>
-          <div class="ev-devig-methods">
-            <label><input type="radio" name="devig" value="power" checked><span>Power</span></label>
-            <label><input type="radio" name="devig" value="multiplicative"><span>Multiplicative</span></label>
-            <label><input type="radio" name="devig" value="additive"><span>Additive</span></label>
-          </div>
+          <h3>De-vig source allocation</h3><p>Each source is de-vigged with the power method, then blended by these percentages. Allocate exactly 100%. Missing books are reweighted across the available sources—never fabricated.</p>
           <div class="ev-weight-list" id="ev-weight-list"></div>
-          <div class="ev-weight-total">Configured weight <strong id="ev-weight-total">100%</strong></div>
+          <div class="ev-weight-total">Allocated <strong id="ev-weight-total">0%</strong></div>
+          <p class="ev-weight-error" id="ev-weight-error" role="status"></p>
         </section>
         <section class="ev-filter-panel" data-filter-panel="thresholds">
           <h3>Opportunity thresholds</h3>
@@ -96,7 +124,7 @@
             <label>Minimum EV<input id="ev-min-ev" type="number" min="-25" max="100" step=".1" value="1"><span>%</span></label>
             <label>Bankroll<input id="ev-bankroll" type="number" min="1" step="100" value="10000"><span>$</span></label>
             <label>Kelly multiplier<select id="ev-kelly"><option value=".1">10%</option><option value=".25" selected>25%</option><option value=".5">50%</option><option value="1">Full Kelly</option></select></label>
-            <label>Minimum fair sources<input id="ev-min-sources" type="number" min="2" max="8" step="1" value="3"></label>
+            <label>Minimum fair sources<input id="ev-min-sources" type="number" min="1" max="5" step="1" value="3"></label>
             <label>Maximum quote age<input id="ev-max-quote-age" type="number" min="30" max="1800" step="30" value="180"><span>sec</span></label>
             <label>Maximum source spread<input id="ev-max-dispersion" type="number" min="2" max="25" step="1" value="12"><span>pts</span></label>
             <label>Maximum stake<input id="ev-max-stake-pct" type="number" min=".1" max="10" step=".1" value="2"><span>% bankroll</span></label>
@@ -115,5 +143,43 @@
   </form>
 </dialog>
 
+<dialog class="tracker-dialog ev-tracker-dialog" id="ev-tracker-dialog" aria-labelledby="ev-tracker-title">
+  <div class="tracker-dialog-shell">
+    <button class="icon-button tracker-dialog-close" id="ev-tracker-close" type="button" aria-label="Close bet tracker"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <p class="eyebrow">PERSONAL TRACKER</p>
+    <h2 id="ev-tracker-title">Track a sportsbook bet</h2>
+    <div class="tracker-dialog-summary" id="ev-tracker-summary"></div>
+    <div class="personal-exposure-notice" id="ev-tracker-exposure" hidden></div>
+    <form id="ev-tracker-form">
+      <div class="personal-tracking-meta">
+        <label>Sportsbook<select id="ev-tracker-sportsbook" required></select></label>
+        <div class="personal-tag-builder">
+          <div class="personal-tag-heading"><span>Tags <small>Optional, up to 8</small></span><span id="ev-tracker-tag-count">0 selected</span></div>
+          <div class="personal-tag-controls">
+            <select id="ev-tracker-existing-tag" aria-label="Select an existing bet tag"><option value="">Select an existing tag</option></select>
+            <input id="ev-tracker-new-tag" type="text" maxlength="32" placeholder="Create a new tag" aria-label="Create a new bet tag">
+            <button class="button ghost compact" id="ev-tracker-add-tag" type="button"><i class="ph ph-plus" aria-hidden="true"></i>Add</button>
+          </div>
+          <div class="personal-selected-tags" id="ev-tracker-selected-tags" aria-live="polite"><span>No tags selected</span></div>
+        </div>
+      </div>
+      <div class="personal-purchase-fields ev-tracker-fields">
+        <label>Entry odds <input id="ev-tracker-odds" type="number" step="1" inputmode="numeric" required></label>
+        <label>Stake <span class="input-with-suffix money"><span>$</span><input id="ev-tracker-stake" type="number" min="0.01" step="0.01" inputmode="decimal" required></span></label>
+        <label>Fees <span class="input-with-suffix money"><span>$</span><input id="ev-tracker-fees" type="number" min="0" step="0.01" inputmode="decimal" value="0"></span></label>
+      </div>
+      <div class="personal-purchase-total" id="ev-tracker-total"><span>Bet cost</span><strong>$0.00</strong><small>To win $0.00 · Total paid $0.00</small></div>
+      <p class="tracker-admin-error" id="ev-tracker-error" role="alert" aria-live="polite"></p>
+      <p class="tracker-dialog-note">This saves the bet to Bet Tracker and LabTracker → My Bets. Track and Hide also removes the opportunity from this +EV feed. Neither action places a wager with the sportsbook.</p>
+      <div class="tracker-dialog-actions">
+        <button class="button ghost" id="ev-tracker-dismiss" type="button">Cancel</button>
+        <button class="button primary" id="ev-tracker-submit" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Track bet</button>
+        <button class="button primary ev-track-hide" id="ev-tracker-hide-submit" type="submit"><i class="ph ph-eye-slash" aria-hidden="true"></i>Track and Hide</button>
+      </div>
+    </form>
+  </div>
+</dialog>
+
 <div class="ev-mobile-scrim" id="ev-mobile-scrim" hidden></div>
+<script id="ev-config" type="application/json">{{ positive_ev_config|tojson }}</script>
 {% endblock %}

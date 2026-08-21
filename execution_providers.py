@@ -18,6 +18,10 @@ from zoneinfo import ZoneInfo
 import requests
 
 from fair_price_engine import no_vig_probabilities
+from sports_game_odds import (
+    normalize_sports_game_odds_ev_events,
+    sports_game_odds_request_params,
+)
 
 LOGGER = logging.getLogger(__name__)
 
@@ -903,6 +907,12 @@ class _CacheEntry:
     index: ProviderMarketIndex
 
 
+@dataclass
+class _RawEventCacheEntry:
+    loaded_at: float
+    events: list[dict]
+
+
 class NoVIGProvider(ExecutionProvider):
     provider_name = "NoVIG"
     provider_key = "novig"
@@ -922,6 +932,7 @@ class NoVIGProvider(ExecutionProvider):
         self.request_timeout = max(int(request_timeout), 1)
         self.session = session or requests.Session()
         self._cache: dict[tuple[str, str], _CacheEntry] = {}
+        self._ev_cache: dict[tuple[str, ...], _RawEventCacheEntry] = {}
         self._last_matches: dict[str, ExecutionOption] = {}
         self._lock = threading.RLock()
 
@@ -955,6 +966,70 @@ class NoVIGProvider(ExecutionProvider):
     def invalidate_cache(self) -> None:
         with self._lock:
             self._cache.clear()
+            self._ev_cache.clear()
+
+    def ev_events(
+        self,
+        *,
+        sport_keys: Iterable[str],
+        market_keys: Iterable[str],
+    ) -> list[dict]:
+        """Return all subscribed SportsGameOdds books in optimizer format."""
+        if not self.api_key:
+            return []
+        requested_sports = tuple(
+            dict.fromkeys(str(key).strip() for key in sport_keys if str(key).strip())
+        )
+        requested_markets = tuple(
+            dict.fromkeys(
+                str(key).strip().lower() for key in market_keys if str(key).strip()
+            )
+        )
+        params = sports_game_odds_request_params(
+            requested_sports, requested_markets
+        )
+        if params is None:
+            return []
+        cache_key = (*requested_sports, "::", *requested_markets)
+        now = time.monotonic()
+        with self._lock:
+            cached = self._ev_cache.get(cache_key)
+            if cached and now - cached.loaded_at < self.cache_ttl_seconds:
+                raw_events = cached.events
+            else:
+                raw_events = self._fetch_ev_events(params)
+                self._ev_cache[cache_key] = _RawEventCacheEntry(
+                    loaded_at=now,
+                    events=raw_events,
+                )
+        return normalize_sports_game_odds_ev_events(
+            raw_events, requested_markets
+        )
+
+    def diagnostics(self, *, authenticate: bool = False) -> dict:
+        status = "configured" if self.api_key else "unauthorized"
+        if authenticate and self.api_key:
+            try:
+                response = self.session.get(
+                    f"{self.base_url}/account/usage",
+                    headers={"x-api-key": self.api_key},
+                    timeout=self.request_timeout,
+                )
+                response.raise_for_status()
+                status = "authenticated"
+            except requests.RequestException:
+                status = "connection_failed"
+        with self._lock:
+            cache_entries = len(self._cache) + len(self._ev_cache)
+        return {
+            "provider": "sports_game_odds",
+            "status": status,
+            "configured": bool(self.api_key),
+            "read_only": True,
+            "cache_entries": cache_entries,
+            "quota": {},
+            "credentials_exposed": False,
+        }
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
         if not self.api_key or not trades:
@@ -1058,6 +1133,36 @@ class NoVIGProvider(ExecutionProvider):
             payload = response.json()
             if payload.get("success") is False:
                 raise ValueError(payload.get("message") or "Provider returned an error")
+            page_events = payload.get("data") or []
+            if not isinstance(page_events, list):
+                raise ValueError("Provider response data must be a list")
+            events.extend(item for item in page_events if isinstance(item, dict))
+            cursor = str(payload.get("nextCursor") or "").strip() or None
+            if not cursor:
+                return events
+        raise ValueError("Provider response exceeded the pagination safety limit")
+
+    def _fetch_ev_events(self, base_params: dict[str, object]) -> list[dict]:
+        events: list[dict] = []
+        cursor: str | None = None
+        for _page in range(MAX_PROVIDER_PAGES):
+            params = dict(base_params)
+            if cursor:
+                params["cursor"] = cursor
+            response = self.session.get(
+                f"{self.base_url}/events",
+                params=params,
+                headers={"x-api-key": self.api_key},
+                timeout=self.request_timeout,
+            )
+            response.raise_for_status()
+            payload = response.json()
+            if payload.get("success") is False:
+                raise ValueError(
+                    payload.get("message")
+                    or payload.get("error")
+                    or "Provider returned an error"
+                )
             page_events = payload.get("data") or []
             if not isinstance(page_events, list):
                 raise ValueError("Provider response data must be a list")

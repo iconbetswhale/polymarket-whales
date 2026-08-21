@@ -121,6 +121,8 @@ body[data-page="lab-tracker"] .lab-chart-meta strong.neutral { color: var(--lab-
 body[data-page="lab-tracker"] .lab-bet-pnl strong.win { color: var(--lab-accent) !important; }
 body[data-page="lab-tracker"] .lab-bet-pnl strong.loss { color: var(--lab-loss) !important; }
 body[data-page="lab-tracker"] .lab-bet-pnl strong.push { color: var(--lab-text) !important; }
+body[data-page="lab-tracker"] .lab-bet-pnl strong.open { color: var(--lab-purple-bright) !important; }
+.lab-bet-pnl span { display:block; margin-top:3px; color:var(--lab-muted); font-size:9px; text-transform:uppercase; }
 .lab-bet-pnl span { color: var(--lab-muted); font-size: 9px; }
 .lab-bet-main { min-width: 0; }
 .lab-bet-main strong { display: block; overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }

@@ -8,32 +8,18 @@ from datetime import datetime, timezone
 from statistics import median
 from typing import Iterable
 
-from the_odds_api_provider import KNOWN_SPORTSBOOKS
-
-
-DEFAULT_SOURCE_WEIGHTS = {
-    "pinnacle": 40.0,
-    "betonlineag": 20.0,
-    "novig": 10.0,
-    "prophetx": 10.0,
-    "fourcx": 8.0,
-    "kalshi": 7.0,
-    "polymarket": 5.0,
-    "fanduel": 5.0,
-    "draftkings": 5.0,
-}
-
-DEFAULT_EXECUTION_BOOKS = (
-    "novig",
-    "prophetx",
-    "fourcx",
-    "kalshi",
-    "polymarket",
-    "pinnacle",
-    "betonlineag",
-    "fanduel",
-    "draftkings",
+from the_odds_api_provider import KNOWN_SPORTSBOOKS as THE_ODDS_API_BOOKS
+from sports_game_odds import (
+    SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
+    SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS,
+    SPORTS_GAME_ODDS_EXCHANGE_BOOKS,
+    SPORTS_GAME_ODDS_LOGOS,
 )
+
+
+DEFAULT_SOURCE_WEIGHTS = dict(SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS)
+
+DEFAULT_EXECUTION_BOOKS = SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS
 
 MAIN_MARKETS = ("h2h", "spreads", "totals")
 ALTERNATE_MARKETS = ("alternate_spreads", "alternate_totals")
@@ -56,17 +42,9 @@ PLAYER_PROP_MARKETS = {
     ),
 }
 
-EXCHANGE_BOOKS = {"novig", "prophetx", "fourcx", "kalshi", "polymarket"}
+EXCHANGE_BOOKS = set(SPORTS_GAME_ODDS_EXCHANGE_BOOKS)
 DEFAULT_EXECUTION_PRIORITY = {
-    "novig": 0,
-    "prophetx": 1,
-    "fourcx": 2,
-    "kalshi": 3,
-    "polymarket": 4,
-    "pinnacle": 5,
-    "betonlineag": 6,
-    "fanduel": 7,
-    "draftkings": 8,
+    book_key: index for index, book_key in enumerate(DEFAULT_EXECUTION_BOOKS)
 }
 DEFAULT_FEE_BPS = {book: 0.0 for book in DEFAULT_EXECUTION_BOOKS}
 MIN_AMERICAN_ODDS = -5000
@@ -168,7 +146,9 @@ def _market_label(market_key: str) -> str:
 
 
 def _book_logo(book_key: str, book: dict) -> str:
-    known = KNOWN_SPORTSBOOKS.get(book_key)
+    if book_key in SPORTS_GAME_ODDS_LOGOS:
+        return SPORTS_GAME_ODDS_LOGOS[book_key]
+    known = THE_ODDS_API_BOOKS.get(book_key)
     if known and known[1]:
         return known[1]
     return str(book.get("logo") or book.get("logo_url") or "")
@@ -469,7 +449,9 @@ def build_ev_board(
                 for quote in quotes:
                     leave_one_out = [row for row in source_rows if row[2] != quote["bookKey"]]
                     configured_weight = sum(
-                        weight for book, weight in weights.items() if book != quote["bookKey"]
+                        weights.get(book, 0.0)
+                        for book in book_map
+                        if book != quote["bookKey"]
                     )
                     consensus = _fair_consensus(
                         leave_one_out,
@@ -559,14 +541,40 @@ def build_ev_board(
                     recommended_stake = min(recommended_stake, longshot_cap)
 
                 outcome = labels[selection]
+                selected_quotes_by_book = {
+                    quote["bookKey"]: quote
+                    for quote in quotes_by_selection.get(selection, [])
+                }
                 source_books = [
                     {
                         "bookKey": row[2],
+                        "bookName": selected_quotes_by_book.get(row[2], {}).get(
+                            "bookName", row[2]
+                        ),
+                        "logoUrl": selected_quotes_by_book.get(row[2], {}).get(
+                            "logoUrl", ""
+                        ),
+                        "americanOdds": selected_quotes_by_book.get(row[2], {}).get(
+                            "topPriceAmericanOdds"
+                        ),
+                        "lastUpdated": selected_quotes_by_book.get(row[2], {}).get(
+                            "lastUpdated", ""
+                        ),
+                        "quoteAgeSeconds": selected_quotes_by_book.get(row[2], {}).get(
+                            "quoteAgeSeconds"
+                        ),
                         "weight": row[1],
                         "fairProbability": round(row[0], 8),
                     }
                     for row in consensus["sourceRows"]
                 ]
+                source_books.sort(
+                    key=lambda source: (
+                        float(source["weight"]),
+                        str(source["bookKey"]),
+                    ),
+                    reverse=True,
+                )
                 ordered_market_selections = [selection] + [
                     item for item in labels if item != selection
                 ]

@@ -83,7 +83,7 @@ class Settings:
     tracker_job_secret: str | None = None
     tracker_job_interval_seconds: int = 60
     tracker_pregame_window_minutes: int = 30
-    novig_api_key: str | None = None
+    novig_api_key: str | None = field(default=None, repr=False)
     novig_api_base_url: str = "https://api.sportsgameodds.com/v2"
     novig_cache_ttl_seconds: int = 45
     prophetx_access_key: str | None = field(default=None, repr=False)
@@ -237,14 +237,19 @@ def get_settings() -> Settings:
             1, _get_int("TRACKER_PREGAME_WINDOW_MINUTES", 30)
         ),
         novig_api_key=(
-            os.getenv("NOVIG_ODDS_API_KEY")
-            or os.getenv("SPORTSGAMEODDS_API_KEY")
+            os.getenv("SPORTSGAMEODDS_API_KEY")
+            or os.getenv("NOVIG_ODDS_API_KEY")
             or None
         ),
-        novig_api_base_url=os.getenv(
-            "NOVIG_ODDS_API_BASE_URL", "https://api.sportsgameodds.com/v2"
+        novig_api_base_url=(
+            os.getenv("SPORTSGAMEODDS_API_BASE_URL")
+            or os.getenv("NOVIG_ODDS_API_BASE_URL")
+            or "https://api.sportsgameodds.com/v2"
         ),
-        novig_cache_ttl_seconds=_get_int("NOVIG_ODDS_CACHE_TTL_SECONDS", 45),
+        novig_cache_ttl_seconds=_get_int(
+            "SPORTSGAMEODDS_CACHE_TTL_SECONDS",
+            _get_int("NOVIG_ODDS_CACHE_TTL_SECONDS", 45),
+        ),
         prophetx_access_key=os.getenv("PROPHETX_ACCESS_KEY") or None,
         prophetx_secret_key=os.getenv("PROPHETX_SECRET_KEY") or None,
         prophetx_api_base_url=os.getenv(

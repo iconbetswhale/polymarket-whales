@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import os
 import re
 import secrets
@@ -101,6 +102,7 @@ from ev_optimizer import (
     build_ev_board,
 )
 from market_quote_adapters import normalize_odds_api_events
+from sports_game_odds import POSITIVE_EV_DEVIG_BOOKS, positive_ev_catalog_payload
 from whiteboard import (
     canonical_trade_identity as whiteboard_identity,
     dynamic_whiteboard_state,
@@ -675,6 +677,20 @@ def create_app(start_background: bool = True) -> Flask:
     )
     app.jinja_env.globals["line_shop_refresh_interval_seconds"] = settings.line_shop_refresh_interval_seconds
 
+    def positive_ev_provider():
+        """Prefer the all-book SportsGameOdds feed, retaining legacy fallback."""
+        return next(
+            (
+                provider
+                for provider_key in ("novig", "the_odds_api")
+                for provider in execution_providers.providers
+                if provider.provider_key == provider_key
+                and getattr(provider, "api_key", None)
+                and callable(getattr(provider, "ev_events", None))
+            ),
+            None,
+        )
+
     def refresh_polymarket_execution_quotes(trades: list[dict]) -> None:
         """Attach current CLOB depth used only for provider line-shopping."""
         tracker.refresh_execution_quotes(trades)
@@ -936,6 +952,64 @@ def create_app(start_background: bool = True) -> Flask:
         records = tracker.database.get_hidden_trades(user_id)
         return records, {identity_key(record): record for record in records}
 
+    def positive_ev_identity(
+        *,
+        event_id: str,
+        market_key: str,
+        market_line,
+        selection: str,
+    ) -> dict:
+        canonical_event_id = str(event_id or "").strip()
+        canonical_market_id = (
+            f"positive-ev-market-"
+            f"{stable_hash(canonical_event_id, market_key, market_line)[:24]}"
+        )
+        canonical_outcome_id = (
+            f"positive-ev-outcome-"
+            f"{stable_hash(canonical_market_id, selection)[:24]}"
+        )
+        return {
+            "canonical_event_id": canonical_event_id,
+            "canonical_market_id": canonical_market_id,
+            "market_line": market_line,
+            "canonical_outcome_id": canonical_outcome_id,
+        }
+
+    def visible_positive_ev_rows(rows: list[dict], user_id: str) -> list[dict]:
+        hidden_keys = {
+            identity_key(record)
+            for record in tracker.database.get_hidden_trades(user_id)
+        }
+        if not hidden_keys:
+            return rows
+        visible = []
+        for row in rows:
+            quote = row.get("bestQuote") or {}
+            market_line = quote.get("point")
+            if market_line is None:
+                market_line = row.get("line")
+            event_id = str(row.get("eventId") or "").strip() or (
+                f"positive-ev-event-"
+                f"{stable_hash(row.get('eventTitle'), row.get('commenceTime'))[:24]}"
+            )
+            market_key = " ".join(
+                str(
+                    row.get("marketKey")
+                    or row.get("marketLabel")
+                    or "Positive EV"
+                ).split()
+            )
+            selection = " ".join(str(row.get("selection") or "").split())
+            row_identity = positive_ev_identity(
+                event_id=event_id,
+                market_key=market_key,
+                market_line=market_line,
+                selection=selection,
+            )
+            if identity_key(row_identity) not in hidden_keys:
+                visible.append(row)
+        return visible
+
     def decorate_personal_state(
         trade: dict,
         active_personal_fills: list[dict],
@@ -991,10 +1065,15 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/positive-ev")
     def positive_ev_page():
+        positive_ev_config = positive_ev_catalog_payload()
+        positive_ev_config["previewOnly"] = request.args.get(
+            "preview", ""
+        ).strip().lower() in {"1", "true", "yes", "on"}
         return render_template(
             "positive_ev.html",
             title="IconBets Positive EV",
             page="positive-ev",
+            positive_ev_config=positive_ev_config,
         )
 
     @app.route("/live-positions")
@@ -1857,6 +1936,9 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/positive-ev")
     def api_positive_ev():
         """Demand-driven +EV feed. It never mutates Prediction Traders."""
+        positive_ev_configured = bool(
+            settings.novig_api_key or settings.the_odds_api_key
+        )
         preview_requested = request.args.get("preview", "").strip().lower() in {
             "1",
             "true",
@@ -1865,12 +1947,37 @@ def create_app(start_background: bool = True) -> Flask:
         if preview_requested:
             from ev_preview import temporary_ev_preview_rows
 
-            rows = temporary_ev_preview_rows()
+            preview_rows = temporary_ev_preview_rows()
+            requested_preview_sports = tuple(
+                item.strip()
+                for item in request.args.get("sports", "").split(",")
+                if item.strip()
+            )
+            requested_preview_markets = tuple(
+                item.strip()
+                for item in request.args.get("markets", "").split(",")
+                if item.strip()
+            )
+            if requested_preview_sports:
+                allowed_sports = set(requested_preview_sports)
+                preview_rows = [
+                    row for row in preview_rows
+                    if row.get("sportKey") in allowed_sports
+                ]
+            if requested_preview_markets:
+                allowed_markets = set(requested_preview_markets)
+                preview_rows = [
+                    row for row in preview_rows
+                    if row.get("marketKey") in allowed_markets
+                ]
+            rows = visible_positive_ev_rows(
+                preview_rows, g.iconbets_user_id
+            )
             response = jsonify(
                 {
                     "data": rows,
                     "total": len(rows),
-                    "configured": bool(settings.the_odds_api_key),
+                    "configured": positive_ev_configured,
                     "previewOnly": True,
                     "diagnostics": {
                         "qualified": len(rows),
@@ -1889,7 +1996,7 @@ def create_app(start_background: bool = True) -> Flask:
                 {
                     "data": [],
                     "total": 0,
-                    "configured": bool(settings.the_odds_api_key),
+                    "configured": positive_ev_configured,
                     "paused": True,
                     "message": (
                         "Positive EV scanning is paused. No paid odds requests "
@@ -1901,20 +2008,13 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        odds_provider = next(
-            (
-                provider
-                for provider in execution_providers.providers
-                if provider.provider_key == "the_odds_api"
-            ),
-            None,
-        )
+        odds_provider = positive_ev_provider()
         if odds_provider is None or not getattr(odds_provider, "api_key", None):
             return jsonify(
                 {
                     "data": [],
                     "configured": False,
-                    "message": "The Odds API is not configured.",
+                    "message": "SportsGameOdds is not configured.",
                 }
             )
 
@@ -1925,8 +2025,32 @@ def create_app(start_background: bool = True) -> Flask:
             ).split(",")
             if item.strip()
         )[:4]
+        requested_markets = tuple(
+            dict.fromkeys(
+                item.strip()
+                for item in request.args.get("markets", "").split(",")
+                if item.strip()
+            )
+        )
         market_group = request.args.get("group", "main").strip().lower()
-        if market_group == "alternate":
+        if market_group == "custom":
+            allowed_markets = set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)
+            allowed_markets.update(
+                key
+                for sport_key in sport_keys
+                for key in PLAYER_PROP_MARKETS.get(sport_key, ())
+            )
+            market_keys = tuple(
+                key for key in requested_markets if key in allowed_markets
+            )
+            if not market_keys:
+                return jsonify(
+                    {
+                        "error": "INVALID_MARKETS",
+                        "message": "Select at least one supported market.",
+                    }
+                ), 400
+        elif market_group == "alternate":
             market_keys = ALTERNATE_MARKETS
         elif market_group == "props":
             market_keys = tuple(
@@ -1940,12 +2064,7 @@ def create_app(start_background: bool = True) -> Flask:
             market_group = "main"
             market_keys = MAIN_MARKETS
 
-        requested_markets = tuple(
-            item.strip()
-            for item in request.args.get("markets", "").split(",")
-            if item.strip()
-        )
-        if requested_markets:
+        if requested_markets and market_group != "custom":
             allowed = set(market_keys)
             market_keys = tuple(
                 key for key in requested_markets if key in allowed
@@ -1963,14 +2082,71 @@ def create_app(start_background: bool = True) -> Flask:
         if raw_weights:
             try:
                 parsed = json.loads(raw_weights)
-                if isinstance(parsed, dict):
-                    source_weights = {
-                        str(key).strip().lower(): max(0.0, float(value))
-                        for key, value in parsed.items()
-                        if str(key).strip()
+            except json.JSONDecodeError:
+                return jsonify(
+                    {
+                        "error": "INVALID_DEVIG_ALLOCATION",
+                        "message": "De-vig weights must be a JSON object.",
                     }
-            except (TypeError, ValueError, json.JSONDecodeError):
-                return jsonify({"error": "INVALID_WEIGHTS"}), 400
+                ), 400
+            if not isinstance(parsed, dict):
+                return jsonify(
+                    {
+                        "error": "INVALID_DEVIG_ALLOCATION",
+                        "message": "De-vig weights must be a JSON object.",
+                    }
+                ), 400
+
+            allowed_sources = set(POSITIVE_EV_DEVIG_BOOKS)
+            normalized_weights: dict[str, float] = {}
+            for raw_key, raw_value in parsed.items():
+                source_key = str(raw_key).strip().lower()
+                if source_key not in allowed_sources:
+                    return jsonify(
+                        {
+                            "error": "INVALID_DEVIG_SOURCE",
+                            "message": f"{source_key or 'Blank source'} is not an allowed de-vig source.",
+                            "allowedSources": list(POSITIVE_EV_DEVIG_BOOKS),
+                        }
+                    ), 400
+                try:
+                    if isinstance(raw_value, bool):
+                        raise ValueError
+                    weight = float(raw_value)
+                except (TypeError, ValueError):
+                    return jsonify(
+                        {
+                            "error": "INVALID_DEVIG_ALLOCATION",
+                            "message": f"{source_key} must have a numeric percentage from 0 to 100.",
+                        }
+                    ), 400
+                if not math.isfinite(weight) or not 0.0 <= weight <= 100.0:
+                    return jsonify(
+                        {
+                            "error": "INVALID_DEVIG_ALLOCATION",
+                            "message": f"{source_key} must be between 0% and 100%.",
+                        }
+                    ), 400
+                normalized_weights[source_key] = weight
+
+            source_weights = {
+                source_key: normalized_weights.get(source_key, 0.0)
+                for source_key in POSITIVE_EV_DEVIG_BOOKS
+            }
+            weight_total = sum(source_weights.values())
+            if not math.isclose(weight_total, 100.0, rel_tol=0.0, abs_tol=1e-6):
+                return jsonify(
+                    {
+                        "error": "INVALID_DEVIG_ALLOCATION",
+                        "message": "De-vig source percentages must total exactly 100%.",
+                        "totalPercent": weight_total,
+                    }
+                ), 400
+        active_source_count = sum(
+            1 for weight in source_weights.values() if weight > 0.0
+        )
+        requested_min_sources = int(number_arg("min_sources", 3, 1, 5))
+        effective_min_sources = min(requested_min_sources, active_source_count)
         execution_books = tuple(
             item.strip().lower()
             for item in request.args.get(
@@ -1998,11 +2174,11 @@ def create_app(start_background: bool = True) -> Flask:
                 events,
                 source_weights=source_weights,
                 execution_books=execution_books,
-                devig_method=request.args.get("devig", "power"),
+                devig_method="power",
                 min_ev=number_arg("min_ev", 1.0, 0.0, 50.0),
                 bankroll=number_arg("bankroll", 10000.0, 1.0, 10000000.0),
                 kelly_fraction=number_arg("kelly", 0.25, 0.0, 1.0),
-                min_source_books=int(number_arg("min_sources", 3, 2, 8)),
+                min_source_books=effective_min_sources,
                 max_quote_age_seconds=int(
                     number_arg("max_quote_age", 180, 30, 1800)
                 ),
@@ -2024,6 +2200,7 @@ def create_app(start_background: bool = True) -> Flask:
             lab_tracking = app.extensions[
                 "lab_tracker_service"
             ].observe_positive_ev(rows[:250])
+            visible_rows = visible_positive_ev_rows(rows, g.iconbets_user_id)
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
             return jsonify(
@@ -2039,17 +2216,20 @@ def create_app(start_background: bool = True) -> Flask:
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response = jsonify(
             {
-                "data": rows[:250],
-                "total": len(rows),
+                "data": visible_rows[:250],
+                "total": len(visible_rows),
                 "diagnostics": board["diagnostics"],
                 "tracking": tracking,
                 "labTracker": lab_tracking,
                 "normalizedQuotePersistence": quote_tracking,
                 "normalizedQuotePersistenceWarning": quote_tracking_warning,
                 "configured": True,
+                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
                 "marketGroup": market_group,
                 "marketKeys": list(market_keys),
                 "sourceWeights": source_weights,
+                "devigMethod": "power",
+                "minimumFairSources": effective_min_sources,
                 "executionBooks": list(execution_books),
                 "quota": diagnostics.get("quota", {}),
                 "refreshSeconds": (
@@ -2794,6 +2974,150 @@ def create_app(start_background: bool = True) -> Flask:
         )
         public_fill = {key: value for key, value in stored.items() if key != "user_id"}
         return jsonify({"data": public_fill, "source": "manual_entry"}), 201
+
+    @app.post("/api/positive-ev/personal-bets")
+    def api_positive_ev_personal_bet():
+        payload = request.get_json(silent=True) or {}
+        event_title = " ".join(str(payload.get("event_title") or "").split())
+        market_title = " ".join(
+            str(payload.get("market_title") or "Positive EV").split()
+        )
+        selection = " ".join(str(payload.get("selection") or "").split())
+        if not event_title or not selection:
+            return jsonify({"error": "Event and selection are required."}), 400
+        if max(len(event_title), len(market_title), len(selection)) > 200:
+            return jsonify(
+                {"error": "Event, market, and selection must be 200 characters or fewer."}
+            ), 400
+
+        american_odds = int(round(_safe_float(payload.get("american_odds"), 0)))
+        if american_odds == 0 or abs(american_odds) < 100 or abs(american_odds) > 100000:
+            return jsonify({"error": "Enter valid American odds of +100 or longer, or -100 or shorter."}), 400
+        entry_price = american_to_probability(american_odds)
+        stake = _safe_float(payload.get("stake"), -1)
+        fees = _safe_float(payload.get("fees"), 0)
+        if entry_price is None or not 0 < entry_price < 1:
+            return jsonify({"error": "American odds could not be converted to an entry price."}), 400
+        if stake <= 0:
+            return jsonify({"error": "Stake must be greater than zero."}), 400
+        if fees < 0:
+            return jsonify({"error": "Fees cannot be negative."}), 400
+
+        market_url = str(payload.get("market_url") or "").strip()
+        if market_url and not re.fullmatch(r"https://[^\s]+", market_url):
+            return jsonify({"error": "Sportsbook URL must be a valid HTTPS URL."}), 400
+        try:
+            sportsbook = normalize_sportsbook(payload.get("sportsbook"))
+            tags = normalize_personal_tags(payload.get("tags"))
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        event_start_time = str(payload.get("event_start_time") or "").strip() or None
+        market_key = " ".join(str(payload.get("market_key") or market_title).split())
+        market_line = payload.get("market_line")
+        source_id = str(payload.get("source_id") or "").strip()
+        event_id = str(payload.get("canonical_event_id") or "").strip()
+        event_id = event_id or f"positive-ev-event-{stable_hash(event_title, event_start_time)[:24]}"
+        market_id = str(payload.get("canonical_market_id") or "").strip()
+        outcome_id = str(payload.get("canonical_outcome_id") or "").strip()
+        generated_identity = positive_ev_identity(
+            event_id=event_id,
+            market_key=market_key,
+            market_line=market_line,
+            selection=selection,
+        )
+        market_id = market_id or generated_identity["canonical_market_id"]
+        outcome_id = outcome_id or (
+            f"positive-ev-outcome-{stable_hash(market_id, selection)[:24]}"
+        )
+        trade = {
+            "event_title": event_title,
+            "market_title": market_title,
+            "outcome": selection,
+            "event_date_et": event_start_time,
+            "market_line": market_line,
+            "market_url": market_url or None,
+            "entry_source": "positive_ev",
+            "sharp_source_status": "positive_ev",
+            "validation_ids": {
+                "event_id": event_id,
+                "condition_id": market_id,
+                "outcome_token_id": outcome_id,
+            },
+        }
+        identity = canonical_trade_identity(trade)
+        if not has_complete_identity(identity):
+            return jsonify({"error": "Positive EV bet is missing a canonical identity."}), 409
+
+        active_fills = tracker.database.get_personal_bet_fills(
+            g.iconbets_user_id, active_only=True
+        )
+        exposure = personal_exposure_for_trade(trade, active_fills)
+        if exposure["hasOpposingPersonalPosition"] and not bool(
+            payload.get("confirm_conflict")
+        ):
+            return jsonify(
+                {
+                    "error": "You already hold the opposing outcome in this market.",
+                    "confirmationRequired": "conflict",
+                    "personalExposureSummary": exposure,
+                }
+            ), 409
+        if exposure["hasExactPersonalPosition"] and not bool(
+            payload.get("confirm_duplicate")
+        ):
+            return jsonify(
+                {
+                    "error": "You already have a tracked bet on this exact selection.",
+                    "confirmationRequired": "duplicate",
+                    "personalExposureSummary": exposure,
+                }
+            ), 409
+
+        fill = personal_fill_snapshot(
+            trade,
+            fill_id=secrets.token_urlsafe(18),
+            entry_price=entry_price,
+            shares=stake / entry_price,
+            fees=fees,
+            sportsbook=sportsbook,
+            tags=tags,
+        )
+        fill["sharp_snapshot"] = {
+            **(fill.get("sharp_snapshot") or {}),
+            "tracking_source": "positive_ev",
+            "source_id": source_id or None,
+            "sport_key": payload.get("sport_key"),
+            "league": payload.get("league") or "Other",
+            "entry_american_odds": american_odds,
+            "sportsbook_logo": payload.get("sportsbook_logo") or "",
+            "ev_percent": _safe_float(payload.get("ev_percent")),
+        }
+        stored = tracker.database.insert_personal_bet_fill(
+            g.iconbets_user_id, fill, status="scheduled"
+        )
+        public_fill = {key: value for key, value in stored.items() if key != "user_id"}
+        hidden_record = None
+        if bool(payload.get("hide_after_track")):
+            hidden_record = tracker.database.hide_trade(
+                g.iconbets_user_id, hidden_trade_snapshot(trade)
+            )
+            hidden_record = {
+                key: value
+                for key, value in hidden_record.items()
+                if key != "user_id"
+            }
+        return jsonify(
+            {
+                "data": public_fill,
+                "hidden": hidden_record,
+                "source": "positive_ev",
+                "destinations": {
+                    "betTracker": "/tracker?view=personal",
+                    "labTracker": "/lab-tracker?scope=personal",
+                },
+            }
+        ), 201
 
     @app.route("/api/personal-bets/<fill_id>", methods=["DELETE"])
     def api_delete_personal_bet(fill_id: str):
@@ -4118,11 +4442,13 @@ def create_app(start_background: bool = True) -> Flask:
         if not has_job_authorization():
             return jsonify({"error": "LabTracker job authorization required."}), 401
         lab_tracker = app.extensions["lab_tracker_service"]
-        odds_provider = next(
+        odds_provider = positive_ev_provider()
+        score_provider = next(
             (
                 provider
                 for provider in execution_providers.providers
-                if provider.provider_key == "the_odds_api"
+                if getattr(provider, "api_key", None)
+                and callable(getattr(provider, "scores", None))
             ),
             None,
         )
@@ -4170,7 +4496,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "qualified": 0,
                 "status": "connection_failed",
             }
-        if odds_provider is not None and getattr(odds_provider, "api_key", None):
+        if score_provider is not None:
             pending_sports = sorted(
                 {
                     str(row.get("sport_key") or "").strip()
@@ -4181,7 +4507,7 @@ def create_app(start_background: bool = True) -> Flask:
             if pending_sports:
                 try:
                     result["settlement"] = lab_tracker.settle(
-                        odds_provider.scores(
+                        score_provider.scores(
                             sport_keys=pending_sports,
                             days_from=3,
                         )

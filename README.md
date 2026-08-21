@@ -239,14 +239,19 @@ Maximum persisted Discord jobs claimed during one backend reconciliation run.
 
 The Model Tracker insert is the notification source of truth. A qualifying Today recommendation and its unique Discord outbox job are written in one database transaction. The existing scheduled Model Tracker reconciliation drains that outbox, records success or a safe error code, and retries transient failures without requiring a browser page to be open. Personal Tracker records and dashboard-only recommendations never enter this outbox.
 
-`NOVIG_ODDS_API_KEY=`
-Server-side SportsGameOdds API key for normalized NoVIG prices and market deep links. `SPORTSGAMEODDS_API_KEY` is accepted as an alias. When no key is configured, NoVIG options remain hidden and Polymarket execution is unaffected.
+`SPORTSGAMEODDS_API_KEY=`
+Server-side SportsGameOdds All Lines API key for the Positive EV feed and normalized NoVIG prices. `NOVIG_ODDS_API_KEY` remains a backward-compatible alias. When no key is configured, the Positive EV live scan and NoVIG options remain unavailable while Polymarket execution is unaffected.
 
-`NOVIG_ODDS_API_BASE_URL=https://api.sportsgameodds.com/v2`
-NoVIG market-feed base URL. Override only for a compatible proxy or test service.
+`SPORTSGAMEODDS_API_BASE_URL=https://api.sportsgameodds.com/v2`
+All-book market-feed base URL. `NOVIG_ODDS_API_BASE_URL` remains a backward-compatible alias. Override only for a compatible proxy or test service.
 
-`NOVIG_ODDS_CACHE_TTL_SECONDS=45`
-Maximum in-memory age for live NoVIG prices. One cached provider feed matches all visible trades, avoiding per-card API requests.
+`SPORTSGAMEODDS_CACHE_TTL_SECONDS=45`
+Maximum in-memory age for the all-book feed and live NoVIG prices. `NOVIG_ODDS_CACHE_TTL_SECONDS` remains a backward-compatible alias. One cached provider feed powers the Positive EV board and matches all visible trades, avoiding per-card API requests.
+
+`POSITIVE_EV_ENABLED=true`
+Enables paid Positive EV scans. Leave this false to pause the scanner without removing the API key or making upstream requests.
+
+Positive EV fair odds use the power de-vig method. Users can allocate exactly 100% across Pinnacle, Circa, Bookmaker.eu, FanDuel, and Betfair Exchange; every other subscribed book remains available for execution-price comparison without influencing the fair-price consensus.
 
 `PROPHETX_ACCESS_KEY=` and `PROPHETX_SECRET_KEY=`
 Server-only credentials generated from the ProphetX sandbox account under **Menu → API Integration**. Authentication responses are cached for nine minutes so the ten-minute access token is renewed before expiry. Credential values and upstream error bodies are never logged or returned by the provider-health endpoint.

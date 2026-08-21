@@ -1,10 +1,12 @@
 (() => {
   const initialQuery = new URLSearchParams(window.location.search);
+  const initialPersonalScope = initialQuery.get("scope") === "personal";
   const state = {
-    scope: "signal",
+    scope: initialPersonalScope ? "personal" : "signal",
     source: "all",
     window: "7d",
     display: localStorage.getItem("iconlabs-lab-display") || "dollars",
+    log: initialPersonalScope ? "open" : "graded",
     demo: initialQuery.get("demo") !== "0",
     data: null,
   };
@@ -136,7 +138,7 @@
       </div>`).join("");
   }
 
-  function betCard(row) {
+  function betCard(row, open = false) {
     const pnl = Number(row.profit_loss || 0);
     const resultClass = pnl > 0 ? "win" : pnl < 0 ? "loss" : "push";
     const resultLabel = amount(pnl);
@@ -144,20 +146,28 @@
     const details = Number.isNaN(time.getTime()) ? row.event_title : `${row.event_title} · ${time.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`;
     return `
       <article class="lab-bet-card">
-        <div class="lab-bet-pnl"><strong class="${resultClass}">${resultLabel}</strong></div>
+        <div class="lab-bet-pnl"><strong class="${open ? "open" : resultClass}">${open ? amount(row.stake, false) : resultLabel}</strong>${open ? "<span>Risked</span>" : ""}</div>
         <div class="lab-bet-main"><strong>${escapeHtml(row.selection)}</strong><p>${escapeHtml(row.market_label)}</p><small>${escapeHtml(details)}</small></div>
         <div class="lab-bet-book">${bookLogoMarkup({ key: row.sportsbook_key, name: row.sportsbook_name, logo: row.sportsbook_logo })}<strong>${odds(row.entry_american_odds)}</strong></div>
       </article>`;
   }
 
   function renderLog() {
-    const rows = state.data.lastGraded;
-    $("#lab-log-caption").textContent = "Last 5 graded";
+    const open = state.log === "open";
+    const rows = open ? state.data.openBets : state.data.lastGraded;
+    $("#lab-log-caption").textContent = open ? `${rows.length} open` : "Last 5 graded";
+    $$('[data-lab-log]').forEach((button) => {
+      const active = button.dataset.labLog === state.log;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
     if (!rows.length) {
-      $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ph-check-circle"></i><strong>No graded plays yet</strong><span>Verified plays will appear here automatically.</span></div>`;
+      $("#lab-bet-log").innerHTML = open
+        ? `<div class="lab-empty"><i class="ph ph-hourglass"></i><strong>No open bets</strong><span>Tracked bets appear here as soon as you save them.</span></div>`
+        : `<div class="lab-empty"><i class="ph ph-check-circle"></i><strong>No graded plays yet</strong><span>Verified plays will appear here automatically.</span></div>`;
       return;
     }
-    $("#lab-bet-log").innerHTML = rows.map((row) => betCard(row)).join("");
+    $("#lab-bet-log").innerHTML = rows.map((row) => betCard(row, open)).join("");
   }
 
   function drawChart() {
@@ -259,14 +269,20 @@
 
   $$('[data-lab-source]').forEach((button) => button.addEventListener("click", () => {
     state.scope = "signal"; state.source = button.dataset.labSource;
+    state.log = "graded";
     $$('.lab-tabs button').forEach((item) => item.classList.toggle("active", item === button));
     load();
   }));
   $('[data-lab-scope="personal"]').addEventListener("click", (event) => {
     state.scope = "personal"; state.source = "all";
+    state.log = "open";
     $$('.lab-tabs button').forEach((item) => item.classList.toggle("active", item === event.currentTarget));
     load();
   });
+  $$('[data-lab-log]').forEach((button) => button.addEventListener("click", () => {
+    state.log = button.dataset.labLog;
+    if (state.data) renderLog();
+  }));
   $$('[data-lab-display]').forEach((button) => button.addEventListener("click", () => {
     state.display = button.dataset.labDisplay;
     localStorage.setItem("iconlabs-lab-display", state.display);
@@ -284,6 +300,7 @@
     load();
   });
   $$('[data-lab-display]').forEach((button) => button.classList.toggle("active", button.dataset.labDisplay === state.display));
+  $$('.lab-tabs button').forEach((button) => button.classList.toggle("active", initialPersonalScope ? button.dataset.labScope === "personal" : button.dataset.labSource === "all"));
   syncDemoState();
   window.addEventListener("resize", () => state.data && drawChart());
   load();

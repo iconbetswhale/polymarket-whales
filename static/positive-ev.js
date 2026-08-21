@@ -1,9 +1,27 @@
 (() => {
+  const serverConfig = (() => {
+    try { return JSON.parse(document.getElementById("ev-config")?.textContent || "{}"); }
+    catch { return {}; }
+  })();
+  const catalog = Array.isArray(serverConfig.books) ? serverConfig.books : [];
+  const devigCatalog = Array.isArray(serverConfig.devigBooks) ? serverConfig.devigBooks : [];
+  const catalogVersion = Number(serverConfig.catalogVersion || 1);
+  const marketGroups = {
+    main: ["h2h", "spreads", "totals"],
+    props: [
+      "batter_hits", "batter_total_bases", "batter_home_runs", "batter_rbis",
+      "batter_runs_scored", "pitcher_strikeouts", "pitcher_hits_allowed",
+      "player_points", "player_rebounds", "player_assists", "player_threes",
+      "player_points_rebounds_assists"
+    ],
+    alternate: ["alternate_spreads", "alternate_totals"]
+  };
+  const validMarketKeys = new Set(Object.values(marketGroups).flat());
   const defaults = {
-    group: "main",
+    group: "custom",
+    markets: [...marketGroups.main],
     sports: ["baseball_mlb", "basketball_wnba"],
-    books: ["novig", "prophetx", "fourcx", "kalshi", "polymarket", "pinnacle", "betonlineag", "fanduel", "draftkings"],
-    devig: "power",
+    books: catalog.filter(book => book.defaultExecution).map(book => book.key),
     minEv: 1,
     bankroll: 10000,
     kelly: .25,
@@ -12,21 +30,114 @@
     maxDispersion: 12,
     maxStakePct: 2,
     maxEventPct: 5,
-    weights: {pinnacle:40,betonlineag:20,novig:10,prophetx:10,fourcx:8,kalshi:7,polymarket:5,fanduel:5,draftkings:5}
+    weights: Object.fromEntries(devigCatalog.map(book => [book.key, Number(book.weight || 0)])),
+    catalogVersion
   };
-  const bookNames = {pinnacle:"Pinnacle",betonlineag:"BetOnline",novig:"Novig",prophetx:"ProphetX",fourcx:"4CX",kalshi:"Kalshi",polymarket:"Polymarket",fanduel:"FanDuel",draftkings:"DraftKings"};
-  const bookLogos = {novig:"/static/assets/providers/novig.png",prophetx:"/static/assets/providers/prophetx.ico",kalshi:"/static/assets/providers/kalshi.png",polymarket:"https://polymarket.com/icons/favicon-32x32.png",pinnacle:"/static/assets/providers/pinnacle.png",betonlineag:"/static/assets/sportsbooks/betonline.png?v=20260815",fanduel:"https://sportsbook.fanduel.com/favicon.ico",draftkings:"/static/assets/sportsbooks/draftkings.png?v=20260815",fourcx:"/static/assets/providers/4cx.png"};
-  let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports]};
-  try { settings = {...settings, ...JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}")}; } catch {}
+  const bookNames = Object.fromEntries(catalog.map(book => [book.key, book.name]));
+  const bookLogos = Object.fromEntries(catalog.map(book => [book.key, book.logoUrl || ""]));
+  const trackedStorageKey = "iconlabs-ev-tracked-opportunities";
+  const hiddenStorageKey = "iconlabs-ev-hidden-opportunities";
+  let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports], markets:[...defaults.markets]};
+  try {
+    const saved = JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}");
+    const {books, weights, markets, catalogVersion: savedVersion, ...rest} = saved;
+    settings = {...settings, ...rest};
+    const legacyMarkets = saved.group && marketGroups[saved.group] ? marketGroups[saved.group] : defaults.markets;
+    const savedMarkets = Array.isArray(markets) ? markets.filter(key => validMarketKeys.has(key)) : legacyMarkets;
+    settings.markets = savedMarkets.length ? [...new Set(savedMarkets)] : [...defaults.markets];
+    settings.group = "custom";
+    if (Number(savedVersion) === catalogVersion) {
+      settings.books = Array.isArray(books) ? books.filter(key => key in bookNames) : [...defaults.books];
+      settings.weights = Object.fromEntries(devigCatalog.map(book => [book.key, Number(weights?.[book.key] ?? defaults.weights[book.key])]));
+    }
+  } catch {}
+  let trackedIds = new Set();
+  try {
+    const savedTrackedIds = JSON.parse(localStorage.getItem(trackedStorageKey) || "[]");
+    if (Array.isArray(savedTrackedIds)) trackedIds = new Set(savedTrackedIds.map(String));
+  } catch {}
+  let hiddenIds = new Set();
+  try {
+    const savedHiddenIds = JSON.parse(localStorage.getItem(hiddenStorageKey) || "[]");
+    if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
+  } catch {}
   let rows = [], selectedId = "", paused = false, timer = null;
-  // The optimizer is credit-safe for now, so the public board intentionally
-  // renders the isolated five-row visual feed instead of starting paid scans.
-  const previewOnly = true;
+  let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
+  let trackerConfirmation = {duplicate:false, conflict:false};
+  const previewOnly = Boolean(serverConfig.previewOnly);
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
+  const trackerDialog = $("ev-tracker-dialog");
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+  const matchup = value => {
+    const label = String(value ?? "").trim();
+    const sides = label.match(/^(.*?)\s+vs\.?\s+(.*)$/i);
+    if (!sides) return esc(label);
+    return `<span class="ev-matchup-line">${esc(`${sides[1]} vs`)}</span><span class="ev-matchup-line">${esc(sides[2])}</span>`;
+  };
+  const sportIcon = row => {
+    const sport = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
+    if (/baseball|mlb/.test(sport)) return "ph-baseball";
+    if (/basketball|nba|wnba|ncaab/.test(sport)) return "ph-basketball";
+    if (/tennis|atp|wta/.test(sport)) return "ph-tennis-ball";
+    if (/football|nfl|ncaaf/.test(sport)) return "ph-football";
+    if (/hockey|nhl/.test(sport)) return "ph-hockey";
+    if (/soccer|epl|mls/.test(sport)) return "ph-soccer-ball";
+    if (/golf|pga/.test(sport)) return "ph-golf";
+    return "ph-trophy";
+  };
+  const fullSelection = row => {
+    const label = String(row?.line ?? row?.selection ?? "").trim();
+    if (!/^(over|under)\b/i.test(label)) return label;
+    const context = `${row?.marketLabel || ""} ${row?.marketKey || ""}`.toLowerCase();
+    const league = `${row?.league || ""} ${row?.sportKey || ""}`.toLowerCase();
+    const statUnits = [
+      [/strikeouts?/, "Strikeouts"], [/rebounds?/, "Rebounds"],
+      [/assists?/, "Assists"], [/three pointers?|threes?/, "Three-Pointers"],
+      [/shots? on goal/, "Shots on Goal"], [/saves?/, "Saves"],
+      [/player points?/, "Points"], [/hits?/, "Hits"], [/walks?/, "Walks"],
+    ];
+    let unit = statUnits.find(([pattern]) => pattern.test(context))?.[1] || "";
+    if (!unit && /game total|totals?/.test(context)) {
+      if (/mlb|baseball/.test(league)) unit = "Runs";
+      else if (/nba|wnba|ncaab|basketball|nfl|ncaaf|football/.test(league)) unit = "Points";
+      else if (/nhl|hockey|soccer/.test(league)) unit = "Goals";
+      else if (/tennis|atp|wta/.test(league)) unit = "Games";
+    }
+    if (!unit || label.toLowerCase().includes(unit.toLowerCase())) return label;
+    return `${label} ${unit}`;
+  };
+  const detailSelection = row => {
+    const selection = fullSelection(row);
+    const market = String(row?.marketLabel || "").trim();
+    if (!market) return selection;
+    if (!/^moneyline$/i.test(market)) return selection;
+    return /\bML$/i.test(selection) ? selection : `${selection} ML`;
+  };
+  const marketSideSelection = (row, value) => {
+    const selection = String(value || "").trim();
+    const market = String(row?.marketLabel || "").trim();
+    if (!/^player\b/i.test(market)) return selection;
+    const outcome = selection.match(/\b(over|under)\s*([+-]?\d+(?:\.\d+)?)\b(?:\s+(.*))?$/i);
+    if (!outcome) return selection;
+    const stat = String(outcome[3] || market.replace(/^player\s*/i, "")).trim();
+    const side = /^over$/i.test(outcome[1]) ? "O" : "U";
+    return `${side}${outcome[2]}${stat ? ` ${stat}` : ""}`;
+  };
   const money = value => `$${Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2})}`;
+  const profitMoney = value => `$${Number(value || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const odds = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0)}`;
+  const evPercent = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0).toFixed(2)}%`;
+  const americanProfit = (stake, americanOdds) => {
+    const amount = Math.max(0, Number(stake || 0));
+    const price = Number(americanOdds || 0);
+    if (!Number.isFinite(price) || price === 0) return 0;
+    return price > 0 ? amount * price / 100 : amount * 100 / Math.abs(price);
+  };
+  const quotePayout = (stake, quote = {}) => {
+    const amount = Math.max(0, Number(stake || 0));
+    return amount + americanProfit(amount, quote.topPriceAmericanOdds ?? quote.americanOdds);
+  };
   const time = value => { const date = new Date(value); return Number.isNaN(date.valueOf()) ? "" : date.toLocaleTimeString([],{hour:"numeric",minute:"2-digit"}); };
   const img = (url, name) => {
     const label = bookNames[name] || name || "Sportsbook";
@@ -38,6 +149,168 @@
   const statusLabel = row => row.portfolioStatus !== "qualified" ? "Suppressed" : row.executionStatus === "executable" ? "Executable" : "Verify liquidity";
   const chartPath = points => points.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(" ");
   const stableSeed = value => [...String(value || "")].reduce((total, character) => total + character.charCodeAt(0), 0);
+
+  function trackerSelectOptions(select, values, selectedValue = "", emptyLabel = null) {
+    if (!select) return;
+    const normalized = [...new Set((values || []).map(value => String(value || "").trim()).filter(Boolean))];
+    const options = emptyLabel === null ? [] : [`<option value="">${esc(emptyLabel)}</option>`];
+    options.push(...normalized.map(value => `<option value="${esc(value)}">${esc(value)}</option>`));
+    select.innerHTML = options.join("");
+    if (selectedValue && normalized.includes(selectedValue)) select.value = selectedValue;
+  }
+
+  function renderTrackerTags() {
+    const selected = $("ev-tracker-selected-tags");
+    const count = $("ev-tracker-tag-count");
+    const existing = $("ev-tracker-existing-tag");
+    if (!selected || !count || !existing) return;
+    count.textContent = `${trackerSelectedTags.length} selected`;
+    selected.innerHTML = trackerSelectedTags.length
+      ? trackerSelectedTags.map(tag => `<button type="button" data-ev-remove-tag="${esc(tag)}" title="Remove ${esc(tag)}"><span>#${esc(tag)}</span><i class="ph ph-x" aria-hidden="true"></i></button>`).join("")
+      : "<span>No tags selected</span>";
+    const available = (trackerOptions?.tags || []).filter(tag => !trackerSelectedTags.some(selectedTag => selectedTag.toLowerCase() === String(tag).toLowerCase()));
+    trackerSelectOptions(existing, available, "", "Select an existing tag");
+  }
+
+  function addTrackerTag(rawTag) {
+    const tag = String(rawTag || "").trim().replace(/^#+/, "").replace(/\s+/g, " ");
+    if (!tag || trackerSelectedTags.some(item => item.toLowerCase() === tag.toLowerCase())) return;
+    if (tag.length > 32) { $("ev-tracker-error").textContent = "Tags must be 32 characters or fewer."; return; }
+    if (trackerSelectedTags.length >= 8) { $("ev-tracker-error").textContent = "Choose no more than 8 tags per bet."; return; }
+    trackerSelectedTags.push(tag);
+    $("ev-tracker-error").textContent = "";
+    renderTrackerTags();
+  }
+
+  async function loadTrackerOptions(preferredBook) {
+    if (!trackerOptions) {
+      try {
+        const response = await fetch("/api/personal-tracker/options", {headers:{"Accept":"application/json"}});
+        const payload = await response.json();
+        if (response.ok) trackerOptions = payload.data || {};
+      } catch {}
+    }
+    const catalogBooks = catalog.map(book => book.name).filter(Boolean);
+    const savedBook = localStorage.getItem("iconbets-personal-sportsbook") || "";
+    const selectedBook = preferredBook || savedBook || catalogBooks[0] || "Other";
+    const choices = [selectedBook, ...(trackerOptions?.sportsbook_choices || []), ...catalogBooks];
+    trackerSelectOptions($("ev-tracker-sportsbook"), choices, selectedBook);
+    renderTrackerTags();
+  }
+
+  function updateTrackerTotal() {
+    const price = Number($("ev-tracker-odds")?.value || 0);
+    const stake = Math.max(0, Number($("ev-tracker-stake")?.value || 0));
+    const fees = Math.max(0, Number($("ev-tracker-fees")?.value || 0));
+    const toWin = americanProfit(stake, price);
+    $("ev-tracker-total").innerHTML = `<span>Bet cost</span><strong>${profitMoney(stake)}</strong><small>To win ${profitMoney(toWin)} · Total payout ${profitMoney(stake + toWin)} · Total paid ${profitMoney(stake + fees)}</small>`;
+  }
+
+  function closeTracker() {
+    if (trackerDialog?.open) trackerDialog.close();
+    trackerRowId = "";
+    trackerConfirmation = {duplicate:false, conflict:false};
+  }
+
+  function openTracker(row) {
+    if (!trackerDialog || !row) return;
+    const quote = row.bestQuote || {};
+    const currentOdds = Number(quote.topPriceAmericanOdds ?? quote.americanOdds ?? 0);
+    trackerRowId = String(row.id);
+    trackerSelectedTags = [];
+    trackerConfirmation = {duplicate:false, conflict:false};
+    $("ev-tracker-summary").innerHTML = `
+      <div><span>Event</span><strong>${esc(row.eventTitle)}</strong></div>
+      <div><span>Selection</span><strong>${esc(row.selection)}</strong></div>
+      <div><span>Recommendation</span><strong>${profitMoney(row.recommendedStake)}</strong></div>
+      <div><span>Current odds</span><strong>${odds(currentOdds)}</strong></div>`;
+    $("ev-tracker-odds").value = currentOdds || "";
+    $("ev-tracker-stake").value = Number(row.recommendedStake || 0).toFixed(2);
+    $("ev-tracker-fees").value = "0";
+    $("ev-tracker-error").textContent = "";
+    $("ev-tracker-exposure").hidden = true;
+    $("ev-tracker-exposure").innerHTML = "";
+    $("ev-tracker-submit").innerHTML = '<i class="ph ph-check" aria-hidden="true"></i>Track bet';
+    $("ev-tracker-hide-submit").innerHTML = '<i class="ph ph-eye-slash" aria-hidden="true"></i>Track and Hide';
+    loadTrackerOptions(quote.bookName || bookNames[quote.bookKey] || quote.bookKey);
+    updateTrackerTotal();
+    trackerDialog.showModal();
+  }
+
+  async function saveTrackedBet(event) {
+    event.preventDefault();
+    const row = rows.find(item => String(item.id) === trackerRowId);
+    if (!row) return;
+    const quote = row.bestQuote || {};
+    const hideAfterSave = event.submitter?.id === "ev-tracker-hide-submit";
+    const activeSubmit = event.submitter || $("ev-tracker-submit");
+    const submitButtons = [...$("ev-tracker-form").querySelectorAll('button[type="submit"]')];
+    submitButtons.forEach(button => { button.disabled = true; });
+    $("ev-tracker-error").textContent = "";
+    try {
+      const response = await fetch("/api/positive-ev/personal-bets", {
+        method: "POST",
+        headers: {"Accept":"application/json", "Content-Type":"application/json"},
+        body: JSON.stringify({
+          source_id: row.id,
+          event_title: row.eventTitle,
+          market_title: row.marketLabel,
+          selection: row.selection,
+          event_start_time: row.commenceTime,
+          sport_key: row.sportKey,
+          league: row.league,
+          market_key: row.marketKey,
+          market_line: quote.point ?? row.line ?? null,
+          canonical_event_id: row.eventId,
+          american_odds: Number($("ev-tracker-odds").value),
+          stake: Number($("ev-tracker-stake").value),
+          fees: Number($("ev-tracker-fees").value || 0),
+          sportsbook: $("ev-tracker-sportsbook").value,
+          sportsbook_logo: quote.logoUrl || bookLogos[quote.bookKey] || "",
+          market_url: /^https:\/\//.test(String(quote.deepLink || "")) ? quote.deepLink : "",
+          ev_percent: row.evPercent,
+          tags: trackerSelectedTags,
+          hide_after_track: hideAfterSave,
+          confirm_duplicate: trackerConfirmation.duplicate,
+          confirm_conflict: trackerConfirmation.conflict,
+        }),
+      });
+      const payload = await response.json();
+      if (response.status === 409 && payload.confirmationRequired) {
+        trackerConfirmation[payload.confirmationRequired] = true;
+        const exposure = $("ev-tracker-exposure");
+        exposure.hidden = false;
+        exposure.className = `personal-exposure-notice ${payload.confirmationRequired === "conflict" ? "danger" : "caution"}`;
+        exposure.innerHTML = `<i class="ph ph-warning" aria-hidden="true"></i><span><strong>${payload.confirmationRequired === "conflict" ? "Conflicting personal bet" : "Already tracked"}</strong>${esc(payload.error)}</span>`;
+        activeSubmit.innerHTML = `<i class="ph ph-check" aria-hidden="true"></i>${hideAfterSave ? "Confirm and hide" : payload.confirmationRequired === "conflict" ? "Confirm opposing bet" : "Track another bet"}`;
+        return;
+      }
+      if (!response.ok) throw new Error(payload.error || "Unable to track bet.");
+      const id = String(row.id);
+      trackedIds.add(id);
+      localStorage.setItem(trackedStorageKey, JSON.stringify([...trackedIds]));
+      localStorage.setItem("iconbets-personal-sportsbook", $("ev-tracker-sportsbook").value);
+      closeTracker();
+      if (hideAfterSave) hideOpportunity(id);
+      else renderFeed();
+    } catch (error) {
+      $("ev-tracker-error").textContent = error.message;
+    } finally {
+      submitButtons.forEach(button => { button.disabled = false; });
+    }
+  }
+
+  function hideOpportunity(id) {
+    hiddenIds.add(String(id));
+    localStorage.setItem(hiddenStorageKey, JSON.stringify([...hiddenIds]));
+    const shown = visibleRows();
+    if (String(selectedId) === String(id)) {
+      if (shown.length) select(shown[0].id);
+      else { selectedId = ""; renderFeed(); dismissDetail(); }
+      return;
+    }
+    renderFeed();
+  }
 
   function marketTrendVisual(row) {
     const best = row.bestQuote || {};
@@ -141,6 +414,7 @@
       ? suppliedSides.slice(0, 2)
       : [{selection: row.selection, quotes: row.quotes || []}];
     const sideMaps = sides.map(side => new Map(side.quotes.map(quote => [quote.bookKey, quote])));
+    const sideLabels = sides.map(side => marketSideSelection(row, side.selection));
     const bookKeys = [...new Set(sides.flatMap(side => side.quotes.map(quote => quote.bookKey)))];
     if (!bookKeys.length) return "";
     const priceOf = quote => Number(quote?.topPriceAmericanOdds ?? quote?.americanOdds ?? -10000);
@@ -172,24 +446,101 @@
       </div>`;
     }).join("");
     return `<section class="ev-market-odds ev-market-comparison">
-      <header><div><h3>MARKET ODDS</h3></div><div class="ev-market-best"><small>BEST PRICING</small><strong>${odds(bestBySide[0])}</strong></div></header>
-      <div class="ev-market-compare-head"><strong>${esc(sides[0].selection)}</strong><i class="ph ph-arrows-down-up" aria-hidden="true"></i>${sides.length > 1 ? `<strong>${esc(sides[1].selection)}</strong>` : ""}</div>
+      <header><h3>MARKET ODDS</h3></header>
+      <div class="ev-market-compare-head"><strong>${esc(sideLabels[0])}</strong><i class="ph ph-arrows-down-up" aria-hidden="true"></i>${sides.length > 1 ? `<strong>${esc(sideLabels[1])}</strong>` : ""}</div>
       <div class="ev-market-compare-rows">${rowsHtml}</div>
     </section>`;
   }
 
-  function renderFilters() {
-    document.querySelectorAll('input[name="marketGroup"]').forEach(input => input.checked = input.value === settings.group);
-    document.querySelectorAll('input[name="sports"]').forEach(input => input.checked = settings.sports.includes(input.value));
-    document.querySelectorAll('input[name="devig"]').forEach(input => input.checked = input.value === settings.devig);
-    [["ev-min-ev","minEv"],["ev-bankroll","bankroll"],["ev-kelly","kelly"],["ev-min-sources","minSources"],["ev-max-quote-age","maxQuoteAge"],["ev-max-dispersion","maxDispersion"],["ev-max-stake-pct","maxStakePct"],["ev-max-event-pct","maxEventPct"]].forEach(([id,key]) => { if ($(id)) $(id).value = settings[key]; });
-    $("ev-execution-books").innerHTML = Object.keys(bookNames).map(key => `<label><input type="checkbox" value="${key}" ${settings.books.includes(key)?"checked":""}><span>${img(bookLogos[key],key)}${bookNames[key]}</span></label>`).join("");
-    $("ev-weight-list").innerHTML = Object.entries(settings.weights).map(([key,value]) => `<div class="ev-weight-row"><label for="weight-${key}">${esc(bookNames[key] || key)}</label><input id="weight-${key}" data-weight="${key}" type="number" min="0" max="100" step="1" value="${Number(value)}"></div>`).join("");
-    updateWeightTotal();
+  function quoteAgeLabel(source) {
+    const age = Number(source?.quoteAgeSeconds);
+    if (Number.isFinite(age)) return age < 60 ? `${Math.round(age)}s old` : `${Math.round(age / 60)}m old`;
+    return source?.lastUpdated ? `Updated ${time(source.lastUpdated)}` : "Timestamp unavailable";
   }
-  function updateWeightTotal(){ $("ev-weight-total").textContent = `${[...document.querySelectorAll("[data-weight]")].reduce((sum,input)=>sum+Number(input.value||0),0)}%`; }
+
+  function sharpBooksVisual(row) {
+    const sources = (row.sourceBooks || []).filter(source => Number.isFinite(Number(source.americanOdds)));
+    if (!sources.length) return "";
+    return `<details class="ev-section ev-detail-accordion ev-sharp-prices">
+      <summary><h3>SHARP ODDS USED FOR FAIR VALUE</h3><span>${sources.length} source${sources.length === 1 ? "" : "s"}</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+      <div class="ev-sharp-price-list">${sources.map(source => `<div class="ev-sharp-price-row">
+        <span class="ev-sharp-book">${img(source.logoUrl, source.bookKey)}<span><strong>${esc(source.bookName || bookNames[source.bookKey] || source.bookKey)}</strong><small>${esc(quoteAgeLabel(source))} · Configured ${Number(source.weight || 0)}%</small></span></span>
+        <span class="ev-sharp-novig"><small>No-vig probability</small><b>${(Number(source.fairProbability || 0) * 100).toFixed(2)}%</b></span>
+        <strong class="ev-sharp-odds">${odds(source.americanOdds)}</strong>
+      </div>`).join("")}</div>
+    </details>`;
+  }
+
+  function evExplanationVisual(row) {
+    const best = row.bestQuote || {};
+    const fairProbability = Number(row.fairProbability || 0);
+    const effectiveDecimal = Number(best.effectiveDecimal || 0);
+    const breakEvenProbability = effectiveDecimal > 1 ? 1 / effectiveDecimal : 0;
+    const executionOdds = best.topPriceAmericanOdds ?? best.americanOdds;
+    const book = best.bookName || bookNames[best.bookKey] || best.bookKey || "the selected sportsbook";
+    return `<details class="ev-section ev-detail-accordion ev-value-explanation">
+      <summary><h3>WHY IS THIS +EV?</h3><span>At ${esc(book)} ${odds(executionOdds)}</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+      <div class="ev-value-copy">
+        <p><strong>${evPercent(row.evPercent)} EV</strong> is the estimated long-run return at the displayed odds. A $100 wager has approximately <b>${money(Number(row.evPercent || 0))}</b> in theoretical expected profit—not guaranteed profit.</p>
+        <p>The weighted de-vig blend prices this outcome at <b>${(fairProbability * 100).toFixed(2)}%</b> (${odds(row.fairAmerican)} fair odds), while the offered price requires <b>${(breakEvenProbability * 100).toFixed(2)}%</b> to break even after applicable fees.</p>
+        <div class="ev-value-formula"><span>EV</span><code>(${(fairProbability * 100).toFixed(2)}% × ${effectiveDecimal.toFixed(3)}) − 1</code><strong>${evPercent(row.evPercent)}</strong></div>
+      </div>
+    </details>`;
+  }
+
+  function renderFilters() {
+    document.querySelectorAll("[data-market-key]").forEach(input => input.checked = settings.markets.includes(input.dataset.marketKey));
+    document.querySelectorAll('input[name="sports"]').forEach(input => input.checked = settings.sports.includes(input.value));
+    [["ev-min-ev","minEv"],["ev-bankroll","bankroll"],["ev-kelly","kelly"],["ev-min-sources","minSources"],["ev-max-quote-age","maxQuoteAge"],["ev-max-dispersion","maxDispersion"],["ev-max-stake-pct","maxStakePct"],["ev-max-event-pct","maxEventPct"]].forEach(([id,key]) => { if ($(id)) $(id).value = settings[key]; });
+    $("ev-execution-books").innerHTML = Object.keys(bookNames).map(key => `<label><input type="checkbox" value="${key}" aria-label="${esc(bookNames[key])}" ${settings.books.includes(key)?"checked":""}><span class="ev-book-option">${img(bookLogos[key],key)}<span class="ev-book-name">${esc(bookNames[key])}</span></span></label>`).join("");
+    $("ev-weight-list").innerHTML = devigCatalog.map(book => `<div class="ev-weight-row"><label for="weight-${book.key}">${esc(book.name || bookNames[book.key] || book.key)}</label><span class="ev-weight-input"><input id="weight-${book.key}" data-weight="${book.key}" type="number" min="0" max="100" step=".5" value="${Number(settings.weights[book.key] || 0)}"><b>%</b></span></div>`).join("");
+    updateFilterValidity();
+  }
+  function updateWeightTotal(){
+    const inputs = [...document.querySelectorAll("[data-weight]")];
+    const values = inputs.map(input => Number(input.value));
+    const total = values.reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
+    const validValues = values.every(value => Number.isFinite(value) && value >= 0 && value <= 100);
+    const valid = validValues && Math.abs(total - 100) < .000001;
+    $("ev-weight-total").textContent = `${Number(total.toFixed(2))}%`;
+    $("ev-weight-total").closest(".ev-weight-total").classList.toggle("invalid", !valid);
+    $("ev-weight-error").textContent = valid ? "" : validValues ? "Allocate exactly 100% across the five sources." : "Every source must be between 0% and 100%.";
+    return valid;
+  }
+  function updateMarketSummary(){
+    const activeSports = new Set([...document.querySelectorAll('input[name="sports"]:checked')].map(input => input.value));
+    const inputs = [...document.querySelectorAll("[data-market-key]")];
+    inputs.forEach(input => {
+      input.disabled = Boolean(input.dataset.marketSport && !activeSports.has(input.dataset.marketSport));
+      input.closest("label")?.classList.toggle("disabled", input.disabled);
+    });
+    Object.entries(marketGroups).forEach(([group, keys]) => {
+      const groupInputs = inputs.filter(input => keys.includes(input.dataset.marketKey) && !input.disabled);
+      const selected = groupInputs.filter(input => input.checked).length;
+      const counter = document.querySelector(`[data-market-group-count="${group}"]`);
+      const toggle = document.querySelector(`[data-market-group-toggle="${group}"]`);
+      if (counter) counter.textContent = `${selected}/${groupInputs.length}`;
+      if (toggle) {
+        toggle.checked = selected > 0;
+        toggle.indeterminate = false;
+        toggle.disabled = groupInputs.length === 0;
+        toggle.closest("label")?.classList.toggle("disabled", toggle.disabled);
+      }
+    });
+    const selectedCount = inputs.filter(input => input.checked && !input.disabled).length;
+    $("ev-market-count").textContent = `${selectedCount} selected`;
+    $("ev-market-error").textContent = selectedCount ? "" : "Select at least one market.";
+    return selectedCount > 0;
+  }
+  function updateFilterValidity(){
+    const weightValid = updateWeightTotal();
+    const marketValid = updateMarketSummary();
+    const valid = weightValid && marketValid;
+    $("ev-apply").disabled = !valid;
+    return valid;
+  }
   function query() {
-    const params = new URLSearchParams({group:settings.group,sports:settings.sports.join(","),books:settings.books.join(","),devig:settings.devig,min_ev:settings.minEv,bankroll:settings.bankroll,kelly:settings.kelly,min_sources:settings.minSources,max_quote_age:settings.maxQuoteAge,max_dispersion:settings.maxDispersion,max_stake_pct:settings.maxStakePct,max_event_pct:settings.maxEventPct,weights:JSON.stringify(settings.weights)});
+    const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,bankroll:settings.bankroll,kelly:settings.kelly,min_sources:settings.minSources,max_quote_age:settings.maxQuoteAge,max_dispersion:settings.maxDispersion,max_stake_pct:settings.maxStakePct,max_event_pct:settings.maxEventPct,weights:JSON.stringify(settings.weights)});
     if (previewOnly) params.set("preview", "1");
     return `/api/positive-ev?${params}`;
   }
@@ -231,7 +582,8 @@
         try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
         renderDiagnostics(payload.diagnostics || {}, history);
       } else {
-        $("ev-credit-banner").innerHTML = `<i class="ph ph-eye"></i><span><strong>5 temporary preview plays</strong> · Visual fixtures only · never tracked, signaled, or sent to a sportsbook.</span>`;
+        const previewCount = Number(payload.total || payload.data?.length || 0);
+        $("ev-credit-banner").innerHTML = `<i class="ph ph-eye"></i><span><strong>${previewCount} temporary preview plays</strong> · Visual fixtures only · tracking requires confirmation and saves only to your personal trackers.</span>`;
       }
       const nextSelectedId = rows.some(row=>row.id===selectedId) ? selectedId : rows[0]?.id;
       if (nextSelectedId) select(nextSelectedId);
@@ -244,34 +596,46 @@
   }
   function visibleRows() {
     const search = $("ev-search").value.trim().toLowerCase();
-    return rows.filter(row => !search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search));
+    return rows.filter(row => !hiddenIds.has(String(row.id)) && (!search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search)));
   }
   function renderFeed() {
     const shown = visibleRows();
+    $("ev-count").textContent = shown.length;
     if (!shown.length) { feed.innerHTML = `<div class="ev-empty"><i class="ph ph-shield-check"></i><p>No opportunity passed every validation gate. That is safer than displaying a false edge.</p></div>`; return; }
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
-      return `<button class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" type="button" data-id="${esc(row.id)}" aria-pressed="${row.id===selectedId}">
-        <div class="ev-score"><strong>${Number(row.evPercent).toFixed(2)}%</strong></div>
-        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong>${esc(row.eventTitle)}</strong></div>
-        <div class="ev-pick"><small><i class="ph ph-globe-hemisphere-west"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
-        <div class="ev-execution"><div class="ev-selection">${esc(row.line ?? row.selection)}</div><div class="ev-stake"><strong>${money(row.recommendedStake)}</strong></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right"></i></span></a></div>
-      </button>`;
+      const tracked = trackedIds.has(String(row.id));
+      const totalPayout = quotePayout(row.recommendedStake, quote);
+      return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
+        <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
+        <div class="ev-score"><strong>${evPercent(row.evPercent)}</strong><button class="ev-track-button ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button></div>
+        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row.eventTitle)}</strong></div>
+        <div class="ev-pick"><small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right"></i></span></a></div>
+      </article>`;
     }).join("");
-    feed.querySelectorAll(".ev-opportunity").forEach(button => button.addEventListener("click", event => { if(event.target.closest("a")) return; select(button.dataset.id); }));
+    feed.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => select(button.dataset.open)));
+    feed.querySelectorAll("[data-track]").forEach(button => button.addEventListener("click", event => {
+      event.stopPropagation();
+      const id = String(button.dataset.track || "");
+      if (!id) return;
+      openTracker(rows.find(row => String(row.id) === id));
+    }));
   }
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
     renderFeed(); const best=row.bestQuote||{};
-    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${Number(row.evPercent).toFixed(2)}%</strong><div><h2>${esc(row.eventTitle)}</h2></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
-      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(row.selection)} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
+    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${evPercent(row.evPercent)} EV</strong><div><h2>${esc(row.eventTitle)}</h2><time class="ev-detail-start" datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close" type="button" aria-label="Close detail"><i class="ph ph-x"></i></button></div>
+      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(detailSelection(row))} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
+      ${marketOddsVisual(row)}
       <section class="ev-section ev-market-trend"><header><h3>MARKET TREND</h3></header><div class="ev-trend-metrics">
-        <span><small>EV</small><b>${Number(row.evPercent).toFixed(2)}%</b></span>
+        <span><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
         <span><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
         <span><small>1H</small><b>--</b></span>
         <span><small>OPEN</small><b>--</b></span>
-      </div>${marketTrendVisual(row)}${marketOddsVisual(row)}</section>
+      </div>${marketTrendVisual(row)}</section>
+      ${evExplanationVisual(row)}${sharpBooksVisual(row)}
     </article>`;
     bindTrendControls();
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
@@ -295,23 +659,61 @@
   }
   function openFilters(){renderFilters();dialog.showModal();}
   function applyFilters(){
-    settings.group=document.querySelector('input[name="marketGroup"]:checked').value;
+    if (!updateFilterValidity()) return;
+    settings.group="custom";
+    settings.markets=[...document.querySelectorAll("[data-market-key]:checked:not(:disabled)")].map(input=>input.dataset.marketKey);
     settings.sports=[...document.querySelectorAll('input[name="sports"]:checked')].map(i=>i.value);
     settings.books=[...$("ev-execution-books").querySelectorAll("input:checked")].map(i=>i.value);
-    settings.devig=document.querySelector('input[name="devig"]:checked').value;
     [["ev-min-ev","minEv"],["ev-bankroll","bankroll"],["ev-kelly","kelly"],["ev-min-sources","minSources"],["ev-max-quote-age","maxQuoteAge"],["ev-max-dispersion","maxDispersion"],["ev-max-stake-pct","maxStakePct"],["ev-max-event-pct","maxEventPct"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
+    settings.catalogVersion = catalogVersion;
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
   }
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
   $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
-  $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports]};renderFilters();});
+  $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
-  dialog.addEventListener("input",event=>{if(event.target.matches("[data-weight]"))updateWeightTotal();});
-  dialog.addEventListener("click",event=>{if(event.target===dialog)dialog.close();});
+  dialog.addEventListener("input",event=>{
+    if(event.target.matches("[data-market-group-toggle]")){
+      const keys = marketGroups[event.target.dataset.marketGroupToggle] || [];
+      document.querySelectorAll("[data-market-key]").forEach(input=>{
+        if(keys.includes(input.dataset.marketKey) && !input.disabled) input.checked=event.target.checked;
+      });
+      updateFilterValidity();
+      return;
+    }
+    if(event.target.matches("[data-weight], [data-market-key], input[name=\"sports\"]"))updateFilterValidity();
+  });
+  dialog.addEventListener("click",event=>{
+    if(event.target.closest(".ev-market-group-toggle")){
+      event.stopPropagation();
+    }
+    // Keep dismissal explicit through the close button or Escape. Chromium can
+    // retarget clicks inside a scrolled native dialog to the dialog itself,
+    // which previously closed the filter while users toggled sportsbook cards.
+  });
   dialog.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();dialog.close();}});
+  $("ev-tracker-close")?.addEventListener("click", closeTracker);
+  $("ev-tracker-dismiss")?.addEventListener("click", closeTracker);
+  $("ev-tracker-form")?.addEventListener("submit", saveTrackedBet);
+  trackerDialog?.addEventListener("click", event => { if (event.target === trackerDialog) closeTracker(); });
+  trackerDialog?.addEventListener("keydown", event => { if (event.key === "Escape") { event.preventDefault(); closeTracker(); } });
+  trackerDialog?.addEventListener("input", event => {
+    if (event.target.matches("#ev-tracker-odds, #ev-tracker-stake, #ev-tracker-fees")) updateTrackerTotal();
+  });
+  $("ev-tracker-add-tag")?.addEventListener("click", () => {
+    addTrackerTag($("ev-tracker-new-tag").value);
+    $("ev-tracker-new-tag").value = "";
+  });
+  $("ev-tracker-existing-tag")?.addEventListener("change", event => { addTrackerTag(event.target.value); event.target.value = ""; });
+  $("ev-tracker-selected-tags")?.addEventListener("click", event => {
+    const button = event.target.closest("[data-ev-remove-tag]");
+    if (!button) return;
+    trackerSelectedTags = trackerSelectedTags.filter(tag => tag !== button.dataset.evRemoveTag);
+    renderTrackerTags();
+  });
   document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
   renderFilters(); load(true);
 })();
