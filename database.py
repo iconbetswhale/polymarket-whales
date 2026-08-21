@@ -64,6 +64,15 @@ class TrackerDatabase:
         finally:
             conn.close()
 
+    @contextmanager
+    def refresh_transaction(self) -> Iterator[None]:
+        """Share one durable connection across a complete refresh cycle."""
+        if self.user_store and hasattr(self.user_store, "transaction"):
+            with self.user_store.transaction():
+                yield
+            return
+        yield
+
     def initialize(self) -> None:
         with self.connection() as conn:
             conn.executescript(

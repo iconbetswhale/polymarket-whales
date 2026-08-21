@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Any, Iterator
@@ -51,10 +52,15 @@ class PostgresUserStore:
         self.database_url = database_url
         self._psycopg = psycopg
         self._dict_row = dict_row
+        self._connection_state = threading.local()
         self.initialize()
 
     @contextmanager
     def connection(self) -> Iterator[Any]:
+        active = getattr(self._connection_state, "connection", None)
+        if active is not None:
+            yield active
+            return
         conn = self._psycopg.connect(
             self.database_url,
             row_factory=self._dict_row,
@@ -67,6 +73,29 @@ class PostgresUserStore:
             conn.rollback()
             raise
         finally:
+            conn.close()
+
+    @contextmanager
+    def transaction(self) -> Iterator[Any]:
+        """Reuse one connection for a complete tracker refresh."""
+        active = getattr(self._connection_state, "connection", None)
+        if active is not None:
+            yield active
+            return
+        conn = self._psycopg.connect(
+            self.database_url,
+            row_factory=self._dict_row,
+            connect_timeout=10,
+        )
+        self._connection_state.connection = conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            del self._connection_state.connection
             conn.close()
 
     def initialize(self) -> None:

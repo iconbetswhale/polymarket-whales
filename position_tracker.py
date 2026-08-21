@@ -473,7 +473,8 @@ class TrackerService:
 
     def refresh(self) -> None:
         with self._refresh_lock:
-            self._refresh_unlocked()
+            with self.database.refresh_transaction():
+                self._refresh_unlocked()
 
     def refresh_if_stale(self) -> None:
         if not self._started:
@@ -484,7 +485,8 @@ class TrackerService:
             return
         try:
             if self._snapshot_is_stale():
-                self._refresh_unlocked()
+                with self.database.refresh_transaction():
+                    self._refresh_unlocked()
         finally:
             self._refresh_lock.release()
 

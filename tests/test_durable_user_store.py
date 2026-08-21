@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from contextlib import contextmanager
 
 from durable_user_store import PostgresUserStore
@@ -23,12 +24,24 @@ class FakeConnection:
     def __init__(self) -> None:
         self.queries = []
         self.fake_cursor = FakeCursor()
+        self.commits = 0
+        self.rollbacks = 0
+        self.closes = 0
 
     def execute(self, query, values=()) -> None:
         self.queries.append((query, values))
 
     def cursor(self) -> FakeCursor:
         return self.fake_cursor
+
+    def commit(self) -> None:
+        self.commits += 1
+
+    def rollback(self) -> None:
+        self.rollbacks += 1
+
+    def close(self) -> None:
+        self.closes += 1
 
 
 class ReturningResult:
@@ -141,3 +154,31 @@ def test_postgres_promotes_deduplicated_records_to_global_ledger():
     assert "ROW_NUMBER() OVER" in query
     assert "ON CONFLICT (user_id, dedupe_key) DO NOTHING" in query
     assert values == ("global-model", "global-model")
+
+
+def test_refresh_transaction_reuses_one_postgres_connection():
+    connection = FakeConnection()
+
+    class FakePsycopg:
+        def __init__(self):
+            self.connect_calls = 0
+
+        def connect(self, *_args, **_kwargs):
+            self.connect_calls += 1
+            return connection
+
+    store = object.__new__(PostgresUserStore)
+    store.database_url = "postgresql://durable.example/iconbets"
+    store._psycopg = FakePsycopg()
+    store._dict_row = object()
+    store._connection_state = threading.local()
+
+    with store.transaction() as outer:
+        with store.connection() as first:
+            with store.connection() as second:
+                assert outer is first is second
+
+    assert store._psycopg.connect_calls == 1
+    assert connection.commits == 1
+    assert connection.rollbacks == 0
+    assert connection.closes == 1
