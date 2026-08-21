@@ -1067,7 +1067,7 @@ def create_app(start_background: bool = True) -> Flask:
     def positive_ev_page():
         positive_ev_config = positive_ev_catalog_payload()
         positive_ev_config["previewOnly"] = request.args.get(
-            "preview", ""
+            "preview", "1"
         ).strip().lower() in {"1", "true", "yes", "on"}
         return render_template(
             "positive_ev.html",

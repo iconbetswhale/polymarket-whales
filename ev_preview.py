@@ -90,13 +90,6 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
             5.62, "novig", 118, 84.0, 420,
         ),
         (
-            "ohtani-total-bases", "baseball_mlb", "MLB",
-            "Los Angeles Dodgers vs Colorado Rockies",
-            "Player Total Bases", "Shohei Ohtani Over 1.5 Total Bases",
-            "Shohei Ohtani Under 1.5 Total Bases",
-            4.72, "fanduel", 115, 63.0, 275,
-        ),
-        (
             "2", "basketball_wnba", "WNBA",
             "Las Vegas Aces vs New York Liberty",
             "Spread", "New York Liberty -3.5", "Las Vegas Aces +3.5",
@@ -111,13 +104,6 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
             "4", "tennis_atp", "ATP", "Taylor Fritz vs Ben Shelton",
             "Moneyline", "Taylor Fritz", "Ben Shelton",
             2.76, "novig", -158, 46.0, 690,
-        ),
-        (
-            "wilson-rebounds", "basketball_wnba", "WNBA",
-            "Las Vegas Aces vs New York Liberty",
-            "Player Rebounds", "A'ja Wilson Over 10.5 Rebounds",
-            "A'ja Wilson Under 10.5 Rebounds",
-            2.34, "draftkings", -105, 41.0, 240,
         ),
         (
             "5", "basketball_wnba", "WNBA",

@@ -358,15 +358,15 @@ def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
     }
 
 
-def test_positive_ev_preview_returns_seven_isolated_visual_rows(app_client):
+def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
     response = app_client.get("/api/positive-ev?preview=1")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["previewOnly"] is True
-    assert payload["total"] == 7
+    assert payload["total"] == 5
     assert payload["refreshSeconds"] == 0
-    assert len(payload["data"]) == 7
+    assert len(payload["data"]) == 5
     assert all(row["previewOnly"] is True for row in payload["data"])
     assert all(
         row["calculationVersion"] == "ev-visual-preview-v1"
@@ -388,7 +388,7 @@ def test_positive_ev_preview_returns_seven_isolated_visual_rows(app_client):
         query_string={
             "preview": 1,
             "sports": "baseball_mlb,basketball_wnba",
-            "markets": "h2h,batter_total_bases",
+            "markets": "h2h,spreads",
         },
     )
     assert filtered_response.status_code == 200
@@ -396,7 +396,7 @@ def test_positive_ev_preview_returns_seven_isolated_visual_rows(app_client):
     assert filtered_payload["total"] == 2
     assert {row["marketKey"] for row in filtered_payload["data"]} == {
         "h2h",
-        "batter_total_bases",
+        "spreads",
     }
 
 
@@ -422,7 +422,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'data-market-key="alternate_totals"' in body
     assert "Selecting props or alternates" not in body
     assert "Multiplicative" not in body
-    assert '"previewOnly": false' in body
+    assert '"previewOnly": true' in body
     positive_ev_javascript = Path("static/positive-ev.js").read_text(
         encoding="utf-8"
     )
@@ -530,6 +530,10 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     preview_response = app_client.get("/positive-ev?preview=1")
     assert preview_response.status_code == 200
     assert '"previewOnly": true' in preview_response.get_data(as_text=True)
+
+    live_response = app_client.get("/positive-ev?preview=0")
+    assert live_response.status_code == 200
+    assert '"previewOnly": false' in live_response.get_data(as_text=True)
 
 
 def test_positive_ev_live_scan_prefers_sports_game_odds(
@@ -2227,7 +2231,7 @@ def test_positive_ev_track_and_hide_persists_across_feed_refreshes(app_client):
     assert tracked.status_code == 201
     assert tracked.get_json()["hidden"]["selection"] == row["selection"]
     refreshed = app_client.get("/api/positive-ev?preview=1").get_json()
-    assert refreshed["total"] == 6
+    assert refreshed["total"] == 4
     assert row["id"] not in {item["id"] for item in refreshed["data"]}
     hidden = app_client.get("/api/hidden-trades").get_json()
     assert hidden["total"] == 1

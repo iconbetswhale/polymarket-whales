@@ -541,7 +541,11 @@
   }
   function query() {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,bankroll:settings.bankroll,kelly:settings.kelly,min_sources:settings.minSources,max_quote_age:settings.maxQuoteAge,max_dispersion:settings.maxDispersion,max_stake_pct:settings.maxStakePct,max_event_pct:settings.maxEventPct,weights:JSON.stringify(settings.weights)});
-    if (previewOnly) params.set("preview", "1");
+    if (previewOnly) {
+      params.set("preview", "1");
+      params.delete("markets");
+      params.delete("sports");
+    }
     return `/api/positive-ev?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
