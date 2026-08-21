@@ -71,21 +71,25 @@ def test_product_foundation_defines_semantic_visual_tokens():
         assert role in css
 
 
-def test_prediction_traders_opts_into_the_v2_foundation_last():
+def test_canonical_pages_opt_into_the_v2_foundation_last():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert 'data-design-system="{% if page == \'trades\' %}v2' in template
+    assert 'data-design-system="{% if page in [\'trades\', \'positive-ev\', \'sharp-money\'] %}v2' in template
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
     late_foundation = template.rindex("foundation-v6")
-    late_trades = template.rindex("canonical-v1")
+    late_trades = template.index("filename='stage2-trades.css'", late_foundation)
+    late_positive_ev = template.index("filename='positive-ev.css'", late_foundation)
+    late_sharp_money = template.index("filename='sharp-money-v2.css'", late_foundation)
     assert late_foundation > template.index("filename='app-premium.css'")
     assert late_foundation > template.index("filename='sidebar-shell.css'")
     assert late_trades > late_foundation
+    assert late_positive_ev > late_foundation
+    assert late_sharp_money > late_foundation
 
 
-def test_prediction_traders_does_not_reload_legacy_override_layers():
+def test_canonical_pages_do_not_reload_legacy_override_layers():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     design_css = DESIGN_SYSTEM_PATH.read_text(encoding="utf-8")
     trades_css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
@@ -98,17 +102,17 @@ def test_prediction_traders_does_not_reload_legacy_override_layers():
         "app-premium.css",
         "sidebar-shell.css",
     ):
-        excluded_for_trades = (
-            f"page != 'trades' %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+        excluded_for_canonical_pages = (
+            f"page not in ['trades', 'positive-ev', 'sharp-money'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
-        excluded_for_home_and_trades = (
-            f"page not in ['home', 'trades'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+        excluded_for_home_and_canonical_pages = (
+            f"page not in ['home', 'trades', 'positive-ev', 'sharp-money'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
-        assert excluded_for_trades or (
+        assert excluded_for_canonical_pages or (
             stylesheet in {"app-premium.css", "sidebar-shell.css"}
-            and excluded_for_home_and_trades
+            and excluded_for_home_and_canonical_pages
         )
 
     assert design_css.count("!important") <= 4

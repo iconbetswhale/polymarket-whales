@@ -467,6 +467,13 @@
       $("sharp-detail-panel").classList.add("mobile-open");
       document.body.classList.add("sharp-detail-open");
     });
+    $("sharp-signal-list").addEventListener("keydown", event => {
+      if (event.key !== "Enter" && event.key !== " ") return;
+      const card = event.target.closest("[data-sharp-signal]");
+      if (!card) return;
+      event.preventDefault();
+      card.click();
+    });
     $("sharp-detail-panel").addEventListener("click", event => {
       if (!event.target.closest("#sharp-detail-close")) return;
       $("sharp-detail-panel").classList.remove("mobile-open");

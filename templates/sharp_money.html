@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 <section class="sharp-money-page">
-  <header class="sharp-money-header">
-    <div class="sharp-money-heading">
+  <section class="sandbox-notice sharp-utility-state sharp-preview-banner" id="sharp-feed-notice">
+    <span class="sandbox-notice-icon"><i class="ph ph-shield-check"></i></span>
+    <div><strong id="sharp-feed-title">Feed paused · zero new requests</strong><p id="sharp-feed-copy">Press Play to start the local read-only ProphetX collector and sportsbook comparisons.</p></div>
+    <span class="sandbox-mode-state" id="sharp-feed-state"><i></i> Paused</span>
+  </section>
+
+  <header class="sharp-money-header il-page-header">
+    <div class="sharp-money-heading il-page-title">
       <div class="sharp-title-row">
         <h1>Sharp Money</h1>
         <button class="sharp-learn-button" type="button"><i class="ph ph-graduation-cap"></i> Learn</button>
@@ -10,22 +16,16 @@
       </div>
     </div>
     <div class="sharp-header-actions">
-      <label class="sharp-search"><i class="ph ph-magnifying-glass"></i><input id="sharp-search" type="search" placeholder="Search markets"></label>
-      <button class="sharp-icon-button" id="sharp-feed-toggle" type="button" aria-pressed="false" aria-label="Play feed"><i class="ph ph-play"></i></button>
-      <button class="sharp-icon-button" id="sharp-sort" type="button" aria-pressed="false" title="Sort by combined liquidity"><i class="ph ph-funnel-simple"></i></button>
-      <button class="sharp-icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><i class="ph ph-caret-down sharp-filter-chevron"></i><span class="sharp-alert-dot"></span><span class="sharp-filter-count" id="sharp-filter-count">0</span></button>
-      <button class="sharp-icon-button sharp-reference-action" id="sharp-alerts" type="button" aria-label="Alerts"><i class="ph ph-bell"></i></button>
-      <button class="sharp-icon-button sharp-reference-action" id="sharp-refresh" type="button" aria-label="Refresh"><i class="ph ph-arrows-clockwise"></i></button>
-      <button class="sharp-icon-button sharp-reference-action" id="sharp-more" type="button" aria-label="More options"><i class="ph ph-dots-three-vertical"></i></button>
-      <button class="sharp-icon-button" id="sharp-detail-toggle" type="button" aria-pressed="false" aria-label="Toggle market detail"><i class="ph ph-sidebar-simple"></i></button>
+      <label class="sharp-search search-control"><i class="ph ph-magnifying-glass"></i><input id="sharp-search" type="search" placeholder="Search markets"></label>
+      <button class="sharp-icon-button icon-button" id="sharp-feed-toggle" type="button" aria-pressed="false" aria-label="Play feed"><i class="ph ph-play"></i></button>
+      <button class="sharp-icon-button icon-button" id="sharp-sort" type="button" aria-pressed="false" title="Sort by combined liquidity"><i class="ph ph-funnel-simple"></i></button>
+      <button class="sharp-icon-button icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><i class="ph ph-caret-down sharp-filter-chevron"></i><span class="sharp-alert-dot"></span><span class="sharp-filter-count" id="sharp-filter-count">0</span></button>
+      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-alerts" type="button" aria-label="Alerts"><i class="ph ph-bell"></i></button>
+      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-refresh" type="button" aria-label="Refresh"><i class="ph ph-arrows-clockwise"></i></button>
+      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-more" type="button" aria-label="More options"><i class="ph ph-dots-three-vertical"></i></button>
+      <button class="sharp-icon-button icon-button" id="sharp-detail-toggle" type="button" aria-pressed="false" aria-label="Toggle market detail"><i class="ph ph-sidebar-simple"></i></button>
     </div>
   </header>
-
-  <section class="sandbox-notice sharp-utility-state" id="sharp-feed-notice">
-    <span class="sandbox-notice-icon"><i class="ph ph-shield-check"></i></span>
-    <div><strong id="sharp-feed-title">Feed paused · zero new requests</strong><p id="sharp-feed-copy">Press Play to start the local read-only ProphetX collector and sportsbook comparisons.</p></div>
-    <span class="sandbox-mode-state" id="sharp-feed-state"><i></i> Paused</span>
-  </section>
 
   <section class="sharp-summary sharp-utility-state" aria-label="Sharp Money status">
     <div><span>Markets monitored</span><strong id="sharp-summary-signals">0</strong><small>Real ProphetX markets</small></div>
@@ -49,7 +49,7 @@
         <div class="sharp-empty-state"><div><i class="ph ph-pause-circle"></i><strong>Sharp Money is paused</strong><span>Start the local feed when you want to inspect real ProphetX markets.</span></div></div>
       </div>
     </div>
-    <aside class="sharp-detail-panel" id="sharp-detail-panel" aria-live="polite">
+    <aside class="sharp-detail-panel il-detail-panel" id="sharp-detail-panel" aria-live="polite">
       <div class="sharp-detail-loading"><i class="ph ph-waveform"></i><strong>No market selected</strong><span>Play the feed, then select a market to inspect its flow.</span></div>
     </aside>
   </section>
