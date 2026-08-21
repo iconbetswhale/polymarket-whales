@@ -251,6 +251,14 @@
     window.history.replaceState({}, "", url);
   }
 
+  function syncSourceTabs(activeButton) {
+    $$('.lab-tabs button').forEach((item) => {
+      const active = item === activeButton;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-selected", String(active));
+    });
+  }
+
   async function takeBet(button) {
     button.disabled = true;
     button.textContent = "Saving...";
@@ -270,13 +278,13 @@
   $$('[data-lab-source]').forEach((button) => button.addEventListener("click", () => {
     state.scope = "signal"; state.source = button.dataset.labSource;
     state.log = "graded";
-    $$('.lab-tabs button').forEach((item) => item.classList.toggle("active", item === button));
+    syncSourceTabs(button);
     load();
   }));
   $('[data-lab-scope="personal"]').addEventListener("click", (event) => {
     state.scope = "personal"; state.source = "all";
     state.log = "open";
-    $$('.lab-tabs button').forEach((item) => item.classList.toggle("active", item === event.currentTarget));
+    syncSourceTabs(event.currentTarget);
     load();
   });
   $$('[data-lab-log]').forEach((button) => button.addEventListener("click", () => {
@@ -300,7 +308,7 @@
     load();
   });
   $$('[data-lab-display]').forEach((button) => button.classList.toggle("active", button.dataset.labDisplay === state.display));
-  $$('.lab-tabs button').forEach((button) => button.classList.toggle("active", initialPersonalScope ? button.dataset.labScope === "personal" : button.dataset.labSource === "all"));
+  syncSourceTabs($('.lab-tabs button' + (initialPersonalScope ? '[data-lab-scope="personal"]' : '[data-lab-source="all"]')));
   syncDemoState();
   window.addEventListener("resize", () => state.data && drawChart());
   load();
