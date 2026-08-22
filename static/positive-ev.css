@@ -165,7 +165,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .brand-icon { display: no
 
 .ev-opportunity > .ev-score { padding: 11px 0 11px 9px; }
 .ev-score { display: flex; align-items: center; gap: var(--il-space-3); text-align: center; font-variant-numeric: tabular-nums lining-nums; }
-body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 27px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 25px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
 .ev-opportunity.watch .ev-score.il-confidence-display > strong { color: var(--il-warning); }
 body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button.button.compact {
   position: relative;
@@ -228,7 +228,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { colo
 .ev-event time { font: var(--il-type-metadata); }
 .ev-event time { width: 100%; margin: 0; align-self: start; text-align: center; }
 .ev-event strong { color: var(--il-text-primary); font: 700 18px/1.25 var(--il-font-ui); }
-.ev-matchup { min-width: 0; display: flex; align-items: center; justify-content: center; }
+.ev-matchup { min-width: 0; display: flex; align-items: center; justify-content: center; transform: translateY(-9px); }
 .ev-matchup-players { min-width: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; column-gap: 7px; row-gap: 1px; }
 .ev-player-name { white-space: nowrap; }
 .ev-matchup-inline { min-width: 0; width: 100%; display: flex; align-items: center; justify-content: center; gap: 7px; white-space: nowrap; }
@@ -290,7 +290,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-
 .ev-detail-empty p { max-width: 260px; margin: 0; }
 .ev-detail-card { padding: var(--il-space-3); }
 .ev-detail-head { padding: 2px 0 var(--il-space-3); display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: var(--il-space-2); border-bottom: 1px solid var(--il-border-subtle); }
-.ev-detail-head > strong { color: var(--il-positive); font: 700 27px/1 var(--il-font-data); white-space: nowrap; }
+.ev-detail-head > strong { color: var(--il-positive); font: 700 25px/1 var(--il-font-data); white-space: nowrap; }
 .ev-detail-head > div { min-width: 0; text-align: right; }
 .ev-detail-head h2 { margin: 0; color: var(--il-text-primary); font: 700 18px/1.2 var(--il-font-ui); overflow-wrap: anywhere; }
 .ev-detail-start { display: block; margin-top: 3px; color: var(--il-text-muted); font: var(--il-type-metadata); }
@@ -527,7 +527,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-bet-metric.ev-to-win { min-width: 66px; }
   .ev-bet-metric small { font-size: 9px; }
   .ev-bet-metric strong { font-size: 13px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 68px; padding-inline: 4px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 74px; padding-inline: 6px; }
   .ev-best-button > span:last-child { font-size: 13px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-mark,
   body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 20px; height: 20px; flex-basis: 20px; }
@@ -545,19 +545,21 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-matchup-inline { gap: 4px; }
   .ev-matchup-inline .ev-team-name { font-size: 16px; }
   .ev-team-logo { width: 28px; height: 28px; flex-basis: 28px; }
-  .ev-opportunity > .ev-execution { grid-template-columns: minmax(136px, 1fr) auto auto; gap: 4px; padding-inline: 6px; }
-  .ev-selection { padding-inline: 7px; font-size: 11px; }
-  .ev-bet-metric { min-width: 52px; padding-inline: 5px; }
-  .ev-bet-metric.ev-to-win { min-width: 66px; }
+  .ev-opportunity > .ev-execution { grid-template-columns: minmax(124px, 1fr) auto auto; gap: 4px; padding-inline: 6px; }
+  .ev-selection { padding-inline: 7px; font-size: 10px; }
+  .ev-bet-metric { min-width: 48px; padding-inline: 5px; }
+  .ev-bet-metric.ev-to-win { min-width: 62px; }
   .ev-bet-metric small { font-size: 9px; }
   .ev-bet-metric strong { font-size: 13px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 72px; padding-inline: 5px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 90px; padding-inline: 6px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-mark,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 20px; height: 20px; flex-basis: 20px; }
 }
 
 @media (max-width: 1320px) and (min-width: 981px) {
   body[data-design-system="v2"][data-page="positive-ev"] .app-shell { padding-inline: var(--il-space-3); }
   .ev-workspace { grid-template-columns: minmax(0, 1fr) 320px; gap: var(--il-space-2); }
-  .ev-opportunity { grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr); }
+  .ev-opportunity { grid-template-columns: 158px minmax(132px, 1fr) minmax(68px, .6fr) minmax(316px, 1.45fr); }
   .ev-opportunity > div { padding-inline: 8px; }
   .ev-score { gap: 5px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 20px; }
@@ -568,16 +570,16 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-matchup-inline { gap: 2px; }
   .ev-matchup-inline .ev-team-name { font-size: 13px; letter-spacing: -.035em; }
   .ev-team-logo { width: 24px; height: 24px; flex-basis: 24px; }
-  .ev-opportunity > .ev-execution { grid-template-columns: minmax(124px, 1fr) auto auto; gap: 4px; padding-inline: 6px; }
-  .ev-selection { min-height: 42px; padding-inline: 5px; font-size: 10px; }
-  .ev-bet-metric { min-width: 46px; min-height: 42px; padding-inline: 3px; }
-  .ev-bet-metric.ev-to-win { min-width: 60px; }
+  .ev-opportunity > .ev-execution { grid-template-columns: minmax(114px, 1fr) auto auto; gap: 4px; padding-inline: 4px; }
+  .ev-selection { min-height: 42px; padding-inline: 5px; font-size: 9.5px; }
+  .ev-bet-metric { min-width: 44px; min-height: 42px; padding-inline: 3px; }
+  .ev-bet-metric.ev-to-win { min-width: 58px; }
   .ev-bet-metric small { font-size: 8px; letter-spacing: -.01em; }
   .ev-bet-metric strong { font-size: 12px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 62px; min-height: 42px; padding-inline: 3px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote { min-width: 78px; min-height: 42px; padding-inline: 6px; }
   .ev-best-button > span:last-child { font-size: 13px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-mark,
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 20px; height: 20px; flex-basis: 20px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 18px; height: 18px; flex-basis: 18px; }
   .ev-detail-card { padding: 10px; }
 }
 

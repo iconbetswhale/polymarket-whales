@@ -133,7 +133,7 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
 
 def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     for rule in (
-        "font: 700 27px/1 var(--il-font-data)",
+        "font: 700 25px/1 var(--il-font-data)",
         "font: 700 12px/1 var(--il-font-ui)",
         "font-size: 16px",
         "font: var(--il-type-metadata)",
@@ -159,6 +159,10 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     assert "white-space: nowrap" in CSS
     assert "justify-content: center" in CSS
     assert "opacity: .1" in CSS
+    assert "transform: translateY(-9px)" in CSS
+    assert "grid-template-columns: minmax(124px, 1fr) auto auto" in CSS
+    assert "min-width: 90px; padding-inline: 6px" in CSS
+    assert "min-width: 78px; min-height: 42px; padding-inline: 6px" in CSS
 
 
 def test_positive_ev_uses_real_league_logo_watermarks() -> None:
@@ -202,7 +206,7 @@ def test_positive_ev_responsive_and_accessibility_contracts() -> None:
     for breakpoint in (1800, 1600, 1320, 980, 640, 420):
         assert f"@media (max-width: {breakpoint}px)" in CSS
 
-    assert "grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr)" in CSS
+    assert "grid-template-columns: 158px minmax(132px, 1fr) minmax(68px, .6fr) minmax(316px, 1.45fr)" in CSS
 
     assert "overflow-x: hidden" in CSS
     assert "transform: translateY(102%)" in CSS

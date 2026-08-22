@@ -971,3 +971,49 @@ No actionable P0, P1, or P2 findings remain.
 - `git diff --check`: passed with line-ending notices only.
 
 final result: passed
+
+---
+
+# Positive EV — Alignment and One-Click Spacing Follow-up QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-80dfd8a9-97f1-44c1-bcec-807aca14d70d.png` (940 × 536 px) and the focused one-click crop `C:\Users\15617\AppData\Local\Temp\codex-clipboard-9f320fdc-10a8-47f3-a98b-990a0b6d6cfd.png` (154 × 550 px).
+- Final browser implementation: `artifacts/positive-ev-card-polish/positive-ev-alignment-polish-1783x900.png` (1783 × 900 px).
+- Verified route, viewport, and density: `http://127.0.0.1:5025/positive-ev?preview=1`, 1783 × 900 CSS px, DPR 1.
+- State: five-play desktop preview with a 953px-wide feed rail, the Philadelphia Phillies opportunity selected, and the detail rail open.
+
+The focused source rail and complete-shell implementation were inspected together at native scale. The implementation viewport was selected because it produces the same 953px feed width as the approved card reference.
+
+## Findings and comparison history
+
+- P1 — The green EV percentage remained too dominant.
+  - Fix: reduced the feed and detail EV values from 27px to 25px while preserving their data weight and positive-state color.
+  - Post-fix evidence: every feed EV value computes to 25px at the matching reference width.
+- P1 — Team matchups sat visibly below the market-type centerline.
+  - Fix: applied a measured 9px vertical correction to the matchup row.
+  - Post-fix evidence: the pre-fix centerline delta was 8.797px; all five final matchup-to-market deltas are -0.203px, effectively aligned within subpixel rounding.
+- P1 — Bookmaker logos crowded or crossed the left edge of the one-click odds control at compressed desktop widths.
+  - Fix: widened the responsive one-click controls, reduced the logo size proportionately at narrower breakpoints, and redistributed selection and metric widths without changing card bounds.
+  - Post-fix evidence: all five logo insets are 7px at the matching 1783px viewport, 5.766–7.984px at 1440px, and 4.188–6.391px at 1280px. Every button remains inside its card, every selection has 0px overflow, and page horizontal overflow is 0px.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: feed and detail EV values are balanced at 25px; matchup, market, selection, metric, and odds labels retain the approved hierarchy.
+- Spacing and layout rhythm: matchup and market centers now share one visual line; one-click logos keep visible padding from the border at every tested desktop breakpoint.
+- Colors and visual tokens: existing graphite cards, purple selected-play border, green EV/payout values, and green executable-odds outline are unchanged.
+- Image quality and assets: existing team and bookmaker logo assets are reused without approximation; responsive sizing preserves their aspect ratios.
+- Copy and content: all five plays, markets, bet amounts, payouts, odds, and accessibility labels remain unchanged.
+
+## Interaction and automated verification
+
+- Selected the New York Liberty card, confirmed its detail heading and pressed state, then restored the Philadelphia Phillies card.
+- Responsive checks at 1783 × 900, 1440 × 900, and 1280 × 900 retain five aligned cards, contained one-click buttons, one-line selections, and 0px page overflow.
+- Browser diagnostics: no warnings or errors.
+- Positive EV design-system and page integration checks: 11 passed.
+- `node --check static/positive-ev.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed
