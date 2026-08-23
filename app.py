@@ -97,12 +97,17 @@ from ev_optimizer import (
     ALTERNATE_MARKETS,
     DEFAULT_EXECUTION_BOOKS,
     DEFAULT_SOURCE_WEIGHTS,
+    DEVIG_METHODS,
     MAIN_MARKETS,
     PLAYER_PROP_MARKETS,
     build_ev_board,
 )
 from market_quote_adapters import normalize_odds_api_events
-from sports_game_odds import POSITIVE_EV_DEVIG_BOOKS, positive_ev_catalog_payload
+from sports_game_odds import (
+    POSITIVE_EV_DEVIG_BOOKS,
+    SPORTS_GAME_ODDS_BOOKMAKERS,
+    positive_ev_catalog_payload,
+)
 from whiteboard import (
     canonical_trade_identity as whiteboard_identity,
     dynamic_whiteboard_state,
@@ -1991,6 +1996,40 @@ def create_app(start_background: bool = True) -> Flask:
         positive_ev_configured = bool(
             settings.novig_api_key or settings.the_odds_api_key
         )
+        devig_method = request.args.get("devig_method", "power").strip().lower()
+        if devig_method not in DEVIG_METHODS:
+            return jsonify(
+                {
+                    "error": "INVALID_DEVIG_METHOD",
+                    "message": (
+                        "Devig method must be one of: "
+                        f"{', '.join(DEVIG_METHODS)}."
+                    ),
+                    "allowedMethods": list(DEVIG_METHODS),
+                }
+            ), 400
+        required_books = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get("required_books", "").split(",")
+                if item.strip()
+            )
+        )
+        invalid_required_books = [
+            book for book in required_books
+            if book not in SPORTS_GAME_ODDS_BOOKMAKERS
+        ]
+        if invalid_required_books:
+            return jsonify(
+                {
+                    "error": "INVALID_REQUIRED_BOOK",
+                    "message": (
+                        f"{invalid_required_books[0]} is not an available "
+                        "Required Books option."
+                    ),
+                    "invalidBooks": invalid_required_books,
+                }
+            ), 400
         preview_requested = request.args.get("preview", "").strip().lower() in {
             "1",
             "true",
@@ -1999,7 +2038,27 @@ def create_app(start_background: bool = True) -> Flask:
         if preview_requested:
             from ev_preview import temporary_ev_preview_rows
 
-            preview_rows = temporary_ev_preview_rows()
+            preview_rows = temporary_ev_preview_rows(devig_method=devig_method)
+            if required_books:
+                preview_book_aliases = {
+                    "betonline": "betonlineag",
+                    "prophetexchange": "prophetx",
+                }
+                required_preview_books = {
+                    preview_book_aliases.get(book, book)
+                    for book in required_books
+                }
+                preview_rows = [
+                    row for row in preview_rows
+                    if required_preview_books.issubset(
+                        {
+                            str(quote.get("bookKey") or "").lower()
+                            for quote in row.get("quotes") or []
+                        }
+                    )
+                ]
+            for row in preview_rows:
+                row["requiredBooks"] = list(required_books)
             requested_preview_sports = tuple(
                 item.strip()
                 for item in request.args.get("sports", "").split(",")
@@ -2031,6 +2090,8 @@ def create_app(start_background: bool = True) -> Flask:
                     "total": len(rows),
                     "configured": positive_ev_configured,
                     "previewOnly": True,
+                    "devigMethod": devig_method,
+                    "requiredBooks": list(required_books),
                     "diagnostics": {
                         "qualified": len(rows),
                         "watchOnly": 0,
@@ -2226,7 +2287,8 @@ def create_app(start_background: bool = True) -> Flask:
                 events,
                 source_weights=source_weights,
                 execution_books=execution_books,
-                devig_method="power",
+                required_books=required_books,
+                devig_method=devig_method,
                 min_ev=number_arg("min_ev", 1.0, 0.0, 50.0),
                 bankroll=number_arg("bankroll", 10000.0, 1.0, 10000000.0),
                 kelly_fraction=number_arg("kelly", 0.25, 0.0, 1.0),
@@ -2280,9 +2342,10 @@ def create_app(start_background: bool = True) -> Flask:
                 "marketGroup": market_group,
                 "marketKeys": list(market_keys),
                 "sourceWeights": source_weights,
-                "devigMethod": "power",
+                "devigMethod": devig_method,
                 "minimumFairSources": effective_min_sources,
                 "executionBooks": list(execution_books),
+                "requiredBooks": list(required_books),
                 "quota": diagnostics.get("quota", {}),
                 "refreshSeconds": (
                     60 if market_group == "main" else 1200

@@ -19,6 +19,8 @@ from sports_game_odds import (
 
 DEFAULT_SOURCE_WEIGHTS = dict(SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS)
 
+DEVIG_METHODS = ("power", "additive", "multiplicative", "shin")
+
 DEFAULT_EXECUTION_BOOKS = SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS
 
 MAIN_MARKETS = ("h2h", "spreads", "totals")
@@ -72,30 +74,90 @@ def probability_to_american(probability: float) -> int:
     return int(round(100.0 * (1.0 - value) / value))
 
 
-def _devig(probabilities: list[float], method: str) -> list[float]:
+def devig_probabilities(
+    probabilities: list[float], method: str = "power"
+) -> list[float]:
+    """Remove market margin with one of the supported de-vig methods."""
     if not probabilities:
         return []
-    total = sum(probabilities)
+    values = [float(value) for value in probabilities]
+    if any(
+        not math.isfinite(value) or value <= 0.0 or value >= 1.0
+        for value in values
+    ):
+        raise ValueError("De-vig probabilities must be finite values between 0 and 1.")
+    total = sum(values)
     if total <= 0:
         return []
-    method = str(method or "power").lower()
+    method = str(method or "power").strip().lower()
+    if method not in DEVIG_METHODS:
+        raise ValueError(
+            f"Unsupported de-vig method: {method}. "
+            f"Choose one of {', '.join(DEVIG_METHODS)}."
+        )
     if method == "additive":
-        excess = (total - 1.0) / len(probabilities)
-        adjusted = [max(0.0001, value - excess) for value in probabilities]
+        excess = (total - 1.0) / len(values)
+        adjusted = [max(0.0001, value - excess) for value in values]
     elif method == "power":
-        low, high = 0.05, 8.0
-        for _ in range(40):
+        low, high = 0.000001, 100.0
+        for _ in range(80):
             midpoint = (low + high) / 2.0
-            powered = sum(value**midpoint for value in probabilities)
+            powered = sum(value**midpoint for value in values)
             if powered > 1.0:
                 low = midpoint
             else:
                 high = midpoint
-        adjusted = [value ** ((low + high) / 2.0) for value in probabilities]
+        adjusted = [value ** ((low + high) / 2.0) for value in values]
+    elif method == "shin":
+        # Shin and Additive have an exact closed-form equivalence for
+        # two-outcome markets. Using it also avoids an unnecessary iterative
+        # solve for the most common sportsbook market shape.
+        if len(values) == 2:
+            excess = (total - 1.0) / 2.0
+            adjusted = [max(0.0001, value - excess) for value in values]
+        elif total <= 1.0:
+            # A non-positive overround has no valid insider-trading parameter
+            # in Shin's standard z in [0, 1) model. Normalize it safely rather
+            # than inventing a negative insider share.
+            adjusted = list(values)
+        else:
+            def shin_probabilities(z_value: float) -> list[float]:
+                denominator = 2.0 * (1.0 - z_value)
+                return [
+                    (
+                        math.sqrt(
+                            z_value * z_value
+                            + 4.0
+                            * (1.0 - z_value)
+                            * value
+                            * value
+                            / total
+                        )
+                        - z_value
+                    )
+                    / denominator
+                    for value in values
+                ]
+
+            low, high = 0.0, 1.0 - 1e-12
+            for _ in range(80):
+                midpoint = (low + high) / 2.0
+                if sum(shin_probabilities(midpoint)) > 1.0:
+                    low = midpoint
+                else:
+                    high = midpoint
+            adjusted = shin_probabilities((low + high) / 2.0)
     else:
-        adjusted = list(probabilities)
+        # Multiplicative de-vig: scale every raw implied probability by the
+        # same factor so the resulting market sums to 100%.
+        adjusted = list(values)
     normalized = sum(adjusted)
     return [value / normalized for value in adjusted]
+
+
+def _devig(probabilities: list[float], method: str) -> list[float]:
+    """Backward-compatible internal alias for the public calculation helper."""
+    return devig_probabilities(probabilities, method)
 
 
 def _group_key(market_key: str, outcome: dict) -> tuple:
@@ -291,6 +353,7 @@ def build_ev_board(
     *,
     source_weights: dict[str, float] | None = None,
     execution_books: Iterable[str] = DEFAULT_EXECUTION_BOOKS,
+    required_books: Iterable[str] = (),
     devig_method: str = "power",
     min_ev: float = 0.0,
     bankroll: float = 10000.0,
@@ -303,11 +366,20 @@ def build_ev_board(
     max_event_exposure_pct: float = 0.05,
     fee_bps: dict[str, float] | None = None,
 ) -> dict:
+    devig_method = str(devig_method or "power").strip().lower()
+    if devig_method not in DEVIG_METHODS:
+        raise ValueError(
+            f"Unsupported de-vig method: {devig_method}. "
+            f"Choose one of {', '.join(DEVIG_METHODS)}."
+        )
     weights = {
         str(key).lower(): max(0.0, float(value))
         for key, value in (source_weights or DEFAULT_SOURCE_WEIGHTS).items()
     }
     targets = {str(key).lower() for key in execution_books}
+    required_targets = {
+        str(key).strip().lower() for key in required_books if str(key).strip()
+    }
     fees = {**DEFAULT_FEE_BPS, **(fee_bps or {})}
     candidates: list[dict] = []
     rejected: Counter[str] = Counter()
@@ -432,14 +504,24 @@ def build_ev_board(
                     )
 
             for selection, source_rows in fair_by_selection.items():
-                quotes = [
+                fresh_selection_quotes = [
                     quote
                     for quote in quotes_by_selection.get(selection, [])
-                    if quote["bookKey"] in targets
-                    and (
+                    if (
                         quote["quoteAgeSeconds"] is None
                         or quote["quoteAgeSeconds"] <= max_quote_age_seconds
                     )
+                ]
+                available_books = {
+                    quote["bookKey"] for quote in fresh_selection_quotes
+                }
+                if not required_targets.issubset(available_books):
+                    rejected["missing_required_books"] += 1
+                    continue
+                quotes = [
+                    quote
+                    for quote in fresh_selection_quotes
+                    if quote["bookKey"] in targets
                 ]
                 if not quotes:
                     rejected["no_fresh_execution_quote"] += 1
@@ -639,6 +721,8 @@ def build_ev_board(
                         "warnings": warnings,
                         "calculatedAt": now.isoformat(),
                         "calculationVersion": "ev-optimizer-v3-top-of-book",
+                        "devigMethod": devig_method,
+                        "requiredBooks": sorted(required_targets),
                     }
                 )
 
@@ -674,6 +758,8 @@ def build_ev_board(
             "rejected": sum(rejected.values()),
             "rejectionReasons": dict(sorted(rejected.items())),
             "calculationVersion": "ev-optimizer-v3-top-of-book",
+            "devigMethod": devig_method,
+            "requiredBooks": sorted(required_targets),
         },
     }
 

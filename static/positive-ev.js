@@ -17,19 +17,19 @@
     alternate: ["alternate_spreads", "alternate_totals"]
   };
   const validMarketKeys = new Set(Object.values(marketGroups).flat());
+  const validDevigMethods = new Set(["power", "additive", "multiplicative", "shin"]);
+  const requiredBookCatalog = [...catalog].sort((left, right) => String(left.name || left.key).localeCompare(String(right.name || right.key)));
+  const validRequiredBookKeys = new Set(requiredBookCatalog.map(book => book.key));
   const defaults = {
     group: "custom",
     markets: [...marketGroups.main],
     sports: ["baseball_mlb", "basketball_wnba"],
     books: catalog.filter(book => book.defaultExecution).map(book => book.key),
     minEv: 1,
-    bankroll: 10000,
     kelly: .25,
     minSources: 3,
-    maxQuoteAge: 180,
-    maxDispersion: 12,
-    maxStakePct: 2,
-    maxEventPct: 5,
+    requiredBooks: [],
+    devigMethod: "power",
     weights: Object.fromEntries(devigCatalog.map(book => [book.key, Number(book.weight || 0)])),
     catalogVersion
   };
@@ -37,11 +37,13 @@
   const bookLogos = Object.fromEntries(catalog.map(book => [book.key, book.logoUrl || ""]));
   const trackedStorageKey = "iconlabs-ev-tracked-opportunities";
   const hiddenStorageKey = "iconlabs-ev-hidden-opportunities";
-  let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], sports:[...defaults.sports], markets:[...defaults.markets]};
+  let settings = {...defaults, weights:{...defaults.weights}, books:[...defaults.books], requiredBooks:[...defaults.requiredBooks], sports:[...defaults.sports], markets:[...defaults.markets]};
   try {
     const saved = JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}");
-    const {books, weights, markets, catalogVersion: savedVersion, ...rest} = saved;
+    const {books, weights, markets, requiredBooks, catalogVersion: savedVersion, bankroll, maxQuoteAge, maxDispersion, maxStakePct, maxEventPct, ...rest} = saved;
     settings = {...settings, ...rest};
+    if (!validDevigMethods.has(settings.devigMethod)) settings.devigMethod = defaults.devigMethod;
+    settings.requiredBooks = Array.isArray(requiredBooks) ? [...new Set(requiredBooks.filter(key => validRequiredBookKeys.has(key)))] : [...defaults.requiredBooks];
     const legacyMarkets = saved.group && marketGroups[saved.group] ? marketGroups[saved.group] : defaults.markets;
     const savedMarkets = Array.isArray(markets) ? markets.filter(key => validMarketKeys.has(key)) : legacyMarkets;
     settings.markets = savedMarkets.length ? [...new Set(savedMarkets)] : [...defaults.markets];
@@ -598,10 +600,22 @@
   function renderFilters() {
     document.querySelectorAll("[data-market-key]").forEach(input => input.checked = settings.markets.includes(input.dataset.marketKey));
     document.querySelectorAll('input[name="sports"]').forEach(input => input.checked = settings.sports.includes(input.value));
-    [["ev-min-ev","minEv"],["ev-bankroll","bankroll"],["ev-kelly","kelly"],["ev-min-sources","minSources"],["ev-max-quote-age","maxQuoteAge"],["ev-max-dispersion","maxDispersion"],["ev-max-stake-pct","maxStakePct"],["ev-max-event-pct","maxEventPct"]].forEach(([id,key]) => { if ($(id)) $(id).value = settings[key]; });
+    document.querySelectorAll('input[name="devig-method"]').forEach(input => input.checked = input.value === settings.devigMethod);
+    [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => { if ($(id)) $(id).value = settings[key]; });
     $("ev-execution-books").innerHTML = Object.keys(bookNames).map(key => `<label><input type="checkbox" value="${key}" aria-label="${esc(bookNames[key])}" ${settings.books.includes(key)?"checked":""}><span class="ev-book-option">${img(bookLogos[key],key)}<span class="ev-book-name">${esc(bookNames[key])}</span></span></label>`).join("");
     $("ev-weight-list").innerHTML = devigCatalog.map(book => `<div class="ev-weight-row"><label for="weight-${book.key}">${esc(book.name || bookNames[book.key] || book.key)}</label><span class="ev-weight-input"><input id="weight-${book.key}" data-weight="${book.key}" type="number" min="0" max="100" step=".5" value="${Number(settings.weights[book.key] || 0)}"><b>%</b></span></div>`).join("");
+    $("ev-required-books-list").innerHTML = requiredBookCatalog.map(book => `<label><span>${img(book.logoUrl || bookLogos[book.key], book.key)}</span><strong>${esc(book.name || bookNames[book.key] || book.key)}</strong><input type="checkbox" data-required-book="${esc(book.key)}" aria-label="Require ${esc(book.name || book.key)}" ${settings.requiredBooks.includes(book.key)?"checked":""}></label>`).join("");
+    updateRequiredBooksSummary();
     updateFilterValidity();
+  }
+  function updateRequiredBooksSummary(){
+    const selected = [...document.querySelectorAll("[data-required-book]:checked")].map(input => input.dataset.requiredBook);
+    const summary = selected.length === 0
+      ? "Any book"
+      : selected.length === 1
+        ? `${bookNames[selected[0]] || selected[0]} required`
+        : `${selected.length} books required`;
+    $("ev-required-books-summary").textContent = summary;
   }
   function updateWeightTotal(){
     const inputs = [...document.querySelectorAll("[data-weight]")];
@@ -647,7 +661,7 @@
     return valid;
   }
   function query() {
-    const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,bankroll:settings.bankroll,kelly:settings.kelly,min_sources:settings.minSources,max_quote_age:settings.maxQuoteAge,max_dispersion:settings.maxDispersion,max_stake_pct:settings.maxStakePct,max_event_pct:settings.maxEventPct,weights:JSON.stringify(settings.weights)});
+    const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights)});
     if (previewOnly) {
       params.set("preview", "1");
       params.delete("markets");
@@ -743,7 +757,7 @@
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
     renderFeed(); const best=row.bestQuote||{};
-    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${evPercent(row.evPercent)} EV</strong><div><h2>${esc(row.eventTitle)}</h2><time class="ev-detail-start" datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
+    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${evPercent(row.evPercent)}</strong><div><h2>${esc(row.eventTitle)}</h2><time class="ev-detail-start" datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
       <div class="ev-detail-pick ev-trend-pick"><strong>${esc(detailSelection(row))} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       ${marketOddsVisual(row)}
@@ -814,14 +828,17 @@
     settings.markets=[...document.querySelectorAll("[data-market-key]:checked:not(:disabled)")].map(input=>input.dataset.marketKey);
     settings.sports=[...document.querySelectorAll('input[name="sports"]:checked')].map(i=>i.value);
     settings.books=[...$("ev-execution-books").querySelectorAll("input:checked")].map(i=>i.value);
-    [["ev-min-ev","minEv"],["ev-bankroll","bankroll"],["ev-kelly","kelly"],["ev-min-sources","minSources"],["ev-max-quote-age","maxQuoteAge"],["ev-max-dispersion","maxDispersion"],["ev-max-stake-pct","maxStakePct"],["ev-max-event-pct","maxEventPct"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
+    settings.requiredBooks=[...document.querySelectorAll("[data-required-book]:checked")].map(i=>i.dataset.requiredBook);
+    settings.devigMethod=document.querySelector('input[name="devig-method"]:checked')?.value || defaults.devigMethod;
+    [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
     settings.catalogVersion = catalogVersion;
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
   }
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
   $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
-  $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
+  $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],requiredBooks:[...defaults.requiredBooks],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
+  $("ev-required-books-clear").addEventListener("click",()=>{document.querySelectorAll("[data-required-book]").forEach(input=>input.checked=false);updateRequiredBooksSummary();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
@@ -834,6 +851,7 @@
       updateFilterValidity();
       return;
     }
+    if(event.target.matches("[data-required-book]"))updateRequiredBooksSummary();
     if(event.target.matches("[data-weight], [data-market-key], input[name=\"sports\"]"))updateFilterValidity();
   });
   dialog.addEventListener("click",event=>{

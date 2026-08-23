@@ -61,7 +61,7 @@
         <button class="active" type="button" data-panel="markets"><i class="ph ph-list-checks"></i><span>Market</span><small id="ev-market-count">3 selected</small></button>
         <button type="button" data-panel="sportsbooks"><i class="ph ph-storefront"></i><span>Sportsbooks</span><small>Execution</small></button>
         <button type="button" data-panel="devig"><i class="ph ph-function"></i><span>De-vig Settings</span><small>Source mix</small></button>
-        <button type="button" data-panel="thresholds"><i class="ph ph-sliders"></i><span>Thresholds</span><small>EV &amp; bankroll</small></button>
+        <button type="button" data-panel="thresholds"><i class="ph ph-sliders"></i><span>Thresholds</span><small>EV &amp; book rules</small></button>
         <button type="button" data-panel="warnings"><i class="ph ph-warning-circle"></i><span>Bet Warnings</span><small>3 enabled</small></button>
       </nav>
       <div class="ev-filter-panels">
@@ -113,26 +113,43 @@
           <div class="ev-book-grid" id="ev-execution-books"></div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="devig">
-          <h3>De-vig source allocation</h3><p>Each source is de-vigged with the power method, then blended by these percentages. Allocate exactly 100%. Missing books are reweighted across the available sources—never fabricated.</p>
-          <div class="ev-weight-list" id="ev-weight-list"></div>
-          <div class="ev-weight-total">Allocated <strong id="ev-weight-total">0%</strong></div>
-          <p class="ev-weight-error" id="ev-weight-error" role="status"></p>
+          <h3>Devig Method</h3>
+          <p>Choose how the sportsbook margin is removed from every sharp source before the fair probabilities are blended.</p>
+          <div class="ev-devig-methods" role="radiogroup" aria-label="Devig Method">
+            <label><input type="radio" name="devig-method" value="power" checked><span><strong>Power</strong><small>Adjusts probabilities exponentially</small></span></label>
+            <label><input type="radio" name="devig-method" value="additive"><span><strong>Additive</strong><small>Removes an equal margin from each side</small></span></label>
+            <label><input type="radio" name="devig-method" value="multiplicative"><span><strong>Multiplicative</strong><small>Scales every probability proportionally</small></span></label>
+            <label><input type="radio" name="devig-method" value="shin"><span><strong>Shin</strong><small>Models informed-bettor market bias</small></span></label>
+          </div>
+          <div class="ev-devig-source-allocation">
+            <h3>Devig Source Allocation</h3>
+            <p>Blend the devigged fair probabilities by these percentages. Allocate exactly 100%. Missing books are reweighted across the available sources—never fabricated.</p>
+            <div class="ev-weight-list" id="ev-weight-list"></div>
+            <div class="ev-weight-total">Allocated <strong id="ev-weight-total">0%</strong></div>
+            <p class="ev-weight-error" id="ev-weight-error" role="status"></p>
+          </div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="thresholds">
           <h3>Opportunity thresholds</h3>
           <div class="ev-field-grid">
-            <label>Minimum EV<input id="ev-min-ev" type="number" min="-25" max="100" step=".1" value="1"><span>%</span></label>
-            <label>Bankroll<input id="ev-bankroll" type="number" min="1" step="100" value="10000"><span>$</span></label>
-            <label>Kelly multiplier<select id="ev-kelly"><option value=".1">10%</option><option value=".25" selected>25%</option><option value=".5">50%</option><option value="1">Full Kelly</option></select></label>
-            <label>Minimum fair sources<input id="ev-min-sources" type="number" min="1" max="5" step="1" value="3"></label>
-            <label>Maximum quote age<input id="ev-max-quote-age" type="number" min="30" max="1800" step="30" value="180"><span>sec</span></label>
-            <label>Maximum source spread<input id="ev-max-dispersion" type="number" min="2" max="25" step="1" value="12"><span>pts</span></label>
-            <label>Maximum stake<input id="ev-max-stake-pct" type="number" min=".1" max="10" step=".1" value="2"><span>% bankroll</span></label>
-            <label>Maximum event exposure<input id="ev-max-event-pct" type="number" min=".5" max="20" step=".5" value="5"><span>% bankroll</span></label>
+            <label>Min EV<input id="ev-min-ev" type="number" min="-25" max="100" step=".1" value="1"><span>%</span></label>
+            <label>Kelly Multiplier<select id="ev-kelly"><option value="0.1">10%</option><option value="0.25" selected>25%</option><option value="0.5">50%</option><option value="1">Full Kelly</option></select></label>
+            <label>Min # of Books<input id="ev-min-sources" type="number" min="1" max="5" step="1" value="3"></label>
+            <div class="ev-required-books-field">
+              <span class="ev-threshold-label">Required Books</span>
+              <details class="ev-required-books-control" id="ev-required-books-control">
+                <summary><span id="ev-required-books-summary">Any book</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+                <div class="ev-required-books-dropdown">
+                  <header><small>Every selected book must offer the exact play.</small><button id="ev-required-books-clear" type="button">Clear all</button></header>
+                  <div class="ev-required-books-list" id="ev-required-books-list"></div>
+                </div>
+              </details>
+              <small class="ev-threshold-help">Different odds are allowed.</small>
+            </div>
           </div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="warnings">
-          <h3>Bet warnings</h3>
+          <h3>Bet Warnings</h3>
           <label class="ev-toggle-row"><span><strong>Show same-game opportunities</strong><small>May concentrate risk in one event</small></span><input type="checkbox" checked></label>
           <label class="ev-toggle-row"><span><strong>Show conflicting opportunities</strong><small>May offset potential profit</small></span><input type="checkbox" checked></label>
           <label class="ev-toggle-row"><span><strong>Show previously viewed opportunities</strong><small>Keep dismissed rows visible</small></span><input type="checkbox" checked></label>

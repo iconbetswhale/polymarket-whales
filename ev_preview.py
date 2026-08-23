@@ -7,11 +7,14 @@ without consuming provider credits or creating trackable recommendations.
 
 from __future__ import annotations
 
+import math
 from datetime import datetime, timedelta, timezone
 
 from ev_optimizer import (
+    DEVIG_METHODS,
     american_to_decimal,
     american_to_probability,
+    devig_probabilities,
     probability_to_american,
 )
 
@@ -79,9 +82,14 @@ def _quote(book: str, odds: int, fair_probability: float, liquidity: float | Non
     }
 
 
-def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
+def temporary_ev_preview_rows(
+    now: datetime | None = None, *, devig_method: str = "power"
+) -> list[dict]:
     """Return synthetic, non-actionable opportunities for visual QA only."""
 
+    devig_method = str(devig_method or "power").strip().lower()
+    if devig_method not in DEVIG_METHODS:
+        raise ValueError(f"Unsupported de-vig method: {devig_method}.")
     anchor = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
     fixtures = (
         (
@@ -120,9 +128,65 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
     for index, fixture in enumerate(fixtures, start=1):
         (
             preview_key, sport, league, event, market, selection,
-            opposing_selection, ev, best_book, best_odds, stake, liquidity,
+            opposing_selection, target_ev, best_book, best_odds, stake, liquidity,
         ) = fixture
-        fair = (1.0 + ev / 100.0) / american_to_decimal(best_odds)
+        power_fair = (1.0 + target_ev / 100.0) / american_to_decimal(best_odds)
+        source_specs = (
+            ("pinnacle", 35.0, 0.0010),
+            ("circa", 28.0, -0.0015),
+            ("bookmakereu", 28.0, 0.0005),
+            ("betfairexchange", 7.0, -0.0005),
+            ("fanduel", 2.0, 0.0020),
+        )
+        weighted_adjustment = sum(
+            weight * adjustment for _, weight, adjustment in source_specs
+        ) / sum(weight for _, weight, _ in source_specs)
+        sharp_sources: list[dict] = []
+        fair = 0.0
+        for position, (book, weight, adjustment) in enumerate(source_specs):
+            # Build an internally coherent synthetic two-way market whose Power
+            # de-vig result matches the long-standing preview fair price. This
+            # keeps the default preview stable while the other methods genuinely
+            # recalculate each source from the same raw implied probabilities.
+            power_target = max(
+                0.01,
+                min(0.99, power_fair + adjustment - weighted_adjustment),
+            )
+            selected_raw = min(0.995, power_target + 0.012 + position * 0.0005)
+            power_exponent = math.log(power_target) / math.log(selected_raw)
+            opposing_raw = (1.0 - power_target) ** (1.0 / power_exponent)
+            source_fair = devig_probabilities(
+                [selected_raw, opposing_raw], devig_method
+            )[0]
+            fair += source_fair * weight / 100.0
+            sharp_sources.append(
+                {
+                    "bookKey": book,
+                    "bookName": _NAMES[book],
+                    "logoUrl": _LOGOS[book],
+                    "americanOdds": probability_to_american(selected_raw),
+                    "lastUpdated": anchor.isoformat(),
+                    "quoteAgeSeconds": 3 + position * 2,
+                    "weight": weight,
+                    "fairProbability": round(source_fair, 8),
+                }
+            )
+        decimal_odds = american_to_decimal(best_odds)
+        ev = round((fair * decimal_odds - 1.0) * 100.0, 2)
+        price_profit = decimal_odds - 1.0
+        default_full_kelly = max(
+            0.0,
+            (power_fair * price_profit - (1.0 - power_fair)) / price_profit,
+        )
+        method_full_kelly = max(
+            0.0,
+            (fair * price_profit - (1.0 - fair)) / price_profit,
+        )
+        adjusted_stake = (
+            round(stake * method_full_kelly / default_full_kelly, 2)
+            if default_full_kelly > 0.0
+            else stake
+        )
         # Odds in secondary rows are illustrative comparisons, not provider claims.
         quotes = [
             _quote(
@@ -148,36 +212,6 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
         ]
         opposing_quotes.sort(key=lambda item: item["americanOdds"], reverse=True)
         best = next(item for item in quotes if item["bookKey"] == best_book)
-        sharp_sources = [
-            {
-                "bookKey": book,
-                "bookName": _NAMES[book],
-                "logoUrl": _LOGOS[book],
-                "americanOdds": best_odds - adjustment,
-                "lastUpdated": anchor.isoformat(),
-                "quoteAgeSeconds": 3 + position * 2,
-                "weight": weight,
-                "fairProbability": round(
-                    max(0.01, min(0.99, fair + probability_adjustment)), 8
-                ),
-            }
-            for position, (
-                book,
-                weight,
-                adjustment,
-                probability_adjustment,
-            ) in enumerate(
-                (
-                    ("pinnacle", 35.0, 9, 0.0010),
-                    ("circa", 28.0, 11, -0.0015),
-                    ("bookmakereu", 28.0, 10, 0.0005),
-                    ("betfairexchange", 7.0, 8, -0.0005),
-                    ("fanduel", 2.0, 6, 0.0020),
-                )
-            )
-        ]
-        # Preserve the intentionally chosen headline EV while keeping quote audit
-        # values internally coherent enough for the existing visual components.
         best["evPercent"] = ev
         rows.append(
             {
@@ -207,14 +241,15 @@ def temporary_ev_preview_rows(now: datetime | None = None) -> list[dict]:
                 ],
                 "executionStatus": "executable",
                 "portfolioStatus": "qualified",
-                "theoreticalStake": round(stake * 1.32, 2),
-                "recommendedStake": stake,
-                "kellyFraction": round(stake / 10000.0, 6),
-                "fullKellyFraction": round(stake / 2500.0, 6),
+                "theoreticalStake": round(adjusted_stake * 1.32, 2),
+                "recommendedStake": adjusted_stake,
+                "kellyFraction": round(adjusted_stake / 10000.0, 6),
+                "fullKellyFraction": round(adjusted_stake / 2500.0, 6),
                 "warnings": ["Preview only — not a live wager or recommendation."],
                 "previewOnly": True,
                 "calculatedAt": anchor.isoformat(),
-                "calculationVersion": "ev-visual-preview-v1",
+                "calculationVersion": "ev-visual-preview-v2-devig",
+                "devigMethod": devig_method,
             }
         )
     return rows

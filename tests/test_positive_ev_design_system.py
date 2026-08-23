@@ -65,6 +65,55 @@ def test_positive_ev_reuses_canonical_components() -> None:
     assert "aria-label=\"Search Positive EV opportunities\"" in TEMPLATE
 
 
+def test_devig_method_filter_is_single_choice_and_drives_api_query() -> None:
+    assert 'class="ev-devig-methods" role="radiogroup"' in TEMPLATE
+    assert TEMPLATE.count('name="devig-method"') == 4
+    assert 'name="devig-method" value="power" checked' in TEMPLATE
+    for method in ("power", "additive", "multiplicative", "shin"):
+        assert f'value="{method}"' in TEMPLATE
+
+    assert 'devigMethod: "power"' in SCRIPT
+    assert 'input[name="devig-method"]:checked' in SCRIPT
+    assert "devig_method:settings.devigMethod" in SCRIPT
+    assert ".ev-devig-methods input:checked + span" in CSS
+    assert ".ev-devig-methods input:focus-visible + span" in CSS
+
+
+def test_threshold_filter_has_four_controls_and_required_book_multiselect() -> None:
+    threshold_panel = TEMPLATE[
+        TEMPLATE.index('data-filter-panel="thresholds"'):
+        TEMPLATE.index('data-filter-panel="warnings"')
+    ]
+    for label in ("Min EV", "Kelly Multiplier", "Min # of Books", "Required Books"):
+        assert label in threshold_panel
+    for removed_id in (
+        "ev-bankroll",
+        "ev-max-quote-age",
+        "ev-max-dispersion",
+        "ev-max-stake-pct",
+        "ev-max-event-pct",
+    ):
+        assert removed_id not in threshold_panel
+
+    assert 'id="ev-required-books-control"' in threshold_panel
+    assert 'id="ev-required-books-list"' in threshold_panel
+    assert "requiredBooks: []" in SCRIPT
+    assert "data-required-book" in SCRIPT
+    assert "required_books:settings.requiredBooks.join" in SCRIPT
+    assert "updateRequiredBooksSummary" in SCRIPT
+    assert ".ev-required-books-dropdown" in CSS
+    assert "z-index: var(--il-z-popover)" in CSS
+
+
+def test_threshold_and_warning_panels_use_the_requested_type_and_spacing() -> None:
+    assert "<h3>Bet Warnings</h3>" in TEMPLATE
+    assert '.ev-filter-panel[data-filter-panel="thresholds"] > h3' in CSS
+    assert '.ev-filter-panel[data-filter-panel="warnings"] > h3' in CSS
+    assert "margin-bottom: var(--il-space-4)" in CSS
+    assert ".ev-toggle-row strong { color: var(--il-text-primary); font-size: 14px; }" in CSS
+    assert ".ev-toggle-row small { margin-top: 3px; color: var(--il-text-muted); font-size: 12px; }" in CSS
+
+
 def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     assert TEMPLATE.index('class="ev-credit-banner"') < TEMPLATE.index('class="ev-content"')
     assert TEMPLATE.index('id="ev-title"') < TEMPLATE.index('id="ev-search"')
@@ -130,11 +179,11 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
 
 def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     for rule in (
-        "font: 700 30px/1 var(--il-font-data)",
+        "font: 700 29px/1 var(--il-font-data)",
         "font: 700 12px/1 var(--il-font-ui)",
         "font-size: 16px",
         "font: var(--il-type-metadata)",
-        "font: 700 18px/1.25 var(--il-font-ui)",
+        "font: 700 22px/1.25 var(--il-font-ui)",
         "font: 650 14px/1.2 var(--il-font-ui)",
         "font: 700 20px/1.25 var(--il-font-ui)",
         "font: 700 18px/1.14 var(--il-font-ui)",
@@ -178,13 +227,17 @@ def test_positive_ev_matchups_use_high_resolution_team_assets() -> None:
     assert 'class="ev-matchup-inline"' in SCRIPT
     assert SCRIPT.count('class="ev-team-logo"') == 2
     assert 'alt="" aria-hidden="true"' in SCRIPT
-    assert ".ev-team-logo { width: 34px; height: 34px" in CSS
+    assert ".ev-team-logo { width: 38px; height: 38px" in CSS
     assert "grid-template-rows: auto minmax(0, 1fr)" in CSS
     assert "text-align: center" in CSS
-    assert ".ev-matchup-inline .ev-team-name { font-size: 13px" in CSS
-    assert ".ev-team-logo { width: 24px; height: 24px; flex-basis: 24px; }" in CSS
+    assert ".ev-matchup-inline .ev-team-name { font-size: 17px" in CSS
+    assert ".ev-team-logo { width: 28px; height: 28px; flex-basis: 28px; }" in CSS
     assert '.ev-league-watermark[src$="/mlb.png"]' in CSS
-    assert "height: 118%" in CSS
+    assert "top: -33%" in CSS
+    assert "height: 155%" in CSS
+    assert "column-gap: .3em" in CSS
+    assert "width: fit-content" in CSS
+    assert "justify-self: center" in CSS
     assert '.ev-league-watermark[src$="/atp.png"]' in CSS
 
 
@@ -192,7 +245,7 @@ def test_positive_ev_responsive_and_accessibility_contracts() -> None:
     for breakpoint in (1600, 1320, 980, 640, 420):
         assert f"@media (max-width: {breakpoint}px)" in CSS
 
-    assert "grid-template-columns: 158px minmax(140px, 1fr) minmax(72px, .6fr) minmax(320px, 1.45fr)" in CSS
+    assert "grid-template-columns: 144px minmax(195px, 1fr) minmax(67px, .6fr) minmax(298px, 1.45fr)" in CSS
 
     assert "overflow-x: hidden" in CSS
     assert "transform: translateY(102%)" in CSS
@@ -204,3 +257,39 @@ def test_positive_ev_responsive_and_accessibility_contracts() -> None:
     assert "lastFilterTrigger" in SCRIPT
     assert 'tab.setAttribute("aria-selected", String(active))' in SCRIPT
     assert '["ArrowLeft", "ArrowRight"]' in SCRIPT
+
+
+def test_positive_ev_detail_heading_uses_compact_ev_percentage() -> None:
+    assert 'class="ev-detail-head"><strong>${evPercent(row.evPercent)}</strong>' in SCRIPT
+    assert 'class="ev-detail-head"><strong>${evPercent(row.evPercent)} EV</strong>' not in SCRIPT
+    assert ".ev-detail-head > strong { color: var(--il-positive); font: 700 27px/1 var(--il-font-data);" in CSS
+
+
+def test_market_trend_matches_market_odds_and_keeps_four_centered_metrics() -> None:
+    assert ".ev-market-odds > header h3 { margin: 0; color: var(--il-text-primary); font: 700 20px/1.2 var(--il-font-ui);" in CSS
+    assert ".ev-market-trend > header h3 { font: 700 20px/1.2 var(--il-font-ui); }" in CSS
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics.il-metric-group' in CSS
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in CSS
+    assert "justify-items: center; text-align: center;" in CSS
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-metric b' in CSS
+    assert "font: 700 16px/1 var(--il-font-data)" in CSS
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-metric small { font-size: 12px' in CSS
+    assert ".ev-chart-tabs button { min-height: 30px;" in CSS
+    assert "font: 650 12px/1 var(--il-font-ui)" in CSS
+    assert "font: 700 16px/1.2 var(--il-font-ui)" in CSS
+    assert "font: 500 14px/1.2 var(--il-font-ui)" in CSS
+    assert ".ev-trend-limit-label { fill: var(--il-text-muted); font: 500 12px var(--il-font-data); }" in CSS
+    assert ".ev-trend-legend-toggle { min-height: 30px;" in CSS
+
+
+def test_expanded_ev_explanation_and_sharp_odds_use_readable_type() -> None:
+    assert ".ev-value-copy p { margin: 0; color: var(--il-text-secondary); font: 500 12px/1.55 var(--il-font-ui); }" in CSS
+    assert ".ev-value-formula span { color: var(--il-text-muted); font: 650 12px/1.2 var(--il-font-ui); }" in CSS
+    assert ".ev-value-formula code { min-width: 0; color: var(--il-text-secondary); font: 500 12px/1.3 var(--il-font-data);" in CSS
+    assert ".ev-value-formula strong { color: var(--il-positive); font: 700 14px/1 var(--il-font-data); }" in CSS
+    assert ".ev-sharp-book strong { color: var(--il-text-primary); font-size: 12px; }" in CSS
+    assert ".ev-sharp-novig small { color: var(--il-text-muted); font-size: 10px; }" in CSS
+    assert ".ev-sharp-novig b { color: var(--il-text-secondary); font: 700 12px/1.2 var(--il-font-data); }" in CSS
+    assert ".ev-sharp-odds { color: var(--il-text-primary); font: 700 16px/1 var(--il-font-data);" in CSS
+    assert ".ev-value-explanation summary span," in CSS
+    assert ".ev-sharp-prices summary span { font-size: 12px; }" in CSS

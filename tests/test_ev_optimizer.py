@@ -1,4 +1,12 @@
-from ev_optimizer import DEFAULT_SOURCE_WEIGHTS, build_ev_board, build_ev_candidates
+import pytest
+
+from ev_optimizer import (
+    DEFAULT_SOURCE_WEIGHTS,
+    DEVIG_METHODS,
+    build_ev_board,
+    build_ev_candidates,
+    devig_probabilities,
+)
 from database import TrackerDatabase
 
 
@@ -53,6 +61,47 @@ def test_default_fair_price_mix_uses_only_the_five_configurable_sources():
     assert sum(DEFAULT_SOURCE_WEIGHTS.values()) == 100.0
 
 
+def test_all_four_devig_methods_return_valid_probabilities():
+    raw = [1 / 2.6, 1 / 2.4, 1 / 4.3]
+
+    assert DEVIG_METHODS == ("power", "additive", "multiplicative", "shin")
+    for method in DEVIG_METHODS:
+        fair = devig_probabilities(raw, method)
+        assert sum(fair) == pytest.approx(1.0)
+        assert all(0.0 < probability < 1.0 for probability in fair)
+
+
+def test_multiplicative_and_additive_match_their_standard_formulas():
+    raw = [0.55, 0.50]
+
+    assert devig_probabilities(raw, "multiplicative") == pytest.approx(
+        [value / sum(raw) for value in raw]
+    )
+    assert devig_probabilities(raw, "additive") == pytest.approx([0.525, 0.475])
+
+
+def test_shin_matches_reference_three_way_example_and_two_way_equivalence():
+    three_way = [1 / 2.6, 1 / 2.4, 1 / 4.3]
+    assert devig_probabilities(three_way, "shin") == pytest.approx(
+        [0.37299406033208965, 0.4047794109200184, 0.2222265287474275]
+    )
+
+    two_way = [0.55, 0.50]
+    assert devig_probabilities(two_way, "shin") == pytest.approx(
+        devig_probabilities(two_way, "additive")
+    )
+
+
+def test_power_is_default_and_unknown_devig_methods_are_rejected():
+    raw = [0.55, 0.50]
+    assert devig_probabilities(raw) == pytest.approx(
+        devig_probabilities(raw, "power")
+    )
+
+    with pytest.raises(ValueError, match="Unsupported de-vig method"):
+        build_ev_board([], devig_method="unsupported")
+
+
 def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     rows = build_ev_candidates(
         [_event()],
@@ -73,6 +122,39 @@ def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     assert source["americanOdds"] == 120
     assert source["weight"] == 100.0
     assert 0 < source["fairProbability"] < 1
+
+
+def test_required_books_must_offer_the_exact_selection_but_odds_may_differ():
+    available = build_ev_board(
+        [_event()],
+        source_weights={"pinnacle": 100},
+        execution_books=("novig",),
+        required_books=("pinnacle",),
+        min_ev=-100,
+        min_source_books=1,
+    )
+    assert available["data"]
+    assert all(row["requiredBooks"] == ["pinnacle"] for row in available["data"])
+    assert all(
+        row["bestQuote"]["americanOdds"]
+        != next(
+            source["americanOdds"]
+            for source in row["sourceBooks"]
+            if source["bookKey"] == "pinnacle"
+        )
+        for row in available["data"]
+    )
+
+    missing = build_ev_board(
+        [_event()],
+        source_weights={"pinnacle": 100},
+        execution_books=("novig",),
+        required_books=("fanduel",),
+        min_ev=-100,
+        min_source_books=1,
+    )
+    assert missing["data"] == []
+    assert missing["diagnostics"]["rejectionReasons"]["missing_required_books"] == 2
 
 
 def test_opportunity_exposes_each_current_sharp_price_used_in_consensus():

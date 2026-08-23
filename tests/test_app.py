@@ -369,9 +369,11 @@ def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
     assert len(payload["data"]) == 5
     assert all(row["previewOnly"] is True for row in payload["data"])
     assert all(
-        row["calculationVersion"] == "ev-visual-preview-v1"
+        row["calculationVersion"] == "ev-visual-preview-v2-devig"
         for row in payload["data"]
     )
+    assert payload["devigMethod"] == "power"
+    assert all(row["devigMethod"] == "power" for row in payload["data"])
     assert all(len(row["sourceBooks"]) == 5 for row in payload["data"])
     assert {
         source["bookKey"] for source in payload["data"][0]["sourceBooks"]
@@ -399,6 +401,42 @@ def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
         "spreads",
     }
 
+    additive_response = app_client.get(
+        "/api/positive-ev", query_string={"preview": 1, "devig_method": "additive"}
+    )
+    assert additive_response.status_code == 200
+    additive_payload = additive_response.get_json()
+    assert additive_payload["devigMethod"] == "additive"
+    assert all(row["devigMethod"] == "additive" for row in additive_payload["data"])
+    assert additive_payload["data"][0]["fairProbability"] != payload["data"][0]["fairProbability"]
+    assert additive_payload["data"][0]["evPercent"] != payload["data"][0]["evPercent"]
+
+    invalid_response = app_client.get(
+        "/api/positive-ev", query_string={"preview": 1, "devig_method": "unsupported"}
+    )
+    assert invalid_response.status_code == 400
+    assert invalid_response.get_json()["error"] == "INVALID_DEVIG_METHOD"
+
+    required_available = app_client.get(
+        "/api/positive-ev",
+        query_string={"preview": 1, "required_books": "pinnacle,novig"},
+    ).get_json()
+    assert required_available["total"] == 5
+    assert required_available["requiredBooks"] == ["pinnacle", "novig"]
+
+    required_missing = app_client.get(
+        "/api/positive-ev",
+        query_string={"preview": 1, "required_books": "bet365"},
+    ).get_json()
+    assert required_missing["total"] == 0
+
+    invalid_required_book = app_client.get(
+        "/api/positive-ev",
+        query_string={"preview": 1, "required_books": "not-a-book"},
+    )
+    assert invalid_required_book.status_code == 400
+    assert invalid_required_book.get_json()["error"] == "INVALID_REQUIRED_BOOK"
+
 
 def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     response = app_client.get("/positive-ev")
@@ -410,7 +448,13 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert '"name": "Pinnacle"' in body
     assert '"name": "theScore Bet"' in body
     assert '"devigBooks"' in body
-    assert "De-vig source allocation" in body
+    assert "Devig Source Allocation" in body
+    assert "Devig Method" in body
+    assert 'role="radiogroup" aria-label="Devig Method"' in body
+    assert 'name="devig-method" value="power" checked' in body
+    assert 'name="devig-method" value="additive"' in body
+    assert 'name="devig-method" value="multiplicative"' in body
+    assert 'name="devig-method" value="shin"' in body
     assert "Positive EV Filter" in body
     assert 'data-market-group="main"' in body
     assert 'data-market-group="props"' in body
@@ -421,7 +465,19 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'data-market-key="batter_total_bases"' in body
     assert 'data-market-key="alternate_totals"' in body
     assert "Selecting props or alternates" not in body
-    assert "Multiplicative" not in body
+    assert "Multiplicative" in body
+    assert "Opportunity thresholds" in body
+    assert ">Min EV<" in body
+    assert ">Kelly Multiplier<" in body
+    assert ">Min # of Books<" in body
+    assert "Required Books" in body
+    assert 'id="ev-required-books-control"' in body
+    assert 'id="ev-required-books-list"' in body
+    assert 'id="ev-bankroll"' not in body
+    assert 'id="ev-max-quote-age"' not in body
+    assert 'id="ev-max-dispersion"' not in body
+    assert 'id="ev-max-stake-pct"' not in body
+    assert 'id="ev-max-event-pct"' not in body
     assert '"previewOnly": true' in body
     positive_ev_javascript = Path("static/positive-ev.js").read_text(
         encoding="utf-8"
@@ -590,6 +646,8 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
         query_string={
             "weights": json.dumps({"pinnacle": 100}),
             "min_sources": 5,
+            "devig_method": "shin",
+            "required_books": "pinnacle,circa",
         },
     )
     assert custom_response.status_code == 200
@@ -602,6 +660,8 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
         "betfairexchange": 0.0,
     }
     assert custom_payload["minimumFairSources"] == 1
+    assert custom_payload["devigMethod"] == "shin"
+    assert custom_payload["requiredBooks"] == ["pinnacle", "circa"]
 
     custom_markets = app_client.get(
         "/api/positive-ev",
