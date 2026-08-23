@@ -156,7 +156,7 @@ def test_positive_ev_never_falls_back_to_a_different_event_id(tmp_path):
     assert dashboard["summary"]["open"] == 1
 
 
-def test_prediction_traders_reads_real_model_tracker_and_limits_providers(tmp_path):
+def test_prediction_traders_mirrors_every_real_model_tracker_provider(tmp_path):
     database = TrackerDatabase(tmp_path / "lab.db")
     service = LabTrackerService(database, model_tracker_user_id="model-ledger")
     allowed = (
@@ -197,19 +197,59 @@ def test_prediction_traders_reads_real_model_tracker_and_limits_providers(tmp_pa
         window="all",
     )
 
-    assert prediction["summary"]["tracked"] == 5
-    assert prediction["summary"]["profit"] == 750.0
+    assert prediction["summary"]["tracked"] == 6
+    assert prediction["summary"]["profit"] == 900.0
     assert {row["name"] for row in prediction["sportsbooks"]} == {
         "NoVIG",
         "ProphetX",
         "Polymarket",
         "Kalshi",
         "4CX",
+        "FanDuel",
     }
     assert prediction["lastGraded"][0]["source"] == "prediction_traders"
     assert {item["name"] for item in prediction["markets"]} == {"Moneyline"}
-    assert all_signals["summary"]["tracked"] == 5
+    assert all_signals["summary"]["tracked"] == 6
     assert positive_ev["summary"]["tracked"] == 0
+
+
+def test_prediction_traders_reads_future_inserts_and_grades_from_shared_ledger(tmp_path):
+    database = TrackerDatabase(tmp_path / "lab.db")
+    service = LabTrackerService(database, model_tracker_user_id="model-ledger")
+    legacy = prediction_snapshot("", "", "legacy")
+    future = prediction_snapshot("futureexchange", "Future Exchange", "future")
+
+    assert database.insert_tracker_snapshot("model-ledger", legacy)
+    first = service.dashboard(
+        scope="signal",
+        user_id=LAB_TRACKER_GLOBAL_USER_ID,
+        source="prediction_traders",
+        window="all",
+    )
+    assert first["summary"]["tracked"] == 1
+    assert first["summary"]["open"] == 1
+    assert first["openBets"][0]["sportsbook_name"] == "Polymarket"
+
+    assert database.insert_tracker_snapshot("model-ledger", future)
+    database.update_tracker_status(
+        "model-ledger",
+        future["dedupe_key"],
+        "won",
+        "Won",
+        "2026-08-14T21:00:00+00:00",
+    )
+    refreshed = service.dashboard(
+        scope="signal",
+        user_id=LAB_TRACKER_GLOBAL_USER_ID,
+        source="prediction_traders",
+        window="all",
+    )
+    assert refreshed["summary"]["tracked"] == 2
+    assert refreshed["summary"]["open"] == 1
+    assert refreshed["summary"]["wins"] == 1
+    assert {row["name"] for row in refreshed["sportsbooks"]} == {"Future Exchange"}
+    assert refreshed["openBets"][0]["sportsbook_name"] == "Polymarket"
+    assert refreshed["lastGraded"][0]["candidate_id"] == future["dedupe_key"]
 
 
 def test_my_bets_reads_existing_manual_personal_fills(tmp_path):

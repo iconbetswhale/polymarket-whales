@@ -10,6 +10,7 @@
     demo: initialQuery.get("demo") !== "0",
     data: null,
   };
+  let loadSequence = 0;
 
   const $ = (selector) => document.querySelector(selector);
   const $$ = (selector) => [...document.querySelectorAll(selector)];
@@ -229,15 +230,19 @@
   }
 
   async function load() {
+    const sequence = ++loadSequence;
     const params = new URLSearchParams({ scope: state.scope, window: state.window });
     if (state.source !== "all") params.set("source", state.source);
     if (state.demo) params.set("demo", "1");
     try {
       const response = await fetch(`/api/lab-tracker?${params}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
-      state.data = (await response.json()).data;
+      const payload = (await response.json()).data;
+      if (sequence !== loadSequence) return;
+      state.data = payload;
       render();
     } catch (error) {
+      if (sequence !== loadSequence) return;
       $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ph-warning-circle"></i><strong>LabTracker is unavailable</strong><span>${escapeHtml(error.message)}</span></div>`;
     }
   }
@@ -311,5 +316,11 @@
   syncSourceTabs($('.lab-tabs button' + (initialPersonalScope ? '[data-lab-scope="personal"]' : '[data-lab-source="all"]')));
   syncDemoState();
   window.addEventListener("resize", () => state.data && drawChart());
+  window.setInterval(() => {
+    if (!document.hidden && state.scope === "signal" && state.source === "prediction_traders") load();
+  }, 15000);
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && state.scope === "signal" && state.source === "prediction_traders") load();
+  });
   load();
 })();

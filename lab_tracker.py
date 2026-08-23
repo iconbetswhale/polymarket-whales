@@ -44,6 +44,79 @@ PREDICTION_TRADER_PROVIDERS = {
         "aliases": ("4cx", "fourcx"),
     },
 }
+MODEL_TRACKER_SPORTSBOOKS = {
+    **PREDICTION_TRADER_PROVIDERS,
+    "betmgm": {
+        "name": "BetMGM",
+        "logo": "/static/assets/sportsbooks/betmgm.png",
+        "aliases": ("betmgm",),
+    },
+    "draftkings": {
+        "name": "DraftKings",
+        "logo": "/static/assets/sportsbooks/draftkings.png",
+        "aliases": ("draftkings",),
+    },
+    "fanduel": {
+        "name": "FanDuel",
+        "logo": "/static/assets/sportsbooks/fanduel.png",
+        "aliases": ("fanduel",),
+    },
+    "caesars": {
+        "name": "Caesars",
+        "logo": "/static/assets/sportsbooks/caesars.png",
+        "aliases": ("caesars",),
+    },
+    "hardrockbet": {
+        "name": "Hard Rock Bet",
+        "logo": "/static/assets/sportsbooks/hard-rock-bet.png?v=hard-rock-purple-20260815",
+        "aliases": ("hardrockbet", "hardrock"),
+    },
+    "fanatics": {
+        "name": "Fanatics",
+        "logo": "/static/assets/sportsbooks/fanatics.png",
+        "aliases": ("fanatics",),
+    },
+    "betrivers": {
+        "name": "BetRivers",
+        "logo": "/static/assets/sportsbooks/betrivers.png",
+        "aliases": ("betrivers",),
+    },
+    "bet365": {
+        "name": "bet365",
+        "logo": "/static/assets/sportsbooks/bet365.png",
+        "aliases": ("bet365",),
+    },
+    "espnbet": {
+        "name": "ESPN BET",
+        "logo": "/static/assets/sportsbooks/espn-bet.png",
+        "aliases": ("espnbet",),
+    },
+    "thescorebet": {
+        "name": "theScore Bet",
+        "logo": "/static/assets/sportsbooks/thescore-bet.jpg",
+        "aliases": ("thescorebet", "thescore"),
+    },
+    "bovada": {
+        "name": "Bovada",
+        "logo": "/static/assets/sportsbooks/bovada.png",
+        "aliases": ("bovada",),
+    },
+    "betonline": {
+        "name": "BetOnline",
+        "logo": "/static/assets/sportsbooks/betonline.png",
+        "aliases": ("betonline",),
+    },
+    "fliff": {
+        "name": "Fliff",
+        "logo": "/static/assets/sportsbooks/fliff.png",
+        "aliases": ("fliff",),
+    },
+    "rebet": {
+        "name": "Rebet",
+        "logo": "/static/assets/sportsbooks/rebet.png",
+        "aliases": ("rebet",),
+    },
+}
 
 
 def _now() -> datetime:
@@ -89,13 +162,33 @@ def _provider_key(*values: object) -> str | None:
         token = re.sub(r"[^a-z0-9]+", "", str(value or "").lower())
         if not token:
             continue
-        for key, provider in PREDICTION_TRADER_PROVIDERS.items():
+        for key, provider in MODEL_TRACKER_SPORTSBOOKS.items():
             if any(
                 token == alias or token.endswith(alias)
                 for alias in provider["aliases"]
             ):
                 return key
     return None
+
+
+def _model_tracker_sportsbook(snapshot: dict) -> tuple[str, str, str]:
+    raw_provider_key = str(snapshot.get("provider_key") or "").strip()
+    raw_name = str(
+        snapshot.get("sportsbook")
+        or snapshot.get("entry_price_source")
+        or raw_provider_key.removeprefix("oddsapi__")
+        or "Polymarket"
+    ).strip()
+    provider_key = _provider_key(raw_provider_key, raw_name)
+    if provider_key:
+        provider = MODEL_TRACKER_SPORTSBOOKS[provider_key]
+        return provider_key, provider["name"], provider["logo"]
+
+    # Preserve future providers in the shared ledger instead of hiding their bets.
+    provider_key = re.sub(r"[^a-z0-9]+", "", raw_name.lower()) or "sportsbook"
+    return provider_key, raw_name[:64] or "Sportsbook", str(
+        snapshot.get("provider_logo_url") or ""
+    )
 
 
 def _probability_from_american(odds: int) -> float | None:
@@ -749,17 +842,12 @@ def normalize_model_tracker_records(rows: Iterable[dict]) -> list[dict]:
     records: list[dict] = []
     for row in rows:
         snapshot = row.get("snapshot") or {}
-        provider_key = _provider_key(
-            snapshot.get("provider_key"),
-            snapshot.get("sportsbook"),
-            snapshot.get("entry_price_source"),
+        provider_key, provider_name, provider_logo = _model_tracker_sportsbook(
+            snapshot
         )
-        if provider_key is None:
-            continue
         probability, american_odds = _entry_terms(snapshot)
         if probability is None or american_odds is None:
             continue
-        provider = PREDICTION_TRADER_PROVIDERS[provider_key]
         status, result, profit_loss = _settlement_terms(
             row.get("status"), probability, LAB_TRACKER_STAKE
         )
@@ -794,8 +882,8 @@ def normalize_model_tracker_records(rows: Iterable[dict]) -> list[dict]:
                 "selection": snapshot.get("recommended_side") or "Selection",
                 "market_line": snapshot.get("market_line"),
                 "sportsbook_key": provider_key,
-                "sportsbook_name": provider["name"],
-                "sportsbook_logo": provider["logo"],
+                "sportsbook_name": provider_name,
+                "sportsbook_logo": provider_logo,
                 "entry_american_odds": american_odds,
                 "entry_decimal_odds": 1.0 / probability,
                 "ev_percent": (
