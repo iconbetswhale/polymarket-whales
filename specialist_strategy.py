@@ -19,12 +19,18 @@ FORMAL_CUPCAKE = "0xb8c842bc049bf208f73354c7b037b811d741d8a4"
 BREAK_THE_BANK = "0xf0318c32136c2db7fec88b84869aee6a1106c80c"
 PORTLY_DERIVATION = "0x8a3ab8120807bd64a3de48695110e390fa2ceb9a"
 EVHUNTER = "0x8ce7eb8a3ad1d6907b24368865c8487a68fb3150"
+SINENOONEEI = "0x38337de21ff0bb0a11a40761507d51e318d633d1"
 
 TENNIS_SHARPS = {
     BAGWELL: {"label": "Bagwell306", "base_unit_usd": 875.0},
     LILYBAEUM: {"label": "Lilybaeum", "base_unit_usd": 575.0},
     DABOSSHOGG: {"label": "DaBossHogg", "base_unit_usd": 5050.0},
     EVHUNTER: {"label": "EVhunter69", "base_unit_usd": 575.0},
+    SINENOONEEI: {
+        "label": "SineNooneEI",
+        "base_unit_usd": 10475.0,
+        "allowed_families": {"moneyline"},
+    },
 }
 WNBA_SPREAD_SHARPS = {
     FORMAL_CUPCAKE: {"label": "Formal-Cupcake", "base_unit_usd": 1300.0}
@@ -295,6 +301,10 @@ def specialist_strategy_positions(
         if not _is_clean_directional(position) or not _meets_one_unit(position):
             continue
         if address in TENNIS_SHARPS and "tennis" in category:
+            family = _tennis_family(position)
+            allowed_families = TENNIS_SHARPS[address].get("allowed_families")
+            if allowed_families and family not in allowed_families:
+                continue
             entry = _number(
                 position.get("executable_ask_price")
                 if position.get("executable_ask_price") is not None
@@ -344,16 +354,18 @@ def recommendation_units(
     market_text = _text(market_type)
     if "tennis" in category_text:
         eligible = [address for address in addresses if address in TENNIS_SHARPS]
-        legacy = [address for address in eligible if address != EVHUNTER]
-        if len(legacy) >= 3:
+        core = [address for address in eligible if address != EVHUNTER]
+        if len(core) >= 3:
             units = 3.0
-        elif len(legacy) == 2:
+        elif len(core) == 2:
             units = 2.0
-        elif legacy == [BAGWELL]:
+        elif core == [BAGWELL]:
             units = 1.0
-        elif legacy == [LILYBAEUM]:
+        elif core == [LILYBAEUM]:
             units = 0.75
-        elif legacy == [DABOSSHOGG]:
+        elif core == [DABOSSHOGG]:
+            units = 1.0
+        elif core == [SINENOONEEI]:
             units = 1.0
         else:
             units = 0.0
@@ -361,7 +373,8 @@ def recommendation_units(
             units += 0.5
         rule = (
             "Bagwell 1.00u; Lilybaeum 0.75u; DaBossHogg 1.00u; "
-            "EVhunter69 0.50u; 2.00u two-core-sharp agreement; "
+            "SineNooneEI tennis ML 1.00u; EVhunter69 0.50u; "
+            "2.00u two-core-sharp agreement; "
             "3.00u three-core-sharp agreement; "
             "direct conflicts skipped"
         )
@@ -428,6 +441,8 @@ def confidence_score(
             score, band = 88, "DaBossHogg validated tennis sharp"
         elif addresses == [EVHUNTER]:
             score, band = 82, "EVhunter69 half-weight tennis originator"
+        elif addresses == [SINENOONEEI]:
+            score, band = 88, "SineNooneEI tennis moneyline originator"
         else:
             score, band = 0, "No validated tennis signal"
     elif "wnba" in category_text and addresses == [FORMAL_CUPCAKE]:

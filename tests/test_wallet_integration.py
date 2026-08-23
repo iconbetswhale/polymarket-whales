@@ -33,6 +33,7 @@ REQUESTED_WALLETS = {
     "Positive-Console": "0x684baa57c338c2549aec0aa3f034f695d72a8409",
     "Canoflanagan": "0x21468ad63a833f5f9ea5c2835fb4e9dec57ad41b",
     "Undisputa": "0x986c0ba5ae79c5cf171cfa8e85afe186412a3180",
+    "SineNooneEI": "0x38337de21ff0bb0a11a40761507d51e318d633d1",
 }
 
 EXPECTED_TOP_CATEGORIES = {
@@ -64,6 +65,7 @@ EXPECTED_TOP_CATEGORIES = {
     "Positive-Console": "mlb",
     "Canoflanagan": "wnba",
     "Undisputa": "nba",
+    "SineNooneEI": "tennis",
 }
 
 
@@ -202,6 +204,23 @@ def test_authoritative_wallet_file_contains_requested_normalized_mappings():
         assert policy["quality_weight"] == 0.5
         assert policy["minimum_originator_units"] == 1.0
         assert policy["allowed_market_types"] == ("Moneyline",)
+
+    sinenooneei = next(
+        wallet for wallet in result.valid_wallets if wallet.label == "SineNooneEI"
+    )
+    assert sinenooneei.base_unit == 10475
+    assert sinenooneei.top_category_ids == ("tennis",)
+    assert sinenooneei.standard_originator_eligible is True
+    assert sinenooneei.lead_sharp_eligible is True
+    assert sinenooneei.minimum_actionable_exposure_dollars == 10475
+    assert set(sinenooneei.category_signal_roles) == {"tennis"}
+    tennis_policy = sinenooneei.category_signal_roles["tennis"]
+    assert tennis_policy["role"] == "CONDITIONAL_ORIGINATOR"
+    assert tennis_policy["quality_weight"] == 1.0
+    assert tennis_policy["minimum_originator_units"] == 1.0
+    assert tennis_policy["unit_baseline_usd"] == 10475
+    assert tennis_policy["allowed_market_types"] == ("Moneyline",)
+    assert "EXCLUDE_ALL_ESPORTS" in sinenooneei.wallet_forensics["policy"]
 
     positive_console = next(
         wallet for wallet in result.valid_wallets if wallet.label == "Positive-Console"

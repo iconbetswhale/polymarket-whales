@@ -11,6 +11,7 @@ from specialist_strategy import (
     FORMAL_CUPCAKE,
     LILYBAEUM,
     PORTLY_DERIVATION,
+    SINENOONEEI,
     STRATEGY_ID,
     confidence_score,
     recommendation_units,
@@ -39,6 +40,7 @@ def _position(
         BREAK_THE_BANK: "BreakTheBank",
         PORTLY_DERIVATION: "Portly-Derivation",
         EVHUNTER: "EVhunter69",
+        SINENOONEEI: "SineNooneEI",
     }[wallet]
     base = {
         BAGWELL: 875.0,
@@ -48,6 +50,7 @@ def _position(
         BREAK_THE_BANK: 116150.0,
         PORTLY_DERIVATION: 9450.0,
         EVHUNTER: 575.0,
+        SINENOONEEI: 10475.0,
     }[wallet]
     event_slug = (
         "tennis-player-a-player-b"
@@ -118,6 +121,7 @@ def _units() -> dict:
         BREAK_THE_BANK: {"estimated_base_unit": 116150.0},
         PORTLY_DERIVATION: {"estimated_base_unit": 9450.0},
         EVHUNTER: {"estimated_base_unit": 575.0},
+        SINENOONEEI: {"estimated_base_unit": 10475.0},
     }
 
 
@@ -126,6 +130,7 @@ def test_validated_specialist_sizing_and_confidence():
     assert recommendation_units([LILYBAEUM], {LILYBAEUM: 1.0}, "Tennis")["units"] == 0.75
     assert recommendation_units([DABOSSHOGG], {DABOSSHOGG: 1.0}, "Tennis")["units"] == 1.0
     assert recommendation_units([EVHUNTER], {EVHUNTER: 1.0}, "Tennis")["units"] == 0.5
+    assert recommendation_units([SINENOONEEI], {SINENOONEEI: 1.0}, "Tennis")["units"] == 1.0
     assert recommendation_units(
         [BAGWELL, LILYBAEUM], {BAGWELL: 3.0, LILYBAEUM: 2.0}, "Tennis"
     )["units"] == 2.0
@@ -141,6 +146,7 @@ def test_validated_specialist_sizing_and_confidence():
     assert confidence_score([LILYBAEUM], "Tennis")[0] == 84
     assert confidence_score([DABOSSHOGG], "Tennis")[0] == 88
     assert confidence_score([EVHUNTER], "Tennis")[0] == 82
+    assert confidence_score([SINENOONEEI], "Tennis")[0] == 88
     assert confidence_score([BAGWELL, LILYBAEUM], "Tennis")[0] == 97
     assert confidence_score([BAGWELL, LILYBAEUM, DABOSSHOGG], "Tennis")[0] == 99
     assert confidence_score([FORMAL_CUPCAKE], "WNBA")[0] == 90
@@ -276,6 +282,46 @@ def test_tennis_selector_enforces_one_unit_price_cleanliness_and_main_market():
     ]
     selected = specialist_strategy_positions(rows)
     assert {row["condition_id"] for row in selected} == {"tennis-main", "total-main"}
+
+
+def test_sinenooneei_originates_only_tennis_match_moneylines():
+    moneyline = _position(SINENOONEEI, "Player A", condition="sine-tennis-ml")
+    spread = _position(
+        SINENOONEEI,
+        "Player A -2.5",
+        market_type="Spread",
+        condition="sine-tennis-spread",
+    )
+    total = _position(
+        SINENOONEEI,
+        "Over 22.5",
+        market_type="Tennis Match Totals",
+        condition="sine-tennis-total",
+    )
+    esports = _position(
+        SINENOONEEI,
+        "Team A",
+        category="League of Legends",
+        market_type="Moneyline",
+        condition="sine-lol-ml",
+    )
+    below_unit = _position(
+        SINENOONEEI,
+        "Player A",
+        units=0.99,
+        condition="sine-below-unit",
+    )
+    below_price = _position(
+        SINENOONEEI,
+        "Player A",
+        price=0.34,
+        condition="sine-below-price",
+    )
+
+    selected = specialist_strategy_positions(
+        [moneyline, spread, total, esports, below_unit, below_price]
+    )
+    assert [row["condition_id"] for row in selected] == ["sine-tennis-ml"]
 
 
 def test_tennis_same_side_agreement_is_two_units_and_conflict_is_skipped():
