@@ -1275,8 +1275,9 @@ function normalizeExecutionOption(option = {}) {
 function bestExecutionOption(trade) {
   // The comparison ladder intentionally includes every connected exchange, but
   // the one-click recommendation is restricted to the backend-approved venue:
-  // NoVIG, ProphetX, or a genuinely better 4CX quote.
-  const supported = new Set(["4cx", "fourcx", "novig", "prophetx"]);
+  // NoVIG, ProphetX, a genuinely better 4CX quote, or the verified Polymarket
+  // fallback when none of those venues has the exact market.
+  const supported = new Set(["polymarket", "4cx", "fourcx", "novig", "prophetx"]);
   const options = (trade.executionOptions || [])
     .map(normalizeExecutionOption)
     .filter((option) => {

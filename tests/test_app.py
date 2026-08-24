@@ -210,6 +210,10 @@ def test_current_best_price_precedes_stale_selected_execution_snapshot():
     assert 'canonicalExecutionProviderKey(left.providerKey) === "novig"' in function_source
     assert "option.canFillRecommendedStake === true" in function_source
     assert "number(option.availableLiquidity) === null || number(option.availableLiquidity) > 0" in function_source
+    assert (
+        'const supported = new Set(["polymarket", "4cx", "fourcx", "novig", "prophetx"]);'
+        in function_source
+    )
     assert '"oddsapi__novig"' in script
 
 
