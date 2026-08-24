@@ -102,6 +102,7 @@ from ev_optimizer import (
     PLAYER_PROP_MARKETS,
     build_ev_board,
 )
+from dfs_probability_engine import DfsProbabilityEngine, SUPPORTED_DEVIG_METHODS
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
@@ -1087,6 +1088,36 @@ def create_app(start_background: bool = True) -> Flask:
             page="dfs",
             dfs_preview=preview_requested,
         )
+
+    @app.post("/api/dfs/fair-probability")
+    def api_dfs_fair_probability():
+        payload = request.get_json(silent=True) or {}
+        weights = payload.get("weights") or {}
+        quotes = payload.get("quotes") or []
+        if not isinstance(weights, dict) or not weights:
+            return jsonify({"error": "weights must be a non-empty provider-to-percent object"}), 400
+        if not isinstance(quotes, list):
+            return jsonify({"error": "quotes must be a list"}), 400
+        method = str(payload.get("devig_method") or "power").lower()
+        if method not in SUPPORTED_DEVIG_METHODS:
+            return jsonify({"error": f"unsupported devig_method: {method}"}), 400
+        try:
+            engine = DfsProbabilityEngine(
+                weights,
+                devig_method=method,
+                max_quote_age_seconds=payload.get("max_quote_age_seconds", 600),
+                freshness_half_life_seconds=payload.get("freshness_half_life_seconds", 300),
+                minimum_sources=payload.get("minimum_sources", 1),
+            )
+            result = engine.calculate(
+                target_line=payload.get("target_line"),
+                side=payload.get("side"),
+                quotes=quotes,
+                dfs_breakeven_odds=payload.get("dfs_breakeven_odds"),
+            )
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        return jsonify(result.to_dict())
 
     @app.route("/positive-ev")
     def positive_ev_page():
