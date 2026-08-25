@@ -384,9 +384,9 @@ def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
     } == {
         "pinnacle",
         "circa",
+        "novig",
+        "prophetexchange",
         "bookmakereu",
-        "betfairexchange",
-        "fanduel",
     }
 
     filtered_response = app_client.get(
@@ -448,7 +448,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="ev-config"' in body
-    assert '"catalogVersion": 3' in body
+    assert '"catalogVersion": 4' in body
     assert '"name": "Pinnacle"' in body
     assert '"name": "theScore Bet"' in body
     assert '"devigBooks"' in body
@@ -635,9 +635,9 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     assert set(payload["sourceWeights"]) == {
         "pinnacle",
         "circa",
+        "novig",
+        "prophetexchange",
         "bookmakereu",
-        "fanduel",
-        "betfairexchange",
     }
     assert sum(payload["sourceWeights"].values()) == 100.0
     assert payload["devigMethod"] == "power"
@@ -659,9 +659,9 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     assert custom_payload["sourceWeights"] == {
         "pinnacle": 100.0,
         "circa": 0.0,
+        "novig": 0.0,
+        "prophetexchange": 0.0,
         "bookmakereu": 0.0,
-        "fanduel": 0.0,
-        "betfairexchange": 0.0,
     }
     assert custom_payload["minimumFairSources"] == 1
     assert custom_payload["devigMethod"] == "shin"

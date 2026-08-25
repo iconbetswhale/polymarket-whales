@@ -263,9 +263,9 @@ def test_devig_catalog_is_limited_to_five_sources_and_totals_100_percent() -> No
     assert POSITIVE_EV_DEVIG_BOOKS == (
         "pinnacle",
         "circa",
+        "novig",
+        "prophetexchange",
         "bookmakereu",
-        "fanduel",
-        "betfairexchange",
     )
     assert set(SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS) == set(
         POSITIVE_EV_DEVIG_BOOKS

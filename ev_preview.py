@@ -22,6 +22,7 @@ from ev_optimizer import (
 _LOGOS = {
     "novig": "https://novig.us/favicon.ico",
     "prophetx": "/static/assets/providers/prophetx.ico",
+    "prophetexchange": "/static/assets/providers/prophetx.ico",
     "fourcx": "/static/assets/providers/4cx.png",
     "pinnacle": "https://www.pinnacle.com/favicon.ico",
     "circa": "https://www.circasports.com/favicon.ico",
@@ -37,6 +38,7 @@ _LOGOS = {
 _NAMES = {
     "novig": "NoVIG",
     "prophetx": "ProphetX",
+    "prophetexchange": "ProphetX",
     "fourcx": "4CX",
     "pinnacle": "Pinnacle",
     "circa": "Circa",
@@ -133,10 +135,10 @@ def temporary_ev_preview_rows(
         power_fair = (1.0 + target_ev / 100.0) / american_to_decimal(best_odds)
         source_specs = (
             ("pinnacle", 35.0, 0.0010),
-            ("circa", 28.0, -0.0015),
-            ("bookmakereu", 28.0, 0.0005),
-            ("betfairexchange", 7.0, -0.0005),
-            ("fanduel", 2.0, 0.0020),
+            ("circa", 30.0, -0.0015),
+            ("novig", 15.0, -0.0005),
+            ("prophetexchange", 15.0, 0.0020),
+            ("bookmakereu", 5.0, 0.0005),
         )
         weighted_adjustment = sum(
             weight * adjustment for _, weight, adjustment in source_specs

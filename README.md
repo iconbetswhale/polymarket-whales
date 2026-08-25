@@ -251,7 +251,7 @@ Maximum in-memory age for the all-book feed and live NoVIG prices. `NOVIG_ODDS_C
 `POSITIVE_EV_ENABLED=true`
 Enables paid Positive EV scans. Leave this false to pause the scanner without removing the API key or making upstream requests.
 
-Positive EV fair odds default to the Power devig method. Users can switch to Power, Additive, Multiplicative, or Shin, and can allocate exactly 100% across Pinnacle, Circa, Bookmaker.eu, FanDuel, and Betfair Exchange; every other subscribed book remains available for execution-price comparison without influencing the fair-price consensus.
+Positive EV fair odds default to the Power devig method. Users can switch to Power, Additive, Multiplicative, or Shin, and can allocate exactly 100% across Pinnacle, Circa, NoVIG, ProphetX, and Bookmaker.eu. The IconLabs preset uses 35%, 30%, 15%, 15%, and 5% respectively; every other subscribed book remains available for execution-price comparison without influencing the fair-price consensus.
 
 `PROPHETX_ACCESS_KEY=` and `PROPHETX_SECRET_KEY=`
 Server-only credentials generated from the ProphetX sandbox account under **Menu → API Integration**. Authentication responses are cached for nine minutes so the ten-minute access token is renewed before expiry. Credential values and upstream error bodies are never logged or returned by the provider-health endpoint.

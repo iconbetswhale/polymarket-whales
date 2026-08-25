@@ -51,12 +51,12 @@ def _event():
 
 
 def test_default_fair_price_mix_uses_only_the_five_configurable_sources():
-    assert set(DEFAULT_SOURCE_WEIGHTS) == {
-        "pinnacle",
-        "circa",
-        "bookmakereu",
-        "fanduel",
-        "betfairexchange",
+    assert DEFAULT_SOURCE_WEIGHTS == {
+        "pinnacle": 35.0,
+        "circa": 30.0,
+        "novig": 15.0,
+        "prophetexchange": 15.0,
+        "bookmakereu": 5.0,
     }
     assert sum(DEFAULT_SOURCE_WEIGHTS.values()) == 100.0
 

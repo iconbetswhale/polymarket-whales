@@ -211,16 +211,16 @@ SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS = tuple(
 POSITIVE_EV_DEVIG_BOOKS = (
     "pinnacle",
     "circa",
+    "novig",
+    "prophetexchange",
     "bookmakereu",
-    "fanduel",
-    "betfairexchange",
 )
 SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS = {
     "pinnacle": 35.0,
-    "circa": 28.0,
-    "bookmakereu": 28.0,
-    "fanduel": 2.0,
-    "betfairexchange": 7.0,
+    "circa": 30.0,
+    "novig": 15.0,
+    "prophetexchange": 15.0,
+    "bookmakereu": 5.0,
 }
 
 SPORT_KEY_TO_LEAGUE_ID = {
@@ -607,7 +607,7 @@ def normalize_sports_game_odds_ev_events(
 
 def positive_ev_catalog_payload() -> dict:
     return {
-        "catalogVersion": 3,
+        "catalogVersion": 4,
         "books": [
             {
                 "key": key,
