@@ -68,6 +68,9 @@ def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
     assert "assets/dfs-books/" in TEMPLATE
     assert "IconLabs fair odds" in TEMPLATE
     assert "fairAmericanOdds" in SCRIPT
+    assert "americanOddsToProbability" in SCRIPT
+    assert "positive-edge" in SCRIPT
+    assert ".hit-rate.positive-edge" in CSS
 
 
 def test_dfs_v2_keeps_responsive_and_interactive_contracts() -> None:

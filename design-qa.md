@@ -107,6 +107,10 @@ final result: passed
 - Devig Settings opened successfully.
 - IconLabs Algo Odds loaded the 100% default profile.
 - Applying the profile updated the hit percentage and fair American odds together.
+- Bright-edge refinement capture: `C:\Users\15617\Documents\Polymarket\polymarket-whales-dfs-math\dfs-bright-edge-hit-rates.png` (1280 × 720 px at the browser's restored desktop viewport).
+- PrizePicks `-119` correctly resolves to a 54.34% required hit rate. The visible 64.0%, 60.6%, 59.1%, and 57.8% rows receive the solid positive-green state.
+- With line discrepancies disabled, Nikola Jokic at 53.8% correctly receives the neutral `below-threshold` state because it does not beat 54.34%.
+- The bright-state iteration introduced no actionable P0/P1/P2 differences; it more closely matches the reference's high-salience green probability cells while preserving the IconLabs token system.
 - Six preview rows rendered in the filtered state.
 - Browser console errors: none.
 - Focused DFS/API/design tests: 19 passed.
