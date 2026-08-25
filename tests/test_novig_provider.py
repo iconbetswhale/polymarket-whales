@@ -614,3 +614,48 @@ def test_novig_authenticated_health_smoke_requires_job_authorization(app_client)
     assert authorized.status_code == 200
     assert authorized.get_json()["status"] == "AUTHENTICATED"
     assert calls == [True]
+
+
+def test_novig_websocket_smoke_is_job_authorized_and_sanitized(
+    app_client, monkeypatch
+) -> None:
+    import app as app_module
+
+    class FakeProvider:
+        configured = True
+        auth = object()
+        rest = object()
+        websocket_url = "wss://api.novig.us/tape"
+
+    app = app_client.application
+    app.extensions["novig_nbx_provider"] = FakeProvider()
+    settings = app.config["SETTINGS"]
+    object.__setattr__(settings, "tracker_job_secret", "test-job-secret")
+    monkeypatch.setattr(
+        app_module,
+        "websocket_smoke_test",
+        lambda *_args, **_kwargs: {
+            "success": True,
+            "connected": True,
+            "book_snapshot_received": True,
+            "update_received": True,
+            "message_types": ["book", "PLACE"],
+            "error_code": None,
+            "credentials_exposed": False,
+            "token_exposed": False,
+        },
+    )
+
+    unauthorized = app_client.post("/api/provider-health/novig/websocket")
+    authorized = app_client.post(
+        "/api/provider-health/novig/websocket",
+        headers={"Authorization": "Bearer test-job-secret"},
+    )
+
+    assert unauthorized.status_code == 401
+    assert authorized.status_code == 200
+    payload = authorized.get_json()
+    assert payload["success"] is True
+    assert payload["book_snapshot_received"] is True
+    assert payload["credentials_exposed"] is False
+    assert payload["token_exposed"] is False

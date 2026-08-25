@@ -33,6 +33,7 @@ from execution_providers import (
     build_execution_provider_registry,
     canonicalize_trade,
 )
+from novig_feed_worker import websocket_smoke_test
 from novig_provider import NoVIGError
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
@@ -763,6 +764,7 @@ def create_app(start_background: bool = True) -> Flask:
             "api_prophetx_health",
             "api_fourcx_health",
             "api_novig_health",
+            "api_novig_websocket_health",
             "api_novig_markets",
             "api_novig_book",
             "api_novig_unmatched",
@@ -1387,6 +1389,31 @@ def create_app(start_background: bool = True) -> Flask:
         )
         response.headers["Cache-Control"] = "private, no-store"
         return response
+
+    @app.post("/api/provider-health/novig/websocket")
+    def api_novig_websocket_health():
+        if not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        provider = app.extensions.get("novig_nbx_provider")
+        if provider is None or not provider.configured:
+            return jsonify(
+                {
+                    "provider": "novig",
+                    "success": False,
+                    "error_code": "NOVIG_CREDENTIALS_NOT_CONFIGURED",
+                    "credentials_exposed": False,
+                    "token_exposed": False,
+                }
+            ), 503
+        result = websocket_smoke_test(
+            provider.auth,
+            provider.rest,
+            websocket_url=provider.websocket_url,
+            timeout_seconds=12,
+        )
+        response = jsonify({"provider": "novig", **result})
+        response.headers["Cache-Control"] = "private, no-store"
+        return response, 200 if result.get("success") else 503
 
     @app.route("/api/providers/novig/markets")
     def api_novig_markets():

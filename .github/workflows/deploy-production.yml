@@ -159,3 +159,28 @@ jobs:
           if [ "$status" != "authenticated" ]; then
             printf '::warning::ProphetX provider status: %s\n' "$status"
           fi
+
+      - name: Verify NoVIG production WebSocket
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          response="$(curl --silent --show-error --fail-with-body \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket)"
+          NOVIG_RESULT="$response" python - <<'PY'
+          import json, os
+          data = json.loads(os.environ["NOVIG_RESULT"])
+          print(
+              "NoVIG WebSocket: "
+              f"connected={bool(data.get('connected'))} "
+              f"book_snapshot={bool(data.get('book_snapshot_received'))} "
+              f"update={bool(data.get('update_received'))} "
+              f"types={','.join(data.get('message_types') or []) or 'none'} "
+              f"error={data.get('error_code') or 'none'}"
+          )
+          if not data.get("success"):
+              raise SystemExit("NoVIG WebSocket smoke test failed")
+          if data.get("credentials_exposed") or data.get("token_exposed"):
+              raise SystemExit("NoVIG smoke response reported secret exposure")
+          PY
