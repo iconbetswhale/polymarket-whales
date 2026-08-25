@@ -11,6 +11,9 @@
   --il-bg-app: #030a11;
   --il-bg-sidebar: #06111a;
   --il-bg-workspace: #030a11;
+  --il-bg-sidebar-texture: #2b2b32;
+  --il-bg-pure-black: #000;
+  --il-sidebar-texture-image: url("/static/assets/sidebar-black-sandpaper.webp");
   --il-surface-1: #07131c;
   --il-surface-2: #0a1822;
   --il-surface-elevated: #0d1d28;
@@ -20,6 +23,9 @@
   --il-surface-selected-badge: rgba(141, 68, 246, .13);
   --il-surface-tab-count: rgba(255, 255, 255, .07);
   --il-surface-tooltip: #132532;
+  --il-surface-play-card-purple: #120d20;
+  --il-surface-play-card-purple-hover: #171129;
+  --il-surface-play-card-purple-active: #160e27;
   --il-surface-positive-subtle: rgba(80, 217, 119, .035);
   --il-surface-positive-hover: rgba(80, 217, 119, .07);
   --il-surface-positive-selected: rgba(80, 217, 119, .055);
@@ -32,6 +38,12 @@
   --il-border-standard: rgba(83, 126, 151, .34);
   --il-border-interactive: rgba(146, 86, 244, .52);
   --il-border-tooltip: rgba(180, 194, 212, .2);
+  --il-depth-edge: #b23cff;
+  --il-depth-highlight: #dd9cff;
+  --il-depth-mid: #68189b;
+  --il-depth-deep: #2c063f;
+  --il-depth-inset: rgba(228, 190, 255, .72);
+  --il-depth-shadow: rgba(0, 0, 0, .72);
   --il-text-primary: #f5f7fa;
   --il-text-on-brand: #fff;
   --il-text-secondary: #b4becc;

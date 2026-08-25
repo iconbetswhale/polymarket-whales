@@ -9,6 +9,7 @@ BASE = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
 TEMPLATE = (ROOT / "templates" / "positive_ev.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "static" / "positive-ev.js").read_text(encoding="utf-8")
 CSS = (ROOT / "static" / "positive-ev.css").read_text(encoding="utf-8")
+DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-8")
 
 
 def _function(name: str) -> str:
@@ -167,11 +168,11 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     assert "grid-template-columns: minmax(0, 1fr) 30px minmax(0, 1fr)" in CSS
     assert ".ev-selection" in CSS
     assert "box-shadow: inset 4px 0 0 var(--il-brand), 0 0 10px var(--il-brand-glow)" in CSS
-    assert ".ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-hover); transform: none; }" in CSS
+    assert ".ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-play-card-purple-hover); transform: none; }" in CSS
     assert '.ev-opportunity.active {\n  border-width: 1px;' in CSS
     assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong' in CSS
     assert ".ev-bet-metrics { display: grid; grid-template-columns: auto auto; align-items: stretch; gap: var(--il-space-1); }" in CSS
-    assert "border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-elevated)" in CSS
+    assert "border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-play-card-purple)" in CSS
     assert "flex-direction: column; align-items: center; justify-content: center" in CSS
     assert "text-align: center; font-variant-numeric" in CSS
     assert ".ev-execution" in CSS and "background: transparent" in CSS
@@ -293,3 +294,92 @@ def test_expanded_ev_explanation_and_sharp_odds_use_readable_type() -> None:
     assert ".ev-sharp-odds { color: var(--il-text-primary); font: 700 16px/1 var(--il-font-data);" in CSS
     assert ".ev-value-explanation summary span," in CSS
     assert ".ev-sharp-prices summary span { font-size: 12px; }" in CSS
+
+
+def test_expanded_detail_uses_neon_flow_with_pure_black_content_boxes() -> None:
+    assert "background-color: var(--il-bg-pure-black)" in CSS
+    assert 'background-image: url("/static/assets/expanded-details-neon-flow-v1.webp")' in CSS
+    assert "background-repeat: no-repeat" in CSS
+    assert "background-position: center" in CSS
+    assert "background-size: 100% 100%" in CSS
+    assert (ROOT / "static" / "assets" / "expanded-details-neon-flow-v1.webp").is_file()
+    assert ".ev-detail-pick" in CSS and "background: var(--il-bg-pure-black)" in CSS
+    assert '.ev-market-odds.il-detail-section { background: var(--il-bg-pure-black); }' in CSS
+    assert '.ev-market-trend.il-detail-section { background: var(--il-bg-pure-black); }' in CSS
+    assert ".ev-trend-chart" in CSS and "background: var(--il-bg-pure-black)" in CSS
+    assert '.ev-detail-accordion.il-detail-section { background: var(--il-bg-pure-black); }' in CSS
+    assert ".ev-value-formula" in CSS and "background: var(--il-bg-pure-black)" in CSS
+
+
+def test_header_divider_and_expanded_detail_reuse_the_sidebar_depth_palette() -> None:
+    for token in (
+        "--il-depth-edge: #b23cff",
+        "--il-depth-highlight: #dd9cff",
+        "--il-depth-mid: #68189b",
+        "--il-depth-deep: #2c063f",
+        "--il-depth-inset: rgba(228, 190, 255, .72)",
+        "--il-depth-shadow: rgba(0, 0, 0, .72)",
+    ):
+        assert token in DESIGN_SYSTEM
+
+    assert "border-bottom: 2px solid var(--il-depth-edge)" in CSS
+    assert "inset 0 -1px 0 var(--il-depth-inset)" in CSS
+    assert "0 1px 0 var(--il-depth-highlight)" in CSS
+    assert "0 3px 0 var(--il-depth-mid)" in CSS
+    assert "0 5px 0 var(--il-depth-deep)" in CSS
+    assert "border-top: 2px solid var(--il-depth-edge)" not in CSS
+    assert "border: 2px solid var(--il-depth-edge)" in CSS
+    assert "inset 0 0 0 1px var(--il-depth-inset)" in CSS
+    assert "0 0 0 1px var(--il-depth-highlight)" in CSS
+    assert "0 0 0 3px var(--il-depth-mid)" in CSS
+    assert "0 0 0 5px var(--il-depth-deep)" in CSS
+
+
+def test_workspace_and_top_area_share_the_sidebar_texture() -> None:
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .app-shell {' in CSS
+    assert "background-color: var(--il-bg-sidebar-texture)" in CSS
+    assert "background-image: var(--il-sidebar-texture-image)" in CSS
+    assert "background-size: 460px 460px" in CSS
+    assert ".ev-page {" in CSS and "background: transparent" in CSS
+
+
+def test_play_cards_metrics_and_detail_odds_share_the_purple_surface() -> None:
+    assert "background: var(--il-surface-play-card-purple)" in CSS
+    assert ".ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-play-card-purple-hover); transform: none; }" in CSS
+    assert "background: var(--il-surface-play-card-purple-active)" in CSS
+    assert ".ev-bet-metric" in CSS and "background: var(--il-surface-play-card-purple)" in CSS
+    assert ".ev-compare-price" in CSS and "background: var(--il-surface-play-card-purple)" in CSS
+    assert ".ev-compare-price.best { border-color: var(--il-positive); background: var(--il-surface-play-card-purple); }" in CSS
+
+
+def test_toolbar_icons_share_play_card_surfaces_and_search_content_does_not_overlap() -> None:
+    assert '.ev-icon-button.icon-button { position: relative; background: var(--il-surface-play-card-purple); }' in CSS
+    assert '.ev-icon-button.icon-button:hover { background: var(--il-surface-play-card-purple-hover); }' in CSS
+    assert '.ev-icon-button[aria-pressed="true"] { border-color: var(--il-border-interactive); background: var(--il-surface-play-card-purple-active);' in CSS
+    assert '.ev-search.search-control { background: var(--il-surface-play-card-purple); }' in CSS
+    assert ".ev-search > i { position: static; flex: 0 0 auto;" in CSS
+    assert "transform: none" in CSS
+    assert ".ev-search input { width: auto; min-width: 0; flex: 1 1 auto;" in CSS
+
+
+def test_toolbar_uses_hidden_bets_menu_and_removes_unused_desktop_controls() -> None:
+    assert 'id="ev-hidden-menu-toggle"' in TEMPLATE
+    assert 'class="ph ph-eye-slash"' in TEMPLATE
+    assert 'data-feed-view="active"' in TEMPLATE
+    assert 'data-feed-view="hidden"' in TEMPLATE
+    assert 'ph-funnel-simple' not in TEMPLATE
+    assert 'ph-bell' not in TEMPLATE
+    assert 'ph-dots-three-vertical' not in TEMPLATE
+    assert 'ph-sidebar-simple' not in TEMPLATE
+    assert 'id="ev-detail-toggle"' not in TEMPLATE
+    assert 'grid-template-columns: minmax(0, 1fr) repeat(3, var(--il-control-height))' in CSS
+
+
+def test_hidden_bets_view_reuses_manually_hidden_opportunities_and_supports_restore() -> None:
+    assert 'feedView = "active"' in SCRIPT
+    assert 'feedView === "hidden" ? isHidden : !isHidden' in SCRIPT
+    assert 'data-restore="${esc(row.id)}"' in SCRIPT
+    assert 'restoreOpportunity(button.dataset.restore)' in SCRIPT
+    assert 'No hidden bets yet. Use Track and Hide on a bet to save it here.' in SCRIPT
+    assert 'showDetailPlaceholder()' in SCRIPT
+    assert 'No hidden bet selected' in SCRIPT

@@ -878,3 +878,849 @@ No actionable P0, P1, or P2 findings remain.
 - `git diff --check`: passed with line-ending notices only.
 
 final result: passed
+
+---
+
+# Positive EV — Purple Search and Hidden Bets QA
+
+## Evidence and normalization
+
+- Source implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\before.png` (1864 × 1272 px).
+- Final active feed: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\after-active.png` (1864 × 1272 px).
+- Final open menu: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\after-menu.png` (1864 × 1272 px).
+- Final hidden-only state: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\after-hidden-empty.png` (1864 × 1272 px).
+- Source/implementation comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\comparison-before-after.png` (3740 × 1272 px), before left and after right.
+- Interaction-state comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-hidden-bets\comparison-menu-hidden.png` (3740 × 1272 px), menu left and hidden-only state right.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1864 × 1272 CSS px, DPR 1.
+
+## Findings and comparison history
+
+- P2 — The search control still used the shared navy surface instead of the purple play-card surface.
+  - Fix: applied the existing play-card purple token to the default search surface and its active purple token to focus.
+- P2 — The toolbar retained unused funnel, bell, overflow, and side-panel controls.
+  - Fix: removed all four controls from the Positive EV template and adjusted the responsive action grid.
+- P2 — The former overflow button had no hidden-bet workflow.
+  - Fix: replaced it with a Phosphor slashed-eye control, an anchored Visible bets / Hidden bets menu with live counts, hidden-only feed filtering, a dedicated empty state, and restore behavior for hidden cards.
+- P2 — The expanded detail could retain the previously visible active bet when the hidden-only feed was empty.
+  - Fix: synchronized the detail panel with the selected feed view and displayed a matching hidden-bet placeholder.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; the menu inherits the accepted UI and data type tokens.
+- Spacing and layout rhythm: the desktop toolbar is cleaner with four controls after search; the mobile grid now reserves three action slots after search.
+- Colors and visual tokens: search, icon controls, menu selection, cards, and odds surfaces all reuse the established purple surface family.
+- Icons and interaction states: all controls use Phosphor icons; the slashed eye exposes `aria-expanded`, `aria-haspopup`, `aria-controls`, and a pressed state for hidden-only mode.
+- Copy and content: the menu names both feed states directly and explains how Track and Hide populates the hidden view.
+- Accessibility: the dropdown is keyboard-focusable, closes with Escape or an outside click, restores focus after Escape, and exposes menu/menuitem semantics plus current-state attributes.
+
+## Interaction and automated verification
+
+- Confirmed the normal feed opens with five visible preview bets and no funnel, bell, dots, or side-panel control.
+- Opened the slashed-eye menu and confirmed Visible bets and Hidden bets counts display correctly.
+- Switched to Hidden bets and confirmed the play-card feed contains only the hidden state; with no saved hidden bets, both feed and detail areas show coordinated empty states.
+- Returned the local preview to the normal Visible bets feed.
+- Focused Positive EV, sidebar, and typography tests: 42 passed.
+- Full regression suite: 769 passed.
+- JavaScript syntax check: passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Corrected Raised Border Continuity QA
+
+## Evidence and comparison
+
+- User correction crop: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-24 194013.png` (1628 × 40 px), identifying the original full-width header divider above the mistakenly changed feed-only line.
+- Previous implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\raised-border\implementation.png` (1864 × 1272 px).
+- Final browser implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\raised-border-corrected\implementation.png` (1864 × 1272 px).
+- Full comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\raised-border-corrected\full-comparison.png` (1864 × 636 px), previous feed-only divider left and corrected continuous header divider right.
+- Focused comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\raised-border-corrected\focused-comparison.png` (3256 × 40 px), user crop and corrected divider region together.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1864 × 1272 CSS px, DPR 1, first opportunity selected.
+- The full comparison places the earlier mistaken feed-only line and the corrected continuous header line side by side at the same viewport and density.
+
+The expanded-details outline and the full-width header divider reuse the sidebar edge's bright purple face, pale inset highlight, purple mid-depth, deep-purple base, and black drop shadow. The continuous treatment now sits on the bottom of the `+EV` toolbar and spans the exact combined width of the play-card and expanded-details workspace; the mistaken second line on the feed column was removed.
+
+## Findings
+
+- No actionable P0, P1, or P2 visual mismatches remain.
+- The continuous divider aligns to the full 1596px workspace width above both columns.
+- The shorter feed-only divider from the previous pass is fully removed.
+- The details outline remains fully visible on all four sides and does not clip the panel artwork or scrollbar.
+- Existing pure-black detail cards, neon backgrounds, typography, card geometry, and interactions remain unchanged.
+
+## Verification
+
+- Computed toolbar border: 2px solid `rgb(178, 60, 255)` with the expected five-layer depth shadow.
+- Computed feed border and shadow: none.
+- Computed details border: 2px solid `rgb(178, 60, 255)` with the expected five-layer outline shadow.
+- Expanded details remains scrollable (`scrollHeight` 1343px, `clientHeight` 1086px).
+- Browser error log: empty.
+- Focused Positive EV, sidebar, and typography tests: 39 passed.
+- Full regression suite: 766 passed.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Connected Sidebar Ribbon QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-24 195453.png` (231 × 1308 px), Fantasy Optimizer selected with the upper-right ribbon visibly interrupted beside Positive EV and Sportsbook Screen.
+- Final browser implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\sidebar-divider-cross-page\after-dfs.png` (1864 × 1272 px).
+- Focused source/implementation comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\sidebar-divider-cross-page\comparison.png` (464 × 1272 px), source left and corrected sidebar right after normalizing both rails to 232 × 1272 px.
+- Final project asset: `C:\Users\sport\Documents\polymarket-whales\static\assets\sidebar-neon-purple-flow-connected-v5.webp` (464 × 2544 px).
+- Browser state: `http://127.0.0.1:5098/dfs?preview=1`, 1864 × 1272 CSS px, DPR 1, Fantasy Optimizer selected.
+
+## Findings and comparison history
+
+- P2 — The upper-right decorative neon ribbon contained multiple black gaps that were hidden by the Positive EV selected box but became obvious when another route was active.
+  - Fix: used the built-in image editor to create a continuous matching ribbon segment, then composited only that corrected upper-right region into the approved v4 artwork and saved it as a new non-destructive v5 asset.
+  - Post-fix evidence: the focused comparison shows one smooth ribbon flowing continuously behind Positive EV, Sportsbook Screen, and the Fantasy Optimizer selected state.
+- Scope preservation: the top arc, middle and lower ribbons, line crossings, black negative space, sidebar typography, icons, selected control, and structural divider remain unchanged.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged.
+- Spacing and layout rhythm: the 232px navigation rail, link rows, selected control, and account footer remain unchanged.
+- Colors and visual tokens: the added segment matches the existing electric-violet core and soft purple glow against pure black.
+- Image quality and asset fidelity: the repair remains a real WebP background asset; no CSS-drawn or HTML substitute was introduced.
+- Copy and content: unchanged.
+- Accessibility: the line remains behind the navigation and does not reduce white-label contrast.
+
+## Interaction and automated verification
+
+- Navigated to Fantasy Optimizer with `preview=1`; the active state and connected ribbon both render correctly.
+- The shared vertical divider remains 2px `rgb(178, 60, 255)` and the page has zero horizontal overflow.
+- Final image-edit prompt: reconnect only the interrupted upper-right neon purple ribbon; match existing thickness, glow, curve, and brightness; preserve all other artwork; no UI, text, icons, boxes, borders, extra lines, grain, or watermark.
+- Image workflow: built-in image editor, followed by project-local normalization and invariant-preserving compositing.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Neon Flow Sidebar QA (Superseded)
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\.codex\generated_images\01a00513-1daa-77a3-b41c-23de4cb7a36b\exec-3155f413-a11a-4ad8-af68-5eacdb5c746b.png` (1516 × 1037 px), the user-selected neon-ribbon sidebar with the requested additional upper-left line.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-flow-qa\implementation.png` (1864 × 1272 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-flow-qa\full-comparison.png` (3040 × 1037 px), source left and implementation right.
+- Focused sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-flow-qa\sidebar-comparison.png` (388 × 1037 px), source left and normalized implementation right.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1864 × 1272 CSS px, DPR 1.
+
+The implementation capture was downsampled to the 1037px source height for the full-view comparison. For the focused comparison, the fixed 232px implementation rail was normalized to the source rail's 190px rendered width, producing equal-height and equal-width sidebar views without changing their proportions.
+
+## Findings and comparison history
+
+- First comparison: no actionable P0, P1, or P2 mismatches were found.
+- Scope preservation: only the desktop sidebar background changed. The middle workspace texture, top section, purple divider, selected tab, typography, icons, cards, and expanded-details panel remain unchanged.
+- P2 — The first standalone raster preserved the general neon-flow direction but generated a new path arrangement instead of reproducing the approved mockup's exact curves.
+  - User evidence: the follow-up browser screenshot showed a narrow central double line and a different lower crossing, while the approved mockup used a broad right-side sweep and larger intertwined lower ribbons.
+  - Required fix: derive the final clean asset directly from the approved source geometry instead of generating another interpretation.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; navigation labels remain crisp, bright white, single-line, and readable over the restrained glow.
+- Spacing and layout rhythm: the rail remains exactly 232px wide, all navigation rows and the account footer retain their accepted spacing, and no horizontal overflow occurs at either 1864 × 1272 or 1024 × 900.
+- Colors and visual tokens: the sidebar base resolves to pure black `rgb(0, 0, 0)`; the existing purple selected state and raised divider are preserved.
+- Image quality and asset fidelity: `static/assets/sidebar-neon-purple-flow-v1.webp` is a dedicated 464 × 2544 WebP asset rendered once at 100% × 100%; there is no repeated grain, CSS-drawn substitute, or visible compression artifact.
+- Copy and content: unchanged.
+- Icons and interaction states: existing Phosphor icons, selected state, focus contract, and route navigation remain intact.
+- Accessibility: the white labels retain strong contrast; neon is kept behind the UI and does not obscure letterforms.
+
+## Interaction and automated verification
+
+- Confirmed the selected Positive EV navigation state and preview route.
+- Navigated from Positive EV to Sharp Money and back, preserving `preview=1`; the neon asset rendered on both routes.
+- Checked the 1024 × 900 desktop breakpoint: the 232px rail remains stable and no navigation label overflows.
+- Browser error log: empty.
+- Focused sidebar and design-system tests: 38 passed.
+- Full regression suite: 765 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: blocked
+
+---
+
+# Positive EV — Textured Detail Shell and Black Cards QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-raised-qa\implementation.png` (1494 × 1050 px), the accepted sidebar state before this scoped detail-panel change.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-background-qa\implementation.png` (1494 × 1050 px).
+- Full comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-background-qa\full-comparison.png` (3000 × 1050 px).
+- Focused detail comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-background-qa\focused-comparison.png` (820 × 910 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1494 × 1050 CSS px, DPR 1, first opportunity selected with expanded details open.
+
+The comparison keeps the same viewport and application state on both sides. Fixture timestamps are live preview values; this pass judges only the requested expanded-detail background and card surfaces.
+
+## Findings and comparison history
+
+- P2 — The expanded-details shell used the standard navy surface rather than the sidebar's subtle sandpaper texture.
+  - Fix: shared the exact sidebar texture tokens across both surfaces, including the charcoal backing, WebP tile, 512px sizing, and multiply blend.
+  - Post-fix evidence: computed sidebar and detail-shell backgrounds both resolve to `rgb(43, 43, 50)` with the same `sidebar-black-sandpaper.webp` image and `multiply` blend mode.
+- P2 — The selection, Market Odds, Market Trend, Why is this +EV, and Sharp Odds Used cards inherited tinted navy surfaces.
+  - Fix: introduced a semantic pure-black surface token and applied it with Positive EV page specificity; Market Trend metrics/chart and the EV formula also inherit the solid black treatment.
+  - Post-fix evidence: every requested card resolves to `rgb(0, 0, 0)`; the focused comparison shows a clean black-card hierarchy against the textured shell.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged.
+- Spacing and layout rhythm: panel sizing, card geometry, borders, and scrolling are unchanged.
+- Colors and visual tokens: the detail shell now shares the sidebar texture tokens; requested interior cards use the new pure-black token.
+- Image quality and asset fidelity: the existing `sidebar-black-sandpaper.webp` asset is reused without duplication or transformation.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Opened both Why is this +EV and Sharp Odds Used accordions and confirmed their expanded surfaces remain pure black.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 106 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Tactile Sidebar Redesign QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\sport\.codex\generated_images\01a00513-1daa-77a3-b41c-23de4cb7a36b\exec-d2ceb03a-305b-4e4c-aca7-2ca25b08fd73.png` (1494 × 1050 px).
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-tactile-sidebar-qa\implementation-1494x1050.png` (1494 × 1050 px).
+- Combined source/implementation comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-tactile-sidebar-qa\source-vs-implementation.png` (3000 × 1050 px).
+- Verified route and viewport: `http://127.0.0.1:5098/positive-ev?preview=1`, 1494 × 1050 CSS px, DPR 1.
+- State: desktop Positive EV preview with Positive EV selected in the shared navigation.
+
+The selected visual and browser implementation were compared in one combined image at the same viewport and density. The current preview fixture contains five opportunities instead of the four shown in the concept; that main-content difference is outside the sidebar redesign and was not altered.
+
+## Findings and comparison history
+
+- P2 — The first implementation pass allowed the selected outline to fill the complete canonical link track, making it visibly wider than the selected concept.
+  - Fix: reduced every desktop link track by 24px and explicitly aligned it to the leading edge.
+  - Post-fix evidence: the selected box resolves to x=10px, width=187px, height=44px, closely matching the source's narrow, crisp outlined control while all 13 labels retain zero text overflow.
+- The generated sandpaper texture was resized and encoded as a 512 × 512 WebP for a 67,860-byte project asset. It repeats across the full rail with no CSS-generated imitation.
+- The selected state uses a solid 2px purple border, inner highlight, lower edge, and defined shadow. It remains distinct from the softer white text/icon depth treatment.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing DM Sans is retained; navigation is bright white at 15px/700 with restrained stacked shadows for the requested tactile depth.
+- Spacing and layout rhythm: the existing 232px IconLabs rail and 44px row rhythm remain intact; the concept's narrower outlined control and footer placement are reproduced without clipping or horizontal page overflow.
+- Colors and visual tokens: near-black material, bright white navigation, and vibrant `#a62eff` selected border match the selected direction while the main page tokens remain unchanged.
+- Image quality and asset fidelity: the sidebar uses the generated `static/assets/sidebar-black-sandpaper.webp` material asset. Existing IconLabs wordmark and the installed Phosphor icon library are reused.
+- Copy and content: every route label and destination is preserved. Sharp Money uses `ph-coins`, Sportsbook Screen uses `ph-grid-nine`, Fantasy Optimizer uses `ph-sliders-horizontal`, and Live Positions uses `ph-activity`.
+
+## Interaction and automated verification
+
+- Clicked Sportsbook Screen and confirmed navigation to `/odds-screen?preview=1`, the preview query was preserved, and Sportsbook Screen became the active outlined item.
+- Returned to Positive EV and confirmed all 13 icon glyphs loaded with 20 × 20 rendered boxes.
+- Browser warning/error log: empty.
+- Desktop viewport horizontal overflow: 0px.
+- Sidebar, Positive EV design-system, and application tests: 105 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deploy, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Matchup and EV Scale Adjustment QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-logo-selection-polish\final.png` (1280 × 720 px), the prior accepted local preview state, paired with the user's exact requested size deltas.
+- Final browser implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\final.png` (1280 × 720 px).
+- Full-view comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\comparison.png` (2560 × 756 px).
+- Focused comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\focused-comparison.png` (1028 × 430 px).
+- Verified route and viewport: `http://localhost:5097/positive-ev?preview=1`, 1280 × 720 CSS px, DPR 1.
+- State: five temporary preview opportunities with Taylor Fritz vs Ben Shelton selected and the desktop detail panel open.
+
+Both source and implementation were captured at the same CSS viewport, density, route, theme, content set, and selected opportunity. The full-view comparison establishes overall layout continuity; the focused comparison makes the requested matchup, watermark, card EV, detail EV, and detail-pick typography directly readable.
+
+## Findings and comparison history
+
+- Iteration 1 — P1: applying the requested +4px matchup scale without rebalancing the compact desktop grid caused team names and logos to collide at 1280px.
+  - Fix: preserved the requested 17px compact team-name size and 28px team logos, prevented flex shrinking, widened the matchup track, and rebalanced adjacent compact tracks without changing their text sizes.
+  - Post-fix evidence: all five cards render the enlarged matchup content legibly, card and execution `scrollWidth` equal their `clientWidth`, and document horizontal overflow is 0px.
+- Iteration 2 — P2: the compact detail rail adjustment made the Taylor Fritz selection odds wrap beneath the selection.
+  - Fix: reduced only the compact detail-pick padding and gap while retaining the requested 18px selection and odds size.
+  - Post-fix evidence: “Taylor Fritz ML -158” renders on one 21.6px line; the recommended stake remains aligned at the right.
+- MLB watermark size: changed from the previous 192%/-52% compensation to a midpoint 155%/-33% treatment. Using the PNG's visible alpha bounds, the artwork occupies approximately 81% of the 94px market cell, centered vertically between the earlier two versions.
+- EV typography: the compact play-card EV is 21px (one pixel smaller than 22px); the detail EV is 27px (three pixels smaller than 30px) and the trailing “EV” label is removed.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: team names increased from 18px to 22px at the base desktop scale and from 13px to 17px at the verified compact breakpoint; fallback matchups and all declared responsive EV sizes received the same requested deltas. Weight, line height, and font families remain on the IconLabs tokens.
+- Spacing and layout rhythm: the enlarged matchup content remains centered beneath the centered game time; selection, Rec Bet, Total Payout, sportsbook odds, and the detail rail remain non-overlapping. The verified page has no horizontal overflow.
+- Colors and visual tokens: existing IconLabs navy, purple, green, border, focus, and surface tokens are unchanged.
+- Image quality and asset fidelity: authentic high-resolution team logos and league PNGs remain in use with no recreated assets. The MLB-only crop compensation is reduced to the requested midpoint without changing opacity or image rendering.
+- Copy and content: the detail header now shows only the percentage, while the underlying EV explanation and market-trend EV labels remain unchanged and mathematically explicit.
+
+## Interaction and automated verification
+
+- Clicked the Taylor Fritz opportunity and confirmed exactly one active card, a Taylor Fritz vs Ben Shelton detail matchup, and a detail EV heading of `+2.76%`.
+- Browser console error log: empty.
+- Positive EV design-system suite: 10 passed.
+- Positive EV page/preview integration checks: 2 passed.
+- `node --check static/positive-ev.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deploy, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Current Matchup and EV Scale QA (Final)
+
+## Evidence
+
+- Source visual truth: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-logo-selection-polish\final.png` (1280 × 720 px), paired with the user's exact requested deltas.
+- Implementation screenshot: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\final.png` (1280 × 720 px).
+- Full-view comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\comparison.png` (2560 × 756 px).
+- Focused comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\focused-comparison.png` (1028 × 430 px).
+- Browser state: `http://localhost:5097/positive-ev?preview=1`, 1280 × 720 CSS px, DPR 1, Taylor Fritz vs Ben Shelton selected, detail panel open.
+
+The source and implementation use the same route, theme, preview data, viewport, density, and selected state. The full comparison covers composition and overflow; the focused comparison covers typography, watermark scale, logos, card EV, detail EV, and the top detail pick.
+
+## Comparison history and findings
+
+- P1 in iteration 1: the raw +4px matchup increase collided at the compact desktop breakpoint. Fixed by retaining the requested 17px/28px compact name/logo sizes while rebalancing the card tracks and preventing team-name flex shrinking.
+- P2 in iteration 2: the compact detail selection odds wrapped. Fixed by reducing compact detail-pick padding and gap without reducing the 18px selection or odds.
+- Post-fix evidence: all five cards are readable; card and execution widths no longer overflow; page horizontal overflow is 0px; “Taylor Fritz ML -158” occupies one line.
+- MLB midpoint treatment is 155% high at -33% top, between the prior 118%/-9% and 192%/-52% versions.
+- The verified play-card EV is 21px, the detail EV is 27px, and the detail header contains no trailing “EV”.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: requested matchup and EV deltas are present; existing weights, line heights, and IconLabs font tokens remain intact.
+- Spacing and layout rhythm: centered time/matchup structure and betting-control alignment are preserved with no page overflow.
+- Colors and visual tokens: unchanged IconLabs tokens and semantic colors.
+- Image quality and asset fidelity: authentic high-resolution team and league PNGs remain in use; no placeholder or recreated assets.
+- Copy and content: only the requested detail-header “EV” suffix was removed; EV explanation and market labels remain explicit.
+
+## Verification
+
+- Interaction: Taylor Fritz card selection produced one active card and matching detail content.
+- Browser error log: empty.
+- Tests: 10 Positive EV design-system tests and 2 page/preview integration tests passed.
+- JavaScript syntax check and `git diff --check` passed; only line-ending notices were reported.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — League Watermark and Selection Pill Polish QA
+
+## Evidence and normalization
+
+- Selected visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-21 202844.png` (372 × 548 px).
+- Final browser implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-logo-selection-polish\final.png` (1280 × 720 px).
+- Focused reference/implementation comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-logo-selection-polish\focused-comparison.png` (590 × 590 px).
+- Verified route and viewport: `http://localhost:5097/positive-ev?preview=1`, 1280 × 720 CSS px, DPR 1.
+- State: five temporary preview opportunities with Taylor Fritz vs Ben Shelton selected and the desktop detail panel open.
+
+The supplied visual truth is a 372 × 548 crop from a wider production viewport. The focused comparison uses the full reference crop and a matching 172 × 518 implementation crop normalized to the same 548px height. The compact 1280px breakpoint produces a narrower market track than the source, so this comparison judges the requested watermark, spacing, and pill behavior rather than unrelated track width.
+
+## Findings and comparison history
+
+- P1 — The 128 × 128 MLB source image contains transparent vertical padding, so rendering its image box at 118% card height left the visible league artwork far shorter than the WNBA mark.
+  - Fix: compensated for the source alpha bounds with a 192%-height MLB-only image and a -52% top offset while preserving right alignment and clipping inside the market cell.
+  - Post-fix evidence: the visible MLB alpha begins 0.47px below the 94px market cell's top and ends 0.94px beyond its bottom, visually reaching both edges just like WNBA.
+- P1 — The tennis fallback rendered “vs” and the second player as separate flex items without spacing.
+  - Fix: added a responsive `.3em` column gap to the matchup container; team-logo matchups remain unaffected because they occupy one child wrapper.
+  - Post-fix evidence: Taylor Fritz vs Ben Shelton now has a measured 3.59px gap between the fallback spans and the expanded-details matchup remains correct.
+- P1 — The purple selection box stretched to the full first execution track instead of sizing around its text and centering in the space before Rec Bet.
+  - Fix: made the selection pill `fit-content`, capped it at the available track, centered the flex text, and centered the grid item itself.
+  - Post-fix evidence: the five compact selection pills resolve between 75.03px and 79.5px wide inside 88.86–89.5px available tracks, and every center is within 1px of the divider-to-Rec-Bet midpoint.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing sizes, weights, wrapping rules, and hierarchy are unchanged; the tennis fallback only gains the missing inter-item space.
+- Spacing and layout rhythm: the selection pill is content-sized and centered without moving Rec Bet, Total Payout, sportsbook odds, or card dividers. Page horizontal overflow remains 0px.
+- Colors and visual tokens: purple selection borders/glow, positive green, navy surfaces, and the approved 16% watermark opacity remain unchanged.
+- Image quality and asset fidelity: the authentic MLB and WNBA PNG assets are reused; the MLB rule compensates for transparent source padding rather than stretching or recreating the logo.
+- Copy and content: no wager, matchup, market, selection, odds, or payout copy changed.
+
+## Interaction and automated verification
+
+- Selected the Taylor Fritz opportunity and confirmed exactly one active card plus an expanded-details heading of “Taylor Fritz vs Ben Shelton.”
+- Browser diagnostics: no errors.
+- Positive EV design-system suite: 9 passed.
+- Positive EV page/preview integration checks: 2 passed.
+- `node --check static/positive-ev.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deploy, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Matchup and EV Scale Final QA
+
+- Source visual truth: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-logo-selection-polish\final.png` (1280 × 720 px) plus the user's exact delta specification.
+- Implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\final.png` (1280 × 720 px).
+- Full comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\comparison.png` (2560 × 756 px).
+- Focused comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-ev-type-scale\focused-comparison.png` (1028 × 430 px).
+- Browser state: `http://localhost:5097/positive-ev?preview=1`, 1280 × 720 CSS px, DPR 1, Taylor Fritz selected, detail panel open.
+
+Comparison history: the first +4px pass caused compact matchup collisions (P1); rebalanced card tracks and non-shrinking team names fixed it. The next pass wrapped detail odds (P2); compact pick padding/gap fixed it without changing the requested 18px type. Final evidence shows 17px/28px compact matchup names/logos, a 21px card EV, a 27px detail EV with no suffix, and a centered 155%/-33% MLB watermark. Cards, execution areas, and the page have no horizontal overflow.
+
+Required surfaces passed: IconLabs fonts and hierarchy retain their prescribed weights and tokens; spacing and alignment remain legible; colors/tokens are unchanged; authentic high-resolution team/league PNGs remain in use; only the requested detail “EV” suffix changed in copy. No actionable P0/P1/P2 findings remain.
+
+Verification: Taylor Fritz selection produced one active matching detail state; browser error log was empty; 10 design-system tests and 2 integration tests passed; JavaScript syntax and `git diff --check` passed. No deploy, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Subtle Grain and Crisp Sidebar Type QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-24 102700.png` (2554 × 1308 px), showing the overly bright grain and blurry stacked text treatment identified by the user.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-refinement-qa\implementation-2554x1308.png` (2554 × 1308 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-refinement-qa\full-comparison.png` (5120 × 1308 px).
+- Focused sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-refinement-qa\focused-sidebar-comparison.png` (476 × 1308 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 2554 × 1308 CSS px, DPR 1.
+
+The full and focused comparisons place the supplied screenshot on the left and the revised implementation on the right. The viewport and output dimensions are matched; the live preview timestamps and fixture rendering may differ, so this pass judges only the requested shared-sidebar surface.
+
+## Findings and comparison history
+
+- P1 — The supplied implementation's sandpaper texture had broad bright flecks across the whole rail, competing with the navigation hierarchy.
+  - Fix: retained the real WebP material asset but multiplied it through a restrained charcoal backing color, lowering the grain to a near-black microtexture rather than replacing it with a flat fill.
+  - Post-fix evidence: the focused comparison shows a deep-black rail with faint local grain visible only at close inspection; the white labels and purple selection state are now the dominant elements.
+- P1 — Navigation labels, icons, the wordmark, and Account treatment used multiple bright stacked shadows and drop shadows, producing visibly soft edges.
+  - Fix: removed the stacked text shadows and white-icon drop shadows, reduced the wordmark to a brightness adjustment, and retained only a hard 1px dark text offset for separation.
+  - Post-fix evidence: computed navigation text is `rgb(255, 255, 255)` with `rgba(0, 0, 0, 0.92) 0px 1px 0px`; icon filter is `none`; the focused comparison shows clean letterforms and icon strokes.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: DM Sans, 15px size, 700 weight, line height, wrapping, and label hierarchy are unchanged; antialiasing reads cleanly after removing the multi-layer shadow blur.
+- Spacing and layout rhythm: rail width, link tracks, gaps, footer placement, selected outline, and page layout remain unchanged. Horizontal overflow is 0px.
+- Colors and visual tokens: bright white, vibrant purple selection, and deep black remain intact; only the background intensity and shadow contrast were reduced.
+- Image quality and asset fidelity: the generated `sidebar-black-sandpaper.webp` remains the texture source at native 512 × 512 tiling; no CSS-drawn substitute or placeholder was introduced.
+- Copy and content: every navigation label, icon mapping, route, and page string is unchanged.
+
+## Interaction and automated verification
+
+- Clicked Sportsbook Screen and confirmed `/odds-screen?preview=1` with the correct active navigation item, then returned to Positive EV.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 105 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Raised Navigation Type and Selection QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-refinement-qa\implementation-2554x1308.png` (2554 × 1308 px), the accepted subtle-background state before this refinement.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-raised-qa\implementation.png` (1494 × 1050 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-raised-qa\full-comparison.png` (3556 × 1050 px).
+- Focused 1:1 sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-raised-qa\focused-1to1-comparison.png` (476 × 720 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1494 × 1050 CSS px, DPR 1.
+
+The full comparison scales the wider source capture to the implementation's height for composition only. Typography, selection depth, and background preservation are judged from the focused comparison, which uses unscaled 232 × 720 sidebar crops from both captures at 1:1 pixel density.
+
+## Findings and comparison history
+
+- P2 — In the accepted subtle-background state, navigation labels and the selected outline were clean but visually flat relative to the user's requested tactile emphasis.
+  - Fix: increased navigation type from 15px/700 to 15.5px/750, tightened spacing slightly, and added three hard zero-blur depth steps beneath the white letterforms.
+  - Fix: strengthened the selected control with a brighter purple border, crisp inner highlight, three solid lower extrusion steps, and a controlled terminal shadow.
+  - Post-fix evidence: all 13 navigation labels remain single-line; the longest label ends at x=192.17 inside the 197px link track; the focused comparison shows visibly stronger but still sharp hierarchy.
+- Background preservation: computed `background-color`, `background-image`, `background-size`, and `background-blend-mode` are unchanged from the accepted subtle-grain version.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: DM Sans remains in use; the 0.5px size increase and 750 weight are slight, all extrusion offsets use 0px blur, letter spacing remains controlled, and no label wraps or truncates.
+- Spacing and layout rhythm: rail width, 44px rows, link width, navigation positions, footer placement, and main-page layout are unchanged. Horizontal overflow is 0px.
+- Colors and visual tokens: the subtle near-black grain is untouched; white remains the primary foreground and purple is strengthened only for the selected state.
+- Image quality and asset fidelity: `sidebar-black-sandpaper.webp`, the IconLabs wordmark, and all Phosphor icons are unchanged.
+- Copy and content: all navigation labels, routes, preview parameters, and main-page content are unchanged.
+
+## Interaction and automated verification
+
+- Clicked Sportsbook Screen and confirmed `/odds-screen?preview=1` with the correct active item, then returned to Positive EV.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 105 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Slight Sidebar Grain Increase QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-background-qa\implementation.png` (1494 × 1050 px), the accepted sidebar immediately before this refinement.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-grain-qa\implementation.png` (1494 × 1050 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-grain-qa\full-comparison.png` (3000 × 1050 px).
+- Focused 1:1 sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-grain-qa\focused-comparison.png` (476 × 1050 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1494 × 1050 CSS px, DPR 1.
+
+The comparison uses the same viewport, route, selected navigation item, and preview state. Live fixture timestamps are ignored; this pass judges only the sidebar texture density.
+
+## Findings and comparison history
+
+- P3 — The accepted sidebar grain was intentionally very subtle and the user requested only a slight increase.
+  - Refinement: reduced the real texture tile from 512 × 512 CSS px to 460 × 460 CSS px, increasing visible material frequency by roughly 10% without changing its image, backing color, or multiply blend.
+  - Post-refinement evidence: the focused comparison shows slightly more frequent sandpaper variation while the rail remains deep black and all text stays crisp.
+- Scope preservation: the expanded-details shell remains at 512 × 512 CSS px, so its accepted texture is unchanged.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; all labels remain crisp and single-line.
+- Spacing and layout rhythm: unchanged; horizontal overflow remains 0px.
+- Colors and visual tokens: backing color, white type, purple selection, and multiply blend are unchanged.
+- Image quality and asset fidelity: the existing `sidebar-black-sandpaper.webp` raster asset is reused at a slightly denser scale.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Confirmed the Positive EV preview retained its selected state and expanded-details layout.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 106 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Unified Textured Workspace and Raised Sidebar Edge QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-grain-qa\implementation.png` (1494 × 1050 px), the accepted page immediately before this scoped workspace change.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-workspace-texture-edge-qa\implementation.png` (1494 × 1050 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-workspace-texture-edge-qa\full-comparison.png` (3000 × 1050 px).
+- Focused sidebar-edge comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-workspace-texture-edge-qa\edge-comparison.png` (632 × 1050 px).
+- Focused top/workspace comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-workspace-texture-edge-qa\workspace-comparison.png` (1728 × 750 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1494 × 1050 CSS px, DPR 1, first opportunity selected with details open.
+
+The comparisons use the same route, viewport, navigation state, and preview fixtures. Live timestamps are ignored. The current screenshot plus the user's exact delta specification is the target for the changed workspace and edge surfaces.
+
+## Findings and comparison history
+
+- P2 — The top and middle workspace previously used a flat navy application background that broke the material continuity established by the sidebar.
+  - Fix: applied the exact sidebar texture tokens to the Positive EV app shell at the same 460 × 460 CSS px scale and made the page canvas transparent so both the top controls area and open middle workspace reveal one continuous texture.
+  - Post-fix evidence: computed sidebar and app-shell backgrounds both resolve to `rgb(43, 43, 50)`, the same WebP texture, 460px sizing, and multiply blend; the focused workspace comparison shows the intended continuous tactile surface.
+- P2 — The original sidebar divider was a flat neutral hairline and did not match the selected navigation box.
+  - Fix: replaced it with the selected control's `#b23cff` edge, matching white inner highlight, light-purple first step, two darker purple extrusion steps, and a short terminal shadow rotated into a vertical edge treatment.
+  - Post-fix evidence: the divider computes to `rgb(178, 60, 255)` with five layered edge shadows; the focused edge comparison shows a crisp raised separation without shifting content or introducing overflow.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; labels, metrics, and headers preserve their existing sizing and weights.
+- Spacing and layout rhythm: gutters, grids, card tracks, detail width, and navigation width are unchanged; horizontal overflow is 0px.
+- Colors and visual tokens: the main shell now reuses the sidebar texture tokens, and the divider uses the selected navigation control's purple depth palette.
+- Image quality and asset fidelity: the real `sidebar-black-sandpaper.webp` asset is reused; no duplicate, placeholder, or CSS-drawn texture was introduced.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Selected the second opportunity and confirmed exactly one active card plus the matching “Las Vegas Aces vs New York Liberty” detail heading, then restored the default preview state.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 107 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Purple Play Card Surface QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-workspace-texture-edge-qa\implementation.png` (1494 × 1050 px), the accepted page immediately before this card-color refinement.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-purple-play-card-qa\implementation.png` (1494 × 1050 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-purple-play-card-qa\full-comparison.png` (3000 × 1050 px).
+- Focused play-card and expanded-odds comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-purple-play-card-qa\focused-comparison.png` (2520 × 750 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1494 × 1050 CSS px, DPR 1, first opportunity selected with details open.
+
+The comparison uses the same route, viewport, navigation state, and preview fixtures. Live timestamps are ignored. The current layout plus the user's purple-surface delta is the visual target.
+
+## Findings and comparison history
+
+- P2 — Play cards, expanded-detail odds cells, and Rec Bet/Total Payout metrics used related but visibly blue/navy surfaces rather than the requested coordinated purple tint.
+  - Fix: introduced one subtle violet base surface (`rgb(18, 13, 32)`) and applied it to all three requested component families; hover and active play-card states use closely related slightly brighter violet tokens.
+  - Post-fix evidence: computed regular card, metric, standard odds, and best-odds backgrounds all resolve to `rgb(18, 13, 32)`; the selected card resolves to `rgb(22, 14, 39)` while retaining its purple border and inset marker.
+- State preservation: best odds keep their green border/text, opportunity selection remains distinct, and the Market Odds section itself remains pure black.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; all card and odds text remains crisp and readable.
+- Spacing and layout rhythm: card dimensions, metric boxes, odds rows, gaps, and scrolling are unchanged; horizontal overflow is 0px.
+- Colors and visual tokens: one shared semantic purple surface now coordinates the requested components; positive green and warning states retain their semantic colors.
+- Image quality and asset fidelity: team, league, and sportsbook assets are unchanged.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Selected the second opportunity and confirmed exactly one active card plus the matching “Las Vegas Aces vs New York Liberty” detail heading, then restored the default preview state.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 108 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Increased Sidebar Texture QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-purple-play-card-qa\implementation.png` (1494 × 1050 px), the accepted sidebar at the previous texture density.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-texture-more-qa\implementation.png` (1864 × 1272 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-texture-more-qa\full-comparison.png` (3045 × 1050 px).
+- Focused 1:1 sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-texture-more-qa\focused-comparison.png` (476 × 1050 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, current browser capture 1864 × 1272 CSS px, DPR 1.
+
+The browser viewport changed between accepted captures, so the full-view comparison scales the current implementation to the source height for composition only. Texture fidelity is judged from equal 232 × 1050 sidebar crops at 1:1 pixel density; the sidebar has a fixed width at both viewports.
+
+## Findings and comparison history
+
+- P3 — The previous 460px texture tile remained intentionally subtle, and the user requested one more visible step.
+  - Refinement: reduced only the sidebar texture tile to 415 × 415 CSS px, increasing its material frequency by roughly 10% without changing the underlying image, charcoal color, or multiply blend.
+  - Post-refinement evidence: the focused comparison shows more frequent sandpaper variation while the wordmark, navigation labels, and selected state remain visually dominant.
+- Scope preservation: the middle workspace remains at 460 × 460 CSS px, preserving its accepted texture level.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; all navigation labels remain crisp and single-line.
+- Spacing and layout rhythm: sidebar width, rows, footer, and raised divider are unchanged; horizontal overflow is 0px.
+- Colors and visual tokens: charcoal backing, white foreground, purple selection, and multiply blend are unchanged.
+- Image quality and asset fidelity: the existing `sidebar-black-sandpaper.webp` raster asset is reused at a denser scale.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Confirmed the Positive EV preview retained its default selected opportunity and expanded-details state.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 108 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Clearly Visible Sidebar Grain QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-texture-more-qa\implementation.png` (1864 × 1272 px), the prior implementation the user reported was still too subtle.
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-contrast-qa\implementation.png` (1864 × 1272 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-contrast-qa\full-comparison.png` (3740 × 1272 px).
+- Focused 1:1 sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-contrast-qa\focused-comparison.png` (476 × 1272 px).
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1864 × 1272 CSS px, DPR 1.
+
+Both captures use the same viewport, route, selected navigation item, and preview state. The full and focused comparisons are unscaled and aligned at 1:1 pixel density.
+
+## Findings and comparison history
+
+- P2 — The prior 415px density change remained too low-contrast for the user to distinguish from the accepted subtle-grain state.
+  - Fix: retained the multiplied dark base, then layered the same real sandpaper asset at 24% opacity with screen blending, contained behind all navigation content.
+  - Post-fix evidence: the focused comparison shows a clearly visible fine-grain field across the rail, especially in open lower areas, while the rail remains black and the white labels/purple selection remain dominant.
+- Scope preservation: the middle workspace texture, raised divider, navigation typography, and every interactive state remain unchanged.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; computed navigation text remains pure white and crisp.
+- Spacing and layout rhythm: sidebar width, rows, footer, and divider are unchanged; horizontal overflow is 0px.
+- Colors and visual tokens: the black base and purple selection palette are unchanged; only visible grain contrast increased.
+- Image quality and asset fidelity: the existing `sidebar-black-sandpaper.webp` raster asset is reused for both base and controlled contrast layers.
+- Copy and content: unchanged.
+
+## Interaction and automated verification
+
+- Confirmed the Positive EV preview retained its default selected opportunity and expanded-details state.
+- Browser warning/error log: empty.
+- Sidebar, Positive EV design-system, and application tests: 108 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# IconLabs — Exact Approved Neon Curves QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\.codex\generated_images\01a00513-1daa-77a3-b41c-23de4cb7a36b\exec-3155f413-a11a-4ad8-af68-5eacdb5c746b.png` (1516 × 1037 px), the approved mockup with the requested upper-left line.
+- User-reported drift: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-24 123318.png` (1991 × 1310 px), showing the rejected generated path arrangement.
+- Corrected browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-exact-qa\implementation.png` (1280 × 720 px).
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-exact-qa\full-comparison.png` (2341 × 720 px), normalized source left and implementation right.
+- Focused sidebar comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-sidebar-neon-exact-qa\sidebar-comparison.png` (472 × 720 px), normalized source left and implementation right.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1280 × 720 CSS px, DPR 1.
+
+The approved 190 × 1037 sidebar crop was normalized to the implementation's fixed 232 × 720 rail for the focused comparison. The final background is derived directly from that approved source geometry, with the baked mockup UI removed so the live logo, labels, icons, selection box, divider, and footer remain real interface elements.
+
+## Findings and comparison history
+
+- Earlier P2 — The first implementation generated a new abstract path arrangement instead of reproducing the mockup.
+  - Fix: replaced it with `sidebar-neon-purple-flow-exact-v4.webp`, derived directly from the approved source curves rather than regenerated from prose.
+  - Post-fix evidence: the focused comparison shows the same upper arc, right-side sweep, center bend, broad intertwined lower ribbons, crossings, brightness hierarchy, and black negative space as the approved mockup.
+- Scope preservation: only the sidebar background asset reference and cache suffix changed during the correction. All live UI, workspace surfaces, cards, detail panel, navigation states, and behavior remain unchanged.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the live accepted typography remains unchanged; labels stay crisp and are not baked into the background asset.
+- Spacing and layout rhythm: the 232px rail, navigation rows, selected control, and account footer remain unchanged.
+- Colors and visual tokens: the background remains pure black with the approved electric-purple line brightness and glow; the selected control and raised divider keep their existing tokens.
+- Image quality and asset fidelity: the final 464 × 2544 WebP preserves the approved curve geometry and removes the rejected generated interpretation, UI artifacts, grain, and stray speckles.
+- Copy and content: unchanged.
+- Icons and interaction states: existing Phosphor icons and all navigation states remain live and functional.
+- Accessibility: the neon remains behind the interface and leaves the bright-white labels legible.
+
+## Interaction and automated verification
+
+- Navigated from Positive EV to Sharp Money and back while preserving `preview=1`; the corrected asset rendered on both routes.
+- Browser error log: empty.
+- Focused sidebar, typography, and design-system tests: 38 passed.
+- Full regression suite: 765 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Neon Expanded Details QA
+
+## Evidence and normalization
+
+- Visual language source: `C:\Users\sport\Documents\polymarket-whales\static\assets\sidebar-neon-purple-flow-exact-v4.webp` (464 × 2544 px), the user-approved sidebar concept.
+- Expanded-panel source artwork: `C:\Users\sport\Documents\polymarket-whales\static\assets\expanded-details-neon-flow-v1.webp` (640 × 1536 px).
+- Final browser implementation: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-neon-qa\implementation.png` (1864 × 1272 px).
+- Lower expanded state: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-neon-qa\lower-expanded.png` (1864 × 1272 px), both explanation accordions open.
+- Full-view comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-neon-qa\full-comparison.png` (2402 × 1272 px), source artwork left and implementation right.
+- Focused panel comparison: `C:\Users\sport\AppData\Local\Temp\iconlabs-expanded-detail-neon-qa\focused-panel-comparison.png` (1108 × 1090 px), source artwork left and rendered 550 × 1090 panel right.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, desktop Positive EV preview, 1864 × 1272 CSS px, DPR 1, first opportunity selected.
+
+The source artwork was normalized to the rendered panel's exact 550 × 1090 dimensions for the focused comparison. The implementation intentionally places live pure-black content boxes above the artwork, leaving the coordinated neon flow visible through the shell margins, header, separators, and gaps.
+
+## Findings and comparison history
+
+- First comparison: no actionable P0, P1, or P2 mismatches were found.
+- Scope preservation: only the expanded-details shell background and Positive EV cache suffix changed. The approved sidebar, play cards, main workspace, text, icons, and interactions remain unchanged.
+- P3 — Most neon is intentionally occluded by the requested black content boxes. The visible edge and gap fragments preserve the background treatment without reducing readability.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged; detail headings, odds, labels, and chart text retain the accepted type hierarchy.
+- Spacing and layout rhythm: panel width, card geometry, borders, padding, scrolling, and vertical rhythm are unchanged.
+- Colors and visual tokens: the detail shell resolves to pure black with the approved electric-purple flow language; the selection, Market Odds, Market Trend, Why is this +EV, and Sharp Odds Used surfaces all resolve to `rgb(0, 0, 0)`.
+- Image quality and asset fidelity: the dedicated 640 × 1536 WebP matches the wider panel slot and avoids stretching the narrow sidebar artwork; no CSS-drawn or placeholder curves are used.
+- Copy and content: unchanged.
+- Icons and interaction states: existing icons, chart tabs, accordions, scrolling, and selection states remain functional.
+- Accessibility: the artwork remains behind opaque content boxes and never reduces text contrast.
+
+## Interaction and automated verification
+
+- Opened both Why is this +EV and Sharp Odds Used and confirmed their panels and the EV formula remain pure black.
+- Scrolled the expanded-details panel through the lower state; the background remains contained to the shell.
+- Browser error log: empty.
+- Focused Positive EV, sidebar, and typography tests: 38 passed.
+- Full regression suite after synchronizing with `origin/main`: 765 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Positive EV — Toolbar Surface and Search Spacing QA
+
+## Evidence and normalization
+
+- Source implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-toolbar\before.png` (1864 × 1272 px).
+- Final implementation: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-toolbar\after.png` (1864 × 1272 px).
+- Full comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-toolbar\full-comparison.png` (1864 × 636 px), before left and after right.
+- Focused comparison: `C:\Users\sport\Documents\polymarket-whales\design-audits\positive-ev-toolbar\focused-comparison.png` (584 × 134 px), before above and after below.
+- Browser state: `http://127.0.0.1:5098/positive-ev?preview=1`, 1864 × 1272 CSS px, DPR 1, first opportunity selected.
+
+## Findings and comparison history
+
+- P2 — Toolbar icon buttons used the standard navy control surface rather than the requested purple play-card surface.
+  - Fix: mapped the normal, hover, and pressed icon-button states to the existing play-card surface tokens.
+  - Post-fix evidence: all unpressed icon buttons resolve to `rgb(18, 13, 32)`, matching the base play-card surface; the pressed details button resolves to the matching active play-card surface.
+- P2 — A legacy shared rule absolutely positioned the search glyph over the input, placing the icon and placeholder on top of one another.
+  - Fix: restored the glyph to static flex layout and made the input consume only the remaining width.
+  - Post-fix evidence: the search icon ends at x=1321, the input begins at x=1329, and the visible gap is exactly 8px.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: unchanged.
+- Spacing and layout rhythm: toolbar size and control geometry are unchanged; search content now follows the intended 8px gap.
+- Colors and visual tokens: icon buttons reuse the existing play-card base, hover, and active tokens.
+- Image quality and asset fidelity: no image or icon assets were changed; existing Phosphor icons remain in use.
+- Copy and content: unchanged.
+- Accessibility: button labels, pressed states, dialog relationships, and search input label remain intact.
+
+## Interaction and automated verification
+
+- Search filtered the five-card fixture to the single Taylor Fritz card and restored all cards when cleared.
+- Pause changed to Play, set `aria-pressed=true`, and showed “Refresh paused”; resuming restored automatic refresh.
+- Customize Feed opened the markets filter panel.
+- Refresh updated the feed timestamp.
+- Desktop details toggle retained the open state when clicked, confirming its current partial behavior.
+- Browser error log: empty.
+- Focused tests: 40 passed.
+- Full regression suite: 767 passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
