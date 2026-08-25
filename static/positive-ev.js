@@ -72,6 +72,11 @@
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const trackerDialog = $("ev-tracker-dialog");
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
+  const weightsMatch = (left, right) => devigCatalog.every(book => Number(left?.[book.key] || 0) === Number(right?.[book.key] || 0));
+  function updateAlgoSummary() {
+    const isDefault = settings.devigMethod === defaults.devigMethod && weightsMatch(settings.weights, defaults.weights);
+    $("ev-algo-summary").textContent = `${settings.devigMethod.charAt(0).toUpperCase()}${settings.devigMethod.slice(1)} · ${isDefault ? "IconLabs mix" : "custom mix"}`;
+  }
   const teamBranding = Object.freeze({
     arizonadiamondbacks: {short:"Diamondbacks", logo:"/static/assets/teams/mlb/ari.png"},
     atlantabraves: {short:"Braves", logo:"/static/assets/teams/mlb/atl.png"},
@@ -615,7 +620,7 @@
     document.querySelectorAll('input[name="devig-method"]').forEach(input => input.checked = input.value === settings.devigMethod);
     [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => { if ($(id)) $(id).value = settings[key]; });
     $("ev-execution-books").innerHTML = Object.keys(bookNames).map(key => `<label><input type="checkbox" value="${key}" aria-label="${esc(bookNames[key])}" ${settings.books.includes(key)?"checked":""}><span class="ev-book-option">${img(bookLogos[key],key)}<span class="ev-book-name">${esc(bookNames[key])}</span></span></label>`).join("");
-    $("ev-weight-list").innerHTML = devigCatalog.map(book => `<div class="ev-weight-row"><label for="weight-${book.key}">${esc(book.name || bookNames[book.key] || book.key)}</label><span class="ev-weight-input"><input id="weight-${book.key}" data-weight="${book.key}" type="number" min="0" max="100" step=".5" value="${Number(settings.weights[book.key] || 0)}"><b>%</b></span></div>`).join("");
+    $("ev-weight-list").innerHTML = devigCatalog.map(book => `<div class="ev-weight-row"><span class="ev-weight-book">${img(book.logoUrl || bookLogos[book.key], book.key)}<label for="weight-${book.key}">${esc(book.name || bookNames[book.key] || book.key)}</label></span><span class="ev-weight-input"><input id="weight-${book.key}" data-weight="${book.key}" type="number" min="0" max="100" step=".5" value="${Number(settings.weights[book.key] || 0)}"><b>%</b></span></div>`).join("");
     $("ev-required-books-list").innerHTML = requiredBookCatalog.map(book => `<label><span>${img(book.logoUrl || bookLogos[book.key], book.key)}</span><strong>${esc(book.name || bookNames[book.key] || book.key)}</strong><input type="checkbox" data-required-book="${esc(book.key)}" aria-label="Require ${esc(book.name || book.key)}" ${settings.requiredBooks.includes(book.key)?"checked":""}></label>`).join("");
     updateRequiredBooksSummary();
     updateFilterValidity();
@@ -784,7 +789,7 @@
         : `<button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button>`;
       return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
-        <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong>${scoreAction}</div>
+        <div class="ev-score il-confidence-display"><span class="ev-score-values"><strong>${evPercent(row.evPercent)}</strong><small>Algo odds ${odds(row.fairAmerican)}</small></span>${scoreAction}</div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
         <div class="ev-pick">${leagueWatermark(row)}<small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
@@ -880,6 +885,18 @@
     dialog.showModal();
     requestAnimationFrame(() => $("ev-filter-close")?.focus());
   }
+  function activateFilterPanel(panel) {
+    dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item => item.classList.remove("active"));
+    dialog.querySelector(`[data-panel="${panel}"]`)?.classList.add("active");
+    dialog.querySelector(`[data-filter-panel="${panel}"]`)?.classList.add("active");
+  }
+  function openAlgoSettings(event) {
+    lastFilterTrigger = event?.currentTarget || document.activeElement;
+    renderFilters();
+    activateFilterPanel("devig");
+    dialog.showModal();
+    requestAnimationFrame(() => $("ev-algo-defaults")?.focus());
+  }
   function applyFilters(){
     if (!updateFilterValidity()) return;
     settings.group="custom";
@@ -891,9 +908,11 @@
     [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
     settings.catalogVersion = catalogVersion;
-    localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
+    localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));updateAlgoSummary();dialog.close();load(true);
   }
-  $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
+  updateAlgoSummary();
+  $("ev-filter-open").addEventListener("click",openFilters);$("ev-algo-open").addEventListener("click",openAlgoSettings);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
+  $("ev-algo-defaults").addEventListener("click",()=>{document.querySelector('input[name="devig-method"][value="power"]').checked=true;document.querySelectorAll("[data-weight]").forEach(input=>{input.value=String(defaults.weights[input.dataset.weight]||0);});updateFilterValidity();});
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],requiredBooks:[...defaults.requiredBooks],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
   $("ev-required-books-clear").addEventListener("click",()=>{document.querySelectorAll("[data-required-book]").forEach(input=>input.checked=false);updateRequiredBooksSummary();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
@@ -911,7 +930,7 @@
   document.addEventListener("click", event => { if (!event.target.closest(".ev-hidden-menu-wrap")) closeHiddenMenu(); });
   document.addEventListener("keydown", event => { if (event.key === "Escape" && !$("ev-hidden-menu").hidden) { event.preventDefault(); closeHiddenMenu(true); } });
   $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;updateHiddenMenu();if(!paused)load(true);});
-  dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
+  dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>activateFilterPanel(button.dataset.panel)));
   dialog.addEventListener("input",event=>{
     if(event.target.matches("[data-market-group-toggle]")){
       const keys = marketGroups[event.target.dataset.marketGroupToggle] || [];

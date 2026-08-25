@@ -95,6 +95,12 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar {
   justify-content: flex-end;
   gap: 6px;
 }
+.ev-algo-button { width: 158px; min-width: 158px; min-height: var(--il-control-height); padding: 0 11px; display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--il-border-interactive); border-radius: var(--il-radius-control); background: var(--il-surface-play-card-purple); color: var(--il-text-primary); text-align: left; }
+.ev-algo-button:hover { background: var(--il-surface-play-card-purple-hover); }
+.ev-algo-button > i { color: var(--il-brand-hover); font-size: var(--il-icon-size-sm); }
+.ev-algo-button span, .ev-algo-button strong, .ev-algo-button small { display: block; }
+.ev-algo-button strong { font-size: 11px; line-height: 1.1; white-space: nowrap; }
+.ev-algo-button small { margin-top: 2px; color: var(--il-text-muted); font: 600 9px/1 var(--il-font-data); white-space: nowrap; }
 
 .ev-search {
   width: 200px;
@@ -217,8 +223,10 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-icon-button[aria-pres
 
 .ev-opportunity > .ev-score { padding: 11px 0 11px 9px; }
 .ev-score { display: flex; align-items: center; gap: var(--il-space-3); text-align: center; font-variant-numeric: tabular-nums lining-nums; }
-body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 29px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
-.ev-opportunity.watch .ev-score.il-confidence-display > strong { color: var(--il-warning); }
+.ev-score-values { min-width: 96px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong { flex: 0 0 auto; color: var(--il-positive); font: 700 29px/1 var(--il-font-data); letter-spacing: -.025em; white-space: nowrap; }
+.ev-score-values > small { color: var(--il-text-secondary); font: 700 10px/1 var(--il-font-data); white-space: nowrap; }
+.ev-opportunity.watch .ev-score.il-confidence-display .ev-score-values > strong { color: var(--il-warning); }
 body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button.button.compact {
   position: relative;
   z-index: 2;
@@ -565,10 +573,16 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-accordion.il-d
 .ev-devig-methods input:checked + span::after { position: absolute; top: 50%; right: 12px; content: "✓"; color: var(--il-brand-hover); font: 800 17px/1 var(--il-font-ui); transform: translateY(-50%); }
 .ev-devig-methods input:focus-visible + span { outline: 2px solid var(--il-focus); outline-offset: 2px; }
 .ev-devig-source-allocation { margin-top: var(--il-space-5); padding-top: var(--il-space-4); border-top: 1px solid var(--il-border-subtle); }
+.ev-devig-heading { margin-bottom: var(--il-space-5); padding-bottom: var(--il-space-4); display: flex; align-items: center; justify-content: space-between; gap: var(--il-space-4); border-bottom: 1px solid var(--il-border-subtle); }
+.ev-devig-heading h3, .ev-devig-heading p { margin: 0; }
+.ev-devig-heading p { margin-top: 5px; color: var(--il-text-muted); font-size: 11px; }
+.ev-devig-heading .ev-secondary { flex: 0 0 auto; }
 .ev-devig-source-allocation > p { margin: 5px 0 var(--il-space-4); color: var(--il-text-muted); font: 500 11px/1.5 var(--il-font-ui); }
 .ev-weight-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--il-space-2); }
 .ev-weight-row { min-width: 0; min-height: 48px; padding: 7px 9px; display: grid; grid-template-columns: minmax(0, 1fr) 88px; align-items: center; gap: var(--il-space-2); border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-1); }
 .ev-weight-row label { min-width: 0; color: var(--il-text-secondary); font-size: 11px; overflow-wrap: anywhere; }
+.ev-weight-book { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.ev-weight-book .ev-book-mark { flex: 0 0 auto; }
 .ev-weight-input { display: flex; align-items: center; gap: 5px; }
 .ev-weight-input input { width: 100%; min-width: 0; min-height: 34px; padding: 0 7px; border: 1px solid var(--il-border-standard); border-radius: var(--il-radius-control); background: var(--il-surface-2); color: var(--il-text-primary); text-align: right; }
 .ev-weight-input b { color: var(--il-text-muted); font-size: 10px; }
@@ -635,7 +649,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-workspace { grid-template-columns: minmax(0, 1fr) 380px; }
   .ev-opportunity { grid-template-columns: 180px minmax(140px, 1fr) minmax(90px, .65fr) minmax(350px, 1.55fr); }
   .ev-opportunity > div { padding-inline: 10px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 23px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong { font-size: 23px; }
   .ev-track-button.button.compact { min-width: 54px; padding-inline: 6px; }
   .ev-event { padding-inline: 6px; }
   .ev-event strong { font-size: 20px; }
@@ -657,7 +671,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-opportunity { grid-template-columns: 144px minmax(195px, 1fr) minmax(67px, .6fr) minmax(298px, 1.45fr); }
   .ev-opportunity > div { padding-inline: 8px; }
   .ev-score { gap: 5px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 21px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong { font-size: 21px; }
   .ev-track-button.button.compact { min-width: 50px; font-size: 9px; }
   .ev-event { padding-inline: 3px; }
   .ev-event strong { font-size: 16px; }
@@ -690,6 +704,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-title-row { width: 100%; justify-content: space-between; }
   .ev-title-row h1 { font-size: 24px; }
   .ev-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) repeat(3, var(--il-control-height)); gap: 6px; }
+  .ev-algo-button { grid-column: 1 / -1; justify-content: center; }
   .ev-search { width: 100%; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-utility-button { display: none; }
   .ev-workspace { display: block; overflow: visible; }
@@ -698,7 +713,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-opportunity { min-height: 0; flex: 0 0 auto; grid-template-columns: 168px minmax(0, 1fr); grid-template-rows: auto auto auto; }
   .ev-opportunity > div { padding: 10px; }
   .ev-score { grid-column: 1; grid-row: 1 / 3; align-items: flex-start; border-bottom: 1px solid var(--il-border-hairline); }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { margin-top: 4px; font-size: 23px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong { margin-top: 4px; font-size: 23px; }
   .ev-track-button.button.compact { min-width: 54px; margin-top: 0; }
   .ev-event { grid-column: 2; grid-row: 1; min-height: 64px; border-right: 0; }
   .ev-pick { grid-column: 2; grid-row: 2; min-height: 50px; border-top: 1px solid var(--il-border-hairline); border-right: 0; }
@@ -754,7 +769,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-opportunity { grid-template-columns: 168px minmax(0, 1fr); }
   .ev-opportunity > div { padding-inline: 9px; }
   .ev-score { gap: 4px; }
-  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong { font-size: 22px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong { font-size: 22px; }
   .ev-track-button.button.compact { min-width: 51px; padding-inline: 5px; font-size: 9px; }
   .ev-event strong { font-size: 17px; }
   .ev-book-grid { grid-template-columns: 1fr; }
