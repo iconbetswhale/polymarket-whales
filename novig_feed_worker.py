@@ -332,7 +332,12 @@ def websocket_smoke_test(
     }
     socket = None
     try:
-        markets = rest.list_open_markets()
+        # The unfiltered open-markets response can be very large. A smoke test
+        # only needs one valid market subscription, so use server-side market
+        # type filters and keep the diagnostic's memory footprint bounded.
+        markets = rest.list_open_markets(market_type="TOTAL")
+        if not markets:
+            markets = rest.list_open_markets(market_type="SPREAD")
         if not markets:
             result["error_code"] = "NOVIG_NO_OPEN_MARKETS"
             return result

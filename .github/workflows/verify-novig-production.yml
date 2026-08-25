@@ -14,10 +14,10 @@ jobs:
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
         run: |
-          response="$(curl --silent --show-error \
+          response="$(curl --silent --show-error --max-time 20 \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
-            https://iconbets-polymarket-wallet-tracker.vercel.app/api/novig_websocket)"
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket)"
           NOVIG_RESULT="$response" python - <<'PY'
           import json, os
           data = json.loads(os.environ["NOVIG_RESULT"])
