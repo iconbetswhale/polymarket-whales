@@ -282,7 +282,7 @@ Run the sanitized read-only production check from a process that already has
 the two credentials in its environment:
 
 ```powershell
-python scripts/novig_smoke_test.py
+python scripts/novig_smoke.py
 ```
 
 The command prints only success/failure, HTTP status, market and market-type
