@@ -59,7 +59,11 @@ jobs:
           data = json.loads(os.environ["NOVIG_MARKET_RESULT"])
           market_id = str(data.get("market_id") or "")
           if not data.get("success") or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", market_id):
-              raise SystemExit(f"NoVIG market selection failed: {data.get('error_code') or 'invalid-market'}")
+              raise SystemExit(
+                  "NoVIG market selection failed: "
+                  f"{data.get('error_code') or 'invalid-market'} "
+                  f"(HTTP {data.get('http_status') or 'none'})"
+              )
           if data.get("credentials_exposed") or data.get("token_exposed"):
               raise SystemExit("NoVIG market response reported secret exposure")
           print(market_id)
