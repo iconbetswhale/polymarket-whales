@@ -666,6 +666,7 @@ body[data-design-system="v2"][data-page="dfs"] .compare-book {
 }
 
 body[data-design-system="v2"][data-page="dfs"] #dfs-line-head img,
+body[data-design-system="v2"][data-page="dfs"] .algo-odds-head img,
 body[data-design-system="v2"][data-page="dfs"] .compare-book img {
   display: block;
   width: 26px;
