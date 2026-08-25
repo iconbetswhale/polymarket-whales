@@ -4,7 +4,7 @@
   {% if odds_screen_preview %}
   <section class="odds-preview-banner" aria-label="Preview mode">
     <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>12 temporary preview matchups</strong>
+    <strong>30 temporary preview matchups</strong>
     <span>Visual fixtures only · no provider requests or sportsbook credits.</span>
   </section>
   {% endif %}
@@ -15,34 +15,23 @@
       <p>Compare odds across sportsbooks in real time</p>
     </div>
 
-    <div class="odds-toolbar" aria-label="Odds screen controls">
-      <div class="odds-toolbar-left">
-        <div class="odds-menu-shell">
-          <button class="odds-control odds-sport-trigger" id="odds-league-trigger" type="button" aria-expanded="false" aria-controls="odds-league-menu">
-            <span class="odds-sport-icon"><i class="ph ph-trophy"></i></span>
-            <span id="odds-league-label">All Sports</span>
-            <i class="ph ph-caret-down"></i>
-          </button>
-          <section class="odds-popover odds-league-menu" id="odds-league-menu" hidden>
-            <div class="odds-menu-heading"><strong>Sports &amp; leagues</strong><button type="button" data-close-menu aria-label="Close"><i class="ph ph-x"></i></button></div>
-            <div class="league-menu-grid">
-              <div><button data-odds-league="NFL" data-odds-sport="Football">NFL</button><button data-odds-league="NBA" data-odds-sport="Basketball">NBA</button><button data-odds-league="NCAAB" data-odds-sport="Basketball">NCAAB</button><button data-odds-league="MLB" data-odds-sport="Baseball">MLB</button><button data-odds-league="NHL" data-odds-sport="Hockey">NHL</button><button data-odds-league="WNBA" data-odds-sport="Basketball">WNBA</button><button data-odds-league="ATP" data-odds-sport="Tennis">ATP</button><button data-odds-league="WTA" data-odds-sport="Tennis">WTA</button></div>
-              <div><button data-odds-league="" data-odds-sport="Baseball">Baseball</button><button data-odds-league="" data-odds-sport="Basketball">Basketball</button><button data-odds-league="" data-odds-sport="Football">Football</button><button data-odds-league="" data-odds-sport="Hockey">Hockey</button><button data-odds-league="" data-odds-sport="Soccer">Soccer</button><button data-odds-league="" data-odds-sport="Tennis">Tennis</button><button data-odds-league="" data-odds-sport="Golf">Golf</button><button data-odds-league="" data-odds-sport="MMA">MMA</button></div>
-            </div>
-          </section>
-        </div>
+    <div class="odds-navigation-shell" aria-label="Odds screen controls">
+      <div class="odds-navigation-top">
+        <nav class="odds-view-tabs" aria-label="Event type">
+          <button class="active" data-odds-view="games" type="button" aria-pressed="true">Games</button>
+          <button data-odds-view="props" type="button" aria-pressed="false">Props <small class="odds-pro-badge">PRO</small></button>
+        </nav>
 
-        <button class="odds-control odds-live-control" id="odds-feed-toggle" type="button" title="Start the live odds feed">
-          <span class="odds-live-state paused" id="odds-live-state"><i></i><strong id="odds-live-label">PAUSED</strong></span>
-          <i class="ph ph-caret-right" aria-hidden="true"></i>
-        </button>
-
-        <label class="odds-control odds-auto-refresh">
-          <span>Auto-refresh</span>
-          <input id="odds-auto-refresh" type="checkbox" checked>
-          <span class="odds-switch" aria-hidden="true"></span>
-        </label>
-      </div>
+        <nav class="odds-sport-tabs" aria-label="Sport and league">
+          <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NFL PRE" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nfl.png') }}" alt="">NFL PRE</button>
+          <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="WNBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/wnba.png') }}" alt="">WNBA</button>
+          <button class="{{ 'active' if odds_screen_preview else '' }}" data-odds-sport-filter data-odds-sport="Baseball" data-odds-league="MLB" type="button" aria-pressed="{{ 'true' if odds_screen_preview else 'false' }}"><img src="{{ url_for('static', filename='assets/leagues/mlb.png') }}" alt="">MLB</button>
+          <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NCAAF" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAF</button>
+          <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NFL" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nfl.png') }}" alt="">NFL</button>
+          <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nba.png') }}" alt="">NBA</button>
+          <button data-odds-sport-filter data-odds-sport="Hockey" data-odds-league="NHL" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nhl.png') }}" alt="">NHL</button>
+          <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NCAAB" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAB</button>
+        </nav>
 
       <div class="odds-toolbar-right">
         <div class="odds-menu-shell">
@@ -82,45 +71,15 @@
           </section>
         </div>
       </div>
+      </div>
+
+      <nav class="odds-compact-market-tabs" aria-label="Market type">
+        <button class="active" data-odds-kind="moneyline" type="button" aria-pressed="true">Moneyline</button>
+        <button data-odds-kind="spread" type="button" aria-pressed="false">Spread</button>
+        <button data-odds-kind="game_total" type="button" aria-pressed="false">Total</button>
+      </nav>
     </div>
   </header>
-
-  <div class="odds-market-bar">
-    <nav class="odds-market-tabs" aria-label="Market type">
-      <button class="active" data-odds-kind="moneyline" type="button">
-        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-currency-dollar"></i></span>
-        <span class="odds-tab-label">Moneyline</span>
-      </button>
-      <button data-odds-kind="spread" type="button">
-        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-sliders-horizontal"></i></span>
-        <span class="odds-tab-label">Run Line / Spread</span>
-      </button>
-      <button data-odds-kind="alternate_spread" type="button">
-        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-arrows-down-up"></i></span>
-        <span class="odds-tab-label">Alt Spreads</span>
-      </button>
-      <button data-odds-kind="game_total" type="button">
-        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-chart-bar"></i></span>
-        <span class="odds-tab-label">Game Totals</span>
-      </button>
-      <button data-odds-kind="alternate_total" type="button">
-        <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-plus-minus"></i></span>
-        <span class="odds-tab-label">Alt Totals</span>
-      </button>
-      <div class="odds-menu-shell odds-props-shell">
-        <button id="odds-props-trigger" type="button" aria-expanded="false" aria-controls="odds-props-menu">
-          <span class="odds-tab-icon" aria-hidden="true"><i class="ph ph-user"></i></span>
-          <span class="odds-tab-label">Player Props</span>
-          <i class="ph ph-caret-down odds-tab-caret" aria-hidden="true"></i>
-        </button>
-        <section class="odds-popover odds-props-menu" id="odds-props-menu" hidden>
-          <div class="odds-menu-heading"><strong>Detected player props</strong><button type="button" data-close-menu aria-label="Close"><i class="ph ph-x"></i></button></div>
-          <div id="odds-props-list"><span>No player props in the current feed.</span></div>
-        </section>
-      </div>
-    </nav>
-    <span class="odds-feed-status"><i></i><span id="odds-feed-status-label">Odds feed paused</span></span>
-  </div>
 
   <section class="mobile-odds-board" aria-label="Mobile sportsbook screen">
     <div class="mobile-odds-titlebar"><div class="mobile-odds-title"><span class="mobile-odds-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>Odds</strong></div><span class="mobile-odds-status" id="mobile-odds-status"><i></i><span>Paused</span></span></div>
@@ -148,7 +107,6 @@
     </table>
   </div>
 
-  <footer class="odds-footer"><span><i class="status-dot"></i><span id="odds-footer-status">Odds feed paused</span></span><span class="odds-footer-meta"><span id="odds-updated">Paused to protect credits</span><span>All times shown in ET</span></span></footer>
 </section>
 
 <div class="mobile-odds-sheet-backdrop" id="mobile-odds-sheet-backdrop" hidden></div>
@@ -157,4 +115,8 @@
   <nav class="mobile-odds-sheet-tabs" aria-label="Market type"><button class="active" type="button" data-mobile-market-kind="main">All</button><button type="button" data-mobile-market-kind="moneyline">Moneyline</button><button type="button" data-mobile-market-kind="spread">Run Line</button><button type="button" data-mobile-market-kind="total">Total</button></nav>
   <div class="mobile-odds-sheet-content" id="mobile-odds-sheet-content"></div>
 </section>
+{% if odds_screen_preview and odds_screen_preview_payload %}
+<script id="odds-preview-data" type="application/json">{{ odds_screen_preview_payload | tojson }}</script>
+{% endif %}
 {% endblock %}
+

@@ -781,10 +781,6 @@ def create_app(start_background: bool = True) -> Flask:
             or tracker._started
         ):
             return
-        if os.getenv("VERCEL"):
-            tracker.start()
-            return
-
         def start_tracker() -> None:
             try:
                 tracker.start()
@@ -1089,27 +1085,31 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/odds-screen")
     def odds_screen_page():
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        preview_requested = any(
+            request.args.get(flag, "").strip().lower()
+            in {"1", "true", "yes", "on"}
+            for flag in ("preview", "demo")
+        )
+        preview_payload = None
+        if preview_requested:
+            from odds_screen_preview import temporary_odds_screen_preview_payload
+
+            preview_payload = temporary_odds_screen_preview_payload()
         return render_template(
             "odds_screen.html",
             title="IconBets Live Odds Screen",
             page="odds-screen",
             odds_screen_preview=preview_requested,
+            odds_screen_preview_payload=preview_payload,
         )
 
     @app.route("/dfs")
     def dfs_page():
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
+        preview_requested = any(
+            request.args.get(flag, "").strip().lower()
+            in {"1", "true", "yes", "on"}
+            for flag in ("preview", "demo")
+        )
         return render_template(
             "dfs.html",
             title="IconBets Fantasy Optimizer",

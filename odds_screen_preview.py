@@ -30,9 +30,39 @@ PROVIDERS = (
         "source": "preview",
     },
     {
+        "key": "oddsapi__betmgm",
+        "name": "BetMGM",
+        "logoUrl": "/static/assets/sportsbooks/betmgm.png",
+        "source": "preview",
+    },
+    {
+        "key": "oddsapi__draftkings",
+        "name": "DraftKings",
+        "logoUrl": "/static/assets/sportsbooks/draftkings.png",
+        "source": "preview",
+    },
+    {
+        "key": "oddsapi__fanduel",
+        "name": "FanDuel",
+        "logoUrl": "/static/assets/sportsbooks/fanduel.png",
+        "source": "preview",
+    },
+    {
         "key": "oddsapi__novig",
         "name": "NoVIG",
         "logoUrl": "/static/assets/providers/novig.png",
+        "source": "preview",
+    },
+    {
+        "key": "oddsapi__caesars",
+        "name": "Caesars",
+        "logoUrl": "/static/assets/sportsbooks/caesars.png",
+        "source": "preview",
+    },
+    {
+        "key": "oddsapi__pinnacle",
+        "name": "Pinnacle",
+        "logoUrl": "/static/assets/providers/pinnacle.png",
         "source": "preview",
     },
 )
@@ -62,6 +92,12 @@ PARTICIPANT_LOGOS = {
     "Pittsburgh Pirates": "https://a.espncdn.com/i/teamlogos/mlb/500/pit.png",
     "San Diego Padres": "https://a.espncdn.com/i/teamlogos/mlb/500/sd.png",
     "Minnesota Twins": "https://a.espncdn.com/i/teamlogos/mlb/500/min.png",
+    "Athletics": "https://a.espncdn.com/i/teamlogos/mlb/500/oak.png",
+    "Kansas City Royals": "https://a.espncdn.com/i/teamlogos/mlb/500/kc.png",
+    "Arizona Diamondbacks": "https://a.espncdn.com/i/teamlogos/mlb/500/ari.png",
+    "Colorado Rockies": "https://a.espncdn.com/i/teamlogos/mlb/500/col.png",
+    "Chicago White Sox": "https://a.espncdn.com/i/teamlogos/mlb/500/chw.png",
+    "Los Angeles Angels": "https://a.espncdn.com/i/teamlogos/mlb/500/laa.png",
 }
 
 
@@ -76,7 +112,7 @@ def _display_odds(american_odds: int) -> str:
 
 
 def _options(base_odds: int, liquidity: int, seed: int) -> list[dict]:
-    adjustments = (2, 0, -2, 4)
+    adjustments = (2, 0, -2, 4, -1, 3, -3, 1, -4)
     options = []
     for index, provider in enumerate(PROVIDERS):
         american_odds = base_odds + adjustments[(index + seed) % len(adjustments)]
@@ -164,7 +200,7 @@ def _market_rows(
 
 def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
     base = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
-    matchup_data = (
+    base_matchups = (
         ("braves-brewers", "Atlanta Braves", "Milwaukee Brewers", (133, -134), 8.5, "Ronald Acuña Jr."),
         ("cardinals-phillies", "St. Louis Cardinals", "Philadelphia Phillies", (233, -239), 8.0, "Bryce Harper"),
         ("blue-jays-yankees", "Toronto Blue Jays", "New York Yankees", (187, -190), 8.5, "Aaron Judge"),
@@ -177,20 +213,39 @@ def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
         ("guardians-tigers", "Cleveland Guardians", "Detroit Tigers", (104, -116), 7.0, "José Ramírez"),
         ("reds-pirates", "Cincinnati Reds", "Pittsburgh Pirates", (-108, -102), 9.0, "Elly De La Cruz"),
         ("padres-twins", "San Diego Padres", "Minnesota Twins", (-132, 119), 8.0, "Fernando Tatis Jr."),
+        ("athletics-royals", "Athletics", "Kansas City Royals", (124, -138), 8.5, "Bobby Witt Jr."),
+        ("diamondbacks-rockies", "Arizona Diamondbacks", "Colorado Rockies", (-135, 121), 10.5, "Corbin Carroll"),
+        ("white-sox-angels", "Chicago White Sox", "Los Angeles Angels", (142, -157), 8.0, "Mike Trout"),
     )
     events = tuple(
         {
-            "event_id": f"preview-{slug}",
+            "event_id": f"preview-{slug}-slate-{slate_index + 1}",
             "event_title": f"{away} vs {home}",
             "sport": "Baseball",
             "league": "MLB",
-            "starts_at": base + timedelta(hours=2 + index, minutes=(index % 3) * 10),
+            "starts_at": base
+            + timedelta(
+                days=slate_index,
+                hours=2 + game_index,
+                minutes=(game_index % 3) * 10,
+            ),
             "teams": (away, home),
-            "moneyline_odds": moneyline_odds,
-            "total_line": total_line,
+            "moneyline_odds": (
+                moneyline_odds[0] + (3 * slate_index),
+                moneyline_odds[1] - (3 * slate_index),
+            ),
+            "total_line": total_line + (0.5 * slate_index),
             "player_name": player_name,
         }
-        for index, (slug, away, home, moneyline_odds, total_line, player_name) in enumerate(matchup_data)
+        for slate_index in range(2)
+        for game_index, (
+            slug,
+            away,
+            home,
+            moneyline_odds,
+            total_line,
+            player_name,
+        ) in enumerate(base_matchups)
     )
 
     rows: list[dict] = []
@@ -213,6 +268,14 @@ def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
                 seed=event_index,
             )
         )
+
+        # Keep the full 30-game board for the default Moneyline view while
+        # limiting the secondary preview markets to a representative slate.
+        # This keeps the production fixture response comfortably below the
+        # serverless response ceiling without leaving any tab empty.
+        if event_index >= 8:
+            continue
+
         spread_line = (1.5, -1.5) if event["moneyline_odds"][0] > 0 else (-1.5, 1.5)
         rows.extend(
             _market_rows(
@@ -288,3 +351,4 @@ def temporary_odds_screen_preview_payload(now: datetime | None = None) -> dict:
         "providerRequestsEnabled": False,
         "message": "Temporary visual fixtures only.",
     }
+

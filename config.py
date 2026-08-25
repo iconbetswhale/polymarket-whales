@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -48,7 +49,8 @@ def _get_csv(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _get_path(name: str, default: str) -> Path:
-    value = Path(os.getenv(name, default))
+    configured = (os.getenv(name) or "").strip()
+    value = Path(configured or default)
     return value if value.is_absolute() else PROJECT_ROOT / value
 
 
@@ -173,7 +175,12 @@ def get_settings() -> Settings:
         dashboard_refresh=min(_get_int("DASHBOARD_REFRESH", 15), 15),
         dashboard_port=dashboard_port,
         wallets_file=_get_path("WALLETS_FILE", "wallets.json"),
-        database_path=_get_path("DATABASE_PATH", "polymarket_tracker.db"),
+        database_path=_get_path(
+            "DATABASE_PATH",
+            str(Path(tempfile.gettempdir()) / "polymarket_tracker.db")
+            if os.getenv("VERCEL")
+            else "polymarket_tracker.db",
+        ),
         sports_only=_get_bool("SPORTS_ONLY", True),
         resolve_hours=_get_int("RESOLVE_HOURS", 168),
         min_american_odds=_get_optional_int("MIN_AMERICAN_ODDS"),

@@ -30,8 +30,8 @@
   {% endif %}
   {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-canonical-v12-finance-toolbar') }}">{% endif %}
   {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-canonical-v7') }}">{% endif %}
-  {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-approved-v1') }}">{% endif %}
-  {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
+  {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-dfs-theme-v1-logo-grid-v1') }}">{% endif %}
+  {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-filters-v2') }}">{% endif %}
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'shadow-test' %}<link rel="stylesheet" href="{{ url_for('static', filename='shadow-lab-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
@@ -67,8 +67,8 @@
       <a href="{{ url_for('trades_page', preview='1') if nav_preview else url_for('trades_page') }}" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span data-short="Traders">Prediction Traders</span></a>
       <a href="{{ url_for('sharp_money_page', preview='1') if nav_preview else url_for('sharp_money_page') }}" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-trend-up" aria-hidden="true"></i><span data-short="Sharp">Sharp Money</span></a>
       <a href="{{ url_for('positive_ev_page', preview='1') if nav_preview else url_for('positive_ev_page') }}" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span data-short="+EV">Positive EV</span></a>
-      <a href="{{ url_for('odds_screen_page', preview='1') if nav_preview else url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
-      <a href="{{ url_for('dfs_page', preview='1') if nav_preview else url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-grid-nine" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
+      <a href="{{ url_for('odds_screen_page', preview='1') if nav_preview else url_for('odds_screen_page', demo='1') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
+      <a href="{{ url_for('dfs_page', preview='1') if nav_preview else url_for('dfs_page', demo='1') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-grid-nine" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
       <a href="{{ url_for('tracker_page', preview='1') if nav_preview else url_for('tracker_page') }}" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
       <span class="nav-section-label" aria-hidden="true">Labs</span>
       <a href="{{ url_for('lab_tracker_page', preview='1') if nav_preview else url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="LabTracker">LabTracker</span></a>
@@ -139,11 +139,10 @@
     </div>
   </dialog>
   {% if page == 'trades' and trades_preview %}<script src="{{ url_for('static', filename='trades-preview.js', v=asset_version ~ '-all-tabs-v1') }}"></script>{% endif %}
-  {% if page == 'odds-screen' and odds_screen_preview %}<script src="{{ url_for('static', filename='odds-screen-preview.js', v=asset_version ~ '-client-preview-v1') }}"></script>{% endif %}
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v2') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v3-odds-grid-v1') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v5-player-props') }}"></script>{% endif %}
-  {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
+  {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-filters-v2') }}"></script>{% endif %}
   {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
 </body>
 </html>

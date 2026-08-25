@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import re
+import threading
 from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from typing import Iterable, Iterator
@@ -525,12 +526,28 @@ class LabTrackerStore:
     def __init__(self, tracker_database) -> None:
         self.database = tracker_database
         self.postgres = bool(getattr(tracker_database, "user_store", None))
-        self.initialize()
+        self._initialize_lock = threading.Lock()
+        self._initialized = False
+
+    def _ensure_initialized(self) -> None:
+        if self._initialized:
+            return
+        with self._initialize_lock:
+            if self._initialized:
+                return
+            self.initialize()
+            self._initialized = True
+
+    @contextmanager
+    def _raw_connection(self) -> Iterator:
+        target = self.database.user_store if self.postgres else self.database
+        with target.connection() as conn:
+            yield conn
 
     @contextmanager
     def connection(self) -> Iterator:
-        target = self.database.user_store if self.postgres else self.database
-        with target.connection() as conn:
+        self._ensure_initialized()
+        with self._raw_connection() as conn:
             yield conn
 
     def sql(self, statement: str) -> str:
@@ -602,7 +619,7 @@ class LabTrackerStore:
             ON lab_tracker_bets(status, commence_time)
             """,
         )
-        with self.connection() as conn:
+        with self._raw_connection() as conn:
             for statement in statements:
                 self.execute(conn, statement)
 
@@ -1140,3 +1157,4 @@ class LabTrackerService:
         return _dashboard_from_rows(
             rows, scope=scope, source=source, window=window, demo_only=False
         )
+

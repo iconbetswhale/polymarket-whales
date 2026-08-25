@@ -258,7 +258,9 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button > i {
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-filter-bar {
   display: grid;
-  grid-template-columns: .9fr .9fr 1.2fr 1fr minmax(190px,1.4fr) auto;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  align-items: end;
+  justify-content: center;
   gap: var(--il-space-2);
   padding: 10px var(--il-space-3);
   background: var(--il-surface-1);
@@ -283,6 +285,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-filter-bar input {
   box-sizing: border-box;
   width: 100%;
   height: var(--il-control-height-compact);
+  min-height: var(--il-control-height-compact);
   border: 1px solid var(--il-border-subtle);
   border-radius: var(--il-radius-control);
   outline: 0;
@@ -309,24 +312,40 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-filter-bar input:focus {
 body[data-design-system="v2"][data-page="dfs"] .dfs-select > i {
   position: absolute;
   right: 11px;
-  bottom: 10px;
+  bottom: calc(var(--il-control-height-compact) / 2);
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  transform: translateY(50%);
   color: var(--il-text-muted);
   font-size: 13px;
+  line-height: 1;
   pointer-events: none;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-search > i {
   position: absolute;
   left: 10px;
-  bottom: 9px;
+  bottom: calc(var(--il-control-height-compact) / 2);
+  display: grid;
+  width: 14px;
+  height: 14px;
+  place-items: center;
+  transform: translateY(50%);
   color: var(--il-text-muted);
   font-size: 14px;
+  line-height: 1;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-reset {
   align-self: end;
+  display: inline-flex;
+  width: 100%;
   height: var(--il-control-height-compact);
   min-height: var(--il-control-height-compact);
+  align-items: center;
+  justify-content: center;
   padding: 0 12px;
   border: 1px solid var(--il-border-standard);
   border-radius: var(--il-radius-control);
@@ -1152,3 +1171,4 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-apply:disabled {
     animation-iteration-count: 1 !important;
   }
 }
+

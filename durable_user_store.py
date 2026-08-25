@@ -53,14 +53,20 @@ class PostgresUserStore:
         self._psycopg = psycopg
         self._dict_row = dict_row
         self._connection_state = threading.local()
-        self.initialize()
+        self._initialize_lock = threading.Lock()
+        self._initialized = False
+
+    def _ensure_initialized(self) -> None:
+        if getattr(self, "_initialized", True):
+            return
+        with self._initialize_lock:
+            if self._initialized:
+                return
+            self.initialize()
+            self._initialized = True
 
     @contextmanager
-    def connection(self) -> Iterator[Any]:
-        active = getattr(self._connection_state, "connection", None)
-        if active is not None:
-            yield active
-            return
+    def _raw_connection(self) -> Iterator[Any]:
         conn = self._psycopg.connect(
             self.database_url,
             row_factory=self._dict_row,
@@ -76,12 +82,23 @@ class PostgresUserStore:
             conn.close()
 
     @contextmanager
+    def connection(self) -> Iterator[Any]:
+        active = getattr(self._connection_state, "connection", None)
+        if active is not None:
+            yield active
+            return
+        self._ensure_initialized()
+        with self._raw_connection() as conn:
+            yield conn
+
+    @contextmanager
     def transaction(self) -> Iterator[Any]:
         """Reuse one connection for a complete tracker refresh."""
         active = getattr(self._connection_state, "connection", None)
         if active is not None:
             yield active
             return
+        self._ensure_initialized()
         conn = self._psycopg.connect(
             self.database_url,
             row_factory=self._dict_row,
@@ -507,7 +524,7 @@ class PostgresUserStore:
                 )
             """,
         )
-        with self.connection() as conn:
+        with self._raw_connection() as conn:
             for statement in statements:
                 conn.execute(statement)
             conn.execute(
@@ -3336,6 +3353,13 @@ class PostgresUserStore:
         return payload
 
     def health(self) -> dict[str, str | bool]:
+        if not getattr(self, "_initialized", True):
+            return {
+                "backend": "postgresql",
+                "persistent": True,
+                "status": "ok",
+                "initialized": False,
+            }
         try:
             with self.connection() as conn:
                 conn.execute("SELECT 1").fetchone()
@@ -3370,3 +3394,4 @@ class PostgresUserStore:
                 else None
             ),
         }
+

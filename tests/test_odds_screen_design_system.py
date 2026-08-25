@@ -18,6 +18,22 @@ def test_odds_screen_opts_into_v2_without_legacy_layers(app_client):
     assert b"mobile-product.css" not in response.data
     assert b"app-premium.css" not in response.data
     assert b"sidebar-shell.css" not in response.data
+    assert b'id="odds-preview-data"' in response.data
+
+
+def test_odds_screen_live_page_does_not_embed_preview_data(app_client):
+    response = app_client.get("/odds-screen")
+
+    assert response.status_code == 200
+    assert b'id="odds-preview-data"' not in response.data
+
+
+def test_odds_screen_demo_page_embeds_thirty_game_preview(app_client):
+    response = app_client.get("/odds-screen?demo=1")
+
+    assert response.status_code == 200
+    assert b'id="odds-preview-data"' in response.data
+    assert b"30 temporary preview matchups" in response.data
 
 
 def test_odds_screen_preview_is_read_only_and_populated(app_client):
@@ -29,8 +45,8 @@ def test_odds_screen_preview_is_read_only_and_populated(app_client):
     assert payload["previewOnly"] is True
     assert payload["providerRequestsEnabled"] is False
     assert payload["trackerWritesEnabled"] is False
-    assert len(payload["data"]) == 144
-    assert len({row["event_id"] for row in payload["data"]}) == 12
+    assert len(payload["data"]) == 140
+    assert len({row["event_id"] for row in payload["data"]}) == 30
     assert all(row["executionOptions"] for row in payload["data"])
     market_titles = {row["sports_market_type"] for row in payload["data"]}
     assert market_titles == {
@@ -41,35 +57,24 @@ def test_odds_screen_preview_is_read_only_and_populated(app_client):
         "Alternate Total",
         "Player Hits",
     }
-    assert all(
-        len(
+    event_counts = {
+        title: len(
             {
                 row["event_id"]
                 for row in payload["data"]
                 if row["sports_market_type"] == title
             }
         )
-        == 12
         for title in market_titles
-    )
-
-
-def test_odds_screen_preview_static_fixture_is_gated(app_client):
-    preview = app_client.get("/odds-screen?preview=1")
-    live = app_client.get("/odds-screen")
-
-    assert preview.status_code == 200
-    assert live.status_code == 200
-    assert b"odds-screen-preview.js" in preview.data
-    assert b"odds-screen-preview.js" not in live.data
-
-    script = (ROOT / "static" / "odds-screen-preview.js").read_text(
-        encoding="utf-8"
-    )
-    assert "window.ICONLABS_ODDS_SCREEN_PREVIEW_DATA" in script
-    assert "providerRequestsEnabled: false" in script
-    assert "trackerWritesEnabled: false" in script
-    assert script.count('marketTitle: "') == 6
+    }
+    assert event_counts == {
+        "Moneyline": 30,
+        "Run Line / Spread": 8,
+        "Alternate Spread": 8,
+        "Game Total": 8,
+        "Alternate Total": 8,
+        "Player Hits": 8,
+    }
 
 
 def test_odds_screen_template_uses_approved_terminal_structure():
@@ -80,36 +85,48 @@ def test_odds_screen_template_uses_approved_terminal_structure():
     for hook in (
         "odds-preview-banner",
         "odds-screen-header",
-        "odds-toolbar",
-        "odds-market-tabs",
+        "odds-navigation-shell",
+        "odds-navigation-top",
+        "odds-view-tabs",
+        "odds-sport-tabs",
+        "odds-compact-market-tabs",
         "odds-matrix",
         "odds-grid-head",
         "mobile-odds-board",
     ):
         assert hook in template
     assert 'id="odds-market-trigger"' not in template
+    assert 'id="odds-auto-refresh"' not in template
+    assert "Auto-refresh</span>" not in template
     assert "odds-history-head" not in template
     assert "odds-history-cell" not in template
     assert "Main Markets" not in template
+    assert "odds-footer" not in template
+    assert "All times shown in ET" not in template
     for label in (
+        "Games",
+        "Props",
+        "PRO",
+        "NFL PRE",
+        "WNBA",
+        "MLB",
+        "NCAAF",
+        "NFL",
+        "NBA",
+        "NHL",
+        "NCAAB",
         "Moneyline",
-        "Run Line / Spread",
-        "Alt Spreads",
-        "Game Totals",
-        "Alt Totals",
-        "Player Props",
+        "Spread",
+        "Total",
     ):
         assert label in template
-    for icon in (
-        "ph-currency-dollar",
-        "ph-sliders-horizontal",
-        "ph-arrows-down-up",
-        "ph-chart-bar",
-        "ph-plus-minus",
-        "ph-user",
-    ):
-        assert icon in template
-    assert template.count('class="odds-tab-icon"') == 6
+    for league_asset in ("nfl.png", "wnba.png", "mlb.png", "ncaa.png", "nba.png", "nhl.png"):
+        assert league_asset in template
+    assert 'id="odds-league-trigger"' not in template
+    assert 'id="odds-feed-toggle"' not in template
+    assert 'id="odds-props-trigger"' not in template
+    assert "Alt Spreads" not in template
+    assert "Alt Totals" not in template
 
 
 def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
@@ -134,14 +151,47 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert "border-collapse: collapse" in stylesheet
     assert ".odds-price-stack .odds-price + .odds-price" in stylesheet
     assert ".odds-best-stack .provider-logo-mark" in stylesheet
-    assert "font-size: 16px" in stylesheet
+    assert ".odds-best-stack strong" in stylesheet
+    assert "grid-template-columns: 20px 38px" in stylesheet
+    assert "min-width: 20px" in stylesheet
+    assert "max-width: 20px" in stylesheet
+    assert "font-variant-numeric: tabular-nums" in stylesheet
+    assert "font-size: 13px" in stylesheet
+    assert ".odds-time-cell strong" in stylesheet
+    assert "font-size: 12px" in stylesheet
+    assert ".odds-price small" in stylesheet
+    assert "font-size: 9px" in stylesheet
+    assert "text-align: center" in stylesheet
+    assert ".odds-navigation-shell" in stylesheet
+    assert ".odds-view-tabs" in stylesheet
+    assert ".odds-sport-tabs" in stylesheet
+    assert ".odds-pro-badge" in stylesheet
+    assert ".odds-compact-market-tabs" in stylesheet
 
 
 def test_odds_screen_preview_client_does_not_start_polling():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert 'preview: new URLSearchParams(window.location.search).get("preview") === "1"' in script
-    assert "payload = window.ICONLABS_ODDS_SCREEN_PREVIEW_DATA" in script
-    assert 'params.set("preview", "1")' not in script
-    assert "if (!oddsState.preview && oddsState.autoRefresh) oddsState.timer = window.setInterval" in script
+    assert 'document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true"' in script
+    assert 'if (oddsState.preview) params.set("preview", "1")' in script
+    assert "if (!oddsState.preview) oddsState.timer = window.setInterval(loadOddsScreen, 60000)" in script
+    assert 'document.getElementById("odds-preview-data")' in script
+    assert "previewPayload || await fetchJson" in script
+    assert 'oddsState.providerOrder = [...previewKeys, "best"]' in script
+    assert "if (!oddsState.preview) persistOddsProviderOrder()" in script
+    assert "ODDS_LIQUIDITY_PROVIDER_KEYS" in script
+    assert 'return `${formattedAmount} Limit`' in script
+    assert "if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount" in script
+    assert "primary.canonical_league_id || primary.league || primary.category" not in script
+    assert "Liq $" not in script
+    assert "odds-column-highlight" not in script
+    assert "bindOddsColumnHighlight" not in script
+    assert "oddsState.autoRefresh" not in script
     assert "setOddsFeedActive(oddsState.preview)" in script
+    assert 'oddsState.sport = "Baseball"' in script
+    assert 'oddsState.league = "MLB"' in script
+    assert 'document.querySelectorAll("[data-odds-view]")' in script
+    assert 'document.querySelectorAll("[data-odds-sport-filter]")' in script
+    assert 'oddsPlayerPropMarkets()[0]?.kind || "player_hits"' in script
+
