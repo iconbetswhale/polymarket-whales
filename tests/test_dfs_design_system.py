@@ -70,7 +70,11 @@ def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
     assert "fairAmericanOdds" in SCRIPT
     assert "americanOddsToProbability" in SCRIPT
     assert "positive-edge" in SCRIPT
+    assert "near-threshold" in SCRIPT
+    assert "negative-edge" in SCRIPT
     assert ".hit-rate.positive-edge" in CSS
+    assert ".hit-rate.near-threshold" in CSS
+    assert ".hit-rate.negative-edge" in CSS
 
 
 def test_dfs_v2_keeps_responsive_and_interactive_contracts() -> None:

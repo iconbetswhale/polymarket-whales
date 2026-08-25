@@ -605,6 +605,26 @@ body[data-design-system="v2"][data-page="dfs"] .hit-rate.positive-edge strong {
   font-weight: 800;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .hit-rate.near-threshold {
+  border-color: var(--il-warning);
+  background: var(--il-warning);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .hit-rate.near-threshold strong {
+  color: var(--il-bg-app);
+  font-weight: 800;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .hit-rate.negative-edge {
+  border-color: var(--il-negative);
+  background: var(--il-negative);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .hit-rate.negative-edge strong {
+  color: var(--il-bg-app);
+  font-weight: 800;
+}
+
 body[data-design-system="v2"][data-page="dfs"] #dfs-line-head,
 body[data-design-system="v2"][data-page="dfs"] .compare-book {
   min-width: 88px;

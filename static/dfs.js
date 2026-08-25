@@ -24,9 +24,9 @@
     {player:'A’ja Wilson', match:'Aces vs Mercury', sport:'WNBA', date:'today', time:'Today · 9:30 PM', side:'Over', stat:'Points', line:25.5, hit:58.9, odds:['-143','-138','-124','-130','-120','-141','-128','-126','-121','-115','-133','-146','—',{odds:'-108',line:25.0},'-127']},
     {player:'Caitlin Clark', match:'Fever at Liberty', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Under', stat:'Points', line:21.5, hit:57.6, odds:['-136','-133','-120','-125','-116','-132','-124','-122','-118',{odds:'-115',line:22.5},'-128','-140','-120','—','-121']},
     {player:'Josh Allen', match:'Bills vs Ravens', sport:'NFL', date:'tomorrow', time:'Tomorrow · 7:20 PM', side:'Over', stat:'Passing Yards', line:265.5, hit:56.8, odds:['-131','-128','-115','-120','-112','-127','-119','-118','-114',{odds:'-112',line:264.5},'-123','-134','—',{odds:'-110',line:266.5},'-116']},
-    {player:'Breanna Stewart', match:'Liberty vs Fever', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Over', stat:'Rebounds', line:8.5, hit:55.7, discrepancy:false, odds:['-126','-124','-112','-116','-108','-123','-114','-115','-110','-115','-118','-129','—','—','-113']},
+    {player:'Breanna Stewart', match:'Liberty vs Fever', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Over', stat:'Rebounds', line:8.5, hit:53.4, discrepancy:false, odds:['-126','-124','-112','-116','-108','-123','-114','-115','-110','-115','-118','-129','—','—','-113']},
     {player:'Shohei Ohtani', match:'Dodgers at Padres', sport:'MLB', date:'today', time:'Today · 10:10 PM', side:'Under', stat:'Hits + Runs + RBIs', line:3.5, hit:54.9, odds:['-121','-118','-108','-112','-104','-120','-109','-111','-105','-110','-115','-124','—','-108','-110']},
-    {player:'Nikola Jokic', match:'Nuggets vs Suns', sport:'NBA', date:'tomorrow', time:'Tomorrow · 9:00 PM', side:'Over', stat:'Rebounds', line:11.5, hit:53.6, discrepancy:false, odds:['-115','-112','-102','-106','+100','-114','-104','-105','+101',{odds:'-112',line:11.0},'-108','-118','-110','—','-103']}
+    {player:'Nikola Jokic', match:'Nuggets vs Suns', sport:'NBA', date:'tomorrow', time:'Tomorrow · 9:00 PM', side:'Over', stat:'Rebounds', line:11.5, hit:50.8, discrepancy:false, odds:['-115','-112','-102','-106','+100','-114','-104','-105','+101',{odds:'-112',line:11.0},'-108','-118','-110','—','-103']}
   ];
   const body = document.querySelector('#dfs-body');
   const statSelect = document.querySelector('#dfs-stat');
@@ -129,8 +129,16 @@
     body.innerHTML = visible.map(r => {
       const fairHitRate = fairProbability(r);
       const requiredProbability = americanOddsToProbability(bestSlipOdds[activeBook]);
-      const beatsSlipThreshold = requiredProbability !== null && fairHitRate/100 > requiredProbability;
+      const probabilityEdgePoints = requiredProbability === null ? null : fairHitRate - requiredProbability*100;
+      const hitRateBand = probabilityEdgePoints === null
+        ? 'below-threshold'
+        : probabilityEdgePoints > 0
+          ? 'positive-edge'
+          : probabilityEdgePoints >= -2
+            ? 'near-threshold'
+            : 'negative-edge';
       const requiredPercent = requiredProbability === null ? '—' : `${(requiredProbability*100).toFixed(2)}%`;
+      const edgeLabel = probabilityEdgePoints === null ? 'edge unavailable' : `${probabilityEdgePoints >= 0 ? '+' : ''}${probabilityEdgePoints.toFixed(2)} pp edge`;
       const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? r.line;
       const oddsByKey = Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds[index]]));
       oddsByKey.circa = oddsByKey.betonline;
@@ -148,7 +156,7 @@
         const alternateLine = typeof market === 'object' && Number(market.line) !== Number(activeLine) ? market.line : null;
         return `<td class="book-cell ${unavailable?'muted':''}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate ${beatsSlipThreshold?'positive-edge':'below-threshold'}" title="${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]}"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="IconLabs fair odds from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate ${hitRateBand}" title="${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="IconLabs fair odds from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-count').textContent = `${visible.length} prop${visible.length===1?'':'s'}`;
     document.querySelector('#dfs-empty').hidden = visible.length > 0;

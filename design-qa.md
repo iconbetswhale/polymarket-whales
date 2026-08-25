@@ -75,6 +75,43 @@ final result: passed
 
 ---
 
+# DFS Optimizer — Probability Color Bands QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-2f559147-906f-40c0-9ca5-531a26f57729.png` (DailyGrind probability-state reference).
+- Browser implementation: `C:\Users\15617\Documents\Polymarket\polymarket-whales-dfs-math\dfs-probability-bands.png` (1280 × 720 px).
+- Route and state: `http://127.0.0.1:5091/dfs?preview=1`, desktop preview, PrizePicks selected at -119, line-discrepancy filter disabled so every semantic state is visible.
+- Density: 1280 × 720 CSS px at DPR 1; no scaling normalization required.
+
+## Findings and implementation
+
+- P1 — The probability column only distinguished profitable green from a neutral dark fallback, so close misses and materially unprofitable plays looked equivalent.
+  - Fix: classify each fair hit rate against the active slip's implied break-even probability. Positive edge is green, a miss of up to 2.00 percentage points is yellow, and a miss greater than 2.00 points is red.
+  - Post-fix evidence: 55.1% is green against PrizePicks' 54.34% requirement, 53.6% is yellow at -0.78 pp, and 51.0% is red at -3.38 pp. The tooltip exposes both the requirement and exact edge.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing 14px data face and 800 weight remain unchanged across all three states.
+- Spacing and layout rhythm: all state chips preserve the same 70px minimum width, 38px minimum height, padding, border, and radius.
+- Colors and visual tokens: semantic colors use the shared `--il-positive`, `--il-warning`, and `--il-negative` tokens; dark text maintains strong contrast on each bright fill.
+- Image quality and asset fidelity: no logo, book asset, or icon changed.
+- Copy and content: the displayed percentage remains concise while the native title exposes fair rate, required rate, selected slip odds, and probability-point edge.
+
+## Interaction and automated verification
+
+- Toggled “Line discrepancies only” off and confirmed all eight placeholder props render.
+- Browser DOM verification confirmed green, yellow, and red classes and computed backgrounds `rgb(80, 217, 119)`, `rgb(233, 184, 94)`, and `rgb(255, 91, 112)`.
+- Full Python suite: 31 passed.
+- `node --check static/dfs.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed
+
+---
+
 # DFS — IconLabs Fair Odds Column QA
 
 ## Evidence and normalization
