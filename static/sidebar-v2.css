@@ -1,4 +1,4 @@
-/* Canonical IconLabs v2 desktop sidebar.
+/* Canonical IconLabs v2 neon-flow desktop sidebar.
    This sheet loads after every page-owned stylesheet so route-specific layouts
    cannot change the shared navigation rail. Mobile navigation remains owned by
    the v2 foundation. */
@@ -10,10 +10,24 @@
     flex-direction: column;
     align-items: stretch;
     overflow: hidden;
+    isolation: isolate;
+    border-right: 2px solid #b23cff;
+    background-color: #000;
+    background-image: url("/static/assets/sidebar-neon-purple-flow-connected-v5.webp");
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: 100% 100%;
+    box-shadow:
+      inset -1px 0 0 rgba(228, 190, 255, 0.72),
+      1px 0 0 #dd9cff,
+      3px 0 0 #68189b,
+      5px 0 0 #2c063f,
+      8px 0 10px rgba(0, 0, 0, 0.72);
   }
 
-  body[data-design-system="v2"].sidebar-expanded .app-nav::after {
-    content: none;
+  body[data-design-system="v2"].sidebar-expanded .app-nav > * {
+    position: relative;
+    z-index: 1;
   }
 
   body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle {
@@ -30,16 +44,17 @@
     border: 1px solid transparent;
     border-radius: var(--il-radius-control);
     background: transparent;
-    color: var(--il-text-secondary);
+    color: #fff;
     font-size: 22px;
     box-shadow: none;
+    filter: none;
   }
 
   body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle:hover,
   body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle:focus-visible {
     border-color: var(--il-border-interactive);
-    background: var(--il-surface-hover);
-    color: var(--il-text-primary);
+    background: rgba(255, 255, 255, 0.06);
+    color: #fff;
   }
 
   body[data-design-system="v2"].sidebar-expanded .mobile-nav-toggle {
@@ -63,6 +78,10 @@
     display: none;
   }
 
+  body[data-design-system="v2"].sidebar-expanded .brand-lockup img {
+    filter: brightness(1.08);
+  }
+
   body[data-design-system="v2"].sidebar-expanded .nav-links {
     width: 100%;
     min-height: 0;
@@ -84,27 +103,74 @@
 
   body[data-design-system="v2"].sidebar-expanded .nav-links > a,
   body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"] {
-    width: 100%;
-    max-width: none;
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
     min-height: 44px;
     margin: 0;
-    padding-inline: 10px;
+    padding-inline: 9px;
     display: flex;
     flex: 0 0 44px;
+    align-self: flex-start;
     align-items: center;
     justify-content: flex-start;
-    gap: 11px;
-    font-size: 14px;
+    gap: 10px;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #fff;
+    font: 750 15.5px/1.15 var(--il-font-ui);
+    letter-spacing: -0.015em;
+    text-shadow:
+      0 1px 0 #797982,
+      0 2px 0 #29292f,
+      0 3px 0 rgba(0, 0, 0, 0.96);
+    box-shadow: none;
+    transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
   }
 
-  body[data-design-system="v2"].sidebar-expanded .nav-links > a > i,
-  body[data-design-system="v2"].sidebar-expanded .nav-links > a > svg {
-    font-size: 18px;
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a > i {
+    width: 20px;
+    flex: 0 0 20px;
+    color: #fff;
+    font-size: 20px;
+    text-align: center;
+    filter: none;
   }
 
   body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"] {
-    background: var(--il-surface-selected-quiet);
-    box-shadow: inset 2px 0 0 var(--il-brand);
+    border-color: #b23cff;
+    background: rgba(5, 1, 9, 0.82);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.18),
+      inset 0 0 0 1px rgba(228, 190, 255, 0.72),
+      0 1px 0 #dd9cff,
+      0 3px 0 #68189b,
+      0 5px 0 #2c063f,
+      0 8px 10px rgba(0, 0, 0, 0.72);
+    transform: translateY(-2px);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"] > i {
+    color: #ad38ff;
+    filter: drop-shadow(0 1px 0 rgba(45, 0, 68, 0.9));
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a:hover {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: rgba(255, 255, 255, 0.055);
+    transform: translateY(-1px);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a[aria-current="page"]:hover {
+    border-color: #c56bff;
+    background: rgba(13, 4, 20, 0.88);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .nav-links > a:focus-visible,
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button:focus-visible,
+  body[data-design-system="v2"].sidebar-expanded .desktop-nav-toggle:focus-visible {
+    outline: 2px solid #f1d8ff;
+    outline-offset: 2px;
   }
 
   body[data-design-system="v2"].sidebar-expanded .nav-section-label,
@@ -124,15 +190,19 @@
     border: 1px solid transparent;
     border-radius: var(--il-radius-control);
     background: transparent;
-    color: var(--il-text-secondary);
+    color: #fff;
     text-align: left;
     box-shadow: none;
     box-sizing: border-box;
+    text-shadow:
+      0 1px 0 #73737c,
+      0 2px 0 #25252b,
+      0 3px 0 rgba(0, 0, 0, 0.94);
   }
 
   body[data-design-system="v2"].sidebar-expanded .sidebar-account-button:hover {
     border-color: var(--il-border-interactive);
-    background: var(--il-surface-hover);
+    background: rgba(255, 255, 255, 0.055);
   }
 
   body[data-design-system="v2"].sidebar-expanded .sidebar-account-button > span {
@@ -150,12 +220,17 @@
   }
 
   body[data-design-system="v2"].sidebar-expanded .sidebar-account-button strong {
-    color: var(--il-text-primary);
-    font: 650 14px/1.2 var(--il-font-ui);
+    color: #fff;
+    font: 750 15px/1.2 var(--il-font-ui);
   }
 
   body[data-design-system="v2"].sidebar-expanded .sidebar-account-button small {
-    color: var(--il-text-secondary);
+    color: #f3f3f6;
     font: 500 11.5px/1.3 var(--il-font-ui);
+  }
+
+  body[data-design-system="v2"].sidebar-expanded .sidebar-account-button > i {
+    color: #fff;
+    filter: none;
   }
 }

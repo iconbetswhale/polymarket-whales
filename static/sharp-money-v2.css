@@ -2,10 +2,11 @@
    This layer intentionally follows the spacious Prediction Traders hierarchy. */
 
 body[data-page="sharp-money"] {
-  background:
-    radial-gradient(circle at 58% -15%, rgba(24, 184, 231, .075), transparent 34%),
-    radial-gradient(circle at 88% 88%, rgba(83, 132, 156, .055), transparent 31%),
-    #080a0e;
+  background: var(--site-bg-canvas) !important;
+}
+
+body[data-page="sharp-money"] .app-shell {
+  background: var(--site-bg-canvas) !important;
 }
 
 .sharp-money-page {

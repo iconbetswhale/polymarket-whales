@@ -27,7 +27,7 @@ V2_PAGE_STYLES = (
 def test_shared_sidebar_styles_load_after_every_v2_page_stylesheet():
     sidebar = BASE.index("filename='sidebar-v2.css'")
 
-    assert "-canonical-v3" in BASE[sidebar : sidebar + 180]
+    assert "-canonical-v13-connected-neon-flow" in BASE[sidebar : sidebar + 200]
     for stylesheet in V2_PAGE_STYLES:
         assert BASE.index(f"filename='{stylesheet}'") < sidebar
 
@@ -38,10 +38,40 @@ def test_shared_sidebar_contract_is_route_agnostic_and_complete():
     assert '.sidebar-expanded .desktop-nav-toggle' in CSS
     assert '.sidebar-expanded .brand' in CSS
     assert '.sidebar-expanded .nav-links > a' in CSS
+    assert 'width: calc(100% - 24px)' in CSS
     assert '.sidebar-expanded .sidebar-account-button' in CSS
     assert 'grid-template-columns: 30px minmax(0, 1fr) 16px' in CSS
-    assert 'background: var(--il-surface-selected-quiet)' in CSS
-    assert 'box-shadow: inset 2px 0 0 var(--il-brand)' in CSS
+    assert 'background-color: #000' in CSS
+    assert 'background-image: url("/static/assets/sidebar-neon-purple-flow-connected-v5.webp")' in CSS
+    assert (ROOT / "static" / "assets" / "sidebar-neon-purple-flow-connected-v5.webp").is_file()
+    assert "background-repeat: no-repeat" in CSS
+    assert "background-size: 100% 100%" in CSS
+    assert "var(--il-sidebar-texture-image)" not in CSS
+    assert "mix-blend-mode: screen" not in CSS
+    assert '.sidebar-expanded .app-nav > *' in CSS
+    assert 'font: 750 15.5px/1.15 var(--il-font-ui)' in CSS
+    assert '0 3px 0 #68189b' in CSS
+    assert 'border-color: #b23cff' in CSS
+    assert 'inset 0 0 0 1px rgba(228, 190, 255, 0.72)' in CSS
+    assert "border-right: 2px solid #b23cff" in CSS
+    assert "inset -1px 0 0 rgba(228, 190, 255, 0.72)" in CSS
+    assert "1px 0 0 #dd9cff" in CSS
+    assert "3px 0 0 #68189b" in CSS
+    assert "5px 0 0 #2c063f" in CSS
+
+
+def test_tactile_sidebar_uses_requested_phosphor_icon_mapping():
+    for icon in (
+        "ph-coins",
+        "ph-grid-nine",
+        "ph-sliders-horizontal",
+        "ph-activity",
+    ):
+        assert f'class="ph {icon}"' in BASE
+
+    assert "sharp-money-nav-icon" not in BASE
+    assert "sportsbook-nav-icon" not in BASE
+    assert "live-position-nav-icon" not in BASE
 
 
 def test_every_v2_route_renders_the_shared_sidebar_stylesheet(app_client):

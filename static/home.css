@@ -282,3 +282,32 @@ body[data-page="home"] .app-shell{width:100%!important;min-width:0!important;mar
 @media(max-width:560px) and (prefers-reduced-motion:reduce){
   .testimonials-track,.book-logo-track,.orbit-stage-art,.orbit-data-chip,.orbit-signal-card,.orbit-particle,.pricing-card.featured::before{animation:none!important}
 }
+
+/* Shared slate canvas. The marketing layout, artwork, type, and interactions
+   are unchanged; only the ambient page color is synchronized with the app. */
+body[data-page="home"],
+body[data-page="home"] .home-page {
+  background: var(--site-bg-canvas);
+}
+
+body[data-page="home"] .marketing-hero,
+body[data-page="home"] .home-orbit-features,
+body[data-page="home"] .home-testimonials,
+body[data-page="home"] .home-book-trust,
+body[data-page="home"] .home-book-execution,
+body[data-page="home"] .home-pricing,
+body[data-page="home"] .home-footer {
+  background: var(--site-bg-canvas);
+}
+
+body[data-page="home"] .marketing-hero::after {
+  background: linear-gradient(90deg, #111827 0%, rgba(17,24,39,.96) 35%, rgba(17,24,39,.46) 72%, rgba(17,24,39,.72));
+}
+
+body[data-page="home"] .testimonials-marquee::before {
+  background: linear-gradient(90deg, var(--site-bg-canvas), rgba(17,24,39,.82) 28%, transparent);
+}
+
+body[data-page="home"] .testimonials-marquee::after {
+  background: linear-gradient(270deg, var(--site-bg-canvas), rgba(17,24,39,.82) 28%, transparent);
+}

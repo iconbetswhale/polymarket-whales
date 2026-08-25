@@ -127,8 +127,9 @@ def test_entry_movement_adjustment_is_tapered_and_capped(movement_pct, expected)
 
 
 def test_fixed_unit_strategy_rejects_more_than_five_percent_adverse_movement():
+    evaluation_now = datetime(2026, 8, 24, 16, 0, tzinfo=timezone.utc)
     play = {
-        **_play(),
+        **_play(now=evaluation_now),
         "average_entry_price": 0.40,
         "sharp_reference_entry_price": 0.40,
         "orderbook": {
@@ -138,7 +139,7 @@ def test_fixed_unit_strategy_rejects_more_than_five_percent_adverse_movement():
     }
     recommendation = build_recommendation(play, 10_000, SizingConfig())
     evaluation = evaluate_trade_recommendation(
-        play, 10_000, SizingConfig(), now=datetime.now(timezone.utc)
+        play, 10_000, SizingConfig(), now=evaluation_now
     )
 
     assert recommendation["unfavorable_slippage_pct"] == pytest.approx(5.25)
@@ -341,8 +342,8 @@ def test_shadow_overlays_resize_in_the_direction_requested():
     assert supported["units"] > baseline["units"] > opposed["units"]
 
 
-def _play() -> dict:
-    now = datetime.now(timezone.utc)
+def _play(now: datetime | None = None) -> dict:
+    now = now or datetime.now(timezone.utc)
     return {
         "id": "test-play",
         "model_strategy": STRATEGY_ID,
@@ -377,8 +378,9 @@ def test_strategy_sizing_does_not_require_fabricated_fair_price_or_kelly():
 
 
 def test_strategy_is_tracker_eligible_without_old_fair_price_gate():
+    evaluation_now = datetime(2026, 8, 24, 16, 0, tzinfo=timezone.utc)
     result = evaluate_trade_recommendation(
-        _play(), 10_000, SizingConfig(), now=datetime.now(timezone.utc)
+        _play(now=evaluation_now), 10_000, SizingConfig(), now=evaluation_now
     )
     assert result["model_tracker_eligible"] is True
     assert result["model_tracker_rejection_reason"] is None

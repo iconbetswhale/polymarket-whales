@@ -1,8 +1,9 @@
 # IconLabs design system — canonical v1
 
-Prediction Traders is the visual source of truth for this opt-in system. The
-tokens and primitives below were extracted from the approved running page; they
-are not a new palette or a restyle of the rest of IconLabs.
+The running IconLabs model is the visual and functional source of truth for
+this opt-in system. The sitewide slate palette updates only ambient color and
+surface values; page geometry, controls, content, assets, and behavior remain
+page-owned and unchanged.
 
 ## Pre-refactor inventory
 
@@ -34,13 +35,13 @@ existing styling.
 
 | Role | Token | Approved value |
 | --- | --- | --- |
-| App / workspace | `--il-bg-app`, `--il-bg-workspace` | `#030a11` |
-| Sidebar | `--il-bg-sidebar` | `#06111a` |
-| Primary surface | `--il-surface-1` | `#07131c` |
-| Secondary surface | `--il-surface-2` | `#0a1822` |
-| Elevated / hover | `--il-surface-elevated`, `--il-surface-hover` | `#0d1d28`, `#0d202b` |
+| App / workspace | `--il-bg-app`, `--il-bg-workspace` | `#111827` |
+| Sidebar fallback | `--il-bg-sidebar` | `#0d1421` |
+| Primary surface | `--il-surface-1` | `#090e1a` |
+| Secondary surface | `--il-surface-2` | `#0a101c` |
+| Elevated / hover | `--il-surface-elevated`, `--il-surface-hover` | `#0d1421`, `#0f1725` |
 | Selected | `--il-surface-selected` | `rgba(141, 68, 246, .08)` |
-| Borders | `--il-border-subtle`, `--il-border-standard` | `rgba(83, 126, 151, .2)`, `rgba(83, 126, 151, .34)` |
+| Borders | `--il-border-subtle`, `--il-border-standard` | `rgba(71, 85, 105, .45)`, `rgba(71, 85, 105, .68)` |
 | Primary / secondary / muted text | `--il-text-primary`, `--il-text-secondary`, `--il-text-muted` | `#f5f7fa`, `#b4becc`, `#7d899a` |
 | Brand | `--il-brand`, `--il-brand-hover`, `--il-brand-strong` | `#8d44f6`, `#9e5cff`, `#7427e6` |
 | Positive / negative / warning | `--il-positive`, `--il-negative`, `--il-warning` | `#50d977`, `#ff5b70`, `#e9b85e` |

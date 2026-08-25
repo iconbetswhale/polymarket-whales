@@ -20,12 +20,15 @@
       <div class="ev-actions">
         <label class="ev-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="ev-search" type="search" placeholder="Search" aria-label="Search Positive EV opportunities"></label>
         <button class="ev-icon-button icon-button" id="ev-pause" type="button" aria-pressed="false" aria-label="Pause refresh" data-il-tooltip="Pause automatic refresh"><i class="ph ph-pause" aria-hidden="true"></i></button>
-        <button class="ev-icon-button icon-button ev-utility-button" type="button" aria-label="Sort opportunities" data-il-tooltip="Sort opportunities"><i class="ph ph-funnel-simple" aria-hidden="true"></i></button>
         <button class="ev-icon-button icon-button" id="ev-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="ev-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="ev-alert-dot" aria-hidden="true"></span></button>
-        <button class="ev-icon-button icon-button ev-utility-button" type="button" aria-label="Notifications" data-il-tooltip="Notifications"><i class="ph ph-bell" aria-hidden="true"></i></button>
         <button class="ev-icon-button icon-button" id="ev-refresh" type="button" aria-label="Refresh opportunities" data-il-tooltip="Refresh now"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
-        <button class="ev-icon-button icon-button ev-utility-button" type="button" aria-label="More options" data-il-tooltip="More options"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
-        <button class="ev-icon-button icon-button" id="ev-detail-toggle" type="button" aria-pressed="false" aria-label="Toggle opportunity detail" data-il-tooltip="Toggle opportunity detail"><i class="ph ph-sidebar-simple" aria-hidden="true"></i></button>
+        <div class="ev-hidden-menu-wrap ev-utility-button">
+          <button class="ev-icon-button icon-button" id="ev-hidden-menu-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="ev-hidden-menu" aria-label="Choose visible or hidden bets" data-il-tooltip="Hidden bets"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>
+          <div class="ev-hidden-menu" id="ev-hidden-menu" role="menu" aria-label="Bet visibility" hidden>
+            <button type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
+            <button type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
+          </div>
+        </div>
       </div>
     </header>
 

@@ -4,15 +4,15 @@
    the stage2 page stylesheets. */
 
 :root {
-  --bg-root: #08070d;
-  --bg-sidebar: #0c0a12;
-  --bg-workspace: #0d0b13;
-  --bg-surface-1: #12101a;
-  --bg-surface-2: #171321;
-  --bg-surface-3: #1d1729;
-  --bg-elevated: #221b30;
-  --bg-hover: #282038;
-  --bg-selected: #2b2240;
+  --bg-root: var(--site-bg-canvas);
+  --bg-sidebar: var(--site-bg-sidebar);
+  --bg-workspace: var(--site-bg-canvas);
+  --bg-surface-1: var(--site-surface-primary);
+  --bg-surface-2: var(--site-surface-secondary);
+  --bg-surface-3: var(--site-surface-elevated);
+  --bg-elevated: var(--site-surface-raised);
+  --bg-hover: var(--site-surface-hover);
+  --bg-selected: var(--site-surface-raised);
 
   --purple-primary: #a99af5;
   --purple-primary-hover: #b8acfa;
@@ -22,9 +22,9 @@
   --purple-soft-strong: rgba(169, 154, 245, 0.17);
   --purple-glow: rgba(169, 154, 245, 0.18);
 
-  --border-subtle: rgba(195, 183, 238, 0.09);
-  --border-default: rgba(195, 183, 238, 0.16);
-  --border-strong: rgba(195, 183, 238, 0.28);
+  --border-subtle: var(--site-border-subtle);
+  --border-default: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
   --border-focus: rgba(178, 162, 255, 0.68);
 
   --text-primary: #f5f2fa;
@@ -62,9 +62,7 @@ body {
 
 body {
   color: var(--text-primary);
-  background-image:
-    radial-gradient(circle at 58% -18%, rgba(101, 89, 142, 0.08), transparent 32%),
-    linear-gradient(180deg, #08070d 0%, #0a0810 100%) !important;
+  background-image: none !important;
 }
 
 ::selection {

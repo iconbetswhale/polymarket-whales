@@ -63,7 +63,7 @@
     const savedHiddenIds = JSON.parse(localStorage.getItem(hiddenStorageKey) || "[]");
     if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
   } catch {}
-  let rows = [], selectedId = "", paused = false, timer = null;
+  let rows = [], selectedId = "", paused = false, timer = null, feedView = "active";
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
   let lastDetailTrigger = null, lastFilterTrigger = null;
@@ -402,7 +402,19 @@
     const shown = visibleRows();
     if (String(selectedId) === String(id)) {
       if (shown.length) select(shown[0].id);
-      else { selectedId = ""; renderFeed(); dismissDetail(); }
+      else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
+      return;
+    }
+    renderFeed();
+  }
+
+  function restoreOpportunity(id) {
+    hiddenIds.delete(String(id));
+    localStorage.setItem(hiddenStorageKey, JSON.stringify([...hiddenIds]));
+    const shown = visibleRows();
+    if (String(selectedId) === String(id)) {
+      if (shown.length) select(shown[0].id);
+      else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
       return;
     }
     renderFeed();
@@ -712,9 +724,10 @@
         const previewCount = Number(payload.total || payload.data?.length || 0);
         $("ev-credit-banner").innerHTML = `<i class="ph ph-eye" aria-hidden="true"></i><span><strong>${previewCount} temporary preview plays</strong> · Visual fixtures only · tracking requires confirmation and saves only to your personal trackers.</span>`;
       }
-      const nextSelectedId = rows.some(row=>row.id===selectedId) ? selectedId : rows[0]?.id;
+      const currentViewRows = visibleRows();
+      const nextSelectedId = currentViewRows.some(row=>row.id===selectedId) ? selectedId : currentViewRows[0]?.id;
       if (nextSelectedId) select(nextSelectedId);
-      else { selectedId = ""; renderFeed(); dismissDetail(); }
+      else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
       feed.setAttribute("aria-busy", "false");
       clearTimeout(timer);
       if (!payload.previewOnly && Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
@@ -725,19 +738,53 @@
   }
   function visibleRows() {
     const search = $("ev-search").value.trim().toLowerCase();
-    return rows.filter(row => !hiddenIds.has(String(row.id)) && (!search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search)));
+    return rows.filter(row => {
+      const isHidden = hiddenIds.has(String(row.id));
+      const matchesView = feedView === "hidden" ? isHidden : !isHidden;
+      return matchesView && (!search || `${row.eventTitle} ${row.selection} ${row.marketLabel} ${row.league}`.toLowerCase().includes(search));
+    });
+  }
+  function updateHiddenMenu() {
+    const hiddenCount = rows.filter(row => hiddenIds.has(String(row.id))).length;
+    $("ev-hidden-count").textContent = hiddenCount;
+    $("ev-visible-count").textContent = Math.max(0, rows.length - hiddenCount);
+    document.querySelectorAll("[data-feed-view]").forEach(button => button.setAttribute("aria-current", String(button.dataset.feedView === feedView)));
+    $("ev-hidden-menu-toggle").setAttribute("aria-pressed", String(feedView === "hidden"));
+    $("ev-feed-label").textContent = feedView === "hidden" ? "Manually hidden bets" : paused ? "Refresh paused" : "Live market scan";
+  }
+  function closeHiddenMenu(restoreFocus = false) {
+    const menu = $("ev-hidden-menu");
+    menu.hidden = true;
+    $("ev-hidden-menu-toggle").setAttribute("aria-expanded", "false");
+    if (restoreFocus) $("ev-hidden-menu-toggle").focus();
+  }
+  function setFeedView(nextView) {
+    feedView = nextView === "hidden" ? "hidden" : "active";
+    closeHiddenMenu();
+    const shown = visibleRows();
+    if (shown.length) select(shown[0].id);
+    else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
   }
   function renderFeed() {
     const shown = visibleRows();
+    updateHiddenMenu();
     $("ev-count").textContent = shown.length;
-    if (!shown.length) { feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ph-shield-check" aria-hidden="true"></i><p>No opportunity passed every validation gate. That is safer than displaying a false edge.</p></div>`; return; }
+    if (!shown.length) {
+      const emptyIcon = feedView === "hidden" ? "ph-eye-slash" : "ph-shield-check";
+      const emptyCopy = feedView === "hidden" ? "No hidden bets yet. Use Track and Hide on a bet to save it here." : "No opportunity passed every validation gate. That is safer than displaying a false edge.";
+      feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ${emptyIcon}" aria-hidden="true"></i><p>${emptyCopy}</p></div>`;
+      return;
+    }
     feed.innerHTML = shown.map(row => {
       const quote=row.bestQuote||{}, state = row.executionStatus === "executable" && row.portfolioStatus === "qualified" ? "executable" : "watch";
       const tracked = trackedIds.has(String(row.id));
       const totalPayout = quotePayout(row.recommendedStake, quote);
+      const scoreAction = feedView === "hidden"
+        ? `<button class="ev-track-button button ghost compact" type="button" data-restore="${esc(row.id)}" aria-label="Restore ${esc(row.selection)} to visible bets"><i class="ph ph-eye" aria-hidden="true"></i>Restore</button>`
+        : `<button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button>`;
       return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
-        <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong><button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button></div>
+        <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong>${scoreAction}</div>
         <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
         <div class="ev-pick">${leagueWatermark(row)}<small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
@@ -753,6 +800,19 @@
       if (!id) return;
       openTracker(rows.find(row => String(row.id) === id));
     }));
+    feed.querySelectorAll("[data-restore]").forEach(button => button.addEventListener("click", event => {
+      event.stopPropagation();
+      restoreOpportunity(button.dataset.restore);
+    }));
+  }
+  function showDetailPlaceholder() {
+    const isHiddenView = feedView === "hidden";
+    detail.innerHTML = `<div class="ev-detail-empty il-state il-state-empty">
+      <i class="ph ${isHiddenView ? "ph-eye-slash" : "ph-chart-line-up"}" aria-hidden="true"></i>
+      <h2>${isHiddenView ? "No hidden bet selected" : "Select an opportunity"}</h2>
+      <p>${isHiddenView ? "Hidden bets will appear here after you use Track and Hide." : "Inspect the fair price, EV calculation, best execution, liquidity, and the full market."}</p>
+    </div>`;
+    dismissDetail();
   }
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
@@ -775,7 +835,6 @@
     detail.closest(".ev-workspace")?.classList.add("detail-open");
     detail.removeAttribute("inert");
     detail.setAttribute("aria-hidden", "false");
-    $("ev-detail-toggle")?.setAttribute("aria-pressed", "true");
     if (matchMedia("(max-width:980px)").matches) {
       scrim.hidden=false;
       detail.setAttribute("role", "dialog");
@@ -790,7 +849,6 @@
     detail.classList.remove("open");
     detail.closest(".ev-workspace")?.classList.remove("detail-open");
     scrim.hidden=true;
-    $("ev-detail-toggle")?.setAttribute("aria-pressed", "false");
     if (matchMedia("(max-width:980px)").matches) {
       detail.setAttribute("aria-hidden", "true");
       detail.setAttribute("inert", "");
@@ -836,11 +894,23 @@
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
   }
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
-  $("ev-detail-toggle")?.addEventListener("click",()=>{ if(detail.classList.contains("open")) closeDetail(); else if(selectedId) select(selectedId); });
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],requiredBooks:[...defaults.requiredBooks],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
   $("ev-required-books-clear").addEventListener("click",()=>{document.querySelectorAll("[data-required-book]").forEach(input=>input.checked=false);updateRequiredBooksSummary();});
   $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
-  $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;$("ev-feed-label").textContent=paused?"Refresh paused":"Validated market scan";if(!paused)load(true);});
+  $("ev-hidden-menu-toggle").addEventListener("click", event => {
+    event.stopPropagation();
+    const menu = $("ev-hidden-menu");
+    menu.hidden = !menu.hidden;
+    $("ev-hidden-menu-toggle").setAttribute("aria-expanded", String(!menu.hidden));
+    if (!menu.hidden) requestAnimationFrame(() => menu.querySelector('[aria-current="true"]')?.focus());
+  });
+  $("ev-hidden-menu").addEventListener("click", event => {
+    const option = event.target.closest("[data-feed-view]");
+    if (option) setFeedView(option.dataset.feedView);
+  });
+  document.addEventListener("click", event => { if (!event.target.closest(".ev-hidden-menu-wrap")) closeHiddenMenu(); });
+  document.addEventListener("keydown", event => { if (event.key === "Escape" && !$("ev-hidden-menu").hidden) { event.preventDefault(); closeHiddenMenu(true); } });
+  $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;updateHiddenMenu();if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{
     if(event.target.matches("[data-market-group-toggle]")){
