@@ -410,13 +410,9 @@ def select_websocket_smoke_market(rest: NoVIGRestClient) -> str:
         events = rest.list_events_page(event_status=event_status, limit=1)
         if not events:
             continue
-        event_id = str(events[0].get("id") or "").strip()
-        if not event_id:
-            continue
-        for market in rest.get_markets_by_events([event_id]):
-            if str(market.get("status") or "OPEN").strip().upper() != "OPEN":
-                continue
-            market_id = str(market.get("id") or "").strip()
+        market_ids = events[0].get("marketIds") or events[0].get("market_ids") or []
+        for value in market_ids:
+            market_id = str(value or "").strip()
             if market_id:
                 return _validated_smoke_market_id(market_id)
     raise NoVIGError("NOVIG_NO_OPEN_MARKETS", status_code=503)

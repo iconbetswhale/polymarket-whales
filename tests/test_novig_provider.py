@@ -120,6 +120,7 @@ def sample_market(*, market_id: str = "market-1", market_type: str = "MONEY") ->
         "outcomes": outcomes,
         "event": {
             "id": "event-1",
+            "marketIds": [market_id],
             "league": "MLB",
             "status": "OPEN_PREGAME",
             "scheduledStart": "2026-07-14T23:00:00Z",
@@ -444,10 +445,7 @@ def test_websocket_reconnect_rebootstraps_and_resubscribes() -> None:
 
 def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> None:
     session = QueueSession(
-        responses=[
-            FakeResponse([sample_market()["event"]]),
-            FakeResponse([sample_market()]),
-        ]
+        responses=[FakeResponse([sample_market()["event"]])]
     )
     auth = NoVIGAuthClient("client-id", "client-secret", session=session)
     rest = NoVIGRestClient(auth, session=session)
@@ -467,10 +465,7 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
         "limit": 1,
         "offset": 0,
     }
-    assert session.request_calls[1][2]["json"] == {
-        "eventIds": ["event-1"],
-        "currency": "CASH",
-    }
+    assert len(session.request_calls) == 1
     assert socket.sent == [
         {"event": "subscribe", "data": "market-1"},
         {"event": "subscribe", "data": "tape"},
