@@ -86,6 +86,17 @@ class Settings:
     novig_api_key: str | None = field(default=None, repr=False)
     novig_api_base_url: str = "https://api.sportsgameodds.com/v2"
     novig_cache_ttl_seconds: int = 45
+    novig_enabled: bool = True
+    novig_client_id: str | None = field(default=None, repr=False)
+    novig_client_secret: str | None = field(default=None, repr=False)
+    novig_auth_url: str = "https://api.novig.us/nbx/v1/auth/emm-token"
+    novig_rest_base_url: str = "https://api.novig.us/nbx/v2"
+    novig_websocket_url: str = "wss://api.novig.us/tape"
+    novig_state_database_url: str | None = field(default=None, repr=False)
+    novig_nbx_cache_ttl_seconds: int = 10
+    novig_stale_after_seconds: int = 30
+    novig_worker_flush_seconds: float = 0.5
+    novig_ws_market_subscription_limit: int = 0
     prophetx_access_key: str | None = field(default=None, repr=False)
     prophetx_secret_key: str | None = field(default=None, repr=False)
     prophetx_api_base_url: str = "https://api-ss-sandbox.betprophet.co/partner"
@@ -148,6 +159,12 @@ class Settings:
 
 def get_settings() -> Settings:
     dashboard_port = _get_int("PORT", _get_int("DASHBOARD_PORT", 5000))
+    durable_database_url = (
+        os.getenv("DURABLE_DATABASE_URL")
+        or os.getenv("POSTGRES_URL")
+        or os.getenv("DATABASE_URL")
+        or None
+    )
     return Settings(
         # The three-sharp live board must react promptly to entries, exits,
         # contradictions, and newly joining consensus wallets. Preserve an
@@ -221,12 +238,7 @@ def get_settings() -> Settings:
         discord_notification_batch_size=_get_int(
             "DISCORD_NOTIFICATION_BATCH_SIZE", 10
         ),
-        durable_database_url=(
-            os.getenv("DURABLE_DATABASE_URL")
-            or os.getenv("POSTGRES_URL")
-            or os.getenv("DATABASE_URL")
-            or None
-        ),
+        durable_database_url=durable_database_url,
         tracker_job_secret=(
             os.getenv("TRACKER_JOB_SECRET")
             or os.getenv("CRON_SECRET")
@@ -249,6 +261,34 @@ def get_settings() -> Settings:
         novig_cache_ttl_seconds=_get_int(
             "SPORTSGAMEODDS_CACHE_TTL_SECONDS",
             _get_int("NOVIG_ODDS_CACHE_TTL_SECONDS", 45),
+        ),
+        novig_enabled=_get_bool("NOVIG_ENABLED", True),
+        novig_client_id=os.getenv("NOVIG_CLIENT_ID") or None,
+        novig_client_secret=os.getenv("NOVIG_CLIENT_SECRET") or None,
+        novig_auth_url=os.getenv(
+            "NOVIG_AUTH_URL", "https://api.novig.us/nbx/v1/auth/emm-token"
+        ),
+        novig_rest_base_url=os.getenv(
+            "NOVIG_REST_BASE_URL", "https://api.novig.us/nbx/v2"
+        ),
+        novig_websocket_url=os.getenv(
+            "NOVIG_WEBSOCKET_URL", "wss://api.novig.us/tape"
+        ),
+        novig_state_database_url=(
+            os.getenv("NOVIG_STATE_DATABASE_URL")
+            or durable_database_url
+        ),
+        novig_nbx_cache_ttl_seconds=max(
+            1, _get_int("NOVIG_NBX_CACHE_TTL_SECONDS", 10)
+        ),
+        novig_stale_after_seconds=max(
+            1, _get_int("NOVIG_STALE_AFTER_SECONDS", 30)
+        ),
+        novig_worker_flush_seconds=max(
+            0.1, _get_float("NOVIG_WORKER_FLUSH_SECONDS", 0.5)
+        ),
+        novig_ws_market_subscription_limit=max(
+            0, _get_int("NOVIG_WS_MARKET_SUBSCRIPTION_LIMIT", 0)
         ),
         prophetx_access_key=os.getenv("PROPHETX_ACCESS_KEY") or None,
         prophetx_secret_key=os.getenv("PROPHETX_SECRET_KEY") or None,

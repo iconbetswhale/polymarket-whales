@@ -248,6 +248,51 @@ All-book market-feed base URL. `NOVIG_ODDS_API_BASE_URL` remains a backward-comp
 `SPORTSGAMEODDS_CACHE_TTL_SECONDS=45`
 Maximum in-memory age for the all-book feed and live NoVIG prices. `NOVIG_ODDS_CACHE_TTL_SECONDS` remains a backward-compatible alias. One cached provider feed powers the Positive EV board and matches all visible trades, avoiding per-card API requests.
 
+`NOVIG_CLIENT_ID=` and `NOVIG_CLIENT_SECRET=`
+Server-only OAuth client credentials for NoVIG's production NBX exchange API.
+The direct NBX adapter is read-only and is separate from SportsGameOdds. It
+loads authoritative events, markets, and CASH order books, preserves NoVIG's
+event/market/outcome identifiers, and never exposes credentials or JWTs in API
+responses, logs, browser assets, or diagnostics.
+
+`NOVIG_ENABLED=true`
+Global kill switch for the direct NBX provider. Turning it off does not affect
+SportsGameOdds, Polymarket, Kalshi, ProphetX, 4CX, or The Odds API.
+
+`NOVIG_AUTH_URL=https://api.novig.us/nbx/v1/auth/emm-token`,
+`NOVIG_REST_BASE_URL=https://api.novig.us/nbx/v2`, and
+`NOVIG_WEBSOCKET_URL=wss://api.novig.us/tape`
+Production endpoints. Tokens are cached server-side and renewed before their
+30-minute expiry. REST retries once after a 401 and honors NoVIG's millisecond
+`Retry-After` value on a 429.
+
+`NOVIG_STATE_DATABASE_URL=`
+Shared PostgreSQL connection used by the persistent NoVIG feed worker and the
+serverless Flask API. It defaults to `DURABLE_DATABASE_URL`, `POSTGRES_URL`, or
+`DATABASE_URL`. The worker owns the permanent WebSocket because Vercel request
+functions cannot safely hold it; Vercel reads the worker's current book state
+from PostgreSQL and falls back to authenticated REST when state is unavailable.
+
+`NOVIG_STALE_AFTER_SECONDS=30`
+Age after which a NoVIG quote is marked stale and excluded from current-price
+selection. REST is reloaded before every WebSocket connection/reconnection,
+then global tape and lifecycle deltas update the authoritative snapshot.
+
+Run the sanitized read-only production check from a process that already has
+the two credentials in its environment:
+
+```powershell
+python scripts/novig_smoke_test.py
+```
+
+The command prints only success/failure, HTTP status, market and market-type
+counts, a small public sample, initial book/quantity metadata, and WebSocket
+snapshot/update flags. It never prints the credentials or access token.
+Vercel Sensitive variables are intentionally unreadable to local `env pull`
+and `env run` commands; verify those through a new deployment or provide
+separate Development-scoped credentials to the local process without writing
+them to a repository file.
+
 `POSITIVE_EV_ENABLED=true`
 Enables paid Positive EV scans. Leave this false to pause the scanner without removing the API key or making upstream requests.
 
@@ -269,7 +314,18 @@ Maximum in-memory age for the batched ProphetX market feed. The provider never p
 
 Trades to Play exposes execution providers through an ordered provider registry. Polymarket is always first. NoVIG is included only when the normalized sport, league, participants, event time, market type, period, line, side, alternate-line status, and settlement rules all match exactly.
 
-The NoVIG integration reads one paginated SportsGameOdds event feed, builds an in-memory sport/time index, and matches the current trade page against that index. Probable and ambiguous matches are never returned to the card. If a previously verified NoVIG match becomes unreachable, its stale price and link are removed and the option is shown as disabled and unavailable.
+When direct NBX credentials are absent, the legacy NoVIG comparison continues
+to use the paginated SportsGameOdds event feed. When NBX is configured, direct
+REST/WebSocket prices and full CASH order-book depth become authoritative for
+NoVIG while SportsGameOdds continues powering the all-books Positive EV feed.
+Probable and ambiguous matches are never silently merged; sanitized unmatched
+records are available through the protected diagnostic endpoint.
+
+The backend exposes direct NoVIG data at `GET /api/providers/novig/markets`,
+lazy full ladders at `GET /api/providers/novig/book/{marketId}`, and protected
+health/smoke diagnostics at `GET|POST /api/provider-health/novig`. The worker is
+started separately with `python scripts/run_novig_feed.py`; it is never started
+inside the Vercel request process.
 
 The ProphetX integration exchanges the server-only key pair for a short-lived token, batch-loads the affiliate tournament/event/v3 market feed, converts decimal prices to American odds, and uses the same exact canonical matcher. Only one exact match is shown; mismatched periods, sides, lines, participants, start times, or ambiguous selections remain hidden.
 

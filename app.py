@@ -33,6 +33,7 @@ from execution_providers import (
     build_execution_provider_registry,
     canonicalize_trade,
 )
+from novig_provider import NoVIGError
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
     canonical_trade_identity,
@@ -661,6 +662,14 @@ def create_app(start_background: bool = True) -> Flask:
     app = Flask(__name__)
     app.extensions["tracker_service"] = tracker
     app.extensions["execution_providers"] = execution_providers
+    app.extensions["novig_nbx_provider"] = next(
+        (
+            provider
+            for provider in execution_providers.providers
+            if provider.provider_key == "novig_nbx"
+        ),
+        None,
+    )
     app.extensions["sharp_money_collector"] = build_sharp_money_collector(
         execution_providers, settings
     )
@@ -753,6 +762,10 @@ def create_app(start_background: bool = True) -> Flask:
             "api_model_tracker_reconcile",
             "api_prophetx_health",
             "api_fourcx_health",
+            "api_novig_health",
+            "api_novig_markets",
+            "api_novig_book",
+            "api_novig_unmatched",
             "sharp_money_page",
             "api_sharp_money_sandbox",
             "api_sharp_money_status",
@@ -1361,6 +1374,91 @@ def create_app(start_background: bool = True) -> Flask:
             "prophetx", authenticate=request.method == "POST"
         )
         return jsonify({"status": status.value})
+
+    @app.route("/api/provider-health/novig", methods=["GET", "POST"])
+    def api_novig_health():
+        if request.method == "POST" and not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        provider = app.extensions.get("novig_nbx_provider")
+        if provider is None:
+            return jsonify({"provider": "novig", "status": "NOT_CONFIGURED"})
+        response = jsonify(
+            provider.diagnostics(authenticate=request.method == "POST")
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/providers/novig/markets")
+    def api_novig_markets():
+        provider = app.extensions.get("novig_nbx_provider")
+        if provider is None or not provider.configured:
+            return jsonify(
+                {
+                    "data": [],
+                    "provider": "novig",
+                    "status": "NOT_CONFIGURED",
+                }
+            )
+        limit = max(1, min(request.args.get("limit", 500, type=int) or 500, 1000))
+        try:
+            rows = provider.market_catalog(
+                league=request.args.get("league"),
+                market_type=request.args.get("market_type"),
+                limit=limit,
+            )
+        except NoVIGError as exc:
+            LOGGER.warning("NoVIG market catalog failed: %s", exc.code)
+            return jsonify(
+                {
+                    "data": [],
+                    "provider": "novig",
+                    "status": "UNAVAILABLE",
+                    "error": exc.code,
+                }
+            ), exc.status_code or 503
+        response = jsonify(
+            {
+                "data": rows,
+                "provider": "novig",
+                "status": "AVAILABLE",
+                "count": len(rows),
+            }
+        )
+        response.headers["Cache-Control"] = "public, max-age=2, s-maxage=2"
+        return response
+
+    @app.route("/api/providers/novig/book/<market_id>")
+    def api_novig_book(market_id: str):
+        provider = app.extensions.get("novig_nbx_provider")
+        if provider is None or not provider.configured:
+            return jsonify({"provider": "novig", "status": "NOT_CONFIGURED"}), 503
+        try:
+            payload = provider.public_book(
+                market_id, outcome_id=request.args.get("outcome_id")
+            )
+        except NoVIGError as exc:
+            LOGGER.warning("NoVIG order-book request failed: %s", exc.code)
+            return jsonify(
+                {
+                    "provider": "novig",
+                    "status": "UNAVAILABLE",
+                    "error": exc.code,
+                }
+            ), exc.status_code or 503
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "public, max-age=1, s-maxage=1"
+        return response
+
+    @app.route("/api/providers/novig/unmatched")
+    def api_novig_unmatched():
+        if not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        provider = app.extensions.get("novig_nbx_provider")
+        if provider is None:
+            return jsonify({"provider": "novig", "count": 0, "records": []})
+        response = jsonify(provider.unmatched_report())
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @app.route("/api/provider-health/4cx", methods=["GET", "POST"])
     def api_fourcx_health():
@@ -1993,6 +2091,15 @@ def create_app(start_background: bool = True) -> Flask:
             "bestExecutablePrice",
             "isStale",
             "marketStatus",
+            "marketId",
+            "selectionId",
+            "providerEventId",
+            "topPrice",
+            "topPriceLiquidity",
+            "depthVwapPrice",
+            "depthExecutableAmount",
+            "depthLevelsUsed",
+            "orderBookUrl",
         }
         for row in rows:
             row["executionOptions"] = [
@@ -2008,7 +2115,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": rows,
                 "pagination": {"total": len(rows), "page": 1, "per_page": 2000},
                 "status": snapshot["status"],
-                "source": "polymarket_and_the_odds_api_read_only_feeds",
+                "source": "polymarket_novig_and_the_odds_api_read_only_feeds",
                 "providers": sorted(
                     provider_catalog.values(),
                     key=lambda item: (

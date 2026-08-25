@@ -184,6 +184,8 @@ class ExecutionOption:
     depth_vwap_price: float | None = None
     depth_executable_amount: float | None = None
     depth_levels_used: int | None = None
+    order_book: dict | None = None
+    order_book_url: str | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -239,6 +241,8 @@ class ExecutionOption:
             "depthVwapPrice": self.depth_vwap_price,
             "depthExecutableAmount": self.depth_executable_amount,
             "depthLevelsUsed": self.depth_levels_used,
+            "orderBook": self.order_book,
+            "orderBookUrl": self.order_book_url,
         }
 
 
@@ -925,19 +929,21 @@ class NoVIGProvider(ExecutionProvider):
         cache_ttl_seconds: int = 45,
         request_timeout: int = 15,
         session: requests.Session | None = None,
+        execution_enabled: bool = True,
     ) -> None:
         self.api_key = str(api_key or "").strip() or None
         self.base_url = base_url.rstrip("/")
         self.cache_ttl_seconds = max(int(cache_ttl_seconds), 1)
         self.request_timeout = max(int(request_timeout), 1)
         self.session = session or requests.Session()
+        self.execution_enabled = bool(execution_enabled)
         self._cache: dict[tuple[str, str], _CacheEntry] = {}
         self._ev_cache: dict[tuple[str, ...], _RawEventCacheEntry] = {}
         self._last_matches: dict[str, ExecutionOption] = {}
         self._lock = threading.RLock()
 
     def options_for_trades(self, trades: list[dict]) -> dict[str, ExecutionOption]:
-        if not self.api_key or not trades:
+        if not self.execution_enabled or not self.api_key or not trades:
             return {}
 
         canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
@@ -1032,7 +1038,7 @@ class NoVIGProvider(ExecutionProvider):
         }
 
     def fair_price_quotes(self, trades: list[dict]) -> dict[str, dict]:
-        if not self.api_key or not trades:
+        if not self.execution_enabled or not self.api_key or not trades:
             return {}
         canonical = [item for trade in trades if (item := canonicalize_trade(trade))]
         if not canonical:
@@ -1429,16 +1435,23 @@ def apply_best_execution_option(trade: dict) -> bool:
     )
     liquidity_dollars = _float_or_none(best.get("availableLiquidity"))
     quote_timestamp = best.get("quoteTimestamp") or best.get("lastUpdated")
-    trade["orderbook"] = {
-        "asks": (
-            [{"price": price, "size": liquidity_dollars / price}]
-            if liquidity_dollars is not None and liquidity_dollars > 0
-            else []
-        ),
-        "bids": [],
-        "timestamp": quote_timestamp,
-        "min_order_size": 0,
-    }
+    provider_book = best.get("orderBook")
+    if isinstance(provider_book, dict) and provider_book.get("asks"):
+        trade["orderbook"] = {
+            **provider_book,
+            "timestamp": provider_book.get("timestamp") or quote_timestamp,
+        }
+    else:
+        trade["orderbook"] = {
+            "asks": (
+                [{"price": price, "size": liquidity_dollars / price}]
+                if liquidity_dollars is not None and liquidity_dollars > 0
+                else []
+            ),
+            "bids": [],
+            "timestamp": quote_timestamp,
+            "min_order_size": 0,
+        }
     trade["orderbook_timestamp"] = quote_timestamp
     trade["current_price"] = price
     trade["current_price_source"] = str(best.get("providerName") or "")
@@ -1651,11 +1664,38 @@ def _finalize_execution_option(
 def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
     from fourcx_provider import FourCXProvider
     from kalshi_provider import KalshiProvider
+    from novig_provider import NoVIGNBXProvider
     from the_odds_api_provider import TheOddsAPIProvider
+
+    novig_nbx = NoVIGNBXProvider(
+        getattr(settings, "novig_client_id", None),
+        getattr(settings, "novig_client_secret", None),
+        enabled=getattr(settings, "novig_enabled", True),
+        auth_url=getattr(
+            settings,
+            "novig_auth_url",
+            "https://api.novig.us/nbx/v1/auth/emm-token",
+        ),
+        base_url=getattr(
+            settings,
+            "novig_rest_base_url",
+            "https://api.novig.us/nbx/v2",
+        ),
+        websocket_url=getattr(
+            settings,
+            "novig_websocket_url",
+            "wss://api.novig.us/tape",
+        ),
+        state_database_url=getattr(settings, "novig_state_database_url", None),
+        cache_ttl_seconds=getattr(settings, "novig_nbx_cache_ttl_seconds", 10),
+        stale_after_seconds=getattr(settings, "novig_stale_after_seconds", 30),
+        request_timeout=min(getattr(settings, "request_timeout", 15), 5),
+    )
 
     return ExecutionProviderRegistry(
         (
             PolymarketProvider(),
+            novig_nbx,
             NoVIGProvider(
                 getattr(settings, "novig_api_key", None),
                 base_url=getattr(
@@ -1665,6 +1705,10 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 ),
                 cache_ttl_seconds=getattr(settings, "novig_cache_ttl_seconds", 45),
                 request_timeout=getattr(settings, "request_timeout", 15),
+                # Once direct NBX is configured, SportsGameOdds remains the
+                # Positive-EV all-books feed but stops impersonating executable
+                # NoVIG depth.
+                execution_enabled=not novig_nbx.configured,
             ),
             ProphetXProvider(
                 getattr(settings, "prophetx_access_key", None),

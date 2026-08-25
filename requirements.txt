@@ -6,3 +6,4 @@ pytest
 psycopg[binary]>=3.2,<4
 numpy>=2,<3
 Pillow>=10,<13
+websocket-client>=1.8,<2

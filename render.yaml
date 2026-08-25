@@ -22,3 +22,27 @@ services:
         value: 3
       - key: DATABASE_PATH
         value: /var/data/polymarket_tracker.db
+  - type: worker
+    name: iconlabs-novig-feed
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python scripts/run_novig_feed.py
+    envVars:
+      - key: NOVIG_ENABLED
+        value: true
+      - key: NOVIG_CLIENT_ID
+        sync: false
+      - key: NOVIG_CLIENT_SECRET
+        sync: false
+      - key: NOVIG_STATE_DATABASE_URL
+        sync: false
+      - key: NOVIG_AUTH_URL
+        value: https://api.novig.us/nbx/v1/auth/emm-token
+      - key: NOVIG_REST_BASE_URL
+        value: https://api.novig.us/nbx/v2
+      - key: NOVIG_WEBSOCKET_URL
+        value: wss://api.novig.us/tape
+      - key: NOVIG_STALE_AFTER_SECONDS
+        value: 30
+      - key: NOVIG_WORKER_FLUSH_SECONDS
+        value: 0.5
