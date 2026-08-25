@@ -156,6 +156,9 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert "min-width: 20px" in stylesheet
     assert "max-width: 20px" in stylesheet
     assert "font-variant-numeric: tabular-nums" in stylesheet
+    assert ".odds-market-row:nth-child(even) { background: rgba(141, 68, 246, .08); }" in stylesheet
+    assert ".odds-market-row:hover { background: rgba(141, 68, 246, .15); }" in stylesheet
+    assert ".mobile-odds-game:nth-child(even) { background: rgba(141, 68, 246, .08); }" in stylesheet
     assert "font-size: 13px" in stylesheet
     assert ".odds-time-cell strong" in stylesheet
     assert "font-size: 12px" in stylesheet

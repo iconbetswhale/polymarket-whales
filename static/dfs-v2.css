@@ -489,11 +489,11 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table td {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:nth-child(even) td {
-  background: var(--il-surface-1);
+  background: rgba(141, 68, 246, .08);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td {
-  background: var(--il-surface-hover);
+  background: rgba(141, 68, 246, .15);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table .player-col {

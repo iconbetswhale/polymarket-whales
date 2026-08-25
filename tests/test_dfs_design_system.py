@@ -102,6 +102,13 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
     assert "-filters-v2" in BASE[script : script + 140]
 
 
+def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
+    assert ".dfs-table tbody tr:nth-child(even) td" in CSS
+    assert "background: rgba(141, 68, 246, .08)" in CSS
+    assert ".dfs-table tbody tr:hover td" in CSS
+    assert "background: rgba(141, 68, 246, .15)" in CSS
+
+
 def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
     assert "dfs-summary-row" not in TEMPLATE
     assert "Line discrepancies only" not in TEMPLATE
