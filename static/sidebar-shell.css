@@ -14,12 +14,11 @@ body:not([data-page="home"]) .brand-lockup {
 
 body:not([data-page="home"]) .brand-lockup img {
   display: block;
-  width: 306px;
-  height: auto;
-  max-width: none;
-  position: absolute;
-  top: -31.7px;
-  left: -66.2px;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: center;
 }
 
 @media (min-width: 901px) {
@@ -92,8 +91,8 @@ body:not([data-page="home"]) .brand-lockup img {
   }
 
   body.sidebar-expanded:not([data-page="home"]) .brand-lockup {
-    width: 138px !important;
-    height: 28px !important;
+    width: 36px !important;
+    height: 36px !important;
     display: block !important;
     filter: drop-shadow(0 0 10px rgba(170, 72, 255, .18));
   }
@@ -275,16 +274,15 @@ body:not([data-page="home"]) .brand-lockup img {
   }
 
   body:not([data-page="home"]) .brand-lockup {
-    width: 120px !important;
-    height: 26px !important;
+    width: 36px !important;
+    height: 36px !important;
     display: block !important;
     filter: drop-shadow(0 0 9px rgba(170, 72, 255, .16));
   }
 
   body:not([data-page="home"]) .brand-lockup img {
-    width: 215px;
-    top: -22.2px;
-    left: -46.5px;
+    width: 100%;
+    height: 100%;
   }
 
   body:not([data-page="home"]) .brand-icon {
@@ -292,12 +290,11 @@ body:not([data-page="home"]) .brand-lockup img {
   }
 }
 
-/* Keep the cropped transparent wordmark proportional at every shell width. */
+/* Keep the Algo Odds mark proportional at every shell width. */
 @media (min-width: 901px) {
   body.sidebar-expanded:not([data-page="home"]) .brand-lockup img {
-    width: 243px;
-    top: -25.2px;
-    left: -52.6px;
+    width: 100%;
+    height: 100%;
   }
 }
 
@@ -410,14 +407,13 @@ body:not([data-page="home"]) .tracker-table-wrap {
   }
 
   body:not([data-page="home"]) .brand-lockup {
-    width: 112px !important;
-    height: 24px !important;
+    width: 32px !important;
+    height: 32px !important;
   }
 
   body:not([data-page="home"]) .brand-lockup img {
-    width: 201px;
-    top: -20.8px;
-    left: -43.5px;
+    width: 100%;
+    height: 100%;
   }
 
   body:not([data-page="home"]) .ev-actions {

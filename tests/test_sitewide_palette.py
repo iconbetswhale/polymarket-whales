@@ -29,13 +29,16 @@ def test_canonical_iconlabs_tokens_match_the_sitewide_canvas():
     assert "--il-surface-2: #0a101c;" in css
 
 
-def test_real_model_sidebar_art_and_geometry_are_preserved():
+def test_reference_sidebar_palette_and_geometry_are_preserved():
     sidebar = read("static/sidebar-v2.css")
 
-    assert 'url("/static/assets/sidebar-neon-purple-flow-connected-v5.webp")' in sidebar
-    assert "border-right: 2px solid #b23cff;" in sidebar
-    assert "width: calc(100% - 24px);" in sidebar
-    assert "min-height: 44px;" in sidebar
+    assert "--il-sidebar-width:256px" in sidebar
+    assert "--il-sidebar-bg:#070a13" in sidebar
+    assert "--il-sidebar-surface:#0a101a" in sidebar
+    assert "--il-sidebar-active:#170d2c" in sidebar
+    assert "height:36px!important" in sidebar
+    assert "background-image:none" in sidebar
+    assert "sidebar-neon-purple-flow" not in sidebar
 
 
 def test_real_model_positive_ev_keeps_layout_and_uses_the_slate_canvas():

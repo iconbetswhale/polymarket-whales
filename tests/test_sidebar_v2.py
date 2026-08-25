@@ -27,44 +27,38 @@ V2_PAGE_STYLES = (
 def test_shared_sidebar_styles_load_after_every_v2_page_stylesheet():
     sidebar = BASE.index("filename='sidebar-v2.css'")
 
-    assert "-canonical-v13-connected-neon-flow" in BASE[sidebar : sidebar + 200]
+    assert "-canonical-v14-flat-reference" in BASE[sidebar : sidebar + 200]
     for stylesheet in V2_PAGE_STYLES:
         assert BASE.index(f"filename='{stylesheet}'") < sidebar
 
 
 def test_shared_sidebar_contract_is_route_agnostic_and_complete():
     assert "[data-page=" not in CSS
-    assert '@media (min-width: 981px)' in CSS
-    assert '.sidebar-expanded .desktop-nav-toggle' in CSS
-    assert '.sidebar-expanded .brand' in CSS
-    assert '.sidebar-expanded .nav-links > a' in CSS
-    assert 'width: calc(100% - 24px)' in CSS
+    assert "--il-sidebar-width:256px" in CSS
+    assert "--il-sidebar-bg:#070a13" in CSS
+    assert "--il-sidebar-active:#170d2c" in CSS
+    assert "--il-sidebar-active-border:#6734a9" in CSS
+    assert "background-image:none" in CSS
+    assert "sidebar-neon-purple-flow" not in CSS
+    assert "text-shadow:none" in CSS
+    assert "height:36px!important" in CSS
+    assert "box-shadow:inset 3px 0 0 var(--il-sidebar-purple)!important" in CSS
+    assert '.sidebar-expanded .nav-section-label' in CSS
+    assert ".sidebar-data-status" in CSS
+    assert ".sidebar-footer-divider" in CSS
     assert '.sidebar-expanded .sidebar-account-button' in CSS
-    assert 'grid-template-columns: 30px minmax(0, 1fr) 16px' in CSS
-    assert 'background-color: #000' in CSS
-    assert 'background-image: url("/static/assets/sidebar-neon-purple-flow-connected-v5.webp")' in CSS
-    assert (ROOT / "static" / "assets" / "sidebar-neon-purple-flow-connected-v5.webp").is_file()
-    assert "background-repeat: no-repeat" in CSS
-    assert "background-size: 100% 100%" in CSS
-    assert "var(--il-sidebar-texture-image)" not in CSS
-    assert "mix-blend-mode: screen" not in CSS
-    assert '.sidebar-expanded .app-nav > *' in CSS
-    assert 'font: 750 15.5px/1.15 var(--il-font-ui)' in CSS
-    assert '0 3px 0 #68189b' in CSS
-    assert 'border-color: #b23cff' in CSS
-    assert 'inset 0 0 0 1px rgba(228, 190, 255, 0.72)' in CSS
-    assert "border-right: 2px solid #b23cff" in CSS
-    assert "inset -1px 0 0 rgba(228, 190, 255, 0.72)" in CSS
-    assert "1px 0 0 #dd9cff" in CSS
-    assert "3px 0 0 #68189b" in CSS
-    assert "5px 0 0 #2c063f" in CSS
+    assert "@media (max-width:980px)" in CSS
+    assert "width:min(256px,88vw)" in CSS
 
 
-def test_tactile_sidebar_uses_requested_phosphor_icon_mapping():
+def test_flat_sidebar_uses_reference_phosphor_icon_mapping():
     for icon in (
-        "ph-coins",
+        "ph-target",
+        "ph-trend-up",
+        "ph-layout",
         "ph-grid-nine",
-        "ph-sliders-horizontal",
+        "ph-flask",
+        "ph-eye-slash",
         "ph-activity",
     ):
         assert f'class="ph {icon}"' in BASE

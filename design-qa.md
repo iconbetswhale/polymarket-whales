@@ -75,6 +75,68 @@ final result: passed
 
 ---
 
+# IconLabs — Horizontal Shell Logo QA
+
+## Evidence and normalization
+
+- User-supplied source: `C:\Users\15617\Desktop\IconLabs-horizontal-logo-plain-black-4K.webp` (1536 × 865 px).
+- Integrated shell asset: `static/assets/iconlabs-horizontal-logo-shell.webp` (1100 × 192 px, lossless WebP with transparency).
+- Local verification route: `http://127.0.0.1:5007/trades?selected=preview-trade-1&preview=1`.
+- Existing pre-change desktop baseline: `.codex-artifacts/preview/trades-tab-1920x1080.png`.
+- The source artwork was cropped to its real lockup bounds with restrained padding. Only the surrounding black canvas was converted to transparency; the supplied mark, wordmark, proportions, highlights, and internal shading were preserved.
+- The approved shell slots remain 138 × 28 CSS px on desktop and 112 × 24 CSS px on mobile. `object-fit: contain` preserves the new 5.73:1 lockup ratio without distortion.
+
+## Required fidelity surfaces
+
+- Typography: no application font or text styling changed.
+- Spacing and layout: sidebar, header, brand-link, desktop lockup, and mobile lockup dimensions are unchanged.
+- Colors and surfaces: no shell colors changed; transparent canvas prevents a black rectangular artifact over the existing purple sidebar artwork.
+- Image quality and assets: the supplied raster artwork is used directly after integration-safe cropping and transparency cleanup; no SVG, glyph, CSS drawing, or approximate recreation was introduced.
+- Copy and content: the accessible `IconLabs home` link label and all page content remain unchanged.
+
+## Verification
+
+- Focused brand and typography contracts: 16 passed.
+- Local page response: HTTP 200.
+- New logo asset response: HTTP 200, 54,374 bytes.
+- Rendered HTML references `assets/iconlabs-horizontal-logo-shell.webp`.
+- `git diff --check`: passed with line-ending notices only.
+- Post-change browser capture was blocked by the in-app browser URL policy after the previous local preview process had exited. No alternate browser automation was used. Final visual comparison therefore remains pending manual inspection at the working local URL.
+
+final result: blocked
+
+---
+
+# IconLabs — Fantasy Optimizer Algo Odds Mark QA
+
+## Evidence and normalization
+
+- Source visual truth: `static/iconlabs-mark-v2.png` (1254 × 1254 px), the exact raster asset used by `templates/dfs.html` for the Fantasy Optimizer Algo Odds column.
+- Implementation route: `http://127.0.0.1:5007/trades?selected=preview-trade-1&preview=1`.
+- The shared shell now references the same source asset directly. The superseded generated horizontal shell asset was removed.
+- Desktop shell slot: 36 × 36 CSS px. Mobile shell slot: 36 × 36 CSS px, reduced to 32 × 32 CSS px at the compact breakpoint. `object-fit: contain` preserves the original square canvas and mark proportions.
+
+## Required fidelity surfaces
+
+- Typography: unchanged; the request removes the wordmark from the shell rather than recreating it as text.
+- Spacing and layout: the 48px brand row, sidebar width, navigation rows, and mobile header grid remain unchanged; only the image slot becomes mark-sized.
+- Colors and tokens: no color or surface token changed, and the shell no longer brightens the mark, so it retains the same native purple treatment as the Algo Odds header.
+- Image quality and asset fidelity: the exact existing PNG is reused without cropping, recoloring, CSS filters, tracing, or approximation.
+- Copy and content: the accessible `IconLabs home` label is preserved.
+
+## Verification
+
+- Focused brand and typography contracts: 16 passed.
+- Local page response: HTTP 200.
+- Rendered HTML contains three `iconlabs-mark-v2.png` references and zero references to the superseded horizontal shell asset.
+- The requested cache-busted foundation stylesheet is present.
+- `git diff --check`: passed with line-ending notices only.
+- The in-app browser previously blocked capture of this local URL under its URL policy. No alternate browser automation was used, so final rendered visual comparison remains pending manual inspection.
+
+final result: blocked
+
+---
+
 # DFS Optimizer — Probability Color Bands QA
 
 ## Evidence and normalization
@@ -1913,5 +1975,51 @@ No actionable P0, P1, or P2 findings remain.
 - Full regression suite: 767 passed.
 - `git diff --check`: passed with line-ending notices only.
 - No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
+# Shared IconLabs Sidebar — Reference Match QA
+
+## Evidence and normalization
+
+- Source reference: `C:\Users\15617\Desktop\content.webp` (255 × 1024 px).
+- Final full implementation: `C:\Users\15617\Documents\Polymarket\all-tabs-placeholder-preview\.codex-artifacts\sidebar-flat-reference\desktop-1280x1024-final.png` (1280 × 1024 px).
+- Final focused implementation: left 256 × 1024 px crop of the full implementation.
+- Side-by-side comparison: `C:\Users\15617\Documents\Polymarket\all-tabs-placeholder-preview\.codex-artifacts\sidebar-flat-reference\reference-vs-implementation.png` (523 × 1024 px), source left and implementation right.
+- Mobile implementation: `C:\Users\15617\Documents\Polymarket\all-tabs-placeholder-preview\.codex-artifacts\sidebar-flat-reference\mobile-390x844-final.png` (390 × 844 px).
+- Browser state: `http://127.0.0.1:5007/trades?selected=qa-trade-2`, 1280 × 1024 CSS px for desktop and 390 × 844 CSS px for mobile, DPR 1, Prediction Traders selected with five visual-QA trades.
+
+## Findings and iteration history
+
+- Iteration 1 — P1: the previous neon sidebar stylesheet remained active because the initial full-file replacement did not apply. The shared layer was replaced with the flat reference palette and no neon artwork, glow, raised borders, or text shadows.
+- Iteration 2 — P1: legacy high-specificity declarations hid group labels and retained 44px navigation rows. The canonical v2 layer now fixes the row height at 36px and exposes Core, Labs, Portfolio, and Insights on every product route.
+- Iteration 2 — P1: the account footer retained legacy auto spacing, separating it from the status card. The bottom stack now matches the reference at y=863 for live status and y=933 for the account card at 1024px height.
+- Iteration 3 — P2: the legacy desktop toggle remained over the logo. It now occupies the reference's top-right 29 × 29 slot and preserves the source logo asset at the left.
+- Iteration 3 — P2: the mobile legacy refresh control remained visible. It is now suppressed in the canonical drawer, while the grouped navigation, live status, and account card remain available.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: DM Sans is retained; navigation uses the reference's 13.5px medium weight, compact uppercase group labels, and stronger active/account labels.
+- Spacing and layout rhythm: the rail is 256px, the desktop rows are 36px, the header divider, section groups, bottom status card, and 63px account card align with the 1024px reference.
+- Colors and visual tokens: the rail is `#070a13`; the active surface is `#170d2c` with `#6734a9` border and restrained `#a65af4` current-state treatment. No neon background or glow remains.
+- Image quality and asset fidelity: the sidebar uses transparent lossless WebP assets derived from the supplied IconLabs source artwork; no CSS-drawn or placeholder logo is used.
+- Copy and content: the reference navigation order and Core/Labs/Portfolio/Insights labels are present. Live data copy is driven by the real status response.
+- Icons and interaction states: Phosphor icons match the reference categories; current page and Live Positions retain the small purple state dot; hover and keyboard focus remain visible.
+- Accessibility: primary navigation is labelled, the active route uses `aria-current`, the status uses `role=status`, toggle state is exposed with `aria-expanded`, and the mobile drawer closes with Escape.
+
+## Interaction and automated verification
+
+- Desktop collapse/expand verified at 72px/256px with matching app-shell offsets and accurate `aria-expanded` state.
+- Mobile drawer verified at 390px: opens to 256px, renders all groups/status/account content, hides the legacy refresh control, and creates no horizontal document overflow.
+- Prediction Traders, Positive EV, Fantasy Optimizer, and Sharp Wallets were checked in the running app; each renders the same 256px shell with the correct active route and no horizontal overflow.
+- Desktop and mobile browser error/warning logs: empty.
+- Focused sidebar, branding, palette, and typography tests: 31 passed.
+- Full repository regression suite: 795 passed.
+- JavaScript syntax and `git diff --check`: passed; line-ending notices only.
+- No deployment, merge, commit, or push was performed.
 
 final result: passed

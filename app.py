@@ -1051,8 +1051,17 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/trades")
     def trades_page():
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
         return render_template(
-            "trades.html", title="IconBets Trades to Play", page="trades"
+            "trades.html",
+            title="IconBets Trades to Play",
+            page="trades",
+            trades_preview=preview_requested,
         )
 
     @app.route("/sharp-money")

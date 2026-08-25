@@ -115,7 +115,7 @@
   --il-icon-size-sm: 16px;
   --il-icon-size-md: 18px;
   --il-gutter-desktop: 18px;
-  --il-sidebar-width: 232px;
+  --il-sidebar-width: 256px;
   --il-header-height: 78px;
   --il-detail-panel-min: 450px;
   --il-detail-panel-max: 480px;
@@ -168,8 +168,8 @@ body[data-design-system="v2"] .brand {
 }
 
 body[data-design-system="v2"] .brand-lockup {
-  width: 138px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
 }
 
 body[data-design-system="v2"] .nav-links {
@@ -749,13 +749,12 @@ body[data-design-system="v2"] .brand-lockup {
 }
 
 body[data-design-system="v2"] .brand-lockup img {
-  position: absolute;
-  top: -25.2px;
-  left: -52.6px;
-  width: 243px;
-  max-width: none;
-  height: auto;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
   display: block;
+  object-fit: contain;
+  object-position: center;
 }
 
 @media (min-width: 981px) {
@@ -899,23 +898,23 @@ body[data-design-system="v2"] .brand-lockup img {
 
   body[data-design-system="v2"] .brand {
     grid-column: 2;
-    width: 112px;
-    min-width: 112px;
-    max-width: 112px;
+    width: 36px;
+    min-width: 36px;
+    max-width: 36px;
+    justify-content: center;
     justify-self: center;
     margin: 0;
     padding: 0;
   }
 
   body[data-design-system="v2"] .brand-lockup {
-    width: 112px;
-    height: 24px;
+    width: 36px;
+    height: 36px;
   }
 
   body[data-design-system="v2"] .brand-lockup img {
-    top: -20.8px;
-    left: -43.5px;
-    width: 201px;
+    width: 100%;
+    height: 100%;
   }
 
   body[data-design-system="v2"] .brand-icon { display: none; }

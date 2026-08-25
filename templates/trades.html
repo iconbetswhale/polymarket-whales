@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="trades-page">
+<section class="trades-page" data-trades-preview="{{ 'true' if trades_preview else 'false' }}">
   <header class="trades-command-bar il-page-header">
     <div class="trades-heading-row">
       <div class="trades-title-block il-page-title">

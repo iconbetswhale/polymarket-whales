@@ -78,7 +78,7 @@ def test_canonical_pages_opt_into_the_v2_foundation_last():
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
-    late_foundation = template.rindex("foundation-v8-purple-cards")
+    late_foundation = template.rindex("foundation-v11-flat-sidebar")
     late_trades = template.index("filename='stage2-trades.css'", late_foundation)
     late_positive_ev = template.index("filename='positive-ev.css'", late_foundation)
     late_sharp_money = template.index("filename='sharp-money-v2.css'", late_foundation)
@@ -357,5 +357,6 @@ def test_existing_brand_fonts_and_wordmark_assets_remain_available():
     assert "family=DM+Sans" in template
     assert "family=Fraunces" in template
     assert "family=Roboto+Condensed" in template
-    assert "iconlabs-wordmark-only-4k-transparent.webp" in template
+    assert "assets/iconlabs-horizontal-logo-white.webp" in template
+    assert "assets/iconlabs-mark-white.webp" in template
     assert '--font-display: "Fraunces", Georgia, serif' in style

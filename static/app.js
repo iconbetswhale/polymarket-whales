@@ -118,6 +118,13 @@ const appState = {
 };
 const TRACKER_PREVIEW = page === "tracker"
   && document.querySelector(".tracker-page")?.dataset.trackerPreview === "true";
+const TRADES_PREVIEW_DATA = page === "trades"
+  ? window.ICONLABS_TRADES_PREVIEW_DATA || null
+  : null;
+
+function tradesPreviewNotice(message = "Preview mode is read-only.") {
+  showToast(message, "info");
+}
 
 function researchBadges(trade) {
   const badges = [];
@@ -571,10 +578,27 @@ function setTradeMarketOptions(select, trades = []) {
 function updateGlobalStatus(status = {}) {
   const api = document.getElementById("global-api-status");
   const dot = document.getElementById("global-api-dot");
+  const detail = document.getElementById("global-system-detail");
   const refresh = document.getElementById("global-last-refresh");
   const wallets = document.getElementById("global-wallet-count");
-  if (api) api.textContent = status.api_status || "Unknown";
-  if (dot) dot.dataset.status = status.api_status || "unknown";
+  const apiStatus = String(status.api_status || status.state || "unknown").trim().toLowerCase();
+  const connected = ["connected", "healthy", "live", "ok", "ready"].includes(apiStatus);
+  const degraded = ["degraded", "stale", "warning"].includes(apiStatus);
+  if (api) api.textContent = connected
+    ? "Live data connected"
+    : degraded
+      ? "Live data degraded"
+      : apiStatus === "error"
+        ? "Live data unavailable"
+        : "Connecting live data";
+  if (detail) detail.textContent = connected
+    ? "All systems operational"
+    : degraded
+      ? "Some feeds may be delayed"
+      : apiStatus === "error"
+        ? "Unable to reach data feeds"
+        : "Checking system status";
+  if (dot) dot.dataset.status = connected ? "connected" : degraded ? "degraded" : apiStatus;
   if (refresh) refresh.textContent = formatRefreshDateTime(status.last_successful_refresh, "Waiting");
   if (wallets) wallets.textContent = status.enabled_wallet_count ?? 0;
 }
@@ -1999,6 +2023,13 @@ function renderPersonalTrackingOptions(options = {}) {
 }
 
 async function loadPersonalTrackerOptions({ force = false } = {}) {
+  if (TRADES_PREVIEW_DATA) {
+    renderPersonalTrackingOptions({
+      sportsbook_choices: ["Polymarket", "NoVIG", "4CX", "ProphetX", "Kalshi"],
+      tags: ["Model review", "Line shop", "Preview"],
+    });
+    return;
+  }
   if (appState.personalTrackerOptions && !force) {
     renderPersonalTrackingOptions(appState.personalTrackerOptions);
     return;
@@ -2082,6 +2113,11 @@ function updatePersonalPurchaseTotal() {
 
 async function savePersonalPurchase(event) {
   event.preventDefault();
+  if (TRADES_PREVIEW_DATA) {
+    closePersonalTracker();
+    tradesPreviewNotice("Preview only · no personal bet was saved.");
+    return;
+  }
   const trade = appState.trades.find((item) => item.id === appState.personalTradeId);
   if (!trade) return;
   const exposure = trade.personalExposureSummary || {};
@@ -2123,6 +2159,10 @@ function closePersonalTracker() {
 }
 
 async function hideTrade(tradeId) {
+  if (TRADES_PREVIEW_DATA) {
+    tradesPreviewNotice("Preview only · this placeholder trade stays visible.");
+    return;
+  }
   try {
     await fetchJson("/api/hidden-trades", {
       method: "POST",
@@ -2136,6 +2176,10 @@ async function hideTrade(tradeId) {
 }
 
 async function restoreHiddenTrade(hiddenId, reopenManager = false) {
+  if (TRADES_PREVIEW_DATA) {
+    tradesPreviewNotice();
+    return;
+  }
   try {
     await fetchJson(`/api/hidden-trades/${encodeURIComponent(hiddenId)}`, { method: "DELETE" });
     showToast("Trade restored", "success");
@@ -2280,6 +2324,10 @@ function completionTradeDetails(trade, recommendation) {
 async function loadTradeEdgeEvidence(trade) {
   const target = document.getElementById("trade-edge-evidence");
   if (!target) return;
+  if (TRADES_PREVIEW_DATA) {
+    target.innerHTML = `<div class="calculation-grid"><div><span>Status</span><strong>Visual preview</strong></div><div><span>Candidate sample</span><strong>148</strong></div><div><span>Played / Passed</span><strong>92 / 56</strong></div><div><span>Exchange CLV</span><strong>+2.4%</strong></div><div><span>Composite CLV</span><strong>+1.8%</strong></div><div><span>Reliability</span><strong>81.0%</strong></div></div>`;
+    return;
+  }
   try {
     const payload = await fetchJson("/api/edge-map?dimension=sport");
     const row = (payload.data?.segments || []).find((item) => String(item.segment_value).toLowerCase() === String(trade.category || "").toLowerCase());
@@ -2553,6 +2601,10 @@ function personalExposureGroup(title, group, tone = "") {
 async function loadPersonalExposureDetails(tradeId) {
   const container = document.getElementById("personal-exposure-detail");
   if (!container) return;
+  if (TRADES_PREVIEW_DATA) {
+    container.innerHTML = '<p class="personal-exposure-empty"><i class="ph ph-eye" aria-hidden="true"></i>Preview fixture only. No personal exposure or live account data is connected.</p>';
+    return;
+  }
   try {
     const payload = await fetchJson(`/api/personal-exposure?trade_id=${encodeURIComponent(tradeId)}`);
     const groups = payload.data?.groups || {};
@@ -2573,6 +2625,10 @@ async function loadPersonalExposureDetails(tradeId) {
 }
 
 async function removePersonalFill(fillId) {
+  if (TRADES_PREVIEW_DATA) {
+    tradesPreviewNotice();
+    return;
+  }
   try {
     await fetchJson(`/api/personal-bets/${encodeURIComponent(fillId)}`, { method: "DELETE" });
     showToast("Personal fill removed from active exposure", "success");
@@ -2766,6 +2822,20 @@ async function loadPriceHistory(tokenId, fallbackPrice, interval = "1d", referen
     if (container) container.innerHTML = emptyState("Price history unavailable", "This trade does not have a verified outcome token.");
     return;
   }
+  if (TRADES_PREVIEW_DATA) {
+    const points = (TRADES_PREVIEW_DATA.priceHistory?.[tokenId] || [])
+      .map((point) => ({ timestamp: point.t, value: Number(point.p) }))
+      .filter((point) => Number.isFinite(point.value));
+    drawLineChart(container, points, {
+      format: formatCents,
+      referenceLines,
+      summary,
+      color: tradePriceHistoryColor(container),
+      valueLabel: "Price",
+      domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+    });
+    return;
+  }
   try {
     const payload = await fetchJson(`/api/price-history?token_id=${encodeURIComponent(tokenId)}&interval=${encodeURIComponent(interval)}`);
     const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
@@ -2898,12 +2968,14 @@ function renderTradesPayload(payload, filters, list) {
   const incomingTrades = payload.data || [];
   const mergedTrades = mergeOfficialTrackedTrades(incomingTrades, payload.officialTracked || [])
     .filter(tradePassesLiveSlippageGuard);
-  const sourceTrades = stabilizeTradeFeed(
-    mergedTrades,
-    filters,
-    payload.status || {},
-    payload.liveRejectedTradeIds || [],
-  );
+  const sourceTrades = TRADES_PREVIEW_DATA
+    ? mergedTrades
+    : stabilizeTradeFeed(
+      mergedTrades,
+      filters,
+      payload.status || {},
+      payload.liveRejectedTradeIds || [],
+    );
   annotateExecutionMovements(sourceTrades);
   appState.trades = applyClientTradeFilters(sourceTrades, filters);
   updateTradeSummary(payload, sourceTrades, appState.trades);
@@ -2912,11 +2984,17 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("hidden-trades-count").textContent = String(payload.hiddenCount || 0);
   document.getElementById("whiteboard-count").textContent = String(payload.whiteboardCount || 0);
   document.getElementById("trades-tab-count").textContent = String(appState.trades.length);
+  if (TRADES_PREVIEW_DATA) {
+    document.getElementById("positions-tab-count").textContent = String(TRADES_PREVIEW_DATA.openPositions.length);
+    document.getElementById("closed-tab-count").textContent = String(TRADES_PREVIEW_DATA.closedPositions.length);
+  }
   const resultCount = document.getElementById("trade-result-count");
   if (resultCount) resultCount.textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
-  document.getElementById("trade-freshness").textContent = payload.fastMode
-    ? "Loading live prices in the background"
-    : `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
+  document.getElementById("trade-freshness").textContent = TRADES_PREVIEW_DATA
+    ? "Visual preview · no live wagers"
+    : payload.fastMode
+      ? "Loading live prices in the background"
+      : `Live book checked ${formatDateTime(payload.status?.last_successful_refresh, "now")}`;
   const currentSport = document.getElementById("trade-sport").value || filters.sport;
   const currentMarket = document.getElementById("trade-market").value || filters.market;
   const currentLeague = document.getElementById("trade-league").value;
@@ -2947,6 +3025,32 @@ function renderTradesPayload(payload, filters, list) {
   selectTrade(appState.selectedTradeId);
 }
 
+function previewTradesPayload(filters) {
+  const base = TRADES_PREVIEW_DATA?.trades;
+  if (!base) return null;
+  const query = String(filters.q || "").trim().toLowerCase();
+  const minimumSharps = number(filters.min_sharps) || 0;
+  const minimumConfidence = number(filters.min_confidence) || 0;
+  const sport = String(filters.sport || "").toLowerCase();
+  const league = String(filters.league || "").toLowerCase();
+  const classification = String(filters.classification || "").toLowerCase();
+  const data = (base.data || []).filter((trade) => {
+    const searchable = String(trade.search_blob || `${trade.event_title} ${trade.market_title} ${trade.outcome}`).toLowerCase();
+    if (query && !searchable.includes(query)) return false;
+    if ((number(trade.raw_sharp_count ?? trade.agreeing_wallet_count) || 0) < minimumSharps) return false;
+    if ((number(trade.confidence_score) || 0) < minimumConfidence) return false;
+    if (sport && String(trade.category || "").toLowerCase() !== sport) return false;
+    if (league && String(trade.league || "").toLowerCase() !== league) return false;
+    if (classification && String(trade.tradeClassification || "STANDARD").toLowerCase() !== classification) return false;
+    return true;
+  });
+  return {
+    ...base,
+    data,
+    pagination: { ...base.pagination, total: data.length },
+  };
+}
+
 async function loadTrades({ initial = false } = {}) {
   if (appState.tradeRequestInFlight) {
     appState.tradeRefreshQueued = true;
@@ -2960,6 +3064,11 @@ async function loadTrades({ initial = false } = {}) {
   updateActiveFilterCount();
   updateTradeUrl(filters);
   const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value !== "" && value !== false));
+  if (TRADES_PREVIEW_DATA) {
+    renderTradesPayload(previewTradesPayload(filters), filters, list);
+    appState.tradeRequestInFlight = false;
+    return;
+  }
   const cacheKey = pagePayloadCacheKey("trades", query.toString());
   const cachedPayload = initial
     ? readPagePayloadCache(cacheKey) || readPagePayloadCache(latestPagePayloadCacheKey("trades"))
@@ -3023,6 +3132,10 @@ async function loadWhiteboard() {
 }
 
 async function pinTrade(tradeId, pinId = "") {
+  if (TRADES_PREVIEW_DATA) {
+    tradesPreviewNotice("Preview only · Whiteboard data was not changed.");
+    return;
+  }
   try {
     if (pinId) await fetchJson(`/api/whiteboard/${encodeURIComponent(pinId)}`, { method: "DELETE" });
     else await fetchJson("/api/whiteboard", { method: "POST", body: JSON.stringify({ trade_id: tradeId }) });
@@ -3107,6 +3220,19 @@ function renderPersonalPositionDetail(position, closed = false) {
 async function loadPersonalPositionHistory(position, closed, interval = "1d") {
   const container = document.getElementById(`personal-position-chart-${closed ? "closed" : "open"}`);
   if (!container) return;
+  if (TRADES_PREVIEW_DATA) {
+    const points = (TRADES_PREVIEW_DATA.priceHistory?.[position.positionId] || [])
+      .map((point) => ({ timestamp: point.t, value: Number(point.p) }))
+      .filter((point) => Number.isFinite(point.value));
+    drawLineChart(container, points, {
+      format: formatExitCents,
+      summary: `${closed ? "Closed" : "Open"} position price history for ${position.selection || "the selected position"}.`,
+      valueLabel: "Price",
+      color: tradePriceHistoryColor(container),
+      domain: PREDICTION_TRADERS_PRICE_DOMAIN,
+    });
+    return;
+  }
   try {
     const payload = await fetchJson(`/api/personal-positions/${encodeURIComponent(position.positionId)}/price-history?interval=${encodeURIComponent(interval)}`);
     const points = (payload.data || []).map((point) => ({ timestamp: point.t, value: Number(point.p) })).filter((point) => Number.isFinite(point.value));
@@ -3129,6 +3255,28 @@ async function loadPersonalPositions(state = "open") {
   if (closed) params.set("closure", appState.closureFilter);
   const query = document.getElementById("trade-search")?.value.trim();
   if (query) params.set("q", query);
+  if (TRADES_PREVIEW_DATA) {
+    const normalizedQuery = String(query || "").toLowerCase();
+    let rows = [...(closed ? TRADES_PREVIEW_DATA.closedPositions : TRADES_PREVIEW_DATA.openPositions)];
+    if (closed && appState.closureFilter !== "all") {
+      rows = rows.filter((item) => item.closureMethod === appState.closureFilter);
+    }
+    if (normalizedQuery) {
+      rows = rows.filter((item) => [item.eventTitle, item.marketTitle, item.selection, item.provider]
+        .some((value) => String(value || "").toLowerCase().includes(normalizedQuery)));
+    }
+    document.getElementById("positions-tab-count").textContent = String(TRADES_PREVIEW_DATA.openPositions.length);
+    document.getElementById("closed-tab-count").textContent = String(TRADES_PREVIEW_DATA.closedPositions.length);
+    if (closed) appState.personalClosed = rows;
+    else appState.personalPositions = rows;
+    const selectedKey = closed ? "selectedClosedPositionId" : "selectedPersonalPositionId";
+    if (!rows.some((item) => item.positionId === appState[selectedKey])) appState[selectedKey] = rows[0]?.positionId || null;
+    list.innerHTML = rows.length
+      ? rows.map((item) => personalPositionRow(item, closed)).join("")
+      : emptyState(closed ? "No matching closed preview bets" : "No matching open preview bets", "Clear the search or closure filter to restore the visual fixtures.");
+    renderPersonalPositionDetail(rows.find((item) => item.positionId === appState[selectedKey]), closed);
+    return;
+  }
   try {
     const payload = await fetchJson(`/api/personal-positions?${params.toString()}`);
     document.getElementById("positions-tab-count").textContent = String(payload.counts.positions);
@@ -3199,7 +3347,9 @@ function pnlChart(points) {
 
 async function loadPersonalPnl(period = appState.pnlPeriod) {
   appState.pnlPeriod = period;
-  const payload = await fetchJson(`/api/personal-pnl?period=${encodeURIComponent(period)}`);
+  const payload = TRADES_PREVIEW_DATA
+    ? { data: { ...TRADES_PREVIEW_DATA.personalPnl, period } }
+    : await fetchJson(`/api/personal-pnl?period=${encodeURIComponent(period)}`);
   const data = payload.data;
   const labels = { today: "1D P&L", week: "1W P&L", month: "1M P&L", year: "1Y P&L", all: "ALL P&L" };
   document.getElementById("personal-pnl-period-label").textContent = labels[period] || labels.week;
@@ -3232,6 +3382,11 @@ function updateSellCalculation() {
 
 async function recordPersonalExit(event) {
   event.preventDefault(); const position = appState.sellPosition; if (!position) return;
+  if (TRADES_PREVIEW_DATA) {
+    document.getElementById("personal-sell-dialog").close();
+    tradesPreviewNotice("Preview only · no sale was recorded.");
+    return;
+  }
   const submit = document.getElementById("personal-sell-submit"); submit.disabled = true;
   try {
     await fetchJson(`/api/personal-positions/${encodeURIComponent(position.positionId)}/exits`, { method: "POST", body: JSON.stringify({ shares: Number(document.getElementById("personal-sell-shares").value), sell_price: Number(document.getElementById("personal-sell-price").value) / 100, fees: Number(document.getElementById("personal-sell-fees").value) || 0, idempotency_key: crypto.randomUUID() }) });
@@ -3241,6 +3396,10 @@ async function recordPersonalExit(event) {
 }
 
 async function saveBankroll() {
+  if (TRADES_PREVIEW_DATA) {
+    tradesPreviewNotice("Preview only · bankroll settings were not changed.");
+    return;
+  }
   const input = document.getElementById("bankroll-input");
   const state = document.getElementById("bankroll-save-state");
   const bankroll = Number(input.value);
@@ -3678,6 +3837,11 @@ function bindTrades() {
     const button = document.getElementById("trade-refresh-button");
     button.classList.add("spinning");
     try {
+      if (TRADES_PREVIEW_DATA) {
+        await loadTrades();
+        tradesPreviewNotice("Preview fixtures refreshed.");
+        return;
+      }
       await fetchJson("/api/refresh", { method: "POST", body: "{}" });
       await loadTrades();
       showToast("Polymarket data refreshed", "success");

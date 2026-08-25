@@ -910,6 +910,36 @@ def test_trades_javascript_keeps_placeholder_fixtures_out_of_production_bundle()
         assert fixture_id not in javascript
 
 
+def test_trades_preview_populates_all_workspace_tabs_without_touching_live_apis(
+    app_client,
+):
+    regular = app_client.get("/trades")
+    preview = app_client.get("/trades?preview=1")
+
+    assert regular.status_code == 200
+    assert preview.status_code == 200
+    assert b'data-trades-preview="false"' in regular.data
+    assert b"trades-preview.js" not in regular.data
+    assert b'data-trades-preview="true"' in preview.data
+    assert b"trades-preview.js" in preview.data
+
+    root = Path(__file__).parents[1]
+    fixture_bundle = (root / "static" / "trades-preview.js").read_text(
+        encoding="utf-8"
+    )
+    app_bundle = (root / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert fixture_bundle.count("preview-trade-") >= 1
+    assert "tradeSpecs.map(makeTrade)" in fixture_bundle
+    assert "openPositionSpecs.map(makeOpenPosition)" in fixture_bundle
+    assert "closedPositionSpecs.map(makeClosedPosition)" in fixture_bundle
+    assert "window.ICONLABS_TRADES_PREVIEW_DATA" in fixture_bundle
+    assert "/api/" not in fixture_bundle
+    assert "TRADES_PREVIEW_DATA.openPositions" in app_bundle
+    assert "TRADES_PREVIEW_DATA.closedPositions" in app_bundle
+    assert "Preview mode is read-only" in app_bundle
+
+
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
     registry = app_client.application.extensions["execution_providers"]
     provider = next(
