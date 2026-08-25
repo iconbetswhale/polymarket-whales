@@ -444,7 +444,10 @@ def test_websocket_reconnect_rebootstraps_and_resubscribes() -> None:
 
 def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> None:
     session = QueueSession(
-        responses=[FakeResponse([sample_market()])]
+        responses=[
+            FakeResponse([sample_market()["event"]]),
+            FakeResponse([sample_market()]),
+        ]
     )
     auth = NoVIGAuthClient("client-id", "client-secret", session=session)
     rest = NoVIGRestClient(auth, session=session)
@@ -459,7 +462,15 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
     assert result["success"] is True
     assert result["book_snapshot_received"] is True
     assert result["update_received"] is False
-    assert session.request_calls[0][2]["params"] == {"marketType": "TOTAL"}
+    assert session.request_calls[0][2]["params"] == {
+        "status": "OPEN_INGAME",
+        "limit": 1,
+        "offset": 0,
+    }
+    assert session.request_calls[1][2]["json"] == {
+        "eventIds": ["event-1"],
+        "currency": "CASH",
+    }
     assert socket.sent == [
         {"event": "subscribe", "data": "market-1"},
         {"event": "subscribe", "data": "tape"},
@@ -470,7 +481,7 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
 def test_websocket_smoke_reports_only_sanitized_provider_http_status() -> None:
     class FailingRest:
         @staticmethod
-        def list_open_markets(**_filters):
+        def list_events_page(**_filters):
             raise NoVIGError("NOVIG_AUTH_REQUEST_FAILED", status_code=429)
 
     result = websocket_smoke_test(object(), FailingRest())

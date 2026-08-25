@@ -404,15 +404,21 @@ def websocket_smoke_test(
 
 
 def select_websocket_smoke_market(rest: NoVIGRestClient) -> str:
-    """Select one open market with a bounded, server-filtered REST response."""
+    """Select one open market without materializing the full market universe."""
 
-    markets = rest.list_open_markets(market_type="TOTAL")
-    if not markets:
-        markets = rest.list_open_markets(market_type="SPREAD")
-    for market in markets:
-        market_id = str(market.get("id") or "").strip()
-        if market_id:
-            return _validated_smoke_market_id(market_id)
+    for event_status in ("OPEN_INGAME", "OPEN_PREGAME"):
+        events = rest.list_events_page(event_status=event_status, limit=1)
+        if not events:
+            continue
+        event_id = str(events[0].get("id") or "").strip()
+        if not event_id:
+            continue
+        for market in rest.get_markets_by_events([event_id]):
+            if str(market.get("status") or "OPEN").strip().upper() != "OPEN":
+                continue
+            market_id = str(market.get("id") or "").strip()
+            if market_id:
+                return _validated_smoke_market_id(market_id)
     raise NoVIGError("NOVIG_NO_OPEN_MARKETS", status_code=503)
 
 

@@ -362,6 +362,35 @@ class NoVIGRestClient:
                 return rows
         raise NoVIGHTTPError("NOVIG_EVENTS_PAGINATION_LIMIT")
 
+    def list_events_page(
+        self,
+        *,
+        league: str | None = None,
+        event_status: str | None = None,
+        event_type: str | None = None,
+        limit: int = 10,
+        offset: int = 0,
+    ) -> list[dict]:
+        """Fetch one bounded event page for probes and targeted reconciliation."""
+
+        page_limit = max(1, min(int(limit), 100))
+        page_offset = max(0, int(offset))
+        params = {
+            key: value
+            for key, value in {
+                "league": _safe_text(league) or None,
+                "status": _safe_text(event_status) or None,
+                "type": _safe_text(event_type) or None,
+                "limit": page_limit,
+                "offset": page_offset,
+            }.items()
+            if value is not None
+        }
+        payload = self.request("GET", "/emm/events", params=params)
+        if not isinstance(payload, list):
+            raise NoVIGHTTPError("NOVIG_EVENTS_INVALID_PAYLOAD")
+        return [row for row in payload if isinstance(row, dict)]
+
     def get_market(self, market_id: str) -> dict:
         payload = self.request(
             "GET", f"/emm/markets/{quote(_validated_identifier(market_id), safe='')}"
