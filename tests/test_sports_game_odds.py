@@ -292,6 +292,96 @@ def test_request_uses_one_all_book_feed_and_exact_market_filters() -> None:
     assert "points-home-game-ml-home" in str(params["oddID"])
 
 
+def test_request_supports_full_game_quarter_and_yes_no_player_props() -> None:
+    params = sports_game_odds_request_params(
+        ("baseball_mlb", "basketball_wnba"),
+        (
+            "batter_hits_runs_rbis",
+            "batter_runs_rbis",
+            "batter_first_home_run",
+            "pitcher_pitches_thrown",
+            "player_points_q1",
+            "player_blocks_steals",
+            "player_field_goals_attempted",
+            "player_double_double",
+        ),
+    )
+
+    assert params is not None
+    odd_ids = str(params["oddID"])
+    assert "batting_hits+runs+rbi-PLAYER_ID-game-ou-over" in odd_ids
+    assert "batting_runs+rbi-PLAYER_ID-game-ou-over" in odd_ids
+    assert "batting_firstHomeRun-PLAYER_ID-game-yn-yes" in odd_ids
+    assert "pitching_pitchesThrown-PLAYER_ID-game-ou-over" in odd_ids
+    assert "points-PLAYER_ID-1q-ou-over" in odd_ids
+    assert "blocks+steals-PLAYER_ID-game-ou-over" in odd_ids
+    assert "fieldGoalsAttempted-PLAYER_ID-game-ou-over" in odd_ids
+    assert "doubleDouble-PLAYER_ID-game-yn-yes" in odd_ids
+
+
+def test_normalizer_accepts_yes_no_player_props_without_a_point() -> None:
+    event = _event()
+    event["odds"].update(
+        {
+            "batting_firstHomeRun-BRYCE_HARPER_1_MLB-game-yn-yes": {
+                "statID": "batting_firstHomeRun",
+                "statEntityID": "BRYCE_HARPER_1_MLB",
+                "periodID": "game",
+                "betTypeID": "yn",
+                "sideID": "yes",
+                "byBookmaker": {"pinnacle": _book_quote("+450")},
+            },
+            "batting_firstHomeRun-BRYCE_HARPER_1_MLB-game-yn-no": {
+                "statID": "batting_firstHomeRun",
+                "statEntityID": "BRYCE_HARPER_1_MLB",
+                "periodID": "game",
+                "betTypeID": "yn",
+                "sideID": "no",
+                "byBookmaker": {"pinnacle": _book_quote("-700")},
+            },
+        }
+    )
+
+    rows = normalize_sports_game_odds_ev_events(
+        [event], ("batter_first_home_run",)
+    )
+
+    assert len(rows) == 1
+    market = rows[0]["bookmakers"][0]["markets"][0]
+    assert market["key"] == "batter_first_home_run"
+    assert {outcome["name"] for outcome in market["outcomes"]} == {"Yes", "No"}
+    assert {outcome["point"] for outcome in market["outcomes"]} == {None}
+
+
+def test_normalizer_maps_first_quarter_wnba_player_props() -> None:
+    event = _event()
+    event["sportID"] = "BASKETBALL"
+    event["leagueID"] = "WNBA"
+    event["players"] = {"PLAYER_1_WNBA": {"name": "Example Guard"}}
+    event["odds"] = {
+        f"points-PLAYER_1_WNBA-1q-ou-{side}": {
+            "statID": "points",
+            "statEntityID": "PLAYER_1_WNBA",
+            "periodID": "1q",
+            "betTypeID": "ou",
+            "sideID": side,
+            "byBookmaker": {
+                "pinnacle": _book_quote(
+                    "-110", overUnder="5.5"
+                )
+            },
+        }
+        for side in ("over", "under")
+    }
+
+    rows = normalize_sports_game_odds_ev_events([event], ("player_points_q1",))
+
+    assert len(rows) == 1
+    market = rows[0]["bookmakers"][0]["markets"][0]
+    assert market["key"] == "player_points_q1"
+    assert {outcome["point"] for outcome in market["outcomes"]} == {5.5}
+
+
 def test_normalizer_preserves_every_returned_book_and_exact_prop_pair() -> None:
     rows = normalize_sports_game_odds_ev_events(
         [_event()], ("h2h", "batter_hits")

@@ -66,6 +66,28 @@ def test_positive_ev_reuses_canonical_components() -> None:
     assert "aria-label=\"Search Positive EV opportunities\"" in TEMPLATE
 
 
+def test_positive_ev_reuses_prediction_traders_finance_toolbar_pattern() -> None:
+    for hook in (
+        "ev-finance-actions il-finance-controls",
+        'id="ev-bankroll-popover-button"',
+        'id="ev-bankroll-popover"',
+        'id="ev-unit-toolbar-value"',
+        'id="ev-filter-open"',
+        'id="ev-active-filter-count"',
+        'id="ev-more-menu-toggle"',
+        'id="ev-more-menu"',
+    ):
+        assert hook in TEMPLATE
+
+    assert 'requestJson("/api/user-settings")' in SCRIPT
+    assert 'method:"PUT"' in SCRIPT
+    assert "bankroll:bankrollConfig.amount" in SCRIPT
+    assert ".ev-finance-actions" in CSS
+    assert ".ev-bankroll-popover" in CSS
+    assert ".ev-more-menu" in CSS
+    assert ".ev-active-filter-count" in CSS
+
+
 def test_devig_method_filter_is_single_choice_and_drives_api_query() -> None:
     assert 'class="ev-devig-methods" role="radiogroup"' in TEMPLATE
     assert TEMPLATE.count('name="devig-method"') == 4
@@ -363,17 +385,20 @@ def test_toolbar_icons_share_play_card_surfaces_and_search_content_does_not_over
     assert ".ev-search input { width: auto; min-width: 0; flex: 1 1 auto;" in CSS
 
 
-def test_toolbar_uses_hidden_bets_menu_and_removes_unused_desktop_controls() -> None:
-    assert 'id="ev-hidden-menu-toggle"' in TEMPLATE
+def test_toolbar_groups_hidden_bets_and_refresh_controls_in_more_menu() -> None:
+    assert 'id="ev-more-menu-toggle"' in TEMPLATE
+    assert 'id="ev-more-menu"' in TEMPLATE
     assert 'class="ph ph-eye-slash"' in TEMPLATE
     assert 'data-feed-view="active"' in TEMPLATE
     assert 'data-feed-view="hidden"' in TEMPLATE
+    assert 'id="ev-refresh"' in TEMPLATE
+    assert 'id="ev-pause"' in TEMPLATE
     assert 'ph-funnel-simple' not in TEMPLATE
     assert 'ph-bell' not in TEMPLATE
-    assert 'ph-dots-three-vertical' not in TEMPLATE
+    assert 'ph-dots-three-vertical' in TEMPLATE
     assert 'ph-sidebar-simple' not in TEMPLATE
     assert 'id="ev-detail-toggle"' not in TEMPLATE
-    assert 'grid-template-columns: minmax(0, 1fr) repeat(3, var(--il-control-height))' in CSS
+    assert 'grid-template-columns: minmax(0, 1fr) repeat(2, var(--il-control-height))' in CSS
 
 
 def test_hidden_bets_view_reuses_manually_hidden_opportunities_and_supports_restore() -> None:

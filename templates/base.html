@@ -28,7 +28,7 @@
   {% if page == 'trades' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-canonical-v1') }}">
   {% endif %}
-  {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-canonical-v10-hidden-bets') }}">{% endif %}
+  {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-canonical-v12-finance-toolbar') }}">{% endif %}
   {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-canonical-v7') }}">{% endif %}
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-approved-v1') }}">{% endif %}
   {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
@@ -133,7 +133,7 @@
   </dialog>
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
-  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v3-hidden-bets') }}"></script>{% endif %}
+  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v5-player-props') }}"></script>{% endif %}
   {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
   {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
 </body>

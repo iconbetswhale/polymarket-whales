@@ -83,13 +83,18 @@ def _quote(book: str, odds: int, fair_probability: float, liquidity: float | Non
 
 
 def temporary_ev_preview_rows(
-    now: datetime | None = None, *, devig_method: str = "power"
+    now: datetime | None = None,
+    *,
+    devig_method: str = "power",
+    bankroll: float = 10_000.0,
 ) -> list[dict]:
     """Return synthetic, non-actionable opportunities for visual QA only."""
 
     devig_method = str(devig_method or "power").strip().lower()
     if devig_method not in DEVIG_METHODS:
         raise ValueError(f"Unsupported de-vig method: {devig_method}.")
+    bankroll = min(10_000_000.0, max(1.0, float(bankroll)))
+    bankroll_scale = bankroll / 10_000.0
     anchor = (now or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
     fixtures = (
         (
@@ -182,10 +187,15 @@ def temporary_ev_preview_rows(
             0.0,
             (fair * price_profit - (1.0 - fair)) / price_profit,
         )
-        adjusted_stake = (
+        base_adjusted_stake = (
             round(stake * method_full_kelly / default_full_kelly, 2)
             if default_full_kelly > 0.0
             else stake
+        )
+        theoretical_stake = round(base_adjusted_stake * 1.32 * bankroll_scale, 2)
+        adjusted_stake = round(
+            min(float(liquidity), base_adjusted_stake * bankroll_scale),
+            2,
         )
         # Odds in secondary rows are illustrative comparisons, not provider claims.
         quotes = [
@@ -241,10 +251,13 @@ def temporary_ev_preview_rows(
                 ],
                 "executionStatus": "executable",
                 "portfolioStatus": "qualified",
-                "theoreticalStake": round(adjusted_stake * 1.32, 2),
+                "theoreticalStake": theoretical_stake,
                 "recommendedStake": adjusted_stake,
-                "kellyFraction": round(adjusted_stake / 10000.0, 6),
-                "fullKellyFraction": round(adjusted_stake / 2500.0, 6),
+                "kellyFraction": round(adjusted_stake / bankroll, 6),
+                "fullKellyFraction": round(
+                    adjusted_stake / (bankroll * 0.25),
+                    6,
+                ),
                 "warnings": ["Preview only — not a live wager or recommendation."],
                 "previewOnly": True,
                 "calculatedAt": anchor.isoformat(),

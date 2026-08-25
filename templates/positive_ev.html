@@ -19,14 +19,28 @@
       </div>
       <div class="ev-actions">
         <label class="ev-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="ev-search" type="search" placeholder="Search" aria-label="Search Positive EV opportunities"></label>
-        <button class="ev-icon-button icon-button" id="ev-pause" type="button" aria-pressed="false" aria-label="Pause refresh" data-il-tooltip="Pause automatic refresh"><i class="ph ph-pause" aria-hidden="true"></i></button>
-        <button class="ev-icon-button icon-button" id="ev-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="ev-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="ev-alert-dot" aria-hidden="true"></span></button>
-        <button class="ev-icon-button icon-button" id="ev-refresh" type="button" aria-label="Refresh opportunities" data-il-tooltip="Refresh now"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
-        <div class="ev-hidden-menu-wrap ev-utility-button">
-          <button class="ev-icon-button icon-button" id="ev-hidden-menu-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="ev-hidden-menu" aria-label="Choose visible or hidden bets" data-il-tooltip="Hidden bets"><i class="ph ph-eye-slash" aria-hidden="true"></i></button>
-          <div class="ev-hidden-menu" id="ev-hidden-menu" role="menu" aria-label="Bet visibility" hidden>
-            <button type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
-            <button type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
+        <div class="ev-finance-actions il-finance-controls" aria-label="Positive EV bankroll settings">
+          <div class="ev-toolbar-popover-shell">
+            <button class="ev-bankroll-button" id="ev-bankroll-popover-button" type="button" aria-expanded="false" aria-controls="ev-bankroll-popover"><small>Bankroll</small><strong id="ev-bankroll-toolbar-value">Loading</strong></button>
+            <section class="ev-bankroll-popover" id="ev-bankroll-popover" aria-label="Positive EV bankroll settings" hidden>
+              <div class="ev-popover-heading"><span>Positive EV Bankroll</span><small>Controls recommended bet sizing</small></div>
+              <label class="ev-money-input is-loading"><span>$</span><input id="ev-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Positive EV sizing bankroll" disabled></label>
+              <div class="ev-unit-readout"><span>1 Unit</span><strong id="ev-unit-value">Loading</strong><small>1% of saved bankroll</small></div>
+              <span class="ev-bankroll-save-state" id="ev-bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
+              <button class="button compact primary" id="ev-save-bankroll" type="button" disabled>Save Bankroll</button>
+            </section>
+          </div>
+          <span class="ev-toolbar-unit-size"><small>Unit size</small><strong id="ev-unit-toolbar-value">Loading</strong></span>
+        </div>
+        <button class="ev-icon-button icon-button ev-settings-trigger" id="ev-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="ev-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="ev-active-filter-count" id="ev-active-filter-count" aria-label="0 customized filter groups">0</span></button>
+        <div class="ev-more-menu-wrap">
+          <button class="ev-icon-button icon-button" id="ev-more-menu-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="ev-more-menu" aria-label="More Positive EV actions" data-il-tooltip="More actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
+          <div class="ev-more-menu" id="ev-more-menu" role="menu" aria-label="More Positive EV actions" hidden>
+            <button class="ev-menu-action" id="ev-refresh" type="button" role="menuitem"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh opportunities</span><small>Now</small></button>
+            <button class="ev-menu-action" id="ev-pause" type="button" role="menuitem" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Automatic refresh</span><small>Active</small></button>
+            <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
+            <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
+            <small class="ev-menu-note">All event times shown in ET</small>
           </div>
         </div>
       </div>
@@ -80,20 +94,51 @@
               </div>
             </details>
             <details class="ev-market-filter-group" data-market-group="props">
-              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Player Props"><input type="checkbox" data-market-group-toggle="props" aria-label="Select all Player Props"><span aria-hidden="true"></span></label><strong>Player Props</strong></span><small>MLB and WNBA supported markets</small></span><span class="ev-market-group-meta"><b data-market-group-count="props">0/12</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Player Props"><input type="checkbox" data-market-group-toggle="props" aria-label="Select all Player Props"><span aria-hidden="true"></span></label><strong>Player Props</strong></span><small>43 standard MLB and WNBA markets</small></span><span class="ev-market-group-meta"><b data-market-group-count="props">0/43</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
               <div class="ev-market-options">
                 <label><input type="checkbox" name="markets" value="batter_hits" data-market-key="batter_hits" data-market-sport="baseball_mlb"><span>Batter Hits</span></label>
                 <label><input type="checkbox" name="markets" value="batter_total_bases" data-market-key="batter_total_bases" data-market-sport="baseball_mlb"><span>Batter Total Bases</span></label>
                 <label><input type="checkbox" name="markets" value="batter_home_runs" data-market-key="batter_home_runs" data-market-sport="baseball_mlb"><span>Batter Home Runs</span></label>
+                <label><input type="checkbox" name="markets" value="batter_first_home_run" data-market-key="batter_first_home_run" data-market-sport="baseball_mlb"><span>First Home Run</span></label>
                 <label><input type="checkbox" name="markets" value="batter_rbis" data-market-key="batter_rbis" data-market-sport="baseball_mlb"><span>Batter RBIs</span></label>
                 <label><input type="checkbox" name="markets" value="batter_runs_scored" data-market-key="batter_runs_scored" data-market-sport="baseball_mlb"><span>Batter Runs Scored</span></label>
+                <label><input type="checkbox" name="markets" value="batter_hits_runs_rbis" data-market-key="batter_hits_runs_rbis" data-market-sport="baseball_mlb"><span>Hits + Runs + RBIs</span></label>
+                <label><input type="checkbox" name="markets" value="batter_runs_rbis" data-market-key="batter_runs_rbis" data-market-sport="baseball_mlb"><span>Runs + RBIs</span></label>
+                <label><input type="checkbox" name="markets" value="batter_singles" data-market-key="batter_singles" data-market-sport="baseball_mlb"><span>Batter Singles</span></label>
+                <label><input type="checkbox" name="markets" value="batter_doubles" data-market-key="batter_doubles" data-market-sport="baseball_mlb"><span>Batter Doubles</span></label>
+                <label><input type="checkbox" name="markets" value="batter_triples" data-market-key="batter_triples" data-market-sport="baseball_mlb"><span>Batter Triples</span></label>
+                <label><input type="checkbox" name="markets" value="batter_walks" data-market-key="batter_walks" data-market-sport="baseball_mlb"><span>Batter Walks</span></label>
+                <label><input type="checkbox" name="markets" value="batter_strikeouts" data-market-key="batter_strikeouts" data-market-sport="baseball_mlb"><span>Batter Strikeouts</span></label>
+                <label><input type="checkbox" name="markets" value="batter_stolen_bases" data-market-key="batter_stolen_bases" data-market-sport="baseball_mlb"><span>Batter Stolen Bases</span></label>
                 <label><input type="checkbox" name="markets" value="pitcher_strikeouts" data-market-key="pitcher_strikeouts" data-market-sport="baseball_mlb"><span>Pitcher Strikeouts</span></label>
                 <label><input type="checkbox" name="markets" value="pitcher_hits_allowed" data-market-key="pitcher_hits_allowed" data-market-sport="baseball_mlb"><span>Pitcher Hits Allowed</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_walks" data-market-key="pitcher_walks" data-market-sport="baseball_mlb"><span>Pitcher Walks Allowed</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_earned_runs" data-market-key="pitcher_earned_runs" data-market-sport="baseball_mlb"><span>Pitcher Earned Runs</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_outs" data-market-key="pitcher_outs" data-market-sport="baseball_mlb"><span>Pitcher Outs Recorded</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_pitches_thrown" data-market-key="pitcher_pitches_thrown" data-market-sport="baseball_mlb"><span>Pitcher Pitches Thrown</span></label>
+                <label><input type="checkbox" name="markets" value="pitcher_record_a_win" data-market-key="pitcher_record_a_win" data-market-sport="baseball_mlb"><span>Pitcher to Record a Win</span></label>
                 <label><input type="checkbox" name="markets" value="player_points" data-market-key="player_points" data-market-sport="basketball_wnba"><span>Player Points</span></label>
+                <label><input type="checkbox" name="markets" value="player_points_q1" data-market-key="player_points_q1" data-market-sport="basketball_wnba"><span>1st Quarter Points</span></label>
                 <label><input type="checkbox" name="markets" value="player_rebounds" data-market-key="player_rebounds" data-market-sport="basketball_wnba"><span>Player Rebounds</span></label>
+                <label><input type="checkbox" name="markets" value="player_rebounds_q1" data-market-key="player_rebounds_q1" data-market-sport="basketball_wnba"><span>1st Quarter Rebounds</span></label>
                 <label><input type="checkbox" name="markets" value="player_assists" data-market-key="player_assists" data-market-sport="basketball_wnba"><span>Player Assists</span></label>
+                <label><input type="checkbox" name="markets" value="player_assists_q1" data-market-key="player_assists_q1" data-market-sport="basketball_wnba"><span>1st Quarter Assists</span></label>
                 <label><input type="checkbox" name="markets" value="player_threes" data-market-key="player_threes" data-market-sport="basketball_wnba"><span>Player Three-Pointers</span></label>
+                <label><input type="checkbox" name="markets" value="player_blocks" data-market-key="player_blocks" data-market-sport="basketball_wnba"><span>Player Blocks</span></label>
+                <label><input type="checkbox" name="markets" value="player_steals" data-market-key="player_steals" data-market-sport="basketball_wnba"><span>Player Steals</span></label>
+                <label><input type="checkbox" name="markets" value="player_blocks_steals" data-market-key="player_blocks_steals" data-market-sport="basketball_wnba"><span>Blocks + Steals</span></label>
+                <label><input type="checkbox" name="markets" value="player_turnovers" data-market-key="player_turnovers" data-market-sport="basketball_wnba"><span>Player Turnovers</span></label>
                 <label><input type="checkbox" name="markets" value="player_points_rebounds_assists" data-market-key="player_points_rebounds_assists" data-market-sport="basketball_wnba"><span>Points + Rebounds + Assists</span></label>
+                <label><input type="checkbox" name="markets" value="player_points_rebounds" data-market-key="player_points_rebounds" data-market-sport="basketball_wnba"><span>Points + Rebounds</span></label>
+                <label><input type="checkbox" name="markets" value="player_points_assists" data-market-key="player_points_assists" data-market-sport="basketball_wnba"><span>Points + Assists</span></label>
+                <label><input type="checkbox" name="markets" value="player_rebounds_assists" data-market-key="player_rebounds_assists" data-market-sport="basketball_wnba"><span>Rebounds + Assists</span></label>
+                <label><input type="checkbox" name="markets" value="player_field_goals" data-market-key="player_field_goals" data-market-sport="basketball_wnba"><span>Field Goals Made</span></label>
+                <label><input type="checkbox" name="markets" value="player_field_goals_attempted" data-market-key="player_field_goals_attempted" data-market-sport="basketball_wnba"><span>Field Goals Attempted</span></label>
+                <label><input type="checkbox" name="markets" value="player_frees_made" data-market-key="player_frees_made" data-market-sport="basketball_wnba"><span>Free Throws Made</span></label>
+                <label><input type="checkbox" name="markets" value="player_frees_attempts" data-market-key="player_frees_attempts" data-market-sport="basketball_wnba"><span>Free Throws Attempted</span></label>
+                <label><input type="checkbox" name="markets" value="player_first_basket" data-market-key="player_first_basket" data-market-sport="basketball_wnba"><span>First Basket</span></label>
+                <label><input type="checkbox" name="markets" value="player_double_double" data-market-key="player_double_double" data-market-sport="basketball_wnba"><span>Double-Double</span></label>
+                <label><input type="checkbox" name="markets" value="player_triple_double" data-market-key="player_triple_double" data-market-sport="basketball_wnba"><span>Triple-Double</span></label>
               </div>
             </details>
             <details class="ev-market-filter-group" data-market-group="alternate">

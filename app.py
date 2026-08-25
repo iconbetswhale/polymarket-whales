@@ -2073,7 +2073,14 @@ def create_app(start_background: bool = True) -> Flask:
         if preview_requested:
             from ev_preview import temporary_ev_preview_rows
 
-            preview_rows = temporary_ev_preview_rows(devig_method=devig_method)
+            preview_bankroll = min(
+                10_000_000.0,
+                max(1.0, _safe_float(request.args.get("bankroll"), 10_000.0)),
+            )
+            preview_rows = temporary_ev_preview_rows(
+                devig_method=devig_method,
+                bankroll=preview_bankroll,
+            )
             if required_books:
                 preview_book_aliases = {
                     "betonline": "betonlineag",
@@ -2125,6 +2132,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "total": len(rows),
                     "configured": positive_ev_configured,
                     "previewOnly": True,
+                    "bankroll": preview_bankroll,
                     "devigMethod": devig_method,
                     "requiredBooks": list(required_books),
                     "diagnostics": {

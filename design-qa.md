@@ -155,6 +155,48 @@ final result: passed
 - `git diff --check`: passed with line-ending notices only.
 ---
 
+# Positive EV — Prediction Traders Finance Toolbar QA
+
+## Evidence and normalization
+
+- Source reference: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-08-24 224252.png` (313 × 63 px).
+- Final implementation: in-app browser capture emitted during this task from `http://127.0.0.1:5097/positive-ev?preview=1`.
+- Browser state: desktop Positive EV preview, 1280 × 720 CSS px, DPR 1, finance popover, filter dialog, and more-options menu closed.
+- Focused measurements: combined Bankroll / Unit Size control is 196 × 44 px; filter and more-options controls are each 34 × 44 px; no horizontal overflow was present.
+
+## Findings and comparison history
+
+- P2 — The first pass retained boxed purple toolbar buttons and overly tight spacing around the filter and more-options controls.
+  - Fix: changed both actions to transparent 34px controls and matched the source grouping with a wider gap after the finance card and a smaller gap before the vertical dots.
+  - Post-fix evidence: the final capture shows the two-column finance card followed by a standalone filter icon with count badge and standalone vertical dots, matching the source hierarchy.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: compact uppercase labels and strong currency values match the Prediction Traders reference hierarchy.
+- Spacing and layout rhythm: the combined finance control, filter badge, and overflow action retain the source grouping without crowding the desktop toolbar.
+- Colors and visual tokens: all new surfaces use existing IconLabs design tokens; no hard-coded color values were introduced.
+- Copy and content: Bankroll and Unit Size values are sourced from the user's saved bankroll settings.
+- Icons and interaction states: the filter button opens Positive EV Filter; the three-dot menu exposes refresh, pause/resume, visible bets, hidden bets, and timezone context.
+- Accessibility: controls retain labels, popover/menu relationships, keyboard dismissal, and the pause pressed state.
+
+## Interaction and automated verification
+
+- Bankroll popover opened with the current `$10,000.00` value; no persisted value was changed during QA.
+- Three-dot menu opened and pause/resume updated its label and `aria-pressed` state correctly.
+- Positive EV Filter opened from the new filter action and closed normally.
+- Preview bet sizing now receives the selected bankroll and scales recommended stakes consistently.
+- Focused Positive EV tests: 29 passed.
+- Full regression suite: 777 passed.
+- JavaScript syntax check: passed.
+- `git diff --check`: passed with line-ending notices only.
+- No deployment, commit, or push was performed.
+
+final result: passed
+
+---
+
 # Real-model sitewide slate palette QA
 
 ## Scope lock

@@ -10,9 +10,20 @@
     main: ["h2h", "spreads", "totals"],
     props: [
       "batter_hits", "batter_total_bases", "batter_home_runs", "batter_rbis",
-      "batter_runs_scored", "pitcher_strikeouts", "pitcher_hits_allowed",
-      "player_points", "player_rebounds", "player_assists", "player_threes",
-      "player_points_rebounds_assists"
+      "batter_first_home_run", "batter_runs_scored", "batter_hits_runs_rbis",
+      "batter_runs_rbis",
+      "batter_singles", "batter_doubles", "batter_triples", "batter_walks",
+      "batter_strikeouts", "batter_stolen_bases", "pitcher_strikeouts",
+      "pitcher_hits_allowed", "pitcher_walks", "pitcher_earned_runs",
+      "pitcher_outs", "pitcher_pitches_thrown", "pitcher_record_a_win",
+      "player_points", "player_points_q1", "player_rebounds",
+      "player_rebounds_q1", "player_assists", "player_assists_q1",
+      "player_threes", "player_blocks", "player_steals", "player_blocks_steals",
+      "player_turnovers", "player_points_rebounds_assists",
+      "player_points_rebounds", "player_points_assists", "player_rebounds_assists",
+      "player_field_goals", "player_field_goals_attempted", "player_frees_made",
+      "player_frees_attempts",
+      "player_first_basket", "player_double_double", "player_triple_double"
     ],
     alternate: ["alternate_spreads", "alternate_totals"]
   };
@@ -64,6 +75,7 @@
     if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
   } catch {}
   let rows = [], selectedId = "", paused = false, timer = null, feedView = "active";
+  let bankrollConfig = {amount:10000, unitPercentage:.01, settingsVersion:null, dirty:false, savePending:false};
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
   let lastDetailTrigger = null, lastFilterTrigger = null;
@@ -221,6 +233,100 @@
     return `${side}${outcome[2]}${stat ? ` ${stat}` : ""}`;
   };
   const money = value => `$${Number(value || 0).toLocaleString(undefined,{maximumFractionDigits:2})}`;
+  const sameValues = (left, right) => JSON.stringify([...left].sort()) === JSON.stringify([...right].sort());
+  async function requestJson(url, options={}) {
+    const response = await fetch(url, {...options,headers:{"Accept":"application/json","Content-Type":"application/json",...(options.headers||{})}});
+    const payload = await response.json().catch(()=>({}));
+    if (!response.ok) {
+      const error = new Error(payload.error || payload.message || `Request failed (${response.status})`);
+      error.status = response.status;
+      error.payload = payload;
+      throw error;
+    }
+    return payload;
+  }
+  function updateToolbarFilterCount() {
+    const changed = [
+      !sameValues(settings.markets, defaults.markets),
+      !sameValues(settings.sports, defaults.sports),
+      !sameValues(settings.books, defaults.books),
+      settings.requiredBooks.length > 0,
+      settings.devigMethod !== defaults.devigMethod || JSON.stringify(settings.weights) !== JSON.stringify(defaults.weights),
+      Number(settings.minEv) !== Number(defaults.minEv) || Number(settings.kelly) !== Number(defaults.kelly) || Number(settings.minSources) !== Number(defaults.minSources),
+    ].filter(Boolean).length;
+    const badge = $("ev-active-filter-count");
+    badge.textContent = String(changed);
+    badge.setAttribute("aria-label", `${changed} customized filter group${changed === 1 ? "" : "s"}`);
+  }
+  function setToolbarPopover(buttonId, panelId, expanded) {
+    const button = $(buttonId), panel = $(panelId);
+    if (!button || !panel) return;
+    panel.hidden = !expanded;
+    button.setAttribute("aria-expanded", String(expanded));
+  }
+  function applyBankrollSettings(accountSettings, {forceInput=false}={}) {
+    const amount = Number(accountSettings?.trades_to_play_bankroll ?? accountSettings?.starting_bankroll ?? bankrollConfig.amount);
+    const unitPercentage = Number(accountSettings?.unit_percentage ?? bankrollConfig.unitPercentage);
+    if (Number.isFinite(amount) && amount > 0) bankrollConfig.amount = amount;
+    if (Number.isFinite(unitPercentage) && unitPercentage > 0) bankrollConfig.unitPercentage = unitPercentage;
+    bankrollConfig.settingsVersion = accountSettings?.settings_version ?? bankrollConfig.settingsVersion;
+    const input = $("ev-bankroll-input"), button = $("ev-save-bankroll"), state = $("ev-bankroll-save-state");
+    input.disabled = false;
+    input.closest(".ev-money-input")?.classList.remove("is-loading");
+    if (forceInput || !bankrollConfig.dirty) input.value = bankrollConfig.amount.toFixed(2);
+    button.disabled = false;
+    $("ev-bankroll-toolbar-value").textContent = money(bankrollConfig.amount);
+    const unitAmount = bankrollConfig.amount * bankrollConfig.unitPercentage;
+    $("ev-unit-value").textContent = money(unitAmount);
+    $("ev-unit-toolbar-value").textContent = money(unitAmount);
+    if (state && !bankrollConfig.dirty) {
+      state.textContent = accountSettings?.sizing_bankroll_configured
+        ? accountSettings?.account_authenticated ? "Saved to your account" : "Saved to this browser — sign in to sync"
+        : "Configured default — save to make permanent";
+      state.dataset.state = accountSettings?.sizing_bankroll_configured ? "saved" : "default";
+    }
+  }
+  async function loadBankrollSettings() {
+    try {
+      const payload = await requestJson("/api/user-settings");
+      applyBankrollSettings(payload.data, {forceInput:true});
+    } catch (error) {
+      applyBankrollSettings({trades_to_play_bankroll:bankrollConfig.amount,unit_percentage:bankrollConfig.unitPercentage}, {forceInput:true});
+      $("ev-bankroll-save-state").textContent = `Could not load saved bankroll: ${error.message}`;
+      $("ev-bankroll-save-state").dataset.state = "error";
+    }
+  }
+  async function saveBankroll() {
+    const amount = Number($("ev-bankroll-input").value), state = $("ev-bankroll-save-state"), button = $("ev-save-bankroll");
+    if (!(amount > 0)) {
+      state.textContent = "Enter an amount greater than zero";
+      state.dataset.state = "error";
+      return;
+    }
+    if (bankrollConfig.savePending) return;
+    bankrollConfig.savePending = true;
+    button.disabled = true;
+    state.textContent = "Saving…";
+    state.dataset.state = "saving";
+    try {
+      const payload = await requestJson("/api/user-settings", {method:"PUT",body:JSON.stringify({trades_to_play_bankroll:amount,expected_version:bankrollConfig.settingsVersion})});
+      bankrollConfig.dirty = false;
+      applyBankrollSettings(payload.data, {forceInput:true});
+      state.textContent = "Saved";
+      state.dataset.state = "saved";
+      await load(true);
+    } catch (error) {
+      if (error.status === 409 && error.payload?.data) {
+        bankrollConfig.dirty = false;
+        applyBankrollSettings(error.payload.data, {forceInput:true});
+      }
+      state.textContent = `Save failed: ${error.message}`;
+      state.dataset.state = "error";
+    } finally {
+      bankrollConfig.savePending = false;
+      button.disabled = false;
+    }
+  }
   const profitMoney = value => `$${Number(value || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
   const odds = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0)}`;
   const evPercent = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0).toFixed(2)}%`;
@@ -619,6 +725,7 @@
     $("ev-required-books-list").innerHTML = requiredBookCatalog.map(book => `<label><span>${img(book.logoUrl || bookLogos[book.key], book.key)}</span><strong>${esc(book.name || bookNames[book.key] || book.key)}</strong><input type="checkbox" data-required-book="${esc(book.key)}" aria-label="Require ${esc(book.name || book.key)}" ${settings.requiredBooks.includes(book.key)?"checked":""}></label>`).join("");
     updateRequiredBooksSummary();
     updateFilterValidity();
+    updateToolbarFilterCount();
   }
   function updateRequiredBooksSummary(){
     const selected = [...document.querySelectorAll("[data-required-book]:checked")].map(input => input.dataset.requiredBook);
@@ -673,7 +780,7 @@
     return valid;
   }
   function query() {
-    const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights)});
+    const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
     if (previewOnly) {
       params.set("preview", "1");
       params.delete("markets");
@@ -707,7 +814,7 @@
         $("ev-updated").textContent = "Optimizer paused";
         $("ev-feed-label").textContent = "Credit-safe pause";
         $("ev-pause").setAttribute("aria-pressed", "true");
-        $("ev-pause").innerHTML = '<i class="ph ph-play"></i>';
+        updateMoreMenu();
         $("ev-credit-banner").innerHTML = `<i class="ph ph-shield-check" aria-hidden="true"></i><span><strong>EV optimizer paused</strong> · No paid odds requests or refreshes are running.</span>`;
         feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ph-pause-circle" aria-hidden="true"></i><p>${esc(payload.message || "Positive EV scanning is paused.")}</p></div>`;
         feed.setAttribute("aria-busy", "false");
@@ -749,14 +856,21 @@
     $("ev-hidden-count").textContent = hiddenCount;
     $("ev-visible-count").textContent = Math.max(0, rows.length - hiddenCount);
     document.querySelectorAll("[data-feed-view]").forEach(button => button.setAttribute("aria-current", String(button.dataset.feedView === feedView)));
-    $("ev-hidden-menu-toggle").setAttribute("aria-pressed", String(feedView === "hidden"));
     $("ev-feed-label").textContent = feedView === "hidden" ? "Manually hidden bets" : paused ? "Refresh paused" : "Live market scan";
+    updateMoreMenu();
   }
   function closeHiddenMenu(restoreFocus = false) {
-    const menu = $("ev-hidden-menu");
+    const menu = $("ev-more-menu");
     menu.hidden = true;
-    $("ev-hidden-menu-toggle").setAttribute("aria-expanded", "false");
-    if (restoreFocus) $("ev-hidden-menu-toggle").focus();
+    $("ev-more-menu-toggle").setAttribute("aria-expanded", "false");
+    if (restoreFocus) $("ev-more-menu-toggle").focus();
+  }
+  function updateMoreMenu() {
+    const button = $("ev-pause"), icon = button.querySelector("i"), status = button.querySelector("small");
+    button.setAttribute("aria-pressed", String(paused));
+    button.setAttribute("aria-label", paused ? "Resume automatic refresh" : "Pause automatic refresh");
+    icon.className = `ph ph-${paused ? "play" : "pause"}`;
+    status.textContent = paused ? "Paused" : "Active";
   }
   function setFeedView(nextView) {
     feedView = nextView === "hidden" ? "hidden" : "active";
@@ -891,26 +1005,47 @@
     [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
     settings.catalogVersion = catalogVersion;
-    localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));dialog.close();load(true);
+    localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));updateToolbarFilterCount();dialog.close();load(true);
   }
   $("ev-filter-open").addEventListener("click",openFilters);$("ev-adjust-filters").addEventListener("click",openFilters);$("ev-filter-close").addEventListener("click",()=>dialog.close());$("ev-apply").addEventListener("click",applyFilters);
   $("ev-reset").addEventListener("click",()=>{settings={...defaults,weights:{...defaults.weights},books:[...defaults.books],requiredBooks:[...defaults.requiredBooks],sports:[...defaults.sports],markets:[...defaults.markets]};renderFilters();});
   $("ev-required-books-clear").addEventListener("click",()=>{document.querySelectorAll("[data-required-book]").forEach(input=>input.checked=false);updateRequiredBooksSummary();});
-  $("ev-refresh").addEventListener("click",()=>load(true));$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
-  $("ev-hidden-menu-toggle").addEventListener("click", event => {
+  $("ev-refresh").addEventListener("click",()=>{closeHiddenMenu();load(true);});$("ev-search").addEventListener("input",syncSearchSelection);scrim.addEventListener("click",closeDetail);
+  $("ev-more-menu-toggle").addEventListener("click", event => {
     event.stopPropagation();
-    const menu = $("ev-hidden-menu");
+    setToolbarPopover("ev-bankroll-popover-button", "ev-bankroll-popover", false);
+    const menu = $("ev-more-menu");
     menu.hidden = !menu.hidden;
-    $("ev-hidden-menu-toggle").setAttribute("aria-expanded", String(!menu.hidden));
+    $("ev-more-menu-toggle").setAttribute("aria-expanded", String(!menu.hidden));
     if (!menu.hidden) requestAnimationFrame(() => menu.querySelector('[aria-current="true"]')?.focus());
   });
-  $("ev-hidden-menu").addEventListener("click", event => {
+  $("ev-more-menu").addEventListener("click", event => {
     const option = event.target.closest("[data-feed-view]");
     if (option) setFeedView(option.dataset.feedView);
   });
-  document.addEventListener("click", event => { if (!event.target.closest(".ev-hidden-menu-wrap")) closeHiddenMenu(); });
-  document.addEventListener("keydown", event => { if (event.key === "Escape" && !$("ev-hidden-menu").hidden) { event.preventDefault(); closeHiddenMenu(true); } });
-  $("ev-pause").addEventListener("click",()=>{paused=!paused;$("ev-pause").setAttribute("aria-pressed",String(paused));$("ev-pause").innerHTML=`<i class="ph ph-${paused?"play":"pause"}"></i>`;updateHiddenMenu();if(!paused)load(true);});
+  $("ev-bankroll-popover-button").addEventListener("click", event => {
+    event.stopPropagation();
+    closeHiddenMenu();
+    const panel = $("ev-bankroll-popover");
+    setToolbarPopover("ev-bankroll-popover-button", "ev-bankroll-popover", panel.hidden);
+  });
+  $("ev-save-bankroll").addEventListener("click", saveBankroll);
+  $("ev-bankroll-input").addEventListener("input",()=>{
+    bankrollConfig.dirty = true;
+    $("ev-bankroll-save-state").textContent = "Unsaved changes";
+    $("ev-bankroll-save-state").dataset.state = "unsaved";
+  });
+  $("ev-bankroll-input").addEventListener("keydown",event=>{if(event.key==="Enter"){event.preventDefault();saveBankroll();}});
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".ev-more-menu-wrap")) closeHiddenMenu();
+    if (!event.target.closest(".ev-toolbar-popover-shell")) setToolbarPopover("ev-bankroll-popover-button", "ev-bankroll-popover", false);
+  });
+  document.addEventListener("keydown", event => {
+    if (event.key !== "Escape") return;
+    if (!$("ev-more-menu").hidden) { event.preventDefault(); closeHiddenMenu(true); }
+    if (!$("ev-bankroll-popover").hidden) { event.preventDefault(); setToolbarPopover("ev-bankroll-popover-button", "ev-bankroll-popover", false); $("ev-bankroll-popover-button").focus(); }
+  });
+  $("ev-pause").addEventListener("click",()=>{paused=!paused;closeHiddenMenu();updateHiddenMenu();if(!paused)load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{
     if(event.target.matches("[data-market-group-toggle]")){
@@ -968,5 +1103,5 @@
     renderTrackerTags();
   });
   document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
-  renderFilters(); load(true);
+  renderFilters(); loadBankrollSettings().finally(()=>load(true));
 })();

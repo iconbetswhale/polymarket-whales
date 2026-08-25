@@ -236,23 +236,61 @@ MAIN_ODD_IDS = (
     "points-home-game-sp-home",
     "points-all-game-ou-over",
 )
-PROP_STATS_BY_LEAGUE = {
+PROP_MARKET_SPECS_BY_LEAGUE = {
     "MLB": {
-        "batting_hits": "batter_hits",
-        "batting_totalBases": "batter_total_bases",
-        "batting_homeRuns": "batter_home_runs",
-        "batting_RBI": "batter_rbis",
-        "points": "batter_runs_scored",
-        "pitching_strikeouts": "pitcher_strikeouts",
-        "pitching_hits": "pitcher_hits_allowed",
+        "batter_hits": ("batting_hits", "game", "ou", "over"),
+        "batter_total_bases": ("batting_totalBases", "game", "ou", "over"),
+        "batter_home_runs": ("batting_homeRuns", "game", "ou", "over"),
+        "batter_first_home_run": ("batting_firstHomeRun", "game", "yn", "yes"),
+        "batter_rbis": ("batting_RBI", "game", "ou", "over"),
+        "batter_runs_scored": ("points", "game", "ou", "over"),
+        "batter_hits_runs_rbis": ("batting_hits+runs+rbi", "game", "ou", "over"),
+        "batter_runs_rbis": ("batting_runs+rbi", "game", "ou", "over"),
+        "batter_singles": ("batting_singles", "game", "ou", "over"),
+        "batter_doubles": ("batting_doubles", "game", "ou", "over"),
+        "batter_triples": ("batting_triples", "game", "ou", "over"),
+        "batter_walks": ("batting_basesOnBalls", "game", "ou", "over"),
+        "batter_strikeouts": ("batting_strikeouts", "game", "ou", "over"),
+        "batter_stolen_bases": ("batting_stolenBases", "game", "ou", "over"),
+        "pitcher_strikeouts": ("pitching_strikeouts", "game", "ou", "over"),
+        "pitcher_hits_allowed": ("pitching_hits", "game", "ou", "over"),
+        "pitcher_walks": ("pitching_basesOnBalls", "game", "ou", "over"),
+        "pitcher_earned_runs": ("pitching_earnedRuns", "game", "ou", "over"),
+        "pitcher_outs": ("pitching_outs", "game", "ou", "over"),
+        "pitcher_pitches_thrown": ("pitching_pitchesThrown", "game", "ou", "over"),
+        "pitcher_record_a_win": ("pitching_win", "game", "yn", "yes"),
     },
     "WNBA": {
-        "points": "player_points",
-        "rebounds": "player_rebounds",
-        "assists": "player_assists",
-        "threePointersMade": "player_threes",
-        "points+rebounds+assists": "player_points_rebounds_assists",
+        "player_points": ("points", "game", "ou", "over"),
+        "player_points_q1": ("points", "1q", "ou", "over"),
+        "player_rebounds": ("rebounds", "game", "ou", "over"),
+        "player_rebounds_q1": ("rebounds", "1q", "ou", "over"),
+        "player_assists": ("assists", "game", "ou", "over"),
+        "player_assists_q1": ("assists", "1q", "ou", "over"),
+        "player_threes": ("threePointersMade", "game", "ou", "over"),
+        "player_blocks": ("blocks", "game", "ou", "over"),
+        "player_steals": ("steals", "game", "ou", "over"),
+        "player_blocks_steals": ("blocks+steals", "game", "ou", "over"),
+        "player_turnovers": ("turnovers", "game", "ou", "over"),
+        "player_points_rebounds_assists": ("points+rebounds+assists", "game", "ou", "over"),
+        "player_points_rebounds": ("points+rebounds", "game", "ou", "over"),
+        "player_points_assists": ("points+assists", "game", "ou", "over"),
+        "player_rebounds_assists": ("rebounds+assists", "game", "ou", "over"),
+        "player_field_goals": ("fieldGoalsMade", "game", "ou", "over"),
+        "player_field_goals_attempted": ("fieldGoalsAttempted", "game", "ou", "over"),
+        "player_frees_made": ("freeThrowsMade", "game", "ou", "over"),
+        "player_frees_attempts": ("freeThrowsAttempted", "game", "ou", "over"),
+        "player_first_basket": ("firstBasket", "game", "yn", "yes"),
+        "player_double_double": ("doubleDouble", "game", "yn", "yes"),
+        "player_triple_double": ("tripleDouble", "game", "yn", "yes"),
     },
+}
+PROP_MARKET_LOOKUP_BY_LEAGUE = {
+    league_id: {
+        (stat_id.casefold(), period_id.casefold(), bet_type_id.casefold()): market_key
+        for market_key, (stat_id, period_id, bet_type_id, _side_id) in specs.items()
+    }
+    for league_id, specs in PROP_MARKET_SPECS_BY_LEAGUE.items()
 }
 
 
@@ -273,17 +311,18 @@ def sports_game_odds_request_params(
     alternate_requested = bool(
         requested & {"alternate_spreads", "alternate_totals"}
     )
-    prop_stats = {
-        stat_id
+    prop_specs = {
+        spec
         for league_id in leagues
-        for stat_id, market_key in PROP_STATS_BY_LEAGUE.get(league_id, {}).items()
+        for market_key, spec in PROP_MARKET_SPECS_BY_LEAGUE.get(league_id, {}).items()
         if market_key in requested
     }
     odd_ids: list[str] = []
     if requested & {"h2h", "spreads", "totals", "alternate_spreads", "alternate_totals"}:
         odd_ids.extend(MAIN_ODD_IDS)
     odd_ids.extend(
-        f"{stat_id}-PLAYER_ID-game-ou-over" for stat_id in sorted(prop_stats)
+        f"{stat_id}-PLAYER_ID-{period_id}-{bet_type_id}-{side_id}"
+        for stat_id, period_id, bet_type_id, side_id in sorted(prop_specs)
     )
 
     params: dict[str, object] = {
@@ -375,21 +414,26 @@ def _market_key(
     bet_type_id = str(odd.get("betTypeID") or "").lower()
     stat_id = str(odd.get("statID") or "")
     stat_entity_id = str(odd.get("statEntityID") or "").lower()
-    if period_id != "game":
-        return None
-    if stat_id == "points" and stat_entity_id in {"home", "away"}:
+    if (
+        period_id == "game"
+        and stat_id == "points"
+        and stat_entity_id in {"home", "away"}
+    ):
         if bet_type_id == "ml" and not is_alternative:
             return "h2h"
         if bet_type_id == "sp":
             return "alternate_spreads" if is_alternative else "spreads"
     if (
-        stat_id == "points"
+        period_id == "game"
+        and stat_id == "points"
         and stat_entity_id == "all"
         and bet_type_id == "ou"
     ):
         return "alternate_totals" if is_alternative else "totals"
-    if bet_type_id == "ou" and stat_entity_id not in {"", "all", "home", "away"}:
-        return PROP_STATS_BY_LEAGUE.get(league_id, {}).get(stat_id)
+    if not is_alternative and stat_entity_id not in {"", "all", "home", "away"}:
+        return PROP_MARKET_LOOKUP_BY_LEAGUE.get(league_id, {}).get(
+            (stat_id.casefold(), period_id, bet_type_id)
+        )
     return None
 
 
@@ -428,14 +472,18 @@ def _outcome(
             else away_name if side_id == "away" else ""
         )
     else:
-        point = _number(snapshot.get("overUnder"))
+        if str(odd.get("betTypeID") or "").strip().lower() == "ou":
+            point = _number(snapshot.get("overUnder"))
         name = side_id.title()
         description = player_names.get(entity_id) or str(
             odd.get("playerName") or ""
         ).strip()
         if not description:
             description = entity_id.replace("_", " ").title()
-    if not name or (market_key != "h2h" and point is None):
+    if not name or (
+        str(odd.get("betTypeID") or "").strip().lower() == "ou"
+        and point is None
+    ):
         return None
     result = {
         "name": name,

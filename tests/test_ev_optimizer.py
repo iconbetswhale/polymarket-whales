@@ -3,6 +3,7 @@ import pytest
 from ev_optimizer import (
     DEFAULT_SOURCE_WEIGHTS,
     DEVIG_METHODS,
+    PLAYER_PROP_MARKETS,
     build_ev_board,
     build_ev_candidates,
     devig_probabilities,
@@ -59,6 +60,20 @@ def test_default_fair_price_mix_uses_only_the_five_configurable_sources():
         "betfairexchange",
     }
     assert sum(DEFAULT_SOURCE_WEIGHTS.values()) == 100.0
+
+
+def test_player_prop_catalog_covers_standard_mlb_and_wnba_sportsbook_markets():
+    assert len(PLAYER_PROP_MARKETS["baseball_mlb"]) == 21
+    assert len(PLAYER_PROP_MARKETS["basketball_wnba"]) == 22
+    assert "batter_hits_runs_rbis" in PLAYER_PROP_MARKETS["baseball_mlb"]
+    assert "pitcher_pitches_thrown" in PLAYER_PROP_MARKETS["baseball_mlb"]
+    assert "player_points_q1" in PLAYER_PROP_MARKETS["basketball_wnba"]
+    assert "player_blocks_steals" in PLAYER_PROP_MARKETS["basketball_wnba"]
+    assert all(
+        "fantasy" not in market_key
+        for market_keys in PLAYER_PROP_MARKETS.values()
+        for market_key in market_keys
+    )
 
 
 def test_all_four_devig_methods_return_valid_probabilities():

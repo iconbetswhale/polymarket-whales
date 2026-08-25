@@ -389,6 +389,20 @@ def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
         "fanduel",
     }
 
+    sized_response = app_client.get(
+        "/api/positive-ev",
+        query_string={"preview": 1, "bankroll": 20_000},
+    )
+    assert sized_response.status_code == 200
+    sized_payload = sized_response.get_json()
+    assert sized_payload["bankroll"] == 20_000
+    assert sized_payload["data"][0]["recommendedStake"] == pytest.approx(
+        payload["data"][0]["recommendedStake"] * 2
+    )
+    assert sized_payload["data"][0]["kellyFraction"] == pytest.approx(
+        payload["data"][0]["kellyFraction"]
+    )
+
     filtered_response = app_client.get(
         "/api/positive-ev",
         query_string={
@@ -460,13 +474,31 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'name="devig-method" value="multiplicative"' in body
     assert 'name="devig-method" value="shin"' in body
     assert "Positive EV Filter" in body
+    assert 'id="ev-bankroll-popover-button"' in body
+    assert 'id="ev-bankroll-toolbar-value"' in body
+    assert 'id="ev-unit-toolbar-value"' in body
+    assert 'id="ev-more-menu-toggle"' in body
+    assert 'id="ev-more-menu"' in body
+    assert 'id="ev-active-filter-count"' in body
+    assert "Refresh opportunities" in body
+    assert "Automatic refresh" in body
     assert 'data-market-group="main"' in body
     assert 'data-market-group="props"' in body
     assert 'data-market-group="alternate"' in body
     assert 'data-market-group-toggle="main"' in body
     assert 'data-market-group-toggle="props"' in body
     assert 'data-market-group-toggle="alternate"' in body
+    assert 'data-market-group-count="props">0/43<' in body
+    assert body.count('data-market-sport="baseball_mlb"') == 21
+    assert body.count('data-market-sport="basketball_wnba"') == 22
     assert 'data-market-key="batter_total_bases"' in body
+    assert 'data-market-key="batter_hits_runs_rbis"' in body
+    assert 'data-market-key="batter_runs_rbis"' in body
+    assert 'data-market-key="pitcher_pitches_thrown"' in body
+    assert 'data-market-key="player_points_q1"' in body
+    assert 'data-market-key="player_blocks_steals"' in body
+    assert 'data-market-key="player_field_goals_attempted"' in body
+    assert 'data-market-key="player_double_double"' in body
     assert 'data-market-key="alternate_totals"' in body
     assert "Selecting props or alternates" not in body
     assert "Multiplicative" in body
@@ -508,6 +540,9 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert "iconlabs-ev-hidden-opportunities" in positive_ev_javascript
     assert 'event.submitter?.id === "ev-tracker-hide-submit"' in positive_ev_javascript
     assert "iconlabs-ev-tracked-opportunities" in positive_ev_javascript
+    assert 'requestJson("/api/user-settings")' in positive_ev_javascript
+    assert 'bankroll:bankrollConfig.amount' in positive_ev_javascript
+    assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
     assert 'class="ev-book-option"' in positive_ev_javascript
     assert 'class="ev-book-name"' in positive_ev_javascript
     positive_ev_premium_css = Path("static/app-premium.css").read_text(
@@ -680,6 +715,28 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
         ("h2h", "batter_total_bases", "alternate_totals"),
     )
 
+    expanded_props = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "group": "custom",
+            "markets": (
+                "batter_hits_runs_rbis,pitcher_pitches_thrown,"
+                "player_points_q1,player_blocks_steals,player_double_double"
+            ),
+        },
+    )
+    assert expanded_props.status_code == 200
+    assert calls[-1] == (
+        ("baseball_mlb", "basketball_wnba"),
+        (
+            "batter_hits_runs_rbis",
+            "pitcher_pitches_thrown",
+            "player_points_q1",
+            "player_blocks_steals",
+            "player_double_double",
+        ),
+    )
+
     missing_custom_markets = app_client.get(
         "/api/positive-ev", query_string={"group": "custom"}
     )
@@ -702,7 +759,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     )
     assert bad_source.status_code == 400
     assert bad_source.get_json()["error"] == "INVALID_DEVIG_SOURCE"
-    assert len(calls) == 3
+    assert len(calls) == 4
 
 
 def test_app_starts_with_no_enabled_wallets(tmp_path):
