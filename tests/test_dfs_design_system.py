@@ -109,6 +109,19 @@ def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> 
     assert "background: rgba(141, 68, 246, .15)" in CSS
 
 
+def test_prizepicks_and_iconlabs_columns_inherit_the_row_backgrounds() -> None:
+    assert '.selected-line {\n  background: var(--il-surface-1) !important;' in CSS
+    assert ".dfs-table tbody tr td.algo-odds-cell" in CSS
+    assert ".dfs-table tbody tr:nth-child(even) td.selected-line" in CSS
+    assert ".dfs-table tbody tr:nth-child(even) td.algo-odds-cell" in CSS
+    assert ".dfs-table tbody tr:hover td.selected-line" in CSS
+    assert ".dfs-table tbody tr:hover td.algo-odds-cell" in CSS
+
+
+def test_iconlabs_fair_odds_uses_the_current_white_mark() -> None:
+    assert "assets/iconlabs-mark-white.webp" in TEMPLATE
+
+
 def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
     assert "dfs-summary-row" not in TEMPLATE
     assert "Line discrepancies only" not in TEMPLATE

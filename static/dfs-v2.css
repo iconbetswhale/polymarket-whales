@@ -580,7 +580,21 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-stat {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .selected-line {
-  background: var(--il-surface-selected-quiet) !important;
+  background: var(--il-surface-1) !important;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr td.algo-odds-cell {
+  background: var(--il-surface-1) !important;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:nth-child(even) td.selected-line,
+body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:nth-child(even) td.algo-odds-cell {
+  background: rgba(141, 68, 246, .08) !important;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td.selected-line,
+body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td.algo-odds-cell {
+  background: rgba(141, 68, 246, .15) !important;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .selected-line strong {
