@@ -482,6 +482,24 @@ def test_websocket_smoke_reports_only_sanitized_provider_http_status() -> None:
     assert result["token_exposed"] is False
 
 
+def test_websocket_smoke_can_use_preselected_market_without_rest_round_trip() -> None:
+    session = QueueSession()
+    auth = NoVIGAuthClient("client-id", "client-secret", session=session)
+    rest = NoVIGRestClient(auth, session=session)
+    socket = FakeSocket([{"event": "book", "data": {"book": sample_book()}}])
+
+    result = websocket_smoke_test(
+        auth,
+        rest,
+        market_id="market-1",
+        socket_factory=lambda *_args, **_kwargs: socket,
+    )
+
+    assert result["success"] is True
+    assert session.request_calls == []
+    assert socket.sent[0] == {"event": "subscribe", "data": "market-1"}
+
+
 def test_american_odds_and_live_fee_depth_math() -> None:
     levels = [
         {"price": 0.4, "contracts": 10, "liquidityDollars": 4.0},
@@ -647,10 +665,11 @@ def test_novig_websocket_smoke_is_job_authorized_and_sanitized(
     app.extensions["novig_nbx_provider"] = FakeProvider()
     settings = app.config["SETTINGS"]
     object.__setattr__(settings, "tracker_job_secret", "test-job-secret")
-    monkeypatch.setattr(
-        app_module,
-        "websocket_smoke_test",
-        lambda *_args, **_kwargs: {
+    captured = {}
+
+    def fake_websocket_smoke(*_args, **kwargs):
+        captured.update(kwargs)
+        return {
             "success": True,
             "connected": True,
             "book_snapshot_received": True,
@@ -659,12 +678,17 @@ def test_novig_websocket_smoke_is_job_authorized_and_sanitized(
             "error_code": None,
             "credentials_exposed": False,
             "token_exposed": False,
-        },
+        }
+
+    monkeypatch.setattr(
+        app_module,
+        "websocket_smoke_test",
+        fake_websocket_smoke,
     )
 
     unauthorized = app_client.post("/api/provider-health/novig/websocket")
     authorized = app_client.post(
-        "/api/provider-health/novig/websocket",
+        "/api/provider-health/novig/websocket?market_id=market-1",
         headers={"Authorization": "Bearer test-job-secret"},
     )
 
@@ -675,3 +699,4 @@ def test_novig_websocket_smoke_is_job_authorized_and_sanitized(
     assert payload["book_snapshot_received"] is True
     assert payload["credentials_exposed"] is False
     assert payload["token_exposed"] is False
+    assert captured["market_id"] == "market-1"

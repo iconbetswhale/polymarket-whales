@@ -14,10 +14,25 @@ jobs:
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
         run: |
-          response="$(curl --silent --show-error --max-time 45 \
+          market_response="$(curl --silent --show-error --max-time 25 \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
-            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket)"
+            'https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket?mode=market')"
+          market_id="$(NOVIG_MARKET_RESULT="$market_response" python - <<'PY'
+          import json, os, re
+          data = json.loads(os.environ["NOVIG_MARKET_RESULT"])
+          market_id = str(data.get("market_id") or "")
+          if not data.get("success") or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", market_id):
+              raise SystemExit(f"NoVIG market selection failed: {data.get('error_code') or 'invalid-market'}")
+          if data.get("credentials_exposed") or data.get("token_exposed"):
+              raise SystemExit("NoVIG market response reported secret exposure")
+          print(market_id)
+          PY
+          )"
+          response="$(curl --silent --show-error --max-time 25 \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            "https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket?market_id=$market_id")"
           NOVIG_RESULT="$response" python - <<'PY'
           import json, os
           data = json.loads(os.environ["NOVIG_RESULT"])

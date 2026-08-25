@@ -33,7 +33,7 @@ from execution_providers import (
     build_execution_provider_registry,
     canonicalize_trade,
 )
-from novig_feed_worker import websocket_smoke_test
+from novig_feed_worker import select_websocket_smoke_market, websocket_smoke_test
 from novig_provider import NoVIGError
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
@@ -1405,6 +1405,32 @@ def create_app(start_background: bool = True) -> Flask:
                     "token_exposed": False,
                 }
             ), 503
+        if request.args.get("mode", "").strip().lower() == "market":
+            try:
+                market_id = select_websocket_smoke_market(provider.rest)
+            except NoVIGError as exc:
+                return jsonify(
+                    {
+                        "provider": "novig",
+                        "success": False,
+                        "market_id": None,
+                        "error_code": exc.code,
+                        "http_status": exc.status_code,
+                        "credentials_exposed": False,
+                        "token_exposed": False,
+                    }
+                ), exc.status_code or 503
+            return jsonify(
+                {
+                    "provider": "novig",
+                    "success": True,
+                    "market_id": market_id,
+                    "error_code": None,
+                    "http_status": provider.rest.last_http_status,
+                    "credentials_exposed": False,
+                    "token_exposed": False,
+                }
+            )
         result = websocket_smoke_test(
             provider.auth,
             provider.rest,
@@ -1413,6 +1439,7 @@ def create_app(start_background: bool = True) -> Flask:
             # Market subscriptions receive an immediate initial book snapshot,
             # so a longer wait only turns a useful failure into an opaque 500.
             timeout_seconds=5,
+            market_id=request.args.get("market_id") or None,
         )
         response = jsonify({"provider": "novig", **result})
         response.headers["Cache-Control"] = "private, no-store"

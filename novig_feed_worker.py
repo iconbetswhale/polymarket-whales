@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import random
+import re
 import threading
 import time
 from datetime import datetime, timezone
@@ -318,6 +319,7 @@ def websocket_smoke_test(
     websocket_url: str = NOVIG_WEBSOCKET_URL,
     timeout_seconds: float = 8.0,
     socket_factory: Callable | None = None,
+    market_id: str | None = None,
 ) -> dict:
     result = {
         "success": False,
@@ -333,16 +335,11 @@ def websocket_smoke_test(
     }
     socket = None
     try:
-        # The unfiltered open-markets response can be very large. A smoke test
-        # only needs one valid market subscription, so use server-side market
-        # type filters and keep the diagnostic's memory footprint bounded.
-        markets = rest.list_open_markets(market_type="TOTAL")
-        if not markets:
-            markets = rest.list_open_markets(market_type="SPREAD")
-        if not markets:
-            result["error_code"] = "NOVIG_NO_OPEN_MARKETS"
-            return result
-        market_id = str(markets[0].get("id") or "").strip()
+        selected_market_id = (
+            _validated_smoke_market_id(market_id)
+            if market_id
+            else select_websocket_smoke_market(rest)
+        )
         token = auth.get_token()
         factory = socket_factory or _default_socket_factory
         socket = factory(
@@ -351,7 +348,7 @@ def websocket_smoke_test(
             timeout=max(1.0, float(timeout_seconds)),
         )
         result["connected"] = True
-        for channel in (market_id, "tape", "lifecycle"):
+        for channel in (selected_market_id, "tape", "lifecycle"):
             socket.send(json.dumps({"event": "subscribe", "data": channel}))
         result["market_subscription_sent"] = True
         deadline = time.monotonic() + max(1.0, float(timeout_seconds))
@@ -404,6 +401,30 @@ def websocket_smoke_test(
             except Exception:
                 pass
     return result
+
+
+def select_websocket_smoke_market(rest: NoVIGRestClient) -> str:
+    """Select one open market with a bounded, server-filtered REST response."""
+
+    markets = rest.list_open_markets(market_type="TOTAL")
+    if not markets:
+        markets = rest.list_open_markets(market_type="SPREAD")
+    for market in markets:
+        market_id = str(market.get("id") or "").strip()
+        if market_id:
+            return _validated_smoke_market_id(market_id)
+    raise NoVIGError("NOVIG_NO_OPEN_MARKETS", status_code=503)
+
+
+def _validated_smoke_market_id(value: object) -> str:
+    market_id = str(value or "").strip()
+    if (
+        not market_id
+        or len(market_id) > 128
+        or not re.fullmatch(r"[A-Za-z0-9_-]+", market_id)
+    ):
+        raise NoVIGError("NOVIG_INVALID_MARKET_ID", status_code=400)
+    return market_id
 
 
 def _default_socket_factory(url: str, *, authorization: str, timeout: float):
