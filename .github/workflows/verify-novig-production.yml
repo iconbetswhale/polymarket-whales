@@ -17,7 +17,7 @@ jobs:
           response="$(curl --silent --show-error \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
-            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket)"
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/novig_websocket)"
           NOVIG_RESULT="$response" python - <<'PY'
           import json, os
           data = json.loads(os.environ["NOVIG_RESULT"])

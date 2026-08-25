@@ -659,3 +659,65 @@ def test_novig_websocket_smoke_is_job_authorized_and_sanitized(
     assert payload["book_snapshot_received"] is True
     assert payload["credentials_exposed"] is False
     assert payload["token_exposed"] is False
+
+
+def test_isolated_novig_websocket_function_authorization_and_missing_credentials(
+    monkeypatch,
+) -> None:
+    from api import novig_websocket
+
+    for name in (
+        "TRACKER_JOB_SECRET",
+        "CRON_SECRET",
+        "NOVIG_CLIENT_ID",
+        "NOVIG_CLIENT_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
+    assert novig_websocket._authorized("Bearer anything") is False
+    monkeypatch.setenv("TRACKER_JOB_SECRET", "job-secret")
+    assert novig_websocket._authorized("Bearer job-secret") is True
+    assert novig_websocket._authorized("Bearer wrong-secret") is False
+
+    payload, status = novig_websocket._smoke_payload()
+    assert status == 503
+    assert payload == {
+        "provider": "novig",
+        "success": False,
+        "error_code": "NOVIG_CREDENTIALS_NOT_CONFIGURED",
+        "credentials_exposed": False,
+        "token_exposed": False,
+    }
+
+
+def test_isolated_novig_websocket_function_returns_only_sanitized_smoke_result(
+    monkeypatch,
+) -> None:
+    from api import novig_websocket
+
+    monkeypatch.setenv("NOVIG_CLIENT_ID", "sensitive-client-id")
+    monkeypatch.setenv("NOVIG_CLIENT_SECRET", "sensitive-client-secret")
+    monkeypatch.setattr(novig_websocket, "NoVIGAuthClient", lambda *_a, **_k: object())
+    monkeypatch.setattr(novig_websocket, "NoVIGRestClient", lambda *_a, **_k: object())
+    monkeypatch.setattr(
+        novig_websocket,
+        "websocket_smoke_test",
+        lambda *_a, **_k: {
+            "success": True,
+            "connected": True,
+            "book_snapshot_received": True,
+            "update_received": False,
+            "message_types": ["book"],
+            "error_code": None,
+            "credentials_exposed": False,
+            "token_exposed": False,
+        },
+    )
+
+    payload, status = novig_websocket._smoke_payload()
+    serialized = json.dumps(payload, sort_keys=True)
+    assert status == 200
+    assert payload["provider"] == "novig"
+    assert payload["success"] is True
+    assert "sensitive-client-id" not in serialized
+    assert "sensitive-client-secret" not in serialized
