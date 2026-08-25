@@ -75,6 +75,48 @@ final result: passed
 
 ---
 
+# DFS — IconLabs Fair Odds Column QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\AppData\Local\Temp\codex-clipboard-2f559147-906f-40c0-9ca5-531a26f57729.png` (1426 × 665 px).
+- Final browser implementation: `C:\Users\15617\Documents\Polymarket\polymarket-whales-dfs-math\dfs-iconlabs-fair-odds-final.png` (1426 × 665 px).
+- Verified route: `http://127.0.0.1:5091/dfs?preview=1`.
+- Browser CSS viewport: 1426 × 665 at device scale 1.
+- State: desktop PrizePicks preview, line discrepancies enabled, IconLabs Algo Odds preset applied at 100%.
+- Full-view comparison: source and implementation were opened together at identical pixel dimensions. The comparison targeted the selected pattern—DFS line, hit-rate percentage, proprietary fair-odds column, then book prices—while retaining the existing IconLabs shell and controls.
+- Focused region comparison: the table header and first three rows were inspected at native scale because the new logo/odds relationship is the only requested visual target.
+
+## Findings and implementation
+
+- No actionable P0/P1/P2 mismatch remains.
+- The new IconLabs mark header sits directly after Chance to Hit, matching the reference's proprietary-odds column placement.
+- Each fair-odds value is derived from the exact displayed probability rather than being an independent placeholder. Applying the IconLabs preset changed the first row from 63.8% / -176 to 64.0% / -177 in the same render.
+- The authentic vertical IconLabs mark is narrower than DailyGrind's square mark; preserving the real brand asset is an intentional product constraint rather than recreating the reference logo.
+
+## Required fidelity surfaces
+
+- Fonts and typography: fair odds use the existing 15px table-price hierarchy and tabular numerals; hit-rate typography remains unchanged.
+- Spacing and layout rhythm: the new fixed-width column aligns with the price grid, preserves the highlighted probability card, and keeps intentional horizontal table scrolling.
+- Colors and tokens: the odds column uses the approved navy table surfaces and white price hierarchy; probability remains positive green.
+- Image quality and asset fidelity: the existing high-resolution `iconlabs-mark-v2.png` is used with preserved aspect ratio; no recreated SVG, glyph, or placeholder logo was introduced.
+- Copy and content: the accessible header and tooltip identify the metric as “IconLabs fair odds.”
+
+## Interaction and runtime verification
+
+- Devig Settings opened successfully.
+- IconLabs Algo Odds loaded the 100% default profile.
+- Applying the profile updated the hit percentage and fair American odds together.
+- Six preview rows rendered in the filtered state.
+- Browser console errors: none.
+- Focused DFS/API/design tests: 19 passed.
+- `node --check static/dfs.js`: passed.
+- `git diff --check`: passed with line-ending notices only.
+
+final result: passed
+
+---
+
 # Positive EV — v2 Color-Base Typography Restoration QA
 
 ## Evidence and comparison method

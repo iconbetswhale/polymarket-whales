@@ -66,6 +66,8 @@ def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
         assert f"var({token})" in CSS
     assert "gradient(" not in CSS
     assert "assets/dfs-books/" in TEMPLATE
+    assert "IconLabs fair odds" in TEMPLATE
+    assert "fairAmericanOdds" in SCRIPT
 
 
 def test_dfs_v2_keeps_responsive_and_interactive_contracts() -> None:

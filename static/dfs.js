@@ -85,6 +85,15 @@
     return Math.max(1,Math.min(99,row.hit + adjustment));
   }
 
+  function fairAmericanOdds(probabilityPercent) {
+    const probability = Number(probabilityPercent) / 100;
+    if (!(probability > 0 && probability < 1)) return '—';
+    if (Math.abs(probability - 0.5) < 1e-9) return '+100';
+    const odds = probability > 0.5 ? -100 * probability / (1-probability) : 100 * (1-probability) / probability;
+    const rounded = Math.round(odds);
+    return rounded > 0 ? `+${rounded}` : String(rounded);
+  }
+
   function updateStats() {
     const current = statSelect.value;
     const sport = document.querySelector('#dfs-sport').value;
@@ -112,6 +121,7 @@
     const discrepanciesOnly = document.querySelector('#dfs-discrepancies').checked;
     const visible = rows.filter(r => (!discrepanciesOnly || r.discrepancy !== false) && (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
     body.innerHTML = visible.map(r => {
+      const fairHitRate = fairProbability(r);
       const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? r.line;
       const oddsByKey = Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds[index]]));
       oddsByKey.circa = oddsByKey.betonline;
@@ -129,7 +139,7 @@
         const alternateLine = typeof market === 'object' && Number(market.line) !== Number(activeLine) ? market.line : null;
         return `<td class="book-cell ${unavailable?'muted':''}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairProbability(r).toFixed(1)}%</strong></span></td>${cells}</tr>`;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong><small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small></td><td><span class="hit-rate" title="Weighted vig-free probability"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="IconLabs fair odds from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-count').textContent = `${visible.length} prop${visible.length===1?'':'s'}`;
     document.querySelector('#dfs-empty').hidden = visible.length > 0;
