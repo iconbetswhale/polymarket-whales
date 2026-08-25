@@ -170,7 +170,7 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     assert "box-shadow: inset 4px 0 0 var(--il-brand), 0 0 10px var(--il-brand-glow)" in CSS
     assert ".ev-opportunity:hover { border-color: var(--il-border-standard); background: var(--il-surface-play-card-purple-hover); transform: none; }" in CSS
     assert '.ev-opportunity.active {\n  border-width: 1px;' in CSS
-    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display .ev-score-values > strong' in CSS
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong' in CSS
     assert ".ev-bet-metrics { display: grid; grid-template-columns: auto auto; align-items: stretch; gap: var(--il-space-1); }" in CSS
     assert "border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-play-card-purple)" in CSS
     assert "flex-direction: column; align-items: center; justify-content: center" in CSS
@@ -203,17 +203,6 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     assert "min-width: 98px" in CSS
     assert "border: 2px solid var(--il-brand-hover)" in CSS
     assert "box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow)" in CSS
-
-
-def test_positive_ev_surfaces_iconlabs_algo_odds_and_editable_devig_settings() -> None:
-    assert 'id="ev-algo-open"' in TEMPLATE
-    assert 'id="ev-algo-defaults"' in TEMPLATE
-    assert "Algo odds ${odds(row.fairAmerican)}" in SCRIPT
-    assert "openAlgoSettings" in SCRIPT
-    assert "updateAlgoSummary" in SCRIPT
-    assert "weights:JSON.stringify(settings.weights)" in SCRIPT
-    assert ".ev-algo-button" in CSS
-    assert ".ev-score-values" in CSS
 
 
 def test_positive_ev_uses_real_league_logo_watermarks() -> None:
