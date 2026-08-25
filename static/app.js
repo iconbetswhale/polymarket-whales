@@ -6649,13 +6649,18 @@ async function loadOddsScreen() {
   oddsState.loading = true;
   const started = performance.now();
   try {
-    const params = new URLSearchParams();
-    if (oddsState.sport) params.set("sport", oddsState.sport);
-    if (oddsState.league) params.set("league", oddsState.league);
-    if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
-    params.set("active", "1");
-    if (oddsState.preview) params.set("preview", "1");
-    const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
+    let payload;
+    if (oddsState.preview) {
+      payload = window.ICONLABS_ODDS_SCREEN_PREVIEW_DATA;
+      if (!payload) throw new Error("Odds Screen preview fixture is unavailable");
+    } else {
+      const params = new URLSearchParams();
+      if (oddsState.sport) params.set("sport", oddsState.sport);
+      if (oddsState.league) params.set("league", oddsState.league);
+      if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
+      params.set("active", "1");
+      payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
+    }
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;

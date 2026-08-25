@@ -54,6 +54,24 @@ def test_odds_screen_preview_is_read_only_and_populated(app_client):
     )
 
 
+def test_odds_screen_preview_static_fixture_is_gated(app_client):
+    preview = app_client.get("/odds-screen?preview=1")
+    live = app_client.get("/odds-screen")
+
+    assert preview.status_code == 200
+    assert live.status_code == 200
+    assert b"odds-screen-preview.js" in preview.data
+    assert b"odds-screen-preview.js" not in live.data
+
+    script = (ROOT / "static" / "odds-screen-preview.js").read_text(
+        encoding="utf-8"
+    )
+    assert "window.ICONLABS_ODDS_SCREEN_PREVIEW_DATA" in script
+    assert "providerRequestsEnabled: false" in script
+    assert "trackerWritesEnabled: false" in script
+    assert script.count('marketTitle: "') == 6
+
+
 def test_odds_screen_template_uses_approved_terminal_structure():
     template = (ROOT / "templates" / "odds_screen.html").read_text(
         encoding="utf-8"
@@ -123,6 +141,7 @@ def test_odds_screen_preview_client_does_not_start_polling():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert 'preview: new URLSearchParams(window.location.search).get("preview") === "1"' in script
-    assert 'if (oddsState.preview) params.set("preview", "1")' in script
+    assert "payload = window.ICONLABS_ODDS_SCREEN_PREVIEW_DATA" in script
+    assert 'params.set("preview", "1")' not in script
     assert "if (!oddsState.preview && oddsState.autoRefresh) oddsState.timer = window.setInterval" in script
     assert "setOddsFeedActive(oddsState.preview)" in script

@@ -139,7 +139,8 @@
     </div>
   </dialog>
   {% if page == 'trades' and trades_preview %}<script src="{{ url_for('static', filename='trades-preview.js', v=asset_version ~ '-all-tabs-v1') }}"></script>{% endif %}
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v1') }}"></script>
+  {% if page == 'odds-screen' and odds_screen_preview %}<script src="{{ url_for('static', filename='odds-screen-preview.js', v=asset_version ~ '-client-preview-v1') }}"></script>{% endif %}
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v2') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v5-player-props') }}"></script>{% endif %}
   {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
