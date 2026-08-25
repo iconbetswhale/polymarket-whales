@@ -467,6 +467,21 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
     ]
 
 
+def test_websocket_smoke_reports_only_sanitized_provider_http_status() -> None:
+    class FailingRest:
+        @staticmethod
+        def list_open_markets(**_filters):
+            raise NoVIGError("NOVIG_AUTH_REQUEST_FAILED", status_code=429)
+
+    result = websocket_smoke_test(object(), FailingRest())
+
+    assert result["success"] is False
+    assert result["error_code"] == "NOVIG_AUTH_REQUEST_FAILED"
+    assert result["http_status"] == 429
+    assert result["credentials_exposed"] is False
+    assert result["token_exposed"] is False
+
+
 def test_american_odds_and_live_fee_depth_math() -> None:
     levels = [
         {"price": 0.4, "contracts": 10, "liquidityDollars": 4.0},

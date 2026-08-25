@@ -63,6 +63,7 @@ jobs:
               f"book_snapshot={bool(data.get('book_snapshot_received'))} "
               f"update={bool(data.get('update_received'))} "
               f"types={','.join(data.get('message_types') or []) or 'none'} "
+              f"http={data.get('http_status') or 'none'} "
               f"error={data.get('error_code') or 'none'}"
           )
           if not data.get("success"):

@@ -327,6 +327,7 @@ def websocket_smoke_test(
         "update_received": False,
         "message_types": [],
         "error_code": None,
+        "http_status": None,
         "credentials_exposed": False,
         "token_exposed": False,
     }
@@ -393,6 +394,7 @@ def websocket_smoke_test(
             result["error_code"] = "NOVIG_WEBSOCKET_SNAPSHOT_NOT_OBSERVED"
     except NoVIGError as exc:
         result["error_code"] = exc.code
+        result["http_status"] = exc.status_code
     except Exception:
         result["error_code"] = "NOVIG_WEBSOCKET_CONNECTION_FAILED"
     finally:
