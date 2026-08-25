@@ -75,6 +75,76 @@ final result: passed
 
 ---
 
+# Real-model sitewide slate palette QA
+
+## Scope lock
+
+The implementation is based directly on `origin/main` commit `219cdea`
+(`Redesign IconLabs sidebar and Positive EV workspace`). The only intended
+visual difference is the shared background, surface, and border palette.
+
+No application JavaScript, route template structure, product content, fixture
+data, navigation geometry, page geometry, control behavior, or backend logic
+changed. The current neon-flow sidebar asset and the current Positive EV
+master/detail design remain intact.
+
+## Combined comparison evidence
+
+The before and after captures were inspected together at identical browser
+states:
+
+- `.codex-artifacts/real-model-slate/baseline/trades-desktop.png`
+- `.codex-artifacts/real-model-slate/post/trades-desktop.png`
+- `.codex-artifacts/real-model-slate/baseline/positive-ev-desktop.png`
+- `.codex-artifacts/real-model-slate/post/positive-ev-desktop.png`
+- `.codex-artifacts/real-model-slate/baseline/odds-screen-desktop.png`
+- `.codex-artifacts/real-model-slate/post/odds-screen-desktop.png`
+- `.codex-artifacts/real-model-slate/post/mobile/trades-390.png`
+- `.codex-artifacts/real-model-slate/post/mobile/positive-ev-390.png`
+- `.codex-artifacts/real-model-slate/post/mobile/odds-screen-390.png`
+
+## Visual judgment
+
+- The app canvas now resolves to `#111827` on every route.
+- Primary and secondary surfaces use `#090e1a` and `#0a101c`.
+- The real-model sidebar remains black with the original
+  `sidebar-neon-purple-flow-connected-v5.webp` artwork, bevel, active state,
+  dimensions, and typography.
+- Prediction Traders retains all cards, filters, finance controls, summary
+  metrics, quote chips, Bet Size values, and selection behavior.
+- Positive EV retains its current +EV card layout, controls, market-odds rail,
+  expanded detail artwork, and mobile detail composition.
+- Sportsbook Screen retains its current toolbar, market tabs, data grid, and
+  mobile paused state; only its graphite surfaces move into the slate family.
+- No horizontal overflow was found on any desktop route or the 390px checks.
+
+## Route coverage
+
+Verified: Prediction Traders, Sharp Money, Positive EV, Sportsbook Screen,
+Fantasy Optimizer, Bet Tracker, LabTracker, Shadow Lab, Live Positions, Sharp
+Wallets, Bet History, Edge Map, Intelligence, and Home.
+
+Every route completed loading with the expected slate canvas, the real-model
+sidebar asset on desktop, zero broken images, and no document overflow.
+
+## Verification
+
+- Palette, sidebar, typography, and Positive EV contracts: 49 passed.
+- Full regression suite: 776 passed.
+- JavaScript syntax validation: passed.
+- Diff whitespace validation: passed.
+- No application code, route markup, or business logic was changed.
+
+## Severity review
+
+- P0: none
+- P1: none
+- P2: none
+
+final result: passed
+
+---
+
 # Positive EV — v2 Color-Base Typography Restoration QA
 
 ## Evidence and comparison method

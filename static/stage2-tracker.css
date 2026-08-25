@@ -3,25 +3,23 @@
    every existing ID, data hook, table, dialog, and tracker interaction. */
 
 body[data-page="tracker"] {
-  --tracker-root: #08070d;
-  --tracker-workspace: #0d0b13;
-  --tracker-surface: #12101a;
-  --tracker-surface-raised: #171321;
-  --tracker-surface-emphasis: #1d1729;
+  --tracker-root: var(--site-bg-canvas);
+  --tracker-workspace: var(--site-bg-canvas);
+  --tracker-surface: var(--site-surface-primary);
+  --tracker-surface-raised: var(--site-surface-secondary);
+  --tracker-surface-emphasis: var(--site-surface-elevated);
   --tracker-purple: #a99af5;
   --tracker-purple-hover: #b8acfa;
   --tracker-purple-muted: #8273cd;
   --tracker-purple-soft: rgba(169, 154, 245, 0.1);
   --tracker-purple-strong: rgba(169, 154, 245, 0.17);
-  --tracker-line: rgba(195, 183, 238, 0.1);
-  --tracker-line-strong: rgba(195, 183, 238, 0.2);
+  --tracker-line: var(--site-border-subtle);
+  --tracker-line-strong: var(--site-border-standard);
   --tracker-copy: #f5f2fa;
   --tracker-copy-secondary: #b8b1c5;
   --tracker-copy-muted: #81798f;
   --tracker-positive: #79de79;
-  background:
-    radial-gradient(circle at 54% 18%, rgba(130, 115, 205, 0.07), transparent 31rem),
-    var(--tracker-root) !important;
+  background: var(--tracker-root) !important;
   color: var(--tracker-copy);
 }
 
@@ -384,9 +382,7 @@ body[data-page="tracker"] .tracker-bets-view .table-panel {
 
 body[data-page="tracker"] .app-shell {
   padding-top: 78px !important;
-  background:
-    radial-gradient(circle at 46% 12%, rgba(169, 154, 245, 0.035), transparent 34rem),
-    var(--tracker-root) !important;
+  background: var(--tracker-root) !important;
 }
 
 body[data-page="tracker"] .tracker-page-header,

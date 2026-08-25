@@ -35,10 +35,8 @@ body:not([data-page="home"]) .brand-lockup img {
     flex-direction: column !important;
     align-items: stretch !important;
     overflow: hidden !important;
-    border-right: 1px solid rgba(139, 70, 184, .29) !important;
-    background:
-      radial-gradient(circle at 65% 5%, rgba(109, 29, 164, .10), transparent 31%),
-      linear-gradient(180deg, #09050e 0%, #050208 48%, #040106 100%) !important;
+    border-right: 1px solid var(--site-border-subtle) !important;
+    background: var(--site-bg-sidebar) !important;
     box-shadow: 16px 0 42px rgba(0, 0, 0, .17) !important;
   }
 
@@ -46,7 +44,7 @@ body:not([data-page="home"]) .brand-lockup img {
     width: 1px !important;
     height: 100% !important;
     inset: 0 0 0 auto !important;
-    background: linear-gradient(180deg, rgba(198, 75, 255, .16), rgba(198, 75, 255, .03) 72%, transparent) !important;
+    background: linear-gradient(180deg, rgba(141, 68, 246, .12), rgba(141, 68, 246, .025) 72%, transparent) !important;
   }
 
   body.sidebar-expanded:not([data-page="home"]) .app-shell {

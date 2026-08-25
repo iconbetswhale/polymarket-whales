@@ -11,12 +11,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .app-shell {
   height: 100dvh;
   padding: var(--il-gutter-desktop);
   overflow: hidden;
-  background-color: var(--il-bg-sidebar-texture);
-  background-image: var(--il-sidebar-texture-image);
-  background-repeat: repeat;
-  background-position: top left;
-  background-size: 460px 460px;
-  background-blend-mode: multiply;
+  background: var(--il-bg-app);
 }
 
 body[data-design-system="v2"][data-page="positive-ev"] .brand-icon { display: none; }

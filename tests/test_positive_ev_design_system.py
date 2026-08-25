@@ -335,11 +335,12 @@ def test_header_divider_and_expanded_detail_reuse_the_sidebar_depth_palette() ->
     assert "0 0 0 5px var(--il-depth-deep)" in CSS
 
 
-def test_workspace_and_top_area_share_the_sidebar_texture() -> None:
+def test_workspace_uses_the_sitewide_slate_canvas_without_changing_page_geometry() -> None:
     assert 'body[data-design-system="v2"][data-page="positive-ev"] .app-shell {' in CSS
-    assert "background-color: var(--il-bg-sidebar-texture)" in CSS
-    assert "background-image: var(--il-sidebar-texture-image)" in CSS
-    assert "background-size: 460px 460px" in CSS
+    assert "height: 100dvh" in CSS
+    assert "padding: var(--il-gutter-desktop)" in CSS
+    assert "background: var(--il-bg-app)" in CSS
+    assert "background-image: var(--il-sidebar-texture-image)" not in CSS
     assert ".ev-page {" in CSS and "background: transparent" in CSS
 
 

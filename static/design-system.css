@@ -7,22 +7,22 @@
    -------------------------------------------------------------------------- */
 
 :root {
-  /* Approved Prediction Traders color system. */
-  --il-bg-app: #030a11;
-  --il-bg-sidebar: #06111a;
-  --il-bg-workspace: #030a11;
+  /* Sitewide slate palette. Layout, hierarchy, and page-owned styling stay unchanged. */
+  --il-bg-app: #111827;
+  --il-bg-sidebar: #0d1421;
+  --il-bg-workspace: #111827;
   --il-bg-sidebar-texture: #2b2b32;
   --il-bg-pure-black: #000;
   --il-sidebar-texture-image: url("/static/assets/sidebar-black-sandpaper.webp");
-  --il-surface-1: #07131c;
-  --il-surface-2: #0a1822;
-  --il-surface-elevated: #0d1d28;
-  --il-surface-hover: #0d202b;
+  --il-surface-1: #090e1a;
+  --il-surface-2: #0a101c;
+  --il-surface-elevated: #0d1421;
+  --il-surface-hover: #0f1725;
   --il-surface-selected: rgba(141, 68, 246, .08);
   --il-surface-selected-quiet: rgba(137, 72, 245, .055);
   --il-surface-selected-badge: rgba(141, 68, 246, .13);
   --il-surface-tab-count: rgba(255, 255, 255, .07);
-  --il-surface-tooltip: #132532;
+  --il-surface-tooltip: #182235;
   --il-surface-play-card-purple: #120d20;
   --il-surface-play-card-purple-hover: #171129;
   --il-surface-play-card-purple-active: #160e27;
@@ -31,11 +31,11 @@
   --il-surface-positive-selected: rgba(80, 217, 119, .055);
   --il-surface-warning-subtle: rgba(233, 184, 94, .09);
   --il-surface-info-subtle: rgba(90, 169, 255, .055);
-  --il-backdrop: rgba(3, 2, 6, .7);
-  --il-backdrop-soft: rgba(3, 2, 6, .68);
-  --il-surface-legacy-overlay: rgba(15, 13, 21, .96);
-  --il-border-subtle: rgba(83, 126, 151, .2);
-  --il-border-standard: rgba(83, 126, 151, .34);
+  --il-backdrop: rgba(3, 7, 18, .74);
+  --il-backdrop-soft: rgba(3, 7, 18, .68);
+  --il-surface-legacy-overlay: rgba(9, 14, 26, .96);
+  --il-border-subtle: rgba(71, 85, 105, .45);
+  --il-border-standard: rgba(71, 85, 105, .68);
   --il-border-interactive: rgba(146, 86, 244, .52);
   --il-border-tooltip: rgba(180, 194, 212, .2);
   --il-depth-edge: #b23cff;
@@ -68,9 +68,9 @@
   --il-brand-outline-strong: rgba(141, 68, 246, .32);
   --il-positive-glow: rgba(80, 217, 119, .1);
   --il-warning-border: rgba(233, 184, 94, .38);
-  --il-border-hairline: rgba(83, 126, 151, .14);
-  --il-scrollbar: rgba(83, 126, 151, .35);
-  --il-scrollbar-active: rgba(83, 126, 151, .45);
+  --il-border-hairline: rgba(71, 85, 105, .3);
+  --il-scrollbar: rgba(100, 116, 139, .45);
+  --il-scrollbar-active: rgba(100, 116, 139, .62);
   --il-shadow-popover: 0 10px 28px rgba(0, 0, 0, .34);
   --il-shadow-menu: 0 12px 30px rgba(0, 0, 0, .34);
   --il-shadow-tooltip: 0 8px 22px rgba(0, 0, 0, .3);

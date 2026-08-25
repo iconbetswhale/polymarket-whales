@@ -1,15 +1,26 @@
 :root {
-  --bg: #03070a;
-  --bg-elevated: #071016;
-  --nav: #060c10;
-  --panel: #0a141a;
-  --panel-strong: #0e1b22;
-  --panel-soft: #111f27;
-  --panel-raised: #14252d;
-  --panel-hover: #12232b;
-  --border: #203741;
-  --border-strong: #2a4b58;
-  --border-soft: rgba(126, 165, 178, 0.16);
+  --site-bg-canvas: #111827;
+  --site-bg-sidebar: #0d1421;
+  --site-surface-deep: #030712;
+  --site-surface-primary: #090e1a;
+  --site-surface-secondary: #0a101c;
+  --site-surface-elevated: #0d1421;
+  --site-surface-raised: #131c2d;
+  --site-surface-hover: #0f1725;
+  --site-border-subtle: rgba(71, 85, 105, 0.48);
+  --site-border-standard: #2a3547;
+  --site-border-strong: #37465c;
+  --bg: var(--site-bg-canvas);
+  --bg-elevated: var(--site-surface-secondary);
+  --nav: var(--site-bg-sidebar);
+  --panel: var(--site-surface-primary);
+  --panel-strong: var(--site-surface-secondary);
+  --panel-soft: var(--site-surface-elevated);
+  --panel-raised: var(--site-surface-raised);
+  --panel-hover: var(--site-surface-hover);
+  --border: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
+  --border-soft: var(--site-border-subtle);
   --text: #f5f8f9;
   --muted: #7f939d;
   --muted-strong: #aec0c7;
@@ -63,9 +74,7 @@ body {
   min-height: 100vh;
   margin: 0;
   color: var(--text);
-  background:
-    radial-gradient(circle at 50% -20%, rgba(20, 89, 104, 0.16), transparent 34rem),
-    linear-gradient(180deg, #05090c 0%, #061015 52%, #05090c 100%);
+  background: var(--site-bg-canvas);
   font-family: var(--font-body);
   font-size: 14px;
   font-variant-numeric: tabular-nums lining-nums;
@@ -7282,17 +7291,17 @@ body.trades-settings-open {
 
 /* Readability and depth refinements */
 :root {
-  --bg: #04090e;
-  --bg-elevated: #08121a;
-  --nav: #060c12;
-  --panel: #0b161e;
-  --panel-strong: #101d26;
-  --panel-soft: #14242d;
-  --panel-raised: #182b35;
-  --panel-hover: #162933;
-  --border: #29414d;
-  --border-strong: #355968;
-  --border-soft: rgba(144, 177, 190, 0.2);
+  --bg: var(--site-bg-canvas);
+  --bg-elevated: var(--site-surface-secondary);
+  --nav: var(--site-bg-sidebar);
+  --panel: var(--site-surface-primary);
+  --panel-strong: var(--site-surface-secondary);
+  --panel-soft: var(--site-surface-elevated);
+  --panel-raised: var(--site-surface-raised);
+  --panel-hover: var(--site-surface-hover);
+  --border: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
+  --border-soft: var(--site-border-subtle);
   --muted: #96a8b0;
   --muted-strong: #c1cdd2;
   --green: #50cf8b;
@@ -7308,12 +7317,7 @@ body.trades-settings-open {
 }
 
 body {
-  background:
-    radial-gradient(ellipse at 10% -8%, rgba(28, 133, 181, 0.2), transparent 38rem),
-    radial-gradient(ellipse at 88% 10%, rgba(207, 158, 88, 0.075), transparent 32rem),
-    repeating-linear-gradient(0deg, rgba(139, 177, 191, 0.018) 0, rgba(139, 177, 191, 0.018) 1px, transparent 1px, transparent 52px),
-    repeating-linear-gradient(90deg, rgba(139, 177, 191, 0.014) 0, rgba(139, 177, 191, 0.014) 1px, transparent 1px, transparent 52px),
-    linear-gradient(155deg, #071018 0%, #04090e 46%, #071016 100%);
+  background: var(--site-bg-canvas);
   background-attachment: fixed;
 }
 
@@ -7609,17 +7613,17 @@ body[data-page="trades"] .status-chip {
 
 /* Black, gold, and white theme */
 :root {
-  --bg: #030303;
-  --bg-elevated: #080808;
-  --nav: #050505;
-  --panel: #0a0a0a;
-  --panel-strong: #10100f;
-  --panel-soft: #151411;
-  --panel-raised: #1a1813;
-  --panel-hover: #181611;
-  --border: #2d2920;
-  --border-strong: #66512d;
-  --border-soft: rgba(216, 174, 88, 0.18);
+  --bg: var(--site-bg-canvas);
+  --bg-elevated: var(--site-surface-secondary);
+  --nav: var(--site-bg-sidebar);
+  --panel: var(--site-surface-primary);
+  --panel-strong: var(--site-surface-secondary);
+  --panel-soft: var(--site-surface-elevated);
+  --panel-raised: var(--site-surface-raised);
+  --panel-hover: var(--site-surface-hover);
+  --border: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
+  --border-soft: var(--site-border-subtle);
   --text: #faf9f5;
   --muted: #a9a59b;
   --muted-strong: #d8d4ca;
@@ -7638,16 +7642,11 @@ body[data-page="trades"] .status-chip {
 }
 
 html {
-  background: #030303;
+  background: var(--site-bg-canvas);
 }
 
 body {
-  background:
-    radial-gradient(ellipse at 10% -10%, rgba(214, 170, 80, 0.14), transparent 38rem),
-    radial-gradient(ellipse at 90% 7%, rgba(255, 246, 223, 0.045), transparent 30rem),
-    repeating-linear-gradient(0deg, rgba(232, 210, 164, 0.014) 0, rgba(232, 210, 164, 0.014) 1px, transparent 1px, transparent 52px),
-    repeating-linear-gradient(90deg, rgba(232, 210, 164, 0.012) 0, rgba(232, 210, 164, 0.012) 1px, transparent 1px, transparent 52px),
-    linear-gradient(155deg, #090806 0%, #030303 48%, #080705 100%);
+  background: var(--site-bg-canvas);
   background-attachment: fixed;
 }
 
@@ -8045,18 +8044,18 @@ body[data-page="trades"] {
 
 /* OddsJam-inspired graphite theme */
 :root {
-  --bg: #05080b;
-  --bg-elevated: #080e12;
-  --nav: #060a0d;
-  --panel: #0d151a;
-  --panel-strong: #111b21;
-  --panel-soft: #152128;
-  --panel-raised: #19272f;
-  --panel-hover: #14242d;
-  --surface-raised: #152128;
-  --border: #26353e;
-  --border-strong: #395361;
-  --border-soft: rgba(139, 164, 177, 0.18);
+  --bg: var(--site-bg-canvas);
+  --bg-elevated: var(--site-surface-secondary);
+  --nav: var(--site-bg-sidebar);
+  --panel: var(--site-surface-primary);
+  --panel-strong: var(--site-surface-secondary);
+  --panel-soft: var(--site-surface-elevated);
+  --panel-raised: var(--site-surface-raised);
+  --panel-hover: var(--site-surface-hover);
+  --surface-raised: var(--site-surface-elevated);
+  --border: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
+  --border-soft: var(--site-border-subtle);
   --text: #f4f7f8;
   --text-primary: #f4f7f8;
   --muted: #83949e;
@@ -8088,10 +8087,7 @@ html {
 
 body,
 body[data-page="trades"] {
-  background:
-    radial-gradient(ellipse at 18% -18%, rgba(19, 183, 237, 0.075), transparent 38rem),
-    radial-gradient(ellipse at 88% 4%, rgba(67, 98, 111, 0.07), transparent 30rem),
-    linear-gradient(180deg, #070c10 0%, #05080b 42%, #05080b 100%);
+  background: var(--site-bg-canvas);
   background-attachment: fixed;
 }
 
@@ -8789,20 +8785,20 @@ body[data-page="odds-screen"] .app-shell { width:100%; max-width:none; padding:0
 
 /* Odds-screen-inspired visual system: shared shell, data surfaces, and density. */
 :root {
-  --bg: #05080b;
+  --bg: var(--site-bg-canvas);
   --text: #f4f7f8;
   --cyan: #13b7ed;
   --green: #6fd34a;
   --muted: #83949e;
   --legacy-surface-highlight: rgba(255, 255, 255, 0.06);
-  --oj-black:#03070a;
-  --oj-canvas:#05090c;
-  --oj-sidebar:#070c10;
-  --oj-panel:#111f2a;
-  --oj-panel-2:#162837;
-  --oj-panel-3:#1c3243;
-  --oj-line:#294453;
-  --oj-line-soft:#1c303b;
+  --oj-black:var(--site-surface-deep);
+  --oj-canvas:var(--site-bg-canvas);
+  --oj-sidebar:var(--site-bg-sidebar);
+  --oj-panel:var(--site-surface-primary);
+  --oj-panel-2:var(--site-surface-secondary);
+  --oj-panel-3:var(--site-surface-raised);
+  --oj-line:var(--site-border-standard);
+  --oj-line-soft:var(--site-border-subtle);
   --oj-text:#f4f8fa;
   --oj-muted:#8fa2ad;
   --oj-cyan:#08b8ef;
@@ -9202,18 +9198,18 @@ body[data-page="odds-screen"] .app-shell { width:auto; height:100vh; margin-left
 
 /* OddsJam fidelity pass 2: scale, rhythm, hierarchy, and dashboard composition. */
 :root {
-  --bg: #05080b;
+  --bg: var(--site-bg-canvas);
   --text: #f4f7f8;
   --cyan: #13b7ed;
   --green: #6fd34a;
   --muted: #83949e;
   --legacy-surface-highlight: rgba(255, 255, 255, 0.06);
   --oj-sidebar-width:120px;
-  --oj-content-line:#294654;
-  --oj-surface-deep:#0a141a;
-  --oj-surface:#10212b;
-  --oj-surface-raised:#142836;
-  --oj-surface-active:#1c3546;
+  --oj-content-line:var(--site-border-standard);
+  --oj-surface-deep:var(--site-surface-deep);
+  --oj-surface:var(--site-surface-primary);
+  --oj-surface-raised:var(--site-surface-secondary);
+  --oj-surface-active:var(--site-surface-raised);
 }
 
 html { -webkit-text-size-adjust:100%; }

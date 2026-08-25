@@ -1,11 +1,11 @@
 /* IconLabs authenticated product theme. Loaded last to unify every workspace. */
 :root {
-  --app-bg: #03040a;
-  --app-bg-raised: #080811;
-  --app-panel: #0d0c15;
-  --app-panel-2: #12101c;
-  --app-panel-3: #171321;
-  --app-line: rgba(174, 125, 224, 0.16);
+  --app-bg: var(--site-bg-canvas);
+  --app-bg-raised: var(--site-surface-secondary);
+  --app-panel: var(--site-surface-primary);
+  --app-panel-2: var(--site-surface-secondary);
+  --app-panel-3: var(--site-surface-elevated);
+  --app-line: var(--site-border-subtle);
   --app-line-strong: rgba(174, 125, 224, 0.34);
   --app-purple: #a76bec;
   --app-purple-bright: #c08bff;
@@ -23,7 +23,7 @@
   --app-gradient: linear-gradient(112deg, var(--app-red), var(--app-purple));
 
   --bg-root: var(--app-bg);
-  --bg-sidebar: #06060d;
+  --bg-sidebar: var(--site-bg-sidebar);
   --surface-1: var(--app-panel);
   --surface-2: var(--app-panel-2);
   --surface-3: var(--app-panel-3);
@@ -1647,12 +1647,12 @@ body:not([data-page="home"]) .global-risk-banner { color: #fff; border-color: rg
 
 /* High-contrast neon refinement inspired by the approved Traders reference. */
 :root {
-  --app-bg: #010106;
-  --app-bg-raised: #05040b;
-  --app-panel: #08070e;
-  --app-panel-2: #0c0914;
-  --app-panel-3: #120b1d;
-  --app-line: rgba(183, 86, 255, .24);
+  --app-bg: var(--site-bg-canvas);
+  --app-bg-raised: var(--site-surface-secondary);
+  --app-panel: var(--site-surface-primary);
+  --app-panel-2: var(--site-surface-secondary);
+  --app-panel-3: var(--site-surface-elevated);
+  --app-line: var(--site-border-subtle);
   --app-line-strong: rgba(209, 78, 255, .62);
   --app-purple: #b52cff;
   --app-purple-bright: #df72ff;
@@ -1668,20 +1668,16 @@ body:not([data-page="home"]) .global-risk-banner { color: #fff; border-color: rg
 }
 
 body:not([data-page="home"]) {
-  background:
-    radial-gradient(circle at 76% -12%, rgba(181,44,255,.16), transparent 31rem),
-    radial-gradient(circle at 3% 96%, rgba(255,57,116,.075), transparent 28rem),
-    #010106;
+  background: var(--site-bg-canvas);
 }
 
 body:not([data-page="home"])::before {
-  opacity: .46;
-  background-image: linear-gradient(rgba(214,126,255,.022) 1px, transparent 1px), linear-gradient(90deg, rgba(214,126,255,.022) 1px, transparent 1px);
+  content: none;
 }
 
 body:not([data-page="home"]) .app-nav {
-  border-right-color: rgba(190,61,255,.28);
-  background: linear-gradient(180deg, rgba(7,5,13,.995), rgba(2,2,7,.998));
+  border-right-color: var(--site-border-subtle);
+  background: var(--site-bg-sidebar);
   box-shadow: 18px 0 72px rgba(0,0,0,.42), 1px 0 0 rgba(213,72,255,.08);
 }
 
@@ -1733,9 +1729,9 @@ body:not([data-page="home"]) .table-panel,
 body:not([data-page="home"]) .responsive-table,
 body:not([data-page="home"]) .edge-map-table-wrap,
 body:not([data-page="home"]) .odds-grid-shell {
-  border-color: rgba(196,76,255,.42);
-  background: linear-gradient(145deg, rgba(12,8,20,.99), rgba(4,3,9,.99));
-  box-shadow: 0 16px 48px rgba(0,0,0,.4), inset 0 1px rgba(240,173,255,.055), 0 0 24px rgba(161,38,232,.045);
+  border-color: var(--site-border-subtle);
+  background: var(--site-surface-primary);
+  box-shadow: 0 16px 42px rgba(0,0,0,.28), inset 0 1px rgba(255,255,255,.025);
 }
 
 body:not([data-page="home"]) .trade-card:hover,
@@ -1760,8 +1756,8 @@ body:not([data-page="home"]) .tracker-section-tabs,
 body:not([data-page="home"]) .tracker-view-toggle,
 body:not([data-page="home"]) .ev-mode-tabs,
 body:not([data-page="home"]) .odds-market-tabs {
-  border-color: rgba(183,86,255,.29);
-  background: #06050c;
+  border-color: var(--site-border-subtle);
+  background: var(--site-surface-deep);
 }
 body:not([data-page="home"]) .workspace-tabs button.active,
 body:not([data-page="home"]) .workspace-tabs button[aria-selected="true"],
@@ -1792,8 +1788,8 @@ body:not([data-page="home"]) .button,
 body:not([data-page="home"]) .icon-button,
 body:not([data-page="home"]) .ev-icon-button,
 body:not([data-page="home"]) .sharp-icon-button {
-  border-color: rgba(172,92,216,.34);
-  background: rgba(9,7,15,.92);
+  border-color: var(--site-border-subtle);
+  background: var(--site-surface-deep);
 }
 
 body:not([data-page="home"]) [data-tone="positive"],
@@ -1819,28 +1815,28 @@ body[data-page="sharp-money"] .sharp-execution-book.best {
 }
 
 body:not([data-page="home"]) thead,
-body:not([data-page="home"]) .odds-grid-head { background: rgba(136,31,215,.11); }
+body:not([data-page="home"]) .odds-grid-head { background: var(--site-surface-secondary); }
 body:not([data-page="home"]) th,
 body:not([data-page="home"]) .odds-grid-head > span { color: #aaa0b6; }
 body:not([data-page="home"]) tbody tr:hover,
-body:not([data-page="home"]) .odds-market-row:hover { background: rgba(181,44,255,.085); }
+body:not([data-page="home"]) .odds-market-row:hover { background: var(--site-surface-hover); }
 
 @media (max-width: 820px) {
   body:not([data-page="home"]) .app-nav {
-    border-bottom-color: rgba(201,67,255,.4);
-    background: rgba(3,2,8,.97);
+    border-bottom-color: var(--site-border-subtle);
+    background: rgba(13,20,33,.98);
     box-shadow: 0 12px 40px rgba(0,0,0,.48);
   }
   body:not([data-page="home"]) .nav-links {
-    border-color: rgba(210,74,255,.48);
-    background: rgba(4,3,10,.99);
+    border-color: var(--site-border-subtle);
+    background: rgba(13,20,33,.995);
   }
 }
 
 /* Unmistakable neon finish: intentionally overrides legacy page-specific color rules. */
 body:not([data-page="home"]) .app-nav {
-  background: linear-gradient(180deg, #08040f 0%, #020106 68%, #05020b 100%) !important;
-  border-right: 1px solid rgba(218, 56, 255, .48) !important;
+  background: var(--site-bg-sidebar) !important;
+  border-right: 1px solid var(--site-border-subtle) !important;
 }
 
 body:not([data-page="home"]) .nav-links a[aria-current="page"] {
@@ -1877,9 +1873,9 @@ body:not([data-page="home"]) .panel,
 body:not([data-page="home"]) .wallet-card,
 body:not([data-page="home"]) .table-panel,
 body:not([data-page="home"]) .odds-grid-shell {
-  background: linear-gradient(145deg, rgba(14, 8, 23, .99), rgba(4, 3, 9, .99)) !important;
-  border-color: rgba(193, 72, 255, .55) !important;
-  box-shadow: inset 0 1px rgba(245, 191, 255, .06), 0 0 18px rgba(169, 34, 255, .08), 0 16px 44px rgba(0,0,0,.42) !important;
+  background: var(--site-surface-primary) !important;
+  border-color: var(--site-border-subtle) !important;
+  box-shadow: inset 0 1px rgba(255,255,255,.025), 0 16px 38px rgba(0,0,0,.28) !important;
 }
 
 body:not([data-page="home"]) .trade-card.selected,
@@ -1924,10 +1920,8 @@ body:not([data-page="home"]) strong {
   body:not([data-page="home"]) .app-nav {
     width: 292px !important;
     padding: 26px 20px 20px !important;
-    background:
-      radial-gradient(circle at 50% 3%, rgba(122, 51, 255, .19), transparent 170px),
-      linear-gradient(180deg, #05030a 0%, #010104 66%, #05020a 100%) !important;
-    border-right: 1px solid rgba(173, 99, 255, .28) !important;
+    background: var(--site-bg-sidebar) !important;
+    border-right: 1px solid var(--site-border-subtle) !important;
   }
 
   body:not([data-page="home"]) .app-shell {

@@ -3,17 +3,17 @@
    presentation layer has one authoritative source of visual truth. */
 
 :root {
-  --bg-root: #05090d;
-  --bg-sidebar: #070d12;
-  --bg-surface-1: #0b131a;
-  --bg-surface-2: #101b24;
-  --bg-surface-3: #162532;
-  --bg-hover: #1b2e3d;
-  --bg-selected: #102b38;
+  --bg-root: var(--site-bg-canvas);
+  --bg-sidebar: var(--site-bg-sidebar);
+  --bg-surface-1: var(--site-surface-primary);
+  --bg-surface-2: var(--site-surface-secondary);
+  --bg-surface-3: var(--site-surface-elevated);
+  --bg-hover: var(--site-surface-hover);
+  --bg-selected: var(--site-surface-raised);
 
-  --border-subtle: rgba(148, 180, 204, 0.12);
-  --border-default: rgba(148, 180, 204, 0.2);
-  --border-strong: rgba(148, 180, 204, 0.34);
+  --border-subtle: var(--site-border-subtle);
+  --border-default: var(--site-border-standard);
+  --border-strong: var(--site-border-strong);
   --border-focus: #14b8f4;
   --border-positive: rgba(112, 227, 66, 0.4);
   --border-warning: rgba(244, 189, 75, 0.46);

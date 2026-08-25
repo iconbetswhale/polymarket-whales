@@ -1,8 +1,8 @@
 :root {
-  --lab-bg: #07090b;
-  --lab-surface: #0d1013;
-  --lab-surface-2: #15191d;
-  --lab-line: rgba(187, 196, 205, .14);
+  --lab-bg: var(--site-bg-canvas);
+  --lab-surface: var(--site-surface-primary);
+  --lab-surface-2: var(--site-surface-secondary);
+  --lab-line: var(--site-border-subtle);
   --lab-muted: #9299a3;
   --lab-text: #f4f6f8;
   --lab-accent: #35e6a1;
@@ -12,22 +12,17 @@
 }
 
 body[data-page="lab-tracker"] {
-  background:
-    radial-gradient(circle at 82% 2%, rgba(181,44,255,.055), transparent 31rem),
-    linear-gradient(145deg, #060709 0%, #090b0e 48%, #040506 100%);
+  background: var(--site-bg-canvas) !important;
 }
 html body[data-page="lab-tracker"] main.app-shell {
   padding: 0 !important;
-  background: #07090b !important;
+  background: var(--site-bg-canvas) !important;
 }
 .lab-page {
   min-height: 100vh;
   padding: 32px clamp(22px, 3vw, 48px) 56px;
   color: var(--lab-text);
-  background:
-    radial-gradient(circle at 78% -12%, rgba(181,44,255,.07), transparent 34%),
-    radial-gradient(circle at 12% 78%, rgba(22,214,160,.025), transparent 30%),
-    linear-gradient(145deg, #080a0c 0%, #0b0d10 48%, #050607 100%);
+  background: var(--site-bg-canvas);
   font-family: "DM Sans", sans-serif;
 }
 .lab-page > * { width: min(1320px, 100%); margin-inline: auto; }
