@@ -164,7 +164,7 @@ jobs:
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
         run: |
-          response="$(curl --silent --show-error --fail-with-body \
+          response="$(curl --silent --show-error \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
             https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket)"

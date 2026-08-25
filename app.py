@@ -1409,7 +1409,10 @@ def create_app(start_background: bool = True) -> Flask:
             provider.auth,
             provider.rest,
             websocket_url=provider.websocket_url,
-            timeout_seconds=12,
+            # Keep the diagnostic comfortably inside Vercel's function limit.
+            # Market subscriptions receive an immediate initial book snapshot,
+            # so a longer wait only turns a useful failure into an opaque 500.
+            timeout_seconds=5,
         )
         response = jsonify({"provider": "novig", **result})
         response.headers["Cache-Control"] = "private, no-store"
