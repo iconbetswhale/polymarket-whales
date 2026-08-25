@@ -8,6 +8,16 @@ from typing import Any, Iterable
 
 DFS_PROBABILITY_VERSION = "dfs-market-consensus-v1"
 SUPPORTED_DEVIG_METHODS = {"multiplicative", "additive", "power", "shin"}
+ICONLABS_DFS_WEIGHTS = {
+    "fanduel": 30.0,
+    "novig": 20.0,
+    "prophetx": 15.0,
+    "draftkings": 10.0,
+    "pinnacle": 10.0,
+    "circa": 7.0,
+    "kalshi": 5.0,
+    "polymarket": 3.0,
+}
 
 
 def _finite(value: Any) -> float | None:

@@ -1,9 +1,9 @@
 (() => {
   const comparisonBooks = [
     {key:'fanduel', name:'FanDuel'}, {key:'novig', name:'NoVIG'},
-    {key:'pinnacle', name:'Pinnacle'}, {key:'prophetx', name:'ProphetX'},
-    {key:'kalshi', name:'Kalshi'}, {key:'circa', name:'Circa'},
-    {key:'polymarket', name:'Polymarket'}, {key:'draftkings', name:'DraftKings'},
+    {key:'prophetx', name:'ProphetX'}, {key:'draftkings', name:'DraftKings'},
+    {key:'pinnacle', name:'Pinnacle'}, {key:'circa', name:'Circa'},
+    {key:'kalshi', name:'Kalshi'}, {key:'polymarket', name:'Polymarket'},
     {key:'prizepicks', name:'PrizePicks'}, {key:'underdog', name:'Underdog'},
     {key:'dk-pick6', name:'DK Pick6'}, {key:'betr', name:'Betr'},
     {key:'dabble', name:'Dabble'}, {key:'sleeper', name:'Sleeper'}
@@ -31,7 +31,7 @@
   const body = document.querySelector('#dfs-body');
   const statSelect = document.querySelector('#dfs-stat');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
-  const defaultWeights = {fanduel:15, novig:20, pinnacle:20, prophetx:15, kalshi:10, circa:5, polymarket:10, draftkings:5};
+  const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
   const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};

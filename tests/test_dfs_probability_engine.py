@@ -4,6 +4,7 @@ import pytest
 
 from dfs_probability_engine import (
     DfsProbabilityEngine,
+    ICONLABS_DFS_WEIGHTS,
     american_to_probability,
     devig_two_way,
     probability_to_american,
@@ -11,6 +12,14 @@ from dfs_probability_engine import (
 
 
 NOW = datetime(2026, 8, 24, 16, 0, tzinfo=timezone.utc)
+
+
+def test_iconlabs_default_weights_are_ranked_and_total_one_hundred():
+    assert list(ICONLABS_DFS_WEIGHTS) == [
+        "fanduel", "novig", "prophetx", "draftkings",
+        "pinnacle", "circa", "kalshi", "polymarket",
+    ]
+    assert sum(ICONLABS_DFS_WEIGHTS.values()) == 100
 
 
 def quote(provider, over, under, *, line=6.5, age=0):

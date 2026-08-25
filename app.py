@@ -102,7 +102,11 @@ from ev_optimizer import (
     PLAYER_PROP_MARKETS,
     build_ev_board,
 )
-from dfs_probability_engine import DfsProbabilityEngine, SUPPORTED_DEVIG_METHODS
+from dfs_probability_engine import (
+    DfsProbabilityEngine,
+    ICONLABS_DFS_WEIGHTS,
+    SUPPORTED_DEVIG_METHODS,
+)
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
@@ -1092,7 +1096,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.post("/api/dfs/fair-probability")
     def api_dfs_fair_probability():
         payload = request.get_json(silent=True) or {}
-        weights = payload.get("weights") or {}
+        weights = payload.get("weights") or ICONLABS_DFS_WEIGHTS
         quotes = payload.get("quotes") or []
         if not isinstance(weights, dict) or not weights:
             return jsonify({"error": "weights must be a non-empty provider-to-percent object"}), 400

@@ -33,6 +33,8 @@ The fair probability is the normalized weighted mean of the included no-vig prob
 
 `p_fair = sum(p_i * effective_weight_i) / sum(effective_weight_i)`
 
+The default IconLabs Algo Odds profile is FanDuel 30%, NoVIG 20%, ProphetX 15%, DraftKings 10%, Pinnacle 10%, Circa 7%, Kalshi 5%, and Polymarket 3%. User-defined profiles replace this allocation.
+
 The response also returns weighted source dispersion, a reliability score based on configured-weight coverage, source count, and agreement, plus fair American odds. If a DFS slip's per-leg breakeven odds are supplied, edge is `p_fair - p_breakeven`.
 
 ## Guardrails
