@@ -1009,7 +1009,8 @@ def test_trades_preview_populates_all_workspace_tabs_without_touching_live_apis(
     )
     app_bundle = (root / "static" / "app.js").read_text(encoding="utf-8")
 
-    assert fixture_bundle.count("preview-trade-") >= 1
+    trade_specs = fixture_bundle.split("const tradeSpecs = [", 1)[1].split("];", 1)[0]
+    assert trade_specs.count("score:") == 10
     assert "tradeSpecs.map(makeTrade)" in fixture_bundle
     assert "openPositionSpecs.map(makeOpenPosition)" in fixture_bundle
     assert "closedPositionSpecs.map(makeClosedPosition)" in fixture_bundle

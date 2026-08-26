@@ -48,6 +48,36 @@
       marketType: "moneyline", selection: "Rangers ML", current: 0.525,
       sharp: 0.51, stake: 10, hit: 0.6388, sample: 490, volume: 2600,
     },
+    {
+      score: 72, sharps: 3, category: "Basketball", league: "NBA",
+      event: "Boston Celtics vs New York Knicks", market: "Spread -4.5",
+      marketType: "spread", selection: "Boston Celtics -4.5", line: -4.5,
+      current: 0.49, sharp: 0.475, stake: 30, hit: 0.618, sample: 845, volume: 5200,
+    },
+    {
+      score: 69, sharps: 2, category: "Football", league: "NFL",
+      event: "Buffalo Bills vs Miami Dolphins", market: "Spread +2.5",
+      marketType: "spread", selection: "Buffalo Bills +2.5", line: 2.5,
+      current: 0.515, sharp: 0.502, stake: 25, hit: 0.607, sample: 690, volume: 4650,
+    },
+    {
+      score: 66, sharps: 3, category: "Baseball", league: "MLB",
+      event: "Los Angeles Dodgers vs San Diego Padres", market: "Run Line -1.5",
+      marketType: "spread", selection: "Los Angeles Dodgers -1.5", line: -1.5,
+      current: 0.445, sharp: 0.432, stake: 20, hit: 0.596, sample: 925, volume: 4450,
+    },
+    {
+      score: 61, sharps: 2, category: "Tennis", league: "ATP",
+      event: "Taylor Fritz vs Ben Shelton", market: "Player Aces",
+      marketType: "player_prop", selection: "Taylor Fritz Over 12.5 Aces",
+      current: 0.47, sharp: 0.458, stake: 15, hit: 0.612, sample: 410, volume: 2850,
+    },
+    {
+      score: 59, sharps: 2, category: "Soccer", league: "Premier League",
+      event: "Arsenal vs Liverpool", market: "Both Teams To Score",
+      marketType: "yes_no", selection: "Yes", current: 0.565,
+      sharp: 0.552, stake: 15, hit: 0.584, sample: 780, volume: 3150,
+    },
   ];
 
   const americanOdds = (probability) => {
@@ -165,6 +195,7 @@
       category: spec.category,
       league: spec.league,
       sports_market_type: spec.marketType,
+      market_line: spec.line ?? null,
       event_date_et: start,
       event_time_et: eventTimeLabel(start),
       resolution_time: iso(4.25 + index * 0.75),
