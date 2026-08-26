@@ -72,3 +72,62 @@ The reference and implementation images were reviewed together in the same compa
 8. Guarded the trader error state while its detail panel is temporarily mounted inline.
 
 final result: passed
+
+---
+
+# Mobile bottom navigation and Prediction Traders search QA
+
+## Comparison target
+
+- Source visual truth:
+  - `C:\Users\15617\.codex\codex-remote-attachments\01a03fdb-84b7-7442-952c-cf114d152ca9\AF81555B-9ACC-4EF0-A4BA-F604DF151470\1-Photo-1.jpg`
+  - `C:\Users\15617\.codex\codex-remote-attachments\01a03fdb-84b7-7442-952c-cf114d152ca9\AF81555B-9ACC-4EF0-A4BA-F604DF151470\2-Photo-2.jpg`
+  - `C:\Users\15617\.codex\codex-remote-attachments\01a03fdb-84b7-7442-952c-cf114d152ca9\AF81555B-9ACC-4EF0-A4BA-F604DF151470\3-Photo-3.jpg`
+- Browser-rendered implementation:
+  - `C:\Users\15617\.codex\visualizations\2026\08\26\01a03fdb-84b7-7442-952c-cf114d152ca9\mobile-bottom-nav-traders.png`
+  - `C:\Users\15617\.codex\visualizations\2026\08\26\01a03fdb-84b7-7442-952c-cf114d152ca9\mobile-more-sheet.png`
+- CSS viewport: 390 × 844, dark theme, Prediction Traders route, collapsed navigation and open More-sheet states.
+- Pixel dimensions: each source screenshot is 589 × 1280; each implementation capture is 375 × 812. The images were normalized by proportional width during the combined comparison. Source-only iOS status/home chrome and browser-owned viewport cropping were excluded from fidelity findings.
+
+## Findings
+
+- No actionable P0, P1, or P2 findings remain.
+- Fonts and typography: the implementation keeps the existing IconLabs Inter/DM Sans hierarchy while matching the reference navigation's compact labels, high-contrast active item, and 16 px sheet-row text. The search placeholder now begins after the icon with a readable 10 px visual gap.
+- Spacing and layout rhythm: the six equal-width primary actions remain inside 10 px phone gutters. The More sheet starts at roughly 43% of the visible implementation height, matching the reference's lower-sheet proportion, and uses a scrollable row stack for the larger IconLabs route set.
+- Colors and tokens: the navy/near-black surfaces, cool gray text, subtle borders, purple active state, dimmed backdrop, and blurred bottom rail remain consistent with IconLabs and the supplied reference.
+- Image quality and assets: no raster imagery is required in these navigation states. All visible icons use the product's existing Phosphor icon family; no handmade SVG, CSS art, emoji, or placeholder assets were introduced.
+- Copy and content: the primary labels are Money, Traders, Arbs, +EV, Track, and More. The sheet contains every remaining IconLabs destination and a Settings entry instead of copying OddsJam-only product labels.
+- Accessibility and behavior: primary items and sheet rows meet practical touch heights; the sheet is a labelled modal region, traps keyboard focus, honors Escape and backdrop dismissal, restores focus to More, locks background scrolling, and disables animation for reduced-motion users.
+
+## Full-view and focused comparison evidence
+
+- Full-view comparison: the OddsJam bottom rail and open sheet were opened beside the final IconLabs captures in the same comparison input. The fixed rounded rail, six-item hierarchy, dimmed backdrop, top handle, upward sheet motion, and large stacked destinations are visibly preserved.
+- Focused comparison: the supplied Prediction Traders screenshot and the final collapsed capture were compared together. The source showed the search icon sitting on top of the placeholder; the final capture shows separate 18 px icon and input boxes with no rectangle intersection.
+- Additional focused checks were unnecessary because the states contain no product imagery or unusually fine visual assets beyond the navigation icons and search control.
+
+## Interaction and responsive checks
+
+- Prediction Traders search accepted `Liberty`, kept focus, and reduced the fixture feed to one matching visible card.
+- More opened upward, exposed 12 route links, kept its internal list scrollable, and closed through Escape while restoring focus to the More button.
+- Fantasy Optimizer correctly marks More and the matching sheet route active. Navigation from More to Calculators and from the primary rail back to Traders completed successfully.
+- 390 × 844: document width equals client width, horizontal scroll remains zero, the search icon and input do not overlap, and all six primary actions are visible.
+- 320 × 720: the bar remains within 10 px gutters, all six actions remain visible, the search stays separated, and the sheet remains scrollable.
+- 1280 × 800: the mobile bar and sheet are hidden; the existing 256 px desktop sidebar remains visible and unchanged.
+- Browser console: zero errors and zero warnings across the tested states and route changes.
+
+## Comparison history
+
+1. P1 — the inherited absolute icon positioning overlapped the Prediction Traders placeholder. Fixed by returning the icon to flex flow, assigning an 18 px slot, and removing native search-field appearance. Post-fix evidence: `mobile-bottom-nav-traders.png`; geometric overlap check is false.
+2. P0 — the first More-sheet pass remained hidden because the base display rule was not overridden inside the phone media query. Fixed with explicit phone-only display declarations. Post-fix evidence: the sheet renders at full viewport width with all 12 links present.
+3. P2 — the first visible sheet occupied 78dvh and rose materially higher than the supplied reference. Reduced it to 58dvh while retaining internal scrolling. Post-fix evidence: `mobile-more-sheet.png`, with the sheet beginning at y=364 in the 844 px CSS viewport.
+
+## Automated checks
+
+- `node --check static/app.js`: passed.
+- `node --check static/mobile-tools.js`: passed.
+- `node tests/test_calculator_math.js`: passed.
+- `pytest -q -p no:cacheprovider tests/test_mobile_tools_assets.py`: 6 passed.
+- Broader design-system selection: 107 assertions passed; 18 fixture setups remain blocked by the machine's existing pytest temporary-directory ACL rather than product assertions.
+- `git diff --check`: passed, with line-ending notices only.
+
+final result: passed

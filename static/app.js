@@ -5846,6 +5846,13 @@ function bindNavigation() {
   const desktopToggle = document.getElementById("desktop-nav-toggle");
   const toggle = document.getElementById("mobile-nav-toggle");
   const links = document.getElementById("primary-links");
+  const moreToggle = document.getElementById("mobile-more-toggle");
+  const moreSheet = document.getElementById("mobile-more-sheet");
+  const moreBackdrop = document.getElementById("mobile-more-backdrop");
+  const moreClose = document.getElementById("mobile-more-close");
+  const moreAccount = document.getElementById("mobile-more-account");
+  let moreCloseTimer = 0;
+  let moreReturnFocus = null;
   const renderDesktopNavigation = (expanded) => {
     document.body.classList.toggle("sidebar-expanded", expanded);
     desktopToggle?.setAttribute("aria-expanded", String(expanded));
@@ -5866,18 +5873,84 @@ function bindNavigation() {
     document.body.classList.remove("mobile-nav-open");
     toggle?.setAttribute("aria-expanded", "false");
   };
+  const moreFocusable = () => moreSheet
+    ? [...moreSheet.querySelectorAll('a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])')]
+      .filter((element) => !element.hidden && element.getClientRects().length)
+    : [];
+  const closeMobileMore = ({ restoreFocus = true } = {}) => {
+    if (!moreSheet || !moreBackdrop) return;
+    window.clearTimeout(moreCloseTimer);
+    moreSheet.classList.remove("is-open");
+    moreBackdrop.classList.remove("is-open");
+    moreSheet.setAttribute("aria-hidden", "true");
+    moreToggle?.setAttribute("aria-expanded", "false");
+    document.body.classList.remove("mobile-more-open");
+    moreCloseTimer = window.setTimeout(() => {
+      moreSheet.hidden = true;
+      moreBackdrop.hidden = true;
+    }, 230);
+    if (restoreFocus && moreReturnFocus instanceof HTMLElement) moreReturnFocus.focus({ preventScroll: true });
+  };
+  const openMobileMore = () => {
+    if (!moreSheet || !moreBackdrop || window.innerWidth > 760) return;
+    closeMobileNavigation();
+    window.clearTimeout(moreCloseTimer);
+    moreReturnFocus = document.activeElement;
+    moreSheet.hidden = false;
+    moreBackdrop.hidden = false;
+    moreSheet.setAttribute("aria-hidden", "false");
+    moreToggle?.setAttribute("aria-expanded", "true");
+    document.body.classList.add("mobile-more-open");
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      moreSheet.classList.add("is-open");
+      moreBackdrop.classList.add("is-open");
+      (moreSheet.querySelector('[aria-current="page"]') || moreClose || moreSheet).focus({ preventScroll: true });
+    }));
+  };
   toggle?.addEventListener("click", () => {
     const isOpen = !links?.classList.contains("open");
     links?.classList.toggle("open", isOpen);
     document.body.classList.toggle("mobile-nav-open", isOpen);
     toggle.setAttribute("aria-expanded", String(isOpen));
   });
+  moreToggle?.addEventListener("click", () => {
+    if (moreSheet?.classList.contains("is-open")) closeMobileMore();
+    else openMobileMore();
+  });
+  moreClose?.addEventListener("click", () => closeMobileMore());
+  moreBackdrop?.addEventListener("click", () => closeMobileMore());
+  moreSheet?.querySelectorAll("a").forEach((link) => link.addEventListener("click", () => closeMobileMore({ restoreFocus: false })));
+  moreAccount?.addEventListener("click", () => {
+    closeMobileMore({ restoreFocus: false });
+    window.setTimeout(() => document.getElementById("account-open")?.click(), 240);
+  });
   links?.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeMobileNavigation));
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") closeMobileNavigation();
+    if (event.key === "Escape") {
+      closeMobileNavigation();
+      if (moreSheet?.classList.contains("is-open")) closeMobileMore();
+      return;
+    }
+    if (event.key !== "Tab" || !moreSheet?.classList.contains("is-open")) return;
+    const focusable = moreFocusable();
+    if (!focusable.length) {
+      event.preventDefault();
+      moreSheet.focus();
+      return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
   });
   window.addEventListener("resize", () => {
     if (window.innerWidth > 900) closeMobileNavigation();
+    if (window.innerWidth > 760) closeMobileMore({ restoreFocus: false });
   });
   const pauseControls = document.querySelectorAll("[data-refresh-toggle]");
   if (pauseControls.length) {

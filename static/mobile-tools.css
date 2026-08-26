@@ -1368,6 +1368,32 @@
   }
 
   /* Prediction Traders */
+  body[data-design-system="v2"][data-page="trades"] .compact-search {
+    min-height: 46px !important;
+    padding: 0 14px !important;
+    gap: 10px !important;
+  }
+
+  body[data-design-system="v2"][data-page="trades"] .compact-search > i {
+    position: static !important;
+    inset: auto !important;
+    width: 18px !important;
+    height: 18px !important;
+    flex: 0 0 18px !important;
+    display: grid !important;
+    place-items: center;
+    transform: none !important;
+    pointer-events: none;
+  }
+
+  body[data-design-system="v2"][data-page="trades"] .compact-search input[type="search"] {
+    height: 44px !important;
+    min-height: 44px !important;
+    padding: 0 !important;
+    appearance: none;
+    -webkit-appearance: none;
+  }
+
   .trade-workspace,
   .trade-list-panel,
   .trade-list {
