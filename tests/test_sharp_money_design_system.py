@@ -59,6 +59,15 @@ def test_sharp_money_cards_support_keyboard_selection():
     assert "card.click();" in script
 
 
+def test_sharp_money_surfaces_provider_entitlement_errors_instead_of_waiting():
+    script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
+
+    assert "advancedPlanRequired" in script
+    assert "OddsEngine Advanced access required" in script
+    assert "Upgrade OddsEngine to Advanced" in script
+    assert "Order-book access blocked" in script
+
+
 def test_sharp_money_reference_redesign_has_list_detail_contract():
     stylesheet = (ROOT / "static" / "sharp-money-redesign.css").read_text(
         encoding="utf-8"

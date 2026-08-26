@@ -157,9 +157,14 @@
           return `<td class="book-cell dfs-market-cell" data-book-cell="${key}"><strong>${esc(comparisonLine)}</strong></td>`;
         }
         const market = oddsByKey[key];
-        const unavailable = market === '—';
-        const price = typeof market === 'object' ? market.odds : market;
-        const alternateLine = typeof market === 'object' && Number(market.line) !== Number(activeLine) ? market.line : null;
+        const isStructuredMarket = market !== null && typeof market === 'object';
+        const price = isStructuredMarket ? market.odds : market;
+        const unavailable = price === null || price === undefined || price === '' || price === '—';
+        const alternateLine = isStructuredMarket
+          && Number.isFinite(Number(market.line))
+          && Number(market.line) !== Number(activeLine)
+          ? market.line
+          : null;
         const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate'].filter(Boolean).join(' ');
         return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');

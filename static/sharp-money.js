@@ -389,6 +389,10 @@
     const sourceName = payload.provider?.provider === "odds_engine"
       ? "OddsEngine ProphetX order books"
       : "ProphetX";
+    const providerError = String(payload.lastError || "").trim();
+    const accessBlocked = Boolean(providerError && state.signals.length === 0);
+    const advancedPlanRequired = accessBlocked
+      && /advanced plan|plan required|http 403/i.test(providerError);
     const comparisonsConfigured = payload.comparisonProvider?.configured === true;
     state.visible = state.signals.filter(matches).sort((left, right) => {
       const leftLiquidity = combinedDepthLiquidity(left) ?? -1;
@@ -418,21 +422,27 @@
     const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType));
     $("sharp-filter-count").textContent = String(activeFilterCount);
     $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
-    $("sharp-mode-badge").classList.toggle("live", running);
-    $("sharp-mode-badge").innerHTML = running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
-    $("sharp-feed-notice").classList.toggle("live", running);
-    $("sharp-feed-title").textContent = running
+    $("sharp-mode-badge").classList.toggle("live", running && !accessBlocked);
+    $("sharp-mode-badge").innerHTML = accessBlocked
+      ? `<i class="ph ph-warning-circle"></i> Provider blocked`
+      : running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
+    $("sharp-feed-notice").classList.toggle("live", running && !accessBlocked);
+    $("sharp-feed-title").textContent = accessBlocked
+      ? advancedPlanRequired ? "OddsEngine Advanced access required" : "Order-book provider unavailable"
+      : running
       ? `${sourceName} active`
       : sourceConfigured
         ? "Feed paused - zero new requests"
         : "Order-book credentials required - zero new requests";
-    $("sharp-feed-copy").textContent = running
+    $("sharp-feed-copy").textContent = accessBlocked
+      ? providerError
+      : running
       ? `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
       : sourceConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add an odds feed for other-book comparisons"}.`
         : "Add ODDSENGINE_API_KEY with Advanced access or direct ProphetX credentials, then restart.";
-    $("sharp-feed-state").innerHTML = `<i></i> ${running ? "Collecting" : "Paused"}`;
-    $("sharp-result-label").textContent = running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
+    $("sharp-feed-state").innerHTML = `<i></i> ${accessBlocked ? "Action required" : running ? "Collecting" : "Paused"}`;
+    $("sharp-result-label").textContent = accessBlocked ? "Feed unavailable" : running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
     $("sharp-last-updated").textContent = payload.lastError || ageLabel(payload.lastSnapshotAt);
     const liquidity = state.visible.reduce((sum, row) => sum + Number(row.liquidity || 0), 0);
     const flows = state.visible.filter(row => Math.abs(Number(row.pressure)) >= 0.01).length;
@@ -447,11 +457,11 @@
     $("sharp-summary-requests").textContent = running ? `${requests} ${sourceName} requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length
       ? state.visible.map(signalCard).join("")
-      : `<div class="sharp-empty-state"><div><i class="ph ${running ? "ph-radar" : sourceConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${running ? `Waiting for exact ${sourceName} markets` : sourceConfigured ? "Sharp Money is paused" : "Connect an order-book source"}</strong><span>${payload.lastError || (running ? "The first authenticated snapshot may take a few seconds." : sourceConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials remain server-side and the integration is read-only.")}</span></div></div>`;
+      : `<div class="sharp-empty-state"><div><i class="ph ${accessBlocked ? "ph-warning-circle" : running ? "ph-radar" : sourceConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${accessBlocked ? advancedPlanRequired ? "Upgrade OddsEngine to Advanced" : "Order-book feed unavailable" : running ? `Waiting for exact ${sourceName} markets` : sourceConfigured ? "Sharp Money is paused" : "Connect an order-book source"}</strong><span>${providerError || (running ? "The first authenticated snapshot may take a few seconds." : sourceConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials remain server-side and the integration is read-only.")}</span></div></div>`;
     const selected = state.visible.find(row => row.id === state.selectedId);
     $("sharp-detail-panel").innerHTML = selected
       ? detail(selected)
-      : `<div class="sharp-detail-loading"><i class="ph ph-waveform"></i><strong>No market selected</strong><span>${running ? "Waiting for ProphetX market data." : "Play the feed, then select a market."}</span></div>`;
+      : `<div class="sharp-detail-loading"><i class="ph ${accessBlocked ? "ph-warning-circle" : "ph-waveform"}"></i><strong>${accessBlocked ? "Order-book access blocked" : "No market selected"}</strong><span>${accessBlocked ? providerError : running ? "Waiting for ProphetX market data." : "Play the feed, then select a market."}</span></div>`;
   }
 
   async function load() {

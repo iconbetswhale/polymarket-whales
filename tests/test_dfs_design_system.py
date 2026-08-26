@@ -41,6 +41,8 @@ def test_dfs_preview_parameters_cannot_enable_fixture_rows(app_client) -> None:
     assert "isPreview" not in SCRIPT
     assert "supplementalPreviewRows" not in SCRIPT
     assert "Aaron Judge" not in SCRIPT
+    assert "price === undefined" in SCRIPT
+    assert "unavailable?'—'" in SCRIPT
 
 
 def test_dfs_reuses_canonical_primitives() -> None:
@@ -99,7 +101,7 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
 
     assert canonical > foundation
     assert "-filters-v2" in BASE[canonical : canonical + 160]
-    assert "-live-only-v1" in BASE[script : script + 140]
+    assert "-live-only-v2-undefined-guard" in BASE[script : script + 160]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
