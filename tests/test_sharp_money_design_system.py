@@ -6,6 +6,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_sharp_money_opts_into_v2_without_legacy_layers(app_client):
     response = app_client.get("/sharp-money?preview=1")
+    html = response.get_data(as_text=True)
 
     assert response.status_code == 200
     assert b'data-page="sharp-money" data-design-system="v2"' in response.data
@@ -17,6 +18,7 @@ def test_sharp_money_opts_into_v2_without_legacy_layers(app_client):
     assert b"mobile-product.css" not in response.data
     assert b"app-premium.css" not in response.data
     assert b"sidebar-shell.css" not in response.data
+    assert html.index("sharp-money.js") < html.index("app.js")
 
 
 def test_sharp_money_template_uses_canonical_v2_primitives():
