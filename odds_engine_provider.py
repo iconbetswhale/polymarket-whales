@@ -440,7 +440,7 @@ class OddsEngineProvider(ExecutionProvider):
         cache_ttl_seconds: int = 45,
         max_events_per_league: int = 5,
         max_total_events: int = 20,
-        max_parallel_requests: int = 4,
+        max_parallel_requests: int = 10,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -452,7 +452,7 @@ class OddsEngineProvider(ExecutionProvider):
         self.cache_ttl_seconds = max(15, int(cache_ttl_seconds))
         self.max_events_per_league = max(1, min(50, int(max_events_per_league)))
         self.max_total_events = max(1, min(100, int(max_total_events)))
-        self.max_parallel_requests = max(1, min(8, int(max_parallel_requests)))
+        self.max_parallel_requests = max(1, min(16, int(max_parallel_requests)))
         self.request_timeout = max(1, int(request_timeout))
         self.session = session or requests.Session()
         self._league_cache: dict[str, _TimedValue] = {}
@@ -856,16 +856,36 @@ class OddsEngineProvider(ExecutionProvider):
 
         now = datetime.now(timezone.utc)
         candidates: list[tuple[datetime, str, dict]] = []
-        for sport_key in requested_sports:
-            league = _sport_key_league(sport_key)
-            try:
-                events = self._league_events(league)
-            except requests.HTTPError as exc:
-                if getattr(exc.response, "status_code", None) == 429 and candidates:
-                    break
-                raise
+        league_results: dict[int, tuple[list[dict] | None, Exception | None]] = {}
+        league_workers = min(self.max_parallel_requests, len(requested_sports))
+        with ThreadPoolExecutor(max_workers=league_workers) as executor:
+            futures = {
+                executor.submit(
+                    self._league_events,
+                    _sport_key_league(sport_key),
+                ): index
+                for index, sport_key in enumerate(requested_sports)
+            }
+            for future in as_completed(futures):
+                index = futures[future]
+                try:
+                    league_results[index] = (future.result(), None)
+                except Exception as exc:  # handled in requested sport order below
+                    league_results[index] = (None, exc)
+
+        league_rate_limit: requests.HTTPError | None = None
+        for index, sport_key in enumerate(requested_sports):
+            events, error = league_results[index]
+            if error is not None:
+                if (
+                    isinstance(error, requests.HTTPError)
+                    and getattr(error.response, "status_code", None) == 429
+                ):
+                    league_rate_limit = error
+                    continue
+                raise error
             upcoming = []
-            for event in events:
+            for event in events or []:
                 start = _parse_time(event.get("event_start"))
                 if start is not None and start > now:
                     upcoming.append((start, event))
@@ -873,6 +893,8 @@ class OddsEngineProvider(ExecutionProvider):
                 : self.max_events_per_league
             ]:
                 candidates.append((start, sport_key, event))
+        if league_rate_limit is not None and not candidates:
+            raise league_rate_limit
 
         pending = [
             item

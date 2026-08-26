@@ -414,6 +414,53 @@ def test_provider_fetches_independent_event_odds_concurrently(monkeypatch) -> No
     assert maximum_active == 2
 
 
+def test_provider_fetches_independent_league_schedules_concurrently(monkeypatch) -> None:
+    fixture = _fixture_session()
+    source_event = fixture.routes["/events"]._payload["data"][0]
+    source_odds = fixture.routes["/odds"]._payload["data"]
+    barrier = threading.Barrier(2)
+    active = 0
+    maximum_active = 0
+    active_lock = threading.Lock()
+
+    provider = OddsEngineProvider(
+        "key",
+        session=fixture,
+        max_parallel_requests=2,
+    )
+
+    def league_events(league: str) -> list[dict]:
+        nonlocal active, maximum_active
+        with active_lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        barrier.wait(timeout=1)
+        with active_lock:
+            active -= 1
+        return [
+            {
+                **source_event,
+                "event_id": f"{league}-event",
+                "league": league.upper(),
+            }
+        ]
+
+    monkeypatch.setattr(provider, "_league_events", league_events)
+    monkeypatch.setattr(
+        provider,
+        "_event_odds",
+        lambda event_id: {**source_odds, "event_id": event_id},
+    )
+
+    rows = provider.ev_events(
+        sport_keys=("baseball_mlb", "basketball_wnba"),
+        market_keys=("h2h",),
+    )
+
+    assert {row["id"] for row in rows} == {"mlb-event", "wnba-event"}
+    assert maximum_active == 2
+
+
 def test_provider_health_authenticates_without_exposing_credentials() -> None:
     session = _fixture_session()
     provider = OddsEngineProvider("health-key", session=session)
