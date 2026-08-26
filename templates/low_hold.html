@@ -1,0 +1,193 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="arb-page lh-page" data-lh-preview="{{ 'true' if low_hold_preview else 'false' }}">
+  {% if low_hold_preview %}
+  <section class="arb-preview-banner" aria-label="Preview mode">
+    <i class="ph ph-eye" aria-hidden="true"></i>
+    <strong>Interactive preview</strong>
+    <span>Fixture prices only · no provider requests or sportsbook credits.</span>
+  </section>
+  {% endif %}
+
+  <header class="arb-header il-page-header">
+    <div class="arb-title-block">
+      <p class="arb-eyebrow">CAPITAL EFFICIENCY</p>
+      <div class="arb-title-row">
+        <h1 class="il-page-title">Low Hold</h1>
+        <nav class="arb-mode-tabs lh-mode-tabs" aria-label="Opportunity type">
+          <button class="active" type="button" data-lh-mode="all" aria-pressed="true">All <span id="lh-mode-count">0</span></button>
+          <button type="button" data-lh-mode="exact" aria-pressed="false">Exact lines</button>
+          <button type="button" data-lh-mode="middle" aria-pressed="false">Middles</button>
+        </nav>
+        <button class="arb-learn-button" id="lh-learn-open" type="button"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
+      </div>
+      <p>Pair opposing prices to minimize loss, clear rollover efficiently, or capture a middle window.</p>
+    </div>
+
+    <div class="arb-toolbar il-finance-controls" aria-label="Low Hold controls">
+      <label class="arb-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="lh-search" type="search" placeholder="Search events, markets, or books" autocomplete="off"><kbd>/</kbd></label>
+      <label class="arb-stake-control"><span>Total stake</span><span class="arb-money-input"><b>$</b><input id="lh-stake" type="number" min="1" max="10000000" step="25" value="1000" inputmode="decimal"></span></label>
+      <button class="arb-icon-button" id="lh-pause" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
+      <button class="arb-icon-button" id="lh-filter-open" type="button" aria-label="Open Low Hold filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span class="arb-filter-count" id="lh-filter-count" hidden>0</span></button>
+      <button class="arb-icon-button" id="lh-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
+      <button class="arb-icon-button" id="lh-refresh" type="button" aria-label="Refresh Low Hold opportunities"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
+    </div>
+  </header>
+
+  <section class="arb-kpi-strip il-kpi-strip" aria-label="Low Hold summary">
+    <article><span class="arb-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best hold</span><strong id="lh-kpi-hold">—</strong><small>Lower is more efficient</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><span>Capital retained</span><strong id="lh-kpi-retained">—</strong><small>Worst outside outcome</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i></span><div><span>Middle windows</span><strong id="lh-kpi-middles">—</strong><small id="lh-kpi-middle-profit">Chance to win both legs</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="lh-kpi-books">—</strong><small id="lh-kpi-events">Awaiting scan</small></div></article>
+  </section>
+
+  <div class="arb-workspace">
+    <section class="arb-board" aria-labelledby="lh-board-title">
+      <header class="arb-board-header">
+        <div><h2 id="lh-board-title">Best opportunities</h2><span id="lh-result-copy">Ranked by lowest hold</span></div>
+        <div class="arb-board-actions">
+          <label><span class="sr-only">Sport</span><select id="lh-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Market</span><select id="lh-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Sort opportunities</span><select id="lh-sort"><option value="hold-asc">Lowest hold</option><option value="retained-desc">Most retained</option><option value="middle-desc">Best middle payoff</option><option value="time-asc">Starting soon</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+        </div>
+      </header>
+      <div class="arb-feed" id="lh-feed" aria-live="polite">
+        <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing Low Hold scanner</strong><p>Pairing opposing prices and balancing every stake to the cent.</p></div>
+      </div>
+    </section>
+
+    <aside class="arb-detail" id="lh-detail" aria-label="Selected Low Hold plan">
+      <div class="arb-detail-placeholder" id="lh-detail-placeholder">
+        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
+        <h2>Bet plan</h2>
+        <p>Select an opportunity to see the exact stake on every side, worst-case cost, middle payout, and every available price.</p>
+      </div>
+      <div class="arb-detail-content" id="lh-detail-content" hidden></div>
+    </aside>
+  </div>
+</section>
+
+<div class="arb-mobile-scrim" id="lh-mobile-scrim" hidden></div>
+
+<dialog class="arb-dialog arb-filter-dialog lh-filter-dialog" id="lh-filter-dialog" aria-labelledby="lh-filter-title">
+  <form method="dialog" class="arb-filter-shell">
+    <header>
+      <div><p class="arb-eyebrow">CUSTOMIZE</p><h2 id="lh-filter-title">Low Hold filters</h2></div>
+      <div class="lh-selection-summary"><strong id="lh-selected-summary">0 selected</strong><button id="lh-books-all-top" type="button">Select all</button><button id="lh-books-clear-top" type="button">Clear</button></div>
+      <button class="arb-icon-button" id="lh-filter-close" value="cancel" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
+    </header>
+    <div class="arb-filter-body">
+      <nav class="arb-filter-nav" aria-label="Filter categories">
+        <button class="active" type="button" data-lh-filter-tab="saved"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span>Saved filters</span><b id="lh-saved-count">0</b></button>
+        <button type="button" data-lh-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="lh-book-filter-count">All</b></button>
+        <button type="button" data-lh-filter-tab="odds"><i class="ph ph-arrows-out-line-horizontal" aria-hidden="true"></i><span>Min/Max odds</span></button>
+        <button type="button" data-lh-filter-tab="hold"><i class="ph ph-percent" aria-hidden="true"></i><span>Hold &amp; stake</span></button>
+        <button type="button" data-lh-filter-tab="markets"><i class="ph ph-chart-line" aria-hidden="true"></i><span>Market</span></button>
+        <button type="button" data-lh-filter-tab="distance"><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i><span>Minimum distance</span></button>
+        <button type="button" data-lh-filter-tab="warnings"><i class="ph ph-warning" aria-hidden="true"></i><span>Bet warnings</span></button>
+        <button type="button" data-lh-filter-tab="settings"><i class="ph ph-wrench" aria-hidden="true"></i><span>Settings</span></button>
+        <button type="button" data-lh-filter-tab="sorting"><i class="ph ph-sort-ascending" aria-hidden="true"></i><span>Sorting</span></button>
+      </nav>
+      <div class="arb-filter-panels">
+        <section class="arb-filter-panel active" data-lh-filter-panel="saved">
+          <div class="arb-filter-panel-heading"><div><h3>Saved filters</h3><p>Reuse the sportsbook, hold, market, and safety settings that matter to you.</p></div></div>
+          <div class="lh-saved-list" id="lh-saved-list"><div class="lh-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No filters saved yet</strong><p>Configure this scan, then use Save filter below.</p></div></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="sportsbooks">
+          <div class="arb-filter-panel-heading"><div><h3>Sportsbooks</h3><p>Choose every independently executable book or exchange you can access.</p></div><div><button id="lh-books-all" type="button">Select all</button><button id="lh-books-clear" type="button">Clear</button></div></div>
+          <div class="lh-book-pills" role="group" aria-label="Sportsbook groups"><button class="active" type="button" data-lh-book-group="all">All books</button><button type="button" data-lh-book-group="sportsbook">Sportsbooks</button><button type="button" data-lh-book-group="exchange">Exchanges</button><button type="button" data-lh-book-group="popular"><i class="ph ph-star"></i>Popular</button></div>
+          <label class="arb-dialog-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="lh-book-search" type="search" placeholder="Search sportsbooks and exchanges"></label>
+          <div class="arb-book-grid" id="lh-book-grid"></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="odds">
+          <h3>Min/Max odds</h3><p>Remove prices outside the American-odds range you are willing to place.</p>
+          <div class="arb-field-grid">
+            <label>Minimum odds<span class="arb-field-suffix"><input id="lh-min-odds" type="number" min="-100000" max="100000" step="5" value="-100000"><b>US</b></span></label>
+            <label>Maximum odds<span class="arb-field-suffix"><input id="lh-max-odds" type="number" min="-100000" max="100000" step="5" value="100000"><b>US</b></span></label>
+          </div>
+          <div class="arb-formula-card"><i class="ph ph-info" aria-hidden="true"></i><div><strong>Both legs must qualify</strong><p>The range is applied before IconLabs chooses the best opposing pair.</p></div></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="hold">
+          <h3>Hold &amp; stake</h3><p>Set the cash deployed across all legs and the maximum acceptable implied hold.</p>
+          <div class="arb-field-grid">
+            <label>Total stake<span class="arb-field-money"><b>$</b><input id="lh-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
+            <label>Maximum hold<span class="arb-field-suffix"><input id="lh-max-hold" type="number" min="0" max="25" step="0.1" value="5"><b>%</b></span></label>
+          </div>
+          <div class="arb-choice-grid lh-kind-choices">
+            <label><input id="lh-include-exact" type="checkbox" checked><span><i class="ph ph-equals" aria-hidden="true"></i><strong>Exact lines</strong><small>Minimum-loss opposing bets</small></span></label>
+            <label><input id="lh-include-middles" type="checkbox" checked><span><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i><strong>Middles</strong><small>Two lines with a win window</small></span></label>
+          </div>
+          <div class="arb-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-return sizing</strong><p>Stake is proportional to inverse decimal odds, then rebalanced by cents to maximize the lower outside payout.</p></div></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="markets">
+          <h3>Markets</h3><p>Exact holds use complete outcome sets. Middles are built only from compatible total and player-prop lines.</p>
+          <div class="arb-choice-grid" id="lh-market-choices">
+            <label><input type="checkbox" value="h2h" checked><span><i class="ph ph-trophy" aria-hidden="true"></i><strong>Moneyline</strong><small>Two- and three-way</small></span></label>
+            <label><input type="checkbox" value="spreads" checked><span><i class="ph ph-arrows-left-right" aria-hidden="true"></i><strong>Spreads</strong><small>Exact lines</small></span></label>
+            <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Game totals</strong><small>Exact and middle</small></span></label>
+            <label><input type="checkbox" value="alternate_spreads" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt spreads</strong><small>Exact lines</small></span></label>
+            <label><input type="checkbox" value="alternate_totals" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt totals</strong><small>Exact and middle</small></span></label>
+            <label><input type="checkbox" value="batter_hits" checked><span><i class="ph ph-baseball" aria-hidden="true"></i><strong>Batter hits</strong><small>Player middle windows</small></span></label>
+            <label><input type="checkbox" value="pitcher_strikeouts" checked><span><i class="ph ph-baseball-cap" aria-hidden="true"></i><strong>Strikeouts</strong><small>Player middle windows</small></span></label>
+            <label><input type="checkbox" value="player_points" checked><span><i class="ph ph-basketball" aria-hidden="true"></i><strong>Player points</strong><small>Exact and middle</small></span></label>
+          </div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="distance">
+          <h3>Minimum distance</h3><p>Require a wider gap between the Over and Under lines before treating a pair as a middle.</p>
+          <div class="arb-field-grid">
+            <label>Minimum line gap<span class="arb-field-suffix"><input id="lh-min-distance" type="number" min="0.5" max="20" step="0.5" value="0.5"><b>pts</b></span></label>
+          </div>
+          <div class="arb-warning-note"><i class="ph ph-info" aria-hidden="true"></i><p>A half-point gap can create a win-and-push outcome on integer-scored markets; a full point can create a true both-win result.</p></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="warnings">
+          <h3>Bet warnings</h3><p>Warnings remain visible in the detail panel so execution risk is never hidden.</p>
+          <label class="arb-toggle-row"><span><strong>Require distinct sportsbooks</strong><small>Prevents both sides from being assigned to the same book.</small></span><input id="lh-distinct-books" type="checkbox" checked></label>
+          <label class="arb-toggle-row"><span><strong>Keep line-movement warning</strong><small>Reminds you to confirm both legs before submitting either bet.</small></span><input id="lh-line-warning" type="checkbox" checked></label>
+          <div class="arb-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>Low hold minimizes price loss; it does not remove execution, limit, void, grading, or line-movement risk.</p></div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="settings">
+          <h3>Settings</h3><p>Control quote freshness and reserve exchange commissions before a pair qualifies.</p>
+          <div class="arb-field-grid">
+            <label>Max quote age<span class="arb-field-suffix"><input id="lh-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Exchange fee buffer<span class="arb-field-suffix"><input id="lh-commission" type="number" min="0" max="2500" step="10" value="0"><b>bps</b></span></label>
+          </div>
+        </section>
+
+        <section class="arb-filter-panel" data-lh-filter-panel="sorting">
+          <h3>Sorting</h3><p>Choose the first opportunities shown in the feed.</p>
+          <div class="arb-radio-list">
+            <label><input type="radio" name="lh-dialog-sort" value="hold-asc" checked><span><strong>Lowest hold</strong><small>Best implied price efficiency first</small></span></label>
+            <label><input type="radio" name="lh-dialog-sort" value="retained-desc"><span><strong>Most capital retained</strong><small>Best rounded outside result first</small></span></label>
+            <label><input type="radio" name="lh-dialog-sort" value="middle-desc"><span><strong>Best middle payoff</strong><small>Highest win-window profit first</small></span></label>
+            <label><input type="radio" name="lh-dialog-sort" value="time-asc"><span><strong>Starting soon</strong><small>Earliest events first</small></span></label>
+          </div>
+        </section>
+      </div>
+    </div>
+    <footer><button class="arb-secondary-button" id="lh-save-filter" type="button"><i class="ph ph-bookmark-simple"></i>Save filter</button><div><button class="arb-secondary-button" id="lh-reset" type="button">Reset defaults</button><button class="arb-primary-button" id="lh-apply" value="cancel" type="button">Show opportunities</button></div></footer>
+  </form>
+</dialog>
+
+<dialog class="arb-dialog arb-learn-dialog" id="lh-learn-dialog" aria-labelledby="lh-learn-title">
+  <article>
+    <header><div><p class="arb-eyebrow">THE MATH</p><h2 id="lh-learn-title">How IconLabs calculates Low Hold</h2></div><button class="arb-icon-button" id="lh-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x"></i></button></header>
+    <div class="arb-learn-grid">
+      <section><span>01</span><div><h3>Convert each price</h3><p>American odds become decimal odds and implied probabilities. Exchange fees reduce net winnings, never returned stake.</p></div></section>
+      <section><span>02</span><div><h3>Measure the hold</h3><p>Add the implied probabilities of every opposing leg and subtract 100%.</p><code>hold % = (Σ(1 ÷ decimal odds) − 1) × 100</code></div></section>
+      <section><span>03</span><div><h3>Equalize outside outcomes</h3><p>Allocate the total stake in proportion to inverse odds, then balance cents to maximize the smallest payout.</p><code>stakeᵢ = total stake × (1 ÷ oddsᵢ) / Σ(1 ÷ odds)</code></div></section>
+      <section><span>04</span><div><h3>Model the middle</h3><p>For compatible Over/Under lines, IconLabs enumerates attainable integer results between the lines and shows whether both bets win or one wins while the other pushes.</p></div></section>
+    </div>
+    <div class="arb-learn-proof"><i class="ph ph-shield-check" aria-hidden="true"></i><div><strong>Transparent and independently implemented</strong><p>The formulas are standard sportsbook hold and hedge math. IconLabs does not claim access to another product's proprietary ranking, source weights, or market-matching code.</p></div></div>
+    <button class="arb-primary-button" id="lh-learn-done" type="button">Got it</button>
+  </article>
+</dialog>
+
+<script id="lh-config" type="application/json">{{ low_hold_config|tojson }}</script>
+{% endblock %}

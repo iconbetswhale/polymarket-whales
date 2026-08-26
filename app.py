@@ -105,6 +105,7 @@ from ev_optimizer import (
     build_ev_board,
 )
 from arbitrage import build_arbitrage_board
+from low_hold import build_low_hold_board
 from middles import build_middles_board
 from dfs_probability_engine import (
     DfsProbabilityEngine,
@@ -1222,6 +1223,24 @@ def create_app(start_background: bool = True) -> Flask:
             "calculators.html",
             title="IconLabs Calculators",
             page="calculators",
+        )
+
+    @app.route("/low-hold")
+    def low_hold_page():
+        low_hold_config = positive_ev_catalog_payload()
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        low_hold_config["previewOnly"] = preview_requested
+        return render_template(
+            "low_hold.html",
+            title="IconLabs Low Hold",
+            page="low-hold",
+            low_hold_config=low_hold_config,
+            low_hold_preview=preview_requested,
         )
 
     @app.route("/middles")
@@ -2699,6 +2718,258 @@ def create_app(start_background: bool = True) -> Flask:
             ), 429 if status == 429 else 502
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Middles refresh failed: %s", type(exc).__name__)
+            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+
+        diagnostics = odds_provider.diagnostics(authenticate=False)
+        response = jsonify(
+            {
+                "data": board["data"][:250],
+                "total": len(board["data"]),
+                "diagnostics": board["diagnostics"],
+                "configured": True,
+                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
+                "refreshSeconds": 60,
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/low-hold")
+    def api_low_hold():
+        """On-demand low-hold and middle scan over matching executable markets."""
+
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        active_requested = request.args.get("active", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        def low_hold_number(
+            name: str, default: float, low: float, high: float
+        ) -> float:
+            try:
+                value = float(request.args.get(name, default))
+            except (TypeError, ValueError):
+                value = default
+            if not math.isfinite(value):
+                value = default
+            return min(high, max(low, value))
+
+        def low_hold_bool(name: str, default: bool) -> bool:
+            raw = request.args.get(name)
+            if raw is None:
+                return default
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+        raw_books = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get(
+                    "books", ",".join(DEFAULT_EXECUTION_BOOKS)
+                ).split(",")
+                if item.strip()
+            )
+        )
+        invalid_books = [
+            book
+            for book in raw_books
+            if book not in SPORTS_GAME_ODDS_BOOKMAKERS
+            or SPORTS_GAME_ODDS_BOOKMAKERS[book]["type"] == "dfs"
+        ]
+        if invalid_books:
+            return (
+                jsonify(
+                    {
+                        "error": "INVALID_LOW_HOLD_BOOK",
+                        "message": (
+                            f"{invalid_books[0]} cannot be used as an independently "
+                            "executable low-hold leg."
+                        ),
+                        "invalidBooks": invalid_books,
+                    }
+                ),
+                400,
+            )
+        if not raw_books:
+            return (
+                jsonify(
+                    {
+                        "error": "NO_LOW_HOLD_BOOKS",
+                        "message": "Select at least one sportsbook or exchange.",
+                    }
+                ),
+                400,
+            )
+
+        supported_markets = set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)
+        supported_markets.update(
+            market
+            for markets in PLAYER_PROP_MARKETS.values()
+            for market in markets
+        )
+        default_markets = (
+            "h2h",
+            "spreads",
+            "totals",
+            "alternate_spreads",
+            "alternate_totals",
+            "batter_hits",
+            "pitcher_strikeouts",
+            "player_points",
+        )
+        requested_markets = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get(
+                    "markets", ",".join(default_markets)
+                ).split(",")
+                if item.strip()
+            )
+        )
+        invalid_markets = [
+            market for market in requested_markets if market not in supported_markets
+        ]
+        if invalid_markets:
+            return (
+                jsonify(
+                    {
+                        "error": "INVALID_LOW_HOLD_MARKET",
+                        "message": f"{invalid_markets[0]} is not a supported low-hold market.",
+                        "invalidMarkets": invalid_markets,
+                    }
+                ),
+                400,
+            )
+        if not requested_markets:
+            return (
+                jsonify(
+                    {
+                        "error": "NO_LOW_HOLD_MARKETS",
+                        "message": "Select at least one market.",
+                    }
+                ),
+                400,
+            )
+
+        total_stake = low_hold_number("stake", 1_000.0, 1.0, 10_000_000.0)
+        max_hold = low_hold_number("max_hold", 5.0, 0.0, 25.0)
+        min_odds = int(low_hold_number("min_odds", -100_000, -100_000, 100_000))
+        max_odds = int(low_hold_number("max_odds", 100_000, -100_000, 100_000))
+        max_quote_age = int(low_hold_number("max_quote_age", 180, 15, 1800))
+        commission_bps = low_hold_number("commission_bps", 0.0, 0.0, 2500.0)
+        min_distance = low_hold_number("min_distance", 0.5, 0.5, 20.0)
+        require_distinct_books = low_hold_bool("distinct_books", True)
+        include_exact = low_hold_bool("include_exact", True)
+        include_middles = low_hold_bool("include_middles", True)
+        if not include_exact and not include_middles:
+            return (
+                jsonify(
+                    {
+                        "error": "NO_LOW_HOLD_PAIR_TYPES",
+                        "message": "Select exact-line low holds, middles, or both.",
+                    }
+                ),
+                400,
+            )
+
+        configured = bool(settings.novig_api_key or settings.the_odds_api_key)
+        if not preview_requested and not active_requested:
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": configured,
+                    "paused": True,
+                    "message": (
+                        "Low Hold scanning is paused. Start the feed when you "
+                        "need current prices."
+                    ),
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        board_kwargs = {
+            "selected_books": raw_books,
+            "allowed_markets": requested_markets,
+            "total_stake": total_stake,
+            "max_hold_percent": max_hold,
+            "min_american_odds": min_odds,
+            "max_american_odds": max_odds,
+            "max_quote_age_seconds": max_quote_age,
+            "commission_bps": commission_bps,
+            "require_distinct_books": require_distinct_books,
+            "include_exact": include_exact,
+            "include_middles": include_middles,
+            "min_middle_distance": min_distance,
+        }
+        if preview_requested:
+            from low_hold_preview import temporary_low_hold_events
+
+            board = build_low_hold_board(temporary_low_hold_events(), **board_kwargs)
+            response = jsonify(
+                {
+                    "data": board["data"][:250],
+                    "total": len(board["data"]),
+                    "diagnostics": board["diagnostics"],
+                    "configured": configured,
+                    "previewOnly": True,
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        odds_provider = positive_ev_provider()
+        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": False,
+                    "message": "SportsGameOdds is not configured.",
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        sport_keys = tuple(
+            dict.fromkeys(
+                item.strip()
+                for item in request.args.get(
+                    "sports", "baseball_mlb,basketball_wnba"
+                ).split(",")
+                if item.strip()
+            )
+        )[:4]
+        try:
+            events = odds_provider.ev_events(
+                sport_keys=sport_keys,
+                market_keys=requested_markets,
+            )
+            board = build_low_hold_board(events, **board_kwargs)
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            return (
+                jsonify(
+                    {
+                        "data": [],
+                        "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+                    }
+                ),
+                429 if status == 429 else 502,
+            )
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            LOGGER.warning("Low Hold refresh failed: %s", type(exc).__name__)
             return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
