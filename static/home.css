@@ -322,12 +322,13 @@ body[data-page="home"] .marketing-nav {
   position:sticky;
   top:0;
   z-index:1000;
-  min-height:70px;
+  min-height:74px;
   width:100%;
-  grid-template-columns:minmax(180px,.75fr) minmax(0,1.7fr) auto;
+  grid-template-columns:240px minmax(0,1fr) 240px;
   box-sizing:border-box;
   padding:0 clamp(20px,1.4vw,28px) 0 clamp(20px,1.4vw,24px);
   border:0;
+  border-bottom:1px solid rgba(100,113,133,.22);
   background:#050a12;
   backdrop-filter:none;
 }
@@ -347,26 +348,27 @@ body[data-page="home"] .marketing-page-tabs {
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:6px;
+  gap:24px;
   overflow-x:auto;
   scrollbar-width:none;
   white-space:nowrap;
+  transform:translateX(7px);
 }
 body[data-page="home"] .marketing-page-tabs::-webkit-scrollbar {
   display:none;
 }
 body[data-page="home"] .marketing-page-tabs a {
   flex:0 0 auto;
-  min-height:36px;
+  min-height:42px;
   box-sizing:border-box;
   display:inline-flex;
   align-items:center;
-  padding:0 14px;
+  padding:0 16px;
   border:1px solid transparent;
   border-radius:7px;
   color:#a2a9b7;
   background:transparent;
-  font:650 12px/1 "DM Sans",sans-serif;
+  font:650 14px/1 "DM Sans",sans-serif;
   transition:color .18s ease,border-color .18s ease,background .18s ease;
 }
 body[data-page="home"] .marketing-page-tabs a:hover,
@@ -398,7 +400,7 @@ body[data-page="home"] .home-menu-toggle i {
 body[data-page="home"] .hero-v3 {
   position:relative;
   isolation:isolate;
-  min-height:calc(100svh - 70px);
+  min-height:calc(100svh - 74px);
   box-sizing:border-box;
   overflow:hidden;
   padding:0;
@@ -410,7 +412,7 @@ body[data-page="home"] #sportsbooks,
 body[data-page="home"] #features,
 body[data-page="home"] #plans,
 body[data-page="home"] #faq {
-  scroll-margin-top:70px;
+  scroll-margin-top:74px;
 }
 body[data-page="home"] .hero-v3::after {
   content:none;
@@ -428,29 +430,29 @@ body[data-page="home"] .hero-v3-background {
 }
 body[data-page="home"] .hero-v3-layout {
   width:100%;
-  min-height:calc(100svh - 70px);
+  min-height:calc(100svh - 74px);
   box-sizing:border-box;
   display:grid;
-  grid-template-columns:minmax(460px,42fr) minmax(640px,58fr);
+  grid-template-columns:minmax(500px,37fr) minmax(720px,63fr);
   align-items:center;
   gap:clamp(24px,2vw,42px);
-  padding:clamp(50px,6.5vh,72px) clamp(38px,3vw,58px) clamp(64px,8vh,86px) clamp(58px,4.2vw,80px);
+  padding:clamp(50px,6.5vh,72px) clamp(28px,1.8vw,34px) clamp(64px,8vh,86px) clamp(58px,4.2vw,80px);
 }
 body[data-page="home"] .hero-v3-copy {
   width:100%;
   max-width:540px;
   min-width:0;
-  transform:translate(clamp(56px,4vw,76px),-50px);
+  transform:translate(35px,-34px);
 }
 body[data-page="home"] .hero-v3 .hero-proof-badge {
   width:max-content;
-  min-height:38px;
+  min-height:42px;
   box-sizing:border-box;
   display:flex;
   align-items:center;
-  gap:10px;
-  margin:0 0 34px;
-  padding:0 17px;
+  gap:17px;
+  margin:0 0 43px;
+  padding:0 22px;
   border:1px solid #8f46dc;
   border-radius:999px;
   color:#f7f4fb;
@@ -479,13 +481,14 @@ body[data-page="home"] .hero-v3 h1 {
 body[data-page="home"] .hero-v3 h1 em {
   display:inline-block;
   white-space:nowrap;
+  font-size:1.06em;
 }
 body[data-page="home"] .hero-v3-stats {
   width:min(100%,420px);
   display:grid;
   grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:26px;
-  margin-top:50px;
+  gap:34px;
+  margin-top:55px;
 }
 body[data-page="home"] .hero-v3-stats div {
   min-width:0;
@@ -507,7 +510,7 @@ body[data-page="home"] .hero-v3-stats span {
   white-space:nowrap;
 }
 body[data-page="home"] .hero-v3 .hero-start-winning {
-  min-width:238px;
+  min-width:240px;
   min-height:60px;
   margin-top:43px;
   border-radius:9px;
@@ -515,22 +518,24 @@ body[data-page="home"] .hero-v3 .hero-start-winning {
 }
 body[data-page="home"] .hero-v3-board {
   position:relative;
-  width:min(100%,1000px);
-  max-width:1000px;
-  aspect-ratio:3840/1962;
+  width:min(100%,1020px);
+  max-width:1020px;
+  aspect-ratio:1.73;
   justify-self:end;
   margin-right:0;
-  overflow:visible;
+  overflow:hidden;
+  border:1px solid rgba(94,111,137,.42);
+  border-radius:13px;
   outline:0;
-  filter:drop-shadow(0 24px 34px rgba(61,28,125,.42));
-  transform:perspective(1600px) rotateY(-7deg) rotateZ(-2.6deg) translateY(-14px) scale(1.015);
+  filter:drop-shadow(0 26px 42px rgba(24,13,68,.48));
+  transform:translateY(-24px);
   transform-origin:center;
   transition:filter .22s ease,transform .22s ease;
 }
 body[data-page="home"] .hero-v3-board:hover,
 body[data-page="home"] .hero-v3-board:focus-visible {
   filter:brightness(1.04) drop-shadow(0 27px 38px rgba(72,31,146,.48));
-  transform:perspective(1600px) rotateY(-7deg) rotateZ(-2.6deg) translateY(-18px) scale(1.019);
+  transform:translateY(-28px) scale(1.003);
 }
 body[data-page="home"] .hero-v3-board:focus-visible {
   outline:0;
@@ -542,15 +547,16 @@ body[data-page="home"] .hero-v3-board img {
   max-width:100%;
   height:100%;
   display:block;
-  object-fit:contain;
-  border-radius:4px;
+  object-fit:fill;
+  border-radius:12px;
 }
 
 @media(max-width:1500px){
   body[data-page="home"] .marketing-nav{grid-template-columns:190px 1fr auto}
   body[data-page="home"] .marketing-brand-lockup{width:174px}
   body[data-page="home"] .marketing-page-tabs{justify-content:center}
-  body[data-page="home"] .marketing-page-tabs a{padding-inline:10px;font-size:11px}
+  body[data-page="home"] .marketing-page-tabs{gap:12px}
+  body[data-page="home"] .marketing-page-tabs a{padding-inline:10px;font-size:12px}
 }
 
 @media(max-width:760px){
@@ -565,7 +571,7 @@ body[data-page="home"] .hero-v3-board img {
     padding-left:40px;
     padding-right:32px;
   }
-  body[data-page="home"] .hero-v3-copy{transform:translate(26px,-50px)}
+  body[data-page="home"] .hero-v3-copy{transform:translate(24px,-44px)}
   body[data-page="home"] .hero-v3 h1{font-size:45px}
   body[data-page="home"] .hero-v3-stats{gap:22px}
   body[data-page="home"] .hero-v3-stats strong{font-size:27px}
@@ -639,6 +645,7 @@ body[data-page="home"] .hero-v3-board img {
     width:calc(100% + 18px);
     max-width:none;
     margin-inline:-9px;
-    transform:perspective(1100px) rotateY(-4deg) rotateZ(-1.4deg);
+    aspect-ratio:3840/1962;
+    transform:none;
   }
 }
