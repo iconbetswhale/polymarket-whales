@@ -3104,9 +3104,10 @@ def create_app(start_background: bool = True) -> Flask:
                     row for row in preview_rows
                     if row.get("marketKey") in allowed_markets
                 ]
-            rows = visible_positive_ev_rows(
-                preview_rows, g.iconbets_user_id
-            )[:10]
+            # Preview rows are a stable visual-editing fixture. Keep this path
+            # independent of the durable user store so it always returns the
+            # complete ten-card board, even during database maintenance.
+            rows = preview_rows[:10]
             response = jsonify(
                 {
                     "data": rows,

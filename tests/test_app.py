@@ -2448,7 +2448,9 @@ def test_positive_ev_bet_is_shared_with_bet_tracker_and_lab_my_bets(app_client):
     assert duplicate.get_json()["confirmationRequired"] == "duplicate"
 
 
-def test_positive_ev_track_and_hide_persists_across_feed_refreshes(app_client):
+def test_positive_ev_track_and_hide_persists_without_shrinking_preview_fixture(
+    app_client,
+):
     app_client.set_cookie("iconbets_user", "positive-ev-track-and-hide-user")
     preview = app_client.get("/api/positive-ev?preview=1").get_json()
     row = preview["data"][2]
@@ -2477,8 +2479,8 @@ def test_positive_ev_track_and_hide_persists_across_feed_refreshes(app_client):
     assert tracked.status_code == 201
     assert tracked.get_json()["hidden"]["selection"] == row["selection"]
     refreshed = app_client.get("/api/positive-ev?preview=1").get_json()
-    assert refreshed["total"] == 9
-    assert row["id"] not in {item["id"] for item in refreshed["data"]}
+    assert refreshed["total"] == 10
+    assert row["id"] in {item["id"] for item in refreshed["data"]}
     hidden = app_client.get("/api/hidden-trades").get_json()
     assert hidden["total"] == 1
     assert hidden["data"][0]["selection"] == row["selection"]
