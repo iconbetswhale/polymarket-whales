@@ -229,8 +229,8 @@ def test_preview_api_is_isolated_and_resizes_every_plan(app_client) -> None:
     first_payload = first.get_json()
     second_payload = second.get_json()
     assert first_payload["previewOnly"] is True
-    assert first_payload["total"] == 7
-    assert len(first_payload["data"]) == 7
+    assert first_payload["total"] == 10
+    assert len(first_payload["data"]) == 10
     assert second_payload["data"][0]["totalStake"] == pytest.approx(2000)
     assert second_payload["data"][0]["outsideNet"] == pytest.approx(
         first_payload["data"][0]["outsideNet"] * 2, abs=0.03

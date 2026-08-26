@@ -124,6 +124,36 @@ def temporary_ev_preview_rows(
             "Game Total", "Over 162.5", "Under 162.5",
             1.93, "prophetx", 102, 34.0, 180,
         ),
+        (
+            "6", "americanfootball_nfl", "NFL",
+            "Buffalo Bills vs Baltimore Ravens",
+            "Moneyline", "Buffalo Bills", "Baltimore Ravens",
+            1.74, "novig", 115, 31.0, 240,
+        ),
+        (
+            "7", "basketball_wnba", "WNBA",
+            "Connecticut Sun vs Indiana Fever",
+            "Player Rebounds", "Alyssa Thomas · Over 8.5", "Alyssa Thomas · Under 8.5",
+            1.52, "prophetx", 106, 28.0, 155,
+        ),
+        (
+            "8", "baseball_mlb", "MLB",
+            "Baltimore Orioles vs Toronto Blue Jays",
+            "Player Total Bases", "Vladimir Guerrero Jr. · Over 1.5", "Vladimir Guerrero Jr. · Under 1.5",
+            1.31, "fourcx", 120, 26.0, 190,
+        ),
+        (
+            "9", "tennis_atp", "ATP",
+            "Jannik Sinner vs Carlos Alcaraz",
+            "Moneyline", "Jannik Sinner", "Carlos Alcaraz",
+            1.08, "novig", 105, 24.0, 275,
+        ),
+        (
+            "10", "baseball_mlb", "MLB",
+            "Los Angeles Dodgers vs San Diego Padres",
+            "Game Total", "Under 8.5", "Over 8.5",
+            0.92, "prophetx", 102, 22.0, 165,
+        ),
     )
     books = (
         "novig", "prophetx", "fourcx", "pinnacle", "betonlineag",

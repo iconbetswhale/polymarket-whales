@@ -204,7 +204,7 @@ def test_preview_events_produce_multiple_main_market_opportunities() -> None:
         now=NOW,
     )
 
-    assert len(board["data"]) == 7
+    assert len(board["data"]) == 10
     assert {row["outcomeCount"] for row in board["data"]} == {2, 3}
     assert all(row["guaranteedProfit"] > 0 for row in board["data"])
 
@@ -218,8 +218,8 @@ def test_arbitrage_preview_api_is_isolated_and_resizes_stakes(app_client) -> Non
     first_payload = first.get_json()
     second_payload = second.get_json()
     assert first_payload["previewOnly"] is True
-    assert first_payload["total"] == 7
-    assert len(first_payload["data"]) == 7
+    assert first_payload["total"] == 10
+    assert len(first_payload["data"]) == 10
     assert second_payload["data"][0]["totalStake"] == pytest.approx(2000)
     assert second_payload["data"][0]["guaranteedProfit"] == pytest.approx(
         first_payload["data"][0]["guaranteedProfit"] * 2, abs=0.03

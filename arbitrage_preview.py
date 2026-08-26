@@ -55,6 +55,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "fanduel",
             [
                 ("h2h", [_outcome(yankees, 120), _outcome(red_sox, -132)]),
+                ("spreads", [_outcome(yankees, 112, point=-1.5), _outcome(red_sox, -125, point=1.5)]),
                 ("totals", [_outcome("Over", 115, point=8.5), _outcome("Under", -125, point=8.5)]),
             ],
             updated_at=updated,
@@ -63,6 +64,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "draftkings",
             [
                 ("h2h", [_outcome(yankees, 125), _outcome(red_sox, -135)]),
+                ("spreads", [_outcome(yankees, 105, point=-1.5), _outcome(red_sox, 103, point=1.5)]),
                 ("totals", [_outcome("Over", 108, point=8.5), _outcome("Under", 105, point=8.5)]),
             ],
             updated_at=updated,
@@ -71,6 +73,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "caesars",
             [
                 ("h2h", [_outcome(yankees, 118), _outcome(red_sox, -125)]),
+                ("spreads", [_outcome(yankees, 100, point=-1.5), _outcome(red_sox, 108, point=1.5)]),
                 ("totals", [_outcome("Over", 110, point=8.5), _outcome("Under", -120, point=8.5)]),
             ],
             updated_at=updated,
@@ -79,6 +82,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "betmgm",
             [
                 ("h2h", [_outcome(yankees, 115), _outcome(red_sox, -130)]),
+                ("spreads", [_outcome(yankees, 102, point=-1.5), _outcome(red_sox, 101, point=1.5)]),
                 ("totals", [_outcome("Over", 105, point=8.5), _outcome("Under", -115, point=8.5)]),
             ],
             updated_at=updated,
@@ -87,6 +91,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "novig",
             [
                 ("h2h", [_outcome(yankees, 121), _outcome(red_sox, -105)]),
+                ("spreads", [_outcome(yankees, 110, point=-1.5), _outcome(red_sox, -110, point=1.5)]),
                 ("totals", [_outcome("Over", 102, point=8.5), _outcome("Under", -110, point=8.5)]),
             ],
             updated_at=updated,
@@ -99,6 +104,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "fanduel",
             [
+                ("h2h", [_outcome(liberty, 115), _outcome(aces, -130)]),
                 ("spreads", [_outcome(liberty, 112, point=-4.5), _outcome(aces, -125, point=4.5)]),
                 ("totals", [_outcome("Over", 120, point=166.5), _outcome("Under", -140, point=166.5)]),
                 ("player_points", [_outcome("Over", 130, point=23.5, description=stewart), _outcome("Under", -150, point=23.5, description=stewart)]),
@@ -108,6 +114,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "draftkings",
             [
+                ("h2h", [_outcome(liberty, 105), _outcome(aces, 110)]),
                 ("spreads", [_outcome(liberty, 105, point=-4.5), _outcome(aces, 103, point=4.5)]),
                 ("totals", [_outcome("Over", 105, point=166.5), _outcome("Under", 110, point=166.5)]),
                 ("player_points", [_outcome("Over", 125, point=23.5, description=stewart), _outcome("Under", -105, point=23.5, description=stewart)]),
@@ -117,6 +124,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "caesars",
             [
+                ("h2h", [_outcome(liberty, 108), _outcome(aces, -115)]),
                 ("spreads", [_outcome(liberty, 100, point=-4.5), _outcome(aces, 108, point=4.5)]),
                 ("totals", [_outcome("Over", 108, point=166.5), _outcome("Under", -118, point=166.5)]),
                 ("player_points", [_outcome("Over", 118, point=23.5, description=stewart), _outcome("Under", -112, point=23.5, description=stewart)]),
@@ -126,6 +134,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "hardrockbet",
             [
+                ("h2h", [_outcome(liberty, 102), _outcome(aces, -110)]),
                 ("spreads", [_outcome(liberty, 102, point=-4.5), _outcome(aces, 101, point=4.5)]),
                 ("totals", [_outcome("Over", 100, point=166.5), _outcome("Under", -110, point=166.5)]),
                 ("player_points", [_outcome("Over", 120, point=23.5, description=stewart), _outcome("Under", -118, point=23.5, description=stewart)]),
@@ -141,6 +150,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "bet365",
             [
+                ("h2h", [_outcome(mets, 108), _outcome(phillies, -120)]),
                 ("spreads", [_outcome(mets, 106, point=1.5), _outcome(phillies, -118, point=-1.5)]),
                 ("totals", [_outcome("Over", 115, point=7.5), _outcome("Under", -130, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 145, point=6.5, description=wheeler), _outcome("Under", -155, point=6.5, description=wheeler)]),
@@ -150,6 +160,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "betonline",
             [
+                ("h2h", [_outcome(mets, -110), _outcome(phillies, 115)]),
                 ("spreads", [_outcome(mets, 102, point=1.5), _outcome(phillies, 104, point=-1.5)]),
                 ("totals", [_outcome("Over", -120, point=7.5), _outcome("Under", 115, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 138, point=6.5, description=wheeler), _outcome("Under", -110, point=6.5, description=wheeler)]),
@@ -159,6 +170,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "fanatics",
             [
+                ("h2h", [_outcome(mets, 102), _outcome(phillies, -112)]),
                 ("spreads", [_outcome(mets, 112, point=1.5), _outcome(phillies, -122, point=-1.5)]),
                 ("totals", [_outcome("Over", 105, point=7.5), _outcome("Under", -120, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 135, point=6.5, description=wheeler), _outcome("Under", -118, point=6.5, description=wheeler)]),
@@ -168,6 +180,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
         _book(
             "betrivers",
             [
+                ("h2h", [_outcome(mets, 105), _outcome(phillies, -108)]),
                 ("spreads", [_outcome(mets, 104, point=1.5), _outcome(phillies, 107, point=-1.5)]),
                 ("totals", [_outcome("Over", -110, point=7.5), _outcome("Under", 102, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 130, point=6.5, description=wheeler), _outcome("Under", -120, point=6.5, description=wheeler)]),

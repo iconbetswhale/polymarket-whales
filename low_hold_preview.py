@@ -112,4 +112,17 @@ def temporary_low_hold_events(now: datetime | None = None) -> list[dict]:
                 _book("pinnacle", [_market("pitcher_strikeouts", [_outcome("Over", 108, 5.5, "Zack Wheeler"), _outcome("Under", -134, 5.5, "Zack Wheeler"), _outcome("Over", -122, 6.0, "Zack Wheeler"), _outcome("Under", -105, 6.0, "Zack Wheeler")], stamp)], stamp),
             ],
         },
+        {
+            "id": "low-hold-mlb-orioles-blue-jays",
+            "sport_key": "baseball_mlb",
+            "sport_title": "MLB",
+            "commence_time": (now + timedelta(hours=9, minutes=10)).isoformat(),
+            "away_team": "Baltimore Orioles",
+            "home_team": "Toronto Blue Jays",
+            "bookmakers": [
+                _book("draftkings", [_market("h2h", [_outcome("Baltimore Orioles", 102), _outcome("Toronto Blue Jays", -108)], stamp)], stamp),
+                _book("fanduel", [_market("h2h", [_outcome("Baltimore Orioles", -105), _outcome("Toronto Blue Jays", 101)], stamp)], stamp),
+                _book("caesars", [_market("h2h", [_outcome("Baltimore Orioles", 100), _outcome("Toronto Blue Jays", -106)], stamp)], stamp),
+            ],
+        },
     ]

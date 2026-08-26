@@ -362,15 +362,15 @@ def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
     }
 
 
-def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
+def test_positive_ev_preview_returns_ten_isolated_visual_rows(app_client):
     response = app_client.get("/api/positive-ev?preview=1")
 
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["previewOnly"] is True
-    assert payload["total"] == 5
+    assert payload["total"] == 10
     assert payload["refreshSeconds"] == 0
-    assert len(payload["data"]) == 5
+    assert len(payload["data"]) == 10
     assert all(row["previewOnly"] is True for row in payload["data"])
     assert all(
         row["calculationVersion"] == "ev-visual-preview-v2-devig"
@@ -439,7 +439,7 @@ def test_positive_ev_preview_returns_five_isolated_visual_rows(app_client):
         "/api/positive-ev",
         query_string={"preview": 1, "required_books": "pinnacle,novig"},
     ).get_json()
-    assert required_available["total"] == 5
+    assert required_available["total"] == 10
     assert required_available["requiredBooks"] == ["pinnacle", "novig"]
 
     required_missing = app_client.get(
@@ -2477,7 +2477,7 @@ def test_positive_ev_track_and_hide_persists_across_feed_refreshes(app_client):
     assert tracked.status_code == 201
     assert tracked.get_json()["hidden"]["selection"] == row["selection"]
     refreshed = app_client.get("/api/positive-ev?preview=1").get_json()
-    assert refreshed["total"] == 4
+    assert refreshed["total"] == 9
     assert row["id"] not in {item["id"] for item in refreshed["data"]}
     hidden = app_client.get("/api/hidden-trades").get_json()
     assert hidden["total"] == 1

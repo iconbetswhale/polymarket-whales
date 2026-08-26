@@ -2452,7 +2452,7 @@ def create_app(start_background: bool = True) -> Flask:
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
-            preview_rows = board["data"][:7]
+            preview_rows = board["data"][:10]
             response = jsonify(
                 {
                     "data": preview_rows,
@@ -2659,7 +2659,7 @@ def create_app(start_background: bool = True) -> Flask:
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
-            preview_rows = board["data"][:7]
+            preview_rows = board["data"][:10]
             response = jsonify(
                 {
                     "data": preview_rows,
@@ -2934,7 +2934,7 @@ def create_app(start_background: bool = True) -> Flask:
             from low_hold_preview import temporary_low_hold_events
 
             board = build_low_hold_board(temporary_low_hold_events(), **board_kwargs)
-            preview_rows = board["data"][:7]
+            preview_rows = board["data"][:10]
             response = jsonify(
                 {
                     "data": preview_rows,
@@ -3106,7 +3106,7 @@ def create_app(start_background: bool = True) -> Flask:
                 ]
             rows = visible_positive_ev_rows(
                 preview_rows, g.iconbets_user_id
-            )
+            )[:10]
             response = jsonify(
                 {
                     "data": rows,
