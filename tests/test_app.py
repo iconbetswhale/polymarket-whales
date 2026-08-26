@@ -542,6 +542,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert "iconlabs-ev-tracked-opportunities" in positive_ev_javascript
     assert 'requestJson("/api/user-settings")' in positive_ev_javascript
     assert 'bankroll:bankrollConfig.amount' in positive_ev_javascript
+    assert "if (previewOnly)" in positive_ev_javascript
     assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
     assert 'class="ev-book-option"' in positive_ev_javascript
     assert 'class="ev-book-name"' in positive_ev_javascript

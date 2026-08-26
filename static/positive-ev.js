@@ -1103,5 +1103,11 @@
     renderTrackerTags();
   });
   document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
-  renderFilters(); loadBankrollSettings().finally(()=>load(true));
+  renderFilters();
+  if (previewOnly) {
+    applyBankrollSettings({trades_to_play_bankroll:bankrollConfig.amount,unit_percentage:bankrollConfig.unitPercentage}, {forceInput:true});
+    load(true);
+  } else {
+    loadBankrollSettings().finally(()=>load(true));
+  }
 })();
