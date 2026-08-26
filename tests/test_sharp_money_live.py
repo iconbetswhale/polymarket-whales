@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import time
 
-from sharp_money_live import SharpMoneyCollector
+from sharp_money_live import OddsComparisonFallback, SharpMoneyCollector
 
 
 class FakeProphetX:
@@ -60,6 +60,40 @@ class FakeProphetX:
                 ]
             },
         }
+
+
+class FakeComparisonProvider:
+    def __init__(self, provider_key: str, result=None, *, fails: bool = False):
+        self.provider_key = provider_key
+        self.api_key = "configured"
+        self.result = result or {}
+        self.fails = fails
+        self.calls = 0
+
+    def diagnostics(self):
+        return {"provider": self.provider_key, "configured": True}
+
+    def screen_options_for_trades(self, _trades):
+        self.calls += 1
+        if self.fails:
+            raise ConnectionError("synthetic outage")
+        return self.result
+
+
+def test_odds_comparison_prefers_odds_engine_and_falls_back() -> None:
+    primary = FakeComparisonProvider("odds_engine", fails=True)
+    fallback = FakeComparisonProvider(
+        "the_odds_api", {"signal-1": ["fallback-option"]}
+    )
+    provider = OddsComparisonFallback((primary, fallback))
+
+    result = provider.screen_options_for_trades([{"id": "signal-1"}])
+
+    assert result == {"signal-1": ["fallback-option"]}
+    assert primary.calls == 1
+    assert fallback.calls == 1
+    assert provider.diagnostics()["provider"] == "odds_engine"
+    assert provider.diagnostics()["fallbacks"] == ["the_odds_api"]
 
 
 def test_collector_is_paused_without_any_provider_calls():

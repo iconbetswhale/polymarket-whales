@@ -112,6 +112,7 @@ from dfs_probability_engine import (
     ICONLABS_DFS_WEIGHTS,
     SUPPORTED_DEVIG_METHODS,
 )
+from dfs_odds import build_dfs_odds_board
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
@@ -1219,6 +1220,89 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": str(exc)}), 400
         return jsonify(result.to_dict())
 
+    @app.route("/api/dfs/lines", methods=["GET", "POST"])
+    def api_dfs_lines():
+        payload = request.get_json(silent=True) or {}
+        weights = payload.get("weights") or ICONLABS_DFS_WEIGHTS
+        if not isinstance(weights, dict) or not weights:
+            return jsonify(
+                {"error": "weights must be a non-empty provider-to-percent object"}
+            ), 400
+        try:
+            normalized_weights = {
+                str(provider).strip().lower(): float(weight)
+                for provider, weight in weights.items()
+                if str(provider).strip()
+            }
+        except (TypeError, ValueError):
+            return jsonify({"error": "weights must contain numeric percentages"}), 400
+        if not normalized_weights or any(
+            not math.isfinite(weight) or weight < 0
+            for weight in normalized_weights.values()
+        ):
+            return jsonify({"error": "weights must contain non-negative percentages"}), 400
+
+        requested_sports = tuple(
+            dict.fromkeys(
+                item.strip()
+                for item in request.args.get(
+                    "sports",
+                    "baseball_mlb,basketball_wnba,basketball_nba",
+                ).split(",")
+                if item.strip() in PLAYER_PROP_MARKETS
+            )
+        )[:4]
+        market_keys = tuple(
+            dict.fromkeys(
+                market_key
+                for sport_key in requested_sports
+                for market_key in PLAYER_PROP_MARKETS.get(sport_key, ())
+            )
+        )
+        if not odds_feed_providers():
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": False,
+                    "message": "No odds feed is configured.",
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+        try:
+            odds_provider, events = load_odds_events(
+                sport_keys=requested_sports,
+                market_keys=market_keys,
+            )
+            rows = build_dfs_odds_board(events, weights=normalized_weights)
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            return jsonify(
+                {
+                    "data": [],
+                    "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+                }
+            ), 429 if status == 429 else 502
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            LOGGER.warning("DFS odds refresh failed: %s", type(exc).__name__)
+            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+
+        diagnostics = odds_provider.diagnostics(authenticate=False)
+        response = jsonify(
+            {
+                "data": rows,
+                "total": len(rows),
+                "configured": True,
+                "dataSource": diagnostics.get(
+                    "provider", odds_provider.provider_key
+                ),
+                "refreshSeconds": 60,
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
     @app.route("/positive-ev")
     def positive_ev_page():
         positive_ev_config = positive_ev_catalog_payload()
@@ -2105,34 +2189,40 @@ def create_app(start_background: bool = True) -> Flask:
             row.pop("orderbook", None)
             unique.setdefault(odds_identity(row), row)
 
-        odds_api_provider = next(
-            (
-                provider
-                for provider in execution_providers.providers
-                if provider.provider_key == "the_odds_api"
-            ),
-            None,
-        )
-        if odds_api_provider is not None:
+        sportsbook_provider = None
+        sportsbook_rows = []
+        for candidate in (
+            provider
+            for provider_key in ("odds_engine", "the_odds_api")
+            for provider in execution_providers.providers
+            if provider.provider_key == provider_key
+            and callable(getattr(provider, "odds_screen_rows", None))
+        ):
             try:
-                sportsbook_rows = odds_api_provider.odds_screen_rows(
+                sportsbook_rows = candidate.odds_screen_rows(
                     sport=requested_sport,
                     league=requested_league,
                     market_kind=requested_market,
                     now=now,
                 )
+                if sportsbook_rows or getattr(candidate, "api_key", None):
+                    sportsbook_provider = candidate
+                    break
             except requests.HTTPError as exc:
                 status = getattr(exc.response, "status_code", None)
                 LOGGER.warning(
-                    "The Odds API odds-screen refresh failed with status %s",
+                    "%s odds-screen refresh failed with status %s",
+                    candidate.provider_key,
                     status or "unknown",
                 )
-                sportsbook_rows = []
             except (requests.RequestException, ValueError, TypeError) as exc:
-                LOGGER.warning("The Odds API odds-screen refresh failed: %s", type(exc).__name__)
-                sportsbook_rows = []
-            for row in sportsbook_rows:
-                unique.setdefault(odds_identity(row), row)
+                LOGGER.warning(
+                    "%s odds-screen refresh failed: %s",
+                    candidate.provider_key,
+                    type(exc).__name__,
+                )
+        for row in sportsbook_rows:
+            unique.setdefault(odds_identity(row), row)
 
         def matches_requested_filters(row: dict) -> bool:
             canonical = canonicalize_trade(row)
@@ -2205,12 +2295,20 @@ def create_app(start_background: bool = True) -> Flask:
             rows,
             compare_all=True,
             include_non_comparison=True,
-            exclude_provider_keys=("the_odds_api",),
+            exclude_provider_keys=("odds_engine", "the_odds_api"),
         )
-        if odds_api_provider is not None:
-            sportsbook_options = odds_api_provider.screen_options_for_trades(
-                rows
-            )
+        if sportsbook_provider is not None:
+            try:
+                sportsbook_options = sportsbook_provider.screen_options_for_trades(
+                    rows
+                )
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                LOGGER.warning(
+                    "%s odds-screen comparison failed: %s",
+                    sportsbook_provider.provider_key,
+                    type(exc).__name__,
+                )
+                sportsbook_options = {}
             for row in rows:
                 existing = list(row.get("executionOptions") or [])
                 additions = [
@@ -2248,11 +2346,11 @@ def create_app(start_background: bool = True) -> Flask:
                         option["isBestPrice"] = option is best
                 row["executionOptions"] = combined
         provider_catalog: dict[str, dict] = {}
-        if odds_api_provider is not None:
+        if sportsbook_provider is not None:
             provider_catalog.update(
                 {
                     item["key"]: item
-                    for item in odds_api_provider.provider_catalog(rows)
+                    for item in sportsbook_provider.provider_catalog(rows)
                 }
             )
         for row in rows:
@@ -2274,7 +2372,9 @@ def create_app(start_background: bool = True) -> Flask:
                         or ""
                     ),
                     "source": (
-                        "the_odds_api"
+                        "odds_engine"
+                        if provider_key.startswith("oddsengine__")
+                        else "the_odds_api"
                         if provider_key.startswith("oddsapi__")
                         else "exchange"
                     ),
@@ -2321,7 +2421,10 @@ def create_app(start_background: bool = True) -> Flask:
                 "data": rows,
                 "pagination": {"total": len(rows), "page": 1, "per_page": 2000},
                 "status": snapshot["status"],
-                "source": "polymarket_novig_and_the_odds_api_read_only_feeds",
+                "source": (
+                    "polymarket_novig_and_"
+                    f"{getattr(sportsbook_provider, 'provider_key', 'schedule')}_read_only_feeds"
+                ),
                 "providers": sorted(
                     provider_catalog.values(),
                     key=lambda item: (
@@ -2337,7 +2440,9 @@ def create_app(start_background: bool = True) -> Flask:
             }
         )
         edge_ttl = (
-            1200
+            45
+            if getattr(sportsbook_provider, "provider_key", "") == "odds_engine"
+            else 1200
             if requested_market in {"alternate_spread", "alternate_total"}
             else 600
         )

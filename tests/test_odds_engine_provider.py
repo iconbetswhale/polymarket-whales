@@ -100,7 +100,18 @@ def _fixture_session() -> FakeSession:
                                         "fd-nyy", "New York Yankees", "away", -110
                                     ),
                                 ],
-                            }
+                            },
+                            {
+                                "book": "Pinnacle",
+                                "selections": [
+                                    selection(
+                                        "pin-bos", "Boston Red Sox", "home", 102
+                                    ),
+                                    selection(
+                                        "pin-nyy", "New York Yankees", "away", -108
+                                    ),
+                                ],
+                            },
                         ],
                     },
                     {
@@ -346,6 +357,55 @@ def test_normalized_feed_is_accepted_by_all_four_existing_calculators() -> None:
         events,
         execution_books=books,
         min_source_books=1,
+    )
+
+
+def test_provider_supplies_exact_line_shopping_and_odds_screen_rows() -> None:
+    provider = OddsEngineProvider("key", session=_fixture_session())
+    events = provider.ev_events(
+        sport_keys=("baseball_mlb",), market_keys=("h2h",)
+    )
+    start = events[0]["commence_time"]
+    trade = {
+        "id": "model-trade-1",
+        "category": "Baseball",
+        "canonical_sport_id": "BASEBALL",
+        "league": "MLB",
+        "canonical_league_id": "MLB",
+        "event_title": "New York Yankees vs Boston Red Sox",
+        "market_title": "Moneyline",
+        "sports_market_type": "Moneyline",
+        "outcome": "Boston Red Sox",
+        "event_date_et": start,
+        "resolution_time": start,
+        "card": {"recommended_amount": 100},
+        "recommendation": {"recommended_amount": 100},
+    }
+
+    options = provider.options_for_trades([trade])["model-trade-1"]
+    screen_rows = provider.odds_screen_rows(
+        league="MLB", market_kind="moneyline"
+    )
+
+    assert {option.provider_key for option in options} == {
+        "oddsengine__fanduel",
+        "oddsengine__pinnacle",
+    }
+    fanduel = next(
+        option for option in options if option.provider_key == "oddsengine__fanduel"
+    )
+    assert fanduel.american_odds == 105
+    assert fanduel.deep_link.endswith("/fd-bos")
+    fair_quotes = provider.fair_price_quotes([trade])
+    assert fair_quotes["model-trade-1"][0]["provider"] == "pinnacle"
+    assert {
+        row["outcome"] for row in screen_rows
+    } == {"Boston Red Sox", "New York Yankees"}
+    assert all(row["odds_engine_event"] for row in screen_rows)
+    assert any(
+        item["key"] == "oddsengine__fanduel"
+        and item["source"] == "odds_engine"
+        for item in provider.provider_catalog([])
     )
 
 

@@ -240,10 +240,10 @@ Maximum persisted Discord jobs claimed during one backend reconciliation run.
 The Model Tracker insert is the notification source of truth. A qualifying Today recommendation and its unique Discord outbox job are written in one database transaction. The existing scheduled Model Tracker reconciliation drains that outbox, records success or a safe error code, and retries transient failures without requiring a browser page to be open. Personal Tracker records and dashboard-only recommendations never enter this outbox.
 
 `ODDSENGINE_API_KEY=`
-Server-only OddsEngine key used as the preferred live all-book feed for Positive EV, Arbitrage, Middles, and Low Hold. Requests authenticate with `X-API-Key`; the key is never sent to the browser or included in diagnostics. The standard event and odds endpoints feed IconLabs' existing calculators, so provider changes do not alter opportunity math.
+Server-only OddsEngine key used as the preferred live all-book feed for Positive EV, Arbitrage, Middles, Low Hold, Odds Screen, Fantasy Optimizer, Sharp Money comparisons, model fair pricing, and sportsbook line shopping. Requests authenticate with `X-API-Key`; the key is never sent to the browser or included in diagnostics. The standard event and odds endpoints feed IconLabs' existing calculators and models, so provider changes do not alter their math.
 
 `ODDSENGINE_API_BASE_URL=https://api.oddsengine.dev/v1`
-OddsEngine API base URL. The feed caches league schedules and event odds for 45 seconds and caps a scan at 12 upcoming events per league and 48 total events to stay within the trial plan's request limit. SportsGameOdds and The Odds API remain automatic fallbacks when an OddsEngine request fails.
+OddsEngine API base URL. One shared raw-event cache serves every compatible live page, so a league schedule and event snapshot are reused across calculators, model cards, DFS, Sharp Money, and the always-on Odds Screen. Scans are capped at 12 upcoming events per league and 48 total events to stay within the trial plan's request limit. SportsGameOdds and The Odds API remain automatic fallbacks when an OddsEngine request fails; historical close and score settlement continue using providers with those specialized endpoints.
 
 `SPORTSGAMEODDS_API_KEY=`
 Server-side SportsGameOdds All Lines API key for the Positive EV feed and normalized NoVIG prices. `NOVIG_ODDS_API_KEY` remains a backward-compatible alias. When no key is configured, the Positive EV live scan and NoVIG options remain unavailable while Polymarket execution is unaffected.

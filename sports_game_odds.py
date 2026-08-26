@@ -225,6 +225,7 @@ SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS = {
 
 SPORT_KEY_TO_LEAGUE_ID = {
     "baseball_mlb": "MLB",
+    "basketball_nba": "NBA",
     "basketball_wnba": "WNBA",
 }
 LEAGUE_ID_TO_SPORT_KEY = {
@@ -285,6 +286,7 @@ PROP_MARKET_SPECS_BY_LEAGUE = {
         "player_triple_double": ("tripleDouble", "game", "yn", "yes"),
     },
 }
+PROP_MARKET_SPECS_BY_LEAGUE["NBA"] = dict(PROP_MARKET_SPECS_BY_LEAGUE["WNBA"])
 PROP_MARKET_LOOKUP_BY_LEAGUE = {
     league_id: {
         (stat_id.casefold(), period_id.casefold(), bet_type_id.casefold()): market_key

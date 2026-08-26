@@ -5,13 +5,28 @@ import re
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Iterable
 
 import requests
 
-from execution_providers import ExecutionProvider, ProviderHealthStatus
-from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS
+from execution_providers import (
+    EASTERN,
+    MARKET_NOT_FOUND,
+    PROVIDER_NOT_CONFIGURED,
+    CanonicalTrade,
+    ExecutionOption,
+    ExecutionProvider,
+    MatchConfidence,
+    ProviderHealthStatus,
+    ProviderMarketIndex,
+    _fair_quotes_from_index,
+    _match_exact_trade,
+    american_to_probability,
+    canonicalize_trade,
+)
+from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS, SPORTS_GAME_ODDS_LOGOS
+from the_odds_api_provider import normalize_the_odds_api_events
 
 
 LOGGER = logging.getLogger(__name__)
@@ -26,6 +41,49 @@ SPORT_KEY_TO_LEAGUE = {
     "basketball_ncaaw": "ncaaw",
     "basketball_wnba": "wnba",
     "icehockey_nhl": "nhl",
+    "soccer_epl": "epl",
+    "soccer_usa_mls": "mls",
+}
+
+SPORT_KEY_BY_LEAGUE = {
+    league.upper(): sport_key for sport_key, league in SPORT_KEY_TO_LEAGUE.items()
+}
+DEFAULT_SPORT_KEYS_BY_SPORT = {
+    "BASEBALL": ("baseball_mlb",),
+    "FOOTBALL": ("americanfootball_nfl", "americanfootball_ncaaf"),
+    "BASKETBALL": ("basketball_nba", "basketball_wnba", "basketball_ncaab"),
+    "HOCKEY": ("icehockey_nhl",),
+    "SOCCER": ("soccer_usa_mls", "soccer_epl"),
+}
+
+MARKET_KEY_BY_KIND = {
+    "moneyline": "h2h",
+    "spread": "spreads",
+    "game_total": "totals",
+    "alternate_spread": "alternate_spreads",
+    "alternate_total": "alternate_totals",
+}
+
+FAIR_PRICE_BOOK_ALIASES = {
+    "pinnacle": "pinnacle",
+    "betonline": "betonline",
+    "novig": "novig",
+    "prophetexchange": "prophetx",
+    "kalshi": "kalshi",
+    "polymarket": "polymarket",
+}
+
+ODDSENGINE_BOOKMAKERS = {
+    **SPORTS_GAME_ODDS_BOOKMAKERS,
+    "pick6": {"name": "DraftKings Pick6", "type": "dfs"},
+    "betr_picks": {"name": "Betr Picks", "type": "dfs"},
+    "dabble": {"name": "Dabble", "type": "dfs"},
+}
+ODDSENGINE_LOGOS = {
+    **SPORTS_GAME_ODDS_LOGOS,
+    "pick6": "/static/assets/dfs-books/dk-pick6.png",
+    "betr_picks": "/static/assets/dfs-books/betr.png",
+    "dabble": "/static/assets/dfs-books/dabble.png",
 }
 
 BOOK_ALIASES = {
@@ -34,6 +92,10 @@ BOOK_ALIASES = {
     "prophetx": "prophetexchange",
     "sportsbettingag": "sportsbetting_ag",
     "thescore": "thescorebet",
+    "betrpicks": "betr_picks",
+    "betrusdfs": "betr_picks",
+    "dkpick6": "pick6",
+    "draftkingspick6": "pick6",
 }
 
 SUPPORTED_MARKET_KEYS = {
@@ -139,7 +201,7 @@ def _sport_key_league(sport_key: str) -> str:
 def _book_key(value: object) -> str | None:
     normalized = _slug(value).replace("_", "")
     normalized = BOOK_ALIASES.get(normalized, normalized)
-    return normalized if normalized in SPORTS_GAME_ODDS_BOOKMAKERS else None
+    return normalized if normalized in ODDSENGINE_BOOKMAKERS else None
 
 
 def _canonical_market_key(offer: dict, selections: list[dict]) -> str | None:
@@ -199,15 +261,28 @@ def _american_odds(value: object) -> int | None:
     return parsed if parsed != 0 else None
 
 
+def _oddsengine_provider_key(book_key: str) -> str:
+    return f"oddsengine__{_slug(book_key)}"
+
+
+def _safe_nonnegative(value: object) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def _selection_outcome(
     selection: dict,
     *,
     event: dict,
     offer: dict,
     market_key: str,
+    allow_missing_price: bool = False,
 ) -> dict | None:
     price = _american_odds(selection.get("odds_american"))
-    if price is None:
+    if price is None and not allow_missing_price:
         return None
 
     side = str(selection.get("side") or "").strip().lower()
@@ -287,6 +362,9 @@ def normalize_odds_engine_event(
                 book_key = _book_key(raw_book.get("book"))
                 if not book_key:
                     continue
+                is_dfs_book = (
+                    ODDSENGINE_BOOKMAKERS[book_key]["type"] == "dfs"
+                )
                 outcomes = [
                     outcome
                     for selection in selections
@@ -296,6 +374,7 @@ def normalize_odds_engine_event(
                             event=payload,
                             offer=offer,
                             market_key=market_key,
+                            allow_missing_price=is_dfs_book,
                         )
                     )
                 ]
@@ -316,7 +395,7 @@ def normalize_odds_engine_event(
                     book_key,
                     {
                         "key": book_key,
-                        "title": SPORTS_GAME_ODDS_BOOKMAKERS[book_key]["name"],
+                        "title": ODDSENGINE_BOOKMAKERS[book_key]["name"],
                         "last_update": last_update,
                         "markets": [],
                     },
@@ -381,11 +460,162 @@ class OddsEngineProvider(ExecutionProvider):
         self._last_error_at: str | None = None
         self._lock = threading.RLock()
         self._scan_lock = threading.Lock()
+        self.failure_reasons: dict[str, str] = {}
 
-    def options_for_trades(self, trades: list[dict]) -> dict:
-        # OddsEngine is an all-book read-only feed for the four calculator
-        # tools. Execution routing remains with the venue-specific adapters.
-        return {}
+    def options_for_trades(
+        self, trades: list[dict]
+    ) -> dict[str, list[ExecutionOption]]:
+        return self._options_for_trades(trades)
+
+    def screen_options_for_trades(
+        self, trades: list[dict]
+    ) -> dict[str, list[ExecutionOption]]:
+        return self._options_for_trades(trades)
+
+    def _options_for_trades(
+        self, trades: list[dict]
+    ) -> dict[str, list[ExecutionOption]]:
+        self.failure_reasons = {}
+        if not self.api_key or not trades:
+            reason = PROVIDER_NOT_CONFIGURED if not self.api_key else MARKET_NOT_FOUND
+            self.failure_reasons = {
+                str(trade.get("id") or ""): reason
+                for trade in trades
+                if trade.get("id")
+            }
+            return {}
+
+        canonical = [
+            item for trade in trades if (item := canonicalize_trade(trade))
+        ]
+        grouped: dict[str, list[CanonicalTrade]] = {}
+        for trade in canonical:
+            sport_key = self._sport_key_for_trade(trade)
+            if sport_key:
+                grouped.setdefault(sport_key, []).append(trade)
+            else:
+                self.failure_reasons[trade.trade_id] = MARKET_NOT_FOUND
+
+        source_trades = {
+            str(trade.get("id") or ""): trade for trade in trades
+        }
+        results: dict[str, list[ExecutionOption]] = {}
+        for sport_key, sport_trades in grouped.items():
+            requested_markets = tuple(
+                dict.fromkeys(
+                    market_key
+                    for trade in sport_trades
+                    for market_key in self._market_keys_for_trade(trade)
+                )
+            )
+            if not requested_markets:
+                continue
+            events = self.ev_events(
+                sport_keys=(sport_key,), market_keys=requested_markets
+            )
+            by_book, metadata = normalize_the_odds_api_events(events)
+            for book_key, markets in by_book.items():
+                index = ProviderMarketIndex(markets)
+                for trade in sport_trades:
+                    confidence, matched = _match_exact_trade(
+                        trade,
+                        index,
+                        allow_equivalent_line_class=True,
+                    )
+                    if confidence is not MatchConfidence.EXACT or matched is None:
+                        continue
+                    meta = metadata[matched.selection_id]
+                    stake = self._recommended_stake(
+                        source_trades.get(trade.trade_id, {})
+                    )
+                    can_fill = (
+                        True
+                        if meta.bet_limit is None
+                        else meta.bet_limit + 1e-9 >= stake
+                    )
+                    implied = american_to_probability(matched.american_odds)
+                    results.setdefault(trade.trade_id, []).append(
+                        ExecutionOption(
+                            provider_name=meta.name,
+                            provider_key=_oddsengine_provider_key(book_key),
+                            market_id=(
+                                f"{matched.event_id}:{matched.market_name}:"
+                                f"{matched.line}"
+                            ),
+                            selection_id=matched.selection_id,
+                            display_odds=matched.display_odds,
+                            deep_link=meta.direct_link,
+                            is_available=matched.is_available,
+                            last_updated=matched.last_updated,
+                            matching_confidence=MatchConfidence.EXACT,
+                            logo_url=(
+                                ODDSENGINE_LOGOS.get(book_key)
+                                or meta.logo_url
+                            ),
+                            tooltip=(
+                                f"{meta.name} sportsbook quote via OddsEngine"
+                            ),
+                            american_odds=matched.american_odds,
+                            available_liquidity=meta.bet_limit,
+                            can_fill_recommended_stake=can_fill,
+                            fee_rate=0.0,
+                            quote_status="OPEN",
+                            provider_event_id=matched.event_id,
+                            native_price_format="AMERICAN",
+                            quote_max_age_seconds=180,
+                            implied_probability=implied,
+                            best_executable_price=implied,
+                            top_price=implied,
+                            top_price_american_odds=matched.american_odds,
+                            is_exact_match=True,
+                            market_status="OPEN",
+                        )
+                    )
+        for trade in canonical:
+            if trade.trade_id not in results:
+                self.failure_reasons.setdefault(trade.trade_id, MARKET_NOT_FOUND)
+        return results
+
+    def fair_price_quotes(self, trades: list[dict]) -> dict[str, list[dict]]:
+        if not self.api_key or not trades:
+            return {}
+        canonical = [
+            item for trade in trades if (item := canonicalize_trade(trade))
+        ]
+        grouped: dict[str, list[CanonicalTrade]] = {}
+        for trade in canonical:
+            sport_key = self._sport_key_for_trade(trade)
+            if sport_key:
+                grouped.setdefault(sport_key, []).append(trade)
+
+        results: dict[str, list[dict]] = {}
+        for sport_key, sport_trades in grouped.items():
+            requested_markets = tuple(
+                dict.fromkeys(
+                    market_key
+                    for trade in sport_trades
+                    for market_key in self._market_keys_for_trade(trade)
+                )
+            )
+            if not requested_markets:
+                continue
+            events = self.ev_events(
+                sport_keys=(sport_key,), market_keys=requested_markets
+            )
+            by_book, _metadata = normalize_the_odds_api_events(events)
+            for book_key, provider_alias in FAIR_PRICE_BOOK_ALIASES.items():
+                markets = by_book.get(book_key)
+                if not markets:
+                    continue
+                quotes = _fair_quotes_from_index(
+                    sport_trades,
+                    ProviderMarketIndex(markets),
+                    provider_alias,
+                    allow_equivalent_line_class=True,
+                )
+                for trade_id, quote in quotes.items():
+                    results.setdefault(trade_id, []).append(quote)
+        return results
 
     def invalidate_cache(self) -> None:
         with self._lock:
@@ -417,6 +647,203 @@ class OddsEngineProvider(ExecutionProvider):
         # first cache fill so those requests share one upstream schedule/odds scan.
         with self._scan_lock:
             return self._load_events(requested_sports, requested_markets)
+
+    def odds_screen_rows(
+        self,
+        *,
+        sport: str = "",
+        league: str = "",
+        market_kind: str = "",
+        now: datetime | None = None,
+    ) -> list[dict]:
+        if not self.api_key:
+            return []
+        sport_keys = self._screen_sport_keys(sport=sport, league=league)
+        market_keys = self._screen_market_keys(market_kind)
+        if not market_keys:
+            return []
+        current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+        allowed_days = {
+            current.astimezone(EASTERN).date(),
+            (current + timedelta(days=1)).astimezone(EASTERN).date(),
+        }
+        events = self.ev_events(
+            sport_keys=sport_keys,
+            market_keys=market_keys,
+        )
+        by_book, _metadata = normalize_the_odds_api_events(events)
+        unique: dict[tuple, dict] = {}
+        for market in (item for rows in by_book.values() for item in rows):
+            if market.start_at.astimezone(EASTERN).date() not in allowed_days:
+                continue
+            group_line = (
+                abs(float(market.line))
+                if market.market_name == "spread" and market.line is not None
+                else market.line
+            )
+            identity = (
+                market.event_id,
+                market.market_name,
+                market.is_alternative,
+                group_line,
+                market.side_id,
+                market.line,
+            )
+            if identity in unique:
+                continue
+            outcome = {
+                "home": market.home_names[0],
+                "away": market.away_names[0],
+                "over": "Over",
+                "under": "Under",
+                "draw": "Draw",
+            }.get(market.side_id, market.side_id)
+            implied = american_to_probability(market.american_odds)
+            market_title = {
+                "moneyline": "Moneyline",
+                "spread": (
+                    "Alternate Spread" if market.is_alternative else "Spread"
+                ),
+                "game_total": (
+                    "Alternate Total" if market.is_alternative else "Game Total"
+                ),
+            }[market.market_name]
+            market_variant = (
+                f"alternate_{market.market_name}"
+                if market.is_alternative
+                else market.market_name
+            )
+            unique[identity] = {
+                "id": (
+                    f"oddsengine::{market.event_id}::{market_variant}::"
+                    f"{market.side_id}::{market.line}"
+                ),
+                "event_id": market.event_id,
+                "market_id": (
+                    f"oddsengine::{market.event_id}::{market_variant}::"
+                    f"{group_line}"
+                ),
+                "event_title": (
+                    f"{market.away_names[0]} vs {market.home_names[0]}"
+                ),
+                "market_title": market_title,
+                "sports_market_type": market_title,
+                "outcome": outcome,
+                "category": market.sport_id.title(),
+                "canonical_sport_id": market.sport_id,
+                "league": market.league_id,
+                "canonical_league_id": market.league_id,
+                "resolution_time": market.start_at.isoformat(),
+                "event_date_et": market.start_at.isoformat(),
+                "schedule_date_et": (
+                    market.start_at.astimezone(EASTERN).date().isoformat()
+                ),
+                "market_line": market.line,
+                "is_alternative": market.is_alternative,
+                "is_sports": True,
+                "card": {
+                    "current_actionable_price": implied,
+                    "recommended_amount": 0,
+                },
+                "recommendation": {
+                    "current_user_entry_price": implied,
+                    "recommended_amount": 0,
+                },
+                "odds_engine_event": True,
+            }
+        return sorted(
+            unique.values(),
+            key=lambda row: (
+                str(row.get("resolution_time") or ""),
+                str(row.get("market_id") or ""),
+                str(row.get("outcome") or ""),
+            ),
+        )
+
+    def provider_catalog(self, trades: list[dict]) -> list[dict]:
+        catalog = {
+            _oddsengine_provider_key(book_key): {
+                "key": _oddsengine_provider_key(book_key),
+                "name": metadata["name"],
+                "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                "source": self.provider_key,
+                "region": "",
+            }
+            for book_key, metadata in ODDSENGINE_BOOKMAKERS.items()
+        }
+        for trade in trades:
+            for option in trade.get("executionOptions") or []:
+                provider_key = str(option.get("providerKey") or "").strip().lower()
+                if not provider_key.startswith("oddsengine__"):
+                    continue
+                book_key = provider_key.removeprefix("oddsengine__")
+                metadata = ODDSENGINE_BOOKMAKERS.get(book_key, {})
+                catalog[provider_key] = {
+                    "key": provider_key,
+                    "name": str(
+                        metadata.get("name")
+                        or option.get("providerName")
+                        or book_key
+                    ),
+                    "logoUrl": str(
+                        option.get("logoUrl")
+                        or ODDSENGINE_LOGOS.get(book_key, "")
+                    ),
+                    "source": self.provider_key,
+                    "region": "",
+                }
+        return sorted(catalog.values(), key=lambda item: item["name"].casefold())
+
+    @staticmethod
+    def _sport_key_for_trade(trade: CanonicalTrade) -> str | None:
+        league = str(trade.league_id or "").upper().replace("-", "_")
+        if league in SPORT_KEY_BY_LEAGUE:
+            return SPORT_KEY_BY_LEAGUE[league]
+        candidates = DEFAULT_SPORT_KEYS_BY_SPORT.get(trade.sport_id, ())
+        return candidates[0] if len(candidates) == 1 else None
+
+    @staticmethod
+    def _market_keys_for_trade(trade: CanonicalTrade) -> tuple[str, ...]:
+        if trade.market_kind == "spread":
+            return (
+                ("alternate_spreads",)
+                if trade.is_alternative
+                else ("spreads", "alternate_spreads")
+            )
+        if trade.market_kind == "game_total":
+            return (
+                ("alternate_totals",)
+                if trade.is_alternative
+                else ("totals", "alternate_totals")
+            )
+        market_key = MARKET_KEY_BY_KIND.get(trade.market_kind)
+        return (market_key,) if market_key else ()
+
+    @staticmethod
+    def _recommended_stake(trade: dict) -> float:
+        for source in (trade.get("card") or {}, trade.get("recommendation") or {}):
+            value = _safe_nonnegative(source.get("recommended_amount"))
+            if value is not None:
+                return value
+        return 0.0
+
+    @staticmethod
+    def _screen_sport_keys(*, sport: str, league: str) -> tuple[str, ...]:
+        normalized_league = str(league or "").strip().upper()
+        if normalized_league in SPORT_KEY_BY_LEAGUE:
+            return (SPORT_KEY_BY_LEAGUE[normalized_league],)
+        normalized_sport = str(sport or "").strip().upper()
+        if normalized_sport in DEFAULT_SPORT_KEYS_BY_SPORT:
+            return DEFAULT_SPORT_KEYS_BY_SPORT[normalized_sport]
+        return ("baseball_mlb",)
+
+    @staticmethod
+    def _screen_market_keys(market_kind: str) -> tuple[str, ...]:
+        normalized = str(market_kind or "").strip()
+        if normalized and normalized not in MARKET_KEY_BY_KIND:
+            return ()
+        requested = MARKET_KEY_BY_KIND.get(normalized)
+        return (requested,) if requested else ("h2h", "spreads", "totals")
 
     def _load_events(
         self,

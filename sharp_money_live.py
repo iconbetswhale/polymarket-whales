@@ -14,6 +14,37 @@ from execution_providers import PROPHETX_LOGO_URL
 LOGGER = logging.getLogger(__name__)
 
 
+class OddsComparisonFallback:
+    """Prefer OddsEngine while preserving the existing comparison fallback."""
+
+    def __init__(self, providers) -> None:
+        self.providers = tuple(
+            provider
+            for provider in providers
+            if provider is not None and getattr(provider, "api_key", None)
+        )
+
+    def diagnostics(self) -> dict:
+        if not self.providers:
+            return {"provider": "odds_comparison", "configured": False}
+        payload = dict(self.providers[0].diagnostics())
+        payload["fallbacks"] = [
+            provider.provider_key for provider in self.providers[1:]
+        ]
+        return payload
+
+    def screen_options_for_trades(self, trades: list[dict]) -> dict:
+        for provider in self.providers:
+            try:
+                return provider.screen_options_for_trades(trades)
+            except Exception:
+                LOGGER.warning(
+                    "Sharp Money comparison provider %s failed",
+                    provider.provider_key,
+                )
+        return {}
+
+
 def _number(value, default: float = 0.0) -> float:
     try:
         number = float(value)
@@ -557,9 +588,15 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
         str(provider.provider_key).lower(): provider
         for provider in getattr(registry, "providers", ())
     }
+    comparison_provider = OddsComparisonFallback(
+        (
+            providers.get("odds_engine"),
+            providers.get("the_odds_api"),
+        )
+    )
     return SharpMoneyCollector(
         providers.get("prophetx"),
-        providers.get("the_odds_api"),
+        comparison_provider,
         poll_seconds=float(
             os.getenv("SHARP_MONEY_PROPHETX_POLL_SECONDS", "1")
         ),

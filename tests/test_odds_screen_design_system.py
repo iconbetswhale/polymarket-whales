@@ -197,7 +197,7 @@ def test_odds_screen_preview_client_does_not_start_polling():
     assert "odds-column-highlight" not in script
     assert "bindOddsColumnHighlight" not in script
     assert "oddsState.autoRefresh" not in script
-    assert "setOddsFeedActive(oddsState.preview)" in script
+    assert "setOddsFeedActive(true)" in script
     assert 'oddsState.sport = "Baseball"' in script
     assert 'oddsState.league = "MLB"' in script
     assert 'document.querySelectorAll("[data-odds-view]")' in script

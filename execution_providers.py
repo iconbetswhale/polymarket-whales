@@ -1234,7 +1234,7 @@ class ExecutionProviderRegistry:
                 provider_failures[provider.provider_key] = RATE_LIMITED if status == 429 else PROVIDER_UNAVAILABLE
                 by_provider.append((provider, {}))
             except Exception:
-                if provider.provider_key == "the_odds_api":
+                if provider.provider_key in {"the_odds_api", "odds_engine"}:
                     LOGGER.warning(
                         "Execution provider %s failed without exposing request details",
                         provider.provider_key,

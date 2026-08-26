@@ -7029,13 +7029,9 @@ function bindOddsScreen() {
   document.querySelectorAll("[data-mobile-market-kind]").forEach(button => button.addEventListener("click", () => { oddsState.mobileMarketKind = button.dataset.mobileMarketKind; renderMobileOddsSheet(); }));
   document.addEventListener("keydown", event => { if (event.key !== "Escape") return; closeOddsMenus(); if (!document.getElementById("mobile-odds-sheet")?.hidden) closeMobileOddsSheet(); });
   document.addEventListener("click", event => { if (!event.target.closest(".odds-menu-shell")) closeOddsMenus(); });
-  if (!oddsState.rows.length && !oddsState.preview) {
-    oddsState.rows = oddsPlaceholderRows();
-    oddsState.providers = Object.keys(ODDS_BASE_PROVIDER_CATALOG);
-  }
   syncOddsProviderCatalog(Object.values(oddsState.catalog));
   syncOddsNavigation("games");
-  setOddsFeedActive(oddsState.preview);
+  setOddsFeedActive(true);
   renderOddsScreen();
 }
 

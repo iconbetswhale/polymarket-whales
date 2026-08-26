@@ -72,3 +72,35 @@ def test_odds_engine_health_is_protected(app_client) -> None:
 
     assert response.status_code == 401
     assert response.get_json() == {"status": "UNAUTHORIZED"}
+
+
+def test_odds_screen_prefers_odds_engine(app_client, monkeypatch) -> None:
+    application = app_client.application
+    odds_engine = _provider(application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+    monkeypatch.setattr(
+        application.extensions["polymarket_schedule_feed"],
+        "today_and_tomorrow",
+        lambda _now: [],
+    )
+    monkeypatch.setattr(
+        odds_engine,
+        "odds_screen_rows",
+        lambda **kwargs: calls.append(kwargs) or [],
+    )
+    monkeypatch.setattr(
+        odds_engine, "screen_options_for_trades", lambda _trades: {}
+    )
+    monkeypatch.setattr(odds_engine, "provider_catalog", lambda _trades: [])
+
+    response = app_client.get(
+        "/api/odds-screen?active=1&league=MLB&market=moneyline"
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["source"].endswith(
+        "odds_engine_read_only_feeds"
+    )
+    assert "s-maxage=45" in response.headers["Cache-Control"]
+    assert len(calls) == 1

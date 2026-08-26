@@ -38,7 +38,8 @@ def test_dfs_preview_is_explicit_and_read_only(app_client) -> None:
     assert b"Visual fixtures only" in preview.data
     assert b'data-dfs-preview="false"' in regular.data
     assert b"30 temporary optimizer props" not in regular.data
-    assert "fetch(" not in SCRIPT
+    assert "fetch('/api/dfs/lines'" in SCRIPT
+    assert "if (isPreview) return;" in SCRIPT
     assert SCRIPT.count("{player:") == 30
     assert "supplementalPreviewRows" in SCRIPT
 
@@ -162,7 +163,7 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "return {...defaultWeights};" in SCRIPT
     assert "validKeys && total === 100" in SCRIPT
     assert "total === 0 || total === 100" not in SCRIPT
-    assert "const fairHitRate = fairProbability(r);" in SCRIPT
+    assert "const fairHitRate = fairProbability(r,activeLine);" in SCRIPT
     assert "fairAmericanOdds(fairHitRate)" in SCRIPT
     assert "Your Odds using custom Devig Settings" in SCRIPT
     assert "Your Odds from custom Devig weights" in SCRIPT
@@ -179,7 +180,7 @@ def test_selected_dfs_line_never_renders_slip_odds_underneath() -> None:
     assert "selectedSlipOdds" not in SCRIPT
     assert "selected-slip-odds" not in SCRIPT
     assert "selected-slip-odds" not in CSS
-    assert '<td class="selected-line"><strong>${activeLine}</strong></td>' in SCRIPT
+    assert '<td class="selected-line"><strong>${esc(lineDisplay)}</strong></td>' in SCRIPT
 
 
 def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:

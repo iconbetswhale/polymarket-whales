@@ -58,7 +58,7 @@
     {player:'Igor Shesterkin', match:'Rangers vs Devils', sport:'NHL', date:'tomorrow', time:'Tomorrow · 7:30 PM', side:'Over', stat:'Goalie Saves', line:27.5, hit:55.2}
   ].map((row, index) => ({...row, discrepancy:true, odds:previewOddsFor(index + baseRows.length)}));
   const isPreview = document.querySelector('.dfs-page')?.dataset.dfsPreview === 'true';
-  const rows = isPreview ? [...baseRows, ...supplementalPreviewRows] : baseRows;
+  let rows = isPreview ? [...baseRows, ...supplementalPreviewRows] : [];
   const body = document.querySelector('#dfs-body');
   const statSelect = document.querySelector('#dfs-stat');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
@@ -129,7 +129,13 @@
     document.querySelector('#dfs-devig-delete').hidden=!/^custom-\d+$/.test(activePreset);
   }
 
-  function fairProbability(row) {
+  function fairProbability(row,targetLine) {
+    if (!isPreview) {
+      if (!Number.isFinite(Number(targetLine))) return null;
+      const lineKey = Number.isFinite(Number(targetLine)) ? String(Number(targetLine)) : '';
+      const liveValue = row.hitByLine?.[lineKey] ?? row.hit;
+      return Number.isFinite(Number(liveValue)) ? Number(liveValue) : null;
+    }
     const adjustment = Object.entries(savedWeights).reduce((sum,[key,weight]) => sum + sharpOffsets[key] * (weight/100),0);
     return Math.max(1,Math.min(99,row.hit + adjustment));
   }
@@ -176,9 +182,10 @@
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
     const visible = rows.filter(r => (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
     body.innerHTML = visible.map(r => {
-      const fairHitRate = fairProbability(r);
+      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? (isPreview ? r.line : null);
+      const fairHitRate = fairProbability(r,activeLine);
       const requiredProbability = americanOddsToProbability(bestSlipOdds[activeBook]);
-      const probabilityEdgePoints = requiredProbability === null ? null : fairHitRate - requiredProbability*100;
+      const probabilityEdgePoints = requiredProbability === null || fairHitRate === null ? null : fairHitRate - requiredProbability*100;
       const hitRateBand = probabilityEdgePoints === null
         ? 'below-threshold'
         : probabilityEdgePoints > 0
@@ -188,15 +195,15 @@
             : 'negative-edge';
       const requiredPercent = requiredProbability === null ? '—' : `${(requiredProbability*100).toFixed(2)}%`;
       const edgeLabel = probabilityEdgePoints === null ? 'edge unavailable' : `${probabilityEdgePoints >= 0 ? '+' : ''}${probabilityEdgePoints.toFixed(2)} pp edge`;
-      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? r.line;
-      const oddsByKey = Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds[index]]));
-      oddsByKey.circa = oddsByKey.betonline;
-      Object.keys(bestSlipOddsByKey).forEach(key => { oddsByKey[key] = bestSlipOddsByKey[key]; });
+      const oddsByKey = r.oddsByBook || Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds?.[index] ?? '—']));
+      if (isPreview) oddsByKey.circa = oddsByKey.betonline;
+      if (isPreview) Object.keys(bestSlipOddsByKey).forEach(key => { oddsByKey[key] = bestSlipOddsByKey[key]; });
       const cells = compareOrder.filter(key => key !== selectedBookKeys[activeBook]).map(key => {
         if (dfsComparisonKeys.has(key)) {
-          const comparisonLine = r.dfsLines?.[key] ?? r.line;
+          const comparisonLine = r.dfsLines?.[key] ?? (isPreview ? r.line : null);
+          if (comparisonLine === null) return `<td class="book-cell dfs-market-cell muted" data-book-cell="${key}"><strong>—</strong></td>`;
           const differs = Number(comparisonLine) !== Number(activeLine);
-          const display = differs ? comparisonLine : (bestSlipOddsByKey[key] || comparisonLine);
+          const display = isPreview && !differs ? (bestSlipOddsByKey[key] || comparisonLine) : comparisonLine;
           return `<td class="book-cell dfs-market-cell" data-book-cell="${key}"><strong>${esc(display)}</strong></td>`;
         }
         const market = oddsByKey[key];
@@ -207,9 +214,40 @@
         return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="${oddsSource} from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
+      const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
+      const hitTitle = fairHitRate === null ? 'Insufficient exact-line sportsbook sources' : `${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
+      const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
+      const lineDisplay = activeLine === null ? '—' : activeLine;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${esc(lineDisplay)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-empty').hidden = visible.length > 0;
+  }
+
+  async function loadLiveRows() {
+    if (isPreview) return;
+    const button = document.querySelector('#dfs-refresh');
+    const live = document.querySelector('#dfs-live');
+    button?.classList.add('spinning');
+    if (button) button.disabled = true;
+    try {
+      const response = await fetch('/api/dfs/lines', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({weights:savedWeights}),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
+      rows = Array.isArray(payload.data) ? payload.data : [];
+      if (live) live.lastChild.textContent = ` ${rows.length} live props · updated just now`;
+      render();
+    } catch (_error) {
+      if (live) live.lastChild.textContent = ' Live odds temporarily unavailable';
+      rows = [];
+      render();
+    } finally {
+      button?.classList.remove('spinning');
+      if (button) button.disabled = false;
+    }
   }
 
   function enableDrag(container, itemSelector, onDrop) {
@@ -277,15 +315,15 @@
   document.querySelector('#dfs-search').addEventListener('input', render);
   document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); document.querySelector('#dfs-search').value=''; updateStats(); render(); });
   document.querySelector('#dfs-refresh').addEventListener('click', event => {
+    if (!isPreview) return loadLiveRows();
     const button = event.currentTarget;
-    const live = document.querySelector('#dfs-live');
-    const preview = document.querySelector('.dfs-page')?.dataset.dfsPreview === 'true';
     button.classList.add('spinning');
     button.disabled = true;
     window.setTimeout(() => {
       button.classList.remove('spinning');
       button.disabled = false;
-      if (live) live.lastChild.textContent = preview ? ' Preview refreshed just now' : ' Odds updated just now';
+      const live = document.querySelector('#dfs-live');
+      if (live) live.lastChild.textContent = ' Preview refreshed just now';
     },700);
   });
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
@@ -309,6 +347,7 @@
     updateDevigSummary();
     render();
     devigDialog.close();
+    if (!isPreview) loadLiveRows();
   });
   document.querySelector('#dfs-parlay-guide-open').addEventListener('click', () => parlayGuideDialog.showModal());
   document.querySelector('#dfs-parlay-guide-close').addEventListener('click', () => parlayGuideDialog.close());
@@ -330,5 +369,9 @@
   renderPresets();
   syncDevigControls();
   render();
+  if (!isPreview) {
+    loadLiveRows();
+    window.setInterval(() => { if (!document.hidden) loadLiveRows(); },60000);
+  }
 })();
 

@@ -74,6 +74,7 @@ PLAYER_PROP_MARKETS = {
         "player_triple_double",
     ),
 }
+PLAYER_PROP_MARKETS["basketball_nba"] = PLAYER_PROP_MARKETS["basketball_wnba"]
 
 EXCHANGE_BOOKS = set(SPORTS_GAME_ODDS_EXCHANGE_BOOKS)
 DEFAULT_EXECUTION_PRIORITY = {
