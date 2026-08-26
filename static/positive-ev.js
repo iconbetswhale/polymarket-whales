@@ -525,77 +525,121 @@
     renderFeed();
   }
 
+  function liveHistoryBookKeys(row) {
+    const ordered = [
+      row.bestQuote?.bookKey,
+      ...(row.sourceBooks || []).map(source => source.bookKey),
+      ...(row.quotes || []).map(quote => quote.bookKey),
+    ].filter(Boolean);
+    return [...new Set(ordered)].slice(0, 10);
+  }
+
   function marketTrendVisual(row) {
-    const best = row.bestQuote || {};
-    const currentOdds = Number(best.topPriceAmericanOdds ?? best.americanOdds ?? row.fairAmerican ?? 100);
-    const fairOdds = Number(row.fairAmerican ?? currentOdds);
-    const seed = stableSeed(row.id);
-    const width = 520, height = 250, left = 46, right = 28, top = 34, bottom = 38;
-    const count = 9;
-    const series = [
-      { key: "pinnacle", name: "Pinnacle", color: "#ff4fa0", end: fairOdds - 2, pattern: [12, 8, 5, 7, 2, 1, 3, 0, 0] },
-      { key: "bookmaker", name: "BookMaker", color: "#f3c324", end: fairOdds + 1, pattern: [-8, -5, -5, -2, 1, -1, 2, 1, 0] },
-      { key: "circa", name: "Circa", color: "#8b5cff", end: fairOdds - 5, pattern: [7, 4, 4, 1, 2, 0, 0, 0, 0] },
-      { key: "selected", name: best.bookName || bookNames[best.bookKey] || "Selected book", color: "#19c6e8", end: currentOdds, pattern: [-15, -10, -4, -7, -1, 2, -2, 0, 0] }
-    ];
-    const allOdds = series.flatMap(item => item.pattern.map((delta, index) => item.end + delta + ((seed + index) % 3 - 1)));
-    const minOdds = Math.min(...allOdds) - 8;
-    const maxOdds = Math.max(...allOdds) + 8;
-    const x = index => left + (index / (count - 1)) * (width - left - right);
-    const y = value => top + ((maxOdds - value) / Math.max(1, maxOdds - minOdds)) * (height - top - bottom);
-    const paths = series.map(item => {
-      const points = item.pattern.map((delta, index) => [x(index), y(item.end + delta + ((seed + index) % 3 - 1))]);
-      return `<g data-series="${item.key}"><path class="ev-trend-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.5" fill="${item.color}"></circle>`).join("")}</g>`;
-    }).join("");
-    const limitValues = [350, 450, 700, 900, 1200, 1450, 1850, 2300, 2800];
-    const limitY = value => top + ((3000 - value) / 3000) * (height - top - bottom);
-    const limitPoints = limitValues.map((value,index)=>[x(index),limitY(value)]);
-    const grid = [0,.25,.5,.75,1].map(ratio=>{
-      const gridY=top+ratio*(height-top-bottom);
-      const label=Math.round(maxOdds-ratio*(maxOdds-minOdds));
-      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
-    }).join("");
-    const historySeries = [
-      { key: "history-pinnacle", name: "Pinnacle", color: "#ff4fa0", values: [fairOdds + 9, fairOdds + 2, fairOdds + 7, fairOdds - 1, fairOdds + 3, fairOdds + 3, fairOdds - 2, fairOdds - 2, fairOdds - 10] },
-      { key: "history-bookmaker", name: "BookMaker", color: "#f3c324", values: [fairOdds + 13, fairOdds + 13, fairOdds + 5, fairOdds + 5, fairOdds + 5, fairOdds + 1, fairOdds + 1, fairOdds + 1, fairOdds - 3] },
-      { key: "history-circa", name: "Circa", color: "#8b5cff", values: [fairOdds + 12, fairOdds + 12, fairOdds - 4, fairOdds + 4, fairOdds + 4, fairOdds + 4, fairOdds + 4, fairOdds + 1, fairOdds - 12] }
-    ];
-    const historyValues = historySeries.flatMap(item => item.values);
-    const historyMin = Math.min(...historyValues) - 7;
-    const historyMax = Math.max(...historyValues) + 7;
-    const historyY = value => top + ((historyMax - value) / Math.max(1, historyMax - historyMin)) * (height - top - bottom);
-    const historyPaths = historySeries.map(item => {
-      const points = item.values.map((value, index) => [x(index), historyY(value)]);
-      return `<g data-series="${item.key}"><path class="ev-trend-line ev-history-line" d="${chartPath(points)}" stroke="${item.color}"></path>${points.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="${item.color}"></circle>`).join("")}</g>`;
-    }).join("");
-    const historyGrid = [0,.25,.5,.75,1].map(ratio=>{
-      const gridY=top+ratio*(height-top-bottom);
-      const label=Math.round(historyMax-ratio*(historyMax-historyMin));
-      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
-    }).join("");
-    const legendButton = item => `<button type="button" class="ev-trend-legend-toggle" data-series-toggle="${item.key}" aria-pressed="true" style="--legend:${item.color}">${esc(item.name)}</button>`;
-    return `<div class="ev-trend-chart il-chart-container" aria-label="Visual preview of market trend and line history charts">
-      <div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
-      <div class="ev-chart-view active" data-chart-view="trend">
-        <div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${esc(row.eventTitle)}</span></div>
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview trend lines for selected book, Pinnacle, BookMaker, Circa, and Pinnacle limits">
-          ${grid}<text x="${width-right-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">$3k</text><text x="${width-right-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>
-          ${paths}<g data-series="limits"><path class="ev-trend-limit" d="${chartPath(limitPoints)}"></path>${limitPoints.map(point=>`<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.4" fill="#f4f5f8"></circle>`).join("")}</g>
-          <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${width/2}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">1h</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis">Now</text>
-        </svg>
-        <div class="ev-trend-legend">${series.map(legendButton).join("")}${legendButton({key:"limits",name:"Pinnacle limits",color:"#f4f5f8"})}</div>
-        <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical movement and limits are collecting; current EV, FV, price, and stake use the selected opportunity.</p>
-      </div>
-      <div class="ev-chart-view" data-chart-view="history" hidden>
-        <div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>
-        <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Preview line history for Pinnacle, BookMaker, and Circa">
-          ${historyGrid}${historyPaths}
-          <text x="${left}" y="${height-10}" class="ev-trend-axis">Open</text><text x="${left+(width-left-right)/3}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">12 AM</text><text x="${left+2*(width-left-right)/3}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">6 AM</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">Current</text>
-        </svg>
-        <div class="ev-trend-legend">${historySeries.map(legendButton).join("")}</div>
-        <p class="ev-trend-preview-note"><i class="ph ph-eye"></i> Visual preview only. Historical book lines will populate here when the line-history feed is connected.</p>
-      </div>
+    const identity = row.lineHistoryIdentity || {};
+    if (!identity.selectionId) {
+      return `<div class="ev-trend-chart il-chart-container"><div class="ev-chart-live-state il-state il-state-empty"><i class="ph ph-database"></i><strong>Line history is starting</strong><span>This play will chart after its first normalized bookmaker snapshot.</span></div></div>`;
+    }
+    return `<div class="ev-trend-chart il-chart-container" id="ev-live-line-history" aria-live="polite" aria-busy="true">
+      <div class="ev-chart-live-state il-state il-state-loading"><span></span><strong>Loading real line movement</strong><small>Reading timestamped odds from the selected market books…</small></div>
     </div>`;
+  }
+
+  const liveChartColors = ["#a65cff", "#20d6a2", "#36a7ff", "#ff4fa0", "#f3c324", "#ff8b3d", "#77e1ff", "#d6d9e0", "#8b7cff", "#54c9ff"];
+
+  function liveHistorySeries(rawSeries, mode) {
+    const normalized = (rawSeries || []).map((series, index) => ({
+      ...series,
+      key: `live-${String(series.bookKey || index).replace(/[^a-z0-9_-]/gi, "-")}`,
+      color: liveChartColors[index % liveChartColors.length],
+      points: (series.points || []).map(point => ({
+        timestamp: Date.parse(point.timestamp),
+        americanOdds: Number(point.americanOdds),
+      })).filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.americanOdds)),
+    })).filter(series => series.points.length);
+    if (mode !== "trend") return normalized;
+    const latest = Math.max(...normalized.flatMap(series => series.points.map(point => point.timestamp)));
+    const cutoff = latest - 6 * 60 * 60 * 1000;
+    return normalized.map(series => {
+      const recent = series.points.filter(point => point.timestamp >= cutoff);
+      return { ...series, points: recent.length >= 2 ? recent : series.points.slice(-12) };
+    });
+  }
+
+  function liveHistorySvg(rawSeries, mode) {
+    const series = liveHistorySeries(rawSeries, mode);
+    const points = series.flatMap(item => item.points);
+    if (!points.length) return "";
+    const width = 520, height = 250, left = 52, right = 24, top = 28, bottom = 42;
+    const minTime = Math.min(...points.map(point => point.timestamp));
+    const maxTime = Math.max(...points.map(point => point.timestamp));
+    const minOdds = Math.min(...points.map(point => point.americanOdds)) - 6;
+    const maxOdds = Math.max(...points.map(point => point.americanOdds)) + 6;
+    const timeSpan = Math.max(1, maxTime - minTime);
+    const oddsSpan = Math.max(1, maxOdds - minOdds);
+    const x = timestamp => left + ((timestamp - minTime) / timeSpan) * (width - left - right);
+    const y = value => top + ((maxOdds - value) / oddsSpan) * (height - top - bottom);
+    const grid = [0, .25, .5, .75, 1].map(ratio => {
+      const gridY = top + ratio * (height - top - bottom);
+      const label = Math.round(maxOdds - ratio * oddsSpan);
+      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
+    }).join("");
+    const paths = series.map(item => {
+      const plotted = item.points.map(point => [x(point.timestamp), y(point.americanOdds)]);
+      const path = plotted.length > 1
+        ? `<path class="ev-trend-line ev-history-line" d="${chartPath(plotted)}" stroke="${item.color}"></path>`
+        : "";
+      return `<g data-series="${esc(item.key)}">${path}${plotted.map(point => `<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.8" fill="${item.color}"></circle>`).join("")}</g>`;
+    }).join("");
+    const axisTime = timestamp => new Intl.DateTimeFormat("en-US", {hour:"numeric", minute:"2-digit"}).format(new Date(timestamp));
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook line history">${grid}${paths}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
+  }
+
+  function liveHistoryLegend(rawSeries, mode) {
+    return liveHistorySeries(rawSeries, mode).map(item => {
+      const latest = item.points[item.points.length - 1];
+      return `<button type="button" class="ev-trend-legend-toggle" data-series-toggle="${esc(item.key)}" aria-pressed="true" style="--legend:${item.color}">${esc(item.bookName || bookNames[item.bookKey] || item.bookKey)} <b>${odds(latest.americanOdds)}</b></button>`;
+    }).join("");
+  }
+
+  function renderLiveLineHistory(row, payload) {
+    const container = $("ev-live-line-history");
+    if (!container || String(selectedId) !== String(row.id)) return;
+    const series = payload.series || [];
+    const observationCount = Number(payload.observationCount || 0);
+    if (!observationCount) {
+      container.setAttribute("aria-busy", "false");
+      container.innerHTML = `<div class="ev-chart-live-state il-state il-state-empty"><i class="ph ph-chart-line-up"></i><strong>Collecting real bookmaker history</strong><span>The current live quote is recorded now; the chart appears as timestamped book prices accumulate.</span></div>`;
+      return;
+    }
+    const trendSvg = liveHistorySvg(series, "trend");
+    const historySvg = liveHistorySvg(series, "history");
+    const singleSnapshot = series.every(item => (item.points || []).length < 2);
+    container.setAttribute("aria-busy", "false");
+    container.innerHTML = `<div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Live line chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
+      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>Live movement from selected books</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend")}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next price change or checkpoint." : "Real timestamped odds; refreshed with the live +EV feed."}</p></div>
+      <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>${historySvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "history")}</div><p class="ev-trend-live-note"><i class="ph ph-database"></i>${observationCount} stored bookmaker observation${observationCount === 1 ? "" : "s"}; no synthetic points.</p></div>`;
+    bindTrendControls();
+  }
+
+  async function loadLiveLineHistory(row) {
+    if (!row.lineHistoryIdentity?.selectionId) return;
+    const books = liveHistoryBookKeys(row);
+    const params = new URLSearchParams({
+      selection_id: row.lineHistoryIdentity.selectionId,
+      books: books.join(","),
+      limit: "1000",
+    });
+    try {
+      const response = await fetch(`/api/positive-ev/line-history?${params}`, {headers:{"Accept":"application/json"}});
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Line history unavailable");
+      renderLiveLineHistory(row, payload);
+    } catch (error) {
+      const container = $("ev-live-line-history");
+      if (!container || String(selectedId) !== String(row.id)) return;
+      container.setAttribute("aria-busy", "false");
+      container.innerHTML = `<div class="ev-chart-live-state il-state il-state-error"><i class="ph ph-warning-circle"></i><strong>Live history temporarily unavailable</strong><span>${esc(error.message)}</span></div>`;
+    }
   }
 
   function bindTrendControls() {
@@ -933,6 +977,7 @@
       ${evExplanationVisual(row)}${sharpBooksVisual(row)}
     </article>`;
     bindTrendControls();
+    loadLiveLineHistory(row);
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
     detail.classList.add("open");
     detail.closest(".ev-workspace")?.classList.add("detail-open");

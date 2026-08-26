@@ -59,9 +59,18 @@ EXCHANGE_EXECUTION_PROVIDER_KEYS = frozenset(
 )
 
 
-def _is_novig_provider_key(provider_key: str) -> bool:
+def _canonical_execution_provider_key(provider_key: str) -> str:
     normalized = str(provider_key or "").strip().lower()
-    return normalized.removeprefix("oddsapi__") == "novig"
+    for prefix in ("oddsapi__", "oddsengine__"):
+        normalized = normalized.removeprefix(prefix)
+    return {
+        "prophetexchange": "prophetx",
+        "fourcx": "4cx",
+    }.get(normalized, normalized)
+
+
+def _is_novig_provider_key(provider_key: str) -> bool:
+    return _canonical_execution_provider_key(provider_key) == "novig"
 
 
 def _primary_execution_candidates(
@@ -70,32 +79,14 @@ def _primary_execution_candidates(
     price_getter,
     provider_key_getter,
 ) -> list:
-    """Choose the preferred execution tier without hiding a verified fallback.
-
-    NoVIG and ProphetX are the primary venues, with 4CX admitted when it is
-    strictly better.  A live, stake-aware Polymarket CLOB quote is the final
-    fallback so a mapped tennis trade never renders without an actionable
-    price merely because the preferred exchanges do not list it.
-    """
+    """Keep only the four approved Prediction Traders line-shopping venues."""
     def base_key(item) -> str:
-        return (
-            str(provider_key_getter(item) or "")
-            .strip()
-            .lower()
-            .removeprefix("oddsapi__")
-        )
+        return _canonical_execution_provider_key(provider_key_getter(item))
 
-    core = [item for item in candidates if base_key(item) in {"novig", "prophetx"}]
-    fourcx = [item for item in candidates if base_key(item) in {"4cx", "fourcx"}]
-    if not core:
-        if fourcx:
-            return fourcx
-        return [item for item in candidates if base_key(item) == "polymarket"]
-    best_core_price = min(float(price_getter(item)) for item in core)
-    return core + [
+    return [
         item
-        for item in fourcx
-        if float(price_getter(item)) < best_core_price - BEST_PRICE_TIE_TOLERANCE
+        for item in candidates
+        if base_key(item) in {"novig", "prophetx", "polymarket", "kalshi"}
     ]
 
 

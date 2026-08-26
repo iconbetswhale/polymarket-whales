@@ -120,8 +120,8 @@ def test_lowest_same_selection_executable_price_wins_for_cents_and_american_odds
     registry.attach_options([value])
 
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "fourcx"
-    assert best["nativePrice"] == "+100"
+    assert best["providerKey"] == "kalshi"
+    assert best["nativePrice"] == "47\u00a2"
 
 
 def test_novig_wins_an_executable_equal_price_tie_and_drives_sizing():
@@ -195,7 +195,7 @@ def test_novig_wins_a_displayed_plus_108_tie_against_48_cent_polymarket():
     assert best["providerKey"] == "novig"
 
 
-def test_primary_click_ignores_polymarket_and_kalshi_but_allows_better_fourcx():
+def test_primary_click_uses_best_of_the_four_approved_venues():
     value = trade()
     registry = ExecutionProviderRegistry((
         Provider(option("polymarket", 0.40, fee_rate=0.0)),
@@ -206,11 +206,11 @@ def test_primary_click_ignores_polymarket_and_kalshi_but_allows_better_fourcx():
     registry.attach_options([value])
 
     assert apply_best_execution_option(value) is True
-    assert value["execution_orderbook_source"] == "fourcx"
+    assert value["execution_orderbook_source"] == "polymarket"
     assert len(value["executionOptions"]) == 4
 
 
-def test_primary_click_uses_novig_when_fourcx_is_not_genuinely_better():
+def test_primary_click_does_not_prefer_novig_over_a_better_approved_price():
     value = trade()
     registry = ExecutionProviderRegistry((
         Provider(option("polymarket", 0.40, fee_rate=0.0)),
@@ -221,7 +221,7 @@ def test_primary_click_uses_novig_when_fourcx_is_not_genuinely_better():
     registry.attach_options([value])
 
     assert apply_best_execution_option(value) is True
-    assert value["execution_orderbook_source"] == "novig"
+    assert value["execution_orderbook_source"] == "polymarket"
 
 
 def test_novig_does_not_win_tie_without_enough_executable_liquidity():
@@ -240,11 +240,10 @@ def test_novig_does_not_win_tie_without_enough_executable_liquidity():
     ))
     registry.attach_options([value])
 
-    best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "fourcx"
+    assert not any(row["isBestPrice"] for row in value["executionOptions"])
 
 
-def test_a_meaningfully_better_price_beats_novig_priority():
+def test_unapproved_fourcx_cannot_replace_an_approved_novig_price():
     value = trade()
     registry = ExecutionProviderRegistry((
         Provider(option("fourcx", 0.47, american=113)),
@@ -253,7 +252,7 @@ def test_a_meaningfully_better_price_beats_novig_priority():
     registry.attach_options([value])
 
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "fourcx"
+    assert best["providerKey"] == "novig"
 
 
 def test_positive_and_negative_american_odds_rank_in_probability_order():
@@ -264,7 +263,7 @@ def test_positive_and_negative_american_odds_rank_in_probability_order():
     ), comparison_provider_keys=("fourcx", "polymarket"))
     registry.attach_options([value])
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["americanOdds"] == 120
+    assert best["americanOdds"] == -110
 
 
 def test_prediction_trade_ranking_uses_exchanges_not_sportsbooks():
@@ -294,8 +293,8 @@ def test_prediction_trade_ranking_uses_exchanges_not_sportsbooks():
     registry.attach_options([value])
 
     best = next(row for row in value["executionOptions"] if row["isBestPrice"])
-    assert best["providerKey"] == "polymarket"
-    assert best["nativePrice"] == "49\u00a2"
+    assert best["providerKey"] == "oddsapi__kalshi"
+    assert best["nativePrice"] == "47\u00a2"
     assert all(
         row["providerKey"] != "oddsapi__draftkings"
         for row in value["executionOptions"]
@@ -469,6 +468,30 @@ def test_best_execution_application_does_not_add_fee_twice():
     assert apply_best_execution_option(value) is True
     assert value["selected_execution_option"]["providerKey"] == "novig"
     assert value["current_price"] == pytest.approx(100 / 233)
+
+
+def test_prediction_line_shop_uses_best_of_four_approved_venues_only():
+    from execution_providers import apply_best_execution_option
+
+    value = trade()
+    common = {
+        "isAvailable": True,
+        "isExactMatch": True,
+        "isStale": False,
+        "marketStatus": "OPEN",
+        "canFillRecommendedStake": True,
+        "availableLiquidity": 1000,
+        "feeRate": 0,
+    }
+    value["executionOptions"] = [
+        {**common, "providerName": "4CX", "providerKey": "4cx", "bestExecutablePrice": 0.31, "directMarketUrl": "https://4cx.io/markets/x"},
+        {**common, "providerName": "NoVIG", "providerKey": "oddsengine__novig", "bestExecutablePrice": 0.44, "directMarketUrl": "https://novig.us/markets/x"},
+        {**common, "providerName": "Kalshi", "providerKey": "kalshi", "bestExecutablePrice": 0.41, "directMarketUrl": "https://kalshi.com/markets/x"},
+        {**common, "providerName": "Polymarket", "providerKey": "polymarket", "bestExecutablePrice": 0.43, "directMarketUrl": "https://polymarket.com/event/x"},
+    ]
+
+    assert apply_best_execution_option(value) is True
+    assert value["selected_execution_option"]["providerKey"] == "kalshi"
 
 
 def test_provider_failure_is_isolated_and_no_order_method_is_called():

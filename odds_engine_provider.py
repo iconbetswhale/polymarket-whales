@@ -26,7 +26,11 @@ from execution_providers import (
     american_to_probability,
     canonicalize_trade,
 )
-from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS, SPORTS_GAME_ODDS_LOGOS
+from sports_game_odds import (
+    SPORTS_GAME_ODDS_BOOKMAKERS,
+    SPORTS_GAME_ODDS_LOGOS,
+    positive_ev_catalog_payload,
+)
 from the_odds_api_provider import normalize_the_odds_api_events
 
 
@@ -264,6 +268,50 @@ def _american_odds(value: object) -> int | None:
 
 def _oddsengine_provider_key(book_key: str) -> str:
     return f"oddsengine__{_slug(book_key)}"
+
+
+def oddsengine_provider_catalog() -> list[dict]:
+    """Return every OddsEngine book using line-shop provider identifiers."""
+
+    return sorted(
+        (
+            {
+                "key": _oddsengine_provider_key(book_key),
+                "name": metadata["name"],
+                "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                "source": "odds_engine",
+                "region": "",
+            }
+            for book_key, metadata in ODDSENGINE_BOOKMAKERS.items()
+        ),
+        key=lambda item: item["name"].casefold(),
+    )
+
+
+def oddsengine_filter_catalog_payload() -> dict:
+    """Return the complete raw-key catalog used by OddsEngine filter UIs."""
+
+    base = positive_ev_catalog_payload()
+    existing = {item["key"]: item for item in base["books"]}
+    books = []
+    for book_key, metadata in ODDSENGINE_BOOKMAKERS.items():
+        current = existing.get(book_key, {})
+        books.append(
+            {
+                "key": book_key,
+                "name": metadata["name"],
+                "type": metadata["type"],
+                "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                "defaultExecution": bool(current.get("defaultExecution", False)),
+            }
+        )
+    return {
+        **base,
+        "catalogVersion": 4,
+        "catalogSource": "odds_engine",
+        "bookCount": len(books),
+        "books": books,
+    }
 
 
 def _safe_nonnegative(value: object) -> float | None:
@@ -788,16 +836,7 @@ class OddsEngineProvider(ExecutionProvider):
         return payload
 
     def provider_catalog(self, trades: list[dict]) -> list[dict]:
-        catalog = {
-            _oddsengine_provider_key(book_key): {
-                "key": _oddsengine_provider_key(book_key),
-                "name": metadata["name"],
-                "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
-                "source": self.provider_key,
-                "region": "",
-            }
-            for book_key, metadata in ODDSENGINE_BOOKMAKERS.items()
-        }
+        catalog = {item["key"]: item for item in oddsengine_provider_catalog()}
         for trade in trades:
             for option in trade.get("executionOptions") or []:
                 provider_key = str(option.get("providerKey") or "").strip().lower()

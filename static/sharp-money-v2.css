@@ -3848,6 +3848,118 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-filter-body select
   color: var(--il-text-primary);
 }
 
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-filter-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-filter-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-filter-heading > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-filter-heading span,
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-option small {
+  color: var(--il-text-muted);
+  font: var(--il-type-metadata);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-filter-heading button {
+  min-height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  color: var(--il-text-secondary);
+  background: var(--il-surface-2);
+  font: 650 10px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-search {
+  position: relative;
+  display: block;
+  margin-bottom: 10px;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-search i {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  z-index: 1;
+  color: var(--il-text-muted);
+  transform: translateY(-50%);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-search input {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 10px 0 34px;
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  color: var(--il-text-primary);
+  background: var(--il-surface-2);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-list {
+  display: grid;
+  max-height: 310px;
+  overflow-y: auto;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  scrollbar-color: var(--il-border-standard) transparent;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-filter-body .sharp-sportsbook-option {
+  display: grid;
+  grid-template-columns: 16px 30px minmax(0, 1fr);
+  align-items: center;
+  gap: 9px;
+  min-height: 46px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--il-border-subtle);
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-filter-body .sharp-sportsbook-option:last-child {
+  border-bottom: 0;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-option:hover {
+  background: var(--il-surface-hover);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-option input {
+  accent-color: var(--il-brand);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-option-logo,
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-sportsbook-option-logo img {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 6px;
+  object-fit: contain;
+  background: var(--il-surface-0);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-filter-body .sharp-sportsbook-option > span:last-child {
+  display: grid;
+  justify-self: stretch;
+  gap: 2px;
+  min-width: 0;
+  color: var(--il-text-primary);
+  font-family: var(--il-font-ui);
+}
+
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-filter-body input[type="range"] {
   accent-color: var(--il-brand);
 }

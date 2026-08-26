@@ -116,7 +116,11 @@ from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
     SPORTS_GAME_ODDS_BOOKMAKERS,
-    positive_ev_catalog_payload,
+)
+from odds_engine_provider import (
+    ODDSENGINE_BOOKMAKERS,
+    oddsengine_filter_catalog_payload,
+    oddsengine_provider_catalog,
 )
 from whiteboard import (
     canonical_trade_identity as whiteboard_identity,
@@ -1142,10 +1146,12 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/sharp-money")
     def sharp_money_page():
+        oddsengine_catalog = oddsengine_filter_catalog_payload()
         return render_template(
             "sharp_money.html",
             title="IconBets Sharp Money",
             page="sharp-money",
+            sharp_money_book_catalog=oddsengine_catalog["books"],
         )
 
     @app.route("/odds-screen")
@@ -1154,6 +1160,7 @@ def create_app(start_background: bool = True) -> Flask:
             "odds_screen.html",
             title="IconBets Live Odds Screen",
             page="odds-screen",
+            odds_screen_provider_catalog=oddsengine_provider_catalog(),
         )
 
     @app.route("/dfs")
@@ -1279,7 +1286,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/positive-ev")
     def positive_ev_page():
-        positive_ev_config = positive_ev_catalog_payload()
+        positive_ev_config = oddsengine_filter_catalog_payload()
         return render_template(
             "positive_ev.html",
             title="IconBets Positive EV",
@@ -1289,7 +1296,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/arbitrage")
     def arbitrage_page():
-        arbitrage_config = positive_ev_catalog_payload()
+        arbitrage_config = oddsengine_filter_catalog_payload()
         return render_template(
             "arbitrage.html",
             title="IconLabs Arbitrage",
@@ -1307,7 +1314,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/low-hold")
     def low_hold_page():
-        low_hold_config = positive_ev_catalog_payload()
+        low_hold_config = oddsengine_filter_catalog_payload()
         return render_template(
             "low_hold.html",
             title="IconLabs Low Hold",
@@ -1317,7 +1324,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/middles")
     def middles_page():
-        middles_config = positive_ev_catalog_payload()
+        middles_config = oddsengine_filter_catalog_payload()
         return render_template(
             "middles.html",
             title="IconLabs Middles",
@@ -2996,7 +3003,7 @@ def create_app(start_background: bool = True) -> Flask:
         )
         invalid_required_books = [
             book for book in required_books
-            if book not in SPORTS_GAME_ODDS_BOOKMAKERS
+            if book not in ODDSENGINE_BOOKMAKERS
         ]
         if invalid_required_books:
             return jsonify(
@@ -3305,6 +3312,81 @@ def create_app(start_background: bool = True) -> Flask:
             limit=request.args.get("limit", 100, type=int) or 100,
         )
         response = jsonify(history)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/positive-ev/line-history")
+    def api_positive_ev_line_history():
+        selection_id = request.args.get("selection_id", "").strip()
+        if not selection_id.startswith("sel_") or len(selection_id) > 80:
+            return jsonify({"error": "A valid selection_id is required."}), 400
+        requested_books = {
+            item.strip().lower()
+            for item in request.args.get("books", "").split(",")
+            if item.strip()
+        }
+        invalid_books = requested_books.difference(ODDSENGINE_BOOKMAKERS)
+        if invalid_books:
+            return jsonify(
+                {
+                    "error": "INVALID_BOOKS",
+                    "invalidBooks": sorted(invalid_books),
+                }
+            ), 400
+        limit = max(1, min(request.args.get("limit", 1000, type=int) or 1000, 2000))
+        rows = tracker.database.get_normalized_market_quote_history(
+            selection_id=selection_id,
+            limit=limit,
+        )
+        by_provider: dict[str, list[dict]] = {}
+        for row in reversed(rows):
+            provider = str(row.get("provider") or "").strip().lower()
+            if not provider or (requested_books and provider not in requested_books):
+                continue
+            timestamp = row.get("received_timestamp") or row.get("quote_timestamp")
+            american_odds = _optional_float(row.get("american_odds"))
+            if not timestamp or american_odds is None:
+                continue
+            points = by_provider.setdefault(provider, [])
+            point = {
+                "timestamp": timestamp,
+                "americanOdds": int(round(american_odds)),
+                "marketLimit": _optional_float(row.get("market_limit")),
+                "availableLiquidity": _optional_float(
+                    row.get("available_liquidity")
+                ),
+            }
+            if points and points[-1] == point:
+                continue
+            points.append(point)
+        series = []
+        for provider, points in by_provider.items():
+            metadata = ODDSENGINE_BOOKMAKERS.get(provider, {})
+            series.append(
+                {
+                    "bookKey": provider,
+                    "bookName": metadata.get("name") or provider,
+                    "logoUrl": next(
+                        (
+                            item.get("logoUrl", "")
+                            for item in oddsengine_provider_catalog()
+                            if item.get("key") == f"oddsengine__{provider}"
+                        ),
+                        "",
+                    ),
+                    "points": points,
+                }
+            )
+        series.sort(key=lambda item: item["bookName"].casefold())
+        response = jsonify(
+            {
+                "selectionId": selection_id,
+                "series": series,
+                "observationCount": sum(len(item["points"]) for item in series),
+                "source": "normalized_market_quote_history",
+                "synthetic": False,
+            }
+        )
         response.headers["Cache-Control"] = "private, no-store"
         return response
 

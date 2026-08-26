@@ -422,7 +422,7 @@ def test_plural_totals_market_type_is_canonicalized() -> None:
     assert total.side_id == "under"
 
 
-def test_verified_best_exchange_quote_becomes_sizing_orderbook() -> None:
+def test_unapproved_exchange_quote_cannot_become_prediction_sizing_orderbook() -> None:
     value = trade(
         executionOptions=[
             {
@@ -442,10 +442,8 @@ def test_verified_best_exchange_quote_becomes_sizing_orderbook() -> None:
         ]
     )
 
-    assert apply_best_execution_option(value) is True
-    assert value["orderbook"]["asks"] == [{"price": 0.48, "size": 500.0}]
-    assert value["expected_fee_fraction"] == 0.0
-    assert value["execution_orderbook_source"] == "4cx"
+    assert apply_best_execution_option(value) is False
+    assert "execution_orderbook_source" not in value
 
 
 def test_best_exchange_quote_uses_verified_all_in_price_after_fees() -> None:

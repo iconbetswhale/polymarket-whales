@@ -1191,6 +1191,14 @@ const EXECUTION_PROVIDER_META = {
     name: "Kalshi",
     logoUrl: "/static/assets/providers/kalshi.png",
   },
+  pinnacle: {
+    name: "Pinnacle",
+    logoUrl: "/static/assets/providers/pinnacle.png",
+  },
+  circa: {
+    name: "Circa",
+    logoUrl: "/static/assets/dfs-books/circa.png",
+  },
   betonline: {
     name: "BetOnline",
     logoUrl: "/static/assets/sportsbooks/betonline.png",
@@ -1202,7 +1210,11 @@ const EXECUTION_PROVIDER_META = {
 };
 
 function canonicalExecutionProviderKey(value) {
-  return String(value || "").trim().toLowerCase().replace(/^oddsapi__/, "");
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^(oddsapi|oddsengine)__/, "");
+  return ({ prophetexchange: "prophetx", fourcx: "4cx" })[normalized] || normalized;
 }
 
 function trackerMetricCard(label, value, icon, tone = "neutral") {
@@ -1293,11 +1305,9 @@ function normalizeExecutionOption(option = {}) {
 }
 
 function bestExecutionOption(trade) {
-  // The comparison ladder intentionally includes every connected exchange, but
-  // the one-click recommendation is restricted to the backend-approved venue:
-  // NoVIG, ProphetX, a genuinely better 4CX quote, or the verified Polymarket
-  // fallback when none of those venues has the exact market.
-  const supported = new Set(["polymarket", "4cx", "fourcx", "novig", "prophetx"]);
+  // Prediction Traders continuously line-shops only the four approved
+  // execution venues. Pinnacle and Circa remain visible as sharp references.
+  const supported = new Set(["novig", "prophetx", "polymarket", "kalshi"]);
   const options = (trade.executionOptions || [])
     .map(normalizeExecutionOption)
     .filter((option) => {
@@ -1330,9 +1340,8 @@ function bestExecutionOption(trade) {
   const explicit = options.find(option => option.isBestPrice);
   if (explicit) return explicit;
 
-  // Use the backend snapshot only as a fallback.  Current exact quotes above
-  // must win so a newly better NoVIG/ProphetX/4CX line updates the logo, odds,
-  // and one-click destination together.
+  // Use the backend snapshot only as a fallback. Current exact quotes above
+  // must win so every refresh can move the recommended venue immediately.
   const selected = normalizeExecutionOption(
     trade.selected_execution_option || trade.selectedExecutionOption || {},
   );
@@ -1409,22 +1418,31 @@ function probabilityToAmerican(probability) {
 }
 
 function executionComparisonOptions(trade) {
-  const supported = new Set(["polymarket", "kalshi", "novig", "prophetx", "4cx"]);
+  const supported = new Set(["novig", "prophetx", "polymarket", "kalshi", "pinnacle", "circa"]);
   const byProvider = new Map();
   (trade.executionOptions || []).map(normalizeExecutionOption).forEach((option) => {
     const key = canonicalExecutionProviderKey(option.providerKey);
     const exact = option.matchingConfidence === "Exact" || option.isExactMatch === true;
-    if (!supported.has(key) || !exact) return;
+    const meta = executionProviderMeta(option);
+    if (
+      !supported.has(key)
+      || !exact
+      || option.isAvailable !== true
+      || option.canFillRecommendedStake !== true
+      || option.isStale === true
+      || String(option.marketStatus || "").toUpperCase() !== "OPEN"
+      || executionOptionProbability(option) === null
+      || !option.deepLink
+      || !meta.logoUrl
+    ) return;
     const current = byProvider.get(key);
-    const native = !String(option.providerKey || "").toLowerCase().startsWith("oddsapi__");
+    const native = !/^(oddsapi|oddsengine)__/.test(String(option.providerKey || "").toLowerCase());
     const currentNative = current
-      && !String(current.providerKey || "").toLowerCase().startsWith("oddsapi__");
-    const quality = (native ? 8 : 0) + (option.isAvailable ? 4 : 0)
-      + (executionOptionProbability(option) !== null ? 2 : 0)
+      && !/^(oddsapi|oddsengine)__/.test(String(current.providerKey || "").toLowerCase());
+    const quality = (native ? 8 : 0)
       + (number(option.availableLiquidity) !== null ? 1 : 0);
     const currentQuality = current
-      ? (currentNative ? 8 : 0) + (current.isAvailable ? 4 : 0)
-        + (executionOptionProbability(current) !== null ? 2 : 0)
+      ? (currentNative ? 8 : 0)
         + (number(current.availableLiquidity) !== null ? 1 : 0)
       : -1;
     if (!current || quality > currentQuality) byProvider.set(key, option);
@@ -1474,7 +1492,7 @@ function executionComparisonLadder(trade) {
   return `
     <section class="exchange-comparison-card il-detail-section">
       <div class="section-label">
-        <span>Best available prices</span>
+        <span>Best Sharp Prices</span>
       </div>
       <div class="exchange-comparison-list il-provider-list">
         <div class="exchange-comparison-head il-provider-head" aria-hidden="true">
@@ -1552,14 +1570,11 @@ function executableQuoteChip(trade, rawOption, { className = "" } = {}) {
 }
 
 function executionToolbar(trade) {
-  if (trade.isRefreshPending) {
-    return `<span class="execution-toolbar execution-toolbar--empty"><span class="execution-empty-quote"><i class="ph ph-eye" aria-hidden="true"></i><span><small>Candidate state</small><strong>Signal changed - monitoring</strong></span></span></span>`;
-  }
   const best = bestExecutionOption(trade);
   if (best) {
     return `<span class="execution-toolbar execution-toolbar--best" aria-label="Best line-shopped exchange price"><span class="execution-options-scroll">${executionOptionButton(trade, { ...best, isBestPrice: true })}</span></span>`;
   }
-  return `<span class="execution-toolbar execution-toolbar--empty"><span class="execution-empty-quote"><i class="ph ph-clock" aria-hidden="true"></i><span><small>Best price</small><strong>Checking exchanges</strong></span></span></span>`;
+  return "";
 }
 
 // Consensus snapshots refresh independently from the five-second execution
@@ -1736,22 +1751,14 @@ function stabilizeTradeFeed(incoming, filters, status = {}, liveRejectedTradeIds
     appState.latestTradeSnapshotAt = 0;
   }
   const now = Date.now();
-  restoreStableTradeFeed(filterKey, now);
-  // A confirmed live slippage rejection must bypass the anti-flicker grace
-  // period. This is intentionally not a blacklist: the next qualifying live
-  // payload inserts the same candidate again immediately.
-  (liveRejectedTradeIds || []).forEach((id) => {
-    if (id) appState.stableTradeFeed.delete(String(id));
-  });
   const snapshotAt = Date.parse(status.last_successful_refresh || "") || 0;
   if (snapshotAt && snapshotAt < appState.latestTradeSnapshotAt) {
     return [...appState.stableTradeFeed.values()].map(entry => entry.trade);
   }
   appState.latestTradeSnapshotAt = Math.max(appState.latestTradeSnapshotAt, snapshotAt);
-  const seen = new Set();
+  appState.stableTradeFeed.clear();
   incoming.forEach((trade) => {
     const id = String(trade.id);
-    seen.add(id);
     appState.stableTradeFeed.set(id, {
       trade: {
         ...trade,
@@ -1761,31 +1768,15 @@ function stabilizeTradeFeed(incoming, filters, status = {}, liveRejectedTradeIds
       lastSeenAt: now,
     });
   });
-  for (const [id, entry] of appState.stableTradeFeed) {
-    const eventAt = Date.parse(
-      entry.trade.event_date_et
-      || entry.trade.event_start_time
-      || entry.trade.resolution_time
-      || "",
-    );
-    const expired = Number.isFinite(eventAt) && eventAt <= now;
-    if (
-      expired
-      || (!seen.has(id) && now - entry.lastSeenAt > TRADE_DISAPPEARANCE_GRACE_MS)
-    ) {
-      appState.stableTradeFeed.delete(id);
-      continue;
-    }
-    if (!seen.has(id)) {
-      entry.trade = {
-        ...entry.trade,
-        isRefreshPending: true,
-        candidateState: "REVIEWING",
-      };
-    }
-  }
   persistStableTradeFeed(filterKey);
   return [...appState.stableTradeFeed.values()].map(entry => entry.trade);
+}
+
+function tradeHasExecutableSharpQuote(trade) {
+  const best = bestExecutionOption(trade);
+  if (!best) return false;
+  const meta = executionProviderMeta(best);
+  return Boolean(best.deepLink && meta.logoUrl && executionOptionProbability(best) !== null);
 }
 
 function tradePassesLiveSlippageGuard(trade = {}) {
@@ -2963,7 +2954,8 @@ async function loadSizingBankroll() {
 function renderTradesPayload(payload, filters, list) {
   const incomingTrades = payload.data || [];
   const mergedTrades = mergeOfficialTrackedTrades(incomingTrades, payload.officialTracked || [])
-    .filter(tradePassesLiveSlippageGuard);
+    .filter(tradePassesLiveSlippageGuard)
+    .filter(tradeHasExecutableSharpQuote);
   const sourceTrades = TRADES_PREVIEW_DATA
     ? mergedTrades
     : stabilizeTradeFeed(
@@ -6041,7 +6033,7 @@ function bindIntelligence() {
   loadIntelligence().catch(()=>{});
 }
 
-const ODDS_BASE_PROVIDER_CATALOG = {
+const ODDS_DEFAULT_PROVIDER_CATALOG = {
   polymarket: {key:"polymarket", name:"Polymarket", logoUrl:POLYMARKET_LOGO_URL, source:"exchange"},
   kalshi: {key:"kalshi", name:"Kalshi", logoUrl:"/static/assets/providers/kalshi.png", source:"exchange"},
   "4cx": {key:"4cx", name:"4CX", logoUrl:"/static/assets/providers/4cx.png", source:"exchange"},
@@ -6052,6 +6044,19 @@ const ODDS_BASE_PROVIDER_CATALOG = {
   "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars-sportsbook.jpg", source:"sportsbook"},
   "oddsapi__pinnacle": {key:"oddsapi__pinnacle", name:"Pinnacle", logoUrl:"/static/assets/providers/pinnacle.png", source:"sportsbook"},
 };
+const ODDS_EMBEDDED_PROVIDER_CATALOG = (() => {
+  try {
+    const entries = JSON.parse(document.getElementById("odds-provider-catalog")?.textContent || "[]");
+    return Array.isArray(entries) ? entries : [];
+  } catch (_) {
+    return [];
+  }
+})();
+const ODDS_BASE_PROVIDER_CATALOG = {
+  ...ODDS_DEFAULT_PROVIDER_CATALOG,
+  ...Object.fromEntries(ODDS_EMBEDDED_PROVIDER_CATALOG.map(provider => [provider.key, provider])),
+};
+const ODDS_DEFAULT_PROVIDER_KEYS = Object.keys(ODDS_DEFAULT_PROVIDER_CATALOG);
 const ODDS_PROVIDER_KEYS = Object.keys(ODDS_BASE_PROVIDER_CATALOG);
 const REQUIRED_LINE_SHOP_PROVIDER_KEYS = new Set(["polymarket", "4cx", "oddsapi__novig"]);
 const ODDS_PROVIDER_ORDER_KEY = "iconbets_odds_provider_order";
@@ -6079,7 +6084,7 @@ try {
 }
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
-  : initialOddsProviderOrder.filter(key => ODDS_PROVIDER_KEYS.includes(key));
+  : initialOddsProviderOrder.filter(key => ODDS_DEFAULT_PROVIDER_KEYS.includes(key));
 const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
 
 function oddsPlaceholderRows() {

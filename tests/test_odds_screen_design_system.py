@@ -159,6 +159,8 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "previewPayload" not in script
     assert "oddsState.timer = window.setInterval(loadOddsScreen, 60000)" in script
     assert "persistOddsProviderOrder()" in script
+    assert 'oddsState.providerOrder = [...previewKeys, "best"]' not in script
+    assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
     assert "ODDS_LIQUIDITY_PROVIDER_KEYS" in script
     assert 'return `${formattedAmount} Limit`' in script
     assert "if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount" in script

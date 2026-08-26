@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from statistics import median
 from typing import Iterable
 
+from market_quotes import (
+    canonical_event_id,
+    canonical_market_id,
+    canonical_selection_id,
+)
 from the_odds_api_provider import KNOWN_SPORTSBOOKS as THE_ODDS_API_BOOKS
 from sports_game_odds import (
     SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
@@ -382,6 +387,69 @@ def _selection_label(market_key: str, outcome: dict) -> str:
         except (TypeError, ValueError):
             return f"{name} {point}"
     return label
+
+
+def _line_history_identity(
+    *,
+    event_id: str,
+    sport_key: str,
+    league: str,
+    commence: str,
+    home: str,
+    away: str,
+    market_key: str,
+    outcome: dict,
+) -> dict[str, str]:
+    """Build the same canonical identity used by normalized quote history."""
+    alternate = market_key.startswith("alternate_")
+    base_market = market_key.removeprefix("alternate_")
+    if base_market == "h2h":
+        market_type, market_family, period = "moneyline", "main", "full_game"
+    elif base_market == "spreads":
+        market_type, market_family, period = "spread", "main", "full_game"
+    elif base_market == "totals":
+        market_type, market_family, period = "total", "main", "full_game"
+    elif base_market == "outrights":
+        market_type, market_family, period = "outright", "main", "full_event"
+    else:
+        market_type = base_market
+        market_family = (
+            "player_prop"
+            if base_market.startswith(("player_", "batter_", "pitcher_"))
+            else "other"
+        )
+        period = "full_game"
+
+    name = str(outcome.get("name") or "")
+    description = str(outcome.get("description") or "")
+    normalized_selection = name if not description else f"{description} {name}"
+    side = name if name.casefold() in {"over", "under", "yes", "no"} else None
+    canonical_event = canonical_event_id(
+        sport=sport_key,
+        league=league,
+        start_time=commence,
+        home_team=home,
+        away_team=away,
+        event_name=f"{away} vs {home}",
+    )
+    canonical_market = canonical_market_id(
+        event_id=canonical_event,
+        market_type=market_type,
+        market_family=market_family,
+        period=period,
+        is_alternate=alternate,
+        line=outcome.get("point"),
+    )
+    return {
+        "providerEventId": event_id,
+        "eventId": canonical_event,
+        "marketId": canonical_market,
+        "selectionId": canonical_selection_id(
+            market_id=canonical_market,
+            selection=normalized_selection,
+            side=side,
+        ),
+    }
 
 
 def _apply_portfolio_limits(
@@ -765,6 +833,16 @@ def build_ev_board(
                         "marketGroup": group,
                         "marketLabel": _market_label(market_key),
                         "selection": _selection_label(market_key, outcome),
+                        "lineHistoryIdentity": _line_history_identity(
+                            event_id=event_id,
+                            sport_key=sport_key,
+                            league=league,
+                            commence=commence,
+                            home=home,
+                            away=away,
+                            market_key=market_key,
+                            outcome=outcome,
+                        ),
                         "evPercent": round(ev * 100.0, 2),
                         "fairProbability": round(fair_probability, 6),
                         "fairAmerican": probability_to_american(fair_probability),

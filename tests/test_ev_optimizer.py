@@ -8,6 +8,7 @@ from ev_optimizer import (
     build_ev_candidates,
     devig_probabilities,
 )
+from market_quote_adapters import normalize_odds_api_events
 from database import TrackerDatabase
 
 
@@ -137,6 +138,29 @@ def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     assert source["americanOdds"] == 120
     assert source["weight"] == 100.0
     assert 0 < source["fairProbability"] < 1
+    assert mets["lineHistoryIdentity"]["selectionId"].startswith("sel_")
+    assert mets["lineHistoryIdentity"]["marketId"].startswith("mkt_")
+    assert mets["lineHistoryIdentity"]["eventId"].startswith("evt_")
+
+
+def test_ev_line_history_identity_matches_normalized_quote_storage() -> None:
+    event = _event()
+    rows = build_ev_candidates(
+        [event],
+        source_weights={"pinnacle": 100},
+        execution_books=("novig",),
+        min_ev=-100,
+        min_source_books=1,
+    )
+    normalized = normalize_odds_api_events([event])
+
+    assert rows
+    assert normalized
+    normalized_selection_ids = {quote.selection_id for quote in normalized}
+    assert all(
+        row["lineHistoryIdentity"]["selectionId"] in normalized_selection_ids
+        for row in rows
+    )
 
 
 def test_required_books_must_offer_the_exact_selection_but_odds_may_differ():

@@ -211,7 +211,7 @@ def test_current_best_price_precedes_stale_selected_execution_snapshot():
     assert "option.canFillRecommendedStake === true" in function_source
     assert "number(option.availableLiquidity) === null || number(option.availableLiquidity) > 0" in function_source
     assert (
-        'const supported = new Set(["polymarket", "4cx", "fourcx", "novig", "prophetx"]);'
+        'const supported = new Set(["novig", "prophetx", "polymarket", "kalshi"]);'
         in function_source
     )
     assert '"oddsapi__novig"' in script
@@ -373,15 +373,20 @@ def test_positive_ev_preview_parameter_cannot_enable_fixture_rows(app_client):
     assert attempted_preview.get_json()["data"] == []
 
 
-def test_positive_ev_page_uses_live_85_book_catalog(app_client):
+def test_positive_ev_page_uses_complete_oddsengine_book_catalog(app_client):
     response = app_client.get("/positive-ev")
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="ev-config"' in body
-    assert '"catalogVersion": 3' in body
+    assert '"catalogVersion": 4' in body
+    assert '"bookCount": 88' in body
     assert '"name": "Pinnacle"' in body
     assert '"name": "theScore Bet"' in body
+    assert '"name": "DraftKings Pick6"' in body
+    assert '"name": "Betr Picks"' in body
+    assert '"name": "Dabble"' in body
+    assert "All 88 OddsEngine books" in body
     assert '"devigBooks"' in body
     assert "Devig Source Allocation" in body
     assert "Devig Method" in body
@@ -461,6 +466,75 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'bankroll:bankrollConfig.amount' in positive_ev_javascript
     assert "previewOnly" not in positive_ev_javascript
     assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
+    assert "/api/positive-ev/line-history" in positive_ev_javascript
+    assert "no synthetic points" in positive_ev_javascript
+
+
+def test_positive_ev_line_history_returns_real_grouped_book_snapshots(
+    app_client, monkeypatch
+):
+    database = app_client.application.extensions["tracker_service"].database
+    calls = []
+
+    def history(**filters):
+        calls.append(filters)
+        return [
+            {
+                "provider": "pinnacle",
+                "received_timestamp": "2026-08-26T12:01:00+00:00",
+                "quote_timestamp": "2026-08-26T12:00:59+00:00",
+                "american_odds": -112,
+                "market_limit": 2500,
+                "available_liquidity": None,
+            },
+            {
+                "provider": "pinnacle",
+                "received_timestamp": "2026-08-26T12:00:00+00:00",
+                "quote_timestamp": "2026-08-26T11:59:59+00:00",
+                "american_odds": -108,
+                "market_limit": 2200,
+                "available_liquidity": None,
+            },
+            {
+                "provider": "fanduel",
+                "received_timestamp": "2026-08-26T12:00:00+00:00",
+                "american_odds": -110,
+            },
+        ]
+
+    monkeypatch.setattr(database, "get_normalized_market_quote_history", history)
+    response = app_client.get(
+        "/api/positive-ev/line-history",
+        query_string={"selection_id": "sel_history_test", "books": "pinnacle"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert calls == [{"selection_id": "sel_history_test", "limit": 1000}]
+    assert payload["synthetic"] is False
+    assert payload["source"] == "normalized_market_quote_history"
+    assert payload["observationCount"] == 2
+    assert [point["americanOdds"] for point in payload["series"][0]["points"]] == [
+        -108,
+        -112,
+    ]
+
+
+def test_live_tool_pages_embed_complete_oddsengine_filter_catalog(app_client):
+    positive_ev_javascript = Path("static/positive-ev.js").read_text(
+        encoding="utf-8"
+    )
+    body = app_client.get("/positive-ev").get_data(as_text=True)
+    for route in ("/arbitrage", "/low-hold", "/middles"):
+        route_body = app_client.get(route).get_data(as_text=True)
+        assert '"catalogVersion": 4' in route_body
+        assert '"bookCount": 88' in route_body
+        assert '"name": "DraftKings Pick6"' in route_body
+
+    odds_body = app_client.get("/odds-screen").get_data(as_text=True)
+    assert 'id="odds-provider-catalog"' in odds_body
+    assert '"key": "oddsengine__pinnacle"' in odds_body
+    assert '"key": "oddsengine__pick6"' in odds_body
     assert 'class="ev-book-option"' in positive_ev_javascript
     assert 'class="ev-book-name"' in positive_ev_javascript
     positive_ev_premium_css = Path("static/app-premium.css").read_text(
@@ -986,6 +1060,9 @@ def test_sharp_money_live_page_is_available_and_paused_by_default(app_client):
     assert b"sharp-detail-toggle" in response.data
     assert b"sharp-money-initial-payload" not in response.data
     assert b"sharp-money-v2.css" in response.data
+    assert b"sharp-sportsbook-list" in response.data
+    assert b"sharp-book-catalog" in response.data
+    assert b"DraftKings Pick6" in response.data
 
 
 def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
@@ -1069,10 +1146,23 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert 'title="Combined NoVIG + ProphetX liquidity"' in script
     assert "/api/odds-screen" not in script
     assert "active=1" not in script
+    assert "sharp-sportsbook-filter-v1" in script
+    assert "renderSharpSportsbookFilter" in script
     assert (
         'if (page !== "sharp-money") loadGlobalStatus();'
         in shell_script
     )
+
+
+def test_prediction_traders_only_renders_executable_sharp_prices():
+    script = Path("static/app.js").read_text(encoding="utf-8")
+
+    assert "Best Sharp Prices" in script
+    assert 'new Set(["novig", "prophetx", "polymarket", "kalshi"])' in script
+    assert 'new Set(["novig", "prophetx", "polymarket", "kalshi", "pinnacle", "circa"])' in script
+    assert "tradeHasExecutableSharpQuote" in script
+    assert "Signal changed - monitoring" not in script
+    assert "Checking exchanges" not in script
 
 
 def test_sharp_money_combined_liquidity_keeps_decimal_for_even_thousands():

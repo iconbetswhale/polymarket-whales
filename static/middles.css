@@ -218,6 +218,7 @@
 .mid-filter-section-title span { font-size: 12px; font-weight: 800; }
 .mid-filter-section-title small { color: var(--il-text-muted); font-size: 9px; }
 .mid-filter-section-title button { padding: 0 5px; border: 0; background: transparent; color: var(--il-brand-hover); font-size: 9px; font-weight: 700; cursor: pointer; }
+.mid-filter-help { margin: -3px 0 10px; color: var(--il-text-muted); font-size: 9px; line-height: 1.4; }
 .mid-book-search { height: 34px; display: flex; align-items: center; gap: 7px; margin-bottom: 9px; padding: 0 9px; border: 1px solid var(--il-border-standard); border-radius: 6px; background: var(--mid-card); }
 .mid-book-search input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: var(--il-text-primary); font-size: 10px; }
 .mid-book-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }

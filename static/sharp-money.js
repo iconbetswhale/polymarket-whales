@@ -1,6 +1,25 @@
 (() => {
   "use strict";
 
+  const sharpBookCatalog = (() => {
+    try {
+      const entries = JSON.parse(document.getElementById("sharp-book-catalog")?.textContent || "[]");
+      return Array.isArray(entries) ? entries : [];
+    } catch (_) {
+      return [];
+    }
+  })();
+  const sharpBookKeys = new Set(sharpBookCatalog.map(book => book.key));
+  const sharpBookFilterStorageKey = "iconlabs-sharp-sportsbook-filter-v1";
+  let initialSharpSportsbooks = new Set(sharpBookKeys);
+  try {
+    const saved = JSON.parse(localStorage.getItem(sharpBookFilterStorageKey) || "null");
+    if (Array.isArray(saved)) {
+      const valid = saved.filter(key => sharpBookKeys.has(key));
+      if (valid.length) initialSharpSportsbooks = new Set(valid);
+    }
+  } catch (_) {}
+
   const state = {
     payload: null,
     signals: [],
@@ -9,7 +28,8 @@
     sport: "",
     search: "",
     controlling: false,
-    filters: { minimumLiquidity: 0, flow: "", marketType: "" },
+    filters: { minimumLiquidity: 0, flow: "", marketType: "", sportsbooks: initialSharpSportsbooks },
+    filterDraftSportsbooks: new Set(initialSharpSportsbooks),
     sortDescending: true,
     detailVisible: true,
   };
@@ -150,6 +170,40 @@
     return normalized === "fourcx" ? "4cx" : normalized;
   }
 
+  const sharpBookAliases = Object.freeze({
+    betr: "betrsportsbook",
+    hardrock: "hardrockbet",
+    prophetx: "prophetexchange",
+    sportsbettingag: "sportsbetting_ag",
+    thescore: "thescorebet",
+    betrpicks: "betr_picks",
+    dkpick6: "pick6",
+    draftkingspick6: "pick6",
+  });
+  const sharpBookByCompactKey = new Map(
+    sharpBookCatalog.map(book => [String(book.key).toLowerCase().replace(/[^a-z0-9]/g, ""), book.key])
+  );
+
+  function providerCatalogKey(row) {
+    const raw = String(row?.providerKey || row?.providerName || row?.provider || "")
+      .trim().toLowerCase().replace(/^(oddsengine__|oddsapi__)/, "");
+    const compact = raw.replace(/[^a-z0-9]/g, "");
+    const alias = sharpBookAliases[raw] || sharpBookAliases[compact];
+    if (alias && sharpBookKeys.has(alias)) return alias;
+    if (sharpBookKeys.has(raw)) return raw;
+    return sharpBookByCompactKey.get(compact) || raw;
+  }
+
+  function sportsbookFilterActive() {
+    return state.filters.sportsbooks.size !== sharpBookKeys.size;
+  }
+
+  function selectedComparisonLines(signal) {
+    const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
+    if (!sportsbookFilterActive()) return rows;
+    return rows.filter(row => state.filters.sportsbooks.has(providerCatalogKey(row)));
+  }
+
   function isMarketIntelligenceProvider(row) {
     return MARKET_INTELLIGENCE_PROVIDERS.has(providerKey(row));
   }
@@ -162,7 +216,7 @@
   }
 
   function primaryQuote(signal) {
-    const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
+    const rows = selectedComparisonLines(signal);
     return bestQuote(rows.filter(row => !isMarketIntelligenceProvider(row)));
   }
 
@@ -290,7 +344,7 @@
 
   function twoSidedComparison(signal) {
     const sides = marketSides(signal);
-    const rows = [...(signal.comparisonLines || [])].sort((a, b) => {
+    const rows = [...selectedComparisonLines(signal)].sort((a, b) => {
       const aIntel = isMarketIntelligenceProvider(a) ? 1 : 0;
       const bIntel = isMarketIntelligenceProvider(b) ? 1 : 0;
       return aIntel - bIntel;
@@ -315,7 +369,7 @@
   }
 
   function comparisonRows(signal) {
-    const rows = signal.comparisonLines || [];
+    const rows = selectedComparisonLines(signal);
     if (!rows.length) return `<div class="sharp-awaiting-lines"><i class="ph ph-hourglass-medium"></i><span>Exact-line comparisons refresh every 60 seconds while Play is active.</span></div>`;
     const best = Math.max(...rows.map(row => Number(row.americanOdds) || -99999));
     return rows.map(row => `
@@ -378,7 +432,8 @@
       && (!state.search || haystack.includes(state.search))
       && Number(signal.liquidity || 0) >= state.filters.minimumLiquidity
       && (!state.filters.flow || (state.filters.flow === "detected") === detected)
-      && (!state.filters.marketType || signal.market?.kind === state.filters.marketType);
+      && (!state.filters.marketType || signal.market?.kind === state.filters.marketType)
+      && (!sportsbookFilterActive() || selectedComparisonLines(signal).length > 0);
   }
 
   function render() {
@@ -419,7 +474,7 @@
     $("sharp-detail-toggle").setAttribute("aria-pressed", String(state.detailVisible));
     $("sharp-detail-toggle").querySelector("span").textContent = state.detailVisible ? "Hide market details" : "Show market details";
     document.querySelector(".sharp-workspace")?.classList.toggle("detail-hidden", !state.detailVisible);
-    const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType));
+    const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType)) + Number(sportsbookFilterActive());
     $("sharp-filter-count").textContent = String(activeFilterCount);
     $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
     $("sharp-mode-badge").classList.toggle("live", running && !accessBlocked);
@@ -500,17 +555,45 @@
     }
   }
 
+  function renderSharpSportsbookFilter(query = "") {
+    const list = $("sharp-sportsbook-list");
+    if (!list) return;
+    const needle = query.trim().toLowerCase();
+    const books = sharpBookCatalog.filter(book => !needle || `${book.name} ${book.key} ${book.type}`.toLowerCase().includes(needle));
+    list.innerHTML = books.map(book => `
+      <label class="sharp-sportsbook-option">
+        <input type="checkbox" value="${escapeHtml(book.key)}" ${state.filterDraftSportsbooks.has(book.key) ? "checked" : ""}>
+        <span class="sharp-sportsbook-option-logo">${logo(book, String(book.name || "?").slice(0, 2))}</span>
+        <span><strong>${escapeHtml(book.name)}</strong><small>${escapeHtml(book.type === "dfs" ? "DFS pick'em" : book.type === "exchange" ? "Exchange" : "Sportsbook")}</small></span>
+      </label>`).join("");
+    const count = $("sharp-sportsbook-count");
+    if (count) count.textContent = `${state.filterDraftSportsbooks.size}/${sharpBookCatalog.length} selected`;
+  }
+
   function openFilters(open) {
+    if (open) {
+      state.filterDraftSportsbooks = new Set(state.filters.sportsbooks);
+      const search = $("sharp-sportsbook-search");
+      if (search) search.value = "";
+      renderSharpSportsbookFilter();
+    }
     $("sharp-filter-drawer").hidden = !open;
     $("sharp-filter-backdrop").hidden = !open;
     document.body.style.overflow = open ? "hidden" : "";
   }
 
   function readFilters() {
+    if (!state.filterDraftSportsbooks.size) {
+      window.showToast?.("Select at least one sportsbook");
+      return false;
+    }
     state.filters.minimumLiquidity = Number($("sharp-liquidity-filter").value) || 0;
     state.filters.flow = $("sharp-flow-filter").value;
     state.filters.marketType = $("sharp-market-filter").value;
+    state.filters.sportsbooks = new Set(state.filterDraftSportsbooks);
+    localStorage.setItem(sharpBookFilterStorageKey, JSON.stringify([...state.filters.sportsbooks]));
     render();
+    return true;
   }
 
   function bind() {
@@ -573,13 +656,34 @@
     document.addEventListener("click", closeMoreMenu);
     $("sharp-filter-close").addEventListener("click", () => openFilters(false));
     $("sharp-filter-backdrop").addEventListener("click", () => openFilters(false));
-    $("sharp-filter-apply").addEventListener("click", () => { readFilters(); openFilters(false); });
+    $("sharp-filter-apply").addEventListener("click", () => { if (readFilters()) openFilters(false); });
     $("sharp-filter-reset").addEventListener("click", () => {
       $("sharp-liquidity-filter").value = "0";
       $("sharp-liquidity-value").textContent = "$0";
       $("sharp-flow-filter").value = "";
       $("sharp-market-filter").value = "";
+      state.filterDraftSportsbooks = new Set(sharpBookKeys);
+      const sportsbookSearch = $("sharp-sportsbook-search");
+      if (sportsbookSearch) sportsbookSearch.value = "";
+      renderSharpSportsbookFilter();
       readFilters();
+    });
+    $("sharp-sportsbooks-all")?.addEventListener("click", () => {
+      state.filterDraftSportsbooks = new Set(sharpBookKeys);
+      renderSharpSportsbookFilter($("sharp-sportsbook-search")?.value || "");
+    });
+    $("sharp-sportsbooks-none")?.addEventListener("click", () => {
+      state.filterDraftSportsbooks.clear();
+      renderSharpSportsbookFilter($("sharp-sportsbook-search")?.value || "");
+    });
+    $("sharp-sportsbook-search")?.addEventListener("input", event => renderSharpSportsbookFilter(event.target.value));
+    $("sharp-sportsbook-list")?.addEventListener("change", event => {
+      const input = event.target.closest('input[type="checkbox"]');
+      if (!input) return;
+      if (input.checked) state.filterDraftSportsbooks.add(input.value);
+      else state.filterDraftSportsbooks.delete(input.value);
+      const count = $("sharp-sportsbook-count");
+      if (count) count.textContent = `${state.filterDraftSportsbooks.size}/${sharpBookCatalog.length} selected`;
     });
     $("sharp-liquidity-filter").addEventListener("input", event => { $("sharp-liquidity-value").textContent = money(event.target.value, false); });
     document.addEventListener("keydown", event => {

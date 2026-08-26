@@ -562,9 +562,17 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 .ev-trend-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
 .ev-trend-legend-toggle { min-height: 30px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-sm); background: var(--il-surface-2); color: var(--il-text-secondary); font: 600 12px/1 var(--il-font-ui); }
 .ev-trend-legend-toggle::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--legend); }
+.ev-trend-legend-toggle b { color: var(--il-text-primary); font: 700 11px/1 var(--il-font-data); }
 .ev-trend-legend-toggle.off { color: var(--il-text-muted); opacity: .55; }
 .ev-trend-preview-note { margin: var(--il-space-2) 0 0; padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 6px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-info-subtle); color: var(--il-text-muted); font: 500 9px/1.4 var(--il-font-ui); }
 .ev-trend-preview-note i { color: var(--il-info); }
+.ev-trend-live-note { margin: var(--il-space-2) 0 0; padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 6px; border: 1px solid var(--il-positive); border-radius: var(--il-radius-control); background: var(--il-surface-positive-subtle); color: var(--il-text-muted); font: 500 10px/1.4 var(--il-font-ui); }
+.ev-trend-live-note i { color: var(--il-positive); }
+.ev-chart-live-state { min-height: 220px; display: grid; place-content: center; justify-items: center; gap: 7px; padding: var(--il-space-4); text-align: center; }
+.ev-chart-live-state > i { color: var(--il-brand-hover); font-size: 24px; }
+.ev-chart-live-state > strong { color: var(--il-text-primary); font: 700 14px/1.2 var(--il-font-ui); }
+.ev-chart-live-state > span,
+.ev-chart-live-state > small { max-width: 360px; color: var(--il-text-muted); font: 500 11px/1.4 var(--il-font-ui); }
 
 body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-accordion.il-detail-section { background: var(--il-bg-pure-black); }
 .ev-detail-accordion summary { min-height: 46px; padding: 0 var(--il-space-3); display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: var(--il-space-2); cursor: pointer; list-style: none; }

@@ -11,7 +11,11 @@ from ev_optimizer import build_ev_board
 from execution_providers import ProviderHealthStatus
 from low_hold import build_low_hold_board
 from middles import build_middles_board
-from odds_engine_provider import OddsEngineProvider
+from odds_engine_provider import (
+    OddsEngineProvider,
+    oddsengine_filter_catalog_payload,
+    oddsengine_provider_catalog,
+)
 
 
 class FakeResponse:
@@ -591,6 +595,21 @@ def test_provider_supplies_exact_line_shopping_and_odds_screen_rows() -> None:
         and item["source"] == "odds_engine"
         for item in provider.provider_catalog([])
     )
+
+
+def test_oddsengine_catalog_helpers_expose_all_subscribed_books() -> None:
+    filter_catalog = oddsengine_filter_catalog_payload()
+    provider_catalog = oddsengine_provider_catalog()
+
+    assert filter_catalog["catalogVersion"] == 4
+    assert filter_catalog["catalogSource"] == "odds_engine"
+    assert filter_catalog["bookCount"] == 88
+    assert len(filter_catalog["books"]) == 88
+    assert {"pick6", "betr_picks", "dabble"} <= {
+        item["key"] for item in filter_catalog["books"]
+    }
+    assert len(provider_catalog) == 88
+    assert all(item["key"].startswith("oddsengine__") for item in provider_catalog)
 
 
 def test_settings_read_oddsengine_values_without_repr_leak(monkeypatch) -> None:
