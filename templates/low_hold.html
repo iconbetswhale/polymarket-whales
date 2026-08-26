@@ -4,14 +4,13 @@
   {% if low_hold_preview %}
   <section class="arb-preview-banner" aria-label="Preview mode">
     <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Interactive preview</strong>
-    <span>Fixture prices only · no provider requests or sportsbook credits.</span>
+    <strong>Preview data</strong>
+    <span>No bets are placed.</span>
   </section>
   {% endif %}
 
   <header class="arb-header il-page-header">
     <div class="arb-title-block">
-      <p class="arb-eyebrow">CAPITAL EFFICIENCY</p>
       <div class="arb-title-row">
         <h1 class="il-page-title">Low Hold</h1>
         <nav class="arb-mode-tabs lh-mode-tabs" aria-label="Opportunity type">
@@ -19,9 +18,8 @@
           <button type="button" data-lh-mode="exact" aria-pressed="false">Exact lines</button>
           <button type="button" data-lh-mode="middle" aria-pressed="false">Middles</button>
         </nav>
-        <button class="arb-learn-button" id="lh-learn-open" type="button"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
+        <button class="arb-learn-button" id="lh-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
-      <p>Pair opposing prices to minimize loss, clear rollover efficiently, or capture a middle window.</p>
     </div>
 
     <div class="arb-toolbar il-finance-controls" aria-label="Low Hold controls">
@@ -35,16 +33,15 @@
   </header>
 
   <section class="arb-kpi-strip il-kpi-strip" aria-label="Low Hold summary">
-    <article><span class="arb-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best hold</span><strong id="lh-kpi-hold">—</strong><small>Lower is more efficient</small></div></article>
-    <article><span class="arb-kpi-icon"><i class="ph ph-wallet" aria-hidden="true"></i></span><div><span>Capital retained</span><strong id="lh-kpi-retained">—</strong><small>Worst outside outcome</small></div></article>
-    <article><span class="arb-kpi-icon"><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i></span><div><span>Middle windows</span><strong id="lh-kpi-middles">—</strong><small id="lh-kpi-middle-profit">Chance to win both legs</small></div></article>
-    <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="lh-kpi-books">—</strong><small id="lh-kpi-events">Awaiting scan</small></div></article>
+    <article><span>Best hold</span><strong id="lh-kpi-hold">—</strong></article>
+    <article><span>Capital retained</span><strong id="lh-kpi-retained">—</strong></article>
+    <article><span>Opportunities</span><strong id="lh-kpi-opportunities">—</strong></article>
   </section>
 
   <div class="arb-workspace">
     <section class="arb-board" aria-labelledby="lh-board-title">
       <header class="arb-board-header">
-        <div><h2 id="lh-board-title">Best opportunities</h2><span id="lh-result-copy">Ranked by lowest hold</span></div>
+        <div><h2 id="lh-board-title">Opportunities</h2><span id="lh-result-copy">Loading</span></div>
         <div class="arb-board-actions">
           <label><span class="sr-only">Sport</span><select id="lh-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="lh-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
@@ -60,7 +57,7 @@
       <div class="arb-detail-placeholder" id="lh-detail-placeholder">
         <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
         <h2>Bet plan</h2>
-        <p>Select an opportunity to see the exact stake on every side, worst-case cost, middle payout, and every available price.</p>
+        <p>Select an opportunity.</p>
       </div>
       <div class="arb-detail-content" id="lh-detail-content" hidden></div>
     </aside>
@@ -72,7 +69,7 @@
 <dialog class="arb-dialog arb-filter-dialog lh-filter-dialog" id="lh-filter-dialog" aria-labelledby="lh-filter-title">
   <form method="dialog" class="arb-filter-shell">
     <header>
-      <div><p class="arb-eyebrow">CUSTOMIZE</p><h2 id="lh-filter-title">Low Hold filters</h2></div>
+      <h2 id="lh-filter-title">Low Hold filters</h2>
       <div class="lh-selection-summary"><strong id="lh-selected-summary">0 selected</strong><button id="lh-books-all-top" type="button">Select all</button><button id="lh-books-clear-top" type="button">Clear</button></div>
       <button class="arb-icon-button" id="lh-filter-close" value="cancel" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
     </header>
@@ -181,7 +178,7 @@
 
 <dialog class="arb-dialog arb-learn-dialog" id="lh-learn-dialog" aria-labelledby="lh-learn-title">
   <article>
-    <header><div><p class="arb-eyebrow">THE MATH</p><h2 id="lh-learn-title">How IconLabs calculates Low Hold</h2></div><button class="arb-icon-button" id="lh-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x"></i></button></header>
+    <header><h2 id="lh-learn-title">How IconLabs calculates Low Hold</h2><button class="arb-icon-button" id="lh-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x"></i></button></header>
     <div class="arb-learn-grid">
       <section><span>01</span><div><h3>Convert each price</h3><p>American odds become decimal odds and implied probabilities. Exchange fees reduce net winnings, never returned stake.</p></div></section>
       <section><span>02</span><div><h3>Measure the hold</h3><p>Add the implied probabilities of every opposing leg and subtract 100%.</p><code>hold % = (Σ(1 ÷ decimal odds) − 1) × 100</code></div></section>

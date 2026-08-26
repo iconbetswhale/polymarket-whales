@@ -76,3 +76,16 @@ def test_locked_first_leg_is_the_recommended_sizing_workflow() -> None:
     assert "Recommended · calculate the exact hedge" in TEMPLATE
     assert 'stakeMode: "first-leg"' in SCRIPT
     assert "stake: 100" in SCRIPT
+
+
+def test_low_hold_polish_keeps_primary_plan_visible_and_details_collapsed() -> None:
+    assert 'id="lh-kpi-opportunities"' in TEMPLATE
+    assert TEMPLATE.count("arb-kpi-strip") == 1
+    assert "lh-leg-copy" in SCRIPT
+    assert "lh-leg-numbers" in SCRIPT
+    assert '<details class="lh-detail-disclosure">' in SCRIPT
+    assert "Odds comparison" in SCRIPT
+    assert "Calculation details" in SCRIPT
+    assert "lh-result-section" in SCRIPT
+    assert "Lower is more efficient" not in TEMPLATE
+    assert "Chance to win both legs" not in TEMPLATE

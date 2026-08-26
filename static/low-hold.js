@@ -229,30 +229,27 @@
     return rows.sort((left, right) => left.holdPercent - right.holdPercent || right.retainedPercent - left.retainedPercent);
   }
 
-  function outcomeSummary(leg) {
+  function outcomeSummary(leg, index) {
     return `
       <div class="arb-leg-summary">
-        <span title="${esc(leg.selection)}">${esc(leg.selection)}</span>
-        <b>${money(leg.stake, 0)}</b>
         ${bookLogo(leg)}
-        <span class="arb-odds-pill">${odds(leg.americanOdds)}</span>
+        <span class="lh-leg-copy"><small>LEG ${index + 1} · ${esc(leg.bookName)}</small><strong title="${esc(leg.selection)}">${esc(leg.selection)}</strong></span>
+        <span class="lh-leg-numbers"><b>${odds(leg.americanOdds)}</b><small>${money(leg.stake, 0)} stake</small></span>
       </div>`;
   }
 
   function opportunityCard(row) {
     const context = row.marketContext ? String(row.marketContext) : "Main line";
-    const netCopy = Number(row.outsideNet) >= 0 ? `+${money(row.outsideNet)}` : `−${money(Math.abs(row.outsideNet))}`;
-    const kindCopy = row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} pt middle` : `${row.outcomeCount}-way exact`;
-    const middleCopy = row.middleScenario ? `${row.middleScenario.label} · ${signedMoney(row.middleProfit)}` : `${percent(row.retainedPercent, 1)} retained`;
+    const netCopy = signedMoney(row.outsideNet);
+    const windowCopy = row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} pt window` : `${row.outcomeCount}-way exact`;
     return `
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-lh-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.holdPercent)} hold on ${row.eventTitle}`)}">
-        <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>${netCopy}</span><small class="lh-kind-badge ${row.pairKind}">${row.pairKind === "middle" ? "Middle" : "Exact"}</small></div>
+        <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><small>Hold</small><strong>${percent(row.holdPercent)}</strong><span>${netCopy}</span></div>
         <div class="arb-event-cell">
-          <span class="arb-event-meta"><i class="ph ph-circle" aria-hidden="true"></i>${esc(row.league)} · ${esc(timeUntil(row.commenceTime))}</span>
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
-          <p>${esc(dateTime(row.commenceTime))} · ${esc(middleCopy)}</p>
+          <p>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</p>
         </div>
-        <div class="arb-market-cell"><span><i class="ph ${row.pairKind === "middle" ? "ph-arrows-in-line-vertical" : "ph-equals"}" aria-hidden="true"></i>${esc(kindCopy)}</span><strong>${esc(row.marketLabel)}</strong><small class="${row.pairKind === "middle" ? "lh-market-window" : ""}">${esc(context)}</small></div>
+        <div class="arb-market-cell"><strong>${esc(row.marketLabel)}</strong><small>${esc(context)}</small><span>${esc(windowCopy)}</span></div>
         <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
         <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
       </article>`;
@@ -282,17 +279,11 @@
   function updateSummary() {
     const rows = visibleRows();
     const best = [...state.rows].sort((left, right) => left.holdPercent - right.holdPercent)[0];
-    const middles = state.rows.filter((row) => row.pairKind === "middle");
-    const bestMiddle = [...middles].sort((left, right) => Number(right.middleProfit || 0) - Number(left.middleProfit || 0))[0];
-    const uniqueEvents = new Set(state.rows.map((row) => row.eventId)).size;
     document.getElementById("lh-kpi-hold").textContent = best ? percent(best.holdPercent) : "—";
     document.getElementById("lh-kpi-retained").textContent = best ? percent(best.retainedPercent, 1) : "—";
-    document.getElementById("lh-kpi-middles").textContent = String(middles.length);
-    document.getElementById("lh-kpi-middle-profit").textContent = bestMiddle ? `${signedMoney(bestMiddle.middleProfit)} best window` : "Chance to win both legs";
-    document.getElementById("lh-kpi-books").textContent = String(state.diagnostics.selectedBookCount ?? state.selectedBooks.size);
-    document.getElementById("lh-kpi-events").textContent = `${uniqueEvents} matched event${uniqueEvents === 1 ? "" : "s"}`;
+    document.getElementById("lh-kpi-opportunities").textContent = String(state.rows.length);
     document.getElementById("lh-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${rows.length} shown · ranked by ${state.sort === "hold-asc" ? "lowest hold" : elements.sort.options[elements.sort.selectedIndex]?.text.toLowerCase() || "selected order"}`;
+    elements.resultCopy.textContent = `${rows.length} shown`;
   }
 
   function populateQuickFilters() {
@@ -330,7 +321,7 @@
         <div class="arb-plan-stake"><span>${row.stakeMode === "first-leg" ? (index === lockedIndex ? "Bet 1" : "Hedge") : "Stake"}</span><b>${money(leg.stake)}</b>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<small class="lh-lock-status"><i class="ph ph-lock-key"></i>Locked</small>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : ""}</div>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
       </article>`).join("");
-    const outsideCards = (row.outcomes || []).slice(0, 2).map((leg) => scenarioCard(`${leg.selection} hits`, leg.profit, `${leg.bookName} wins · other leg loses`));
+    const outsideCards = (row.outcomes || []).slice(0, 2).map((leg) => scenarioCard(`${leg.selection} hits`, leg.profit, `${leg.bookName} wins`));
     if (row.middleScenario) {
       outsideCards.splice(1, 0, scenarioCard(row.middleScenario.label, row.middleProfit, `Result ${row.middleScenario.result} · ${percent(row.middleReturnPercent)} return`, true));
     }
@@ -339,7 +330,6 @@
       return `<section class="arb-comparison-group"><h4>${esc(group.selection)}</h4>${(group.quotes || []).slice(0, 8).map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
-    const outcomeCopy = row.middleScenario ? `<div class="lh-outcome-copy"><i class="ph ph-arrows-in-line-vertical"></i><span>The middle is realized at <strong>${esc(row.middleScenario.result)}</strong>: ${esc(row.middleScenario.label.toLowerCase())}. Outside that window, the equal-return sizing limits the result to the values shown.</span></div>` : "";
     const netLabel = Number(row.outsideNet) >= 0 ? "Guaranteed profit" : "Worst-case cost";
     const context = row.marketContext ? ` · ${esc(row.marketContext)}` : "";
     elements.detailContent.innerHTML = `
@@ -347,12 +337,11 @@
         <div class="arb-detail-hero-top"><div class="arb-detail-return lh-detail-hold ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>hold</span></div><button class="arb-icon-button arb-detail-close" type="button" data-lh-close-detail aria-label="Close bet plan"><i class="ph ph-x"></i></button></div>
         <h2>${esc(row.eventTitle)}</h2>
         <p>${esc(row.league)} · ${esc(row.marketLabel)}${context} · ${esc(dateTime(row.commenceTime))}</p>
-        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>Copy bet plan</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      <section class="arb-detail-section"><header><h3>Bet plan</h3><span>${row.stakeMode === "first-leg" ? `Bet 1 locked · ${row.outcomeCount} legs` : `${row.outcomeCount} legs · ${row.bookCount} books`}</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section"><header><h3>Outcome map</h3><span>${row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} point window` : "exact opposing lines"}</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="lh-scenario-grid">${outsideCards.join("")}</div>${outcomeCopy}</section>
-      <section class="arb-detail-section"><header><h3>Odds comparison</h3><span>best qualified price highlighted</span></header>${comparisons}</section>
-      <section class="arb-detail-section"><header><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span></header><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg. A moved line changes the hold.</span></div>` : ""}</section>`;
+      <section class="arb-detail-section"><header><h3>Bet plan</h3><span>${row.stakeMode === "first-leg" ? "Bet 1 locked" : `${row.outcomeCount} legs`}</span></header><div class="arb-plan-list">${plan}</div></section>
+      <section class="arb-detail-section lh-result-section"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>Copy bet plan</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div></section>
+      <details class="lh-detail-disclosure"><summary><span>Odds comparison</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body">${comparisons}</div></details>
+      <details class="lh-detail-disclosure"><summary><span>Calculation details</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body"><div class="lh-scenario-grid">${outsideCards.join("")}</div><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg.</span></div>` : ""}</div></details>`;
     elements.detailPlaceholder.hidden = true;
     elements.detailContent.hidden = false;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {

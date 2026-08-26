@@ -4,23 +4,21 @@
   {% if middles_preview %}
   <section class="mid-preview-banner" aria-label="Preview mode">
     <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Interactive preview</strong>
-    <span>Fixture prices only · no provider requests or bets are placed.</span>
+    <strong>Preview data</strong>
+    <span>No bets are placed.</span>
   </section>
   {% endif %}
 
   <header class="mid-header il-page-header">
     <div class="mid-title-block">
-      <p class="mid-eyebrow">TWO-LINE OPPORTUNITIES</p>
       <div class="mid-title-row">
         <h1 class="il-page-title">Middles</h1>
         <nav class="mid-mode-tabs" aria-label="Middle timing">
           <button class="active" type="button" aria-pressed="true">Pre-Match <span id="mid-mode-count">0</span></button>
           <button type="button" disabled title="Live middle scanning is not enabled">Live</button>
         </nav>
-        <button class="mid-learn-button" id="mid-learn-open" type="button"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
+        <button class="mid-learn-button" id="mid-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
-      <p>Pair two prices so ordinary results offset, while the gap can cash both bets.</p>
     </div>
 
     <div class="mid-toolbar il-finance-controls" aria-label="Middle controls">
@@ -33,16 +31,18 @@
   </header>
 
   <section class="mid-summary" aria-label="Middle scan summary">
-    <article><span>OPPORTUNITIES</span><strong id="mid-summary-count">—</strong><small>qualified windows</small></article>
-    <article><span>BEST COST</span><strong id="mid-summary-cost">—</strong><small>worst-case stake drag</small></article>
-    <article><span>WIDEST WINDOW</span><strong id="mid-summary-width">—</strong><small>points between lines</small></article>
-    <article><span>SCAN STATUS</span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></article>
+    <div class="mid-summary-metrics">
+      <article><span>Opportunities</span><strong id="mid-summary-count">—</strong></article>
+      <article><span>Best cost</span><strong id="mid-summary-cost">—</strong></article>
+      <article><span>Widest window</span><strong id="mid-summary-width">—</strong></article>
+    </div>
+    <div class="mid-scan-status" role="status" aria-live="polite"><i aria-hidden="true"></i><span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></span></div>
   </section>
 
   <div class="mid-workspace">
     <section class="mid-feed-panel" aria-labelledby="mid-feed-title">
       <header class="mid-feed-heading">
-        <div><p class="mid-eyebrow">RANKED BY LOWEST BREAK-EVEN</p><h2 id="mid-feed-title">Middle opportunities</h2></div>
+        <h2 id="mid-feed-title">Opportunities</h2>
         <div class="mid-quick-filters" aria-label="Quick filters">
           <select id="mid-sport"><option value="">All leagues</option></select>
           <select id="mid-market"><option value="">All markets</option></select>
@@ -53,7 +53,7 @@
     </section>
 
     <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
-      <div class="mid-detail-empty"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><strong>Select an opportunity</strong><span>See both bets, exact stakes, payout scenarios, and the full middle window.</span></div>
+      <div class="mid-detail-empty"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><strong>Select an opportunity</strong></div>
     </aside>
   </div>
 
@@ -62,7 +62,7 @@
 
   <dialog class="mid-dialog" id="mid-filter-dialog" aria-labelledby="mid-filter-title">
     <form class="mid-dialog-shell" id="mid-filter-form" method="dialog">
-      <header><div><p class="mid-eyebrow">CUSTOMIZE</p><h2 id="mid-filter-title">Middle scanner</h2></div><button class="mid-dialog-close" id="mid-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <header><h2 id="mid-filter-title">Middle scanner</h2><button class="mid-dialog-close" id="mid-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
       <div class="mid-filter-layout">
         <section class="mid-filter-section mid-filter-books">
           <div class="mid-filter-section-title"><div><span>Sportsbooks</span><small id="mid-book-count">0 selected</small></div><div><button type="button" id="mid-books-all">Select all</button><button type="button" id="mid-books-default">Reset</button></div></div>
@@ -95,7 +95,7 @@
 
   <dialog class="mid-dialog mid-learn-dialog" id="mid-learn-dialog" aria-labelledby="mid-learn-title">
     <div class="mid-dialog-shell">
-      <header><div><p class="mid-eyebrow">THE MATH</p><h2 id="mid-learn-title">How IconLabs sizes a middle</h2></div><button class="mid-dialog-close" id="mid-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <header><h2 id="mid-learn-title">How IconLabs sizes a middle</h2><button class="mid-dialog-close" id="mid-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x" aria-hidden="true"></i></button></header>
       <div class="mid-learn-content">
         <article><i class="ph ph-number-circle-one" aria-hidden="true"></i><div><strong>Find a real gap</strong><p>For totals, a lower Over is paired with a higher Under. For spreads, opposing lines must overlap. The bets must describe the same event and market.</p></div></article>
         <article><i class="ph ph-number-circle-two" aria-hidden="true"></i><div><strong>Equalize outside payouts</strong><p>Stake is split in inverse proportion to effective decimal odds, then rounded to cents. That maximizes the smaller payout when the result lands outside the middle.</p></div></article>

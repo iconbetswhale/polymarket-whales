@@ -147,20 +147,21 @@
   function opportunityCard(row) {
     const selected = row.id === state.selectedId ? " selected" : "";
     const guaranteed = row.guaranteedOutsideProfit;
-    const costClass = guaranteed ? "positive" : Number(row.costPercent) <= 5 ? "warning" : "negative";
-    const costLabel = guaranteed ? `${percent(Math.abs(Math.min(0, row.costPercent)))} cost` : `${percent(row.costPercent)} cost`;
+    const costClass = guaranteed ? "positive" : "warning";
+    const worstOutside = Math.min(...(row.legs || []).map((leg) => Number(leg.outsideProfit || 0)));
     const tracked = state.tracked.has(row.id);
     const legs = (row.legs || []).map((leg, index) => `
       <div class="mid-card-leg">
         ${logoMarkup(leg)}
-        <span><small>LEG ${index + 1} · ${esc(leg.bookName)}</small><strong>${esc(leg.selection)}</strong></span>
-        <span class="mid-card-price"><b>${odds(leg.americanOdds)}</b><small>${money(leg.stake, 0)}</small></span>
+        <span class="mid-card-leg-copy"><small>LEG ${index + 1}</small><strong>${esc(leg.selection)}</strong><span>${esc(leg.bookName)}</span></span>
+        <span class="mid-card-price"><b>${odds(leg.americanOdds)}</b><small>${money(leg.stake, 0)} stake</small></span>
       </div>`).join("");
     return `
       <button class="mid-opportunity-card${selected}" type="button" data-mid-id="${esc(row.id)}" aria-pressed="${selected ? "true" : "false"}">
-        <div class="mid-card-score ${costClass}"><strong>${esc(costLabel)}</strong><span>${guaranteed ? "GUARANTEED FLOOR" : `BE ${percent(row.breakEvenMiddleProbability)}`}</span></div>
-        <div class="mid-card-event"><span><b>${esc(row.league)}</b><small>${esc(dateTime(row.commenceTime))} · ${esc(timeUntil(row.commenceTime))}</small></span><strong>${esc(row.eventTitle)}</strong><small>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</small></div>
-        <div class="mid-card-legs">${legs}<div class="mid-window-strip"><span><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i>BOTH WIN</span><strong>${esc(row.window?.label || `${row.middleWidth} pts`)}</strong><small>+${money(row.middleProfit)}</small></div></div>
+        <div class="mid-card-score ${costClass}"><span>Cost</span><strong>${percent(row.costPercent)}</strong><small>BE ${percent(row.breakEvenMiddleProbability)}</small></div>
+        <div class="mid-card-event"><strong>${esc(row.eventTitle)}</strong><span>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</span><small>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</small></div>
+        ${legs}
+        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span>Guaranteed outcome</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)} · middle ${signedMoney(row.middleProfit)}</small><i class="ph ph-caret-right" aria-hidden="true"></i></div>
         ${tracked ? '<i class="ph ph-bookmark-simple-fill mid-card-tracked" aria-label="Tracked"></i>' : ""}
       </button>`;
   }
@@ -189,6 +190,7 @@
     document.getElementById("mid-summary-width").textContent = widest == null ? "—" : `${Number(widest.toFixed(2))} pts`;
     document.getElementById("mid-summary-status").textContent = state.paused && !preview ? "Paused" : state.loading ? "Scanning" : "Ready";
     document.getElementById("mid-summary-fresh").textContent = state.lastUpdated ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(state.lastUpdated)}` : "Waiting for board";
+    document.querySelector(".mid-scan-status")?.classList.toggle("is-ready", !state.loading && (!state.paused || preview));
   }
 
   function populateQuickFilters() {
@@ -219,7 +221,7 @@
     const legs = row.legs || [];
     const legCards = legs.map((leg, index) => `
       <article class="mid-plan-leg">
-        <header><span>LEG ${index + 1}</span><small>${index === 0 ? "Lower / first boundary" : "Upper / second boundary"}</small></header>
+        <header><span>LEG ${index + 1}</span></header>
         <div class="mid-plan-book">${logoMarkup(leg)}<span><strong>${esc(leg.bookName)}</strong><small>${leg.quoteAgeSeconds == null ? "Timestamp unavailable" : `${Math.round(leg.quoteAgeSeconds)}s old`}</small></span><b>${odds(leg.americanOdds)}</b></div>
         <strong class="mid-plan-selection">${esc(leg.selection)}</strong>
         <div class="mid-plan-stake"><span>Place</span><strong>${money(leg.stake)}</strong><small>outside return ${money(leg.outsidePayout)}</small></div>
@@ -228,18 +230,18 @@
     const outsideOne = legs[0] ? scenarioRow(`${legs[0].selection} wins`, "Result lands above / outside the middle", legs[0].outsideProfit) : "";
     const middle = scenarioRow("Both bets win", row.window?.label || "Inside the middle window", row.middleProfit, true);
     const outsideTwo = legs[1] ? scenarioRow(`${legs[1].selection} wins`, "Result lands below / outside the middle", legs[1].outsideProfit) : "";
-    const pushes = (row.pushScenarios || []).map((item) => scenarioRow(item.label, `Leg ${item.pushedLeg} pushes · leg ${item.winningLeg} wins`, item.profit)).join("");
     const comparisons = (row.allQuotes || []).map((group) => `
       <section class="mid-quote-group"><header><span>${esc(group.selection)}</span><small>Best first</small></header>${(group.quotes || []).map((quote) => quoteRow(quote, group.bestBookKey)).join("")}</section>`).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="mid-detail-warning"><i class="ph ph-warning" aria-hidden="true"></i><span>${esc(warning)}</span></div>`).join("");
+    const worstOutside = Math.min(...legs.map((leg) => Number(leg.outsideProfit || 0)));
     elements.detail.innerHTML = `
       <header class="mid-detail-header"><div><span>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</span><h2>${esc(row.eventTitle)}</h2><p>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</p></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></header>
-      <section class="mid-window-hero"><div><span>MIDDLE WINDOW</span><strong>${esc(row.window?.label || "")}</strong><small>${esc(row.window?.condition || "")}</small></div><div><span>WINDOW WIDTH</span><strong>${row.middleWidth} pts</strong><small>${row.middleOutcomeCount || 0} integer outcomes</small></div></section>
-      <section class="mid-detail-section"><header><div><span>EXECUTION PLAN</span><h3>Equalized outside payouts</h3></div><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-grid">${legCards}</div></section>
-      <section class="mid-detail-section"><header><div><span>OUTCOMES</span><h3>Payout scenarios</h3></div><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.costPercent)} cost</span></header><div class="mid-scenario-list">${outsideOne}${middle}${outsideTwo}${pushes}</div><div class="mid-break-even"><span>Break-even middle hit rate</span><strong>${percent(row.breakEvenMiddleProbability)}</strong><small>The minimum hit rate needed if the worst outside result repeats.</small></div></section>
-      <section class="mid-detail-section"><header><div><span>PRICE CHECK</span><h3>Available odds</h3></div><small>${row.bookCount} books used</small></header><div class="mid-quote-groups">${comparisons}</div></section>
+      <section class="mid-detail-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div></section>
+      <section class="mid-detail-section"><header><h3>Equalized stakes</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-grid">${legCards}</div></section>
+      <section class="mid-detail-section"><header><h3>Payout scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-scenario-list">${outsideOne}${middle}${outsideTwo}</div></section>
+      <section class="mid-detail-section"><header><h3>Available odds</h3><small>${row.bookCount} books</small></header><div class="mid-quote-groups">${comparisons}</div></section>
       ${warnings}
-      <footer class="mid-detail-actions"><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button></footer>`;
+      <footer class="mid-detail-actions"><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button></footer>`;
     if (openOnMobile && window.matchMedia("(max-width: 900px)").matches) {
       document.body.classList.add("mid-detail-open");
       elements.backdrop.hidden = false;
