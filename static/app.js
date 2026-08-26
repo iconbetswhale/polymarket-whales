@@ -6183,6 +6183,9 @@ function syncOddsProviderCatalog(entries = []) {
       .map(option => String(option.providerKey || "").toLowerCase())
       .filter(Boolean)),
   );
+  if (savedOddsProviderSelection === null && availableProviderKeys.size) {
+    oddsState.providers = oddsState.providers.filter(key => availableProviderKeys.has(key));
+  }
   entries.forEach(entry => {
     const key = String(entry?.key || "").toLowerCase();
     if (!key || !/^[a-z0-9_]+$/.test(key)) return;
@@ -6214,6 +6217,9 @@ function syncOddsProviderCatalog(entries = []) {
       label.innerHTML = `<input type="checkbox" value="${escapeHtml(provider.key)}" ${checked ? "checked" : ""}>${providerLogoMarkup(provider)}${escapeHtml(provider.name)}`;
       list.appendChild(label);
     }
+  });
+  list?.querySelectorAll('input[type="checkbox"]').forEach(input => {
+    input.checked = oddsState.providers.includes(input.value);
   });
   document.getElementById("odds-books-count").textContent = `${oddsState.providers.length} selected`;
   applyOddsProviderOrder();

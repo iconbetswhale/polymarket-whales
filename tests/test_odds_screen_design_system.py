@@ -178,6 +178,8 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "iconbets_odds_provider_selection_v2" in script
     assert "availableProviderKeys.has(key)" in script
     assert "isNew && savedOddsProviderSelection" not in script
+    assert "oddsState.providers.filter(key => availableProviderKeys.has(key))" in script
+    assert "input.checked = oddsState.providers.includes(input.value)" in script
     assert 'pagePayloadCacheKey("odds-screen", params.toString())' in script
     assert "oddsTeamLogoUrl(label)" in script
     assert "/static/assets/teams/mlb/nyy.png" in script
