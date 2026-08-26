@@ -165,10 +165,11 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-quick-filters butt
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-quick-filters button:hover:not(.active),
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-quick-filters button:focus-visible:not(.active) {
-  border-color: var(--il-brand-outline-strong);
-  background: var(--il-surface-selected);
-  color: var(--il-text-primary);
-  box-shadow: inset 0 0 0 1px var(--il-brand-outline);
+  border-color: rgba(166, 90, 244, .72);
+  background: var(--il-sidebar-tool-hover, rgba(139, 92, 246, .32));
+  color: var(--il-sidebar-strong, var(--il-text-primary));
+  box-shadow: inset 3px 0 0 rgba(208, 162, 255, .68), inset 0 1px 0 rgba(255, 255, 255, .12), 0 4px 12px rgba(0, 0, 0, .28);
+  transform: translateY(-1px);
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-quick-filters button.active {
@@ -184,9 +185,9 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list {
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
-  min-height: 142px !important;
-  height: 142px !important;
-  flex: 0 0 142px;
+  min-height: 156px !important;
+  height: 156px !important;
+  flex: 0 0 156px;
   grid-template-columns: 145px minmax(0, 1fr) !important;
   border-color: #273449 !important;
   border-radius: 9px !important;
@@ -230,58 +231,117 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-money span 
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-body {
-  padding: 10px 12px 8px 16px !important;
-  gap: 5px;
+  min-width: 0;
+  padding: 11px 12px 10px 16px !important;
+  display: grid !important;
+  grid-template-columns: minmax(210px, .92fr) minmax(300px, 1.08fr);
+  gap: 16px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-heading > div {
-  grid-template-columns: auto;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event {
+  min-width: 0;
+  padding-right: 16px;
+  display: grid;
+  grid-template-rows: 28px auto auto auto 1fr;
+  align-content: center;
   gap: 2px;
+  border-right: 1px solid #2b374a;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-heading small,
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-heading time {
-  font-size: 10px !important;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logos {
+  height: 28px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-heading strong {
-  font-size: 13px !important;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo {
+  width: 27px;
+  height: 27px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #334159;
+  border-radius: 50%;
+  background: #0a1321;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-heading em {
-  color: #b66cff !important;
-  font-size: 10.5px !important;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo + .sharp-card-team-logo {
+  margin-left: -8px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market {
-  overflow: visible;
-  border: 0 !important;
-  border-radius: 0;
-  background: transparent !important;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo img {
+  width: 23px;
+  height: 23px;
+  display: block;
+  object-fit: contain;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary {
-  min-height: 40px;
-  padding: 0 0 5px;
-  grid-template-columns: minmax(0, 1fr) 70px 118px 34px !important;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event > strong {
+  overflow: hidden;
+  display: -webkit-box;
+  color: #f2f5fa;
+  font: 700 13px/1.15 var(--il-font-ui);
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event > em {
+  color: #b66cff;
+  font: 700 10.5px/1.15 var(--il-font-ui);
+  font-style: normal;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event > time {
+  color: #8f9bb0;
+  font: 600 10px/1.2 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event > b {
+  align-self: end;
+  color: #f3f6fb;
+  font: 750 15px/1.1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-execution {
+  min-width: 0;
+  padding: 0 !important;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: 42px 1fr;
+  align-items: stretch;
+  gap: 6px;
+  background: transparent;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 70px 118px 66px 34px;
+  align-items: center;
+  justify-content: end;
   gap: 7px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-card.selected .sharp-card-market-row.primary {
-  grid-template-columns: minmax(0, 1fr) 70px 112px 66px 34px !important;
-}
-
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary > strong {
-  font-size: 14px !important;
-}
-
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary > .sharp-card-rec-bet {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-card-rec-bet {
   min-height: 38px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
   border-color: #2d394d;
   background: #0b1423;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary > .sharp-sportsbook-action {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-card-rec-bet b,
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-card-rec-bet small {
+  display: block;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-sportsbook-action {
   min-height: 38px;
   border-color: #2e3b51 !important;
   background: #101928 !important;
@@ -290,7 +350,7 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.pr
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-bet {
   min-height: 38px;
   padding: 0 10px;
-  display: none;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 3px;
@@ -300,10 +360,6 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-bet {
   color: #61e896;
   font: 750 11px/1 var(--il-font-ui);
   text-decoration: none;
-}
-
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-card.selected .sharp-card-bet {
-  display: inline-flex;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-add {
@@ -320,32 +376,70 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-add {
   box-shadow: 0 5px 14px rgba(87, 34, 168, .28);
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-pair {
-  border-top-color: #2b374a;
-  background: transparent;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-summary {
+  min-width: 0;
+  padding-top: 6px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 104px;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid #2b374a;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip,
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip.best {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip {
+  min-width: 0;
   min-height: 34px;
-  padding: 4px 8px;
+  padding: 3px 0;
+  display: grid;
+  grid-template-columns: 25px minmax(0, 1fr);
+  gap: 7px;
   background: transparent !important;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip + .sharp-depth-chip {
-  border-left: 1px solid #344056;
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo,
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo img,
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo > span {
+  width: 25px;
+  height: 25px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip-copy strong {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-copy strong {
   font-size: 10.5px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip-copy small {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-copy small {
   font-size: 8.5px;
 }
 
-body[data-design-system="v2"][data-page="sharp-money"] .sharp-depth-chip.best > b {
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-best-price {
+  min-height: 42px;
+  padding-left: 10px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  flex-direction: column;
+  gap: 3px;
+  border-left: 1px solid #344056;
+  text-align: right;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-best-price small {
+  color: #7f8ba0;
+  font: 650 8.5px/1 var(--il-font-ui);
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-best-price strong {
   color: #eef2f8;
+  font: 800 14px/1 var(--il-font-data);
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-detail-panel {
@@ -562,7 +656,7 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
-    grid-template-columns: 118px minmax(0, 1fr) !important;
+    grid-template-columns: 108px minmax(0, 1fr) !important;
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary,
@@ -570,8 +664,46 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
     grid-template-columns: minmax(0, 1fr) 62px 102px 32px !important;
   }
 
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-body {
+    padding-right: 9px !important;
+    grid-template-columns: minmax(170px, .82fr) minmax(0, 1.18fr);
+    gap: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row {
+    grid-template-columns: 62px 102px 32px;
+  }
+
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-bet {
-    display: none !important;
+    display: none;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources {
+    gap: 8px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-summary {
+    grid-template-columns: minmax(0, 1fr) 72px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event {
+    padding-right: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip {
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 5px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo,
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo img,
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-sources .sharp-depth-chip-logo > span {
+    width: 22px;
+    height: 22px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-best-price {
+    padding-left: 7px;
   }
 }
 
@@ -593,7 +725,11 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
     height: auto !important;
-    min-height: 150px !important;
+    min-height: 168px !important;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-body {
+    grid-template-columns: minmax(180px, .85fr) minmax(300px, 1.15fr);
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-detail-panel {
@@ -626,13 +762,28 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
     margin: 0 0 0 auto;
   }
 
-  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-row.primary,
-  body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-card.selected .sharp-card-market-row.primary {
-    grid-template-columns: minmax(0, 1fr) 62px 104px 32px !important;
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-body {
+    padding: 10px 12px !important;
+    display: block !important;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event {
+    min-height: 112px;
+    padding: 0 0 10px;
+    border-right: 0;
+    border-bottom: 1px solid #2b374a;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-execution {
+    padding-top: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row {
+    grid-template-columns: 62px 104px 32px;
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-bet {
-    display: none !important;
+    display: none;
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-recommendation {

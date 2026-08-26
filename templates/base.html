@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#111827">
-  <link rel="icon" href="{{ url_for('static', filename='iconlabs-mark-v2.png', v=asset_version) }}" type="image/png">
+  <link rel="icon" href="{{ url_for('static', filename='assets/iconlabs-mark-v3.webp', v=asset_version) }}" type="image/webp">
   <title>{{ title }}</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,7 +19,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='premium-compact.css', v=asset_version) }}">{% endif %}
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='stage2-tracker.css', v=asset_version) }}">{% endif %}
   {% if page not in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}<link rel="stylesheet" href="{{ url_for('static', filename='mobile-product.css', v=asset_version) }}">{% endif %}
-  {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version ~ '-home-mockup-v10') }}">{% endif %}
+  {% if page == 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='home.css', v=asset_version ~ '-home-mockup-v11-brand-mark') }}">{% endif %}
   {% if page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}<link rel="stylesheet" href="{{ url_for('static', filename='app-premium.css', v=asset_version ~ '-signals-heading2') }}">{% endif %}
   {% if page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-shell.css', v=asset_version ~ '-shared-sidebar4-algo-mark') }}">{% endif %}
   {% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}
@@ -31,11 +31,11 @@
   {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-canonical-v12-finance-toolbar') }}">{% endif %}
   {% if page == 'arbitrage' %}<link rel="stylesheet" href="{{ url_for('static', filename='arbitrage.css', v=asset_version ~ '-canonical-v6') }}">{% endif %}
   {% if page == 'calculators' %}<link rel="stylesheet" href="{{ url_for('static', filename='calculators.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
-  {% if page == 'middles' %}<link rel="stylesheet" href="{{ url_for('static', filename='middles.css', v=asset_version ~ '-production-v5') }}">{% endif %}
+  {% if page == 'middles' %}<link rel="stylesheet" href="{{ url_for('static', filename='middles.css', v=asset_version ~ '-production-v6') }}">{% endif %}
   {% if page == 'low-hold' %}<link rel="stylesheet" href="{{ url_for('static', filename='arbitrage.css', v=asset_version ~ '-canonical-v6') }}"><link rel="stylesheet" href="{{ url_for('static', filename='low-hold.css', v=asset_version ~ '-production-v6') }}">{% endif %}
-  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-reference-redesign-v3') }}"><link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-redesign.css', v=asset_version ~ '-reference-redesign-v4') }}">{% endif %}
+  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-reference-redesign-v3') }}"><link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-redesign.css', v=asset_version ~ '-reference-redesign-v8') }}">{% endif %}
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-scale-v2-hover-v2-caesars-v1') }}">{% endif %}
-  {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-filters-v2-brand-apps-v1-custom-devig-v1-controls-v2') }}">{% endif %}
+  {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-filters-v2-brand-apps-v1-custom-devig-v1-controls-v3-brand-mark') }}">{% endif %}
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'shadow-test' %}<link rel="stylesheet" href="{{ url_for('static', filename='shadow-lab-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
@@ -45,7 +45,7 @@
   {% if page == 'position-history' %}<link rel="stylesheet" href="{{ url_for('static', filename='bet-history-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'edge-map' %}<link rel="stylesheet" href="{{ url_for('static', filename='edge-map-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'intelligence' %}<link rel="stylesheet" href="{{ url_for('static', filename='intelligence-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
-  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-v2.css', v=asset_version ~ '-canonical-v17-collapsed-gap') }}">{% endif %}
+  {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-v2.css', v=asset_version ~ '-canonical-v18-brand-mark') }}">{% endif %}
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -63,8 +63,8 @@
       <i class="ph ph-list" aria-hidden="true"></i><span class="sr-only">Toggle navigation</span>
     </button>
     <a class="brand" href="{{ url_for('index') }}" aria-label="IconLabs home">
-      <span class="brand-lockup" aria-hidden="true"><img src="{{ url_for('static', filename='assets/iconlabs-horizontal-logo-white.webp', v=asset_version) }}" alt=""></span>
-      <span class="brand-icon" aria-hidden="true"><img src="{{ url_for('static', filename='assets/iconlabs-mark-white.webp', v=asset_version) }}" alt=""></span>
+      <span class="brand-lockup" aria-hidden="true"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""><strong>IconLabs</strong></span>
+      <span class="brand-icon" aria-hidden="true"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""></span>
     </a>
     <div class="nav-links" id="primary-links">
       <span class="nav-section-label" aria-hidden="true">Core</span>
@@ -147,7 +147,7 @@
     </div>
   </dialog>
   {% if page == 'trades' and trades_preview %}<script src="{{ url_for('static', filename='trades-preview.js', v=asset_version ~ '-all-tabs-v1') }}"></script>{% endif %}
-  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v2') }}"></script>{% endif %}
+  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3') }}"></script>{% endif %}
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v3-odds-grid-v2-no-favorites') }}"></script>
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v5-player-props') }}"></script>{% endif %}
   {% if page == 'arbitrage' %}<script src="{{ url_for('static', filename='arbitrage.js', v=asset_version ~ '-canonical-v2') }}"></script>{% endif %}

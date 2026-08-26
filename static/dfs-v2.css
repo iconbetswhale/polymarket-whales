@@ -1249,6 +1249,25 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-panel h2 span {
   margin-right: .24em;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-brand img {
+  width: 30px;
+  height: 30px;
+  display: block;
+  object-fit: contain;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-brand strong {
+  color: var(--il-text-primary);
+  font: 800 18px/1 var(--il-font-ui);
+  letter-spacing: -.04em;
+}
+
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-panel header p {
   margin: 12px 0 0;
   color: var(--il-text-muted);

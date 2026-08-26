@@ -167,7 +167,7 @@ def temporary_sharp_money_preview_payload(now: datetime | None = None) -> dict:
                 "league": fixture["league"],
                 "event": fixture["event"],
                 "homeTeam": fixture["event"].split(" vs. ")[-1],
-                "awayTeam": opposing_selection,
+                "awayTeam": fixture["event"].split(" vs. ")[0],
                 "startsAt": starts_at.isoformat(),
                 "market": {
                     "id": f"preview-market-{index}",
