@@ -143,6 +143,7 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
         assert f'.dfs-book[data-book-key="{book_key}"]' in CSS
     assert "--dfs-book-accent" in CSS
     assert "background: var(--dfs-book-accent-soft" in CSS
+    assert "padding-top: 14px;" in CSS
 
 
 def test_iconlabs_column_matches_book_width_and_alternate_line_does_not_shift_odds() -> None:
@@ -168,6 +169,13 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "You’re changing IconLabs Algo Odds to Your Odds." in TEMPLATE
     assert "recalculates both Chance to Hit and the fair odds" in TEMPLATE
     assert ".dfs-devig-impact" in CSS
+
+
+def test_selected_dfs_line_never_renders_slip_odds_underneath() -> None:
+    assert "selectedSlipOdds" not in SCRIPT
+    assert "selected-slip-odds" not in SCRIPT
+    assert "selected-slip-odds" not in CSS
+    assert '<td class="selected-line"><strong>${activeLine}</strong></td>' in SCRIPT
 
 
 def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:
@@ -219,7 +227,7 @@ def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
     assert "dfs-summary-row" not in TEMPLATE
     assert "Line discrepancies only" not in TEMPLATE
     assert "PrizePicks lines ranked by model edge" not in TEMPLATE
-    assert "activeBook === 'PrizePicks' ? ''" in SCRIPT
+    assert "selected-slip-odds" not in SCRIPT
 
 
 def test_dfs_filter_controls_share_equal_columns_and_alignment() -> None:
