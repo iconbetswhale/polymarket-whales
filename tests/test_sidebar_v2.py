@@ -27,7 +27,7 @@ V2_PAGE_STYLES = (
 def test_shared_sidebar_styles_load_after_every_v2_page_stylesheet():
     sidebar = BASE.index("filename='sidebar-v2.css'")
 
-    assert "-canonical-v17-collapsed-gap" in BASE[sidebar : sidebar + 200]
+    assert "-canonical-v18-brand-mark" in BASE[sidebar : sidebar + 200]
     for stylesheet in V2_PAGE_STYLES:
         assert BASE.index(f"filename='{stylesheet}'") < sidebar
 
