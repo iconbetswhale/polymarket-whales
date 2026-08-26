@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="arb-page" data-arb-preview="{{ 'true' if arbitrage_preview else 'false' }}">
+  {% if arbitrage_preview %}
+  <section class="arb-preview-banner" aria-label="Preview mode">
+    <i class="ph ph-eye" aria-hidden="true"></i>
+    <strong>Interactive preview</strong>
+    <span>Fixture prices only · no provider requests or sportsbook credits.</span>
+  </section>
+  {% endif %}
+
+  <header class="arb-header il-page-header">
+    <div class="arb-title-block">
+      <p class="arb-eyebrow">MARKET INEFFICIENCIES</p>
+      <div class="arb-title-row">
+        <h1 class="il-page-title">Arbitrage</h1>
+        <nav class="arb-mode-tabs" aria-label="Arbitrage timing">
+          <button class="active" type="button" aria-pressed="true">Pre-Match <span id="arb-mode-count">0</span></button>
+          <button type="button" disabled title="Live streaming arbitrage is not enabled">Live</button>
+        </nav>
+        <button class="arb-learn-button" id="arb-learn-open" type="button"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
+      </div>
+      <p>Lock the same payout across every outcome with best-price, fee-aware stake sizing.</p>
+    </div>
+
+    <div class="arb-toolbar il-finance-controls" aria-label="Arbitrage controls">
+      <label class="arb-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="arb-search" type="search" placeholder="Search events, markets, or books" autocomplete="off"><kbd>/</kbd></label>
+      <label class="arb-stake-control"><span>Total stake</span><span class="arb-money-input"><b>$</b><input id="arb-stake" type="number" min="1" max="10000000" step="25" value="1000" inputmode="decimal"></span></label>
+      <button class="arb-icon-button" id="arb-pause" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
+      <button class="arb-icon-button" id="arb-filter-open" type="button" aria-label="Open arbitrage filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span class="arb-filter-count" id="arb-filter-count" hidden>0</span></button>
+      <button class="arb-icon-button" id="arb-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
+      <button class="arb-icon-button" id="arb-refresh" type="button" aria-label="Refresh arbitrage opportunities"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
+    </div>
+  </header>
+
+  <section class="arb-kpi-strip il-kpi-strip" aria-label="Arbitrage summary">
+    <article><span class="arb-kpi-icon"><i class="ph ph-intersect-three" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="arb-kpi-opportunities">—</strong><small id="arb-kpi-events">Awaiting scan</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-trend-up" aria-hidden="true"></i></span><div><span>Best return</span><strong id="arb-kpi-return">—</strong><small>Guaranteed if all legs fill</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-currency-dollar" aria-hidden="true"></i></span><div><span>Top profit</span><strong id="arb-kpi-profit">—</strong><small id="arb-kpi-stake">On a $1,000 stake</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="arb-kpi-books">—</strong><small>Selected execution venues</small></div></article>
+  </section>
+
+  <div class="arb-workspace">
+    <section class="arb-board" aria-labelledby="arb-board-title">
+      <header class="arb-board-header">
+        <div><h2 id="arb-board-title">Best opportunities</h2><span id="arb-result-copy">Ranked by guaranteed return</span></div>
+        <div class="arb-board-actions">
+          <label><span class="sr-only">Sport</span><select id="arb-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Market</span><select id="arb-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Sort opportunities</span><select id="arb-sort"><option value="profit-desc">Highest return</option><option value="profit-amount-desc">Highest profit</option><option value="time-asc">Starting soon</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+        </div>
+      </header>
+      <div class="arb-feed" id="arb-feed" aria-live="polite">
+        <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing arbitrage scanner</strong><p>Matching complete markets and equalizing payouts.</p></div>
+      </div>
+    </section>
+
+    <aside class="arb-detail" id="arb-detail" aria-label="Selected arbitrage plan">
+      <div class="arb-detail-placeholder" id="arb-detail-placeholder">
+        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
+        <h2>Execution plan</h2>
+        <p>Select an opportunity to see the exact stake on every outcome, guaranteed payout, and every available price.</p>
+      </div>
+      <div class="arb-detail-content" id="arb-detail-content" hidden></div>
+    </aside>
+  </div>
+</section>
+
+<div class="arb-mobile-scrim" id="arb-mobile-scrim" hidden></div>
+
+<dialog class="arb-dialog arb-filter-dialog" id="arb-filter-dialog" aria-labelledby="arb-filter-title">
+  <form method="dialog" class="arb-filter-shell">
+    <header>
+      <div><p class="arb-eyebrow">CUSTOMIZE</p><h2 id="arb-filter-title">Arbitrage filters</h2></div>
+      <button class="arb-icon-button" id="arb-filter-close" value="cancel" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
+    </header>
+    <div class="arb-filter-body">
+      <nav class="arb-filter-nav" aria-label="Filter categories">
+        <button class="active" type="button" data-arb-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="arb-book-filter-count">All</b></button>
+        <button type="button" data-arb-filter-tab="profit"><i class="ph ph-percent" aria-hidden="true"></i><span>Profit &amp; stake</span></button>
+        <button type="button" data-arb-filter-tab="markets"><i class="ph ph-chart-line" aria-hidden="true"></i><span>Markets</span></button>
+        <button type="button" data-arb-filter-tab="execution"><i class="ph ph-shield-check" aria-hidden="true"></i><span>Execution safety</span></button>
+        <button type="button" data-arb-filter-tab="sorting"><i class="ph ph-sort-ascending" aria-hidden="true"></i><span>Sorting</span></button>
+      </nav>
+      <div class="arb-filter-panels">
+        <section class="arb-filter-panel active" data-arb-filter-panel="sportsbooks">
+          <div class="arb-filter-panel-heading"><div><h3>Sportsbooks</h3><p>Only complete, independently executable markets are compared.</p></div><div><button id="arb-books-all" type="button">Select all</button><button id="arb-books-clear" type="button">Clear</button></div></div>
+          <label class="arb-dialog-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="arb-book-search" type="search" placeholder="Search sportsbooks and exchanges"></label>
+          <div class="arb-book-grid" id="arb-book-grid"></div>
+        </section>
+        <section class="arb-filter-panel" data-arb-filter-panel="profit">
+          <h3>Profit &amp; stake</h3><p>Set the total cash deployed across all outcomes and the minimum guaranteed return.</p>
+          <div class="arb-field-grid">
+            <label>Total stake<span class="arb-field-money"><b>$</b><input id="arb-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
+            <label>Minimum return<span class="arb-field-suffix"><input id="arb-min-profit" type="number" min="0" max="50" step="0.1" value="0.1"><b>%</b></span></label>
+          </div>
+          <div class="arb-formula-card"><i class="ph ph-equals" aria-hidden="true"></i><div><strong>Equal-payout sizing</strong><p>Each stake is proportional to its implied probability, so the after-fee payout stays nearly identical whichever outcome wins.</p></div></div>
+        </section>
+        <section class="arb-filter-panel" data-arb-filter-panel="markets">
+          <h3>Markets</h3><p>Choose the market shapes included in the live request.</p>
+          <div class="arb-choice-grid" id="arb-market-choices">
+            <label><input type="checkbox" value="h2h" checked><span><i class="ph ph-trophy" aria-hidden="true"></i><strong>Moneyline</strong><small>Two- and three-way</small></span></label>
+            <label><input type="checkbox" value="spreads" checked><span><i class="ph ph-arrows-left-right" aria-hidden="true"></i><strong>Spreads</strong><small>Exact same line</small></span></label>
+            <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Totals</strong><small>Exact same total</small></span></label>
+            <label><input type="checkbox" value="alternate_spreads"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt spreads</strong><small>Alternate lines</small></span></label>
+            <label><input type="checkbox" value="alternate_totals"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt totals</strong><small>Alternate lines</small></span></label>
+            <label><input type="checkbox" value="player_points"><span><i class="ph ph-user-focus" aria-hidden="true"></i><strong>Player props</strong><small>Selected prop markets</small></span></label>
+          </div>
+        </section>
+        <section class="arb-filter-panel" data-arb-filter-panel="execution">
+          <h3>Execution safety</h3><p>Conservative settings reduce false positives from fees, stale prices, and same-book constraints.</p>
+          <div class="arb-field-grid">
+            <label>Max quote age<span class="arb-field-suffix"><input id="arb-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Exchange fee buffer<span class="arb-field-suffix"><input id="arb-commission" type="number" min="0" max="2500" step="10" value="0"><b>bps</b></span></label>
+          </div>
+          <label class="arb-toggle-row"><span><strong>Require a different book for every leg</strong><small>Useful when a sportsbook will not accept opposing bets in the same market.</small></span><input id="arb-distinct-books" type="checkbox"></label>
+          <div class="arb-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>Arbitrage is only guaranteed when every displayed price accepts the full stake before any line moves.</p></div>
+        </section>
+        <section class="arb-filter-panel" data-arb-filter-panel="sorting">
+          <h3>Sorting</h3><p>Choose the first opportunities shown in the feed.</p>
+          <div class="arb-radio-list">
+            <label><input type="radio" name="arb-dialog-sort" value="profit-desc" checked><span><strong>Highest guaranteed return</strong><small>Best percentage first</small></span></label>
+            <label><input type="radio" name="arb-dialog-sort" value="profit-amount-desc"><span><strong>Highest guaranteed profit</strong><small>Best dollar profit first</small></span></label>
+            <label><input type="radio" name="arb-dialog-sort" value="time-asc"><span><strong>Starting soon</strong><small>Earliest events first</small></span></label>
+          </div>
+        </section>
+      </div>
+    </div>
+    <footer><button class="arb-secondary-button" id="arb-reset" type="button">Reset defaults</button><button class="arb-primary-button" id="arb-apply" value="cancel" type="button">Show opportunities</button></footer>
+  </form>
+</dialog>
+
+<dialog class="arb-dialog arb-learn-dialog" id="arb-learn-dialog" aria-labelledby="arb-learn-title">
+  <article>
+    <header><div><p class="arb-eyebrow">THE MATH</p><h2 id="arb-learn-title">How IconLabs sizes an arbitrage</h2></div><button class="arb-icon-button" id="arb-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x"></i></button></header>
+    <div class="arb-learn-grid">
+      <section><span>01</span><div><h3>Convert every price</h3><p>American odds become decimal odds. Any exchange commission buffer is applied only to net winnings.</p></div></section>
+      <section><span>02</span><div><h3>Confirm the edge</h3><p>Add the inverse decimal odds across every mutually exclusive outcome. A total below 1.00 is an arbitrage.</p><code>return % = (1 / Σ(1 ÷ decimal odds) − 1) × 100</code></div></section>
+      <section><span>03</span><div><h3>Equalize the payout</h3><p>Allocate stake in proportion to each outcome's inverse odds, then balance cents to maximize the lowest payout.</p><code>stakeᵢ = total stake × (1 ÷ oddsᵢ) / Σ(1 ÷ odds)</code></div></section>
+    </div>
+    <div class="arb-learn-proof"><i class="ph ph-shield-check" aria-hidden="true"></i><div><strong>Structural safeguards</strong><p>IconLabs requires a complete matching outcome set, the exact same line and participant, fresh quotes, valid prices, and a positive return after configured fees and cent rounding.</p></div></div>
+    <button class="arb-primary-button" id="arb-learn-done" type="button">Got it</button>
+  </article>
+</dialog>
+
+<script id="arb-config" type="application/json">{{ arbitrage_config|tojson }}</script>
+{% endblock %}
