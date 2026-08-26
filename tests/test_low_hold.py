@@ -220,32 +220,16 @@ def test_stale_quotes_are_removed_before_pairing() -> None:
     assert board["diagnostics"]["rejectionReasons"]["stale_quote"] == 1
 
 
-def test_preview_api_is_isolated_and_resizes_every_plan(app_client) -> None:
-    first = app_client.get("/api/low-hold?preview=1&stake=1000&stake_mode=total")
-    second = app_client.get("/api/low-hold?preview=1&stake=2000&stake_mode=total")
-
-    assert first.status_code == 200
-    assert second.status_code == 200
-    first_payload = first.get_json()
-    second_payload = second.get_json()
-    assert first_payload["previewOnly"] is True
-    assert first_payload["total"] == 10
-    assert len(first_payload["data"]) == 10
-    assert second_payload["data"][0]["totalStake"] == pytest.approx(2000)
-    assert second_payload["data"][0]["outsideNet"] == pytest.approx(
-        first_payload["data"][0]["outsideNet"] * 2, abs=0.03
+def test_preview_parameter_cannot_enable_low_hold_fixture_rows(app_client) -> None:
+    live = app_client.get("/api/low-hold")
+    attempted_preview = app_client.get(
+        "/api/low-hold?preview=1&stake=1000&stake_mode=total"
     )
 
-
-def test_preview_api_defaults_to_a_locked_100_dollar_first_bet(app_client) -> None:
-    response = app_client.get("/api/low-hold?preview=1")
-
-    assert response.status_code == 200
-    row = response.get_json()["data"][0]
-    assert row["stakeMode"] == "first-leg"
-    assert row["lockedOutcomeIndex"] == 0
-    assert row["lockedStake"] == 100
-    assert row["outcomes"][0]["stake"] == 100
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.get_json() == live.get_json()
+    assert attempted_preview.get_json()["data"] == []
+    assert "previewOnly" not in attempted_preview.get_json()
 
 
 def test_low_hold_api_rejects_an_unknown_stake_mode(app_client) -> None:

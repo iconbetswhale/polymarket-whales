@@ -1,13 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="mid-page" data-mid-preview="{{ 'true' if middles_preview else 'false' }}">
-  {% if middles_preview %}
-  <section class="mid-preview-banner" aria-label="Preview mode">
-    <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Preview data</strong>
-    <span>No bets are placed.</span>
-  </section>
-  {% endif %}
+<section class="mid-page">
 
   <header class="mid-header il-page-header">
     <div class="mid-title-block">

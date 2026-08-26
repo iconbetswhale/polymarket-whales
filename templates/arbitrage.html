@@ -1,13 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="arb-page" data-arb-preview="{{ 'true' if arbitrage_preview else 'false' }}">
-  {% if arbitrage_preview %}
-  <section class="arb-preview-banner" aria-label="Preview mode">
-    <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Interactive preview</strong>
-    <span>Fixture prices only · no provider requests or sportsbook credits.</span>
-  </section>
-  {% endif %}
+<section class="arb-page">
 
   <header class="arb-header il-page-header">
     <div class="arb-title-block">

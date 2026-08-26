@@ -25,25 +25,16 @@ def test_tracker_opts_into_v2_without_global_legacy_layers(app_client) -> None:
     assert b"sidebar-shell.css" not in response.data
 
 
-def test_tracker_preview_is_explicit_and_read_only(app_client) -> None:
-    preview = app_client.get("/tracker?preview=1")
+def test_tracker_preview_parameter_cannot_enable_fixture_rows(app_client) -> None:
+    attempted_preview = app_client.get("/tracker?preview=1")
     regular = app_client.get("/tracker")
 
-    assert b'data-tracker-preview="true"' in preview.data
-    assert b"Five temporary tracker bets" in preview.data
-    assert b"nothing here changes your bankroll" in preview.data
-    assert b"Preview bankroll" in preview.data
-    assert b'data-tracker-preview="false"' in regular.data
-    assert b"Five temporary tracker bets" not in regular.data
-    assert "TRACKER_PREVIEW_ROWS" in SCRIPT
-    for event in (
-        "New York Mets vs Philadelphia Phillies",
-        "Las Vegas Aces vs New York Liberty",
-        "Chicago Cubs vs Milwaukee Brewers",
-        "Taylor Fritz vs Ben Shelton",
-        "Seattle Storm vs Phoenix Mercury",
-    ):
-        assert event in SCRIPT
+    assert attempted_preview.data == regular.data
+    assert b"data-tracker-preview" not in regular.data
+    assert b"temporary tracker bets" not in regular.data
+    assert b"Preview bankroll" not in regular.data
+    assert 'dataset.trackerPreview === "true"' in SCRIPT
+    assert "data-tracker-preview" not in TEMPLATE
 
 
 def test_tracker_reuses_canonical_primitives() -> None:

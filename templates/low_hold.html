@@ -1,13 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="arb-page lh-page" data-lh-preview="{{ 'true' if low_hold_preview else 'false' }}">
-  {% if low_hold_preview %}
-  <section class="arb-preview-banner" aria-label="Preview mode">
-    <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Preview data</strong>
-    <span>No bets are placed.</span>
-  </section>
-  {% endif %}
+<section class="arb-page lh-page">
 
   <header class="arb-header il-page-header">
     <div class="arb-title-block">

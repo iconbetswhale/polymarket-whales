@@ -88,7 +88,6 @@ from lab_tracker import (
     LAB_TRACKER_GLOBAL_USER_ID,
     LAB_TRACKER_SOURCES,
     LabTrackerService,
-    demo_dashboard,
 )
 from trade_scoring import filter_trades_to_play
 from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
@@ -1135,17 +1134,10 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/trades")
     def trades_page():
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         return render_template(
             "trades.html",
             title="IconBets Trades to Play",
             page="trades",
-            trades_preview=preview_requested,
         )
 
     @app.route("/sharp-money")
@@ -1158,36 +1150,18 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/odds-screen")
     def odds_screen_page():
-        preview_requested = any(
-            request.args.get(flag, "").strip().lower()
-            in {"1", "true", "yes", "on"}
-            for flag in ("preview", "demo")
-        )
-        preview_payload = None
-        if preview_requested:
-            from odds_screen_preview import temporary_odds_screen_preview_payload
-
-            preview_payload = temporary_odds_screen_preview_payload()
         return render_template(
             "odds_screen.html",
             title="IconBets Live Odds Screen",
             page="odds-screen",
-            odds_screen_preview=preview_requested,
-            odds_screen_preview_payload=preview_payload,
         )
 
     @app.route("/dfs")
     def dfs_page():
-        preview_requested = any(
-            request.args.get(flag, "").strip().lower()
-            in {"1", "true", "yes", "on"}
-            for flag in ("preview", "demo")
-        )
         return render_template(
             "dfs.html",
             title="IconBets Fantasy Optimizer",
             page="dfs",
-            dfs_preview=preview_requested,
         )
 
     @app.post("/api/dfs/fair-probability")
@@ -1306,9 +1280,6 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/positive-ev")
     def positive_ev_page():
         positive_ev_config = positive_ev_catalog_payload()
-        positive_ev_config["previewOnly"] = request.args.get(
-            "preview", ""
-        ).strip().lower() in {"1", "true", "yes", "on"}
         return render_template(
             "positive_ev.html",
             title="IconBets Positive EV",
@@ -1319,19 +1290,11 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/arbitrage")
     def arbitrage_page():
         arbitrage_config = positive_ev_catalog_payload()
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        arbitrage_config["previewOnly"] = preview_requested
         return render_template(
             "arbitrage.html",
             title="IconLabs Arbitrage",
             page="arbitrage",
             arbitrage_config=arbitrage_config,
-            arbitrage_preview=preview_requested,
         )
 
     @app.route("/calculators")
@@ -1345,37 +1308,21 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/low-hold")
     def low_hold_page():
         low_hold_config = positive_ev_catalog_payload()
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        low_hold_config["previewOnly"] = preview_requested
         return render_template(
             "low_hold.html",
             title="IconLabs Low Hold",
             page="low-hold",
             low_hold_config=low_hold_config,
-            low_hold_preview=preview_requested,
         )
 
     @app.route("/middles")
     def middles_page():
         middles_config = positive_ev_catalog_payload()
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        middles_config["previewOnly"] = preview_requested
         return render_template(
             "middles.html",
             title="IconLabs Middles",
             page="middles",
             middles_config=middles_config,
-            middles_preview=preview_requested,
         )
 
     @app.route("/live-positions")
@@ -1450,15 +1397,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/wallets")
     def wallets_page():
         if not wallet_page_is_unlocked():
-            preview_requested = request.args.get("preview", "").strip().lower() in {
-                "1",
-                "true",
-                "yes",
-                "on",
-            }
             unlock_args = {"next": request.full_path}
-            if preview_requested:
-                unlock_args["preview"] = "1"
             response = make_response(
                 redirect(url_for("wallet_unlock_page", **unlock_args))
             )
@@ -1480,17 +1419,10 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/tracker")
     def tracker_page():
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         return render_template(
             "tracker.html",
             title="IconBets Tracker",
             page="tracker",
-            tracker_preview=preview_requested,
         )
 
     @app.route("/lab-tracker")
@@ -2034,18 +1966,6 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/sharp-money/live")
     def api_sharp_money_live():
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        if preview_requested:
-            from sharp_money_preview import temporary_sharp_money_preview_payload
-
-            response = jsonify(temporary_sharp_money_preview_payload())
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
-
         # OddsEngine's Advanced endpoint is one materialized order-book read.
         # Refresh it on demand at a bounded cadence in serverless production;
         # the direct ProphetX collector retains its explicit local Play gate.
@@ -2083,18 +2003,6 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/odds-screen")
     def api_odds_screen():
         """Live read-only odds universe, independent of recommendation eligibility."""
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
-        if preview_requested:
-            from odds_screen_preview import temporary_odds_screen_preview_payload
-
-            response = jsonify(temporary_odds_screen_preview_payload())
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
         if request.args.get("active", "").strip().lower() not in {
             "1",
             "true",
@@ -2460,12 +2368,6 @@ def create_app(start_background: bool = True) -> Flask:
     def api_arbitrage():
         """On-demand, read-only arbitrage scan over complete matching markets."""
 
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         active_requested = request.args.get("active", "").strip().lower() in {
             "1",
             "true",
@@ -2573,7 +2475,7 @@ def create_app(start_background: bool = True) -> Flask:
         ).strip().lower() in {"1", "true", "yes", "on"}
 
         configured = bool(odds_feed_providers())
-        if not preview_requested and not active_requested:
+        if not active_requested:
             response = jsonify(
                 {
                     "data": [],
@@ -2584,34 +2486,6 @@ def create_app(start_background: bool = True) -> Flask:
                         "Arbitrage scanning is paused. Start the feed when you "
                         "need current prices."
                     ),
-                    "refreshSeconds": 0,
-                }
-            )
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
-
-        if preview_requested:
-            from arbitrage_preview import temporary_arbitrage_events
-
-            events = temporary_arbitrage_events()
-            board = build_arbitrage_board(
-                events,
-                selected_books=raw_books,
-                allowed_markets=requested_markets,
-                total_stake=total_stake,
-                min_profit_percent=min_profit,
-                max_quote_age_seconds=max_quote_age,
-                commission_bps=commission_bps,
-                require_distinct_books=require_distinct_books,
-            )
-            preview_rows = board["data"][:10]
-            response = jsonify(
-                {
-                    "data": preview_rows,
-                    "total": len(preview_rows),
-                    "diagnostics": board["diagnostics"],
-                    "configured": configured,
-                    "previewOnly": True,
                     "refreshSeconds": 0,
                 }
             )
@@ -2688,12 +2562,6 @@ def create_app(start_background: bool = True) -> Flask:
     def api_middles():
         """On-demand middle scan with transparent two-leg payout math."""
 
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         active_requested = request.args.get("active", "").strip().lower() in {
             "1",
             "true",
@@ -2782,7 +2650,7 @@ def create_app(start_background: bool = True) -> Flask:
         ).strip().lower() in {"1", "true", "yes", "on"}
 
         configured = bool(odds_feed_providers())
-        if not preview_requested and not active_requested:
+        if not active_requested:
             response = jsonify(
                 {
                     "data": [],
@@ -2790,34 +2658,6 @@ def create_app(start_background: bool = True) -> Flask:
                     "configured": configured,
                     "paused": True,
                     "message": "Middle scanning is paused. Start the feed when you need current prices.",
-                    "refreshSeconds": 0,
-                }
-            )
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
-
-        if preview_requested:
-            from middles_preview import temporary_middle_events
-
-            board = build_middles_board(
-                temporary_middle_events(),
-                selected_books=raw_books,
-                allowed_markets=requested_markets,
-                total_stake=total_stake,
-                min_middle_width=min_width,
-                max_cost_percent=max_cost,
-                max_quote_age_seconds=max_quote_age,
-                commission_bps=commission_bps,
-                require_distinct_books=require_distinct_books,
-            )
-            preview_rows = board["data"][:10]
-            response = jsonify(
-                {
-                    "data": preview_rows,
-                    "total": len(preview_rows),
-                    "diagnostics": board["diagnostics"],
-                    "configured": configured,
-                    "previewOnly": True,
                     "refreshSeconds": 0,
                 }
             )
@@ -2890,12 +2730,6 @@ def create_app(start_background: bool = True) -> Flask:
     def api_low_hold():
         """On-demand low-hold and middle scan over matching executable markets."""
 
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-            "on",
-        }
         active_requested = request.args.get("active", "").strip().lower() in {
             "1",
             "true",
@@ -3047,7 +2881,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
 
         configured = bool(odds_feed_providers())
-        if not preview_requested and not active_requested:
+        if not active_requested:
             response = jsonify(
                 {
                     "data": [],
@@ -3080,24 +2914,6 @@ def create_app(start_background: bool = True) -> Flask:
             "stake_mode": stake_mode,
             "locked_outcome_index": locked_outcome_index,
         }
-        if preview_requested:
-            from low_hold_preview import temporary_low_hold_events
-
-            board = build_low_hold_board(temporary_low_hold_events(), **board_kwargs)
-            preview_rows = board["data"][:10]
-            response = jsonify(
-                {
-                    "data": preview_rows,
-                    "total": len(preview_rows),
-                    "diagnostics": board["diagnostics"],
-                    "configured": configured,
-                    "previewOnly": True,
-                    "refreshSeconds": 0,
-                }
-            )
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
-
         if not odds_feed_providers():
             response = jsonify(
                 {
@@ -3193,89 +3009,6 @@ def create_app(start_background: bool = True) -> Flask:
                     "invalidBooks": invalid_required_books,
                 }
             ), 400
-        preview_requested = request.args.get("preview", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        if preview_requested:
-            from ev_preview import temporary_ev_preview_rows
-
-            preview_bankroll = min(
-                10_000_000.0,
-                max(1.0, _safe_float(request.args.get("bankroll"), 10_000.0)),
-            )
-            preview_rows = temporary_ev_preview_rows(
-                devig_method=devig_method,
-                bankroll=preview_bankroll,
-            )
-            if required_books:
-                preview_book_aliases = {
-                    "betonline": "betonlineag",
-                    "prophetexchange": "prophetx",
-                }
-                required_preview_books = {
-                    preview_book_aliases.get(book, book)
-                    for book in required_books
-                }
-                preview_rows = [
-                    row for row in preview_rows
-                    if required_preview_books.issubset(
-                        {
-                            str(quote.get("bookKey") or "").lower()
-                            for quote in row.get("quotes") or []
-                        }
-                    )
-                ]
-            for row in preview_rows:
-                row["requiredBooks"] = list(required_books)
-            requested_preview_sports = tuple(
-                item.strip()
-                for item in request.args.get("sports", "").split(",")
-                if item.strip()
-            )
-            requested_preview_markets = tuple(
-                item.strip()
-                for item in request.args.get("markets", "").split(",")
-                if item.strip()
-            )
-            if requested_preview_sports:
-                allowed_sports = set(requested_preview_sports)
-                preview_rows = [
-                    row for row in preview_rows
-                    if row.get("sportKey") in allowed_sports
-                ]
-            if requested_preview_markets:
-                allowed_markets = set(requested_preview_markets)
-                preview_rows = [
-                    row for row in preview_rows
-                    if row.get("marketKey") in allowed_markets
-                ]
-            # Preview rows are a stable visual-editing fixture. Keep this path
-            # independent of the durable user store so it always returns the
-            # complete ten-card board, even during database maintenance.
-            rows = preview_rows[:10]
-            response = jsonify(
-                {
-                    "data": rows,
-                    "total": len(rows),
-                    "configured": positive_ev_configured,
-                    "previewOnly": True,
-                    "bankroll": preview_bankroll,
-                    "devigMethod": devig_method,
-                    "requiredBooks": list(required_books),
-                    "diagnostics": {
-                        "qualified": len(rows),
-                        "watchOnly": 0,
-                        "rejected": 0,
-                        "rejectionReasons": {},
-                    },
-                    "refreshSeconds": 0,
-                }
-            )
-            response.headers["Cache-Control"] = "private, no-store"
-            return response
-
         if not settings.positive_ev_enabled:
             response = jsonify(
                 {
@@ -3541,28 +3274,12 @@ def create_app(start_background: bool = True) -> Flask:
             if scope == "personal"
             else LAB_TRACKER_GLOBAL_USER_ID
         )
-        demo_requested = request.args.get("demo", "").strip().lower() in {
-            "1",
-            "true",
-            "yes",
-        }
-        if demo_requested and scope == "signal":
-            prediction_records = app.extensions[
-                "lab_tracker_service"
-            ].database.get_tracker_records(MODEL_TRACKER_USER_ID)
-            payload = demo_dashboard(
-                scope=scope,
-                source=source,
-                window=window,
-                prediction_records=prediction_records,
-            )
-        else:
-            payload = app.extensions["lab_tracker_service"].dashboard(
-                scope=scope,
-                user_id=user_id,
-                source=source,
-                window=window,
-            )
+        payload = app.extensions["lab_tracker_service"].dashboard(
+            scope=scope,
+            user_id=user_id,
+            source=source,
+            window=window,
+        )
         response = jsonify({"data": payload})
         response.headers["Cache-Control"] = "private, no-store"
         return response

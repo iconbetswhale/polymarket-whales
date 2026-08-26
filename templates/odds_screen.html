@@ -1,13 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="odds-screen-page" data-odds-preview="{{ 'true' if odds_screen_preview else 'false' }}">
-  {% if odds_screen_preview %}
-  <section class="odds-preview-banner" aria-label="Preview mode">
-    <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>30 temporary preview matchups</strong>
-    <span>Visual fixtures only · no provider requests or sportsbook credits.</span>
-  </section>
-  {% endif %}
+<section class="odds-screen-page">
 
   <header class="odds-screen-header">
     <div class="odds-title-block">
@@ -25,7 +18,7 @@
         <nav class="odds-sport-tabs" aria-label="Sport and league">
           <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NFL PRE" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nfl.png') }}" alt="">NFL PRE</button>
           <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="WNBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/wnba.png') }}" alt="">WNBA</button>
-          <button class="{{ 'active' if odds_screen_preview else '' }}" data-odds-sport-filter data-odds-sport="Baseball" data-odds-league="MLB" type="button" aria-pressed="{{ 'true' if odds_screen_preview else 'false' }}"><img src="{{ url_for('static', filename='assets/leagues/mlb.png') }}" alt="">MLB</button>
+          <button data-odds-sport-filter data-odds-sport="Baseball" data-odds-league="MLB" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/mlb.png') }}" alt="">MLB</button>
           <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NCAAF" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAF</button>
           <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NFL" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nfl.png') }}" alt="">NFL</button>
           <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nba.png') }}" alt="">NBA</button>
@@ -101,7 +94,7 @@
         </tr>
       </thead>
       <tbody id="odds-grid" class="odds-grid-body" aria-live="polite">
-        <tr class="odds-state-row"><td colspan="8"><div class="odds-loading" role="status"><span class="loading-pulse" aria-hidden="true"></span><strong>Odds Screen paused</strong><small>Start the feed when you need the full comparison board.</small></div></td></tr>
+        <tr class="odds-state-row"><td colspan="8"><div class="odds-loading" role="status"><span class="loading-pulse" aria-hidden="true"></span><strong>Loading live odds</strong><small>Scanning current markets and sportsbook prices.</small></div></td></tr>
       </tbody>
     </table>
   </div>
@@ -114,8 +107,5 @@
   <nav class="mobile-odds-sheet-tabs" aria-label="Market type"><button class="active" type="button" data-mobile-market-kind="main">All</button><button type="button" data-mobile-market-kind="moneyline">Moneyline</button><button type="button" data-mobile-market-kind="spread">Run Line</button><button type="button" data-mobile-market-kind="total">Total</button></nav>
   <div class="mobile-odds-sheet-content" id="mobile-odds-sheet-content"></div>
 </section>
-{% if odds_screen_preview and odds_screen_preview_payload %}
-<script id="odds-preview-data" type="application/json">{{ odds_screen_preview_payload | tojson }}</script>
-{% endif %}
 {% endblock %}
 

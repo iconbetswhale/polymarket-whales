@@ -6,7 +6,6 @@
   let config = { books: [] };
   try { config = JSON.parse(configNode?.textContent || "{}"); } catch (_error) { config = { books: [] }; }
 
-  const preview = pageRoot.dataset.lhPreview === "true";
   const popularBooks = new Set(["fanduel", "draftkings", "betmgm", "caesars", "fanatics", "bet365", "pinnacle", "novig", "hardrockbet", "betonline", "kalshi", "polymarket"]);
   const teamLogoCodes = Object.freeze({
     mlb: Object.freeze({
@@ -58,7 +57,7 @@
     loading: false,
     error: "",
     paused: false,
-    liveActive: preview,
+    liveActive: true,
     selectedId: null,
     search: "",
     sport: "",
@@ -309,7 +308,7 @@
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><strong>Low Hold scan unavailable</strong><p>${esc(state.error)}</p><button class="arb-secondary-button" type="button" data-lh-retry>Try again</button></div>`;
       return;
     }
-    if (!preview && !state.liveActive) {
+    if (!state.liveActive) {
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-pause-circle" aria-hidden="true"></i><strong>Low Hold scanner is paused</strong><p>Start the feed when you need it. IconLabs requests current prices only on demand to protect provider credits.</p><button class="arb-primary-button" type="button" data-lh-start><i class="ph ph-play"></i>Start scanner</button></div>`;
       return;
     }
@@ -425,8 +424,7 @@
 
   function endpoint() {
     const params = new URLSearchParams();
-    if (preview) params.set("preview", "1");
-    else params.set("active", "1");
+    params.set("active", "1");
     params.set("stake", String(state.stake));
     params.set("stake_mode", state.stakeMode);
     params.set("locked_leg", String(state.lockedLegIndex));
@@ -445,7 +443,7 @@
   }
 
   async function loadBoard({ quiet = false } = {}) {
-    if (state.loading || (!preview && !state.liveActive)) { renderAll(); return; }
+    if (state.loading || !state.liveActive) { renderAll(); return; }
     state.loading = true;
     state.error = "";
     if (!quiet) renderFeed();
@@ -458,7 +456,7 @@
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
       if (state.alerts && state.rows.length) notify(`${state.rows.length} Low Hold opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
-      scheduleRefresh(Number(payload.refreshSeconds || (preview ? 0 : 60)));
+      scheduleRefresh(Number(payload.refreshSeconds || 60));
     } catch (error) {
       state.rows = [];
       state.diagnostics = {};
@@ -473,7 +471,7 @@
 
   function scheduleRefresh(seconds) {
     window.clearTimeout(state.timer);
-    if (!seconds || state.paused || (!preview && !state.liveActive)) return;
+    if (!seconds || state.paused || !state.liveActive) return;
     state.timer = window.setTimeout(() => loadBoard({ quiet: true }), seconds * 1000);
   }
 
@@ -486,7 +484,7 @@
   }
 
   function togglePause() {
-    if (!state.liveActive && !preview) { startScanner(); return; }
+    if (!state.liveActive) { startScanner(); return; }
     state.paused = !state.paused;
     elements.pause.setAttribute("aria-pressed", state.paused ? "true" : "false");
     elements.pause.innerHTML = `<i class="ph ${state.paused ? "ph-play" : "ph-pause"}" aria-hidden="true"></i>`;
@@ -758,7 +756,7 @@
   elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; renderAll(); });
   elements.market.addEventListener("change", () => { state.market = elements.market.value; renderAll(); });
   elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; saveSettings(); renderAll(); });
-  elements.refresh.addEventListener("click", () => { if (!state.liveActive && !preview) startScanner(); else loadBoard(); });
+  elements.refresh.addEventListener("click", () => { if (!state.liveActive) startScanner(); else loadBoard(); });
   elements.pause.addEventListener("click", togglePause);
   elements.alerts.addEventListener("click", () => { state.alerts = !state.alerts; elements.alerts.setAttribute("aria-pressed", state.alerts ? "true" : "false"); notify(state.alerts ? "Low Hold alerts enabled." : "Low Hold alerts disabled."); });
   document.getElementById("lh-filter-open").addEventListener("click", () => openFilter());
@@ -800,6 +798,5 @@
   elements.sort.value = state.sort;
   updateFilterBadge();
   syncDialog();
-  if (preview) loadBoard();
-  else renderAll();
+  loadBoard();
 })();

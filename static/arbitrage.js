@@ -6,7 +6,6 @@
   let config = { books: [] };
   try { config = JSON.parse(configNode?.textContent || "{}"); } catch (_error) { config = { books: [] }; }
 
-  const preview = pageRoot.dataset.arbPreview === "true";
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const defaultBookKeys = eligibleBooks.filter((book) => book.defaultExecution !== false).map((book) => book.key);
   const storageKey = "iconlabsArbitrageSettingsV1";
@@ -29,8 +28,8 @@
     error: "",
     selectedId: null,
     loading: false,
-    paused: !preview,
-    liveActive: preview,
+    paused: false,
+    liveActive: true,
     alerts: false,
     search: "",
     sport: "",
@@ -200,7 +199,7 @@
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><strong>Arbitrage scan unavailable</strong><p>${esc(state.error)}</p><button class="arb-secondary-button" type="button" data-arb-retry>Try again</button></div>`;
       return;
     }
-    if (!preview && !state.liveActive) {
+    if (!state.liveActive) {
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-pause-circle" aria-hidden="true"></i><strong>Arbitrage scanner is paused</strong><p>Start the feed when you need it. IconLabs will request current prices only on demand to protect provider credits.</p><button class="arb-primary-button" type="button" data-arb-start><i class="ph ph-play"></i>Start scanner</button></div>`;
       return;
     }
@@ -310,8 +309,7 @@
 
   function endpoint() {
     const params = new URLSearchParams();
-    if (preview) params.set("preview", "1");
-    else params.set("active", "1");
+    params.set("active", "1");
     params.set("stake", String(state.stake));
     params.set("min_profit", String(state.minProfit));
     params.set("max_quote_age", String(state.maxAge));
@@ -323,7 +321,7 @@
   }
 
   async function loadBoard({ quiet = false } = {}) {
-    if (state.loading || (!preview && !state.liveActive)) { renderAll(); return; }
+    if (state.loading || !state.liveActive) { renderAll(); return; }
     state.loading = true;
     state.error = "";
     if (!quiet) renderFeed();
@@ -336,7 +334,7 @@
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
       if (state.alerts && state.rows.length) notify(`${state.rows.length} arbitrage opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
-      scheduleRefresh(Number(payload.refreshSeconds || (preview ? 0 : 60)));
+      scheduleRefresh(Number(payload.refreshSeconds || 60));
     } catch (error) {
       state.rows = [];
       state.diagnostics = {};
@@ -351,7 +349,7 @@
 
   function scheduleRefresh(seconds) {
     window.clearTimeout(state.timer);
-    if (!seconds || state.paused || (!preview && !state.liveActive)) return;
+    if (!seconds || state.paused || !state.liveActive) return;
     state.timer = window.setTimeout(() => loadBoard({ quiet: true }), seconds * 1000);
   }
 
@@ -364,7 +362,7 @@
   }
 
   function togglePause() {
-    if (!state.liveActive && !preview) { startScanner(); return; }
+    if (!state.liveActive) { startScanner(); return; }
     state.paused = !state.paused;
     elements.pause.setAttribute("aria-pressed", state.paused ? "true" : "false");
     elements.pause.innerHTML = `<i class="ph ${state.paused ? "ph-play" : "ph-pause"}" aria-hidden="true"></i>`;
@@ -483,7 +481,7 @@
         if (state.liveActive) loadBoard();
       }, 350);
     });
-    elements.refresh.addEventListener("click", () => { if (!state.liveActive && !preview) startScanner(); else loadBoard(); });
+    elements.refresh.addEventListener("click", () => { if (!state.liveActive) startScanner(); else loadBoard(); });
     elements.pause.addEventListener("click", togglePause);
     elements.alerts.addEventListener("click", () => {
       state.alerts = !state.alerts;
@@ -498,7 +496,7 @@
       event.preventDefault();
       if (!readDialog()) return;
       elements.filterDialog.close();
-      if (state.liveActive || preview) loadBoard(); else renderAll();
+      if (state.liveActive) loadBoard(); else renderAll();
     });
     document.getElementById("arb-reset").addEventListener("click", resetDialog);
     document.getElementById("arb-books-all").addEventListener("click", () => { state.selectedBooks = new Set(eligibleBooks.map((book) => book.key)); renderBookGrid(elements.bookSearch.value); });
@@ -536,5 +534,5 @@
   }
 
   bind();
-  if (preview) loadBoard(); else renderAll();
+  loadBoard();
 })();

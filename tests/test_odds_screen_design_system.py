@@ -18,7 +18,7 @@ def test_odds_screen_opts_into_v2_without_legacy_layers(app_client):
     assert b"mobile-product.css" not in response.data
     assert b"app-premium.css" not in response.data
     assert b"sidebar-shell.css" not in response.data
-    assert b'id="odds-preview-data"' in response.data
+    assert b'id="odds-preview-data"' not in response.data
 
 
 def test_odds_screen_live_page_does_not_embed_preview_data(app_client):
@@ -28,53 +28,26 @@ def test_odds_screen_live_page_does_not_embed_preview_data(app_client):
     assert b'id="odds-preview-data"' not in response.data
 
 
-def test_odds_screen_demo_page_embeds_thirty_game_preview(app_client):
+def test_odds_screen_demo_parameter_cannot_embed_fixture_rows(app_client):
     response = app_client.get("/odds-screen?demo=1")
+    live = app_client.get("/odds-screen")
 
     assert response.status_code == 200
-    assert b'id="odds-preview-data"' in response.data
-    assert b"30 temporary preview matchups" in response.data
+    assert response.data == live.data
+    assert b'id="odds-preview-data"' not in response.data
+    assert b"temporary preview matchups" not in response.data
 
 
-def test_odds_screen_preview_is_read_only_and_populated(app_client):
+def test_odds_screen_preview_parameter_cannot_enable_fixture_rows(app_client):
     response = app_client.get("/api/odds-screen?preview=1")
+    live = app_client.get("/api/odds-screen")
 
     assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "private, no-store"
     payload = response.get_json()
-    assert payload["previewOnly"] is True
-    assert payload["providerRequestsEnabled"] is False
-    assert payload["trackerWritesEnabled"] is False
-    assert len(payload["data"]) == 140
-    assert len({row["event_id"] for row in payload["data"]}) == 30
-    assert all(row["executionOptions"] for row in payload["data"])
-    market_titles = {row["sports_market_type"] for row in payload["data"]}
-    assert market_titles == {
-        "Moneyline",
-        "Run Line / Spread",
-        "Alternate Spread",
-        "Game Total",
-        "Alternate Total",
-        "Player Hits",
-    }
-    event_counts = {
-        title: len(
-            {
-                row["event_id"]
-                for row in payload["data"]
-                if row["sports_market_type"] == title
-            }
-        )
-        for title in market_titles
-    }
-    assert event_counts == {
-        "Moneyline": 30,
-        "Run Line / Spread": 8,
-        "Alternate Spread": 8,
-        "Game Total": 8,
-        "Alternate Total": 8,
-        "Player Hits": 8,
-    }
+    assert payload == live.get_json()
+    assert payload["paused"] is True
+    assert payload["data"] == []
+    assert "previewOnly" not in payload
 
 
 def test_odds_screen_template_uses_approved_terminal_structure():
@@ -83,7 +56,6 @@ def test_odds_screen_template_uses_approved_terminal_structure():
     )
 
     for hook in (
-        "odds-preview-banner",
         "odds-screen-header",
         "odds-navigation-shell",
         "odds-navigation-top",
@@ -175,20 +147,18 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert ".odds-compact-market-tabs" in stylesheet
 
 
-def test_odds_screen_preview_client_does_not_start_polling():
+def test_odds_screen_client_starts_only_the_live_feed():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert "iconbets_odds_favorites" not in script
     assert "favoritesOnly" not in script
 
-    assert 'preview: new URLSearchParams(window.location.search).get("preview") === "1"' in script
-    assert 'document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true"' in script
-    assert 'if (oddsState.preview) params.set("preview", "1")' in script
-    assert "if (!oddsState.preview) oddsState.timer = window.setInterval(loadOddsScreen, 60000)" in script
-    assert 'document.getElementById("odds-preview-data")' in script
-    assert "previewPayload || await fetchJson" in script
-    assert 'oddsState.providerOrder = [...previewKeys, "best"]' in script
-    assert "if (!oddsState.preview) persistOddsProviderOrder()" in script
+    assert "oddsState.preview" not in script
+    assert 'params.set("preview", "1")' not in script
+    assert 'document.getElementById("odds-preview-data")' not in script
+    assert "previewPayload" not in script
+    assert "oddsState.timer = window.setInterval(loadOddsScreen, 60000)" in script
+    assert "persistOddsProviderOrder()" in script
     assert "ODDS_LIQUIDITY_PROVIDER_KEYS" in script
     assert 'return `${formattedAmount} Limit`' in script
     assert "if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount" in script
@@ -198,8 +168,8 @@ def test_odds_screen_preview_client_does_not_start_polling():
     assert "bindOddsColumnHighlight" not in script
     assert "oddsState.autoRefresh" not in script
     assert "setOddsFeedActive(true)" in script
-    assert 'oddsState.sport = "Baseball"' in script
-    assert 'oddsState.league = "MLB"' in script
+    assert 'oddsState.sport = ""' in script
+    assert 'oddsState.league = ""' in script
     assert 'document.querySelectorAll("[data-odds-view]")' in script
     assert 'document.querySelectorAll("[data-odds-sport-filter]")' in script
     assert 'oddsPlayerPropMarkets()[0]?.kind || "player_hits"' in script

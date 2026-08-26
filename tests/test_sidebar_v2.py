@@ -131,7 +131,7 @@ def test_every_v2_route_renders_the_shared_sidebar_stylesheet(app_client):
         assert b"sidebar-v2.css" in response.data, route
 
 
-def test_preview_navigation_keeps_every_sidebar_destination_in_preview_mode(app_client):
+def test_preview_parameter_does_not_propagate_through_navigation(app_client):
     response = app_client.get("/dfs?preview=1")
 
     assert response.status_code == 200
@@ -150,7 +150,8 @@ def test_preview_navigation_keeps_every_sidebar_destination_in_preview_mode(app_
         "/edge-map",
         "/intelligence",
     ):
-        assert f'href="{route}?preview=1"'.encode() in response.data, route
+        assert f'href="{route}"'.encode() in response.data, route
+        assert f'href="{route}?preview=1"'.encode() not in response.data, route
 
 
 def test_regular_navigation_does_not_force_preview_mode(app_client):
@@ -165,19 +166,20 @@ def test_regular_navigation_does_not_force_preview_mode(app_client):
     assert b'href="/odds-screen?demo=1"' not in response.data
 
 
-def test_prediction_traders_url_updates_do_not_drop_preview_mode():
-    assert 'const previewMode = new URLSearchParams(window.location.search).get("preview")' in APP_JS
-    assert '["1", "true", "yes", "on", "trade"].includes(previewMode)' in APP_JS
+def test_prediction_traders_url_updates_drop_retired_preview_mode():
+    assert 'const previewMode = new URLSearchParams(window.location.search).get("preview")' not in APP_JS
+    assert 'params.set("preview", previewMode)' not in APP_JS
 
 
-def test_wallet_lock_redirect_keeps_preview_navigation_active(app_client):
+def test_wallet_lock_page_does_not_propagate_preview_navigation(app_client):
     app_client.application.config["WALLET_PAGE_PASSCODE"] = "1357"
     app_client.application.config["WALLET_PAGE_LOCK_SECRET"] = "sidebar-preview-test"
 
     locked = app_client.get("/wallets?preview=1")
     assert locked.status_code == 302
-    assert "preview=1" in locked.headers["Location"]
+    assert locked.headers["Location"].startswith("/wallets/unlock")
 
     unlock_page = app_client.get(locked.headers["Location"])
     assert unlock_page.status_code == 200
-    assert b'href="/positive-ev?preview=1"' in unlock_page.data
+    assert b'href="/positive-ev"' in unlock_page.data
+    assert b'href="/positive-ev?preview=1"' not in unlock_page.data

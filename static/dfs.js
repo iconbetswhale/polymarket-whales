@@ -18,47 +18,7 @@
     NHL: ['Assists','Blocked Shots','Fantasy Score','Goals','Goalie Saves','Points','Shots on Goal']
   };
   const allMarkets = [...new Set(Object.values(marketTypes).flat())].sort((a,b) => a.localeCompare(b));
-  const baseRows = [
-    {player:'Aaron Judge', match:'Yankees vs Red Sox', sport:'MLB', date:'today', time:'Today · 7:05 PM', side:'Over', stat:'Hits + Runs + RBIs', line:2.5, dfsLines:{underdog:3.5}, hit:63.8, discrepancy:true, odds:['-176','-165','-145','-152','—','-160','-148','-150','-142','-112','-155','-168','—','—','-150']},
-    {player:'Paul Skenes', match:'Pirates at Cubs', sport:'MLB', date:'today', time:'Today · 2:20 PM', side:'Over', stat:'Strikeouts', line:6.5, dfsLines:{'dk-pick6':5.5}, hit:60.4, odds:[{odds:'-185',line:5.5},'-148','-137','-142','-129','-151','-135','-140','-132',{odds:'-118',line:6.0},'-145','-158','-120','—','-138']},
-    {player:'A’ja Wilson', match:'Aces vs Mercury', sport:'WNBA', date:'today', time:'Today · 9:30 PM', side:'Over', stat:'Points', line:25.5, hit:58.9, odds:['-143','-138','-124','-130','-120','-141','-128','-126','-121','-115','-133','-146','—',{odds:'-108',line:25.0},'-127']},
-    {player:'Caitlin Clark', match:'Fever at Liberty', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Under', stat:'Points', line:21.5, hit:57.6, odds:['-136','-133','-120','-125','-116','-132','-124','-122','-118',{odds:'-115',line:22.5},'-128','-140','-120','—','-121']},
-    {player:'Josh Allen', match:'Bills vs Ravens', sport:'NFL', date:'tomorrow', time:'Tomorrow · 7:20 PM', side:'Over', stat:'Passing Yards', line:265.5, hit:56.8, odds:['-131','-128','-115','-120','-112','-127','-119','-118','-114',{odds:'-112',line:264.5},'-123','-134','—',{odds:'-110',line:266.5},'-116']},
-    {player:'Breanna Stewart', match:'Liberty vs Fever', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Over', stat:'Rebounds', line:8.5, hit:53.4, discrepancy:false, odds:['-126','-124','-112','-116','-108','-123','-114','-115','-110','-115','-118','-129','—','—','-113']},
-    {player:'Shohei Ohtani', match:'Dodgers at Padres', sport:'MLB', date:'today', time:'Today · 10:10 PM', side:'Under', stat:'Hits + Runs + RBIs', line:3.5, hit:54.9, odds:['-121','-118','-108','-112','-104','-120','-109','-111','-105','-110','-115','-124','—','-108','-110']},
-    {player:'Nikola Jokic', match:'Nuggets vs Suns', sport:'NBA', date:'tomorrow', time:'Tomorrow · 9:00 PM', side:'Over', stat:'Rebounds', line:11.5, hit:50.8, discrepancy:false, odds:['-115','-112','-102','-106','+100','-114','-104','-105','+101',{odds:'-112',line:11.0},'-108','-118','-110','—','-103']}
-  ];
-  const previewOddsFor = seed => sourceOddsKeys.map((_, index) => {
-    if ((seed + index) % 17 === 0) return '—';
-    const price = -104 - ((seed * 7 + index * 5) % 57);
-    return index === 1 && seed % 4 === 0 ? {odds:String(price), line:null} : String(price);
-  });
-  const supplementalPreviewRows = [
-    {player:'Juan Soto', match:'Mets vs Nationals', sport:'MLB', date:'today', time:'Today · 7:10 PM', side:'Over', stat:'Home Runs', line:0.5, hit:62.1},
-    {player:'Mookie Betts', match:'Dodgers at Padres', sport:'MLB', date:'today', time:'Today · 10:10 PM', side:'Over', stat:'Total Bases', line:1.5, hit:61.3},
-    {player:'Bobby Witt Jr.', match:'Royals vs Athletics', sport:'MLB', date:'today', time:'Today · 8:10 PM', side:'Over', stat:'Stolen Bases', line:0.5, hit:59.7},
-    {player:'Tarik Skubal', match:'Tigers at Guardians', sport:'MLB', date:'today', time:'Today · 6:40 PM', side:'Over', stat:'Strikeouts', line:7.5, hit:60.8},
-    {player:'Gunnar Henderson', match:'Orioles vs Rays', sport:'MLB', date:'tomorrow', time:'Tomorrow · 7:05 PM', side:'Over', stat:'Hits + Runs + RBIs', line:2.5, hit:58.6},
-    {player:'José Ramírez', match:'Guardians vs Tigers', sport:'MLB', date:'today', time:'Today · 6:40 PM', side:'Over', stat:'Total Bases', line:1.5, hit:57.9},
-    {player:'Sabrina Ionescu', match:'Liberty vs Fever', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 8:00 PM', side:'Over', stat:'3-Pointers Made', line:2.5, hit:60.2},
-    {player:'Napheesa Collier', match:'Lynx at Storm', sport:'WNBA', date:'today', time:'Today · 10:00 PM', side:'Over', stat:'Rebounds', line:9.5, hit:59.4},
-    {player:'Kelsey Plum', match:'Sparks vs Aces', sport:'WNBA', date:'today', time:'Today · 9:30 PM', side:'Over', stat:'Assists', line:4.5, hit:56.9},
-    {player:'Angel Reese', match:'Sky at Sun', sport:'WNBA', date:'tomorrow', time:'Tomorrow · 7:00 PM', side:'Over', stat:'Rebounds', line:11.5, hit:55.8},
-    {player:'Lamar Jackson', match:'Ravens at Bills', sport:'NFL', date:'tomorrow', time:'Tomorrow · 7:20 PM', side:'Over', stat:'Passing Yards', line:248.5, hit:60.6},
-    {player:'Saquon Barkley', match:'Eagles vs Cowboys', sport:'NFL', date:'today', time:'Today · 8:20 PM', side:'Over', stat:'Rushing Yards', line:82.5, hit:58.8},
-    {player:'Justin Jefferson', match:'Vikings at Packers', sport:'NFL', date:'tomorrow', time:'Tomorrow · 4:25 PM', side:'Over', stat:'Receiving Yards', line:88.5, hit:57.4},
-    {player:'CeeDee Lamb', match:'Cowboys at Eagles', sport:'NFL', date:'today', time:'Today · 8:20 PM', side:'Over', stat:'Receptions', line:6.5, hit:56.7},
-    {player:'Patrick Mahomes', match:'Chiefs vs Broncos', sport:'NFL', date:'tomorrow', time:'Tomorrow · 8:15 PM', side:'Over', stat:'Passing Touchdowns', line:2.5, hit:55.6},
-    {player:'Jalen Brunson', match:'Knicks vs Celtics', sport:'NBA', date:'tomorrow', time:'Tomorrow · 7:30 PM', side:'Over', stat:'Points', line:28.5, hit:59.1},
-    {player:'Shai Gilgeous-Alexander', match:'Thunder at Rockets', sport:'NBA', date:'today', time:'Today · 8:00 PM', side:'Over', stat:'Points', line:31.5, hit:58.3},
-    {player:'Anthony Edwards', match:'Timberwolves vs Nuggets', sport:'NBA', date:'tomorrow', time:'Tomorrow · 9:00 PM', side:'Over', stat:'3-Pointers Made', line:3.5, hit:56.2},
-    {player:'Victor Wembanyama', match:'Spurs at Mavericks', sport:'NBA', date:'today', time:'Today · 8:30 PM', side:'Over', stat:'Blocks', line:3.5, hit:54.7},
-    {player:'Connor McDavid', match:'Oilers vs Flames', sport:'NHL', date:'tomorrow', time:'Tomorrow · 9:00 PM', side:'Over', stat:'Points', line:1.5, hit:61.6},
-    {player:'Auston Matthews', match:'Maple Leafs at Canadiens', sport:'NHL', date:'today', time:'Today · 7:00 PM', side:'Over', stat:'Shots on Goal', line:4.5, hit:57.1},
-    {player:'Igor Shesterkin', match:'Rangers vs Devils', sport:'NHL', date:'tomorrow', time:'Tomorrow · 7:30 PM', side:'Over', stat:'Goalie Saves', line:27.5, hit:55.2}
-  ].map((row, index) => ({...row, discrepancy:true, odds:previewOddsFor(index + baseRows.length)}));
-  const isPreview = document.querySelector('.dfs-page')?.dataset.dfsPreview === 'true';
-  let rows = isPreview ? [...baseRows, ...supplementalPreviewRows] : [];
+  let rows = [];
   const body = document.querySelector('#dfs-body');
   const statSelect = document.querySelector('#dfs-stat');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
@@ -67,9 +27,7 @@
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
-  const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
-  const bestSlipOddsByKey = Object.fromEntries(Object.entries(selectedBookKeys).map(([book,key]) => [key,bestSlipOdds[book]]));
   const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
   let activeBook = 'PrizePicks';
   let compareOrder = loadCompareOrder();
@@ -130,14 +88,10 @@
   }
 
   function fairProbability(row,targetLine) {
-    if (!isPreview) {
-      if (!Number.isFinite(Number(targetLine))) return null;
-      const lineKey = Number.isFinite(Number(targetLine)) ? String(Number(targetLine)) : '';
-      const liveValue = row.hitByLine?.[lineKey] ?? row.hit;
-      return Number.isFinite(Number(liveValue)) ? Number(liveValue) : null;
-    }
-    const adjustment = Object.entries(savedWeights).reduce((sum,[key,weight]) => sum + sharpOffsets[key] * (weight/100),0);
-    return Math.max(1,Math.min(99,row.hit + adjustment));
+    if (!Number.isFinite(Number(targetLine))) return null;
+    const lineKey = String(Number(targetLine));
+    const liveValue = row.hitByLine?.[lineKey] ?? row.hit;
+    return Number.isFinite(Number(liveValue)) ? Number(liveValue) : null;
   }
 
   function fairAmericanOdds(probabilityPercent) {
@@ -182,7 +136,7 @@
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
     const visible = rows.filter(r => (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
     body.innerHTML = visible.map(r => {
-      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? (isPreview ? r.line : null);
+      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? null;
       const fairHitRate = fairProbability(r,activeLine);
       const requiredProbability = americanOddsToProbability(bestSlipOdds[activeBook]);
       const probabilityEdgePoints = requiredProbability === null || fairHitRate === null ? null : fairHitRate - requiredProbability*100;
@@ -196,15 +150,11 @@
       const requiredPercent = requiredProbability === null ? '—' : `${(requiredProbability*100).toFixed(2)}%`;
       const edgeLabel = probabilityEdgePoints === null ? 'edge unavailable' : `${probabilityEdgePoints >= 0 ? '+' : ''}${probabilityEdgePoints.toFixed(2)} pp edge`;
       const oddsByKey = r.oddsByBook || Object.fromEntries(sourceOddsKeys.map((key,index) => [key,r.odds?.[index] ?? '—']));
-      if (isPreview) oddsByKey.circa = oddsByKey.betonline;
-      if (isPreview) Object.keys(bestSlipOddsByKey).forEach(key => { oddsByKey[key] = bestSlipOddsByKey[key]; });
       const cells = compareOrder.filter(key => key !== selectedBookKeys[activeBook]).map(key => {
         if (dfsComparisonKeys.has(key)) {
-          const comparisonLine = r.dfsLines?.[key] ?? (isPreview ? r.line : null);
+          const comparisonLine = r.dfsLines?.[key] ?? null;
           if (comparisonLine === null) return `<td class="book-cell dfs-market-cell muted" data-book-cell="${key}"><strong>—</strong></td>`;
-          const differs = Number(comparisonLine) !== Number(activeLine);
-          const display = isPreview && !differs ? (bestSlipOddsByKey[key] || comparisonLine) : comparisonLine;
-          return `<td class="book-cell dfs-market-cell" data-book-cell="${key}"><strong>${esc(display)}</strong></td>`;
+          return `<td class="book-cell dfs-market-cell" data-book-cell="${key}"><strong>${esc(comparisonLine)}</strong></td>`;
         }
         const market = oddsByKey[key];
         const unavailable = market === '—';
@@ -224,7 +174,6 @@
   }
 
   async function loadLiveRows() {
-    if (isPreview) return;
     const button = document.querySelector('#dfs-refresh');
     const live = document.querySelector('#dfs-live');
     button?.classList.add('spinning');
@@ -314,18 +263,7 @@
   ['dfs-date','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   document.querySelector('#dfs-search').addEventListener('input', render);
   document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); document.querySelector('#dfs-search').value=''; updateStats(); render(); });
-  document.querySelector('#dfs-refresh').addEventListener('click', event => {
-    if (!isPreview) return loadLiveRows();
-    const button = event.currentTarget;
-    button.classList.add('spinning');
-    button.disabled = true;
-    window.setTimeout(() => {
-      button.classList.remove('spinning');
-      button.disabled = false;
-      const live = document.querySelector('#dfs-live');
-      if (live) live.lastChild.textContent = ' Preview refreshed just now';
-    },700);
-  });
+  document.querySelector('#dfs-refresh').addEventListener('click', loadLiveRows);
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
   document.querySelectorAll('[data-devig-number]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigNumber,event.target.value)));
   document.querySelector('#dfs-devig-open').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset=''; document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });
@@ -347,7 +285,7 @@
     updateDevigSummary();
     render();
     devigDialog.close();
-    if (!isPreview) loadLiveRows();
+    loadLiveRows();
   });
   document.querySelector('#dfs-parlay-guide-open').addEventListener('click', () => parlayGuideDialog.showModal());
   document.querySelector('#dfs-parlay-guide-close').addEventListener('click', () => parlayGuideDialog.close());
@@ -369,9 +307,7 @@
   renderPresets();
   syncDevigControls();
   render();
-  if (!isPreview) {
-    loadLiveRows();
-    window.setInterval(() => { if (!document.hidden) loadLiveRows(); },60000);
-  }
+  loadLiveRows();
+  window.setInterval(() => { if (!document.hidden) loadLiveRows(); },60000);
 })();
 

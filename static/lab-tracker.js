@@ -7,7 +7,6 @@
     window: "7d",
     display: localStorage.getItem("iconlabs-lab-display") || "dollars",
     log: initialPersonalScope ? "open" : "graded",
-    demo: initialQuery.get("demo") !== "0",
     data: null,
   };
   let loadSequence = 0;
@@ -212,7 +211,6 @@
 
   function render() {
     const summary = state.data.summary;
-    $("#lab-demo-notice").hidden = !state.data.demoOnly;
     $("#lab-profit-label").textContent = state.display === "units" ? "Units" : "Profit";
     $("#lab-profit").textContent = amount(summary.profit);
     $("#lab-roi").textContent = `${Number(summary.roi).toFixed(1)}%`;
@@ -233,7 +231,6 @@
     const sequence = ++loadSequence;
     const params = new URLSearchParams({ scope: state.scope, window: state.window });
     if (state.source !== "all") params.set("source", state.source);
-    if (state.demo) params.set("demo", "1");
     try {
       const response = await fetch(`/api/lab-tracker?${params}`, { cache: "no-store" });
       if (!response.ok) throw new Error(`Request failed (${response.status})`);
@@ -245,15 +242,6 @@
       if (sequence !== loadSequence) return;
       $("#lab-bet-log").innerHTML = `<div class="lab-empty"><i class="ph ph-warning-circle"></i><strong>LabTracker is unavailable</strong><span>${escapeHtml(error.message)}</span></div>`;
     }
-  }
-
-  function syncDemoState() {
-    const button = $("#lab-demo-toggle");
-    button.classList.toggle("active", state.demo);
-    button.setAttribute("aria-pressed", String(state.demo));
-    const url = new URL(window.location.href);
-    url.searchParams.set("demo", state.demo ? "1" : "0");
-    window.history.replaceState({}, "", url);
   }
 
   function syncSourceTabs(activeButton) {
@@ -307,14 +295,8 @@
     $$('[data-lab-window]').forEach((item) => item.classList.toggle("active", item === button));
     load();
   }));
-  $("#lab-demo-toggle").addEventListener("click", () => {
-    state.demo = !state.demo;
-    syncDemoState();
-    load();
-  });
   $$('[data-lab-display]').forEach((button) => button.classList.toggle("active", button.dataset.labDisplay === state.display));
   syncSourceTabs($('.lab-tabs button' + (initialPersonalScope ? '[data-lab-scope="personal"]' : '[data-lab-source="all"]')));
-  syncDemoState();
   window.addEventListener("resize", () => state.data && drawChart());
   window.setInterval(() => {
     if (!document.hidden && state.scope === "signal" && state.source === "prediction_traders") load();

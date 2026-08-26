@@ -677,5 +677,4 @@ def positive_ev_catalog_payload() -> dict:
             }
             for key in POSITIVE_EV_DEVIG_BOOKS
         ],
-        "previewOnly": False,
     }

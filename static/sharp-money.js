@@ -12,8 +12,6 @@
     filters: { minimumLiquidity: 0, flow: "", marketType: "" },
     sortDescending: true,
     detailVisible: true,
-    preview: new URLSearchParams(window.location.search).get("preview") === "1",
-    placeholderSignals: [],
   };
   const $ = id => document.getElementById(id);
 
@@ -348,17 +346,13 @@
       return state.sortDescending ? rightLiquidity - leftLiquidity : leftLiquidity - rightLiquidity;
     });
     if (!state.visible.some(row => row.id === state.selectedId)) state.selectedId = state.visible[0]?.id || null;
-    const previewOnly = payload.previewOnly === true;
-    const placeholderMode = payload.placeholderMode === true;
     const feedToggle = $("sharp-feed-toggle");
     feedToggle.innerHTML = `<i class="ph ${running ? "ph-pause" : "ph-play"}"></i><span>${running ? "Pause feed" : "Play feed"}</span>`;
     feedToggle.classList.toggle("active", running);
     feedToggle.setAttribute("aria-pressed", String(running));
     feedToggle.setAttribute("aria-label", running ? "Pause feed" : "Play feed");
-    feedToggle.disabled = previewOnly || automatic || state.controlling || (!running && !sourceConfigured);
-    feedToggle.title = previewOnly
-      ? "Visual preview does not start provider requests"
-      : running
+    feedToggle.disabled = automatic || state.controlling || (!running && !sourceConfigured);
+    feedToggle.title = running
         ? "Pause the local read-only collector"
         : automatic
           ? "OddsEngine order-book refresh is automatic"
@@ -375,50 +369,30 @@
     $("sharp-filter-count").textContent = String(activeFilterCount);
     $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
     $("sharp-mode-badge").classList.toggle("live", running);
-    $("sharp-mode-badge").innerHTML = previewOnly
-      ? `<i class="ph ph-eye"></i> Visual preview`
-      : placeholderMode
-        ? `<i class="ph ph-eye"></i> Sample trades`
-      : running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
+    $("sharp-mode-badge").innerHTML = running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
     $("sharp-feed-notice").classList.toggle("live", running);
-    $("sharp-feed-title").textContent = previewOnly
-      ? "Five visual preview plays - no provider requests"
-      : placeholderMode
-        ? `${state.visible.length} visual placeholder trades - no sample is executable`
-      : running
+    $("sharp-feed-title").textContent = running
       ? `${sourceName} active`
       : sourceConfigured
         ? "Feed paused - zero new requests"
         : "Order-book credentials required - zero new requests";
-    $("sharp-feed-copy").textContent = previewOnly
-      ? "Synthetic layout fixtures only. Tracking, Discord, provider credits, and model data are disabled."
-      : placeholderMode
-        ? running
-          ? "Sample cards remain visible while the live collector looks for exact markets. They are clearly labeled and never enter tracking."
-          : sourceConfigured
-            ? "Sample cards are shown while the feed is empty. Press Play to replace them with real markets as they arrive."
-            : "Sample cards are shown for layout review. Connect OddsEngine Advanced or ProphetX to replace them with real markets."
-      : running
+    $("sharp-feed-copy").textContent = running
       ? `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
       : sourceConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add an odds feed for other-book comparisons"}.`
         : "Add ODDSENGINE_API_KEY with Advanced access or direct ProphetX credentials, then restart.";
-    $("sharp-feed-state").innerHTML = `<i></i> ${previewOnly ? "Preview" : placeholderMode ? "Samples" : running ? "Collecting" : "Paused"}`;
-    $("sharp-result-label").textContent = previewOnly
-      ? `${state.visible.length} preview play${state.visible.length === 1 ? "" : "s"}`
-      : placeholderMode
-        ? `${state.visible.length} placeholder trade${state.visible.length === 1 ? "" : "s"}`
-      : running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
-    $("sharp-last-updated").textContent = placeholderMode ? "Visual samples only" : payload.lastError || ageLabel(payload.lastSnapshotAt);
+    $("sharp-feed-state").innerHTML = `<i></i> ${running ? "Collecting" : "Paused"}`;
+    $("sharp-result-label").textContent = running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
+    $("sharp-last-updated").textContent = payload.lastError || ageLabel(payload.lastSnapshotAt);
     const liquidity = state.visible.reduce((sum, row) => sum + Number(row.liquidity || 0), 0);
     const flows = state.visible.filter(row => Math.abs(Number(row.pressure)) >= 0.01).length;
     $("sharp-summary-signals").textContent = String(state.visible.length);
     $("sharp-summary-liquidity").textContent = money(liquidity);
     $("sharp-summary-flow").textContent = String(flows);
     $("sharp-summary-cycles").textContent = String(payload.cycles || 0);
-    $("sharp-summary-signals-note").textContent = placeholderMode ? "Clearly labeled sample markets" : `Real ${sourceName} markets`;
-    $("sharp-summary-liquidity-note").textContent = placeholderMode ? "Sample quoted depth" : "Quoted, not confirmed wagers";
-    $("sharp-summary-flow-note").textContent = placeholderMode ? "Sample inferred pressure" : "Snapshot-inferred pressure";
+    $("sharp-summary-signals-note").textContent = `Real ${sourceName} markets`;
+    $("sharp-summary-liquidity-note").textContent = "Quoted, not confirmed wagers";
+    $("sharp-summary-flow-note").textContent = "Snapshot-inferred pressure";
     const requests = payload.provider?.metrics?.requests || 0;
     $("sharp-summary-requests").textContent = running ? `${requests} ${sourceName} requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length
@@ -432,26 +406,10 @@
 
   async function load() {
     try {
-      const endpoint = state.preview ? "/api/sharp-money/live?preview=1" : "/api/sharp-money/live";
-      const response = await fetch(endpoint, { cache: "default", credentials: "same-origin" });
+      const response = await fetch("/api/sharp-money/live", { cache: "default", credentials: "same-origin" });
       if (!response.ok) throw new Error(`Sharp Money returned ${response.status}`);
       state.payload = await response.json();
-      const liveSignals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
-      if (!state.preview && liveSignals.length === 0) {
-        if (state.placeholderSignals.length === 0) {
-          const placeholderResponse = await fetch("/api/sharp-money/live?preview=1", {
-            cache: "no-store",
-            credentials: "same-origin",
-          });
-          if (!placeholderResponse.ok) throw new Error(`Sharp Money placeholders returned ${placeholderResponse.status}`);
-          const placeholderPayload = await placeholderResponse.json();
-          state.placeholderSignals = Array.isArray(placeholderPayload.signals) ? placeholderPayload.signals : [];
-        }
-        state.payload.placeholderMode = true;
-        state.signals = state.placeholderSignals;
-      } else {
-        state.signals = liveSignals;
-      }
+      state.signals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
       render();
     } catch {
       $("sharp-last-updated").textContent = "Local collector unavailable";
@@ -576,6 +534,6 @@
   if (document.body.dataset.page === "sharp-money") {
     bind();
     load();
-    if (!state.preview) window.setInterval(load, 30000);
+    window.setInterval(load, 30000);
   }
 })();

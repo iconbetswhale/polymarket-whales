@@ -79,7 +79,6 @@
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
   let lastDetailTrigger = null, lastFilterTrigger = null;
-  const previewOnly = Boolean(serverConfig.previewOnly);
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const trackerDialog = $("ev-tracker-dialog");
@@ -781,11 +780,6 @@
   }
   function query() {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
-    if (previewOnly) {
-      params.set("preview", "1");
-      params.delete("markets");
-      params.delete("sports");
-    }
     return `/api/positive-ev?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
@@ -824,20 +818,15 @@
       $("ev-count").textContent = rows.length;
       $("ev-updated").textContent = `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
       let history = {};
-      if (!payload.previewOnly) {
-        try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
-        renderDiagnostics(payload.diagnostics || {}, history);
-      } else {
-        const previewCount = Number(payload.total || payload.data?.length || 0);
-        $("ev-credit-banner").innerHTML = `<i class="ph ph-eye" aria-hidden="true"></i><span><strong>${previewCount} temporary preview plays</strong> · Visual fixtures only · tracking requires confirmation and saves only to your personal trackers.</span>`;
-      }
+      try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
+      renderDiagnostics(payload.diagnostics || {}, history);
       const currentViewRows = visibleRows();
       const nextSelectedId = currentViewRows.some(row=>row.id===selectedId) ? selectedId : currentViewRows[0]?.id;
       if (nextSelectedId) select(nextSelectedId);
       else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
       feed.setAttribute("aria-busy", "false");
       clearTimeout(timer);
-      if (!payload.previewOnly && Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
+      if (Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
       feed.innerHTML = `<div class="ev-empty il-state il-state-error"><i class="ph ph-warning-circle" aria-hidden="true"></i><p>${esc(error.message)}</p></div>`;
       feed.setAttribute("aria-busy", "false");
@@ -1104,10 +1093,5 @@
   });
   document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
   renderFilters();
-  if (previewOnly) {
-    applyBankrollSettings({trades_to_play_bankroll:bankrollConfig.amount,unit_percentage:bankrollConfig.unitPercentage}, {forceInput:true});
-    load(true);
-  } else {
-    loadBankrollSettings().finally(()=>load(true));
-  }
+  loadBankrollSettings().finally(()=>load(true));
 })();

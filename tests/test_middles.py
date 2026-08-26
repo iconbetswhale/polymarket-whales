@@ -179,30 +179,24 @@ def test_preview_fixture_covers_totals_spreads_props_and_an_arb_middle() -> None
     assert any(row["guaranteedOutsideProfit"] for row in board["data"])
 
 
-def test_middles_preview_api_is_isolated_and_resizes_stakes(app_client) -> None:
-    first = app_client.get("/api/middles?preview=1&stake=1000")
-    second = app_client.get("/api/middles?preview=1&stake=2000")
+def test_middles_preview_parameter_cannot_enable_fixture_rows(app_client) -> None:
+    live = app_client.get("/api/middles")
+    attempted_preview = app_client.get("/api/middles?preview=1&stake=1000")
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    first_payload = first.get_json()
-    second_payload = second.get_json()
-    assert first_payload["previewOnly"] is True
-    assert first_payload["total"] == 10
-    assert len(first_payload["data"]) == 10
-    assert second_payload["data"][0]["totalStake"] == pytest.approx(2000)
-    assert second_payload["data"][0]["middleProfit"] == pytest.approx(
-        first_payload["data"][0]["middleProfit"] * 2, abs=0.03
-    )
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.get_json() == live.get_json()
+    assert attempted_preview.get_json()["data"] == []
+    assert "previewOnly" not in attempted_preview.get_json()
 
 
-def test_middles_preview_page_renders_the_iconlabs_workspace(app_client) -> None:
+def test_middles_preview_parameter_renders_live_workspace(app_client) -> None:
     response = app_client.get("/middles?preview=1")
 
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'data-page="middles"' in body
-    assert 'data-mid-preview="true"' in body
+    assert "data-mid-preview" not in body
+    assert "temporary middle opportunities" not in body
     assert 'id="mid-feed"' in body
     assert 'id="mid-detail"' in body
     assert "middles.js" in body

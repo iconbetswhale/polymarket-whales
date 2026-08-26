@@ -362,98 +362,15 @@ def test_positive_ev_is_paused_before_any_paid_provider_request(app_client):
     }
 
 
-def test_positive_ev_preview_returns_ten_isolated_visual_rows(app_client):
-    response = app_client.get("/api/positive-ev?preview=1")
+def test_positive_ev_preview_parameter_cannot_enable_fixture_rows(app_client):
+    live = app_client.get("/api/positive-ev")
+    attempted_preview = app_client.get("/api/positive-ev?preview=1")
 
-    assert response.status_code == 200
-    payload = response.get_json()
-    assert payload["previewOnly"] is True
-    assert payload["total"] == 10
-    assert payload["refreshSeconds"] == 0
-    assert len(payload["data"]) == 10
-    assert all(row["previewOnly"] is True for row in payload["data"])
-    assert all(
-        row["calculationVersion"] == "ev-visual-preview-v2-devig"
-        for row in payload["data"]
-    )
-    assert payload["devigMethod"] == "power"
-    assert all(row["devigMethod"] == "power" for row in payload["data"])
-    assert all(len(row["sourceBooks"]) == 5 for row in payload["data"])
-    assert {
-        source["bookKey"] for source in payload["data"][0]["sourceBooks"]
-    } == {
-        "pinnacle",
-        "circa",
-        "bookmakereu",
-        "betfairexchange",
-        "fanduel",
-    }
-
-    sized_response = app_client.get(
-        "/api/positive-ev",
-        query_string={"preview": 1, "bankroll": 20_000},
-    )
-    assert sized_response.status_code == 200
-    sized_payload = sized_response.get_json()
-    assert sized_payload["bankroll"] == 20_000
-    assert sized_payload["data"][0]["recommendedStake"] == pytest.approx(
-        payload["data"][0]["recommendedStake"] * 2
-    )
-    assert sized_payload["data"][0]["kellyFraction"] == pytest.approx(
-        payload["data"][0]["kellyFraction"]
-    )
-
-    filtered_response = app_client.get(
-        "/api/positive-ev",
-        query_string={
-            "preview": 1,
-            "sports": "baseball_mlb,basketball_wnba",
-            "markets": "h2h,spreads",
-        },
-    )
-    assert filtered_response.status_code == 200
-    filtered_payload = filtered_response.get_json()
-    assert filtered_payload["total"] == 2
-    assert {row["marketKey"] for row in filtered_payload["data"]} == {
-        "h2h",
-        "spreads",
-    }
-
-    additive_response = app_client.get(
-        "/api/positive-ev", query_string={"preview": 1, "devig_method": "additive"}
-    )
-    assert additive_response.status_code == 200
-    additive_payload = additive_response.get_json()
-    assert additive_payload["devigMethod"] == "additive"
-    assert all(row["devigMethod"] == "additive" for row in additive_payload["data"])
-    assert additive_payload["data"][0]["fairProbability"] != payload["data"][0]["fairProbability"]
-    assert additive_payload["data"][0]["evPercent"] != payload["data"][0]["evPercent"]
-
-    invalid_response = app_client.get(
-        "/api/positive-ev", query_string={"preview": 1, "devig_method": "unsupported"}
-    )
-    assert invalid_response.status_code == 400
-    assert invalid_response.get_json()["error"] == "INVALID_DEVIG_METHOD"
-
-    required_available = app_client.get(
-        "/api/positive-ev",
-        query_string={"preview": 1, "required_books": "pinnacle,novig"},
-    ).get_json()
-    assert required_available["total"] == 10
-    assert required_available["requiredBooks"] == ["pinnacle", "novig"]
-
-    required_missing = app_client.get(
-        "/api/positive-ev",
-        query_string={"preview": 1, "required_books": "bet365"},
-    ).get_json()
-    assert required_missing["total"] == 0
-
-    invalid_required_book = app_client.get(
-        "/api/positive-ev",
-        query_string={"preview": 1, "required_books": "not-a-book"},
-    )
-    assert invalid_required_book.status_code == 400
-    assert invalid_required_book.get_json()["error"] == "INVALID_REQUIRED_BOOK"
+    assert live.status_code == 200
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.get_json() == live.get_json()
+    assert "previewOnly" not in attempted_preview.get_json()
+    assert attempted_preview.get_json()["data"] == []
 
 
 def test_positive_ev_page_uses_live_85_book_catalog(app_client):
@@ -514,7 +431,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'id="ev-max-dispersion"' not in body
     assert 'id="ev-max-stake-pct"' not in body
     assert 'id="ev-max-event-pct"' not in body
-    assert '"previewOnly": false' in body
+    assert '"previewOnly"' not in body
     positive_ev_javascript = Path("static/positive-ev.js").read_text(
         encoding="utf-8"
     )
@@ -542,7 +459,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert "iconlabs-ev-tracked-opportunities" in positive_ev_javascript
     assert 'requestJson("/api/user-settings")' in positive_ev_javascript
     assert 'bankroll:bankrollConfig.amount' in positive_ev_javascript
-    assert "if (previewOnly)" in positive_ev_javascript
+    assert "previewOnly" not in positive_ev_javascript
     assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
     assert 'class="ev-book-option"' in positive_ev_javascript
     assert 'class="ev-book-name"' in positive_ev_javascript
@@ -625,13 +542,10 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert "Track and Hide" in body
     assert "Bet Tracker and LabTracker" in body
 
-    preview_response = app_client.get("/positive-ev?preview=1")
-    assert preview_response.status_code == 200
-    assert '"previewOnly": true' in preview_response.get_data(as_text=True)
-
-    live_response = app_client.get("/positive-ev?preview=0")
-    assert live_response.status_code == 200
-    assert '"previewOnly": false' in live_response.get_data(as_text=True)
+    attempted_preview = app_client.get("/positive-ev?preview=1")
+    live_response = app_client.get("/positive-ev")
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.get_data(as_text=True) == live_response.get_data(as_text=True)
 
 
 def test_positive_ev_live_scan_prefers_sports_game_odds(
@@ -991,35 +905,16 @@ def test_trades_javascript_keeps_placeholder_fixtures_out_of_production_bundle()
         assert fixture_id not in javascript
 
 
-def test_trades_preview_populates_all_workspace_tabs_without_touching_live_apis(
-    app_client,
-):
+def test_trades_preview_parameter_cannot_load_fixture_bundle(app_client):
     regular = app_client.get("/trades")
-    preview = app_client.get("/trades?preview=1")
+    attempted_preview = app_client.get("/trades?preview=1")
 
     assert regular.status_code == 200
-    assert preview.status_code == 200
-    assert b'data-trades-preview="false"' in regular.data
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.data == regular.data
+    assert b"data-trades-preview" not in regular.data
     assert b"trades-preview.js" not in regular.data
-    assert b'data-trades-preview="true"' in preview.data
-    assert b"trades-preview.js" in preview.data
-
-    root = Path(__file__).parents[1]
-    fixture_bundle = (root / "static" / "trades-preview.js").read_text(
-        encoding="utf-8"
-    )
-    app_bundle = (root / "static" / "app.js").read_text(encoding="utf-8")
-
-    trade_specs = fixture_bundle.split("const tradeSpecs = [", 1)[1].split("];", 1)[0]
-    assert trade_specs.count("score:") == 10
-    assert "tradeSpecs.map(makeTrade)" in fixture_bundle
-    assert "openPositionSpecs.map(makeOpenPosition)" in fixture_bundle
-    assert "closedPositionSpecs.map(makeClosedPosition)" in fixture_bundle
-    assert "window.ICONLABS_TRADES_PREVIEW_DATA" in fixture_bundle
-    assert "/api/" not in fixture_bundle
-    assert "TRADES_PREVIEW_DATA.openPositions" in app_bundle
-    assert "TRADES_PREVIEW_DATA.closedPositions" in app_bundle
-    assert "Preview mode is read-only" in app_bundle
+    assert b"trades-preview.js" not in attempted_preview.data
 
 
 def test_prophetx_health_endpoint_returns_only_safe_status(app_client):
@@ -1130,15 +1025,15 @@ def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
     assert payload["trackerWritesEnabled"] is False
 
 
-def test_sharp_money_preview_returns_five_isolated_visual_signals(
-    app_client, monkeypatch
-):
+def test_sharp_money_preview_parameter_reads_live_collector(app_client, monkeypatch):
     collector = app_client.application.extensions["sharp_money_collector"]
     lab_tracker = app_client.application.extensions["lab_tracker_service"]
+    calls = []
+    live_payload = {**collector.status(), "signals": []}
     monkeypatch.setattr(
         collector,
         "payload",
-        lambda: (_ for _ in ()).throw(AssertionError("collector was read")),
+        lambda **kwargs: calls.append(kwargs) or live_payload,
     )
     monkeypatch.setattr(
         lab_tracker,
@@ -1150,25 +1045,9 @@ def test_sharp_money_preview_returns_five_isolated_visual_signals(
     payload = response.get_json()
 
     assert response.status_code == 200
-    assert payload["previewOnly"] is True
-    assert payload["trackerWritesEnabled"] is False
-    assert payload["notificationsEnabled"] is False
-    assert payload["executionEnabled"] is False
-    assert payload["signalCount"] == 5
-    assert len(payload["signals"]) == 5
-    assert all(signal["previewOnly"] is True for signal in payload["signals"])
-    assert {signal["market"]["kind"] for signal in payload["signals"]} == {
-        "moneyline",
-        "spread",
-        "game_total",
-    }
-    for signal in payload["signals"]:
-        pinnacle = next(
-            row
-            for row in signal["comparisonLines"]
-            if row["providerKey"] == "pinnacle"
-        )
-        assert pinnacle["marketLimit"] > 0
+    assert calls == [{"refresh_if_stale": True}]
+    assert payload["signals"] == []
+    assert "previewOnly" not in payload
 
 
 def test_sharp_money_frontend_uses_explicit_control_gate():
@@ -1180,11 +1059,10 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     ).read_text(encoding="utf-8")
 
     assert '"/api/sharp-money/live"' in script
-    assert '"/api/sharp-money/live?preview=1"' in script
-    assert "fetch(endpoint" in script
-    assert "state.placeholderSignals.length === 0" in script
-    assert "state.payload.placeholderMode = true" in script
-    assert "visual placeholder trades" in script
+    assert '"/api/sharp-money/live?preview=1"' not in script
+    assert "placeholderSignals" not in script
+    assert "placeholderMode" not in script
+    assert "visual placeholder trades" not in script
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control(state.payload?.running ? "pause" : "play")' in script
     assert "function combinedDepthLiquidity" in script
@@ -2449,42 +2327,15 @@ def test_positive_ev_bet_is_shared_with_bet_tracker_and_lab_my_bets(app_client):
     assert duplicate.get_json()["confirmationRequired"] == "duplicate"
 
 
-def test_positive_ev_track_and_hide_persists_without_shrinking_preview_fixture(
-    app_client,
-):
-    app_client.set_cookie("iconbets_user", "positive-ev-track-and-hide-user")
-    preview = app_client.get("/api/positive-ev?preview=1").get_json()
-    row = preview["data"][2]
-    quote = row["bestQuote"]
-    purchase = {
-        "source_id": row["id"],
-        "event_title": row["eventTitle"],
-        "market_title": row["marketLabel"],
-        "selection": row["selection"],
-        "event_start_time": row["commenceTime"],
-        "sport_key": row["sportKey"],
-        "league": row["league"],
-        "market_key": row.get("marketKey") or row["marketLabel"],
-        "market_line": quote.get("point") or row.get("line"),
-        "canonical_event_id": row["eventId"],
-        "american_odds": quote["topPriceAmericanOdds"],
-        "stake": row["recommendedStake"],
-        "fees": 0,
-        "sportsbook": quote["bookName"],
-        "ev_percent": row["evPercent"],
-        "hide_after_track": True,
-    }
+def test_positive_ev_preview_parameter_cannot_create_trackable_fixture(app_client):
+    app_client.set_cookie("iconbets_user", "positive-ev-no-preview-user")
 
-    tracked = app_client.post("/api/positive-ev/personal-bets", json=purchase)
-
-    assert tracked.status_code == 201
-    assert tracked.get_json()["hidden"]["selection"] == row["selection"]
-    refreshed = app_client.get("/api/positive-ev?preview=1").get_json()
-    assert refreshed["total"] == 10
-    assert row["id"] in {item["id"] for item in refreshed["data"]}
+    payload = app_client.get("/api/positive-ev?preview=1").get_json()
     hidden = app_client.get("/api/hidden-trades").get_json()
-    assert hidden["total"] == 1
-    assert hidden["data"][0]["selection"] == row["selection"]
+
+    assert payload["data"] == []
+    assert "previewOnly" not in payload
+    assert hidden["total"] == 0
 
 
 def test_manual_personal_bet_rejects_invalid_price(app_client):

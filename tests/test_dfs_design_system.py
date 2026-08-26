@@ -26,22 +26,21 @@ def test_dfs_opts_into_v2_without_legacy_layers(app_client) -> None:
     assert b"sidebar-shell.css" not in response.data
 
 
-def test_dfs_preview_is_explicit_and_read_only(app_client) -> None:
-    preview = app_client.get("/dfs?preview=1")
+def test_dfs_preview_parameters_cannot_enable_fixture_rows(app_client) -> None:
+    attempted_preview = app_client.get("/dfs?preview=1")
     demo = app_client.get("/dfs?demo=1")
     regular = app_client.get("/dfs")
 
-    assert b'data-dfs-preview="true"' in preview.data
-    assert b"30 temporary optimizer props" in preview.data
-    assert b'data-dfs-preview="true"' in demo.data
-    assert b"30 temporary optimizer props" in demo.data
-    assert b"Visual fixtures only" in preview.data
-    assert b'data-dfs-preview="false"' in regular.data
-    assert b"30 temporary optimizer props" not in regular.data
+    assert attempted_preview.data == regular.data
+    assert demo.data == regular.data
+    assert b"data-dfs-preview" not in regular.data
+    assert b"temporary optimizer props" not in regular.data
+    assert b"Visual fixtures only" not in regular.data
     assert "fetch('/api/dfs/lines'" in SCRIPT
-    assert "if (isPreview) return;" in SCRIPT
-    assert SCRIPT.count("{player:") == 30
-    assert "supplementalPreviewRows" in SCRIPT
+    assert "loadLiveRows();" in SCRIPT
+    assert "isPreview" not in SCRIPT
+    assert "supplementalPreviewRows" not in SCRIPT
+    assert "Aaron Judge" not in SCRIPT
 
 
 def test_dfs_reuses_canonical_primitives() -> None:
@@ -89,7 +88,7 @@ def test_dfs_v2_keeps_responsive_and_interactive_contracts() -> None:
     assert "#dfs-devig-open" in SCRIPT
     assert "#dfs-discrepancies" not in SCRIPT
     assert "#dfs-search" in SCRIPT
-    assert "Preview refreshed just now" in SCRIPT
+    assert "addEventListener('click', loadLiveRows)" in SCRIPT
     assert "devigDialog.showModal()" in SCRIPT
 
 
@@ -100,7 +99,7 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
 
     assert canonical > foundation
     assert "-filters-v2" in BASE[canonical : canonical + 160]
-    assert "-filters-v2" in BASE[script : script + 140]
+    assert "-live-only-v1" in BASE[script : script + 140]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:

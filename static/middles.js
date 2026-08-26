@@ -4,7 +4,6 @@
 
   const configNode = document.getElementById("mid-config");
   const config = configNode ? JSON.parse(configNode.textContent || "{}") : {};
-  const preview = pageRoot.dataset.midPreview === "true";
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const defaultBookKeys = eligibleBooks.filter((book) => book.defaultExecution !== false).map((book) => book.key);
   const storageKey = "iconlabsMiddlesSettingsV1";
@@ -28,7 +27,7 @@
     search: "",
     sport: "",
     market: "",
-    paused: !preview,
+    paused: false,
     loading: false,
     selectedBooks: new Set(Array.isArray(saved.books) && saved.books.length ? saved.books : defaults.books),
     markets: Array.isArray(saved.markets) && saved.markets.length ? saved.markets : defaults.markets,
@@ -188,9 +187,9 @@
     document.getElementById("mid-mode-count").textContent = String(rows.length);
     document.getElementById("mid-summary-cost").textContent = bestCost == null ? "—" : percent(bestCost);
     document.getElementById("mid-summary-width").textContent = widest == null ? "—" : `${Number(widest.toFixed(2))} pts`;
-    document.getElementById("mid-summary-status").textContent = state.paused && !preview ? "Paused" : state.loading ? "Scanning" : "Ready";
+    document.getElementById("mid-summary-status").textContent = state.paused ? "Paused" : state.loading ? "Scanning" : "Ready";
     document.getElementById("mid-summary-fresh").textContent = state.lastUpdated ? `Updated ${new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", second: "2-digit" }).format(state.lastUpdated)}` : "Waiting for board";
-    document.querySelector(".mid-scan-status")?.classList.toggle("is-ready", !state.loading && (!state.paused || preview));
+    document.querySelector(".mid-scan-status")?.classList.toggle("is-ready", !state.loading && !state.paused);
   }
 
   function populateQuickFilters() {
@@ -274,8 +273,7 @@
 
   function endpoint() {
     const params = new URLSearchParams();
-    if (preview) params.set("preview", "1");
-    else if (!state.paused) params.set("active", "1");
+    if (!state.paused) params.set("active", "1");
     params.set("books", [...state.selectedBooks].join(","));
     params.set("markets", state.markets.join(","));
     params.set("stake", String(state.stake));
@@ -320,7 +318,7 @@
 
   function scheduleRefresh(seconds) {
     window.clearTimeout(state.refreshTimer);
-    if (state.paused || preview || seconds <= 0) return;
+    if (state.paused || seconds <= 0) return;
     state.refreshTimer = window.setTimeout(() => loadBoard({ quiet: true }), Math.max(15, seconds) * 1000);
   }
 

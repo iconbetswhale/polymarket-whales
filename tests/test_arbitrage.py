@@ -209,21 +209,14 @@ def test_preview_events_produce_multiple_main_market_opportunities() -> None:
     assert all(row["guaranteedProfit"] > 0 for row in board["data"])
 
 
-def test_arbitrage_preview_api_is_isolated_and_resizes_stakes(app_client) -> None:
-    first = app_client.get("/api/arbitrage?preview=1&stake=1000")
-    second = app_client.get("/api/arbitrage?preview=1&stake=2000")
+def test_arbitrage_preview_parameter_cannot_enable_fixture_rows(app_client) -> None:
+    live = app_client.get("/api/arbitrage")
+    attempted_preview = app_client.get("/api/arbitrage?preview=1&stake=1000")
 
-    assert first.status_code == 200
-    assert second.status_code == 200
-    first_payload = first.get_json()
-    second_payload = second.get_json()
-    assert first_payload["previewOnly"] is True
-    assert first_payload["total"] == 10
-    assert len(first_payload["data"]) == 10
-    assert second_payload["data"][0]["totalStake"] == pytest.approx(2000)
-    assert second_payload["data"][0]["guaranteedProfit"] == pytest.approx(
-        first_payload["data"][0]["guaranteedProfit"] * 2, abs=0.03
-    )
+    assert attempted_preview.status_code == 200
+    assert attempted_preview.get_json() == live.get_json()
+    assert attempted_preview.get_json()["data"] == []
+    assert "previewOnly" not in attempted_preview.get_json()
 
 
 def test_arbitrage_live_api_is_paused_before_paid_provider_request(app_client) -> None:

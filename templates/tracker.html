@@ -1,13 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="tracker-page il-data-grid-page" data-tracker-preview="{{ 'true' if tracker_preview else 'false' }}">
-  {% if tracker_preview %}
-  <section class="tracker-preview-banner" aria-label="Preview mode">
-    <i class="ph ph-eye" aria-hidden="true"></i>
-    <strong>Five temporary tracker bets</strong>
-    <span>Visual fixtures only · nothing here changes your bankroll or saved records.</span>
-  </section>
-  {% endif %}
+<section class="tracker-page il-data-grid-page">
 <header class="page-header tracker-page-header il-page-header">
   <div>
     <p class="eyebrow" id="tracker-eyebrow">PERFORMANCE</p>
@@ -16,7 +9,7 @@
   </div>
   <div class="tracker-header-actions">
     <div id="model-bankroll-control">
-      <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll"{% if tracker_preview %} disabled title="Preview bankroll"{% endif %}>
+      <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll">
         <span>Bankroll</span><strong id="tracker-starting-bankroll">Loading</strong>
       </button>
     </div>

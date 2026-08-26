@@ -54,7 +54,6 @@
     <div><strong id="global-risk-title">Model tracking stopped</strong><span id="global-risk-detail"></span></div>
   </div>
   {% if page != 'home' %}
-  {% set nav_preview = (request.args.get('preview', '')|lower) in ['1', 'true', 'yes', 'on'] %}
   <nav class="app-nav" id="app-navigation" aria-label="Primary navigation">
     <button class="desktop-nav-toggle" id="desktop-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links" aria-label="Expand navigation">
       <i class="ph ph-list" aria-hidden="true"></i>
@@ -68,26 +67,26 @@
     </a>
     <div class="nav-links" id="primary-links">
       <span class="nav-section-label" aria-hidden="true">Core</span>
-      <a href="{{ url_for('dfs_page', preview='1') if nav_preview else url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
-      <a href="{{ url_for('trades_page', preview='1') if nav_preview else url_for('trades_page') }}" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span data-short="Traders">Prediction Traders</span></a>
-      <a href="{{ url_for('sharp_money_page', preview='1') if nav_preview else url_for('sharp_money_page') }}" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money</span></a>
-      <a href="{{ url_for('positive_ev_page', preview='1') if nav_preview else url_for('positive_ev_page') }}" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span data-short="+EV">Positive EV</span></a>
-      <a href="{{ url_for('arbitrage_page', preview='1') if nav_preview else url_for('arbitrage_page') }}" {% if page == 'arbitrage' %}aria-current="page"{% endif %}><i class="ph ph-intersect-three" aria-hidden="true"></i><span data-short="Arb">Arbitrage</span></a>
-      <a href="{{ url_for('middles_page', preview='1') if nav_preview else url_for('middles_page') }}" {% if page == 'middles' %}aria-current="page"{% endif %}><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><span data-short="Middle">Middles</span></a>
-      <a href="{{ url_for('low_hold_page', preview='1') if nav_preview else url_for('low_hold_page') }}" {% if page == 'low-hold' %}aria-current="page"{% endif %}><i class="ph ph-percent" aria-hidden="true"></i><span data-short="Low Hold">Low Hold</span></a>
-      <a href="{{ url_for('odds_screen_page', preview='1') if nav_preview else url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
+      <a href="{{ url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
+      <a href="{{ url_for('trades_page') }}" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span data-short="Traders">Prediction Traders</span></a>
+      <a href="{{ url_for('sharp_money_page') }}" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money</span></a>
+      <a href="{{ url_for('positive_ev_page') }}" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span data-short="+EV">Positive EV</span></a>
+      <a href="{{ url_for('arbitrage_page') }}" {% if page == 'arbitrage' %}aria-current="page"{% endif %}><i class="ph ph-intersect-three" aria-hidden="true"></i><span data-short="Arb">Arbitrage</span></a>
+      <a href="{{ url_for('middles_page') }}" {% if page == 'middles' %}aria-current="page"{% endif %}><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><span data-short="Middle">Middles</span></a>
+      <a href="{{ url_for('low_hold_page') }}" {% if page == 'low-hold' %}aria-current="page"{% endif %}><i class="ph ph-percent" aria-hidden="true"></i><span data-short="Low Hold">Low Hold</span></a>
+      <a href="{{ url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
       <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span data-short="Calcs">Calculators</span></a>
       <span class="nav-section-label" aria-hidden="true">Labs</span>
-      <a href="{{ url_for('tracker_page', preview='1') if nav_preview else url_for('tracker_page') }}" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
-      <a href="{{ url_for('lab_tracker_page', preview='1') if nav_preview else url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="LabTracker">LabTracker</span></a>
-      <a href="{{ url_for('shadow_test_page', preview='1') if nav_preview else url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash"></i><span data-short="Lab">Shadow Lab</span></a>
-      <a class="nav-live-link" href="{{ url_for('live_positions_page', preview='1') if nav_preview else url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span data-short="Live">Live Positions</span></a>
+      <a href="{{ url_for('tracker_page') }}" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
+      <a href="{{ url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="LabTracker">LabTracker</span></a>
+      <a href="{{ url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash"></i><span data-short="Lab">Shadow Lab</span></a>
+      <a class="nav-live-link" href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span data-short="Live">Live Positions</span></a>
       <span class="nav-section-label" aria-hidden="true">Portfolio</span>
-      <a href="{{ url_for('wallets_page', preview='1') if nav_preview else url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span data-short="Wallets">Sharp Wallets</span></a>
-      <a href="{{ url_for('position_history_page', preview='1') if nav_preview else url_for('position_history_page') }}" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span data-short="History">Bet History</span></a>
+      <a href="{{ url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span data-short="Wallets">Sharp Wallets</span></a>
+      <a href="{{ url_for('position_history_page') }}" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span data-short="History">Bet History</span></a>
       <span class="nav-section-label" aria-hidden="true">Insights</span>
-      <a href="{{ url_for('edge_map_page', preview='1') if nav_preview else url_for('edge_map_page') }}" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-graph"></i><span data-short="Map">Edge Map</span></a>
-      <a href="{{ url_for('intelligence_page', preview='1') if nav_preview else url_for('intelligence_page') }}" {% if page == 'intelligence' %}aria-current="page"{% endif %}><i class="ph ph-brain"></i><span data-short="Intelligence">Intelligence</span></a>
+      <a href="{{ url_for('edge_map_page') }}" {% if page == 'edge-map' %}aria-current="page"{% endif %}><i class="ph ph-graph"></i><span data-short="Map">Edge Map</span></a>
+      <a href="{{ url_for('intelligence_page') }}" {% if page == 'intelligence' %}aria-current="page"{% endif %}><i class="ph ph-brain"></i><span data-short="Intelligence">Intelligence</span></a>
       <div class="sidebar-data-status" role="status" aria-live="polite">
         <span class="sidebar-data-dot" id="global-api-dot" aria-hidden="true"></span>
         <span><strong id="global-api-status">Connecting live data</strong><small id="global-system-detail">Checking system status</small></span>
@@ -146,15 +145,14 @@
       </form>
     </div>
   </dialog>
-  {% if page == 'trades' and trades_preview %}<script src="{{ url_for('static', filename='trades-preview.js', v=asset_version ~ '-all-tabs-v1') }}"></script>{% endif %}
-  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v2') }}"></script>{% endif %}
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-profile-menu5-preview-nav-all-tabs-v3-odds-grid-v2-no-favorites') }}"></script>
-  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-canonical-v5-player-props') }}"></script>{% endif %}
-  {% if page == 'arbitrage' %}<script src="{{ url_for('static', filename='arbitrage.js', v=asset_version ~ '-canonical-v2') }}"></script>{% endif %}
+  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v1') }}"></script>
+  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
+  {% if page == 'arbitrage' %}<script src="{{ url_for('static', filename='arbitrage.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
   {% if page == 'calculators' %}<script src="{{ url_for('static', filename='calculator-math.js', v=asset_version ~ '-canonical-v1') }}"></script><script src="{{ url_for('static', filename='calculators.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
-  {% if page == 'middles' %}<script src="{{ url_for('static', filename='middles.js', v=asset_version ~ '-production-v3') }}"></script>{% endif %}
-  {% if page == 'low-hold' %}<script src="{{ url_for('static', filename='low-hold.js', v=asset_version ~ '-production-v2') }}"></script>{% endif %}
-  {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-filters-v2-brand-apps-v1-custom-devig-v1-controls-v1-parlay-guide-v3') }}"></script>{% endif %}
-  {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
+  {% if page == 'middles' %}<script src="{{ url_for('static', filename='middles.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
+  {% if page == 'low-hold' %}<script src="{{ url_for('static', filename='low-hold.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
+  {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
+  {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
 </body>
 </html>

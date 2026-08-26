@@ -1121,10 +1121,6 @@ function updateTradeUrl(filters) {
   });
   if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
   if (appState.workspaceTab !== "trades") params.set("tab", appState.workspaceTab);
-  const previewMode = new URLSearchParams(window.location.search).get("preview");
-  if (["1", "true", "yes", "on", "trade"].includes(previewMode)) {
-    params.set("preview", previewMode);
-  }
   const query = params.toString();
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
 }
@@ -6084,24 +6080,7 @@ try {
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
   : initialOddsProviderOrder.filter(key => ODDS_PROVIDER_KEYS.includes(key));
-const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, preview: new URLSearchParams(window.location.search).get("preview") === "1" || document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true", mobileEventKey: "", mobileMarketKind: "main" };
-if (oddsState.preview) {
-  oddsState.sport = "Baseball";
-  oddsState.league = "MLB";
-}
-let embeddedOddsPreviewPayload;
-
-function readEmbeddedOddsPreviewPayload() {
-  if (embeddedOddsPreviewPayload !== undefined) return embeddedOddsPreviewPayload;
-  const source = document.getElementById("odds-preview-data");
-  if (!source) return (embeddedOddsPreviewPayload = null);
-  try {
-    embeddedOddsPreviewPayload = JSON.parse(source.textContent || "null");
-  } catch (_error) {
-    embeddedOddsPreviewPayload = null;
-  }
-  return embeddedOddsPreviewPayload;
-}
+const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
 
 function oddsPlaceholderRows() {
   const providers = [
@@ -6191,13 +6170,6 @@ function providerLogoMarkup(provider, alt = "") {
 }
 
 function syncOddsProviderCatalog(entries = []) {
-  if (oddsState.preview && entries.length) {
-    const previewKeys = entries
-      .map(entry => String(entry?.key || "").toLowerCase())
-      .filter((key, index, keys) => key && /^[a-z0-9_]+$/.test(key) && keys.indexOf(key) === index);
-    oddsState.providerOrder = [...previewKeys, "best"];
-    oddsState.providers = [...previewKeys];
-  }
   entries.forEach(entry => {
     const key = String(entry?.key || "").toLowerCase();
     if (!key || !/^[a-z0-9_]+$/.test(key)) return;
@@ -6233,7 +6205,7 @@ function syncOddsProviderCatalog(entries = []) {
   });
   document.getElementById("odds-books-count").textContent = `${oddsState.providers.length} selected`;
   applyOddsProviderOrder();
-  if (!oddsState.preview) persistOddsProviderOrder();
+  persistOddsProviderOrder();
   renderOddsPropMenu();
 }
 
@@ -6542,8 +6514,7 @@ function renderMobileOddsBoard(rows) {
   if (!board) return;
   if (status) {
     status.classList.toggle("live", oddsState.feedActive);
-    status.classList.toggle("preview", oddsState.preview);
-    status.querySelector("span").textContent = oddsState.preview ? "Preview" : oddsState.feedActive ? "Live" : "Paused";
+    status.querySelector("span").textContent = oddsState.feedActive ? "Live" : "Paused";
   }
   if (!rows.length) {
     board.innerHTML = oddsState.feedActive
@@ -6663,8 +6634,8 @@ function renderOddsScreen() {
   renderMobileOddsBoard(rows);
   renderMobileOddsSheet();
   document.getElementById("odds-empty-reset")?.addEventListener("click", () => {
-    oddsState.sport = oddsState.preview ? "Baseball" : "";
-    oddsState.league = oddsState.preview ? "MLB" : "";
+    oddsState.sport = "";
+    oddsState.league = "";
     oddsState.kind = "moneyline";
     oddsState.search = "";
     const search = document.getElementById("odds-search");
@@ -6755,9 +6726,7 @@ async function loadOddsScreen() {
     if (oddsState.league) params.set("league", oddsState.league);
     if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
     params.set("active", "1");
-    if (oddsState.preview) params.set("preview", "1");
-    const previewPayload = oddsState.preview ? readEmbeddedOddsPreviewPayload() : null;
-    const payload = previewPayload || await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
+    const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;
@@ -6769,32 +6738,28 @@ async function loadOddsScreen() {
 }
 
 function setOddsFeedActive(active) {
-  oddsState.feedActive = oddsState.preview ? true : Boolean(active);
+  oddsState.feedActive = Boolean(active);
   const toggle = document.getElementById("odds-feed-toggle");
   const state = document.getElementById("odds-live-state");
   const label = document.getElementById("odds-live-label");
   if (oddsState.timer) window.clearInterval(oddsState.timer);
   oddsState.timer = null;
   state?.classList.toggle("paused", !oddsState.feedActive);
-  state?.classList.toggle("preview", oddsState.preview);
-  if (label) label.textContent = oddsState.preview ? "PREVIEW" : oddsState.feedActive ? "LIVE" : "PAUSED";
+  if (label) label.textContent = oddsState.feedActive ? "LIVE" : "PAUSED";
   if (toggle) {
-    toggle.disabled = oddsState.preview;
-    toggle.title = oddsState.preview
-      ? "Visual preview uses no provider requests"
-      : oddsState.feedActive
+    toggle.title = oddsState.feedActive
       ? "Pause the live odds feed"
       : "Start the live odds feed";
   }
   if (oddsState.feedActive) {
     document.getElementById("odds-latency").textContent = "Starting";
     loadOddsScreen();
-    if (!oddsState.preview) oddsState.timer = window.setInterval(loadOddsScreen, 60000);
+    oddsState.timer = window.setInterval(loadOddsScreen, 60000);
   } else {
     document.getElementById("odds-latency").textContent = "Credit saver";
   }
   const feedStatusLabel = document.getElementById("odds-feed-status-label");
-  const statusText = oddsState.preview ? "Preview feed active" : oddsState.feedActive ? "Odds feed active" : "Odds feed paused";
+  const statusText = oddsState.feedActive ? "Odds feed active" : "Odds feed paused";
   if (feedStatusLabel) feedStatusLabel.textContent = statusText;
   document.querySelector(".odds-feed-status")?.classList.toggle("active", oddsState.feedActive);
   renderMobileOddsBoard(oddsState.rows);
