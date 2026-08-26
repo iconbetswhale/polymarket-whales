@@ -69,6 +69,8 @@ def test_phone_navigation_replaces_the_side_drawer_with_primary_actions_and_more
 
     assert "@media (max-width:760px)" in styles
     assert "grid-template-columns:repeat(6,minmax(0,1fr))" in styles
+    assert "bottom:0" in styles
+    assert "border-radius:17px 17px 0 0" in styles
     assert "transform:translateY(102%)" in styles
     assert "mobile-more-open" in script
     assert "openMobileMore" in script
@@ -89,3 +91,30 @@ def test_trade_refresh_error_state_tolerates_inline_mobile_detail():
 
     assert 'const tradeDetail = document.getElementById("trade-detail")' in script
     assert "if (tradeDetail)" in script
+    assert "window.innerWidth <= 760" in script
+    assert 'list.querySelector(":scope > #trade-detail.mobile-inline-detail")' in script
+
+
+def test_mobile_dfs_picker_keeps_one_active_app_and_an_other_apps_control():
+    template = (ROOT / "templates" / "dfs.html").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+    script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+
+    assert 'id="dfs-mobile-book-select"' in template
+    assert "Other apps" in template
+    assert ".dfs-book.active" in styles
+    assert "setupDfsAppPicker" in script
+    assert 'nextBook?.click()' in script
+
+
+def test_prediction_traders_mobile_is_scan_first_with_labeled_samples():
+    template = (ROOT / "templates" / "trades.html").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+    script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert 'id="mobile-trade-samples"' in template
+    assert "Sample layout · not live recommendations" in template
+    assert "More plays are coming" in template
+    assert ".trades-command-bar" in styles
+    assert ".trade-summary-strip" in styles
+    assert "mobileTradeSamples.hidden = appState.trades.length > 0" in script

@@ -250,7 +250,7 @@ body[data-design-system="v2"] .sidebar-account-button:focus-visible{outline:2px 
 
 @media (max-width:760px){
   body[data-design-system="v2"]{
-    padding-bottom:calc(88px + env(safe-area-inset-bottom));
+    padding-bottom:calc(78px + env(safe-area-inset-bottom));
   }
 
   body[data-design-system="v2"].mobile-more-open{overflow:hidden}
@@ -265,16 +265,17 @@ body[data-design-system="v2"] .sidebar-account-button:focus-visible{outline:2px 
   .mobile-bottom-nav{
     position:fixed;
     z-index:145;
-    right:10px;
-    bottom:max(8px,env(safe-area-inset-bottom));
-    left:10px;
-    height:72px;
-    padding:5px;
+    right:0;
+    bottom:0;
+    left:0;
+    min-height:72px;
+    height:calc(72px + env(safe-area-inset-bottom));
+    padding:5px 6px max(5px,env(safe-area-inset-bottom));
     display:grid;
     grid-template-columns:repeat(6,minmax(0,1fr));
     align-items:stretch;
     border:1px solid rgba(72,89,111,.72);
-    border-radius:17px;
+    border-radius:17px 17px 0 0;
     background:rgba(7,15,23,.94);
     box-shadow:0 18px 42px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.035);
     backdrop-filter:blur(18px);

@@ -10,10 +10,21 @@
     <div class="dfs-app-selector">
       <section class="dfs-app-group" aria-labelledby="dfs-fantasy-apps-label">
         <h2 id="dfs-fantasy-apps-label">Fantasy Apps</h2>
-        <div class="dfs-book-row" role="tablist" aria-label="DFS book">
-          {% for book, logo, slip in [('PrizePicks','prizepicks','5 Pick Flex · -119'),('Underdog','underdog','4 Man Flex · -107'),('DK Pick6','dk-pick6','3 Man Power · -122'),('Betr','betr','5 Man Flex · -118'),('Dabble','dabble','3 Man Power · -122')] %}
-          <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
-          {% endfor %}
+        <div class="dfs-app-picker">
+          <div class="dfs-book-row" role="tablist" aria-label="DFS book">
+            {% for book, logo, slip in [('PrizePicks','prizepicks','5 Pick Flex · -119'),('Underdog','underdog','4 Man Flex · -107'),('DK Pick6','dk-pick6','3 Man Power · -122'),('Betr','betr','5 Man Flex · -118'),('Dabble','dabble','3 Man Power · -122')] %}
+            <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
+            {% endfor %}
+          </div>
+          <label class="dfs-mobile-other-apps" for="dfs-mobile-book-select">
+            <i class="ph ph-squares-four" aria-hidden="true"></i>
+            <span><strong>Other apps</strong><small>Choose DFS</small></span>
+            <select id="dfs-mobile-book-select" aria-label="Choose another fantasy app">
+              <option value="">Select another app</option>
+              {% for book in ['PrizePicks', 'Underdog', 'DK Pick6', 'Betr', 'Dabble'] %}<option value="{{ book }}">{{ book }}</option>{% endfor %}
+            </select>
+            <i class="ph ph-caret-down" aria-hidden="true"></i>
+          </label>
         </div>
       </section>
       <section class="dfs-app-group dfs-optimizer-group" aria-labelledby="dfs-optimizer-label">

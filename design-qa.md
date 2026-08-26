@@ -75,6 +75,59 @@ final result: passed
 
 ---
 
+# Flush mobile navigation, DFS app picker, and scan-first Traders QA
+
+## Comparison target
+
+- Source visual truth:
+  - `C:\Users\15617\.codex\codex-remote-attachments\01a03fdb-84b7-7442-952c-cf114d152ca9\01CD801D-70E3-4A7A-86EE-0F01E1854DC5\1-Photo-1.jpg`
+  - `C:\Users\15617\.codex\codex-remote-attachments\01a03fdb-84b7-7442-952c-cf114d152ca9\01CD801D-70E3-4A7A-86EE-0F01E1854DC5\2-Photo-2.jpg`
+- Browser-rendered implementation states: Fantasy Optimizer with the contained app picker, Prediction Traders with five live fixture cards, and Prediction Traders with an expanded labelled sample trade.
+- CSS viewport: 390 × 844 for primary comparisons, with additional checks at 320 × 720 and 1280 × 800.
+- The two source screenshots and final browser captures were opened in one combined comparison input before this QA was written.
+
+## Findings
+
+- No actionable P0, P1, or P2 visual findings remain.
+- The mobile navigation now terminates exactly at the visible viewport bottom (`bottom = 844` at 390 × 844 and `bottom = 720` at 320 × 720) with zero side gutters and top-only rounding.
+- Fantasy Apps presents one active source plus a same-width `Other apps` picker. The five source buttons remain authoritative in the DOM, and choosing Underdog through the mobile picker updated the active source and comparison heading without horizontal overflow.
+- Prediction Traders now begins 10 px below the 62 px brand bar. The command dashboard, KPI strip, filter toolbar, and signal-activity panel are hidden only at phone widths.
+- Live cards are approximately 153 px tall, retain the event, selection, best executable price, confidence, and sample sizing, and fit five partially or fully visible opportunities above the navigation at 390 × 844.
+- Empty or fully filtered feeds expose three non-actionable examples explicitly labelled `Sample layout · not live recommendations`, followed by `More plays are coming`.
+- Expanded real trades remain inline beneath their source card and continue to expose execution prices, sharp comparisons, model detail, sizing, price history, and advanced evidence.
+- Existing provider logos and the Phosphor icon system are reused. No placeholder imagery, handmade SVGs, emoji, or approximate asset drawings were introduced.
+
+## Interaction and responsive checks
+
+- The mobile DFS picker changed PrizePicks to Underdog and reset itself to the `Other apps` prompt while leaving only Underdog visible as the active card.
+- A real Prediction Traders card opened inline, remained open across more than one live refresh interval, retained five live cards, and produced no error state.
+- Sample disclosures enforce one open example at a time and show current price, model fair price, projected edge, sizing, and an explicit preview-only notice.
+- 390 × 844: all tested phone states stayed within the document width; the navigation edge equalled the viewport edge.
+- 320 × 720: the app picker retained one active card plus the other-app control, sample cards remained usable, and body-level overflow clipping prevented horizontal scrolling.
+- 1280 × 800: mobile navigation, the other-app picker, and sample trades are hidden; all five DFS source cards and the full Prediction Traders dashboard remain visible.
+
+## QA history
+
+1. Replaced the overflowing mobile fantasy-app rail with an active-source slot and a native other-app selector.
+2. Removed the floating navigation gap and changed the rail to full viewport width with safe-area-aware internal padding.
+3. Removed dense Prediction Traders controls from the phone composition and compressed live rows for faster scanning.
+4. Moved personal-exposure warnings inside the confidence column so they no longer overlap event names.
+5. Prevented the legacy tablet modal from competing with phone inline disclosures.
+6. Preserved the inline detail node during live feed replacement, eliminating a refresh race that previously disconnected the detail panel.
+7. Removed the modal-only sheet header from the inline detail presentation.
+
+## Automated checks
+
+- `node --check static/app.js`: passed.
+- `node --check static/mobile-tools.js`: passed.
+- `node tests/test_calculator_math.js`: passed.
+- `pytest -q -p no:cacheprovider tests/test_mobile_tools_assets.py`: 8 passed.
+- `git diff --check`: passed, with line-ending notices only.
+
+final result: passed
+
+---
+
 # Mobile bottom navigation and Prediction Traders search QA
 
 ## Comparison target

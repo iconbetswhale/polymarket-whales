@@ -1843,6 +1843,8 @@ function applyClientTradeFilters(trades, filters) {
 }
 
 function syncTradeRows(list, trades) {
+  const inlineDetail = list.querySelector(":scope > #trade-detail.mobile-inline-detail");
+  const inlineTradeId = inlineDetail?.previousElementSibling?.dataset.tradeId || "";
   const existing = new Map(
     [...list.querySelectorAll(":scope > .trade-card")].map((card) => [card.dataset.tradeId, card]),
   );
@@ -1865,6 +1867,12 @@ function syncTradeRows(list, trades) {
     fragment.append(card);
   });
   list.replaceChildren(fragment);
+  if (inlineDetail) {
+    const activeCard = [...list.querySelectorAll(":scope > .trade-card")]
+      .find((card) => card.dataset.tradeId === inlineTradeId)
+      || list.querySelector(":scope > .trade-card.selected");
+    if (activeCard) activeCard.insertAdjacentElement("afterend", inlineDetail);
+  }
   appState.tradeRenderSignatures = nextSignatures;
 }
 
@@ -2844,6 +2852,11 @@ function syncMobileTradeDetailAccessibility() {
   const backdrop = document.getElementById("mobile-trade-detail-backdrop");
   const panel = document.getElementById("trade-detail");
   if (!panel) return;
+  if (window.innerWidth <= 760) {
+    if (backdrop) backdrop.hidden = true;
+    document.body.classList.remove("mobile-trade-detail-open");
+    return;
+  }
   const mobile = window.innerWidth <= 1320;
   const open = mobile && document.body.classList.contains("mobile-trade-detail-open");
   if (backdrop) backdrop.hidden = !open;
@@ -2880,7 +2893,7 @@ function closeMobileTradeDetail() {
 }
 
 function openMobileTradeDetail() {
-  if (window.innerWidth > 1320) return;
+  if (window.innerWidth <= 760 || window.innerWidth > 1320) return;
   if (!document.body.classList.contains("mobile-trade-detail-open")) {
     appState.mobileTradeDetailReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
   }
@@ -2996,9 +3009,11 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("trade-league").value = currentLeague;
   document.getElementById("trade-wallet").value = currentWallet;
   const lowInventory = document.getElementById("low-inventory-state");
+  const mobileTradeSamples = document.getElementById("mobile-trade-samples");
   const tradeWorkspace = document.querySelector(".trade-workspace");
   tradeWorkspace?.classList.toggle("empty-trades", appState.trades.length === 0);
   if (lowInventory) lowInventory.hidden = appState.trades.length > 5;
+  if (mobileTradeSamples) mobileTradeSamples.hidden = appState.trades.length > 0;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
     list.replaceChildren();
@@ -3073,6 +3088,8 @@ async function loadTrades({ initial = false } = {}) {
     if (requestSequence !== appState.tradeRequestSequence) return;
     if (cachedPayload) return;
     updateTradeSummary({}, [], []);
+    const mobileTradeSamples = document.getElementById("mobile-trade-samples");
+    if (mobileTradeSamples) mobileTradeSamples.hidden = true;
     list.innerHTML = errorState(error.message);
     const tradeDetail = document.getElementById("trade-detail");
     if (tradeDetail) {

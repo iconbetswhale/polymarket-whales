@@ -308,6 +308,40 @@
     renderCards();
   }
 
+  function setupDfsAppPicker() {
+    const select = document.getElementById("dfs-mobile-book-select");
+    const books = [...document.querySelectorAll("[data-dfs-book]")];
+    if (!select || !books.length) return;
+
+    const syncOptions = () => {
+      const activeBook = books.find((book) => book.classList.contains("active"))?.dataset.dfsBook || "";
+      [...select.options].forEach((option) => {
+        option.hidden = Boolean(option.value) && option.value === activeBook;
+      });
+      select.value = "";
+    };
+
+    select.addEventListener("change", () => {
+      const nextBook = books.find((book) => book.dataset.dfsBook === select.value);
+      nextBook?.click();
+      syncOptions();
+    });
+    books.forEach((book) => book.addEventListener("click", syncOptions));
+    syncOptions();
+  }
+
+  function setupSampleTradeDisclosures() {
+    const samples = document.getElementById("mobile-trade-samples");
+    if (!samples) return;
+    samples.addEventListener("toggle", (event) => {
+      const details = event.target;
+      if (!(details instanceof HTMLDetailsElement) || !details.open) return;
+      samples.querySelectorAll("details[open]").forEach((other) => {
+        if (other !== details) other.open = false;
+      });
+    }, true);
+  }
+
   function setupNavigationState() {
     const links = document.getElementById("primary-links");
     if (!links) return;
@@ -320,6 +354,8 @@
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigationState();
     setupDfsCards();
+    setupDfsAppPicker();
+    setupSampleTradeDisclosures();
 
     [
       { name: "trades", feed: "#trade-list", detail: "#trade-detail", card: ".trade-card", selectedCard: ".trade-card.selected", idAttribute: "data-trade-id", trigger: ".trade-event-action", close: "[data-mobile-detail-close]", overlay: "#mobile-trade-detail-backdrop", bodyClasses: ["mobile-trade-detail-open"] },
