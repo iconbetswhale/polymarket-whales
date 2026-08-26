@@ -104,6 +104,7 @@ def test_odds_screen_prefers_odds_engine(app_client, monkeypatch) -> None:
         "odds_engine_read_only_feeds"
     )
     assert "s-maxage=15" in response.headers["Cache-Control"]
+    assert not response.headers.getlist("Set-Cookie")
     assert payload["refreshSeconds"] == 15
     assert payload["transport"] == {
         "mode": "rest_snapshot",

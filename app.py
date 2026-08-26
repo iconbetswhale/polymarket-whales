@@ -756,8 +756,30 @@ def create_app(start_background: bool = True) -> Flask:
         """Attach current CLOB depth used only for provider line-shopping."""
         tracker.refresh_execution_quotes(trades)
 
+    public_feed_endpoints = {
+        "api_arbitrage",
+        "api_dfs_lines",
+        "api_low_hold",
+        "api_middles",
+        "api_odds_screen",
+        "api_sharp_money_live",
+        "api_sharp_money_sandbox",
+        "api_sharp_money_status",
+    }
+
     @app.before_request
     def prepare_request():
+        if request.endpoint in public_feed_endpoints:
+            # These responses contain no account-specific state. Avoiding auth
+            # storage and Set-Cookie lets Vercel's shared cache serve warm live
+            # snapshots instead of rebuilding the provider board per viewer.
+            g.iconbets_authenticated = False
+            g.iconbets_account_email = None
+            g.iconbets_account_username = None
+            g.iconbets_session_token = None
+            g.iconbets_new_user = False
+            g.iconbets_user_id = request.cookies.get(USER_COOKIE) or "public-feed"
+            return
         public_startup_endpoint = request.endpoint in {
             "static",
             "trades_page",
@@ -863,6 +885,8 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.after_request
     def persist_user_cookie(response):
+        if request.endpoint in public_feed_endpoints:
+            return response
         if request.endpoint == "static":
             if request.args.get("v"):
                 response.headers["Cache-Control"] = (
