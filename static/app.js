@@ -6773,9 +6773,9 @@ async function loadOddsScreen() {
   const started = performance.now();
   try {
     const params = new URLSearchParams();
-    if (oddsState.sport) params.set("sport", oddsState.sport);
-    if (oddsState.league) params.set("league", oddsState.league);
-    if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
+    // Fetch one full slate and filter it in the browser. Using the selected
+    // sport/league/market as request parameters created a separate expensive
+    // upstream rebuild and CDN cache key every time a tab was changed.
     params.set("active", "1");
     const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
     if (!oddsState.rows.length) {
