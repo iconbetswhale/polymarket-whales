@@ -126,7 +126,7 @@
 
   function logoMarkup(row) {
     const logo = String(row.logoUrl || "");
-    if (logo) return `<span class="mid-book-logo"><img src="${esc(logo)}" alt=""></span>`;
+    if (logo) return `<span class="mid-book-logo"><img src="${esc(logo)}" alt="" decoding="async" onerror="this.hidden=true;this.parentElement.classList.add('mid-book-logo-fallback');this.nextElementSibling.hidden=false"><i class="ph ph-buildings" aria-hidden="true" hidden></i></span>`;
     return `<span class="mid-book-logo mid-book-logo-fallback"><i class="ph ph-buildings" aria-hidden="true"></i></span>`;
   }
 

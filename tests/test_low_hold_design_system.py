@@ -89,3 +89,12 @@ def test_low_hold_polish_keeps_primary_plan_visible_and_details_collapsed() -> N
     assert "lh-result-section" in SCRIPT
     assert "Lower is more efficient" not in TEMPLATE
     assert "Chance to win both legs" not in TEMPLATE
+
+
+def test_low_hold_rows_render_real_team_matchups_without_changing_the_payload() -> None:
+    assert "teamLogoCodes" in SCRIPT
+    assert "function matchupLogoMarkup" in SCRIPT
+    assert 'class="lh-team-matchup"' in SCRIPT
+    assert 'class="lh-matchup-vs">VS<' in SCRIPT
+    assert "/static/assets/teams/${league}/" in SCRIPT
+    assert ".lh-team-logo-frame" in CSS

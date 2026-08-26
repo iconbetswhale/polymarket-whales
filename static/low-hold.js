@@ -8,6 +8,24 @@
 
   const preview = pageRoot.dataset.lhPreview === "true";
   const popularBooks = new Set(["fanduel", "draftkings", "betmgm", "caesars", "fanatics", "bet365", "pinnacle", "novig", "hardrockbet", "betonline", "kalshi", "polymarket"]);
+  const teamLogoCodes = Object.freeze({
+    mlb: Object.freeze({
+      arizonadiamondbacks: "ari", atlantabraves: "atl", baltimoreorioles: "bal", bostonredsox: "bos",
+      chicagocubs: "chc", chicagowhitesox: "chw", cincinnatireds: "cin", clevelandguardians: "cle",
+      coloradorockies: "col", detroittigers: "det", houstonastros: "hou", kansascityroyals: "kc",
+      losangelesangels: "laa", losangelesdodgers: "lad", miamimarlins: "mia", milwaukeebrewers: "mil",
+      minnesotatwins: "min", newyorkmets: "nym", newyorkyankees: "nyy", athletics: "oak",
+      oaklandathletics: "oak", philadelphiaphillies: "phi", pittsburghpirates: "pit", sandiegopadres: "sd",
+      sanfranciscogiants: "sf", seattlemariners: "sea", stlouiscardinals: "stl", tampabayrays: "tb",
+      texasrangers: "tex", torontobluejays: "tor", washingtonnationals: "wsh",
+    }),
+    wnba: Object.freeze({
+      atlantadream: "atl", chicagosky: "chi", connecticutsun: "connecticut", dallaswings: "dal",
+      goldenstatevalkyries: "gs", indianafever: "ind", lasvegasaces: "lv", losangelessparks: "la",
+      minnesotalynx: "min", newyorkliberty: "ny", phoenixmercury: "phx", seattlestorm: "sea",
+      washingtonmystics: "wsh",
+    }),
+  });
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const storageKey = "iconlabsLowHoldSettingsV2";
   const savedKey = "iconlabsLowHoldSavedFiltersV2";
@@ -204,6 +222,32 @@
     return logo ? `<img src="${esc(logo)}" alt="" loading="lazy">` : `<span class="arb-book-fallback"><i class="ph ph-buildings"></i></span>`;
   }
 
+  function canonicalTeam(value) {
+    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  }
+
+  function matchupLogoMarkup(row) {
+    const label = String(row?.eventTitle || "").trim();
+    const sides = label.match(/^(.*?)\s+vs\.?\s+(.*)$/i);
+    if (!sides) return "";
+
+    const leagueHint = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
+    const catalogOrder = /wnba/.test(leagueHint) ? ["wnba"] : /mlb|baseball/.test(leagueHint) ? ["mlb"] : ["mlb", "wnba"];
+    const firstKey = canonicalTeam(sides[1]);
+    const secondKey = canonicalTeam(sides[2]);
+    const league = catalogOrder.find((key) => teamLogoCodes[key][firstKey] && teamLogoCodes[key][secondKey]);
+    if (!league) return "";
+
+    const firstLogo = `/static/assets/teams/${league}/${teamLogoCodes[league][firstKey]}.png`;
+    const secondLogo = `/static/assets/teams/${league}/${teamLogoCodes[league][secondKey]}.png`;
+    return `
+      <div class="lh-team-matchup" aria-hidden="true">
+        <span class="lh-team-logo-frame"><img src="${esc(firstLogo)}" alt="" decoding="async"></span>
+        <span class="lh-matchup-vs">VS</span>
+        <span class="lh-team-logo-frame"><img src="${esc(secondLogo)}" alt="" decoding="async"></span>
+      </div>`;
+  }
+
   function rowMatches(row) {
     const query = state.search.trim().toLowerCase();
     if (state.mode !== "all" && row.pairKind !== state.mode) return false;
@@ -246,6 +290,7 @@
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-lh-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.holdPercent)} hold on ${row.eventTitle}`)}">
         <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><small>Hold</small><strong>${percent(row.holdPercent)}</strong><span>${netCopy}</span></div>
         <div class="arb-event-cell">
+          ${matchupLogoMarkup(row)}
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</p>
         </div>

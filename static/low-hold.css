@@ -449,7 +449,34 @@ body[data-page="low-hold"] .arb-kpi-strip {
 .lh-page .arb-return-cell small { order: -1; margin: 0; color: var(--il-text-muted); font: var(--il-type-table-header); letter-spacing: .06em; text-transform: uppercase; }
 .lh-page .arb-return-cell strong { font: 750 18px/1 var(--il-font-data); }
 .lh-page .arb-return-cell span { margin: 0; font: 700 11px/1 var(--il-font-data); }
-.lh-page .arb-event-cell h3 { margin: 0; font: 700 13px/1.3 var(--il-font-ui); }
+.lh-team-matchup {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 7px;
+}
+.lh-team-logo-frame {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  flex: 0 0 30px;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: 7px;
+  background: var(--il-surface-2);
+}
+.lh-team-logo-frame img { width: 25px; height: 25px; display: block; object-fit: contain; }
+.lh-matchup-vs { color: var(--il-text-muted); font: 800 9px/1 var(--il-font-ui); letter-spacing: .08em; }
+.lh-page .arb-event-cell h3 {
+  display: -webkit-box;
+  margin: 0;
+  overflow: hidden;
+  font: 700 13px/1.3 var(--il-font-ui);
+  white-space: normal;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
 .lh-page .arb-event-cell p { margin-top: 6px; color: var(--il-text-muted); font: 500 10px/1.2 var(--il-font-ui); }
 .lh-page .arb-market-cell strong { margin: 0; font: 700 12px/1.2 var(--il-font-ui); }
 .lh-page .arb-market-cell small { margin-top: 5px; overflow: hidden; color: var(--il-text-secondary); font: 500 10px/1.2 var(--il-font-ui); text-overflow: ellipsis; white-space: nowrap; }
@@ -583,6 +610,8 @@ body[data-page="low-hold"] .arb-kpi-strip {
   .lh-page .arb-return-cell,
   .lh-page .arb-event-cell,
   .lh-page .arb-market-cell { padding: 9px; }
+  .lh-team-logo-frame { width: 28px; height: 28px; flex-basis: 28px; }
+  .lh-team-logo-frame img { width: 23px; height: 23px; }
   .lh-page .arb-profit-proof { grid-template-columns: 1fr; }
   .lh-page .arb-profit-proof div { border-right: 0; border-bottom: 1px solid var(--il-border-subtle); }
   .lh-page .arb-detail-actions { grid-template-columns: 1fr; }

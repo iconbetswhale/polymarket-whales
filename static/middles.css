@@ -118,9 +118,11 @@
 .mid-window-strip small { color: var(--il-positive); font-size: 10px; font-weight: 800; }
 .mid-card-tracked { position: absolute; top: 6px; right: 6px; color: var(--il-brand-hover); font-size: 13px; }
 
-.mid-book-logo { width: 28px; height: 28px; display: grid; place-items: center; flex: 0 0 28px; border-radius: 6px; background: white; overflow: hidden; }
-.mid-book-logo img { width: 100%; height: 100%; object-fit: contain; }
-.mid-book-logo-fallback { background: var(--il-surface-selected-badge); color: var(--il-brand-hover); }
+.mid-book-logo { width: 28px; height: 28px; box-sizing: border-box; display: grid; place-items: center; flex: 0 0 28px; padding: 3px; border: 1px solid var(--il-border-subtle); border-radius: 6px; background: #fff; overflow: hidden; }
+.mid-book-logo img { width: 100%; height: 100%; display: block; object-fit: contain; object-position: center; }
+.mid-book-logo > i { color: var(--il-brand-hover); font-size: 14px; }
+.mid-book-logo > i[hidden] { display: none; }
+.mid-book-logo-fallback { padding: 0; background: var(--il-surface-selected-badge); color: var(--il-brand-hover); }
 
 .mid-detail { overflow-y: auto; scrollbar-color: var(--il-scrollbar) transparent; }
 .mid-detail-empty { height: 100%; display: grid; place-items: center; align-content: center; gap: 9px; padding: 34px; color: var(--il-text-muted); text-align: center; }

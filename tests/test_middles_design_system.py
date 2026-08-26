@@ -70,3 +70,11 @@ def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "qualified windows" not in TEMPLATE
     assert "RANKED BY LOWEST BREAK-EVEN" not in TEMPLATE
     assert "BOTH WIN" not in SCRIPT
+
+
+def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:
+    assert 'decoding="async"' in SCRIPT
+    assert "mid-book-logo-fallback" in SCRIPT
+    assert "onerror=" in SCRIPT
+    assert "object-fit: contain" in CSS
+    assert "object-position: center" in CSS
