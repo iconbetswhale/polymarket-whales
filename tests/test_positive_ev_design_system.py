@@ -19,7 +19,7 @@ def _function(name: str) -> str:
 
 
 def test_positive_ev_opts_into_v2_without_legacy_layers() -> None:
-    canonical_pages = "['trades', 'positive-ev', 'arbitrage', 'middles', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence']"
+    canonical_pages = "['trades', 'positive-ev', 'arbitrage', 'calculators', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence']"
     assert f"page in {canonical_pages} %}}" in BASE
     assert f'data-design-system="{{% if page in {canonical_pages} %}}v2' in BASE
     assert BASE.index("filename='design-system.css'") < BASE.index("filename='positive-ev.css'")
@@ -37,7 +37,7 @@ def test_positive_ev_opts_into_v2_without_legacy_layers() -> None:
 
     for stylesheet in ("app-premium.css", "sidebar-shell.css"):
         assert (
-            f"page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'middles', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}}<link rel=\"stylesheet\" "
+            f"page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'calculators', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}}<link rel=\"stylesheet\" "
             f"href=\"{{{{ url_for('static', filename='{stylesheet}'"
         ) in BASE
 
