@@ -123,6 +123,61 @@ def test_iconlabs_fair_odds_uses_the_current_white_mark() -> None:
     assert '.algo-odds-head img,\nbody[data-design-system="v2"][data-page="dfs"] .compare-book img' in CSS
 
 
+def test_iconlabs_fair_odds_logo_explains_the_weightings_on_hover() -> None:
+    assert 'class="dfs-algo-tooltip"' in TEMPLATE
+    assert 'aria-label="IconAlgo Weightings"' in TEMPLATE
+    assert 'id="dfs-iconalgo-tooltip"' in TEMPLATE
+    assert ".dfs-iconalgo-tooltip-popover" in CSS
+    assert "position: fixed;" in CSS
+    assert "showIconAlgoTooltip" in SCRIPT
+    assert "getBoundingClientRect()" in SCRIPT
+
+
+def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:
+    assert 'id="dfs-parlay-guide-open"' in TEMPLATE
+    assert 'aria-label="Best Parlay Type To Build?"' in TEMPLATE
+    assert 'id="dfs-parlay-guide-dialog"' in TEMPLATE
+    assert "4 Man Flex (Underdog) (-107)" in TEMPLATE
+    assert "51.7%" in TEMPLATE
+    assert "2 Man Flex (Underdog) (-116)" in TEMPLATE
+    assert "3 Man Flex (Underdog) (-116)" in TEMPLATE
+    assert "53.7%" in TEMPLATE
+    assert "5 Pick Flex (-119)" in TEMPLATE
+    assert "6 Pick Flex (-119)" in TEMPLATE
+    assert "6 Pick Power (-121)" in TEMPLATE
+    assert "3 Pick Power (-122)" in TEMPLATE
+    assert "4 Pick Power (-128)" in TEMPLATE
+    assert "2 Pick Power (-136)" in TEMPLATE
+    assert "3 Pick Flex (-137)" in TEMPLATE
+    assert "57.8%" in TEMPLATE
+    assert "parlayGuideDialog.showModal()" in SCRIPT
+    assert "event.target === parlayGuideDialog" in SCRIPT
+    assert "event.key === 'Escape' && parlayGuideDialog.open" in SCRIPT
+    assert ".dfs-parlay-guide-button" in CSS
+    assert ".dfs-parlay-rankings" in CSS
+
+
+def test_parlay_equivalent_odds_match_each_required_hit_rate() -> None:
+    rows = (
+        (51.7, -107),
+        (53.7, -116),
+        (53.7, -116),
+        (54.3, -119),
+        (54.3, -119),
+        (54.8, -121),
+        (55.0, -122),
+        (55.0, -122),
+        (55.0, -122),
+        (56.1, -128),
+        (57.6, -136),
+        (57.8, -137),
+    )
+
+    for hit_rate, displayed_odds in rows:
+        equivalent_odds = round(-100 * hit_rate / (100 - hit_rate))
+        assert equivalent_odds == displayed_odds
+
+
 def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
     assert "dfs-summary-row" not in TEMPLATE
     assert "Line discrepancies only" not in TEMPLATE
