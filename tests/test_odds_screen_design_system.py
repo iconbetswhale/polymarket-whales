@@ -125,6 +125,7 @@ def test_odds_screen_template_uses_approved_terminal_structure():
     assert 'id="odds-league-trigger"' not in template
     assert 'id="odds-feed-toggle"' not in template
     assert 'id="odds-props-trigger"' not in template
+    assert "data-odds-favorite" not in template
     assert "Alt Spreads" not in template
     assert "Alt Totals" not in template
 
@@ -157,7 +158,9 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
     assert "max-width: 20px" in stylesheet
     assert "font-variant-numeric: tabular-nums" in stylesheet
     assert ".odds-market-row:nth-child(even) { background: rgba(141, 68, 246, .08); }" in stylesheet
-    assert ".odds-market-row:hover { background: rgba(141, 68, 246, .15); }" in stylesheet
+    assert ".odds-market-row:hover { background: rgba(139, 92, 246, .32); }" in stylesheet
+    assert "zoom: 1.25" in stylesheet
+    assert "height: 80vh" in stylesheet
     assert ".mobile-odds-game:nth-child(even) { background: rgba(141, 68, 246, .08); }" in stylesheet
     assert "font-size: 13px" in stylesheet
     assert ".odds-time-cell strong" in stylesheet
@@ -174,6 +177,9 @@ def test_odds_screen_canonical_layer_uses_v2_tokens_and_mobile_board():
 
 def test_odds_screen_preview_client_does_not_start_polling():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert "iconbets_odds_favorites" not in script
+    assert "favoritesOnly" not in script
 
     assert 'preview: new URLSearchParams(window.location.search).get("preview") === "1"' in script
     assert 'document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true"' in script

@@ -27,7 +27,7 @@ V2_PAGE_STYLES = (
 def test_shared_sidebar_styles_load_after_every_v2_page_stylesheet():
     sidebar = BASE.index("filename='sidebar-v2.css'")
 
-    assert "-canonical-v14-flat-reference" in BASE[sidebar : sidebar + 200]
+    assert "-canonical-v17-collapsed-gap" in BASE[sidebar : sidebar + 200]
     for stylesheet in V2_PAGE_STYLES:
         assert BASE.index(f"filename='{stylesheet}'") < sidebar
 
@@ -36,13 +36,13 @@ def test_shared_sidebar_contract_is_route_agnostic_and_complete():
     assert "[data-page=" not in CSS
     assert "--il-sidebar-width:256px" in CSS
     assert "--il-sidebar-bg:#070a13" in CSS
-    assert "--il-sidebar-active:#170d2c" in CSS
-    assert "--il-sidebar-active-border:#6734a9" in CSS
+    assert "--il-sidebar-active:#1b1033" in CSS
+    assert "--il-sidebar-active-border:#a65af4" in CSS
     assert "background-image:none" in CSS
     assert "sidebar-neon-purple-flow" not in CSS
     assert "text-shadow:none" in CSS
     assert "height:36px!important" in CSS
-    assert "box-shadow:inset 3px 0 0 var(--il-sidebar-purple)!important" in CSS
+    assert "box-shadow:inset 3px 0 0 var(--il-sidebar-active-ridge)" in CSS
     assert '.sidebar-expanded .nav-section-label' in CSS
     assert ".sidebar-data-status" in CSS
     assert ".sidebar-footer-divider" in CSS
@@ -54,9 +54,10 @@ def test_shared_sidebar_contract_is_route_agnostic_and_complete():
 def test_flat_sidebar_uses_reference_phosphor_icon_mapping():
     for icon in (
         "ph-target",
+        "ph-coins",
         "ph-trend-up",
         "ph-layout",
-        "ph-grid-nine",
+        "ph-sliders-horizontal",
         "ph-flask",
         "ph-eye-slash",
         "ph-activity",
@@ -66,6 +67,42 @@ def test_flat_sidebar_uses_reference_phosphor_icon_mapping():
     assert "sharp-money-nav-icon" not in BASE
     assert "sportsbook-nav-icon" not in BASE
     assert "live-position-nav-icon" not in BASE
+
+
+def test_sidebar_groups_and_icons_match_the_product_navigation_contract():
+    core = BASE.index(">Core</span>")
+    labs = BASE.index(">Labs</span>")
+    portfolio = BASE.index(">Portfolio</span>")
+    bet_tracker = BASE.index(">Bet Tracker</span>")
+    lab_tracker = BASE.index(">LabTracker</span>")
+
+    assert core < labs < bet_tracker < lab_tracker < portfolio
+    assert 'class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money' in BASE
+    assert 'class="ph ph-trend-up"></i><span data-short="+EV">Positive EV' in BASE
+    assert 'class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen' in BASE
+    assert 'class="ph ph-sliders-horizontal" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer' in BASE
+
+
+def test_expanded_selection_stays_inside_the_sidebar_rail():
+    assert "width:calc(100% + 8px)!important;max-width:calc(100% + 8px)!important;height:36px!important" not in CSS
+    assert "width:100%!important;max-width:100%!important;height:36px!important" in CSS
+
+
+def test_collapsed_header_stacks_the_logo_above_the_toggle():
+    assert ':not(.sidebar-expanded) .brand{' in CSS
+    assert "height:88px!important;min-height:88px!important;padding:4px 0 42px!important" in CSS
+    assert ':not(.sidebar-expanded) .desktop-nav-toggle{' in CSS
+    assert "top:63px!important;right:21px!important" in CSS
+
+
+def test_sidebar_brand_hover_and_selection_use_purple_depth_states():
+    assert "--il-sidebar-logo:#7c3aed" in CSS
+    assert "background:var(--il-sidebar-logo)!important" in CSS
+    assert "--il-sidebar-tool-hover:rgba(139,92,246,.32)" in CSS
+    assert 'a:not([aria-current="page"]):hover' in CSS
+    assert "border-color:rgba(166,90,244,.72)!important" in CSS
+    assert "0 3px 0 var(--il-sidebar-active-depth)" in CSS
+    assert "transform:translateY(-1px)!important" in CSS
 
 
 def test_every_v2_route_renders_the_shared_sidebar_stylesheet(app_client):

@@ -6053,7 +6053,7 @@ const ODDS_BASE_PROVIDER_CATALOG = {
   "oddsapi__draftkings": {key:"oddsapi__draftkings", name:"DraftKings", logoUrl:"/static/assets/sportsbooks/draftkings.png", source:"sportsbook"},
   "oddsapi__fanduel": {key:"oddsapi__fanduel", name:"FanDuel", logoUrl:"/static/assets/sportsbooks/fanduel.png", source:"sportsbook"},
   "oddsapi__betmgm": {key:"oddsapi__betmgm", name:"BetMGM", logoUrl:"/static/assets/sportsbooks/betmgm.png", source:"sportsbook"},
-  "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars.png", source:"sportsbook"},
+  "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars-sportsbook.jpg", source:"sportsbook"},
   "oddsapi__pinnacle": {key:"oddsapi__pinnacle", name:"Pinnacle", logoUrl:"/static/assets/providers/pinnacle.png", source:"sportsbook"},
 };
 const ODDS_PROVIDER_KEYS = Object.keys(ODDS_BASE_PROVIDER_CATALOG);
@@ -6084,7 +6084,7 @@ try {
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
   : initialOddsProviderOrder.filter(key => ODDS_PROVIDER_KEYS.includes(key));
-const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", favoritesOnly: false, catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, preview: new URLSearchParams(window.location.search).get("preview") === "1" || document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true", mobileEventKey: "", mobileMarketKind: "main" };
+const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, preview: new URLSearchParams(window.location.search).get("preview") === "1" || document.querySelector(".odds-screen-page")?.dataset.oddsPreview === "true", mobileEventKey: "", mobileMarketKind: "main" };
 if (oddsState.preview) {
   oddsState.sport = "Baseball";
   oddsState.league = "MLB";
@@ -6319,13 +6319,11 @@ function oddsGameRow(inputRows) {
   const rows = orderedOddsSelections(inputRows);
   const primary = rows[0] || {};
   const id = String(primary.id || "");
-  const favorites = JSON.parse(safeStorage.getItem("iconbets_odds_favorites") || "[]");
-  const isFavorite = favorites.includes(id);
   const start = new Date(primary.event_date_et || primary.resolution_time || primary.event_start_time || 0);
   const participants = oddsEventParticipants(rows).slice(0, 2);
   const providerKeys = oddsState.providerOrder.filter(key => key !== "best" && oddsState.providers.includes(key));
   return `<tr class="odds-market-row" data-odds-id="${escapeHtml(id)}">
-    <td class="odds-event-cell"><button data-odds-star="${escapeHtml(id)}" class="odds-favorite ${isFavorite ? "active" : ""}" aria-label="${isFavorite ? "Remove favorite" : "Add favorite"}"><i class="ph ${isFavorite ? "ph-star-fill" : "ph-star"}"></i></button><div class="odds-team-stack">${rows.map((row, index) => `<span class="odds-team-selection">${oddsParticipantLogo(row, participants[index])}<strong>${escapeHtml(participants[index])}</strong></span>`).join("")}</div></td>
+    <td class="odds-event-cell"><div class="odds-team-stack">${rows.map((row, index) => `<span class="odds-team-selection">${oddsParticipantLogo(row, participants[index])}<strong>${escapeHtml(participants[index])}</strong></span>`).join("")}</div></td>
     <td class="odds-time-cell"><span>${Number.isNaN(start.getTime()) ? "TBD" : start.toLocaleDateString([], {weekday:"short", month:"short", day:"numeric"})}</span><strong>${Number.isNaN(start.getTime()) ? "" : start.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</strong></td>
     <td class="odds-best-cell"><div class="odds-best-stack">${rows.map(oddsBestLine).join("")}</div></td>
     <td class="odds-average-cell"><div class="odds-average-stack">${rows.map(row => `<span>${escapeHtml(oddsAverageLine(row))}</span>`).join("")}</div></td>
@@ -6639,12 +6637,10 @@ function closeMobileOddsSheet() {
 }
 
 function renderOddsScreen() {
-  const favorites = JSON.parse(safeStorage.getItem("iconbets_odds_favorites") || "[]");
   const rows = oddsState.rows.filter(row => {
     if (oddsState.sport && canonicalOddsSport(row.canonical_sport_id || row.category) !== canonicalOddsSport(oddsState.sport)) return false;
     if (oddsState.league && String(row.canonical_league_id || row.league || "").toLowerCase() !== oddsState.league.toLowerCase()) return false;
     if (oddsState.kind && oddsMarketKind(row) !== oddsState.kind) return false;
-    if (oddsState.favoritesOnly && !favorites.includes(String(row.id || ""))) return false;
     const text = `${row.outcome || ""} ${row.event_title || ""} ${row.market_title || ""}`.toLowerCase();
     return !oddsState.search || text.includes(oddsState.search);
   });
@@ -6663,7 +6659,7 @@ function renderOddsScreen() {
   const colspan = 4 + visibleProviderCount;
   grid.innerHTML = sortedGroups.length
     ? sortedGroups.map(oddsGameRow).join("")
-    : `<tr class="odds-state-row"><td colspan="${colspan}"><div class="odds-empty-state"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><strong>No matching lines</strong><p>No exact markets match the current sport, market, favorites, provider, and search filters.</p><button type="button" id="odds-empty-reset"><i class="ph ph-funnel-x" aria-hidden="true"></i>Reset filters</button></div></td></tr>`;
+    : `<tr class="odds-state-row"><td colspan="${colspan}"><div class="odds-empty-state"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><strong>No matching lines</strong><p>No exact markets match the current sport, market, provider, and search filters.</p><button type="button" id="odds-empty-reset"><i class="ph ph-funnel-x" aria-hidden="true"></i>Reset filters</button></div></td></tr>`;
   renderMobileOddsBoard(rows);
   renderMobileOddsSheet();
   document.getElementById("odds-empty-reset")?.addEventListener("click", () => {
@@ -6671,7 +6667,6 @@ function renderOddsScreen() {
     oddsState.league = oddsState.preview ? "MLB" : "";
     oddsState.kind = "moneyline";
     oddsState.search = "";
-    oddsState.favoritesOnly = false;
     const search = document.getElementById("odds-search");
     if (search) search.value = "";
     document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.toggle("active", item.dataset.oddsKind === "moneyline"));
@@ -7001,26 +6996,12 @@ function bindOddsScreen() {
     oddsState.sport = "";
     oddsState.league = "";
     oddsState.kind = "moneyline";
-    oddsState.favoritesOnly = false;
     const leagueLabel = document.getElementById("odds-league-label");
     if (leagueLabel) leagueLabel.textContent = "All Sports";
-    document.querySelector("[data-odds-favorite]")?.classList.remove("active");
     syncOddsNavigation("games");
     closeOddsMenus();
     if (oddsState.feedActive) loadOddsScreen(); else renderOddsScreen();
   });
-  document.querySelector("[data-odds-favorite]")?.addEventListener("click", event => { oddsState.favoritesOnly = !oddsState.favoritesOnly; event.currentTarget.classList.toggle("active", oddsState.favoritesOnly); closeOddsMenus(); renderOddsScreen(); });
-
-  document.getElementById("odds-grid")?.addEventListener("click", event => {
-    const star = event.target.closest("[data-odds-star]");
-    if (!star) return;
-    event.preventDefault();
-    const values = JSON.parse(safeStorage.getItem("iconbets_odds_favorites") || "[]");
-    const next = values.includes(star.dataset.oddsStar) ? values.filter(id => id !== star.dataset.oddsStar) : [...values, star.dataset.oddsStar];
-    safeStorage.setItem("iconbets_odds_favorites", JSON.stringify(next));
-    renderOddsScreen();
-  });
-
   document.getElementById("odds-books-all")?.addEventListener("click", () => { booksMenu.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = true; }); document.getElementById("odds-books-count").textContent = `${booksMenu.querySelectorAll('input[type="checkbox"]').length} selected`; });
   document.getElementById("odds-books-none")?.addEventListener("click", () => { booksMenu.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; }); document.getElementById("odds-books-count").textContent = "0 selected"; });
   booksMenu?.addEventListener("change", () => { document.getElementById("odds-books-count").textContent = `${booksMenu.querySelectorAll('input[type="checkbox"]:checked').length} selected`; });
