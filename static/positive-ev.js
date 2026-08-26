@@ -536,7 +536,7 @@
 
   function marketTrendVisual(row) {
     const identity = row.lineHistoryIdentity || {};
-    if (!identity.selectionId) {
+    if (!identity.eventId || !identity.marketId || !identity.selectionId) {
       return `<div class="ev-trend-chart il-chart-container"><div class="ev-chart-live-state il-state il-state-empty"><i class="ph ph-database"></i><strong>Line history is starting</strong><span>This play will chart after its first normalized bookmaker snapshot.</span></div></div>`;
     }
     return `<div class="ev-trend-chart il-chart-container" id="ev-live-line-history" aria-live="polite" aria-busy="true">
@@ -622,9 +622,11 @@
   }
 
   async function loadLiveLineHistory(row) {
-    if (!row.lineHistoryIdentity?.selectionId) return;
+    if (!row.lineHistoryIdentity?.eventId || !row.lineHistoryIdentity?.marketId || !row.lineHistoryIdentity?.selectionId) return;
     const books = liveHistoryBookKeys(row);
     const params = new URLSearchParams({
+      event_id: row.lineHistoryIdentity.eventId,
+      market_id: row.lineHistoryIdentity.marketId,
       selection_id: row.lineHistoryIdentity.selectionId,
       books: books.join(","),
       limit: "1000",

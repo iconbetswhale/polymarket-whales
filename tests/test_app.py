@@ -505,12 +505,24 @@ def test_positive_ev_line_history_returns_real_grouped_book_snapshots(
     monkeypatch.setattr(database, "get_normalized_market_quote_history", history)
     response = app_client.get(
         "/api/positive-ev/line-history",
-        query_string={"selection_id": "sel_history_test", "books": "pinnacle"},
+        query_string={
+            "event_id": "evt_history_test",
+            "market_id": "mkt_history_test",
+            "selection_id": "sel_history_test",
+            "books": "pinnacle",
+        },
     )
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert calls == [{"selection_id": "sel_history_test", "limit": 1000}]
+    assert calls == [
+        {
+            "event_id": "evt_history_test",
+            "market_id": "mkt_history_test",
+            "selection_id": "sel_history_test",
+            "limit": 1000,
+        }
+    ]
     assert payload["synthetic"] is False
     assert payload["source"] == "normalized_market_quote_history"
     assert payload["observationCount"] == 2
@@ -518,6 +530,18 @@ def test_positive_ev_line_history_returns_real_grouped_book_snapshots(
         -108,
         -112,
     ]
+
+
+def test_positive_ev_line_history_requires_indexed_canonical_identity(app_client):
+    response = app_client.get(
+        "/api/positive-ev/line-history",
+        query_string={"selection_id": "sel_history_test"},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json() == {
+        "error": "Valid event_id, market_id, and selection_id values are required."
+    }
 
 
 def test_live_tool_pages_embed_complete_oddsengine_filter_catalog(app_client):

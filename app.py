@@ -3317,9 +3317,23 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/positive-ev/line-history")
     def api_positive_ev_line_history():
+        event_id = request.args.get("event_id", "").strip()
+        market_id = request.args.get("market_id", "").strip()
         selection_id = request.args.get("selection_id", "").strip()
-        if not selection_id.startswith("sel_") or len(selection_id) > 80:
-            return jsonify({"error": "A valid selection_id is required."}), 400
+        valid_identity = (
+            event_id.startswith("evt_")
+            and market_id.startswith("mkt_")
+            and selection_id.startswith("sel_")
+            and all(len(value) <= 80 for value in (event_id, market_id, selection_id))
+        )
+        if not valid_identity:
+            return jsonify(
+                {
+                    "error": (
+                        "Valid event_id, market_id, and selection_id values are required."
+                    )
+                }
+            ), 400
         requested_books = {
             item.strip().lower()
             for item in request.args.get("books", "").split(",")
@@ -3335,6 +3349,8 @@ def create_app(start_background: bool = True) -> Flask:
             ), 400
         limit = max(1, min(request.args.get("limit", 1000, type=int) or 1000, 2000))
         rows = tracker.database.get_normalized_market_quote_history(
+            event_id=event_id,
+            market_id=market_id,
             selection_id=selection_id,
             limit=limit,
         )
@@ -3380,6 +3396,8 @@ def create_app(start_background: bool = True) -> Flask:
         series.sort(key=lambda item: item["bookName"].casefold())
         response = jsonify(
             {
+                "eventId": event_id,
+                "marketId": market_id,
                 "selectionId": selection_id,
                 "series": series,
                 "observationCount": sum(len(item["points"]) for item in series),
