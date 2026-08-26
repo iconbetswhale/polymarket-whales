@@ -6186,10 +6186,9 @@ function syncOddsProviderCatalog(entries = []) {
   entries.forEach(entry => {
     const key = String(entry?.key || "").toLowerCase();
     if (!key || !/^[a-z0-9_]+$/.test(key)) return;
-    const isNew = !oddsState.catalog[key];
     oddsState.catalog[key] = {key, name: entry.name || key, logoUrl: entry.logoUrl || "", source: entry.source || "sportsbook"};
     if (!oddsState.providerOrder.includes(key)) oddsState.providerOrder.splice(Math.max(oddsState.providerOrder.indexOf("best"), 0), 0, key);
-    if (isNew && savedOddsProviderSelection === null && availableProviderKeys.has(key) && !oddsState.providers.includes(key)) oddsState.providers.push(key);
+    if (savedOddsProviderSelection === null && availableProviderKeys.has(key) && !oddsState.providers.includes(key)) oddsState.providers.push(key);
   });
   if (!oddsState.providerOrder.includes("best")) oddsState.providerOrder.push("best");
 

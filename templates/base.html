@@ -46,6 +46,9 @@
   {% if page == 'edge-map' %}<link rel="stylesheet" href="{{ url_for('static', filename='edge-map-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'intelligence' %}<link rel="stylesheet" href="{{ url_for('static', filename='intelligence-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-v2.css', v=asset_version ~ '-canonical-v18-brand-mark') }}">{% endif %}
+  {% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'calculators'] %}
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile-tools.css', v=asset_version ~ '-mobile-workspace-v1') }}">
+  {% endif %}
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
@@ -146,7 +149,7 @@
     </div>
   </dialog>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3-provider-errors-v1') }}"></script>{% endif %}
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v2-oddsengine') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v3-oddsengine-catalog') }}"></script>
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-live-only-v2-retry') }}"></script>{% endif %}
   {% if page == 'arbitrage' %}<script src="{{ url_for('static', filename='arbitrage.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
   {% if page == 'calculators' %}<script src="{{ url_for('static', filename='calculator-math.js', v=asset_version ~ '-canonical-v1') }}"></script><script src="{{ url_for('static', filename='calculators.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
@@ -154,5 +157,8 @@
   {% if page == 'low-hold' %}<script src="{{ url_for('static', filename='low-hold.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
   {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-live-only-v2-undefined-guard') }}"></script>{% endif %}
   {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
+  {% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'calculators'] %}
+  <script src="{{ url_for('static', filename='mobile-tools.js', v=asset_version ~ '-mobile-workspace-v1') }}"></script>
+  {% endif %}
 </body>
 </html>
