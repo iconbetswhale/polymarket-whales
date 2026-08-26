@@ -592,7 +592,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button small {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td {
-  background: rgba(141, 68, 246, .15);
+  background: rgba(139, 92, 246, .32);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table .player-col {
@@ -601,25 +601,25 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table .player-col {
   z-index: 4;
   width: 230px;
   min-width: 230px;
-  text-align: left;
+  text-align: center;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table thead .player-col {
   z-index: 6;
-  text-align: left;
+  text-align: center;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-player {
   display: flex;
-  justify-content: flex-start;
-  text-align: left;
+  justify-content: center;
+  text-align: center;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-player span {
   display: flex;
   min-width: 0;
   max-width: 202px;
-  align-items: flex-start;
+  align-items: center;
   flex-direction: column;
 }
 
@@ -627,7 +627,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-player strong {
   overflow: hidden;
   max-width: 100%;
   color: var(--il-text-primary);
-  font: 700 13px/1.2 var(--il-font-ui);
+  font: 700 15px/1.2 var(--il-font-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -637,7 +637,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-player small {
   max-width: 100%;
   margin-top: 4px;
   color: var(--il-text-secondary);
-  font: 500 10px/1.2 var(--il-font-ui);
+  font: 500 12px/1.2 var(--il-font-ui);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -645,7 +645,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-player small {
 body[data-design-system="v2"][data-page="dfs"] .dfs-player em {
   margin-top: 3px;
   color: var(--il-text-muted);
-  font: 500 9px/1.2 var(--il-font-ui);
+  font: 500 11px/1.2 var(--il-font-ui);
   font-style: normal;
 }
 
@@ -656,7 +656,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-side {
   padding: 5px 7px;
   border: 1px solid transparent;
   border-radius: var(--il-radius-sm);
-  font: 700 10px/1 var(--il-font-data);
+  font: 700 13px/1 var(--il-font-data);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-side.over {
@@ -674,8 +674,10 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-side.under {
 body[data-design-system="v2"][data-page="dfs"] .dfs-stat {
   display: block;
   max-width: 126px;
+  margin-inline: auto;
   color: var(--il-text-secondary);
-  font: 650 11px/1.25 var(--il-font-ui);
+  font: 650 14px/1.25 var(--il-font-ui);
+  text-align: center;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .selected-line {
@@ -693,7 +695,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:nth-child(eve
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td.selected-line,
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td.algo-odds-cell {
-  background: rgba(141, 68, 246, .15) !important;
+  background: rgba(139, 92, 246, .32) !important;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .selected-line strong {

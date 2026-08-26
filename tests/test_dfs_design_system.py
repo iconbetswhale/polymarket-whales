@@ -106,7 +106,7 @@ def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> 
     assert ".dfs-table tbody tr:nth-child(even) td" in CSS
     assert "background: rgba(141, 68, 246, .08)" in CSS
     assert ".dfs-table tbody tr:hover td" in CSS
-    assert "background: rgba(141, 68, 246, .15)" in CSS
+    assert "background: rgba(139, 92, 246, .32)" in CSS
 
 
 def test_prizepicks_and_iconlabs_columns_inherit_the_row_backgrounds() -> None:
@@ -239,4 +239,14 @@ def test_dfs_filter_controls_share_equal_columns_and_alignment() -> None:
     assert "align-items: end;" in CSS
     assert "justify-content: center;" in CSS
     assert "min-height: var(--il-control-height-compact);" in CSS
+
+
+def test_dfs_prop_typography_and_stat_alignment() -> None:
+    assert "font: 700 15px/1.2 var(--il-font-ui);" in CSS
+    assert "font: 500 12px/1.2 var(--il-font-ui);" in CSS
+    assert "font: 500 11px/1.2 var(--il-font-ui);" in CSS
+    assert "font: 700 13px/1 var(--il-font-data);" in CSS
+    assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
+    assert "margin-inline: auto;" in CSS
+    assert "text-align: center;" in CSS
 
