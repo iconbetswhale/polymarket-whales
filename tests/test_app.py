@@ -823,7 +823,15 @@ def test_status_endpoints(app_client):
 def test_trades_to_play_fast_mode_returns_snapshot_without_blocking_live_quotes(
     app_client, monkeypatch
 ):
+    service = app_client.application.extensions["tracker_service"]
     providers = app_client.application.extensions["execution_providers"]
+    monkeypatch.setattr(
+        service,
+        "get_snapshot",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("fast mode must not refresh a stale snapshot")
+        ),
+    )
     monkeypatch.setattr(
         providers,
         "attach_options",
@@ -1092,6 +1100,9 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert '"/api/sharp-money/live"' in script
     assert '"/api/sharp-money/live?preview=1"' in script
     assert "fetch(endpoint" in script
+    assert "state.placeholderSignals.length === 0" in script
+    assert "state.payload.placeholderMode = true" in script
+    assert "visual placeholder trades" in script
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control(state.payload?.running ? "pause" : "play")' in script
     assert "function combinedDepthLiquidity" in script

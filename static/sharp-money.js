@@ -13,6 +13,7 @@
     sortDescending: true,
     detailVisible: true,
     preview: new URLSearchParams(window.location.search).get("preview") === "1",
+    placeholderSignals: [],
   };
   const $ = id => document.getElementById(id);
 
@@ -336,6 +337,7 @@
     });
     if (!state.visible.some(row => row.id === state.selectedId)) state.selectedId = state.visible[0]?.id || null;
     const previewOnly = payload.previewOnly === true;
+    const placeholderMode = payload.placeholderMode === true;
     const feedToggle = $("sharp-feed-toggle");
     feedToggle.innerHTML = `<i class="ph ${running ? "ph-pause" : "ph-play"}"></i>`;
     feedToggle.classList.toggle("active", running);
@@ -359,10 +361,14 @@
     $("sharp-mode-badge").classList.toggle("live", running);
     $("sharp-mode-badge").innerHTML = previewOnly
       ? `<i class="ph ph-eye"></i> Visual preview`
+      : placeholderMode
+        ? `<i class="ph ph-eye"></i> Sample trades`
       : running ? `<i class="ph ph-waveform"></i> Live local feed` : `<i class="ph ph-pause"></i> Paused`;
     $("sharp-feed-notice").classList.toggle("live", running);
     $("sharp-feed-title").textContent = previewOnly
       ? "Five visual preview plays - no provider requests"
+      : placeholderMode
+        ? `${state.visible.length} visual placeholder trades - no sample is executable`
       : running
       ? "Local collector active"
       : prophetxConfigured
@@ -370,22 +376,33 @@
         : "ProphetX credentials required - zero new requests";
     $("sharp-feed-copy").textContent = previewOnly
       ? "Synthetic layout fixtures only. Tracking, Discord, provider credits, and model data are disabled."
+      : placeholderMode
+        ? running
+          ? "Sample cards remain visible while the live collector looks for exact markets. They are clearly labeled and never enter tracking."
+          : prophetxConfigured
+            ? "Sample cards are shown while the feed is empty. Press Play to replace them with real markets as they arrive."
+            : "Sample cards are shown for layout review. Connect ProphetX to replace them with real markets."
       : running
       ? `ProphetX refreshes every ${payload.pollSeconds || 1}s; other-book comparisons every ${payload.comparisonSeconds || 60}s.`
       : prophetxConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add THE_ODDS_API_KEY for other-book comparisons"}.`
         : "Add PROPHETX_ACCESS_KEY and PROPHETX_SECRET_KEY to .env.local, then restart this local preview.";
-    $("sharp-feed-state").innerHTML = `<i></i> ${previewOnly ? "Preview" : running ? "Collecting" : "Paused"}`;
+    $("sharp-feed-state").innerHTML = `<i></i> ${previewOnly ? "Preview" : placeholderMode ? "Samples" : running ? "Collecting" : "Paused"}`;
     $("sharp-result-label").textContent = previewOnly
       ? `${state.visible.length} preview play${state.visible.length === 1 ? "" : "s"}`
+      : placeholderMode
+        ? `${state.visible.length} placeholder trade${state.visible.length === 1 ? "" : "s"}`
       : running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
-    $("sharp-last-updated").textContent = payload.lastError || ageLabel(payload.lastSnapshotAt);
+    $("sharp-last-updated").textContent = placeholderMode ? "Visual samples only" : payload.lastError || ageLabel(payload.lastSnapshotAt);
     const liquidity = state.visible.reduce((sum, row) => sum + Number(row.liquidity || 0), 0);
     const flows = state.visible.filter(row => Math.abs(Number(row.pressure)) >= 0.01).length;
     $("sharp-summary-signals").textContent = String(state.visible.length);
     $("sharp-summary-liquidity").textContent = money(liquidity);
     $("sharp-summary-flow").textContent = String(flows);
     $("sharp-summary-cycles").textContent = String(payload.cycles || 0);
+    $("sharp-summary-signals-note").textContent = placeholderMode ? "Clearly labeled sample markets" : "Real ProphetX markets";
+    $("sharp-summary-liquidity-note").textContent = placeholderMode ? "Sample quoted depth" : "Quoted, not confirmed wagers";
+    $("sharp-summary-flow-note").textContent = placeholderMode ? "Sample inferred pressure" : "Snapshot-inferred pressure";
     const requests = payload.provider?.metrics?.requests || 0;
     $("sharp-summary-requests").textContent = running ? `${requests} ProphetX requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length
@@ -403,7 +420,22 @@
       const response = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
       if (!response.ok) throw new Error(`Sharp Money returned ${response.status}`);
       state.payload = await response.json();
-      state.signals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
+      const liveSignals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
+      if (!state.preview && liveSignals.length === 0) {
+        if (state.placeholderSignals.length === 0) {
+          const placeholderResponse = await fetch("/api/sharp-money/live?preview=1", {
+            cache: "no-store",
+            credentials: "same-origin",
+          });
+          if (!placeholderResponse.ok) throw new Error(`Sharp Money placeholders returned ${placeholderResponse.status}`);
+          const placeholderPayload = await placeholderResponse.json();
+          state.placeholderSignals = Array.isArray(placeholderPayload.signals) ? placeholderPayload.signals : [];
+        }
+        state.payload.placeholderMode = true;
+        state.signals = state.placeholderSignals;
+      } else {
+        state.signals = liveSignals;
+      }
       render();
     } catch {
       $("sharp-last-updated").textContent = "Local collector unavailable";

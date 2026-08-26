@@ -468,6 +468,10 @@ class TrackerService:
 
     def get_snapshot(self) -> dict[str, Any]:
         self.refresh_if_stale()
+        return self.get_cached_snapshot()
+
+    def get_cached_snapshot(self) -> dict[str, Any]:
+        """Return the last completed snapshot without starting provider work."""
         with self._lock:
             return json.loads(json.dumps(self._cache))
 

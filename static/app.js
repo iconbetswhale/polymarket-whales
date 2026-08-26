@@ -3093,7 +3093,7 @@ async function loadTrades({ initial = false } = {}) {
       appState.tradeRefreshQueued = false;
       window.setTimeout(loadTrades, 0);
     } else if (initial && !cachedPayload && !appState.paused) {
-      window.setTimeout(loadTrades, 0);
+      runWhenIdle(() => loadTrades());
     }
   }
 }

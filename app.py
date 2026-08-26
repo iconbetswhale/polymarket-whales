@@ -2638,12 +2638,17 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/trades-to-play")
     def api_trades_to_play():
-        snapshot = tracker.get_snapshot()
         fast_mode = request.args.get("fast", "").strip().lower() in {
             "1",
             "true",
             "yes",
         }
+        # The first paint must never wait for a stale-snapshot provider refresh.
+        # A normal request follows in the background and enriches these cached
+        # cards with current execution quotes.
+        snapshot = (
+            tracker.get_cached_snapshot() if fast_mode else tracker.get_snapshot()
+        )
         date_range = request.args.get("date_range", "today")
         if date_range not in VALID_TRADE_DATE_RANGES:
             return jsonify({"error": "Unsupported date range"}), 400
@@ -2868,10 +2873,13 @@ def create_app(start_background: bool = True) -> Flask:
             ):
                 continue
             official_tracked.append(record)
-        try:
-            tracker.database.record_line_shop_quotes(g.iconbets_user_id, page_trades)
-        except Exception as exc:
-            LOGGER.warning("Line-shop quote persistence unavailable: %s", exc)
+        if not fast_mode:
+            try:
+                tracker.database.record_line_shop_quotes(
+                    g.iconbets_user_id, page_trades
+                )
+            except Exception as exc:
+                LOGGER.warning("Line-shop quote persistence unavailable: %s", exc)
         return jsonify(
             {
                 "data": page_trades,
