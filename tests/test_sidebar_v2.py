@@ -159,6 +159,10 @@ def test_regular_navigation_does_not_force_preview_mode(app_client):
     assert response.status_code == 200
     assert b'href="/positive-ev"' in response.data
     assert b'href="/positive-ev?preview=1"' not in response.data
+    assert b'href="/dfs"' in response.data
+    assert b'href="/dfs?demo=1"' not in response.data
+    assert b'href="/odds-screen"' in response.data
+    assert b'href="/odds-screen?demo=1"' not in response.data
 
 
 def test_prediction_traders_url_updates_do_not_drop_preview_mode():

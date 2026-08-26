@@ -514,7 +514,7 @@ def test_positive_ev_page_uses_live_85_book_catalog(app_client):
     assert 'id="ev-max-dispersion"' not in body
     assert 'id="ev-max-stake-pct"' not in body
     assert 'id="ev-max-event-pct"' not in body
-    assert '"previewOnly": true' in body
+    assert '"previewOnly": false' in body
     positive_ev_javascript = Path("static/positive-ev.js").read_text(
         encoding="utf-8"
     )
