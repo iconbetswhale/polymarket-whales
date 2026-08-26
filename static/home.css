@@ -290,6 +290,11 @@ body[data-page="home"] .home-page {
   background: var(--site-bg-canvas);
 }
 
+body[data-page="home"] .home-page {
+  overflow-x:clip;
+  overflow-y:visible;
+}
+
 body[data-page="home"] .marketing-hero,
 body[data-page="home"] .home-orbit-features,
 body[data-page="home"] .home-testimonials,
@@ -310,4 +315,337 @@ body[data-page="home"] .testimonials-marquee::before {
 
 body[data-page="home"] .testimonials-marquee::after {
   background: linear-gradient(270deg, var(--site-bg-canvas), rgba(17,24,39,.82) 28%, transparent);
+}
+
+/* Homepage hero v3: faithful to the approved IconLabs odds-board mockup. */
+body[data-page="home"] .marketing-nav {
+  position:sticky;
+  top:0;
+  z-index:1000;
+  min-height:74px;
+  width:100%;
+  grid-template-columns:240px minmax(0,1fr) 240px;
+  box-sizing:border-box;
+  padding:0 clamp(20px,1.4vw,28px) 0 clamp(20px,1.4vw,24px);
+  border:0;
+  border-bottom:1px solid rgba(100,113,133,.22);
+  background:#050a12;
+  backdrop-filter:none;
+}
+body[data-page="home"] .marketing-brand {
+  width:max-content;
+  min-width:0;
+  gap:0;
+}
+body[data-page="home"] .marketing-brand-lockup {
+  width:clamp(170px,11.2vw,194px);
+  height:auto;
+  display:block;
+  object-fit:contain;
+}
+body[data-page="home"] .marketing-page-tabs {
+  min-width:0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:24px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  white-space:nowrap;
+  transform:translateX(7px);
+}
+body[data-page="home"] .marketing-page-tabs::-webkit-scrollbar {
+  display:none;
+}
+body[data-page="home"] .marketing-page-tabs a {
+  flex:0 0 auto;
+  min-height:42px;
+  box-sizing:border-box;
+  display:inline-flex;
+  align-items:center;
+  padding:0 16px;
+  border:1px solid transparent;
+  border-radius:7px;
+  color:#a2a9b7;
+  background:transparent;
+  font:650 14px/1 "DM Sans",sans-serif;
+  transition:color .18s ease,border-color .18s ease,background .18s ease;
+}
+body[data-page="home"] .marketing-page-tabs a:hover,
+body[data-page="home"] .marketing-page-tabs a:focus-visible,
+body[data-page="home"] .marketing-page-tabs a[aria-current="page"] {
+  color:#fff;
+  border-color:rgba(166,101,235,.34);
+  background:rgba(133,70,205,.16);
+  outline:0;
+}
+body[data-page="home"] .marketing-auth {
+  gap:19px;
+}
+body[data-page="home"] .marketing-login {
+  min-height:42px;
+  padding:0;
+  color:#f3eff4;
+  font:600 16px "DM Sans",sans-serif;
+}
+body[data-page="home"] .home-menu-toggle {
+  width:40px;
+  height:42px;
+  border-radius:5px;
+  color:#f3eff4;
+}
+body[data-page="home"] .home-menu-toggle i {
+  font-size:26px;
+}
+body[data-page="home"] .hero-v3 {
+  position:relative;
+  isolation:isolate;
+  min-height:calc(100svh - 74px);
+  box-sizing:border-box;
+  overflow:hidden;
+  padding:0;
+  background:#070b15;
+}
+body[data-page="home"] #home,
+body[data-page="home"] #reviews,
+body[data-page="home"] #sportsbooks,
+body[data-page="home"] #features,
+body[data-page="home"] #plans,
+body[data-page="home"] #faq {
+  scroll-margin-top:74px;
+}
+body[data-page="home"] .hero-v3::after {
+  content:none;
+}
+body[data-page="home"] .hero-v3-background {
+  position:absolute;
+  z-index:-1;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+  object-position:center;
+  pointer-events:none;
+}
+body[data-page="home"] .hero-v3-layout {
+  width:100%;
+  min-height:calc(100svh - 74px);
+  box-sizing:border-box;
+  display:grid;
+  grid-template-columns:minmax(500px,37fr) minmax(720px,63fr);
+  align-items:center;
+  gap:clamp(24px,2vw,42px);
+  padding:clamp(50px,6.5vh,72px) clamp(28px,1.8vw,34px) clamp(64px,8vh,86px) clamp(58px,4.2vw,80px);
+}
+body[data-page="home"] .hero-v3-copy {
+  width:100%;
+  max-width:540px;
+  min-width:0;
+  transform:translate(35px,-34px);
+}
+body[data-page="home"] .hero-v3 .hero-proof-badge {
+  width:max-content;
+  min-height:42px;
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  gap:17px;
+  margin:0 0 43px;
+  padding:0 22px;
+  border:1px solid #8f46dc;
+  border-radius:999px;
+  color:#f7f4fb;
+  background:rgba(7,10,18,.82);
+  box-shadow:0 0 22px rgba(123,51,211,.12);
+}
+body[data-page="home"] .hero-v3 .hero-proof-badge i {
+  color:#aa67ff;
+  font-size:16px;
+}
+body[data-page="home"] .hero-v3 .hero-proof-badge .hero-proof-dot {
+  font-size:6px;
+}
+body[data-page="home"] .hero-v3 .hero-proof-badge strong,
+body[data-page="home"] .hero-v3 .hero-proof-badge b {
+  font:650 14px "DM Sans",sans-serif;
+  white-space:nowrap;
+}
+body[data-page="home"] .hero-v3 h1 {
+  max-width:560px;
+  margin:0;
+  color:#f8f8fa;
+  font:750 clamp(46px,3.2vw,57px)/1 "DM Sans",sans-serif;
+  letter-spacing:-.052em;
+}
+body[data-page="home"] .hero-v3 h1 em {
+  display:inline-block;
+  white-space:nowrap;
+  font-size:1.06em;
+}
+body[data-page="home"] .hero-v3-stats {
+  width:min(100%,420px);
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:34px;
+  margin-top:55px;
+}
+body[data-page="home"] .hero-v3-stats div {
+  min-width:0;
+  display:grid;
+  gap:11px;
+}
+body[data-page="home"] .hero-v3-stats strong {
+  color:#f7f5f8;
+  font:700 clamp(27px,1.8vw,32px)/1 "Roboto Condensed",sans-serif;
+  letter-spacing:.01em;
+  white-space:nowrap;
+  text-transform:uppercase;
+}
+body[data-page="home"] .hero-v3-stats span {
+  color:#8f9ab3;
+  font:650 clamp(12px,.85vw,14px)/1.2 "DM Sans",sans-serif;
+  letter-spacing:.035em;
+  text-transform:uppercase;
+  white-space:nowrap;
+}
+body[data-page="home"] .hero-v3 .hero-start-winning {
+  min-width:240px;
+  min-height:60px;
+  margin-top:43px;
+  border-radius:9px;
+  font-size:15.5px;
+}
+body[data-page="home"] .hero-v3-board {
+  position:relative;
+  width:min(100%,1020px);
+  max-width:1020px;
+  aspect-ratio:1.73;
+  justify-self:end;
+  margin-right:0;
+  overflow:hidden;
+  border:1px solid rgba(94,111,137,.42);
+  border-radius:13px;
+  outline:0;
+  filter:drop-shadow(0 26px 42px rgba(24,13,68,.48));
+  transform:translateY(-24px);
+  transform-origin:center;
+  transition:filter .22s ease,transform .22s ease;
+}
+body[data-page="home"] .hero-v3-board:hover,
+body[data-page="home"] .hero-v3-board:focus-visible {
+  filter:brightness(1.04) drop-shadow(0 27px 38px rgba(72,31,146,.48));
+  transform:translateY(-28px) scale(1.003);
+}
+body[data-page="home"] .hero-v3-board:focus-visible {
+  outline:0;
+  filter:brightness(1.04) drop-shadow(0 0 5px #b66cff) drop-shadow(0 27px 38px rgba(72,31,146,.48));
+}
+body[data-page="home"] .hero-v3-board img {
+  position:relative;
+  width:100%;
+  max-width:100%;
+  height:100%;
+  display:block;
+  object-fit:fill;
+  border-radius:12px;
+}
+
+@media(max-width:1500px){
+  body[data-page="home"] .marketing-nav{grid-template-columns:190px 1fr auto}
+  body[data-page="home"] .marketing-brand-lockup{width:174px}
+  body[data-page="home"] .marketing-page-tabs{justify-content:center}
+  body[data-page="home"] .marketing-page-tabs{gap:12px}
+  body[data-page="home"] .marketing-page-tabs a{padding-inline:10px;font-size:12px}
+}
+
+@media(max-width:760px){
+  body[data-page="home"] .marketing-nav{grid-template-columns:1fr auto}
+  body[data-page="home"] .marketing-page-tabs{display:none}
+}
+
+@media(max-width:1240px){
+  body[data-page="home"] .hero-v3-layout{
+    grid-template-columns:minmax(400px,42fr) minmax(560px,58fr);
+    gap:18px;
+    padding-left:40px;
+    padding-right:32px;
+  }
+  body[data-page="home"] .hero-v3-copy{transform:translate(24px,-44px)}
+  body[data-page="home"] .hero-v3 h1{font-size:45px}
+  body[data-page="home"] .hero-v3-stats{gap:22px}
+  body[data-page="home"] .hero-v3-stats strong{font-size:27px}
+}
+
+@media(max-width:1040px){
+  body[data-page="home"] .hero-v3-layout{
+    min-height:0;
+    grid-template-columns:1fr;
+    gap:48px;
+    padding:68px var(--home-gutter) 64px;
+  }
+  body[data-page="home"] .hero-v3-copy{
+    max-width:640px;
+    margin:auto;
+    text-align:center;
+    transform:none;
+  }
+  body[data-page="home"] .hero-v3 .hero-proof-badge{margin-inline:auto}
+  body[data-page="home"] .hero-v3 h1{max-width:none;font-size:clamp(48px,7vw,66px)}
+  body[data-page="home"] .hero-v3-stats{margin-inline:auto}
+  body[data-page="home"] .hero-v3 .hero-start-winning{margin-inline:auto}
+  body[data-page="home"] .hero-v3-board{width:min(100%,880px);justify-self:center}
+}
+
+@media(max-width:560px){
+  body[data-page="home"] .marketing-nav{
+    min-height:62px;
+    padding-inline:16px 12px;
+  }
+  body[data-page="home"] .marketing-brand-lockup{width:148px}
+  body[data-page="home"] .marketing-auth{gap:8px}
+  body[data-page="home"] .marketing-login{display:block;min-height:40px;font-size:13px}
+  body[data-page="home"] .home-menu-toggle{width:38px;height:40px}
+  body[data-page="home"] .hero-v3{
+    min-height:calc(100svh - 62px);
+  }
+  body[data-page="home"] .hero-v3-layout{
+    gap:36px;
+    padding:48px 16px 52px;
+  }
+  body[data-page="home"] .hero-v3 .hero-proof-badge{
+    min-height:34px;
+    gap:8px;
+    margin-bottom:28px;
+    padding-inline:13px;
+  }
+  body[data-page="home"] .hero-v3 .hero-proof-badge i{font-size:14px}
+  body[data-page="home"] .hero-v3 .hero-proof-badge strong,
+  body[data-page="home"] .hero-v3 .hero-proof-badge b{font-size:11px}
+  body[data-page="home"] .hero-v3 .hero-proof-badge span{font-size:13px}
+  body[data-page="home"] .hero-v3 h1{
+    font-size:clamp(37px,11.4vw,48px);
+    line-height:1;
+  }
+  body[data-page="home"] .hero-v3 h1 em{white-space:normal}
+  body[data-page="home"] .hero-v3-stats{
+    gap:12px;
+    margin-top:38px;
+  }
+  body[data-page="home"] .hero-v3-stats div{gap:8px}
+  body[data-page="home"] .hero-v3-stats strong{font-size:clamp(20px,6.2vw,25px)}
+  body[data-page="home"] .hero-v3-stats span{font-size:9px}
+  body[data-page="home"] .hero-v3 .hero-start-winning{
+    width:min(100%,280px);
+    min-height:58px;
+    margin-top:38px;
+    font-size:15px;
+  }
+  body[data-page="home"] .hero-v3-board{
+    width:calc(100% + 18px);
+    max-width:none;
+    margin-inline:-9px;
+    aspect-ratio:3840/1962;
+    transform:none;
+  }
 }
