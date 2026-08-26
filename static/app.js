@@ -3074,7 +3074,10 @@ async function loadTrades({ initial = false } = {}) {
     if (cachedPayload) return;
     updateTradeSummary({}, [], []);
     list.innerHTML = errorState(error.message);
-    document.getElementById("trade-detail").innerHTML = `<div class="professional-empty-state error-state"><span class="activity-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span><div><span class="page-kicker">Connection interrupted</span><h2>Live model data is temporarily unavailable</h2><p>${escapeHtml(error.message)}. Your filters and saved settings are unchanged.</p></div><button class="button ghost compact" type="button" onclick="window.location.reload()"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Retry connection</button></div>`;
+    const tradeDetail = document.getElementById("trade-detail");
+    if (tradeDetail) {
+      tradeDetail.innerHTML = `<div class="professional-empty-state error-state"><span class="activity-icon"><i class="ph ph-warning-circle" aria-hidden="true"></i></span><div><span class="page-kicker">Connection interrupted</span><h2>Live model data is temporarily unavailable</h2><p>${escapeHtml(error.message)}. Your filters and saved settings are unchanged.</p></div><button class="button ghost compact" type="button" onclick="window.location.reload()"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i>Retry connection</button></div>`;
+    }
   } finally {
     appState.tradeRequestInFlight = false;
     if (appState.tradeRefreshQueued && !appState.paused) {
