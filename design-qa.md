@@ -46,6 +46,7 @@ The reference and implementation images were reviewed together in the same compa
 - 390 × 844: all nine core routes reported equal document/client widths and `scrollX = 0`.
 - 320 × 720: page overflow is clipped by the existing shell and attempting horizontal scroll returns `scrollX = 0` on every core route.
 - 768 × 1024: arbitrage, +EV, DFS, and calculators retain their tablet/desktop compositions without horizontal scroll.
+- The existing mobile layouts for Bet Tracker, LabTracker, Shadow Lab, Live Positions, Sharp Wallets, Position History, Edge Map, and Intelligence were also checked at 390 × 844; every route remained at the viewport width with `scrollX = 0`.
 - Clean browser regression across all nine routes produced zero console warnings and zero console errors.
 - Expanded inline details remain connected after live data refresh.
 - Real production-preview APIs were not seeded; realistic fixtures were served only by an isolated visual-QA server outside the repository.
