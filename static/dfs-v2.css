@@ -932,28 +932,28 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel header p:last-ch
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 10px;
   margin: 12px var(--il-space-6) 0;
-  padding: 13px 14px;
-  border: 1px solid var(--il-border-interactive);
+  padding: 12px;
+  border: 1px solid rgba(255, 211, 77, .82);
   border-radius: var(--il-radius-control);
-  color: var(--il-text-primary);
-  background: rgba(141, 68, 246, .16);
-  box-shadow: inset 3px 0 0 var(--il-brand), 0 0 0 2px rgba(141, 68, 246, .08);
+  color: #fff7d6;
+  background: rgba(255, 193, 40, .2);
+  box-shadow: inset 3px 0 0 #ffc128, 0 0 0 2px rgba(255, 193, 40, .14);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact > i {
   display: grid;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid rgba(180, 120, 255, .28);
+  border: 1px solid rgba(255, 219, 103, .55);
   border-radius: var(--il-radius-control);
-  color: var(--il-brand-hover);
-  background: rgba(141, 68, 246, .2);
-  font-size: 17px;
+  color: #ffdd67;
+  background: rgba(255, 193, 40, .28);
+  font-size: 18px;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact > span {
@@ -964,13 +964,15 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact > span {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact strong {
-  color: #c998ff;
+  color: #ffdd67;
   font: 800 13px/1.3 var(--il-font-ui);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact small {
-  color: var(--il-text-secondary);
-  font: 600 11.5px/1.45 var(--il-font-ui);
+  color: #fff4c6;
+  font: 650 11px/1.35 var(--il-font-ui);
+  letter-spacing: -.01em;
+  white-space: nowrap;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel .eyebrow {

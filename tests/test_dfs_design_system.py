@@ -168,7 +168,11 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "Your Odds from custom Devig weights" in SCRIPT
     assert "You’re changing IconLabs Algo Odds to Your Odds." in TEMPLATE
     assert "recalculates both Chance to Hit and the fair odds" in TEMPLATE
+    assert 'class="ph ph-warning"' in TEMPLATE
     assert ".dfs-devig-impact" in CSS
+    assert "white-space: nowrap;" in CSS
+    assert "background: rgba(255, 193, 40, .2);" in CSS
+    assert "color: #ffdd67;" in CSS
 
 
 def test_selected_dfs_line_never_renders_slip_odds_underneath() -> None:
