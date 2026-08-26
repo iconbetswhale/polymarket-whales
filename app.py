@@ -717,6 +717,17 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.before_request
     def prepare_request():
+        if request.endpoint == "static":
+            # Versioned JS/CSS/images are public build artifacts. They must not
+            # open the durable auth store or mint an anonymous-user cookie.
+            g.iconbets_authenticated = False
+            g.iconbets_account_email = None
+            g.iconbets_account_username = None
+            g.iconbets_session_token = None
+            g.iconbets_new_user = False
+            g.iconbets_user_id = request.cookies.get(USER_COOKIE) or "static"
+            return
+
         session_token = request.cookies.get(AUTH_SESSION_COOKIE)
         account = (
             tracker.database.get_auth_session(_session_token_hash(session_token))
@@ -794,6 +805,14 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.after_request
     def persist_user_cookie(response):
+        if request.endpoint == "static":
+            if request.args.get("v"):
+                response.headers["Cache-Control"] = (
+                    "public, max-age=31536000, immutable"
+                )
+            else:
+                response.headers["Cache-Control"] = "public, max-age=3600"
+            return response
         if getattr(g, "iconbets_new_user", False):
             set_user_cookie(response, g.iconbets_user_id)
         return response

@@ -820,6 +820,28 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/provider-health/prophetx").status_code == 200
 
 
+def test_versioned_static_assets_skip_auth_and_are_immutable(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    monkeypatch.setattr(
+        service.database,
+        "get_auth_session",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("static assets must not open the auth store")
+        ),
+    )
+    app_client.set_cookie("iconbets_session", "stale-session")
+
+    response = app_client.get("/static/app.js?v=build-123")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == (
+        "public, max-age=31536000, immutable"
+    )
+    assert "iconbets_user" not in response.headers.get("Set-Cookie", "")
+
+
 def test_trades_to_play_fast_mode_returns_snapshot_without_blocking_live_quotes(
     app_client, monkeypatch
 ):
