@@ -195,6 +195,7 @@
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
           <strong title="Combined NoVIG + ProphetX liquidity">${escapeHtml(liquidityMoney(combinedDepthLiquidity(signal)))}</strong>
+          <small>Sharp Money</small>
           <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
@@ -203,7 +204,13 @@
             <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
           </div>
           <div class="sharp-card-market">
-            <div class="sharp-card-market-row primary"><strong>${escapeHtml(sides.selected)}</strong><span><b>${money(recBet, false)}</b><small>Rec Bet</small></span>${sportsbookAction(quote, signal.americanOdds)}</div>
+            <div class="sharp-card-market-row primary">
+              <strong>${escapeHtml(sides.selected)}</strong>
+              <span class="sharp-card-rec-bet"><b>${money(recBet, false)}</b><small>Rec Bet</small></span>
+              ${sportsbookAction(quote, signal.americanOdds)}
+              ${quote ? `<a class="sharp-card-bet" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : ""}
+              <button class="sharp-card-add" type="button" aria-label="Add ${escapeHtml(sides.selected)}"><i class="ph ph-plus"></i></button>
+            </div>
             ${depthStrip(signal)}
           </div>
         </div>
@@ -226,7 +233,7 @@
     const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
     return rows.map(row => `
       <div class="sharp-flow-depth-row">
-        <span class="sharp-flow-book">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
+        <span class="sharp-flow-book">${logo(row, String(row.providerName || "?").slice(0, 2))}<b>${escapeHtml(row.providerName || "Market")}</b></span>
         <strong>${escapeHtml(odds(row.americanOdds))}</strong>
         <span class="sharp-flow-bar"><i style="--flow-width:${Math.max(4, (Number(row.availableLiquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
         <small>${escapeHtml(money(row.availableLiquidity))}</small>
@@ -289,25 +296,26 @@
     const sides = marketSides(signal);
     const quote = primaryQuote(signal);
     const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
+    const league = String(signal.league || "").trim();
+    const sport = String(signal.sport || "").trim();
+    const competition = league && sport && league.toLowerCase() === sport.toLowerCase()
+      ? league
+      : [league, sport].filter(Boolean).join(" · ");
     return `
       <button class="sharp-mobile-close" id="sharp-detail-close" type="button" aria-label="Close market detail"><i class="ph ph-x"></i></button>
-      <header class="sharp-detail-head"><strong class="sharp-detail-liquidity">${escapeHtml(money(signal.liquidity))}</strong><div><span>${escapeHtml(signal.league)} · ${escapeHtml(signal.sport)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
-      <section class="sharp-recommendation">
-        <span class="sharp-book-icon">${logo(quote, "SB")}</span>
-        <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
-        <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
-        <div class="sharp-rec-price"><strong>${escapeHtml(quote ? odds(quote.americanOdds) : "—")}</strong><span>${escapeHtml(quote?.providerName || "No sportsbook line")}</span></div>
-        ${quote ? `<a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : `<span class="sharp-game-button unavailable">WAIT</span>`}
-        <button class="sharp-add-button" type="button" aria-label="Add selection"><i class="ph ph-plus"></i></button>
+      <section class="sharp-detail-overview">
+        <header class="sharp-detail-head"><div class="sharp-detail-money"><strong class="sharp-detail-liquidity">${escapeHtml(money(signal.liquidity))}</strong><small>Sharp Money</small></div><div><span>${escapeHtml(competition)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
+        <section class="sharp-recommendation">
+          <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
+          <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
+          <div class="sharp-rec-book">${sportsbookAction(quote, signal.americanOdds)}</div>
+          ${quote ? `<a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : `<span class="sharp-game-button unavailable">WAIT</span>`}
+          <button class="sharp-add-button" type="button" aria-label="Add selection"><i class="ph ph-plus"></i></button>
+        </section>
       </section>
-      <section class="sharp-flow-summary">
-        <span class="sharp-flow-primary-logo">${logo(signal)}</span><strong>${escapeHtml(sides.opposite)}</strong><span><b>${escapeHtml(odds(signal.americanOdds))}</b><small>Avg</small></span><span><b>${escapeHtml(money(signal.liquidity))}</b><small>Liquidity</small></span><i class="ph ph-question"></i>
-      </section>
-      <section class="sharp-flow-depth">
-        ${flowRows(signal)}
-      </section>
-      <section class="sharp-detail-depth-pair">
-        ${depthStrip(signal)}
+      <section class="sharp-liquidity-panel">
+        <header><strong>${escapeHtml(sides.opposite)}</strong><span>Avg Odds</span><span>Liquidity</span></header>
+        <div class="sharp-flow-depth">${flowRows(signal)}</div>
       </section>
       <section class="sharp-market-comparison">
         ${twoSidedComparison(signal)}
@@ -339,7 +347,7 @@
     const previewOnly = payload.previewOnly === true;
     const placeholderMode = payload.placeholderMode === true;
     const feedToggle = $("sharp-feed-toggle");
-    feedToggle.innerHTML = `<i class="ph ${running ? "ph-pause" : "ph-play"}"></i>`;
+    feedToggle.innerHTML = `<i class="ph ${running ? "ph-pause" : "ph-play"}"></i><span>${running ? "Pause feed" : "Play feed"}</span>`;
     feedToggle.classList.toggle("active", running);
     feedToggle.setAttribute("aria-pressed", String(running));
     feedToggle.setAttribute("aria-label", running ? "Pause feed" : "Play feed");
@@ -353,7 +361,9 @@
           : "Add ProphetX sandbox credentials to .env.local first";
     $("sharp-sort").setAttribute("aria-pressed", String(!state.sortDescending));
     $("sharp-sort").title = state.sortDescending ? "Combined liquidity: high to low" : "Combined liquidity: low to high";
+    $("sharp-sort").querySelector("span").textContent = state.sortDescending ? "Highest liquidity first" : "Lowest liquidity first";
     $("sharp-detail-toggle").setAttribute("aria-pressed", String(state.detailVisible));
+    $("sharp-detail-toggle").querySelector("span").textContent = state.detailVisible ? "Hide market details" : "Show market details";
     document.querySelector(".sharp-workspace")?.classList.toggle("detail-hidden", !state.detailVisible);
     const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType));
     $("sharp-filter-count").textContent = String(activeFilterCount);
@@ -480,6 +490,11 @@
   }
 
   function bind() {
+    const moreMenu = $("sharp-more-menu");
+    const closeMoreMenu = () => {
+      moreMenu.hidden = true;
+      $("sharp-more").setAttribute("aria-expanded", "false");
+    };
     $("sharp-feed-toggle").addEventListener("click", () => control(state.payload?.running ? "pause" : "play"));
     $("sharp-sort").addEventListener("click", () => {
       state.sortDescending = !state.sortDescending;
@@ -491,6 +506,12 @@
     });
     $("sharp-search").addEventListener("input", event => { state.search = event.target.value.trim().toLowerCase(); render(); });
     $("sharp-signal-list").addEventListener("click", event => {
+      if (event.target.closest(".sharp-card-add")) {
+        event.stopPropagation();
+        window.showToast?.("Selection added to your Sharp Money shortlist");
+        return;
+      }
+      if (event.target.closest("a")) return;
       const card = event.target.closest("[data-sharp-signal]");
       if (!card) return;
       state.selectedId = card.dataset.sharpSignal;
@@ -519,7 +540,13 @@
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
     $("sharp-refresh")?.addEventListener("click", load);
     $("sharp-alerts")?.addEventListener("click", () => window.showToast?.("No new Sharp Money alerts"));
-    $("sharp-more")?.addEventListener("click", () => window.showToast?.("Additional Sharp Money controls are coming soon"));
+    $("sharp-more")?.addEventListener("click", event => {
+      event.stopPropagation();
+      moreMenu.hidden = !moreMenu.hidden;
+      $("sharp-more").setAttribute("aria-expanded", String(!moreMenu.hidden));
+    });
+    moreMenu.addEventListener("click", event => event.stopPropagation());
+    document.addEventListener("click", closeMoreMenu);
     $("sharp-filter-close").addEventListener("click", () => openFilters(false));
     $("sharp-filter-backdrop").addEventListener("click", () => openFilters(false));
     $("sharp-filter-apply").addEventListener("click", () => { readFilters(); openFilters(false); });
@@ -533,6 +560,7 @@
     $("sharp-liquidity-filter").addEventListener("input", event => { $("sharp-liquidity-value").textContent = money(event.target.value, false); });
     document.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
+      closeMoreMenu();
       openFilters(false);
       $("sharp-detail-panel").classList.remove("mobile-open");
       document.body.classList.remove("sharp-detail-open");

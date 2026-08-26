@@ -12,6 +12,7 @@ def test_sharp_money_opts_into_v2_without_legacy_layers(app_client):
     assert b'data-page="sharp-money" data-design-system="v2"' in response.data
     assert b"design-system.css" in response.data
     assert b"sharp-money-v2.css" in response.data
+    assert b"sharp-money-redesign.css" in response.data
     assert b"legacy-design-system.css" not in response.data
     assert b"stage2-art-direction.css" not in response.data
     assert b"shared-shell.css" not in response.data
@@ -30,6 +31,8 @@ def test_sharp_money_template_uses_canonical_v2_primitives():
     assert "search-control" in template
     assert template.count("icon-button") >= 7
     assert "il-detail-panel" in template
+    assert "sharp-list-status" in template
+    assert "sharp-more-menu" in template
 
 
 def test_sharp_money_canonical_layer_unifies_cards_and_centers_bet_size():
@@ -54,3 +57,18 @@ def test_sharp_money_cards_support_keyboard_selection():
     assert 'addEventListener("keydown"' in script
     assert 'event.key !== "Enter" && event.key !== " "' in script
     assert "card.click();" in script
+
+
+def test_sharp_money_reference_redesign_has_list_detail_contract():
+    stylesheet = (ROOT / "static" / "sharp-money-redesign.css").read_text(
+        encoding="utf-8"
+    )
+    script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
+
+    assert ".sharp-signal-card.selected" in stylesheet
+    assert ".sharp-detail-overview" in stylesheet
+    assert ".sharp-liquidity-panel" in stylesheet
+    assert ".sharp-market-comparison" in stylesheet
+    assert 'class="sharp-card-bet"' in script
+    assert 'class="sharp-flow-book"' in script
+    assert "Sharp Money" in script
