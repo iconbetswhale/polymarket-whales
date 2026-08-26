@@ -4,7 +4,11 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from low_hold import LOW_HOLD_CALCULATION_VERSION, build_low_hold_board
+from low_hold import (
+    LOW_HOLD_CALCULATION_VERSION,
+    _locked_leg_stakes,
+    build_low_hold_board,
+)
 
 
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
@@ -58,6 +62,64 @@ def test_standard_low_hold_formula_matches_implied_probability_sum() -> None:
     assert row["holdCost"] == pytest.approx(-row["outsideNet"])
     assert sum(leg["stake"] for leg in row["outcomes"]) == pytest.approx(1000)
     assert row["calculationVersion"] == LOW_HOLD_CALCULATION_VERSION
+
+
+def test_locked_first_leg_matches_the_public_low_hold_hedge_example() -> None:
+    decimals = [2.25, 1 + (100 / 126)]
+    stakes, locked_index = _locked_leg_stakes(100, decimals, 0)
+
+    assert locked_index == 0
+    assert stakes == [100, 125.44]
+    payouts = [stake * decimal for stake, decimal in zip(stakes, decimals)]
+    assert min(payouts) - sum(stakes) == pytest.approx(-0.44, abs=0.01)
+
+
+def test_first_leg_mode_keeps_the_selected_bet_fixed_and_reports_actual_total() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", 125, point=22.5), _outcome("Under", -135, point=22.5)], market="totals"),
+        _book("fanduel", [_outcome("Over", 115, point=22.5), _outcome("Under", -126, point=22.5)], market="totals"),
+    )
+
+    row = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("totals",),
+        include_middles=False,
+        total_stake=100,
+        stake_mode="first-leg",
+        locked_outcome_index=0,
+        now=NOW,
+    )["data"][0]
+
+    assert row["stakeMode"] == "first-leg"
+    assert row["lockedOutcomeIndex"] == 0
+    assert row["lockedStake"] == 100
+    assert row["outcomes"][0]["stake"] == 100
+    assert row["outcomes"][1]["stake"] == pytest.approx(125.44)
+    assert row["totalStake"] == pytest.approx(225.44)
+    assert row["outsideNet"] == pytest.approx(-0.44, abs=0.01)
+
+
+def test_first_leg_mode_can_lock_the_second_outcome() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", 125, point=22.5), _outcome("Under", -135, point=22.5)], market="totals"),
+        _book("fanduel", [_outcome("Over", 115, point=22.5), _outcome("Under", -126, point=22.5)], market="totals"),
+    )
+
+    row = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("totals",),
+        include_middles=False,
+        total_stake=100,
+        stake_mode="first-leg",
+        locked_outcome_index=1,
+        now=NOW,
+    )["data"][0]
+
+    assert row["lockedOutcomeIndex"] == 1
+    assert row["outcomes"][1]["stake"] == 100
+    assert row["outcomes"][0]["stake"] == pytest.approx(79.72)
 
 
 def test_negative_hold_is_reported_as_a_guaranteed_profit() -> None:
@@ -159,8 +221,8 @@ def test_stale_quotes_are_removed_before_pairing() -> None:
 
 
 def test_preview_api_is_isolated_and_resizes_every_plan(app_client) -> None:
-    first = app_client.get("/api/low-hold?preview=1&stake=1000")
-    second = app_client.get("/api/low-hold?preview=1&stake=2000")
+    first = app_client.get("/api/low-hold?preview=1&stake=1000&stake_mode=total")
+    second = app_client.get("/api/low-hold?preview=1&stake=2000&stake_mode=total")
 
     assert first.status_code == 200
     assert second.status_code == 200
@@ -172,6 +234,24 @@ def test_preview_api_is_isolated_and_resizes_every_plan(app_client) -> None:
     assert second_payload["data"][0]["outsideNet"] == pytest.approx(
         first_payload["data"][0]["outsideNet"] * 2, abs=0.03
     )
+
+
+def test_preview_api_defaults_to_a_locked_100_dollar_first_bet(app_client) -> None:
+    response = app_client.get("/api/low-hold?preview=1")
+
+    assert response.status_code == 200
+    row = response.get_json()["data"][0]
+    assert row["stakeMode"] == "first-leg"
+    assert row["lockedOutcomeIndex"] == 0
+    assert row["lockedStake"] == 100
+    assert row["outcomes"][0]["stake"] == 100
+
+
+def test_low_hold_api_rejects_an_unknown_stake_mode(app_client) -> None:
+    response = app_client.get("/api/low-hold?preview=1&stake_mode=unknown")
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "INVALID_LOW_HOLD_STAKE_MODE"
 
 
 def test_live_api_is_paused_before_paid_provider_request(app_client) -> None:

@@ -38,7 +38,7 @@ from sports_game_odds import (
 )
 
 
-LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v1-equal-return"
+LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v2-locked-leg"
 MIDDLE_MARKETS = {"totals", "alternate_totals"}
 
 
@@ -136,6 +136,38 @@ def _pair_assignment(
     return best[1] if best else None
 
 
+def _locked_leg_stakes(
+    locked_stake: float,
+    decimals: list[float],
+    locked_index: int,
+) -> tuple[list[float], int]:
+    """Lock one stake and round every hedge to the closest equal payout."""
+
+    if not decimals or any(value <= 1.0 or not math.isfinite(value) for value in decimals):
+        raise ValueError("Decimal odds must be finite and greater than one.")
+    if not math.isfinite(locked_stake) or locked_stake <= 0:
+        raise ValueError("Locked stake must be positive.")
+
+    index = min(max(int(locked_index), 0), len(decimals) - 1)
+    stakes = [0.0] * len(decimals)
+    stakes[index] = round(locked_stake, 2)
+    target_payout = stakes[index] * decimals[index]
+    for outcome_index, decimal in enumerate(decimals):
+        if outcome_index == index:
+            continue
+        raw_cents = target_payout / decimal * 100.0
+        candidates = {
+            max(1, math.floor(raw_cents)),
+            max(1, math.ceil(raw_cents)),
+        }
+        best_cents = min(
+            candidates,
+            key=lambda cents: (abs((cents / 100.0) * decimal - target_payout), cents),
+        )
+        stakes[outcome_index] = best_cents / 100.0
+    return stakes, index
+
+
 def _middle_scenario(
     low_point: float,
     high_point: float,
@@ -191,6 +223,8 @@ def _build_row(
     commission_bps: float,
     require_distinct_books: bool,
     now: datetime,
+    stake_mode: str = "total",
+    locked_outcome_index: int = 0,
     line_distance: float = 0.0,
     middle_scenario: dict | None = None,
 ) -> dict | None:
@@ -200,8 +234,17 @@ def _build_row(
     if hold_percent > max_hold_percent + 1e-9:
         return None
 
+    normalized_stake_mode = "first-leg" if stake_mode == "first-leg" else "total"
+    locked_index = 0
     try:
-        stakes = equalized_stakes(total_stake, effective_decimals)
+        if normalized_stake_mode == "first-leg":
+            stakes, locked_index = _locked_leg_stakes(
+                total_stake,
+                effective_decimals,
+                locked_outcome_index,
+            )
+        else:
+            stakes = equalized_stakes(total_stake, effective_decimals)
     except ValueError:
         return None
     actual_total = round(sum(stakes), 2)
@@ -299,6 +342,14 @@ def _build_row(
         "guaranteedProfit": round(max(0.0, min_profit), 2),
         "bestOutsideProfit": round(max(outside_profits), 2),
         "totalStake": actual_total,
+        "stakeMode": normalized_stake_mode,
+        "stakeInputAmount": round(float(total_stake), 2),
+        "lockedOutcomeIndex": locked_index if normalized_stake_mode == "first-leg" else None,
+        "lockedStake": (
+            round(stakes[locked_index], 2)
+            if normalized_stake_mode == "first-leg"
+            else None
+        ),
         "minPayout": round(min_payout, 2),
         "middleScenario": scenario,
         "middleProfit": scenario["profit"] if scenario else None,
@@ -326,6 +377,8 @@ def build_low_hold_board(
     include_exact: bool = True,
     include_middles: bool = True,
     min_middle_distance: float = 0.5,
+    stake_mode: str = "total",
+    locked_outcome_index: int = 0,
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked feed of exact-line low holds and total/prop middles."""
@@ -487,6 +540,8 @@ def build_low_hold_board(
                     commission_bps=commission_bps,
                     require_distinct_books=require_distinct_books,
                     now=now,
+                    stake_mode=stake_mode,
+                    locked_outcome_index=locked_outcome_index,
                 )
                 if row is None:
                     rejected["above_maximum_hold"] += 1
@@ -525,6 +580,8 @@ def build_low_hold_board(
                             commission_bps=commission_bps,
                             require_distinct_books=require_distinct_books,
                             now=now,
+                            stake_mode=stake_mode,
+                            locked_outcome_index=locked_outcome_index,
                             line_distance=distance,
                         )
                         if row is None:

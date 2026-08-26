@@ -47,24 +47,39 @@ hold % = (S - 1) × 100
 
 ## 3. Equal-return stake sizing
 
-For a user-selected total stake `T`, each leg receives:
+The default workflow locks the user's first bet at amount `B`. Its effective
+decimal odds define the target payout:
+
+```text
+target payout = B × odds_1
+hedge_i = target payout / odds_i
+```
+
+Each hedge is rounded to the cent value whose returned payout is closest to the
+target. The first-bet stake never changes. This matches the efficient public
+low-hold workflow in which a bettor enters the intended amount for one side and
+receives the amount needed on every opposing side. The displayed total stake is
+the sum of the locked first bet and all calculated hedges.
+
+Users can switch to total-bankroll mode. For a user-selected total stake `T`,
+each leg then receives:
 
 ```text
 stake_i = T × (1 / odds_i) / S
 ```
 
 The theoretical payout is `T / S` in every mutually exclusive outside outcome.
-IconLabs converts the allocation to cents, preserves the exact total stake, and
-adds remaining cents to the leg with the lowest current payout. The displayed
-cost, return, and capital-retained figures use those rounded stakes rather than
-an unrounded estimate.
+IconLabs converts that allocation to cents, preserves the exact total stake,
+and adds remaining cents to the leg with the lowest current payout. In both
+modes, the displayed cost, return, and capital-retained figures use the actual
+rounded stakes rather than an unrounded estimate.
 
 ## 4. Middle windows
 
 For compatible totals and player props, IconLabs may pair `Over L` with
 `Under H` when `H > L`. It still equalizes the two outside outcomes using the
-formula above. It then enumerates attainable integer results from `ceil(L)`
-through `floor(H)`:
+selected sizing mode. It then enumerates attainable integer results from
+`ceil(L)` through `floor(H)`:
 
 - a winning leg returns `stake × effective decimal odds`;
 - a pushed leg returns its stake;

@@ -26,7 +26,7 @@
 
     <div class="arb-toolbar il-finance-controls" aria-label="Low Hold controls">
       <label class="arb-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="lh-search" type="search" placeholder="Search events, markets, or books" autocomplete="off"><kbd>/</kbd></label>
-      <label class="arb-stake-control"><span>Total stake</span><span class="arb-money-input"><b>$</b><input id="lh-stake" type="number" min="1" max="10000000" step="25" value="1000" inputmode="decimal"></span></label>
+      <label class="arb-stake-control lh-stake-control"><span><select id="lh-stake-mode" aria-label="Stake sizing mode"><option value="first-leg">Bet 1 stake</option><option value="total">Total stake</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span><span class="arb-money-input"><b>$</b><input id="lh-stake" type="number" min="1" max="10000000" step="10" value="100" inputmode="decimal" aria-label="Stake amount"></span></label>
       <button class="arb-icon-button" id="lh-pause" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
       <button class="arb-icon-button" id="lh-filter-open" type="button" aria-label="Open Low Hold filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span class="arb-filter-count" id="lh-filter-count" hidden>0</span></button>
       <button class="arb-icon-button" id="lh-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
@@ -111,16 +111,20 @@
         </section>
 
         <section class="arb-filter-panel" data-lh-filter-panel="hold">
-          <h3>Hold &amp; stake</h3><p>Set the cash deployed across all legs and the maximum acceptable implied hold.</p>
+          <h3>Hold &amp; stake</h3><p>Lock your intended first bet for the fastest hedge plan, or allocate a fixed bankroll across every leg.</p>
+          <div class="lh-stake-mode-grid" role="radiogroup" aria-label="Stake sizing mode">
+            <label><input type="radio" name="lh-stake-mode" value="first-leg" checked><span><i class="ph ph-lock-key" aria-hidden="true"></i><strong>Lock Bet 1</strong><small>Recommended · calculate the exact hedge</small></span></label>
+            <label><input type="radio" name="lh-stake-mode" value="total"><span><i class="ph ph-wallet" aria-hidden="true"></i><strong>Total bankroll</strong><small>Divide one total across all legs</small></span></label>
+          </div>
           <div class="arb-field-grid">
-            <label>Total stake<span class="arb-field-money"><b>$</b><input id="lh-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
+            <label><span id="lh-dialog-stake-label">Bet 1 stake</span><span class="arb-field-money"><b>$</b><input id="lh-dialog-stake" type="number" min="1" max="10000000" step="10" value="100"></span></label>
             <label>Maximum hold<span class="arb-field-suffix"><input id="lh-max-hold" type="number" min="0" max="25" step="0.1" value="5"><b>%</b></span></label>
           </div>
           <div class="arb-choice-grid lh-kind-choices">
             <label><input id="lh-include-exact" type="checkbox" checked><span><i class="ph ph-equals" aria-hidden="true"></i><strong>Exact lines</strong><small>Minimum-loss opposing bets</small></span></label>
             <label><input id="lh-include-middles" type="checkbox" checked><span><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i><strong>Middles</strong><small>Two lines with a win window</small></span></label>
           </div>
-          <div class="arb-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-return sizing</strong><p>Stake is proportional to inverse decimal odds, then rebalanced by cents to maximize the lower outside payout.</p></div></div>
+          <div class="arb-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-return sizing</strong><p>Lock Bet 1 keeps that amount unchanged and rounds each hedge to the closest equal payout. Total bankroll mode divides the full amount proportionally.</p></div></div>
         </section>
 
         <section class="arb-filter-panel" data-lh-filter-panel="markets">
@@ -181,7 +185,7 @@
     <div class="arb-learn-grid">
       <section><span>01</span><div><h3>Convert each price</h3><p>American odds become decimal odds and implied probabilities. Exchange fees reduce net winnings, never returned stake.</p></div></section>
       <section><span>02</span><div><h3>Measure the hold</h3><p>Add the implied probabilities of every opposing leg and subtract 100%.</p><code>hold % = (Σ(1 ÷ decimal odds) − 1) × 100</code></div></section>
-      <section><span>03</span><div><h3>Equalize outside outcomes</h3><p>Allocate the total stake in proportion to inverse odds, then balance cents to maximize the smallest payout.</p><code>stakeᵢ = total stake × (1 ÷ oddsᵢ) / Σ(1 ÷ odds)</code></div></section>
+      <section><span>03</span><div><h3>Equalize outside outcomes</h3><p>By default, keep Bet 1 fixed and solve each hedge from its target payout. Total bankroll mode remains available.</p><code>hedgeᵢ = (Bet 1 × odds₁) ÷ oddsᵢ</code></div></section>
       <section><span>04</span><div><h3>Model the middle</h3><p>For compatible Over/Under lines, IconLabs enumerates attainable integer results between the lines and shows whether both bets win or one wins while the other pushes.</p></div></section>
     </div>
     <div class="arb-learn-proof"><i class="ph ph-shield-check" aria-hidden="true"></i><div><strong>Transparent and independently implemented</strong><p>The formulas are standard sportsbook hold and hedge math. IconLabs does not claim access to another product's proprietary ranking, source weights, or market-matching code.</p></div></div>

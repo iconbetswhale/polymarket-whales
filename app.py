@@ -2858,7 +2858,22 @@ def create_app(start_background: bool = True) -> Flask:
                 400,
             )
 
-        total_stake = low_hold_number("stake", 1_000.0, 1.0, 10_000_000.0)
+        stake_mode = request.args.get("stake_mode", "first-leg").strip().lower()
+        if stake_mode not in {"first-leg", "total"}:
+            return (
+                jsonify(
+                    {
+                        "error": "INVALID_LOW_HOLD_STAKE_MODE",
+                        "message": "Stake mode must be first-leg or total.",
+                    }
+                ),
+                400,
+            )
+        default_stake = 100.0 if stake_mode == "first-leg" else 1_000.0
+        total_stake = low_hold_number("stake", default_stake, 1.0, 10_000_000.0)
+        locked_outcome_index = int(
+            low_hold_number("locked_leg", 0, 0, 12)
+        )
         max_hold = low_hold_number("max_hold", 5.0, 0.0, 25.0)
         min_odds = int(low_hold_number("min_odds", -100_000, -100_000, 100_000))
         max_odds = int(low_hold_number("max_odds", 100_000, -100_000, 100_000))
@@ -2910,6 +2925,8 @@ def create_app(start_background: bool = True) -> Flask:
             "include_exact": include_exact,
             "include_middles": include_middles,
             "min_middle_distance": min_distance,
+            "stake_mode": stake_mode,
+            "locked_outcome_index": locked_outcome_index,
         }
         if preview_requested:
             from low_hold_preview import temporary_low_hold_events
