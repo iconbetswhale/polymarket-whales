@@ -9,14 +9,16 @@
   const preview = pageRoot.dataset.lhPreview === "true";
   const popularBooks = new Set(["fanduel", "draftkings", "betmgm", "caesars", "fanatics", "bet365", "pinnacle", "novig", "hardrockbet", "betonline", "kalshi", "polymarket"]);
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
-  const storageKey = "iconlabsLowHoldSettingsV1";
-  const savedKey = "iconlabsLowHoldSavedFiltersV1";
+  const storageKey = "iconlabsLowHoldSettingsV2";
+  const savedKey = "iconlabsLowHoldSavedFiltersV2";
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch (_error) { stored = {}; }
 
   const defaultMarkets = ["h2h", "spreads", "totals", "alternate_spreads", "alternate_totals", "batter_hits", "pitcher_strikeouts", "player_points"];
   const defaults = {
-    stake: 1000,
+    stake: 100,
+    stakeMode: "first-leg",
+    lockedLegIndex: 0,
     maxHold: 5,
     minOdds: -100000,
     maxOdds: 100000,
@@ -47,6 +49,8 @@
     bookGroup: "all",
     alerts: false,
     stake: numberBetween(stored.stake, 1, 10_000_000, defaults.stake),
+    stakeMode: ["first-leg", "total"].includes(stored.stakeMode) ? stored.stakeMode : defaults.stakeMode,
+    lockedLegIndex: numberBetween(stored.lockedLegIndex, 0, 12, defaults.lockedLegIndex),
     maxHold: numberBetween(stored.maxHold, 0, 25, defaults.maxHold),
     minOdds: numberBetween(stored.minOdds, -100000, 100000, defaults.minOdds),
     maxOdds: numberBetween(stored.maxOdds, -100000, 100000, defaults.maxOdds),
@@ -71,7 +75,9 @@
     detailContent: document.getElementById("lh-detail-content"),
     search: document.getElementById("lh-search"),
     stake: document.getElementById("lh-stake"),
+    stakeMode: document.getElementById("lh-stake-mode"),
     dialogStake: document.getElementById("lh-dialog-stake"),
+    dialogStakeLabel: document.getElementById("lh-dialog-stake-label"),
     sport: document.getElementById("lh-sport-filter"),
     market: document.getElementById("lh-market-filter"),
     sort: document.getElementById("lh-sort"),
@@ -164,6 +170,8 @@
   function settingsPayload() {
     return {
       stake: state.stake,
+      stakeMode: state.stakeMode,
+      lockedLegIndex: state.lockedLegIndex,
       maxHold: state.maxHold,
       minOdds: state.minOdds,
       maxOdds: state.maxOdds,
@@ -314,11 +322,12 @@
       elements.detailContent.hidden = true;
       return;
     }
-    const plan = (row.outcomes || []).map((leg) => `
+    const lockedIndex = Number.isInteger(row.lockedOutcomeIndex) ? row.lockedOutcomeIndex : 0;
+    const plan = (row.outcomes || []).map((leg, index) => `
       <article class="arb-plan-leg">
         ${bookLogo(leg)}
         <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)}</small></div>
-        <div class="arb-plan-stake"><span>Stake</span><b>${money(leg.stake)}</b></div>
+        <div class="arb-plan-stake"><span>${row.stakeMode === "first-leg" ? (index === lockedIndex ? "Bet 1" : "Hedge") : "Stake"}</span><b>${money(leg.stake)}</b>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<small class="lh-lock-status"><i class="ph ph-lock-key"></i>Locked</small>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : ""}</div>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
       </article>`).join("");
     const outsideCards = (row.outcomes || []).slice(0, 2).map((leg) => scenarioCard(`${leg.selection} hits`, leg.profit, `${leg.bookName} wins · other leg loses`));
@@ -340,10 +349,10 @@
         <p>${esc(row.league)} · ${esc(row.marketLabel)}${context} · ${esc(dateTime(row.commenceTime))}</p>
         <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>Copy bet plan</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      <section class="arb-detail-section"><header><h3>Bet plan</h3><span>${row.outcomeCount} legs · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
+      <section class="arb-detail-section"><header><h3>Bet plan</h3><span>${row.stakeMode === "first-leg" ? `Bet 1 locked · ${row.outcomeCount} legs` : `${row.outcomeCount} legs · ${row.bookCount} books`}</span></header><div class="arb-plan-list">${plan}</div></section>
       <section class="arb-detail-section"><header><h3>Outcome map</h3><span>${row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} point window` : "exact opposing lines"}</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="lh-scenario-grid">${outsideCards.join("")}</div>${outcomeCopy}</section>
       <section class="arb-detail-section"><header><h3>Odds comparison</h3><span>best qualified price highlighted</span></header>${comparisons}</section>
-      <section class="arb-detail-section"><header><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span></header><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg. A moved line changes the hold.</span></div>` : ""}</section>`;
+      <section class="arb-detail-section"><header><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span></header><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg. A moved line changes the hold.</span></div>` : ""}</section>`;
     elements.detailPlaceholder.hidden = true;
     elements.detailContent.hidden = false;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {
@@ -385,6 +394,8 @@
     if (preview) params.set("preview", "1");
     else params.set("active", "1");
     params.set("stake", String(state.stake));
+    params.set("stake_mode", state.stakeMode);
+    params.set("locked_leg", String(state.lockedLegIndex));
     params.set("max_hold", String(state.maxHold));
     params.set("min_odds", String(state.minOdds));
     params.set("max_odds", String(state.maxOdds));
@@ -473,11 +484,23 @@
       elements.savedList.innerHTML = `<div class="lh-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No filters saved yet</strong><p>Configure this scan, then use Save filter below.</p></div>`;
       return;
     }
-    elements.savedList.innerHTML = filters.map((filter, index) => `<article class="lh-saved-filter"><i class="ph ph-bookmark-simple"></i><div><strong>${esc(filter.name)}</strong><small>${Number(filter.maxHold).toFixed(1)}% max · ${(filter.books || []).length} books · ${(filter.markets || []).length} markets</small></div><button type="button" data-lh-load-filter="${index}">Load</button><button type="button" data-lh-delete-filter="${index}" aria-label="Delete ${esc(filter.name)}"><i class="ph ph-trash"></i></button></article>`).join("");
+    elements.savedList.innerHTML = filters.map((filter, index) => `<article class="lh-saved-filter"><i class="ph ph-bookmark-simple"></i><div><strong>${esc(filter.name)}</strong><small>${filter.stakeMode === "total" ? "Total bankroll" : "Bet 1 locked"} · ${Number(filter.maxHold).toFixed(1)}% max · ${(filter.books || []).length} books</small></div><button type="button" data-lh-load-filter="${index}">Load</button><button type="button" data-lh-delete-filter="${index}" aria-label="Delete ${esc(filter.name)}"><i class="ph ph-trash"></i></button></article>`).join("");
+  }
+
+  function syncStakeModeUI() {
+    const firstLegMode = state.stakeMode === "first-leg";
+    elements.stakeMode.value = state.stakeMode;
+    elements.dialogStakeLabel.textContent = firstLegMode ? "Bet 1 stake" : "Total stake";
+    elements.stake.step = firstLegMode ? "10" : "25";
+    elements.dialogStake.step = firstLegMode ? "10" : "25";
+    document.querySelectorAll('input[name="lh-stake-mode"]').forEach((input) => {
+      input.checked = input.value === state.stakeMode;
+    });
   }
 
   function syncDialog() {
     elements.dialogStake.value = state.stake;
+    syncStakeModeUI();
     elements.maxHold.value = state.maxHold;
     elements.minOdds.value = state.minOdds;
     elements.maxOdds.value = state.maxOdds;
@@ -500,6 +523,7 @@
     if (state.maxHold !== defaults.maxHold) count += 1;
     if (state.minOdds !== defaults.minOdds || state.maxOdds !== defaults.maxOdds) count += 1;
     if (state.stake !== defaults.stake) count += 1;
+    if (state.stakeMode !== defaults.stakeMode || state.lockedLegIndex !== defaults.lockedLegIndex) count += 1;
     if (state.selectedMarkets.size !== defaults.markets.length) count += 1;
     if (state.minDistance !== defaults.minDistance) count += 1;
     if (state.maxAge !== defaults.maxAge || state.commissionBps !== defaults.commissionBps) count += 1;
@@ -518,6 +542,7 @@
     const allVisibleBookKeys = new Set(filteredBookCatalog(elements.bookSearch.value).map((book) => book.key));
     state.selectedBooks = new Set([...state.selectedBooks].filter((key) => !allVisibleBookKeys.has(key)));
     chosenBooks.forEach((key) => state.selectedBooks.add(key));
+    state.stakeMode = document.querySelector('input[name="lh-stake-mode"]:checked')?.value || defaults.stakeMode;
     state.stake = numberBetween(elements.dialogStake.value, 1, 10_000_000, defaults.stake);
     state.maxHold = numberBetween(elements.maxHold.value, 0, 25, defaults.maxHold);
     state.minOdds = numberBetween(elements.minOdds.value, -100000, 100000, defaults.minOdds);
@@ -535,6 +560,7 @@
     if (!state.selectedMarkets.size) { notify("Select at least one market.", "error"); return; }
     if (!state.includeExact && !state.includeMiddles) { notify("Select exact lines, middles, or both.", "error"); return; }
     elements.stake.value = state.stake;
+    syncStakeModeUI();
     elements.sort.value = state.sort;
     saveSettings();
     updateFilterBadge();
@@ -544,6 +570,8 @@
 
   function resetDefaults() {
     state.stake = defaults.stake;
+    state.stakeMode = defaults.stakeMode;
+    state.lockedLegIndex = defaults.lockedLegIndex;
     state.maxHold = defaults.maxHold;
     state.minOdds = defaults.minOdds;
     state.maxOdds = defaults.maxOdds;
@@ -578,6 +606,8 @@
     const filter = savedFilters()[index];
     if (!filter) return;
     state.stake = numberBetween(filter.stake, 1, 10_000_000, defaults.stake);
+    state.stakeMode = ["first-leg", "total"].includes(filter.stakeMode) ? filter.stakeMode : defaults.stakeMode;
+    state.lockedLegIndex = numberBetween(filter.lockedLegIndex, 0, 12, defaults.lockedLegIndex);
     state.maxHold = numberBetween(filter.maxHold, 0, 25, defaults.maxHold);
     state.minOdds = numberBetween(filter.minOdds, -100000, 100000, defaults.minOdds);
     state.maxOdds = numberBetween(filter.maxOdds, -100000, 100000, defaults.maxOdds);
@@ -608,8 +638,8 @@
     if (!row) return;
     const lines = [
       `${row.eventTitle} · ${row.marketLabel}${row.marketContext ? ` · ${row.marketContext}` : ""}`,
-      `Hold ${percent(row.holdPercent, 3)} · Total ${money(row.totalStake)} · Outside ${signedMoney(row.outsideNet)}`,
-      ...(row.outcomes || []).map((leg) => `${leg.selection}: ${money(leg.stake)} at ${odds(leg.americanOdds)} on ${leg.bookName}`),
+      `Hold ${percent(row.holdPercent, 3)} · ${row.stakeMode === "first-leg" ? `Bet 1 ${money(row.lockedStake)} · ` : ""}Total ${money(row.totalStake)} · Outside ${signedMoney(row.outsideNet)}`,
+      ...(row.outcomes || []).map((leg, index) => `${row.stakeMode === "first-leg" ? (index === row.lockedOutcomeIndex ? "Bet 1" : "Hedge") : "Stake"} · ${leg.selection}: ${money(leg.stake)} at ${odds(leg.americanOdds)} on ${leg.bookName}`),
     ];
     if (row.middleScenario) lines.push(`${row.middleScenario.label} at ${row.middleScenario.result}: ${signedMoney(row.middleProfit)}`);
     navigator.clipboard?.writeText(lines.join("\n")).then(() => notify("Bet plan copied.")).catch(() => notify("Copy is unavailable in this browser.", "error"));
@@ -657,6 +687,15 @@
     if (event.target.closest("[data-lh-close-detail]")) closeMobileDetail();
     if (event.target.closest("[data-lh-copy-plan]")) copyPlan();
     if (event.target.closest("[data-lh-recalculate]")) openFilter("hold");
+    const lockLeg = event.target.closest("[data-lh-lock-leg]");
+    if (lockLeg) {
+      state.stakeMode = "first-leg";
+      state.lockedLegIndex = numberBetween(lockLeg.dataset.lhLockLeg, 0, 12, 0);
+      syncStakeModeUI();
+      saveSettings();
+      notify("Bet 1 changed. Recalculating the hedge.");
+      loadBoard({ quiet: true });
+    }
   });
   elements.savedList.addEventListener("click", (event) => {
     const load = event.target.closest("[data-lh-load-filter]");
@@ -675,6 +714,13 @@
       loadBoard({ quiet: true });
     }, 420);
   });
+  elements.stakeMode.addEventListener("change", () => {
+    state.stakeMode = elements.stakeMode.value === "total" ? "total" : "first-leg";
+    if (state.stakeMode === "total") state.lockedLegIndex = 0;
+    syncStakeModeUI();
+    saveSettings();
+    loadBoard({ quiet: true });
+  });
   elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; renderAll(); });
   elements.market.addEventListener("change", () => { state.market = elements.market.value; renderAll(); });
   elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; saveSettings(); renderAll(); });
@@ -686,6 +732,10 @@
   document.getElementById("lh-apply").addEventListener("click", applyDialog);
   document.getElementById("lh-reset").addEventListener("click", resetDefaults);
   document.getElementById("lh-save-filter").addEventListener("click", saveFilter);
+  document.querySelectorAll('input[name="lh-stake-mode"]').forEach((input) => input.addEventListener("change", () => {
+    elements.dialogStakeLabel.textContent = input.value === "first-leg" ? "Bet 1 stake" : "Total stake";
+    elements.dialogStake.step = input.value === "first-leg" ? "10" : "25";
+  }));
   elements.bookSearch.addEventListener("input", () => renderBookGrid(elements.bookSearch.value));
   elements.bookGrid.addEventListener("change", (event) => {
     if (!event.target.matches('input[type="checkbox"]')) return;
@@ -712,6 +762,7 @@
   });
 
   elements.stake.value = state.stake;
+  syncStakeModeUI();
   elements.sort.value = state.sort;
   updateFilterBadge();
   syncDialog();

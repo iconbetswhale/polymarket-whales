@@ -22,6 +22,8 @@ def test_low_hold_page_exposes_the_complete_master_detail_workflow() -> None:
     for required in (
         'id="lh-search"',
         'id="lh-stake"',
+        'id="lh-stake-mode"',
+        'id="lh-dialog-stake-label"',
         'id="lh-filter-dialog"',
         'id="lh-feed"',
         'id="lh-detail"',
@@ -57,9 +59,20 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         "function renderSavedFilters",
         "function saveFilter",
         "function copyPlan",
+        "function syncStakeModeUI",
         "data-lh-start",
         "data-lh-retry",
         "data-lh-copy-plan",
+        "data-lh-lock-leg",
+        'params.set("stake_mode"',
         "showModal()",
     ):
         assert required in SCRIPT
+
+
+def test_locked_first_leg_is_the_recommended_sizing_workflow() -> None:
+    assert '<option value="first-leg">Bet 1 stake</option>' in TEMPLATE
+    assert '<strong>Lock Bet 1</strong>' in TEMPLATE
+    assert "Recommended · calculate the exact hedge" in TEMPLATE
+    assert 'stakeMode: "first-leg"' in SCRIPT
+    assert "stake: 100" in SCRIPT
