@@ -72,3 +72,15 @@ def test_sharp_money_reference_redesign_has_list_detail_contract():
     assert 'class="sharp-card-bet"' in script
     assert 'class="sharp-flow-book"' in script
     assert "Sharp Money" in script
+
+
+def test_sharp_money_reference_redesign_keeps_hover_states_inside_the_feed():
+    stylesheet = (ROOT / "static" / "sharp-money-redesign.css").read_text(
+        encoding="utf-8"
+    )
+
+    assert ".sharp-quick-filters button:hover:not(.active)" in stylesheet
+    assert ".sharp-quick-filters button:focus-visible:not(.active)" in stylesheet
+    assert "background: var(--il-surface-selected);" in stylesheet
+    assert ".sharp-signal-list .sharp-signal-card:hover" in stylesheet
+    assert "transform: none !important;" in stylesheet
