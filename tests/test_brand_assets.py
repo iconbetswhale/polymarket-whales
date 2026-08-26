@@ -26,9 +26,23 @@ def test_shared_shell_uses_the_reference_iconlabs_lockup(app_client):
     assert "brand-icon" in page
 
 
-def test_home_uses_new_logo_mark(app_client):
+def test_home_uses_reference_logo_lockup(app_client):
     page = app_client.get("/").get_data(as_text=True)
-    assert "iconlabs-mark-v2.png" in page
+    assert "assets/iconlabs-horizontal-logo-white.webp" in page
+
+
+def test_home_hero_v3_uses_mockup_assets_and_preserves_following_sections(app_client):
+    response = app_client.get("/")
+    assert response.status_code == 200
+    page = response.get_data(as_text=True)
+
+    assert "hero-v3-grid-background.png" in page
+    assert "hero-v3-odds-board.png" in page
+    assert "1000+ Verified Winners" in page
+    assert "100+" in page
+    assert "50+" in page
+    assert "Real-Time" in page
+    assert page.index('class="marketing-hero hero-v3"') < page.index('class="home-testimonials"')
 
 
 def test_shared_shell_keeps_brand_and_navigation_responsive():

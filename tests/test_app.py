@@ -1964,7 +1964,8 @@ def test_dedicated_pages_and_tracker_redirects(app_client):
 
     home = app_client.get("/")
     assert home.status_code == 200
-    assert b"Smarter bets. Sharper edges." in home.data
+    assert b"The Most" in home.data
+    assert b"Efficient Software" in home.data
     assert b'aria-label="IconLabs home"' in home.data
     assert b'href="/overview"' not in home.data
 
