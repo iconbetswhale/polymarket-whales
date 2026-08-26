@@ -38,24 +38,13 @@
 <div class="home-page">
   <header class="marketing-nav">
     <a class="marketing-brand" href="/" aria-label="IconLabs home"><img class="marketing-brand-lockup" src="{{ url_for('static', filename='assets/iconlabs-horizontal-logo-white.webp', v=asset_version) }}" alt="IconLabs"></a>
-    <nav class="marketing-page-tabs" aria-label="IconLabs pages">
-      <a href="{{ url_for('trades_page') }}">Prediction Traders</a>
-      <a href="{{ url_for('sharp_money_page') }}">Sharp Money</a>
-      <a href="{{ url_for('positive_ev_page') }}">Positive EV</a>
-      <a href="{{ url_for('arbitrage_page') }}">Arbitrage</a>
-      <a href="{{ url_for('middles_page') }}">Middles</a>
-      <a href="{{ url_for('low_hold_page') }}">Low Hold</a>
-      <a href="{{ url_for('odds_screen_page', demo='1') }}">Sportsbook Screen</a>
-      <a href="{{ url_for('dfs_page', demo='1') }}">Fantasy Optimizer</a>
-      <a href="{{ url_for('calculators_page') }}">Calculators</a>
-      <a href="{{ url_for('tracker_page') }}">Bet Tracker</a>
-      <a href="{{ url_for('lab_tracker_page') }}">LabTracker</a>
-      <a href="{{ url_for('shadow_test_page') }}">Shadow Lab</a>
-      <a href="{{ url_for('live_positions_page') }}">Live Positions</a>
-      <a href="{{ url_for('wallets_page') }}">Sharp Wallets</a>
-      <a href="{{ url_for('position_history_page') }}">Bet History</a>
-      <a href="{{ url_for('edge_map_page') }}">Edge Map</a>
-      <a href="{{ url_for('intelligence_page') }}">Intelligence</a>
+    <nav class="marketing-page-tabs" aria-label="Homepage sections">
+      <a href="#home" data-home-section-link aria-current="page">Home</a>
+      <a href="#reviews" data-home-section-link>Reviews</a>
+      <a href="#sportsbooks" data-home-section-link>Sportsbooks</a>
+      <a href="#features" data-home-section-link>Features</a>
+      <a href="#plans" data-home-section-link>Plans</a>
+      <a href="#faq" data-home-section-link>FAQ</a>
     </nav>
     <div class="marketing-auth">
       <button class="marketing-login" id="account-open" type="button">Login</button>
@@ -82,7 +71,7 @@
     </nav>
   </aside>
 
-  <section class="marketing-hero hero-v3" aria-labelledby="home-title">
+  <section class="marketing-hero hero-v3" id="home" aria-labelledby="home-title">
     <img class="hero-v3-background" src="{{ url_for('static', filename='assets/home/hero-v3-grid-background.png', v=asset_version) }}" alt="">
     <div class="hero-v3-layout">
       <div class="marketing-hero-copy hero-v3-copy">
@@ -106,7 +95,7 @@
     </div>
   </section>
 
-  <section class="home-testimonials" aria-labelledby="testimonials-title">
+  <section class="home-testimonials" id="reviews" aria-labelledby="testimonials-title">
     <header class="testimonials-heading">
       <h2 id="testimonials-title">With IconLabs,<br><strong>edge is the expectation.</strong></h2>
       <p>Early stories from prediction traders using sharper signals, better prices, and disciplined tracking.</p>
@@ -138,7 +127,7 @@
 
   </section>
 
-  <section class="home-book-execution" aria-labelledby="book-trust-title">
+  <section class="home-book-execution" id="sportsbooks" aria-labelledby="book-trust-title">
     <div class="book-rating-panel">
       <div><span class="book-stars" aria-label="4.94 out of 5 stars">&#9733; &#9733; &#9733; &#9733; &#9733;</span><strong>4.94</strong><small>out of 5</small></div>
       <p><b>1,057 verified traders</b> trust IconLabs market intelligence</p>
@@ -190,7 +179,7 @@
     </div>
   </section>
 
-  <section class="home-orbit-features" aria-label="How IconLabs turns market data into actionable signals">
+  <section class="home-orbit-features" id="features" aria-label="How IconLabs turns market data into actionable signals">
     <article class="orbit-feature orbit-feature-inward">
       <div class="orbit-feature-copy">
         <span>TRACK SHARP MARKET ACTIVITY</span>
@@ -211,7 +200,7 @@
     </article>
   </section>
 
-  <section class="home-pricing" id="pricing" aria-labelledby="pricing-title">
+  <section class="home-pricing" id="plans" aria-labelledby="pricing-title">
     <header class="pricing-heading">
       <h2 id="pricing-title">Choose Your Plan</h2>
       <p>Get instant access to sharper predictions, real-time market alerts, and a disciplined system built to find your edge.</p>
@@ -331,6 +320,40 @@
   </form>
 </dialog>
 <script>
+(() => {
+  const links = Array.from(document.querySelectorAll('[data-home-section-link]'));
+  const sections = links
+    .map((link) => document.querySelector(link.getAttribute('href')))
+    .filter(Boolean);
+  if (!links.length || !sections.length) return;
+
+  const setCurrent = (id) => {
+    links.forEach((link) => {
+      if (link.getAttribute('href') === `#${id}`) link.setAttribute('aria-current', 'page');
+      else link.removeAttribute('aria-current');
+    });
+  };
+
+  links.forEach((link) => link.addEventListener('click', (event) => {
+    const section = document.querySelector(link.getAttribute('href'));
+    if (!section) return;
+    event.preventDefault();
+    section.scrollIntoView({behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    history.replaceState(null, '', link.getAttribute('href'));
+    setCurrent(section.id);
+  }));
+
+  if ('IntersectionObserver' in window) {
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries
+        .filter((entry) => entry.isIntersecting)
+        .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible) setCurrent(visible.target.id);
+    }, {rootMargin:'-18% 0px -55% 0px', threshold:[0,.12,.3,.55]});
+    sections.forEach((section) => observer.observe(section));
+  }
+})();
+
 (() => {
   const video = document.getElementById('home-case-study-video');
   if (!video || !('IntersectionObserver' in window)) return;

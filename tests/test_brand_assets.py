@@ -48,27 +48,12 @@ def test_home_hero_uses_4k_odds_asset_and_preserves_following_sections(app_clien
     assert board.size == (3840, 1962)
     assert 'class="marketing-page-tabs"' in page
     tabs = page.split('class="marketing-page-tabs"', 1)[1].split("</nav>", 1)[0]
-    labels = (
-        "Prediction Traders",
-        "Sharp Money",
-        "Positive EV",
-        "Arbitrage",
-        "Middles",
-        "Low Hold",
-        "Sportsbook Screen",
-        "Fantasy Optimizer",
-        "Calculators",
-        "Bet Tracker",
-        "LabTracker",
-        "Shadow Lab",
-        "Live Positions",
-        "Sharp Wallets",
-        "Bet History",
-        "Edge Map",
-        "Intelligence",
-    )
+    labels = ("Home", "Reviews", "Sportsbooks", "Features", "Plans", "FAQ")
     assert tabs.count("<a ") == len(labels)
     assert [tabs.index(label) for label in labels] == sorted(tabs.index(label) for label in labels)
+    for section_id in ("home", "reviews", "sportsbooks", "features", "plans", "faq"):
+        assert f'href="#{section_id}"' in tabs
+        assert f'id="{section_id}"' in page
     assert "1000+ Verified Winners" in page
     assert "100+" in page
     assert "50+" in page

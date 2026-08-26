@@ -290,6 +290,11 @@ body[data-page="home"] .home-page {
   background: var(--site-bg-canvas);
 }
 
+body[data-page="home"] .home-page {
+  overflow-x:clip;
+  overflow-y:visible;
+}
+
 body[data-page="home"] .marketing-hero,
 body[data-page="home"] .home-orbit-features,
 body[data-page="home"] .home-testimonials,
@@ -314,9 +319,12 @@ body[data-page="home"] .testimonials-marquee::after {
 
 /* Homepage hero v3: faithful to the approved IconLabs odds-board mockup. */
 body[data-page="home"] .marketing-nav {
-  position:relative;
+  position:sticky;
+  top:0;
+  z-index:1000;
   min-height:70px;
   width:100%;
+  grid-template-columns:minmax(180px,.75fr) minmax(0,1.7fr) auto;
   box-sizing:border-box;
   padding:0 clamp(20px,1.4vw,28px) 0 clamp(20px,1.4vw,24px);
   border:0;
@@ -339,7 +347,7 @@ body[data-page="home"] .marketing-page-tabs {
   display:flex;
   align-items:center;
   justify-content:center;
-  gap:3px;
+  gap:6px;
   overflow-x:auto;
   scrollbar-width:none;
   white-space:nowrap;
@@ -349,23 +357,24 @@ body[data-page="home"] .marketing-page-tabs::-webkit-scrollbar {
 }
 body[data-page="home"] .marketing-page-tabs a {
   flex:0 0 auto;
-  min-height:32px;
+  min-height:36px;
   box-sizing:border-box;
   display:inline-flex;
   align-items:center;
-  padding:0 7px;
-  border:1px solid rgba(142,116,172,.08);
-  border-radius:6px;
-  color:#8f98aa;
-  background:rgba(9,14,24,.72);
-  font:650 10px/1 "DM Sans",sans-serif;
+  padding:0 14px;
+  border:1px solid transparent;
+  border-radius:7px;
+  color:#a2a9b7;
+  background:transparent;
+  font:650 12px/1 "DM Sans",sans-serif;
   transition:color .18s ease,border-color .18s ease,background .18s ease;
 }
 body[data-page="home"] .marketing-page-tabs a:hover,
-body[data-page="home"] .marketing-page-tabs a:focus-visible {
+body[data-page="home"] .marketing-page-tabs a:focus-visible,
+body[data-page="home"] .marketing-page-tabs a[aria-current="page"] {
   color:#fff;
-  border-color:rgba(166,101,235,.3);
-  background:rgba(133,70,205,.12);
+  border-color:rgba(166,101,235,.34);
+  background:rgba(133,70,205,.16);
   outline:0;
 }
 body[data-page="home"] .marketing-auth {
@@ -395,6 +404,14 @@ body[data-page="home"] .hero-v3 {
   padding:0;
   background:#070b15;
 }
+body[data-page="home"] #home,
+body[data-page="home"] #reviews,
+body[data-page="home"] #sportsbooks,
+body[data-page="home"] #features,
+body[data-page="home"] #plans,
+body[data-page="home"] #faq {
+  scroll-margin-top:70px;
+}
 body[data-page="home"] .hero-v3::after {
   content:none;
 }
@@ -423,7 +440,7 @@ body[data-page="home"] .hero-v3-copy {
   width:100%;
   max-width:540px;
   min-width:0;
-  transform:translate(28px,-50px);
+  transform:translate(clamp(56px,4vw,76px),-50px);
 }
 body[data-page="home"] .hero-v3 .hero-proof-badge {
   width:max-content;
@@ -506,14 +523,14 @@ body[data-page="home"] .hero-v3-board {
   overflow:visible;
   outline:0;
   filter:drop-shadow(0 24px 34px rgba(61,28,125,.42));
-  transform:rotate(-1.8deg) translateY(-14px);
+  transform:perspective(1600px) rotateY(-7deg) rotateZ(-2.6deg) translateY(-14px) scale(1.015);
   transform-origin:center;
   transition:filter .22s ease,transform .22s ease;
 }
 body[data-page="home"] .hero-v3-board:hover,
 body[data-page="home"] .hero-v3-board:focus-visible {
   filter:brightness(1.04) drop-shadow(0 27px 38px rgba(72,31,146,.48));
-  transform:rotate(-1.8deg) translateY(-18px) scale(1.004);
+  transform:perspective(1600px) rotateY(-7deg) rotateZ(-2.6deg) translateY(-18px) scale(1.019);
 }
 body[data-page="home"] .hero-v3-board:focus-visible {
   outline:0;
@@ -532,11 +549,11 @@ body[data-page="home"] .hero-v3-board img {
 @media(max-width:1500px){
   body[data-page="home"] .marketing-nav{grid-template-columns:190px 1fr auto}
   body[data-page="home"] .marketing-brand-lockup{width:174px}
-  body[data-page="home"] .marketing-page-tabs{justify-content:flex-start}
-  body[data-page="home"] .marketing-page-tabs a{padding-inline:6px;font-size:9px}
+  body[data-page="home"] .marketing-page-tabs{justify-content:center}
+  body[data-page="home"] .marketing-page-tabs a{padding-inline:10px;font-size:11px}
 }
 
-@media(max-width:1260px){
+@media(max-width:760px){
   body[data-page="home"] .marketing-nav{grid-template-columns:1fr auto}
   body[data-page="home"] .marketing-page-tabs{display:none}
 }
@@ -548,7 +565,7 @@ body[data-page="home"] .hero-v3-board img {
     padding-left:40px;
     padding-right:32px;
   }
-  body[data-page="home"] .hero-v3-copy{transform:translate(12px,-50px)}
+  body[data-page="home"] .hero-v3-copy{transform:translate(26px,-50px)}
   body[data-page="home"] .hero-v3 h1{font-size:45px}
   body[data-page="home"] .hero-v3-stats{gap:22px}
   body[data-page="home"] .hero-v3-stats strong{font-size:27px}
@@ -622,6 +639,6 @@ body[data-page="home"] .hero-v3-board img {
     width:calc(100% + 18px);
     max-width:none;
     margin-inline:-9px;
-    transform:rotateZ(-1deg);
+    transform:perspective(1100px) rotateY(-4deg) rotateZ(-1.4deg);
   }
 }
