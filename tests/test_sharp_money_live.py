@@ -316,7 +316,7 @@ def test_oddsengine_advanced_plan_error_reports_safe_http_status():
 
         @staticmethod
         def diagnostics():
-            return {"provider": "prophetx", "configured": True}
+            raise RuntimeError("direct fallback diagnostics unavailable")
 
         @staticmethod
         def live_market_snapshot():

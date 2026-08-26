@@ -532,9 +532,9 @@ class SharpMoneyCollector:
     def _read_source_snapshot(self):
         last_error: Exception | None = None
         for provider in (self.prophetx, self.fallback_source):
-            if not self._configured(provider):
-                continue
             try:
+                if not self._configured(provider):
+                    continue
                 if hasattr(provider, "sharp_money_snapshot"):
                     return (
                         provider,
