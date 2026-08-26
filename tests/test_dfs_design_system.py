@@ -119,7 +119,7 @@ def test_prizepicks_and_iconlabs_columns_inherit_the_row_backgrounds() -> None:
 
 
 def test_iconlabs_fair_odds_uses_the_current_white_mark() -> None:
-    assert "assets/iconlabs-mark-white-transparent-balanced.png" in TEMPLATE
+    assert "assets/iconlabs-mark-transparent-v3.png" in TEMPLATE
     assert '.algo-odds-head img,\nbody[data-design-system="v2"][data-page="dfs"] .compare-book img' in CSS
 
 
