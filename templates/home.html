@@ -38,6 +38,25 @@
 <div class="home-page">
   <header class="marketing-nav">
     <a class="marketing-brand" href="/" aria-label="IconLabs home"><img class="marketing-brand-lockup" src="{{ url_for('static', filename='assets/iconlabs-horizontal-logo-white.webp', v=asset_version) }}" alt="IconLabs"></a>
+    <nav class="marketing-page-tabs" aria-label="IconLabs pages">
+      <a href="{{ url_for('trades_page') }}">Prediction Traders</a>
+      <a href="{{ url_for('sharp_money_page') }}">Sharp Money</a>
+      <a href="{{ url_for('positive_ev_page') }}">Positive EV</a>
+      <a href="{{ url_for('arbitrage_page') }}">Arbitrage</a>
+      <a href="{{ url_for('middles_page') }}">Middles</a>
+      <a href="{{ url_for('low_hold_page') }}">Low Hold</a>
+      <a href="{{ url_for('odds_screen_page', demo='1') }}">Sportsbook Screen</a>
+      <a href="{{ url_for('dfs_page', demo='1') }}">Fantasy Optimizer</a>
+      <a href="{{ url_for('calculators_page') }}">Calculators</a>
+      <a href="{{ url_for('tracker_page') }}">Bet Tracker</a>
+      <a href="{{ url_for('lab_tracker_page') }}">LabTracker</a>
+      <a href="{{ url_for('shadow_test_page') }}">Shadow Lab</a>
+      <a href="{{ url_for('live_positions_page') }}">Live Positions</a>
+      <a href="{{ url_for('wallets_page') }}">Sharp Wallets</a>
+      <a href="{{ url_for('position_history_page') }}">Bet History</a>
+      <a href="{{ url_for('edge_map_page') }}">Edge Map</a>
+      <a href="{{ url_for('intelligence_page') }}">Intelligence</a>
+    </nav>
     <div class="marketing-auth">
       <button class="marketing-login" id="account-open" type="button">Login</button>
       <button class="home-menu-toggle" type="button" aria-label="Open navigation" aria-expanded="false" aria-controls="home-menu-drawer"><i class="ph ph-list"></i></button>
@@ -82,7 +101,7 @@
         <button class="hero-start-winning" type="button" data-estimator-open>Start Winning Now <i class="ph ph-arrow-right" aria-hidden="true"></i></button>
       </div>
       <a class="hero-v3-board" href="{{ url_for('odds_screen_page', demo='1') }}" aria-label="Open the IconLabs real-time odds screen">
-        <img src="{{ url_for('static', filename='assets/home/hero-v3-odds-board.png', v=asset_version) }}" alt="IconLabs real-time odds comparison board showing MLB prices across sportsbooks">
+        <img src="{{ url_for('static', filename='assets/home/hero-v4-odds-board-4k.png', v=asset_version) }}" alt="IconLabs real-time odds comparison board showing MLB prices across sportsbooks">
       </a>
     </div>
   </section>

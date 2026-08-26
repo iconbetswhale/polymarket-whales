@@ -31,13 +31,44 @@ def test_home_uses_reference_logo_lockup(app_client):
     assert "assets/iconlabs-horizontal-logo-white.webp" in page
 
 
-def test_home_hero_v3_uses_mockup_assets_and_preserves_following_sections(app_client):
+def test_home_hero_uses_4k_odds_asset_and_preserves_following_sections(app_client):
     response = app_client.get("/")
     assert response.status_code == 200
     page = response.get_data(as_text=True)
 
     assert "hero-v3-grid-background.png" in page
-    assert "hero-v3-odds-board.png" in page
+    assert "hero-v4-odds-board-4k.png" in page
+    board = Image.open(
+        Path(__file__).parents[1]
+        / "static"
+        / "assets"
+        / "home"
+        / "hero-v4-odds-board-4k.png"
+    )
+    assert board.size == (3840, 1962)
+    assert 'class="marketing-page-tabs"' in page
+    tabs = page.split('class="marketing-page-tabs"', 1)[1].split("</nav>", 1)[0]
+    labels = (
+        "Prediction Traders",
+        "Sharp Money",
+        "Positive EV",
+        "Arbitrage",
+        "Middles",
+        "Low Hold",
+        "Sportsbook Screen",
+        "Fantasy Optimizer",
+        "Calculators",
+        "Bet Tracker",
+        "LabTracker",
+        "Shadow Lab",
+        "Live Positions",
+        "Sharp Wallets",
+        "Bet History",
+        "Edge Map",
+        "Intelligence",
+    )
+    assert tabs.count("<a ") == len(labels)
+    assert [tabs.index(label) for label in labels] == sorted(tabs.index(label) for label in labels)
     assert "1000+ Verified Winners" in page
     assert "100+" in page
     assert "50+" in page
