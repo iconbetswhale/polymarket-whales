@@ -444,24 +444,34 @@
 
   async function loadBoard({ quiet = false } = {}) {
     if (state.loading || !state.liveActive) { renderAll(); return; }
+    const url = endpoint();
+    const cacheKey = pagePayloadCacheKey("low-hold", url);
+    if (!quiet && !state.rows.length) {
+      const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
+      if (cached) {
+        state.rows = Array.isArray(cached.data) ? cached.data : [];
+        state.diagnostics = cached.diagnostics || {};
+        renderAll();
+      }
+    }
     state.loading = true;
     state.error = "";
-    if (!quiet) renderFeed();
+    if (!quiet && !state.rows.length) renderFeed();
     elements.refresh.classList.add("is-spinning");
     try {
-      const response = await fetch(endpoint(), { headers: { Accept: "application/json" } });
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || payload.error || "Unable to scan Low Hold markets.");
+      writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
       if (state.alerts && state.rows.length) notify(`${state.rows.length} Low Hold opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
       scheduleRefresh(Number(payload.refreshSeconds || 60));
     } catch (error) {
-      state.rows = [];
-      state.diagnostics = {};
-      state.error = error.message;
-      notify(error.message, "error");
+      if (!state.rows.length) state.diagnostics = {};
+      state.error = state.rows.length ? "" : error.message;
+      notify(state.rows.length ? "Recent Low Hold scan shown; live refresh delayed." : error.message, "error");
     } finally {
       state.loading = false;
       elements.refresh.classList.remove("is-spinning");

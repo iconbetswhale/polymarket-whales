@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from datetime import datetime, timedelta, timezone
 
+import pytest
 import requests
 
 from arbitrage import build_arbitrage_board
@@ -465,6 +466,51 @@ def test_provider_fetches_independent_league_schedules_concurrently(monkeypatch)
     assert maximum_active == 2
 
 
+def test_odds_screen_loads_full_slate_and_reuses_it_for_exact_options(
+    monkeypatch,
+) -> None:
+    fixture = _fixture_session()
+    source_event = fixture.routes["/events"]._payload["data"][0]
+    source_odds = fixture.routes["/odds"]._payload["data"]
+    events = [
+        {
+            **source_event,
+            "event_id": f"full-slate-{index}",
+            "event_start": (
+                datetime.now(timezone.utc) + timedelta(hours=4 + index)
+            ).isoformat(),
+        }
+        for index in range(3)
+    ]
+    starts_by_id = {event["event_id"]: event["event_start"] for event in events}
+    provider = OddsEngineProvider(
+        "key",
+        session=fixture,
+        max_events_per_league=1,
+        max_total_events=1,
+    )
+    monkeypatch.setattr(provider, "_league_events", lambda _league: events)
+    monkeypatch.setattr(
+        provider,
+        "_event_odds",
+        lambda event_id: {
+            **source_odds,
+            "event_id": event_id,
+            "event_start": starts_by_id[event_id],
+        },
+    )
+
+    rows = provider.odds_screen_rows(league="MLB", market_kind="moneyline")
+    options = provider.screen_options_for_trades(rows)
+
+    assert {row["event_id"] for row in rows} == {
+        "full-slate-0",
+        "full-slate-1",
+        "full-slate-2",
+    }
+    assert all(options.get(row["id"]) for row in rows)
+
+
 def test_provider_health_authenticates_without_exposing_credentials() -> None:
     session = _fixture_session()
     provider = OddsEngineProvider("health-key", session=session)
@@ -508,6 +554,21 @@ def test_provider_reads_and_caches_advanced_prophetx_orderbook() -> None:
         "limit": 40,
     }
     assert provider.diagnostics()["supportsOrderBook"] is True
+
+
+def test_provider_records_advanced_entitlement_rejection() -> None:
+    session = FakeSession(
+        {"/orderbook/top": FakeResponse({"error": "plan required"}, status_code=403)}
+    )
+    provider = OddsEngineProvider("standard-key", session=session)
+
+    with pytest.raises(requests.HTTPError):
+        provider.sharp_money_snapshot()
+
+    diagnostics = provider.diagnostics()
+    assert diagnostics["advancedAccess"] is False
+    assert diagnostics["supportsOrderBook"] is False
+    assert diagnostics["supportsWebSocket"] is False
 
 
 def test_normalized_feed_is_accepted_by_all_four_existing_calculators() -> None:

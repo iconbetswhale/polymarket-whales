@@ -5,7 +5,11 @@ from datetime import datetime, timedelta, timezone
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
-from dfs_probability_engine import DfsProbabilityEngine, ICONLABS_DFS_WEIGHTS
+from dfs_probability_engine import (
+    DfsProbabilityEngine,
+    ICONLABS_DFS_WEIGHTS,
+    american_to_probability,
+)
 from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS
 
 
@@ -105,6 +109,16 @@ def _parse_time(value: object) -> datetime | None:
 
 def _line_key(value: float) -> str:
     return f"{value:g}"
+
+
+def _display_price(book_key: str, american_odds: int) -> str:
+    """Use native-looking cents for prediction exchanges in the DFS grid."""
+    if book_key in {"kalshi", "polymarket"}:
+        probability = american_to_probability(american_odds)
+        if probability is not None:
+            cents = probability * 100.0
+            return f"{cents:.0f}\u00a2" if cents >= 99.95 else f"{cents:.1f}\u00a2"
+    return f"{american_odds:+d}"
 
 
 def _date_label(start: datetime, now: datetime) -> str:
@@ -244,6 +258,7 @@ def build_dfs_odds_board(
             hit_by_line: dict[str, float | None] = {}
             fair_odds_by_line: dict[str, float | None] = {}
             reliability_by_line: dict[str, float] = {}
+            exact_sources_by_line: dict[str, int] = {}
             for target_line in target_lines:
                 result = engine.calculate(
                     target_line=target_line,
@@ -255,6 +270,7 @@ def build_dfs_odds_board(
                 hit_by_line[key] = result.hit_rate_percent
                 fair_odds_by_line[key] = result.fair_american_odds
                 reliability_by_line[key] = result.reliability
+                exact_sources_by_line[key] = result.source_count
 
             primary_line = dfs_lines.get("prizepicks", target_lines[0])
             odds_by_book: dict[str, object] = {}
@@ -266,11 +282,15 @@ def build_dfs_odds_board(
                 if price is None:
                     continue
                 display_key = DISPLAY_PROVIDER_ALIASES.get(book_key, book_key)
-                display_odds = f"{price:+d}"
+                display_odds = _display_price(book_key, price)
                 odds_by_book[display_key] = (
                     display_odds
                     if float(quote["line"]) == float(primary_line)
-                    else {"odds": display_odds, "line": quote["line"]}
+                    else {
+                        "odds": display_odds,
+                        "americanOdds": price,
+                        "line": quote["line"],
+                    }
                 )
             primary_key = _line_key(primary_line)
             rows.append(
@@ -292,16 +312,21 @@ def build_dfs_odds_board(
                     "hitByLine": hit_by_line,
                     "fairOddsByLine": fair_odds_by_line,
                     "reliabilityByLine": reliability_by_line,
+                    "exactSourcesByLine": exact_sources_by_line,
+                    "reliability": reliability_by_line.get(primary_key, 0.0),
                     "oddsByBook": odds_by_book,
-                    "sourceCount": len(flat_quotes),
+                    "sourceCount": exact_sources_by_line.get(primary_key, 0),
+                    "availableQuoteCount": len(flat_quotes),
                 }
             )
     return sorted(
         rows,
         key=lambda row: (
             row["hit"] is None,
-            -(row["hit"] or 0.0),
+            -float(row.get("reliability") or 0.0),
             row["time"],
             row["player"],
+            row["stat"],
+            row["side"],
         ),
     )[: max(1, int(limit))]

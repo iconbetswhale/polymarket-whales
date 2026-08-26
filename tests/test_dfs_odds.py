@@ -64,6 +64,20 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert {row["oddsByBook"]["fanduel"] for row in rows} == {"-110"}
 
 
+def test_live_dfs_board_keeps_pairs_together_and_formats_exchange_cents() -> None:
+    events = _events()
+    events[0]["bookmakers"].extend(
+        [_market("pinnacle"), _market("polymarket")]
+    )
+
+    rows = build_dfs_odds_board(events)
+
+    assert [row["side"] for row in rows] == ["Over", "Under"]
+    assert all(row["sourceCount"] == 3 for row in rows)
+    assert all(row["availableQuoteCount"] == 3 for row in rows)
+    assert {row["oddsByBook"]["polymarket"] for row in rows} == {"52.4\u00a2"}
+
+
 def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     application = app_client.application
     registry = application.extensions["execution_providers"]
@@ -83,3 +97,24 @@ def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     assert payload["dataSource"] == "odds_engine"
     assert payload["total"] == 2
     assert payload["data"][0]["hitByLine"]["1.5"] == 50.0
+
+
+def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    registry = application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "configured-in-test"
+    monkeypatch.setattr(provider, "ev_events", lambda **_kwargs: _events())
+
+    response = app_client.get(
+        "/api/dfs/lines",
+        query_string={"weights": '{"fanduel":100}'},
+    )
+
+    assert response.status_code == 200
+    assert response.get_json()["refreshSeconds"] == 15
+    assert "s-maxage=15" in response.headers["Cache-Control"]

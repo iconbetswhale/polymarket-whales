@@ -689,7 +689,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     }
     assert sum(payload["sourceWeights"].values()) == 100.0
     assert payload["devigMethod"] == "power"
-    assert payload["minimumFairSources"] == 3
+    assert payload["minimumFairSources"] == 2
     assert "prizepicks" not in payload["executionBooks"]
     assert "pinnacle" in payload["executionBooks"]
 

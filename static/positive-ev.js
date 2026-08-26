@@ -38,11 +38,12 @@
     books: catalog.filter(book => book.defaultExecution).map(book => book.key),
     minEv: 1,
     kelly: .25,
-    minSources: 3,
+    minSources: 2,
     requiredBooks: [],
     devigMethod: "power",
     weights: Object.fromEntries(devigCatalog.map(book => [book.key, Number(book.weight || 0)])),
-    catalogVersion
+    catalogVersion,
+    settingsVersion: 2
   };
   const bookNames = Object.fromEntries(catalog.map(book => [book.key, book.name]));
   const bookLogos = Object.fromEntries(catalog.map(book => [book.key, book.logoUrl || ""]));
@@ -52,7 +53,9 @@
   try {
     const saved = JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}");
     const {books, weights, markets, requiredBooks, catalogVersion: savedVersion, bankroll, maxQuoteAge, maxDispersion, maxStakePct, maxEventPct, ...rest} = saved;
-    settings = {...settings, ...rest};
+    const migrated = {...rest};
+    if (Number(saved.settingsVersion) !== defaults.settingsVersion) delete migrated.minSources;
+    settings = {...settings, ...migrated};
     if (!validDevigMethods.has(settings.devigMethod)) settings.devigMethod = defaults.devigMethod;
     settings.requiredBooks = Array.isArray(requiredBooks) ? [...new Set(requiredBooks.filter(key => validRequiredBookKeys.has(key)))] : [...defaults.requiredBooks];
     const legacyMarkets = saved.group && marketGroups[saved.group] ? marketGroups[saved.group] : defaults.markets;
@@ -838,12 +841,29 @@
   }
   async function load(force=false) {
     if (paused && !force) return;
+    const url = query();
+    const cacheKey = pagePayloadCacheKey("positive-ev", url);
+    let showedCached = false;
+    if (!rows.length) {
+      const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
+      if (cached && !cached.paused) {
+        rows = Array.isArray(cached.data) ? cached.data : [];
+        $("ev-count").textContent = rows.length;
+        $("ev-updated").textContent = "Showing recent scan · updating live";
+        renderDiagnostics(cached.diagnostics || {}, {});
+        const cachedRows = visibleRows();
+        if (cachedRows[0]) select(cachedRows[0].id);
+        else renderFeed();
+        showedCached = true;
+      }
+    }
     feed.setAttribute("aria-busy", "true");
-    feed.innerHTML = `<div class="ev-loading il-state il-state-loading"><span></span><p>Validating exact markets and executable prices...</p></div>`;
+    if (!showedCached) feed.innerHTML = `<div class="ev-loading il-state il-state-loading"><span></span><p>Validating exact markets and executable prices...</p></div>`;
     try {
-      const response = await fetch(query(), {headers:{"Accept":"application/json"}});
+      const response = await fetch(url, {headers:{"Accept":"application/json"}});
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to load feed");
+      writePagePayloadCache(cacheKey, payload);
       retryCount = 0;
       if (payload.paused) {
         rows = [];
@@ -875,7 +895,11 @@
       clearTimeout(timer);
       if (Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
-      feed.innerHTML = `<div class="ev-empty il-state il-state-error"><i class="ph ph-warning-circle" aria-hidden="true"></i><p>${esc(error.message)}</p></div>`;
+      if (rows.length) {
+        $("ev-updated").textContent = "Recent scan shown · live refresh delayed";
+      } else {
+        feed.innerHTML = `<div class="ev-empty il-state il-state-error"><i class="ph ph-warning-circle" aria-hidden="true"></i><p>${esc(error.message)}</p></div>`;
+      }
       feed.setAttribute("aria-busy", "false");
       clearTimeout(timer);
       retryCount += 1;

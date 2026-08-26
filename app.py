@@ -1205,6 +1205,11 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/dfs/lines", methods=["GET", "POST"])
     def api_dfs_lines():
         payload = request.get_json(silent=True) or {}
+        if request.method == "GET" and request.args.get("weights"):
+            try:
+                payload["weights"] = json.loads(request.args["weights"])
+            except json.JSONDecodeError:
+                return jsonify({"error": "weights must be valid JSON"}), 400
         weights = payload.get("weights") or ICONLABS_DFS_WEIGHTS
         if not isinstance(weights, dict) or not weights:
             return jsonify(
@@ -1279,10 +1284,12 @@ def create_app(start_background: bool = True) -> Flask:
                 "dataSource": diagnostics.get(
                     "provider", odds_provider.provider_key
                 ),
-                "refreshSeconds": 60,
+                "refreshSeconds": 15,
             }
         )
-        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Cache-Control"] = (
+            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+        )
         return response
 
     @app.route("/positive-ev")
@@ -2369,19 +2376,38 @@ def create_app(start_background: bool = True) -> Flask:
                     "league": requested_league,
                     "market": requested_market,
                 },
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "refreshSeconds": 15,
+                "transport": {
+                    "mode": "rest_snapshot",
+                    "provider": getattr(
+                        sportsbook_provider, "provider_key", "schedule"
+                    ),
+                    "websocketConnected": False,
+                    "websocketRequiresAdvanced": (
+                        getattr(sportsbook_provider, "provider_key", "")
+                        == "odds_engine"
+                    ),
+                },
             }
         )
         edge_ttl = (
-            45
+            15
             if getattr(sportsbook_provider, "provider_key", "") == "odds_engine"
             else 1200
             if requested_market in {"alternate_spread", "alternate_total"}
             else 600
         )
-        response.headers["Cache-Control"] = (
-            f"public, max-age=15, s-maxage={edge_ttl}, "
-            "stale-while-revalidate=60"
-        )
+        if getattr(sportsbook_provider, "provider_key", "") == "odds_engine":
+            response.headers["Cache-Control"] = (
+                f"public, max-age=5, s-maxage={edge_ttl}, "
+                "stale-while-revalidate=45"
+            )
+        else:
+            response.headers["Cache-Control"] = (
+                f"public, max-age=15, s-maxage={edge_ttl}, "
+                "stale-while-revalidate=60"
+            )
         return response
 
     @app.route("/api/arbitrage")
@@ -2572,10 +2598,12 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
+                "refreshSeconds": 15,
             }
         )
-        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Cache-Control"] = (
+            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+        )
         return response
 
     @app.route("/api/middles")
@@ -2740,10 +2768,12 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
+                "refreshSeconds": 15,
             }
         )
-        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Cache-Control"] = (
+            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+        )
         return response
 
     @app.route("/api/low-hold")
@@ -2985,10 +3015,12 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
+                "refreshSeconds": 15,
             }
         )
-        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Cache-Control"] = (
+            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+        )
         return response
 
     @app.route("/api/positive-ev")
@@ -3182,7 +3214,7 @@ def create_app(start_background: bool = True) -> Flask:
         active_source_count = sum(
             1 for weight in source_weights.values() if weight > 0.0
         )
-        requested_min_sources = int(number_arg("min_sources", 3, 1, 5))
+        requested_min_sources = int(number_arg("min_sources", 2, 1, 5))
         effective_min_sources = min(requested_min_sources, active_source_count)
         execution_books = tuple(
             item.strip().lower()
@@ -3272,7 +3304,9 @@ def create_app(start_background: bool = True) -> Flask:
                 "requiredBooks": list(required_books),
                 "quota": diagnostics.get("quota", {}),
                 "refreshSeconds": (
-                    60 if market_group == "main" else 1200
+                    15
+                    if set(market_keys).issubset(set(MAIN_MARKETS))
+                    else 60
                 ),
             }
         )

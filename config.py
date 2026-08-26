@@ -324,7 +324,7 @@ def get_settings() -> Settings:
             "ODDSENGINE_API_BASE_URL", "https://api.oddsengine.dev/v1"
         ),
         oddsengine_cache_ttl_seconds=max(
-            15, _get_int("ODDSENGINE_CACHE_TTL_SECONDS", 45)
+            15, _get_int("ODDSENGINE_CACHE_TTL_SECONDS", 15)
         ),
         oddsengine_max_events_per_league=max(
             1, _get_int("ODDSENGINE_MAX_EVENTS_PER_LEAGUE", 5)

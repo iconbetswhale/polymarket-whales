@@ -287,15 +287,26 @@
 
   async function loadBoard({ quiet = false } = {}) {
     if (state.loading) return;
+    const url = endpoint();
+    const cacheKey = pagePayloadCacheKey("middles", url);
+    if (!quiet && !state.rows.length) {
+      const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
+      if (cached) {
+        state.rows = Array.isArray(cached.data) ? cached.data : [];
+        state.lastUpdated = new Date();
+        renderAll();
+      }
+    }
     state.loading = true;
     elements.status.className = "mid-feed-status loading";
     elements.status.innerHTML = '<i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating executable middle windows…</span>';
-    if (!quiet) renderFeed();
+    if (!quiet && !state.rows.length) renderFeed();
     updateSummary();
     try {
-      const response = await fetch(endpoint(), { headers: { Accept: "application/json" } });
+      const response = await fetch(url, { headers: { Accept: "application/json" } });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || payload.error || "Middle scan failed");
+      writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
       state.lastUpdated = new Date();
       const paused = Boolean(payload.paused);

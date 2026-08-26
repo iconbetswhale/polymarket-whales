@@ -36,7 +36,9 @@ def test_dfs_preview_parameters_cannot_enable_fixture_rows(app_client) -> None:
     assert b"data-dfs-preview" not in regular.data
     assert b"temporary optimizer props" not in regular.data
     assert b"Visual fixtures only" not in regular.data
-    assert "fetch('/api/dfs/lines'" in SCRIPT
+    assert "`/api/dfs/lines?${params}`" in SCRIPT
+    assert "readPagePayloadCache(cacheKey" in SCRIPT
+    assert "writePagePayloadCache(cacheKey,payload)" in SCRIPT
     assert "loadLiveRows();" in SCRIPT
     assert "isPreview" not in SCRIPT
     assert "supplementalPreviewRows" not in SCRIPT

@@ -97,10 +97,18 @@ def test_odds_screen_prefers_odds_engine(app_client, monkeypatch) -> None:
     response = app_client.get(
         "/api/odds-screen?active=1&league=MLB&market=moneyline"
     )
+    payload = response.get_json()
 
     assert response.status_code == 200
-    assert response.get_json()["source"].endswith(
+    assert payload["source"].endswith(
         "odds_engine_read_only_feeds"
     )
-    assert "s-maxage=45" in response.headers["Cache-Control"]
+    assert "s-maxage=15" in response.headers["Cache-Control"]
+    assert payload["refreshSeconds"] == 15
+    assert payload["transport"] == {
+        "mode": "rest_snapshot",
+        "provider": "odds_engine",
+        "websocketConnected": False,
+        "websocketRequiresAdvanced": True,
+    }
     assert len(calls) == 1

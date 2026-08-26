@@ -1696,7 +1696,7 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     "https://api.oddsengine.dev/v1",
                 ),
                 cache_ttl_seconds=getattr(
-                    settings, "oddsengine_cache_ttl_seconds", 45
+                    settings, "oddsengine_cache_ttl_seconds", 15
                 ),
                 max_events_per_league=getattr(
                     settings, "oddsengine_max_events_per_league", 5

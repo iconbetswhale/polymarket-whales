@@ -6791,7 +6791,8 @@ async function loadOddsScreen() {
     writePagePayloadCache(cacheKey, payload);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
-    document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;
+    const transport = payload.transport?.mode === "rest_snapshot" ? "snapshot" : "stream";
+    document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms ${transport}`;
     renderOddsScreen();
   } catch (error) {
     document.getElementById("odds-latency").textContent = "Feed degraded";
@@ -6816,7 +6817,7 @@ function setOddsFeedActive(active) {
   if (oddsState.feedActive) {
     document.getElementById("odds-latency").textContent = "Starting";
     loadOddsScreen();
-    oddsState.timer = window.setInterval(loadOddsScreen, 60000);
+    oddsState.timer = window.setInterval(loadOddsScreen, 15000);
   } else {
     document.getElementById("odds-latency").textContent = "Credit saver";
   }

@@ -90,6 +90,9 @@
   function fairProbability(row,targetLine) {
     if (!Number.isFinite(Number(targetLine))) return null;
     const lineKey = String(Number(targetLine));
+    const exactSources = Number(row.exactSourcesByLine?.[lineKey] ?? row.sourceCount ?? 0);
+    const reliability = Number(row.reliabilityByLine?.[lineKey] ?? row.reliability ?? 0);
+    if (exactSources < 2 || !Number.isFinite(reliability) || reliability < 0.08) return null;
     const liveValue = row.hitByLine?.[lineKey] ?? row.hit;
     return Number.isFinite(Number(liveValue)) ? Number(liveValue) : null;
   }
@@ -158,7 +161,7 @@
         }
         const market = oddsByKey[key];
         const isStructuredMarket = market !== null && typeof market === 'object';
-        const price = isStructuredMarket ? market.odds : market;
+        const price = isStructuredMarket ? (market.odds ?? market.displayOdds ?? market.americanOdds) : market;
         const unavailable = price === null || price === undefined || price === '' || price === '—';
         const alternateLine = isStructuredMarket
           && Number.isFinite(Number(market.line))
@@ -170,7 +173,8 @@
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
-      const hitTitle = fairHitRate === null ? 'Insufficient exact-line sportsbook sources' : `${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
+      const exactSources = Number(r.exactSourcesByLine?.[String(Number(activeLine))] ?? r.sourceCount ?? 0);
+      const hitTitle = fairHitRate === null ? 'Requires at least two reliable exact-line sportsbook sources' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact sources · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
       const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
       const lineDisplay = activeLine === null ? '—' : activeLine;
       return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${esc(lineDisplay)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
@@ -181,17 +185,25 @@
   async function loadLiveRows() {
     const button = document.querySelector('#dfs-refresh');
     const live = document.querySelector('#dfs-live');
+    const params = new URLSearchParams({weights:JSON.stringify(savedWeights)});
+    const url = `/api/dfs/lines?${params}`;
+    const cacheKey = pagePayloadCacheKey('dfs',params.toString());
+    if (!rows.length) {
+      const cached = readPagePayloadCache(cacheKey,5*60*1000);
+      if (cached) {
+        rows = Array.isArray(cached.data) ? cached.data : [];
+        if (live) live.lastChild.textContent = ` ${rows.length} recent props · updating live`;
+        render();
+      }
+    }
     button?.classList.add('spinning');
     if (button) button.disabled = true;
     try {
-      const response = await fetch('/api/dfs/lines', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json'},
-        body: JSON.stringify({weights:savedWeights}),
-      });
+      const response = await fetch(url, {headers:{Accept:'application/json'}});
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
       rows = Array.isArray(payload.data) ? payload.data : [];
+      writePagePayloadCache(cacheKey,payload);
       if (live) live.lastChild.textContent = ` ${rows.length} live props · updated just now`;
       render();
     } catch (_error) {
@@ -313,6 +325,6 @@
   syncDevigControls();
   render();
   loadLiveRows();
-  window.setInterval(() => { if (!document.hidden) loadLiveRows(); },60000);
+  window.setInterval(() => { if (!document.hidden) loadLiveRows(); },15000);
 })();
 

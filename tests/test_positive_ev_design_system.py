@@ -12,6 +12,14 @@ CSS = (ROOT / "static" / "positive-ev.css").read_text(encoding="utf-8")
 DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-8")
 
 
+def test_positive_ev_defaults_to_two_independent_fair_sources() -> None:
+    assert "minSources: 2" in SCRIPT
+    assert "settingsVersion: 2" in SCRIPT
+    assert "delete migrated.minSources" in SCRIPT
+    assert 'id="ev-min-sources"' in TEMPLATE
+    assert 'value="2"' in TEMPLATE
+
+
 def _function(name: str) -> str:
     start = SCRIPT.index(f"function {name}(")
     end = SCRIPT.find("\n  function ", start + 1)

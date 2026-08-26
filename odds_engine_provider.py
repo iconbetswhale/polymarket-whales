@@ -485,10 +485,10 @@ class OddsEngineProvider(ExecutionProvider):
         api_key: str | None,
         *,
         base_url: str = DEFAULT_BASE_URL,
-        cache_ttl_seconds: int = 45,
+        cache_ttl_seconds: int = 15,
         max_events_per_league: int = 5,
         max_total_events: int = 20,
-        max_parallel_requests: int = 10,
+        max_parallel_requests: int = 16,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -505,10 +505,12 @@ class OddsEngineProvider(ExecutionProvider):
         self.session = session or requests.Session()
         self._league_cache: dict[str, _TimedValue] = {}
         self._odds_cache: dict[str, _TimedValue] = {}
+        self._last_screen_events: _TimedValue | None = None
         self._quota: dict[str, str] = {}
         self._requests = 0
         self._last_success_at: str | None = None
         self._last_error_at: str | None = None
+        self._advanced_access: bool | None = None
         self._lock = threading.RLock()
         self._scan_lock = threading.Lock()
         self.failure_reasons: dict[str, str] = {}
@@ -521,10 +523,13 @@ class OddsEngineProvider(ExecutionProvider):
     def screen_options_for_trades(
         self, trades: list[dict]
     ) -> dict[str, list[ExecutionOption]]:
-        return self._options_for_trades(trades)
+        return self._options_for_trades(trades, prefer_screen_cache=True)
 
     def _options_for_trades(
-        self, trades: list[dict]
+        self,
+        trades: list[dict],
+        *,
+        prefer_screen_cache: bool = False,
     ) -> dict[str, list[ExecutionOption]]:
         self.failure_reasons = {}
         if not self.api_key or not trades:
@@ -561,9 +566,15 @@ class OddsEngineProvider(ExecutionProvider):
             )
             if not requested_markets:
                 continue
-            events = self.ev_events(
-                sport_keys=(sport_key,), market_keys=requested_markets
+            events = (
+                self._screen_events_for(sport_key, requested_markets)
+                if prefer_screen_cache
+                else []
             )
+            if not events:
+                events = self.ev_events(
+                    sport_keys=(sport_key,), market_keys=requested_markets
+                )
             by_book, metadata = normalize_the_odds_api_events(events)
             for book_key, markets in by_book.items():
                 index = ProviderMarketIndex(markets)
@@ -672,6 +683,7 @@ class OddsEngineProvider(ExecutionProvider):
         with self._lock:
             self._league_cache.clear()
             self._odds_cache.clear()
+            self._last_screen_events = None
 
     def ev_events(
         self,
@@ -718,10 +730,19 @@ class OddsEngineProvider(ExecutionProvider):
             current.astimezone(EASTERN).date(),
             (current + timedelta(days=1)).astimezone(EASTERN).date(),
         }
-        events = self.ev_events(
-            sport_keys=sport_keys,
-            market_keys=market_keys,
-        )
+        # The comparison screen must cover the selected league's full slate,
+        # not only the small opportunity-scanner sample. OddsEngine exposes one
+        # REST odds snapshot per event, so consume at most the documented plan
+        # budget and retain the result for the exact option-matching pass below.
+        with self._scan_lock:
+            events = self._load_events(
+                sport_keys,
+                market_keys,
+                max_events_per_league=50,
+                max_total_events=50,
+            )
+        with self._lock:
+            self._last_screen_events = _TimedValue(time.monotonic(), events)
         by_book, _metadata = normalize_the_odds_api_events(events)
         unique: dict[tuple, dict] = {}
         for market in (item for rows in by_book.values() for item in rows):
@@ -824,14 +845,22 @@ class OddsEngineProvider(ExecutionProvider):
         cached = self._cached(self._odds_cache, cache_key)
         if cached is not None:
             return cached
-        payload = self._request_json(
-            "/orderbook/top",
-            params={
-                "sort": "whale",
-                "selected_books": "prophetx",
-                "limit": max(1, min(int(limit), 100)),
-            },
-        )
+        try:
+            payload = self._request_json(
+                "/orderbook/top",
+                params={
+                    "sort": "whale",
+                    "selected_books": "prophetx",
+                    "limit": max(1, min(int(limit), 100)),
+                },
+            )
+        except requests.HTTPError as exc:
+            if getattr(exc.response, "status_code", None) == 403:
+                with self._lock:
+                    self._advanced_access = False
+            raise
+        with self._lock:
+            self._advanced_access = True
         self._store(self._odds_cache, cache_key, payload)
         return payload
 
@@ -915,6 +944,9 @@ class OddsEngineProvider(ExecutionProvider):
         self,
         requested_sports: tuple[str, ...],
         requested_markets: tuple[str, ...],
+        *,
+        max_events_per_league: int | None = None,
+        max_total_events: int | None = None,
     ) -> list[dict]:
 
         now = datetime.now(timezone.utc)
@@ -937,6 +969,17 @@ class OddsEngineProvider(ExecutionProvider):
                     league_results[index] = (None, exc)
 
         league_rate_limit: requests.HTTPError | None = None
+        per_league_limit = max(
+            1,
+            min(
+                50,
+                int(max_events_per_league or self.max_events_per_league),
+            ),
+        )
+        total_limit = max(
+            1,
+            min(100, int(max_total_events or self.max_total_events)),
+        )
         for index, sport_key in enumerate(requested_sports):
             events, error = league_results[index]
             if error is not None:
@@ -953,7 +996,7 @@ class OddsEngineProvider(ExecutionProvider):
                 if start is not None and start > now:
                     upcoming.append((start, event))
             for start, event in sorted(upcoming, key=lambda item: item[0])[
-                : self.max_events_per_league
+                :per_league_limit
             ]:
                 candidates.append((start, sport_key, event))
         if league_rate_limit is not None and not candidates:
@@ -962,7 +1005,7 @@ class OddsEngineProvider(ExecutionProvider):
         pending = [
             item
             for item in sorted(candidates, key=lambda item: item[0])[
-                : self.max_total_events
+                :total_limit
             ]
             if str(item[2].get("event_id") or "").strip()
         ]
@@ -1035,6 +1078,39 @@ class OddsEngineProvider(ExecutionProvider):
                 break
         return normalized
 
+    def _screen_events_for(
+        self,
+        sport_key: str,
+        requested_markets: Iterable[str],
+    ) -> list[dict]:
+        with self._lock:
+            entry = self._last_screen_events
+            if (
+                entry is None
+                or time.monotonic() - entry.loaded_at >= self.cache_ttl_seconds
+            ):
+                return []
+            events = list(entry.value or [])
+        required = {
+            str(value).strip().lower()
+            for value in requested_markets
+            if str(value).strip()
+        }
+        matching = [
+            event
+            for event in events
+            if str(event.get("sport_key") or "").strip().lower() == sport_key
+        ]
+        if not matching:
+            return []
+        available = {
+            str(market.get("key") or "").strip().lower()
+            for event in matching
+            for book in event.get("bookmakers") or []
+            for market in book.get("markets") or []
+        }
+        return matching if required.intersection(available) else []
+
     def _quota_remaining(self) -> int | None:
         with self._lock:
             value = self._quota.get("remaining")
@@ -1055,7 +1131,10 @@ class OddsEngineProvider(ExecutionProvider):
                 "quota": dict(self._quota),
                 "requests": self._requests,
                 "metrics": {"requests": self._requests},
-                "supportsOrderBook": True,
+                "supportsOrderBook": self._advanced_access is not False,
+                "supportsWebSocket": self._advanced_access is not False,
+                "advancedAccess": self._advanced_access,
+                "snapshotTransport": "rest",
                 "lastSuccessAt": self._last_success_at,
                 "lastErrorAt": self._last_error_at,
                 "credentials_exposed": False,
