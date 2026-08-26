@@ -301,7 +301,7 @@ def test_lab_tracker_page_and_empty_api_are_separate_from_bet_tracker(app_client
     assert page.status_code == 200
     assert b"LabTracker" in page.data
     assert b"Bet Tracker" in page.data
-    assert b"Demo View" in page.data
+    assert b"Demo View" not in page.data
     assert b"Prediction Traders" in page.data
     assert b"5-second verification" not in page.data
     assert b"Open plays" not in page.data
@@ -318,27 +318,15 @@ def test_lab_tracker_page_and_empty_api_are_separate_from_bet_tracker(app_client
     assert prediction["source"] == "prediction_traders"
 
 
-def test_demo_dashboard_is_populated_and_never_changes_real_tracker(app_client):
-    demo = app_client.get("/api/lab-tracker?window=7d&demo=1")
-    assert demo.status_code == 200
-    payload = demo.get_json()["data"]
-    assert payload["demoOnly"] is True
-    assert payload["summary"]["tracked"] >= 50
-    assert len(payload["sportsbooks"]) >= 15
-    assert len(payload["leagues"]) >= 10
-    assert {item["name"] for item in payload["markets"]} <= {
-        "Moneyline", "Spread", "Total", "Team Total", "Player Prop",
-        "First 5", "To Advance", "Yes / No",
-    }
-    assert "Other" not in {item["name"] for item in payload["markets"]}
-    assert len(payload["lastGraded"]) == 5
-    assert payload["openBets"]
+def test_demo_parameter_cannot_enable_lab_tracker_fixture(app_client):
+    attempted_demo = app_client.get("/api/lab-tracker?window=7d&demo=1")
+    live = app_client.get("/api/lab-tracker?window=7d")
 
-    real = app_client.get("/api/lab-tracker?window=all")
-    assert real.status_code == 200
-    real_payload = real.get_json()["data"]
-    assert real_payload["demoOnly"] is False
-    assert real_payload["summary"]["tracked"] == 0
+    assert attempted_demo.status_code == 200
+    assert live.status_code == 200
+    assert attempted_demo.get_json() == live.get_json()
+    assert attempted_demo.get_json()["data"]["demoOnly"] is False
+    assert attempted_demo.get_json()["data"]["summary"]["tracked"] == 0
 
 
 def test_demo_dashboard_filters_sources_and_keeps_prediction_records_real(tmp_path):
