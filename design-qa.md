@@ -2023,3 +2023,59 @@ No actionable P0, P1, or P2 findings remain.
 - No deployment, merge, commit, or push was performed.
 
 final result: passed
+
+---
+
+# IconLabs Middles — OddsJam-Inspired Workflow QA
+
+## Evidence and normalization
+
+- Primary workflow reference: `C:\Users\15617\Desktop\Screenshot_2026-08-26_at_12.47.30_AM.webp` (1536 × 730 px), supplied by the user as the efficiency and information-density reference.
+- Sportsbook-filter reference: `C:\Users\15617\Desktop\Screenshot_2026-08-26_at_12.47.34_AM.webp` (704 × 768 px), supplied by the user as the selection-workflow reference.
+- Final desktop implementation: `C:\Users\15617\Documents\Polymarket\iconlabs-arbitrage\.codex-artifacts\middles-desktop-1536x740-final-v2.png` (1536 × 740 px).
+- Final mobile implementation: `C:\Users\15617\Documents\Polymarket\iconlabs-arbitrage\.codex-artifacts\middles-mobile-390x844-final-v2.png` (390 × 844 px).
+- Filter implementation: `C:\Users\15617\Documents\Polymarket\iconlabs-arbitrage\.codex-artifacts\middles-filters-1536x740-v1.png` (1536 × 740 px).
+- Full-view comparison: `C:\Users\15617\Documents\Polymarket\iconlabs-arbitrage\.codex-artifacts\middles-reference-vs-implementation.png` (3088 × 740 px), source left and implementation right.
+- Focused comparison: `C:\Users\15617\Documents\Polymarket\iconlabs-arbitrage\.codex-artifacts\middles-focused-reference-vs-implementation.png` (2016 × 630 px), source workflow left and implementation master/detail workspace right.
+- Browser state: `http://127.0.0.1:5012/middles?preview=1`, 1536 × 740 CSS px, DPR 1, fixture feed loaded, first opportunity selected, $1,000 total stake, and no active filters.
+
+The 1536 × 730 source was centered on a 1536 × 740 black canvas without scaling for the full comparison. The focused comparison uses equivalent master/detail regions fit to a common 1000 × 630 frame. The implementation intentionally preserves the accepted IconLabs shell, typography, slate/purple palette, and 256px navigation rail while adopting the reference's dense ranked feed, two-leg opportunity cards, persistent selection, and detail-led execution workflow.
+
+## Findings and iteration history
+
+- P2 — The first detail pass assigned the above/below outside scenarios to the wrong leg.
+  - Fix: mapped the Over/first-spread leg to the above-side outside result and the Under/second-spread leg to the below-side result; verified the labels and payouts in the browser.
+- P2 — Opening a mobile opportunity could retain the detail panel's previous scroll position.
+  - Fix: reset the detail scroller to the top whenever a row is selected or the mobile drawer opens.
+- P2 — Sticky execution actions obscured the first outcome content at the desktop fold.
+  - Fix: restored the actions to normal document flow so the Outcomes heading remains visible and the panel scroll is unobstructed.
+- P2 — The filter dialog's initial submit path did not apply reliably in the browser harness.
+  - Fix: added an explicit Apply action; verified maximum cost 3% reduces the fixture from 18 opportunities to 2, and Reset restores all 18.
+- P2 — The total stake initially recalculated only after a committed change event.
+  - Fix: added debounced input handling; verified $1,000 to $2,000 immediately updates the total and the equalized leg stakes to $992.59 / $1,007.41.
+- Intentional difference — the source is an OddsJam Low Hold screen, while the implementation is a Middles tool. Its structure is carried over, but the content, formulas, ranking, and outcome scenarios are specific to middle betting.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: DM Sans and the existing IconLabs hierarchy are retained, with compact labels and tabular odds for fast scanning.
+- Spacing and layout rhythm: the desktop keeps a dense master/detail split, compact two-leg rows, persistent summary strip, and a scroll-contained execution panel; mobile collapses details into a drawer without horizontal overflow.
+- Colors and visual tokens: the accepted IconLabs black/slate/purple tokens replace the source's cyan treatment by design, while green, amber, and red remain reserved for outcome meaning.
+- Image quality and asset fidelity: the implementation uses the repository's real local sportsbook marks and IconLabs wordmark plus the existing Phosphor icon set; no CSS-drawn logos, gradients, or placeholder artwork are used.
+- Copy and content: the scanner identifies the event, market, both book/selection pairs, exact middle condition, integer outcomes, balanced stakes, worst-case cost, middle profit, break-even rate, and quote alternatives.
+- Accessibility: controls have labels and pressed/current states, dialogs close with Escape, keyboard row navigation is supported, and responsive layouts remain readable without document overflow.
+
+## Interaction and automated verification
+
+- Search isolated four Breanna Stewart opportunities and clearing it restored the full feed.
+- League and market quick filters, 80-book selection dialog, cost/window/freshness filters, distinct-book control, Apply, and Reset were exercised.
+- Pause/resume and manual refresh updated the scan status without provider requests in preview mode.
+- Row selection, keyboard navigation, mobile detail open/close, Track pair, and Copy plan feedback were verified.
+- Desktop at 1536 × 740 and mobile at 390 × 844 produced no horizontal document overflow.
+- Browser warning/error log: empty.
+- Focused Python and design-system suite: 28 passed after the final interaction hardening.
+- Full repository regression suite: 877 passed.
+- JavaScript syntax, Python compilation, and `git diff --check`: passed; line-ending notices only.
+
+final result: passed

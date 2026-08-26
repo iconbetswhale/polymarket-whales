@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="mid-page" data-mid-preview="{{ 'true' if middles_preview else 'false' }}">
+  {% if middles_preview %}
+  <section class="mid-preview-banner" aria-label="Preview mode">
+    <i class="ph ph-eye" aria-hidden="true"></i>
+    <strong>Interactive preview</strong>
+    <span>Fixture prices only · no provider requests or bets are placed.</span>
+  </section>
+  {% endif %}
+
+  <header class="mid-header il-page-header">
+    <div class="mid-title-block">
+      <p class="mid-eyebrow">TWO-LINE OPPORTUNITIES</p>
+      <div class="mid-title-row">
+        <h1 class="il-page-title">Middles</h1>
+        <nav class="mid-mode-tabs" aria-label="Middle timing">
+          <button class="active" type="button" aria-pressed="true">Pre-Match <span id="mid-mode-count">0</span></button>
+          <button type="button" disabled title="Live middle scanning is not enabled">Live</button>
+        </nav>
+        <button class="mid-learn-button" id="mid-learn-open" type="button"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
+      </div>
+      <p>Pair two prices so ordinary results offset, while the gap can cash both bets.</p>
+    </div>
+
+    <div class="mid-toolbar il-finance-controls" aria-label="Middle controls">
+      <label class="mid-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-search" type="search" placeholder="Search events, players, or books" autocomplete="off"><kbd>/</kbd></label>
+      <label class="mid-stake-control"><span>Total stake</span><span class="mid-money-input"><b>$</b><input id="mid-stake" type="number" min="1" max="10000000" step="25" value="1000" inputmode="decimal"></span></label>
+      <button class="mid-icon-button" id="mid-scan-toggle" type="button" aria-pressed="false" title="Pause scanner"><i class="ph ph-pause" aria-hidden="true"></i><span class="sr-only">Pause scanner</span></button>
+      <button class="mid-icon-button mid-filter-button" id="mid-filter-open" type="button" title="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span id="mid-filter-count">0</span><span class="sr-only">Customize feed</span></button>
+      <button class="mid-icon-button" id="mid-refresh" type="button" title="Refresh now"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span class="sr-only">Refresh now</span></button>
+    </div>
+  </header>
+
+  <section class="mid-summary" aria-label="Middle scan summary">
+    <article><span>OPPORTUNITIES</span><strong id="mid-summary-count">—</strong><small>qualified windows</small></article>
+    <article><span>BEST COST</span><strong id="mid-summary-cost">—</strong><small>worst-case stake drag</small></article>
+    <article><span>WIDEST WINDOW</span><strong id="mid-summary-width">—</strong><small>points between lines</small></article>
+    <article><span>SCAN STATUS</span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></article>
+  </section>
+
+  <div class="mid-workspace">
+    <section class="mid-feed-panel" aria-labelledby="mid-feed-title">
+      <header class="mid-feed-heading">
+        <div><p class="mid-eyebrow">RANKED BY LOWEST BREAK-EVEN</p><h2 id="mid-feed-title">Middle opportunities</h2></div>
+        <div class="mid-quick-filters" aria-label="Quick filters">
+          <select id="mid-sport"><option value="">All leagues</option></select>
+          <select id="mid-market"><option value="">All markets</option></select>
+        </div>
+      </header>
+      <div class="mid-feed-status" id="mid-feed-status" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating middle windows…</span></div>
+      <div class="mid-feed" id="mid-feed" aria-live="polite"></div>
+    </section>
+
+    <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
+      <div class="mid-detail-empty"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><strong>Select an opportunity</strong><span>See both bets, exact stakes, payout scenarios, and the full middle window.</span></div>
+    </aside>
+  </div>
+
+  <button class="mid-mobile-close" id="mid-mobile-close" type="button" aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button>
+  <div class="mid-mobile-backdrop" id="mid-mobile-backdrop" hidden></div>
+
+  <dialog class="mid-dialog" id="mid-filter-dialog" aria-labelledby="mid-filter-title">
+    <form class="mid-dialog-shell" id="mid-filter-form" method="dialog">
+      <header><div><p class="mid-eyebrow">CUSTOMIZE</p><h2 id="mid-filter-title">Middle scanner</h2></div><button class="mid-dialog-close" id="mid-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <div class="mid-filter-layout">
+        <section class="mid-filter-section mid-filter-books">
+          <div class="mid-filter-section-title"><div><span>Sportsbooks</span><small id="mid-book-count">0 selected</small></div><div><button type="button" id="mid-books-all">Select all</button><button type="button" id="mid-books-default">Reset</button></div></div>
+          <label class="mid-book-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-book-search" type="search" placeholder="Find a sportsbook"></label>
+          <div class="mid-book-grid" id="mid-book-grid"></div>
+        </section>
+        <section class="mid-filter-section mid-filter-math">
+          <div class="mid-filter-section-title"><div><span>Math &amp; freshness</span><small>Transparent scanner rules</small></div></div>
+          <div class="mid-field-grid">
+            <label>Minimum window<span><input id="mid-min-width" type="number" min="0.01" max="1000" step="0.5" value="0.5"><b>pts</b></span></label>
+            <label>Maximum cost<span><input id="mid-max-cost" type="number" min="0" max="100" step="0.25" value="12"><b>%</b></span></label>
+            <label>Maximum quote age<span><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Exchange commission<span><input id="mid-commission" type="number" min="0" max="25" step="0.25" value="0"><b>%</b></span></label>
+          </div>
+          <fieldset class="mid-market-choices" id="mid-market-choices">
+            <legend>Markets</legend>
+            <label><input type="checkbox" value="spreads" checked><span>Game spreads</span></label>
+            <label><input type="checkbox" value="alternate_spreads" checked><span>Alternate spreads</span></label>
+            <label><input type="checkbox" value="totals" checked><span>Game totals</span></label>
+            <label><input type="checkbox" value="alternate_totals" checked><span>Alternate totals</span></label>
+            <label><input type="checkbox" value="player_points" checked><span>Player points</span></label>
+            <label><input type="checkbox" value="pitcher_strikeouts" checked><span>Pitcher strikeouts</span></label>
+          </fieldset>
+          <label class="mid-switch"><input id="mid-distinct-books" type="checkbox"><span><b>Require different books</b><small>Useful when one book limits opposing alternate lines.</small></span></label>
+        </section>
+      </div>
+      <footer><button class="mid-button ghost" id="mid-filter-reset" type="button">Reset filters</button><button class="mid-button primary" id="mid-filter-apply" type="button">Apply &amp; rescan</button></footer>
+    </form>
+  </dialog>
+
+  <dialog class="mid-dialog mid-learn-dialog" id="mid-learn-dialog" aria-labelledby="mid-learn-title">
+    <div class="mid-dialog-shell">
+      <header><div><p class="mid-eyebrow">THE MATH</p><h2 id="mid-learn-title">How IconLabs sizes a middle</h2></div><button class="mid-dialog-close" id="mid-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <div class="mid-learn-content">
+        <article><i class="ph ph-number-circle-one" aria-hidden="true"></i><div><strong>Find a real gap</strong><p>For totals, a lower Over is paired with a higher Under. For spreads, opposing lines must overlap. The bets must describe the same event and market.</p></div></article>
+        <article><i class="ph ph-number-circle-two" aria-hidden="true"></i><div><strong>Equalize outside payouts</strong><p>Stake is split in inverse proportion to effective decimal odds, then rounded to cents. That maximizes the smaller payout when the result lands outside the middle.</p></div></article>
+        <article><i class="ph ph-number-circle-three" aria-hidden="true"></i><div><strong>Price the lottery ticket honestly</strong><p>Cost is the worst outside loss divided by total stake. Break-even is cost divided by the difference between middle profit and worst outside profit. No unverified hit probability is assumed.</p></div></article>
+        <div class="mid-formula"><span>Break-even middle probability</span><strong>outside risk ÷ (middle profit + outside risk)</strong></div>
+        <p class="mid-risk-note"><i class="ph ph-warning" aria-hidden="true"></i>Odds can move, limits can differ, and a middle is not guaranteed unless the worst-case profit shown is non-negative. Confirm both tickets before placing either leg.</p>
+      </div>
+    </div>
+  </dialog>
+
+  <script id="mid-config" type="application/json">{{ middles_config|tojson }}</script>
+</section>
+{% endblock %}

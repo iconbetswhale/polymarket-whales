@@ -13,7 +13,9 @@ def test_arbitrage_is_a_canonical_v2_route_in_the_shared_shell() -> None:
     assert "ph-intersect-three" in BASE
     assert "arbitrage.css" in BASE
     assert "arbitrage.js" in BASE
-    assert "'positive-ev', 'arbitrage', 'sharp-money'" in BASE
+    assert "'positive-ev'" in BASE
+    assert "'arbitrage'" in BASE
+    assert "'sharp-money'" in BASE
 
 
 def test_arbitrage_page_exposes_the_complete_master_detail_workflow() -> None:
