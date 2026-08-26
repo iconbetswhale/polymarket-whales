@@ -113,6 +113,11 @@ class Settings:
     kalshi_enabled: bool = True
     kalshi_api_base_url: str = "https://external-api.kalshi.com/trade-api/v2"
     kalshi_cache_ttl_seconds: int = 1
+    oddsengine_api_key: str | None = field(default=None, repr=False)
+    oddsengine_api_base_url: str = "https://api.oddsengine.dev/v1"
+    oddsengine_cache_ttl_seconds: int = 45
+    oddsengine_max_events_per_league: int = 12
+    oddsengine_max_total_events: int = 48
     the_odds_api_key: str | None = field(default=None, repr=False)
     the_odds_api_base_url: str = "https://api.the-odds-api.com/v4"
     the_odds_api_regions: tuple[str, ...] = (
@@ -314,6 +319,19 @@ def get_settings() -> Settings:
         kalshi_enabled=_get_bool("KALSHI_ENABLED", True),
         kalshi_api_base_url=os.getenv("KALSHI_API_BASE_URL", "https://external-api.kalshi.com/trade-api/v2"),
         kalshi_cache_ttl_seconds=_get_int("KALSHI_CACHE_TTL_SECONDS", 1),
+        oddsengine_api_key=os.getenv("ODDSENGINE_API_KEY") or None,
+        oddsengine_api_base_url=os.getenv(
+            "ODDSENGINE_API_BASE_URL", "https://api.oddsengine.dev/v1"
+        ),
+        oddsengine_cache_ttl_seconds=max(
+            15, _get_int("ODDSENGINE_CACHE_TTL_SECONDS", 45)
+        ),
+        oddsengine_max_events_per_league=max(
+            1, _get_int("ODDSENGINE_MAX_EVENTS_PER_LEAGUE", 12)
+        ),
+        oddsengine_max_total_events=max(
+            1, _get_int("ODDSENGINE_MAX_TOTAL_EVENTS", 48)
+        ),
         the_odds_api_key=os.getenv("THE_ODDS_API_KEY") or None,
         the_odds_api_base_url=os.getenv(
             "THE_ODDS_API_BASE_URL", "https://api.the-odds-api.com/v4"

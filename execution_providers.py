@@ -1665,6 +1665,7 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
     from fourcx_provider import FourCXProvider
     from kalshi_provider import KalshiProvider
     from novig_provider import NoVIGNBXProvider
+    from odds_engine_provider import OddsEngineProvider
     from the_odds_api_provider import TheOddsAPIProvider
 
     novig_nbx = NoVIGNBXProvider(
@@ -1696,6 +1697,24 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
         (
             PolymarketProvider(),
             novig_nbx,
+            OddsEngineProvider(
+                getattr(settings, "oddsengine_api_key", None),
+                base_url=getattr(
+                    settings,
+                    "oddsengine_api_base_url",
+                    "https://api.oddsengine.dev/v1",
+                ),
+                cache_ttl_seconds=getattr(
+                    settings, "oddsengine_cache_ttl_seconds", 45
+                ),
+                max_events_per_league=getattr(
+                    settings, "oddsengine_max_events_per_league", 12
+                ),
+                max_total_events=getattr(
+                    settings, "oddsengine_max_total_events", 48
+                ),
+                request_timeout=getattr(settings, "request_timeout", 15),
+            ),
             NoVIGProvider(
                 getattr(settings, "novig_api_key", None),
                 base_url=getattr(

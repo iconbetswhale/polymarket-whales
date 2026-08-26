@@ -239,6 +239,12 @@ Maximum persisted Discord jobs claimed during one backend reconciliation run.
 
 The Model Tracker insert is the notification source of truth. A qualifying Today recommendation and its unique Discord outbox job are written in one database transaction. The existing scheduled Model Tracker reconciliation drains that outbox, records success or a safe error code, and retries transient failures without requiring a browser page to be open. Personal Tracker records and dashboard-only recommendations never enter this outbox.
 
+`ODDSENGINE_API_KEY=`
+Server-only OddsEngine key used as the preferred live all-book feed for Positive EV, Arbitrage, Middles, and Low Hold. Requests authenticate with `X-API-Key`; the key is never sent to the browser or included in diagnostics. The standard event and odds endpoints feed IconLabs' existing calculators, so provider changes do not alter opportunity math.
+
+`ODDSENGINE_API_BASE_URL=https://api.oddsengine.dev/v1`
+OddsEngine API base URL. The feed caches league schedules and event odds for 45 seconds and caps a scan at 12 upcoming events per league and 48 total events to stay within the trial plan's request limit. SportsGameOdds and The Odds API remain automatic fallbacks when an OddsEngine request fails.
+
 `SPORTSGAMEODDS_API_KEY=`
 Server-side SportsGameOdds All Lines API key for the Positive EV feed and normalized NoVIG prices. `NOVIG_ODDS_API_KEY` remains a backward-compatible alias. When no key is configured, the Positive EV live scan and NoVIG options remain unavailable while Polymarket execution is unaffected.
 

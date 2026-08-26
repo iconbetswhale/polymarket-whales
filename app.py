@@ -674,6 +674,14 @@ def create_app(start_background: bool = True) -> Flask:
         ),
         None,
     )
+    app.extensions["odds_engine_provider"] = next(
+        (
+            provider
+            for provider in execution_providers.providers
+            if provider.provider_key == "odds_engine"
+        ),
+        None,
+    )
     app.extensions["sharp_money_collector"] = build_sharp_money_collector(
         execution_providers, settings
     )
@@ -700,19 +708,44 @@ def create_app(start_background: bool = True) -> Flask:
     )
     app.jinja_env.globals["line_shop_refresh_interval_seconds"] = settings.line_shop_refresh_interval_seconds
 
-    def positive_ev_provider():
-        """Prefer the all-book SportsGameOdds feed, retaining legacy fallback."""
-        return next(
-            (
-                provider
-                for provider_key in ("novig", "the_odds_api")
-                for provider in execution_providers.providers
-                if provider.provider_key == provider_key
-                and getattr(provider, "api_key", None)
-                and callable(getattr(provider, "ev_events", None))
-            ),
-            None,
+    def odds_feed_providers():
+        """Configured all-book feeds in live-scan preference order."""
+        return tuple(
+            provider
+            for provider_key in ("odds_engine", "novig", "the_odds_api")
+            for provider in execution_providers.providers
+            if provider.provider_key == provider_key
+            and getattr(provider, "api_key", None)
+            and callable(getattr(provider, "ev_events", None))
         )
+
+    def positive_ev_provider():
+        """Return the preferred configured all-book odds feed."""
+        return next(iter(odds_feed_providers()), None)
+
+    def load_odds_events(*, sport_keys, market_keys):
+        """Load once from the preferred feed and fail over only on provider errors."""
+        providers = odds_feed_providers()
+        if not providers:
+            return None, []
+        last_error = None
+        for provider in providers:
+            try:
+                events = provider.ev_events(
+                    sport_keys=sport_keys,
+                    market_keys=market_keys,
+                )
+                return provider, events
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                last_error = exc
+                LOGGER.warning(
+                    "Odds feed %s failed; trying fallback: %s",
+                    provider.provider_key,
+                    type(exc).__name__,
+                )
+        if last_error is not None:
+            raise last_error
+        return providers[0], []
 
     def refresh_polymarket_execution_quotes(trades: list[dict]) -> None:
         """Attach current CLOB depth used only for provider line-shopping."""
@@ -1636,6 +1669,16 @@ def create_app(start_background: bool = True) -> Flask:
             )
         )
 
+    @app.route("/api/provider-health/odds-engine", methods=["GET", "POST"])
+    def api_odds_engine_health():
+        if not has_job_authorization():
+            return jsonify({"status": "UNAUTHORIZED"}), 401
+        return jsonify(
+            execution_providers.provider_diagnostics(
+                "odds_engine", authenticate=request.method == "POST"
+            )
+        )
+
     @app.route("/api/admin/discord-notifications/test", methods=["POST"])
     def api_discord_notification_test():
         if not has_job_authorization():
@@ -2420,7 +2463,7 @@ def create_app(start_background: bool = True) -> Flask:
             "distinct_books", ""
         ).strip().lower() in {"1", "true", "yes", "on"}
 
-        configured = bool(settings.novig_api_key or settings.the_odds_api_key)
+        configured = bool(odds_feed_providers())
         if not preview_requested and not active_requested:
             response = jsonify(
                 {
@@ -2466,14 +2509,13 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        odds_provider = positive_ev_provider()
-        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+        if not odds_feed_providers():
             response = jsonify(
                 {
                     "data": [],
                     "total": 0,
                     "configured": False,
-                    "message": "SportsGameOdds is not configured.",
+                    "message": "No odds feed is configured.",
                     "refreshSeconds": 0,
                 }
             )
@@ -2490,7 +2532,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
         )[:4]
         try:
-            events = odds_provider.ev_events(
+            odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=requested_markets,
             )
@@ -2630,7 +2672,7 @@ def create_app(start_background: bool = True) -> Flask:
             "distinct_books", ""
         ).strip().lower() in {"1", "true", "yes", "on"}
 
-        configured = bool(settings.novig_api_key or settings.the_odds_api_key)
+        configured = bool(odds_feed_providers())
         if not preview_requested and not active_requested:
             response = jsonify(
                 {
@@ -2673,14 +2715,13 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        odds_provider = positive_ev_provider()
-        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+        if not odds_feed_providers():
             response = jsonify(
                 {
                     "data": [],
                     "total": 0,
                     "configured": False,
-                    "message": "SportsGameOdds is not configured.",
+                    "message": "No odds feed is configured.",
                     "refreshSeconds": 0,
                 }
             )
@@ -2698,7 +2739,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
         )[:6]
         try:
-            events = odds_provider.ev_events(
+            odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=requested_markets,
             )
@@ -2896,7 +2937,7 @@ def create_app(start_background: bool = True) -> Flask:
                 400,
             )
 
-        configured = bool(settings.novig_api_key or settings.the_odds_api_key)
+        configured = bool(odds_feed_providers())
         if not preview_requested and not active_requested:
             response = jsonify(
                 {
@@ -2948,14 +2989,13 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        odds_provider = positive_ev_provider()
-        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+        if not odds_feed_providers():
             response = jsonify(
                 {
                     "data": [],
                     "total": 0,
                     "configured": False,
-                    "message": "SportsGameOdds is not configured.",
+                    "message": "No odds feed is configured.",
                     "refreshSeconds": 0,
                 }
             )
@@ -2972,7 +3012,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
         )[:4]
         try:
-            events = odds_provider.ev_events(
+            odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=requested_markets,
             )
@@ -3009,9 +3049,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/api/positive-ev")
     def api_positive_ev():
         """Demand-driven +EV feed. It never mutates Prediction Traders."""
-        positive_ev_configured = bool(
-            settings.novig_api_key or settings.the_odds_api_key
-        )
+        positive_ev_configured = bool(odds_feed_providers())
         devig_method = request.args.get("devig_method", "power").strip().lower()
         if devig_method not in DEVIG_METHODS:
             return jsonify(
@@ -3146,13 +3184,12 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        odds_provider = positive_ev_provider()
-        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+        if not odds_feed_providers():
             return jsonify(
                 {
                     "data": [],
                     "configured": False,
-                    "message": "SportsGameOdds is not configured.",
+                    "message": "No odds feed is configured.",
                 }
             )
 
@@ -3293,7 +3330,7 @@ def create_app(start_background: bool = True) -> Flask:
             if item.strip()
         )
         try:
-            events = odds_provider.ev_events(
+            odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=market_keys,
             )
@@ -5650,7 +5687,7 @@ def create_app(start_background: bool = True) -> Flask:
             and getattr(odds_provider, "api_key", None)
         ):
             try:
-                events = odds_provider.ev_events(
+                odds_provider, events = load_odds_events(
                     sport_keys=("baseball_mlb", "basketball_wnba"),
                     market_keys=MAIN_MARKETS,
                 )
