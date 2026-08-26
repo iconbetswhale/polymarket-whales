@@ -105,6 +105,7 @@ from ev_optimizer import (
     build_ev_board,
 )
 from arbitrage import build_arbitrage_board
+from middles import build_middles_board
 from dfs_probability_engine import (
     DfsProbabilityEngine,
     ICONLABS_DFS_WEIGHTS,
@@ -1213,6 +1214,24 @@ def create_app(start_background: bool = True) -> Flask:
             page="arbitrage",
             arbitrage_config=arbitrage_config,
             arbitrage_preview=preview_requested,
+        )
+
+    @app.route("/middles")
+    def middles_page():
+        middles_config = positive_ev_catalog_payload()
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        middles_config["previewOnly"] = preview_requested
+        return render_template(
+            "middles.html",
+            title="IconLabs Middles",
+            page="middles",
+            middles_config=middles_config,
+            middles_preview=preview_requested,
         )
 
     @app.route("/live-positions")
@@ -2470,6 +2489,208 @@ def create_app(start_background: bool = True) -> Flask:
             )
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Arbitrage refresh failed: %s", type(exc).__name__)
+            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+
+        diagnostics = odds_provider.diagnostics(authenticate=False)
+        response = jsonify(
+            {
+                "data": board["data"][:250],
+                "total": len(board["data"]),
+                "diagnostics": board["diagnostics"],
+                "configured": True,
+                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
+                "refreshSeconds": 60,
+            }
+        )
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.route("/api/middles")
+    def api_middles():
+        """On-demand middle scan with transparent two-leg payout math."""
+
+        preview_requested = request.args.get("preview", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+        active_requested = request.args.get("active", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+        def middle_number(name: str, default: float, low: float, high: float) -> float:
+            try:
+                value = float(request.args.get(name, default))
+            except (TypeError, ValueError):
+                value = default
+            if not math.isfinite(value):
+                value = default
+            return min(high, max(low, value))
+
+        raw_books = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get(
+                    "books", ",".join(DEFAULT_EXECUTION_BOOKS)
+                ).split(",")
+                if item.strip()
+            )
+        )
+        invalid_books = [
+            book
+            for book in raw_books
+            if book not in SPORTS_GAME_ODDS_BOOKMAKERS
+            or SPORTS_GAME_ODDS_BOOKMAKERS[book]["type"] == "dfs"
+        ]
+        if invalid_books:
+            return jsonify(
+                {
+                    "error": "INVALID_MIDDLE_BOOK",
+                    "message": f"{invalid_books[0]} cannot be used as a standalone middle leg.",
+                    "invalidBooks": invalid_books,
+                }
+            ), 400
+        if not raw_books:
+            return jsonify(
+                {
+                    "error": "NO_MIDDLE_BOOKS",
+                    "message": "Select at least one sportsbook or exchange.",
+                }
+            ), 400
+
+        supported_markets = (set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)) - {"h2h"}
+        supported_markets.update(
+            market for markets in PLAYER_PROP_MARKETS.values() for market in markets
+        )
+        default_middle_markets = (
+            "spreads,totals,alternate_spreads,alternate_totals,"
+            "player_points,pitcher_strikeouts"
+        )
+        requested_markets = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get("markets", default_middle_markets).split(",")
+                if item.strip()
+            )
+        )
+        invalid_markets = [
+            market for market in requested_markets if market not in supported_markets
+        ]
+        if invalid_markets:
+            return jsonify(
+                {
+                    "error": "INVALID_MIDDLE_MARKET",
+                    "message": f"{invalid_markets[0]} is not a supported middle market.",
+                    "invalidMarkets": invalid_markets,
+                }
+            ), 400
+        if not requested_markets:
+            return jsonify(
+                {"error": "NO_MIDDLE_MARKETS", "message": "Select at least one market."}
+            ), 400
+
+        total_stake = middle_number("stake", 1_000.0, 1.0, 10_000_000.0)
+        min_width = middle_number("min_width", 0.5, 0.01, 1000.0)
+        max_cost = middle_number("max_cost", 12.0, 0.0, 100.0)
+        max_quote_age = int(middle_number("max_quote_age", 180, 15, 1800))
+        commission_bps = middle_number("commission_bps", 0.0, 0.0, 2500.0)
+        require_distinct_books = request.args.get(
+            "distinct_books", ""
+        ).strip().lower() in {"1", "true", "yes", "on"}
+
+        configured = bool(settings.novig_api_key or settings.the_odds_api_key)
+        if not preview_requested and not active_requested:
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": configured,
+                    "paused": True,
+                    "message": "Middle scanning is paused. Start the feed when you need current prices.",
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        if preview_requested:
+            from middles_preview import temporary_middle_events
+
+            board = build_middles_board(
+                temporary_middle_events(),
+                selected_books=raw_books,
+                allowed_markets=requested_markets,
+                total_stake=total_stake,
+                min_middle_width=min_width,
+                max_cost_percent=max_cost,
+                max_quote_age_seconds=max_quote_age,
+                commission_bps=commission_bps,
+                require_distinct_books=require_distinct_books,
+            )
+            response = jsonify(
+                {
+                    "data": board["data"],
+                    "total": len(board["data"]),
+                    "diagnostics": board["diagnostics"],
+                    "configured": configured,
+                    "previewOnly": True,
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        odds_provider = positive_ev_provider()
+        if odds_provider is None or not getattr(odds_provider, "api_key", None):
+            response = jsonify(
+                {
+                    "data": [],
+                    "total": 0,
+                    "configured": False,
+                    "message": "SportsGameOdds is not configured.",
+                    "refreshSeconds": 0,
+                }
+            )
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
+
+        sport_keys = tuple(
+            dict.fromkeys(
+                item.strip()
+                for item in request.args.get(
+                    "sports",
+                    "americanfootball_nfl,basketball_nba,baseball_mlb,basketball_wnba",
+                ).split(",")
+                if item.strip()
+            )
+        )[:6]
+        try:
+            events = odds_provider.ev_events(
+                sport_keys=sport_keys,
+                market_keys=requested_markets,
+            )
+            board = build_middles_board(
+                events,
+                selected_books=raw_books,
+                allowed_markets=requested_markets,
+                total_stake=total_stake,
+                min_middle_width=min_width,
+                max_cost_percent=max_cost,
+                max_quote_age_seconds=max_quote_age,
+                commission_bps=commission_bps,
+                require_distinct_books=require_distinct_books,
+            )
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            return jsonify(
+                {"data": [], "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"}
+            ), 429 if status == 429 else 502
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            LOGGER.warning("Middles refresh failed: %s", type(exc).__name__)
             return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
