@@ -717,15 +717,32 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.before_request
     def prepare_request():
-        if request.endpoint == "static":
-            # Versioned JS/CSS/images are public build artifacts. They must not
-            # open the durable auth store or mint an anonymous-user cookie.
+        public_startup_endpoint = request.endpoint in {
+            "static",
+            "trades_page",
+            "sharp_money_page",
+            "api_sharp_money_sandbox",
+            "api_sharp_money_status",
+            "api_sharp_money_live",
+            "api_sharp_money_control",
+        }
+        fast_trades_request = request.endpoint == "api_trades_to_play" and (
+            request.args.get("fast", "").strip().lower()
+            in {"1", "true", "yes"}
+        )
+        if public_startup_endpoint or fast_trades_request:
+            # Public page shells, cached feed reads, and versioned assets do not
+            # need an auth-store round trip. Personalized API calls immediately
+            # follow and restore the signed-in account state when available.
+            user_id = request.cookies.get(USER_COOKIE)
             g.iconbets_authenticated = False
             g.iconbets_account_email = None
             g.iconbets_account_username = None
             g.iconbets_session_token = None
-            g.iconbets_new_user = False
-            g.iconbets_user_id = request.cookies.get(USER_COOKIE) or "static"
+            g.iconbets_new_user = request.endpoint != "static" and not bool(user_id)
+            g.iconbets_user_id = user_id or (
+                "static" if request.endpoint == "static" else secrets.token_urlsafe(24)
+            )
             return
 
         session_token = request.cookies.get(AUTH_SESSION_COOKIE)

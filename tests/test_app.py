@@ -842,6 +842,23 @@ def test_versioned_static_assets_skip_auth_and_are_immutable(
     assert "iconbets_user" not in response.headers.get("Set-Cookie", "")
 
 
+def test_public_startup_routes_do_not_wait_for_auth_store(app_client, monkeypatch):
+    service = app_client.application.extensions["tracker_service"]
+    monkeypatch.setattr(
+        service.database,
+        "get_auth_session",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("public startup routes must not open the auth store")
+        ),
+    )
+    app_client.set_cookie("iconbets_session", "stale-session")
+
+    assert app_client.get("/trades").status_code == 200
+    assert app_client.get("/sharp-money").status_code == 200
+    assert app_client.get("/api/trades-to-play?fast=1").status_code == 200
+    assert app_client.get("/api/sharp-money/live").status_code == 200
+
+
 def test_trades_to_play_fast_mode_returns_snapshot_without_blocking_live_quotes(
     app_client, monkeypatch
 ):
