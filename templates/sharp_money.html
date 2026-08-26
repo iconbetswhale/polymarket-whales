@@ -17,13 +17,17 @@
     </div>
     <div class="sharp-header-actions">
       <label class="sharp-search search-control"><i class="ph ph-magnifying-glass"></i><input id="sharp-search" type="search" placeholder="Search markets"></label>
-      <button class="sharp-icon-button icon-button" id="sharp-feed-toggle" type="button" aria-pressed="false" aria-label="Play feed"><i class="ph ph-play"></i></button>
-      <button class="sharp-icon-button icon-button" id="sharp-sort" type="button" aria-pressed="false" title="Sort by combined liquidity"><i class="ph ph-funnel-simple"></i></button>
-      <button class="sharp-icon-button icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><i class="ph ph-caret-down sharp-filter-chevron"></i><span class="sharp-alert-dot"></span><span class="sharp-filter-count" id="sharp-filter-count">0</span></button>
       <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-alerts" type="button" aria-label="Alerts"><i class="ph ph-bell"></i></button>
+      <button class="sharp-icon-button icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><span class="sharp-alert-dot"></span><span class="sharp-filter-count" id="sharp-filter-count">0</span></button>
       <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-refresh" type="button" aria-label="Refresh"><i class="ph ph-arrows-clockwise"></i></button>
-      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-more" type="button" aria-label="More options"><i class="ph ph-dots-three-vertical"></i></button>
-      <button class="sharp-icon-button icon-button" id="sharp-detail-toggle" type="button" aria-pressed="false" aria-label="Toggle market detail"><i class="ph ph-sidebar-simple"></i></button>
+      <div class="sharp-more-shell">
+        <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-more" type="button" aria-label="More options" aria-expanded="false"><i class="ph ph-dots-three-vertical"></i></button>
+        <div class="sharp-more-menu" id="sharp-more-menu" hidden>
+          <button id="sharp-feed-toggle" type="button" aria-pressed="false"><i class="ph ph-play"></i><span>Play feed</span></button>
+          <button id="sharp-sort" type="button" aria-pressed="false"><i class="ph ph-sort-descending"></i><span>Sort liquidity</span></button>
+          <button id="sharp-detail-toggle" type="button" aria-pressed="true"><i class="ph ph-sidebar-simple"></i><span>Toggle details</span></button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -37,7 +41,7 @@
   <section class="sharp-workspace">
     <div class="sharp-signal-column">
       <div class="sharp-list-toolbar sharp-utility-state">
-        <div><span id="sharp-result-label">Collector paused</span><small id="sharp-last-updated">No live request has started</small></div>
+        <div class="sharp-list-status"><span id="sharp-result-label">Collector paused</span><small id="sharp-last-updated">No live request has started</small></div>
         <div class="sharp-quick-filters">
           <button class="active" type="button" data-sharp-sport="">All</button>
           <button type="button" data-sharp-sport="MLB">MLB</button>
