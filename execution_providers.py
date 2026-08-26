@@ -1708,10 +1708,10 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                     settings, "oddsengine_cache_ttl_seconds", 45
                 ),
                 max_events_per_league=getattr(
-                    settings, "oddsengine_max_events_per_league", 12
+                    settings, "oddsengine_max_events_per_league", 5
                 ),
                 max_total_events=getattr(
-                    settings, "oddsengine_max_total_events", 48
+                    settings, "oddsengine_max_total_events", 20
                 ),
                 request_timeout=getattr(settings, "request_timeout", 15),
             ),

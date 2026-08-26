@@ -437,8 +437,8 @@ class OddsEngineProvider(ExecutionProvider):
         *,
         base_url: str = DEFAULT_BASE_URL,
         cache_ttl_seconds: int = 45,
-        max_events_per_league: int = 12,
-        max_total_events: int = 48,
+        max_events_per_league: int = 5,
+        max_total_events: int = 20,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -855,7 +855,12 @@ class OddsEngineProvider(ExecutionProvider):
         candidates: list[tuple[datetime, str, dict]] = []
         for sport_key in requested_sports:
             league = _sport_key_league(sport_key)
-            events = self._league_events(league)
+            try:
+                events = self._league_events(league)
+            except requests.HTTPError as exc:
+                if getattr(exc.response, "status_code", None) == 429 and candidates:
+                    break
+                raise
             upcoming = []
             for event in events:
                 start = _parse_time(event.get("event_start"))
@@ -870,6 +875,12 @@ class OddsEngineProvider(ExecutionProvider):
         for _start, sport_key, event in sorted(candidates, key=lambda item: item[0])[
             : self.max_total_events
         ]:
+            # Preserve a usable partial snapshot when this request reaches the
+            # plan limit. A fresh serverless invocation cannot share in-memory
+            # cache state, so stopping here is materially better than turning
+            # already-fetched events into a page-wide 502.
+            if normalized and self._quota_remaining() == 0:
+                break
             event_id = str(event.get("event_id") or "").strip()
             if not event_id:
                 continue
@@ -877,6 +888,8 @@ class OddsEngineProvider(ExecutionProvider):
                 odds = self._event_odds(event_id)
             except requests.HTTPError as exc:
                 status = getattr(exc.response, "status_code", None)
+                if status == 429 and normalized:
+                    break
                 if status in {401, 403, 429}:
                     raise
                 LOGGER.warning("OddsEngine skipped event after HTTP %s", status or "error")
@@ -889,6 +902,14 @@ class OddsEngineProvider(ExecutionProvider):
             if converted:
                 normalized.append(converted)
         return normalized
+
+    def _quota_remaining(self) -> int | None:
+        with self._lock:
+            value = self._quota.get("remaining")
+        try:
+            return max(0, int(str(value)))
+        except (TypeError, ValueError):
+            return None
 
     def diagnostics(self, *, authenticate: bool = False) -> dict:
         status = self.health_status(authenticate=authenticate).value
@@ -966,6 +987,18 @@ class OddsEngineProvider(ExecutionProvider):
                 headers={"X-API-Key": self.api_key},
                 timeout=self.request_timeout,
             )
+            # Rate-limit headers are useful on both success and 429 responses.
+            # Record them before raise_for_status() so the current scan can
+            # stop cleanly and leave remaining quota for the other live tools.
+            with self._lock:
+                for header, key in (
+                    ("X-RateLimit-Limit", "limit"),
+                    ("X-RateLimit-Remaining", "remaining"),
+                    ("X-RateLimit-Reset", "reset"),
+                ):
+                    value = response.headers.get(header)
+                    if value is not None:
+                        self._quota[key] = str(value)
             response.raise_for_status()
             payload = response.json()
             if not isinstance(payload, dict):
@@ -977,12 +1010,4 @@ class OddsEngineProvider(ExecutionProvider):
 
         with self._lock:
             self._last_success_at = datetime.now(timezone.utc).isoformat()
-            for header, key in (
-                ("X-RateLimit-Limit", "limit"),
-                ("X-RateLimit-Remaining", "remaining"),
-                ("X-RateLimit-Reset", "reset"),
-            ):
-                value = response.headers.get(header)
-                if value is not None:
-                    self._quota[key] = str(value)
         return payload

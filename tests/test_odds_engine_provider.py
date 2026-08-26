@@ -42,7 +42,10 @@ class FakeSession:
             }
         )
         path = url.removeprefix("https://api.oddsengine.dev/v1")
-        return self.routes[path]
+        response = self.routes[path]
+        if isinstance(response, list):
+            return response.pop(0)
+        return response
 
 
 def _fixture_session() -> FakeSession:
@@ -304,6 +307,63 @@ def test_provider_filter_missing_key_and_safe_diagnostics() -> None:
         sport_keys=("baseball_mlb",), market_keys=("h2h",)
     ) == []
     assert len(session.calls) == 2
+
+
+def test_provider_returns_partial_snapshot_when_rate_limit_is_reached() -> None:
+    fixture = _fixture_session()
+    first_event = fixture.routes["/events"]._payload["data"][0]
+    second_event = {
+        **first_event,
+        "event_id": "mlb-lad-sd",
+        "event_start": (
+            datetime.now(timezone.utc) + timedelta(hours=10)
+        ).isoformat(),
+    }
+    first_odds = fixture.routes["/odds"]._payload
+    session = FakeSession(
+        {
+            "/events": FakeResponse(
+                {"data": [first_event, second_event]},
+                headers={
+                    "X-RateLimit-Limit": "60",
+                    "X-RateLimit-Remaining": "2",
+                    "X-RateLimit-Reset": "30",
+                },
+            ),
+            "/odds": [
+                FakeResponse(
+                    first_odds,
+                    headers={
+                        "X-RateLimit-Limit": "60",
+                        "X-RateLimit-Remaining": "1",
+                        "X-RateLimit-Reset": "30",
+                    },
+                ),
+                FakeResponse(
+                    {"error": "rate limit exceeded"},
+                    status_code=429,
+                    headers={
+                        "X-RateLimit-Limit": "60",
+                        "X-RateLimit-Remaining": "0",
+                        "X-RateLimit-Reset": "30",
+                    },
+                ),
+            ],
+        }
+    )
+    provider = OddsEngineProvider("key", session=session)
+
+    events = provider.ev_events(
+        sport_keys=("baseball_mlb",), market_keys=("h2h",)
+    )
+
+    assert len(events) == 1
+    assert len(session.calls) == 3
+    assert provider.diagnostics()["quota"] == {
+        "limit": "60",
+        "remaining": "0",
+        "reset": "30",
+    }
 
 
 def test_provider_health_authenticates_without_exposing_credentials() -> None:

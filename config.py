@@ -116,8 +116,8 @@ class Settings:
     oddsengine_api_key: str | None = field(default=None, repr=False)
     oddsengine_api_base_url: str = "https://api.oddsengine.dev/v1"
     oddsengine_cache_ttl_seconds: int = 45
-    oddsengine_max_events_per_league: int = 12
-    oddsengine_max_total_events: int = 48
+    oddsengine_max_events_per_league: int = 5
+    oddsengine_max_total_events: int = 20
     the_odds_api_key: str | None = field(default=None, repr=False)
     the_odds_api_base_url: str = "https://api.the-odds-api.com/v4"
     the_odds_api_regions: tuple[str, ...] = (
@@ -327,10 +327,10 @@ def get_settings() -> Settings:
             15, _get_int("ODDSENGINE_CACHE_TTL_SECONDS", 45)
         ),
         oddsengine_max_events_per_league=max(
-            1, _get_int("ODDSENGINE_MAX_EVENTS_PER_LEAGUE", 12)
+            1, _get_int("ODDSENGINE_MAX_EVENTS_PER_LEAGUE", 5)
         ),
         oddsengine_max_total_events=max(
-            1, _get_int("ODDSENGINE_MAX_TOTAL_EVENTS", 48)
+            1, _get_int("ODDSENGINE_MAX_TOTAL_EVENTS", 20)
         ),
         the_odds_api_key=os.getenv("THE_ODDS_API_KEY") or None,
         the_odds_api_base_url=os.getenv(
