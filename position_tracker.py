@@ -450,10 +450,19 @@ class TrackerService:
             if self._started:
                 return
 
+            # A Vercel function must finish importing before it can answer any
+            # route.  Refreshing every provider here made even cached/read-only
+            # endpoints wait for network work during a cold start.  Serverless
+            # requests refresh lazily through get_snapshot(); fast endpoints can
+            # immediately use the last in-process snapshot (or an empty shell).
+            if os.getenv("VERCEL"):
+                self._started = True
+                return
+
             self.refresh()
             self._started = True
 
-            if self.settings.dashboard_refresh <= 0 or os.getenv("VERCEL"):
+            if self.settings.dashboard_refresh <= 0:
                 return
 
             self._thread = threading.Thread(

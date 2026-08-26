@@ -846,6 +846,25 @@ def test_trades_to_play_fast_mode_returns_snapshot_without_blocking_live_quotes(
     assert response.get_json()["fastMode"] is True
 
 
+def test_tracker_service_serverless_start_does_not_refresh_providers(
+    app_client, monkeypatch
+):
+    service = app_client.application.extensions["tracker_service"]
+    service._started = False
+    monkeypatch.setenv("VERCEL", "1")
+    monkeypatch.setattr(
+        service,
+        "refresh",
+        lambda: (_ for _ in ()).throw(
+            AssertionError("serverless cold start must not refresh providers")
+        ),
+    )
+
+    service.start()
+
+    assert service._started is True
+
+
 def test_wallet_page_and_api_require_configured_passcode(app_client, monkeypatch):
     app = app_client.application
     monkeypatch.setitem(app.config, "WALLET_PAGE_PASSCODE", "1010")
