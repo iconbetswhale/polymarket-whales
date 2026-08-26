@@ -543,8 +543,12 @@ class SharpMoneyCollector:
                     )
                 return provider, "prophetx_rest", provider.live_market_snapshot()
             except Exception as exc:
-                last_error = exc
                 status = getattr(getattr(exc, "response", None), "status_code", None)
+                previous_status = getattr(
+                    getattr(last_error, "response", None), "status_code", None
+                )
+                if last_error is None or status is not None or previous_status is None:
+                    last_error = exc
                 LOGGER.warning(
                     "Sharp Money source %s failed (%s, HTTP %s); trying fallback",
                     getattr(provider, "provider_key", "unknown"),

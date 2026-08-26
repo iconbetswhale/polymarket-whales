@@ -311,13 +311,28 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
 def test_oddsengine_advanced_plan_error_reports_safe_http_status():
     provider = FakeOddsEngineOrderBook()
 
+    class BrokenFallback:
+        provider_key = "prophetx"
+
+        @staticmethod
+        def diagnostics():
+            return {"provider": "prophetx", "configured": True}
+
+        @staticmethod
+        def live_market_snapshot():
+            raise ValueError("direct fallback unavailable")
+
     def reject(*, limit=40):
         response = requests.Response()
         response.status_code = 403
         raise requests.HTTPError(response=response)
 
     provider.sharp_money_snapshot = reject
-    collector = SharpMoneyCollector(provider, local_control=False)
+    collector = SharpMoneyCollector(
+        provider,
+        fallback_source=BrokenFallback(),
+        local_control=False,
+    )
 
     payload = collector.payload(refresh_if_stale=True)
 
