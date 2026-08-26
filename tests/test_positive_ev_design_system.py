@@ -409,3 +409,10 @@ def test_hidden_bets_view_reuses_manually_hidden_opportunities_and_supports_rest
     assert 'No hidden bets yet. Use Track and Hide on a bet to save it here.' in SCRIPT
     assert 'showDetailPlaceholder()' in SCRIPT
     assert 'No hidden bet selected' in SCRIPT
+
+
+def test_live_feed_retries_transient_provider_failures() -> None:
+    assert "retryCount = 0" in SCRIPT
+    assert "retryCount += 1" in SCRIPT
+    assert "setTimeout(() => load()" in SCRIPT
+    assert "Math.min(30000, 3000 * (2 ** (retryCount - 1)))" in SCRIPT

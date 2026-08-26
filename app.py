@@ -9,6 +9,7 @@ import secrets
 import threading
 import hashlib
 import hmac
+from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
@@ -2026,7 +2027,10 @@ def create_app(start_background: bool = True) -> Flask:
                     ),
                 }
             )
-        snapshot = tracker.get_snapshot()
+        # The odds screen fetches its own live schedule and sportsbook prices.
+        # Waiting for the unrelated wallet tracker to refresh on a serverless
+        # cold start can add tens of seconds before any odds are returned.
+        snapshot = tracker.get_cached_snapshot()
         now = datetime.now(timezone.utc)
         eastern_today = now.astimezone(EASTERN).date()
         allowed_days = {eastern_today, eastern_today + timedelta(days=1)}
@@ -2073,11 +2077,52 @@ def create_app(start_background: bool = True) -> Flask:
                 canonical.settlement_rules,
             )
 
-        try:
-            schedule_rows = app.extensions["polymarket_schedule_feed"].today_and_tomorrow(now)
-        except Exception as exc:
-            LOGGER.warning("Polymarket schedule feed unavailable: %s", exc)
-            schedule_rows = []
+        def load_schedule_rows() -> list[dict]:
+            try:
+                return app.extensions["polymarket_schedule_feed"].today_and_tomorrow(now)
+            except Exception as exc:
+                LOGGER.warning("Polymarket schedule feed unavailable: %s", exc)
+                return []
+
+        def load_sportsbook_rows() -> tuple[object | None, list[dict]]:
+            for candidate in (
+                provider
+                for provider_key in ("odds_engine", "the_odds_api")
+                for provider in execution_providers.providers
+                if provider.provider_key == provider_key
+                and callable(getattr(provider, "odds_screen_rows", None))
+            ):
+                try:
+                    rows = candidate.odds_screen_rows(
+                        sport=requested_sport,
+                        league=requested_league,
+                        market_kind=requested_market,
+                        now=now,
+                    )
+                    if rows or getattr(candidate, "api_key", None):
+                        return candidate, rows
+                except requests.HTTPError as exc:
+                    status = getattr(exc.response, "status_code", None)
+                    LOGGER.warning(
+                        "%s odds-screen refresh failed with status %s",
+                        candidate.provider_key,
+                        status or "unknown",
+                    )
+                except (requests.RequestException, ValueError, TypeError) as exc:
+                    LOGGER.warning(
+                        "%s odds-screen refresh failed: %s",
+                        candidate.provider_key,
+                        type(exc).__name__,
+                    )
+            return None, []
+
+        # These feeds are independent. Fetching them together keeps the first
+        # paint bounded by the slower provider instead of the sum of both.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            schedule_future = executor.submit(load_schedule_rows)
+            sportsbook_future = executor.submit(load_sportsbook_rows)
+            schedule_rows = schedule_future.result()
+            sportsbook_provider, sportsbook_rows = sportsbook_future.result()
         for row in schedule_rows:
             unique.setdefault(odds_identity(row), row)
 
@@ -2108,38 +2153,6 @@ def create_app(start_background: bool = True) -> Flask:
             row.pop("orderbook", None)
             unique.setdefault(odds_identity(row), row)
 
-        sportsbook_provider = None
-        sportsbook_rows = []
-        for candidate in (
-            provider
-            for provider_key in ("odds_engine", "the_odds_api")
-            for provider in execution_providers.providers
-            if provider.provider_key == provider_key
-            and callable(getattr(provider, "odds_screen_rows", None))
-        ):
-            try:
-                sportsbook_rows = candidate.odds_screen_rows(
-                    sport=requested_sport,
-                    league=requested_league,
-                    market_kind=requested_market,
-                    now=now,
-                )
-                if sportsbook_rows or getattr(candidate, "api_key", None):
-                    sportsbook_provider = candidate
-                    break
-            except requests.HTTPError as exc:
-                status = getattr(exc.response, "status_code", None)
-                LOGGER.warning(
-                    "%s odds-screen refresh failed with status %s",
-                    candidate.provider_key,
-                    status or "unknown",
-                )
-            except (requests.RequestException, ValueError, TypeError) as exc:
-                LOGGER.warning(
-                    "%s odds-screen refresh failed: %s",
-                    candidate.provider_key,
-                    type(exc).__name__,
-                )
         for row in sportsbook_rows:
             unique.setdefault(odds_identity(row), row)
 

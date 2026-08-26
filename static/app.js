@@ -6059,8 +6059,10 @@ const ODDS_BASE_PROVIDER_CATALOG = {
 const ODDS_DEFAULT_PROVIDER_KEYS = Object.keys(ODDS_DEFAULT_PROVIDER_CATALOG);
 const ODDS_PROVIDER_KEYS = Object.keys(ODDS_BASE_PROVIDER_CATALOG);
 const REQUIRED_LINE_SHOP_PROVIDER_KEYS = new Set(["polymarket", "4cx", "oddsapi__novig"]);
-const ODDS_PROVIDER_ORDER_KEY = "iconbets_odds_provider_order";
-const ODDS_PROVIDER_SELECTION_KEY = "iconbets_odds_provider_selection";
+// v2 clears the legacy Polymarket-only selection once. The old provider list
+// predates OddsEngine's dynamic sportsbook keys and hid valid live columns.
+const ODDS_PROVIDER_ORDER_KEY = "iconbets_odds_provider_order_v2";
+const ODDS_PROVIDER_SELECTION_KEY = "iconbets_odds_provider_selection_v2";
 
 function savedOddsProviderOrder() {
   try {
@@ -6175,13 +6177,19 @@ function providerLogoMarkup(provider, alt = "") {
 }
 
 function syncOddsProviderCatalog(entries = []) {
+  const availableProviderKeys = new Set(
+    oddsState.rows.flatMap(row => (row.executionOptions || [])
+      .filter(option => option?.isAvailable && option?.matchingConfidence === "Exact")
+      .map(option => String(option.providerKey || "").toLowerCase())
+      .filter(Boolean)),
+  );
   entries.forEach(entry => {
     const key = String(entry?.key || "").toLowerCase();
     if (!key || !/^[a-z0-9_]+$/.test(key)) return;
     const isNew = !oddsState.catalog[key];
     oddsState.catalog[key] = {key, name: entry.name || key, logoUrl: entry.logoUrl || "", source: entry.source || "sportsbook"};
     if (!oddsState.providerOrder.includes(key)) oddsState.providerOrder.splice(Math.max(oddsState.providerOrder.indexOf("best"), 0), 0, key);
-    if (isNew && savedOddsProviderSelection === null && !oddsState.providers.includes(key)) oddsState.providers.push(key);
+    if (isNew && savedOddsProviderSelection === null && availableProviderKeys.has(key) && !oddsState.providers.includes(key)) oddsState.providers.push(key);
   });
   if (!oddsState.providerOrder.includes("best")) oddsState.providerOrder.push("best");
 
@@ -6267,11 +6275,41 @@ function oddsPriceCell(option, provider, bestProviderKey = "") {
   return `<a class="odds-price ${stateClass}" data-provider="${provider}" href="${escapeHtml(option.deepLink)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(title)}" aria-label="Open ${escapeHtml(option.providerName || provider)} at ${escapeHtml(headline)}">${content}</a>`;
 }
 
+const ODDS_TEAM_LOGOS = Object.freeze({
+  arizonadiamondbacks:"/static/assets/teams/mlb/ari.png", atlantabraves:"/static/assets/teams/mlb/atl.png",
+  baltimoreorioles:"/static/assets/teams/mlb/bal.png", bostonredsox:"/static/assets/teams/mlb/bos.png",
+  chicagocubs:"/static/assets/teams/mlb/chc.png", chicagowhitesox:"/static/assets/teams/mlb/chw.png",
+  cincinnatireds:"/static/assets/teams/mlb/cin.png", clevelandguardians:"/static/assets/teams/mlb/cle.png",
+  coloradorockies:"/static/assets/teams/mlb/col.png", detroittigers:"/static/assets/teams/mlb/det.png",
+  houstonastros:"/static/assets/teams/mlb/hou.png", kansascityroyals:"/static/assets/teams/mlb/kc.png",
+  losangelesangels:"/static/assets/teams/mlb/laa.png", losangelesdodgers:"/static/assets/teams/mlb/lad.png",
+  miamimarlins:"/static/assets/teams/mlb/mia.png", milwaukeebrewers:"/static/assets/teams/mlb/mil.png",
+  minnesotatwins:"/static/assets/teams/mlb/min.png", newyorkmets:"/static/assets/teams/mlb/nym.png",
+  newyorkyankees:"/static/assets/teams/mlb/nyy.png", athletics:"/static/assets/teams/mlb/oak.png",
+  oaklandathletics:"/static/assets/teams/mlb/oak.png", philadelphiaphillies:"/static/assets/teams/mlb/phi.png",
+  pittsburghpirates:"/static/assets/teams/mlb/pit.png", sandiegopadres:"/static/assets/teams/mlb/sd.png",
+  sanfranciscogiants:"/static/assets/teams/mlb/sf.png", seattlemariners:"/static/assets/teams/mlb/sea.png",
+  stlouiscardinals:"/static/assets/teams/mlb/stl.png", tampabayrays:"/static/assets/teams/mlb/tb.png",
+  texasrangers:"/static/assets/teams/mlb/tex.png", torontobluejays:"/static/assets/teams/mlb/tor.png",
+  washingtonnationals:"/static/assets/teams/mlb/wsh.png", atlantadream:"/static/assets/teams/wnba/atl.png",
+  chicagosky:"/static/assets/teams/wnba/chi.png", connecticutsun:"/static/assets/teams/wnba/connecticut.png",
+  dallaswings:"/static/assets/teams/wnba/dal.png", goldenstatevalkyries:"/static/assets/teams/wnba/gs.png",
+  indianafever:"/static/assets/teams/wnba/ind.png", lasvegasaces:"/static/assets/teams/wnba/lv.png",
+  losangelessparks:"/static/assets/teams/wnba/la.png", minnesotalynx:"/static/assets/teams/wnba/min.png",
+  newyorkliberty:"/static/assets/teams/wnba/ny.png", phoenixmercury:"/static/assets/teams/wnba/phx.png",
+  seattlestorm:"/static/assets/teams/wnba/sea.png", washingtonmystics:"/static/assets/teams/wnba/wsh.png",
+});
+
+function oddsTeamLogoUrl(label) {
+  const key = String(label || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  return ODDS_TEAM_LOGOS[key] || "";
+}
+
 function oddsParticipantLogo(row, label) {
   const logos = row?.participant_logos || row?.participantLogos || row?.team_logos || row?.teamLogos || {};
   const normalizedLabel = String(label || "").trim().toLowerCase();
   const logoUrl = row?.team_logo_url || row?.teamLogoUrl || row?.logo_url || row?.logoUrl
-    || logos[label] || logos[normalizedLabel] || "";
+    || logos[label] || logos[normalizedLabel] || oddsTeamLogoUrl(label);
   const initials = String(label || "?").split(/\s+/).filter(Boolean).slice(-2).map(part => part[0]).join("").toUpperCase();
   return `<span class="odds-team-logo">${logoUrl ? `<img src="${escapeHtml(logoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><b hidden>${escapeHtml(initials)}</b>` : `<b>${escapeHtml(initials)}</b>`}</span>`;
 }
@@ -6731,7 +6769,18 @@ async function loadOddsScreen() {
     if (oddsState.league) params.set("league", oddsState.league);
     if (["moneyline", "spread", "game_total", "alternate_spread", "alternate_total"].includes(oddsState.kind)) params.set("market", oddsState.kind);
     params.set("active", "1");
+    const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
+    if (!oddsState.rows.length) {
+      const cachedPayload = readPagePayloadCache(cacheKey, 10 * 60 * 1000);
+      if (cachedPayload) {
+        oddsState.rows = cachedPayload.data || [];
+        syncOddsProviderCatalog(cachedPayload.providers || []);
+        document.getElementById("odds-latency").textContent = "Updating live";
+        renderOddsScreen();
+      }
+    }
     const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
+    writePagePayloadCache(cacheKey, payload);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms refresh`;

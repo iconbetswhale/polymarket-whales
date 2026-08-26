@@ -74,7 +74,7 @@
     const savedHiddenIds = JSON.parse(localStorage.getItem(hiddenStorageKey) || "[]");
     if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
   } catch {}
-  let rows = [], selectedId = "", paused = false, timer = null, feedView = "active";
+  let rows = [], selectedId = "", paused = false, timer = null, feedView = "active", retryCount = 0;
   let bankrollConfig = {amount:10000, unitPercentage:.01, settingsVersion:null, dirty:false, savePending:false};
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
@@ -844,6 +844,7 @@
       const response = await fetch(query(), {headers:{"Accept":"application/json"}});
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to load feed");
+      retryCount = 0;
       if (payload.paused) {
         rows = [];
         selectedId = "";
@@ -876,6 +877,9 @@
     } catch (error) {
       feed.innerHTML = `<div class="ev-empty il-state il-state-error"><i class="ph ph-warning-circle" aria-hidden="true"></i><p>${esc(error.message)}</p></div>`;
       feed.setAttribute("aria-busy", "false");
+      clearTimeout(timer);
+      retryCount += 1;
+      timer = setTimeout(() => load(), Math.min(30000, 3000 * (2 ** (retryCount - 1))));
     }
   }
   function visibleRows() {
