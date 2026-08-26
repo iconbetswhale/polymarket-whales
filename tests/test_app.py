@@ -859,6 +859,20 @@ def test_tracker_service_serverless_start_does_not_refresh_providers(
             AssertionError("serverless cold start must not refresh providers")
         ),
     )
+    monkeypatch.setattr(
+        service.database,
+        "get_or_create_user_settings",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("fast mode must not wait for durable user settings")
+        ),
+    )
+    monkeypatch.setattr(
+        service.database,
+        "get_tracker_records",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError("fast mode must not wait for tracker records")
+        ),
+    )
 
     service.start()
 
@@ -1043,6 +1057,7 @@ def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
 ):
     service = app_client.application.extensions["tracker_service"]
     collector = app_client.application.extensions["sharp_money_collector"]
+    lab_tracker = app_client.application.extensions["lab_tracker_service"]
     monkeypatch.setattr(
         service,
         "get_snapshot",
@@ -1052,6 +1067,13 @@ def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
         collector.prophetx,
         "live_market_snapshot",
         lambda: (_ for _ in ()).throw(AssertionError("provider was called")),
+    )
+    monkeypatch.setattr(
+        lab_tracker,
+        "observe_sharp_money",
+        lambda *_args: (_ for _ in ()).throw(
+            AssertionError("empty cached reads must not open the durable tracker")
+        ),
     )
 
     page = app_client.get("/sharp-money")

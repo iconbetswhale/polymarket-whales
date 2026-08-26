@@ -1821,9 +1821,14 @@ def create_app(start_background: bool = True) -> Flask:
         # This endpoint only returns the in-memory cache. It never refreshes a
         # provider and is safe to poll while the collector is paused.
         payload = app.extensions["sharp_money_collector"].payload()
-        payload["labTracker"] = app.extensions[
-            "lab_tracker_service"
-        ].observe_sharp_money(payload.get("signals") or [])
+        signals = payload.get("signals") or []
+        # Avoid opening the durable store on every empty two-second poll. This
+        # also keeps the placeholder fallback instant on serverless cold starts.
+        payload["labTracker"] = (
+            app.extensions["lab_tracker_service"].observe_sharp_money(signals)
+            if signals
+            else {"observed": 0, "qualified": 0}
+        )
         response = jsonify(payload)
         response.headers["Cache-Control"] = "private, no-store"
         return response
@@ -2656,15 +2661,54 @@ def create_app(start_background: bool = True) -> Flask:
             minimum_cents, maximum_cents = _entry_price_filters(request.args)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        current_settings = user_settings()
-        bankroll = _safe_float(current_settings["starting_bankroll"])
-        page = max(request.args.get("page", 1, type=int) or 1, 1)
-        per_page = min(max(request.args.get("per_page", 100, type=int) or 100, 1), 100)
         show_hidden = request.args.get("show_hidden", "").strip().lower() in {
             "1",
             "true",
             "yes",
         }
+        if fast_mode:
+            # The fast request is an intentionally DB-free first paint. The
+            # browser immediately schedules the normal personalized request,
+            # which supplies evaluated cards, saved settings, and live quotes.
+            return jsonify(
+                {
+                    "data": [],
+                    "liveRejectedTradeIds": [],
+                    "officialTracked": [],
+                    "bankroll": {
+                        "starting_bankroll": settings.default_bankroll,
+                        "trades_to_play_bankroll": settings.default_bankroll,
+                        "unit_percentage": settings.unit_percentage,
+                        "sizing_bankroll_configured": False,
+                        "account_authenticated": bool(g.iconbets_authenticated),
+                        "account_email": g.iconbets_account_email,
+                    },
+                    "hiddenCount": 0,
+                    "whiteboardCount": 0,
+                    "showHidden": show_hidden,
+                    "entryPriceFilters": {
+                        "minEntryCents": minimum_cents,
+                        "maxEntryCents": maximum_cents,
+                    },
+                    "pagination": {
+                        "page": 1,
+                        "per_page": min(
+                            max(request.args.get("per_page", 100, type=int) or 100, 1),
+                            100,
+                        ),
+                        "total": 0,
+                        "has_next": False,
+                        "has_prev": False,
+                    },
+                    "status": snapshot["status"],
+                    "lineShopRefreshIntervalSeconds": settings.line_shop_refresh_interval_seconds,
+                    "fastMode": True,
+                }
+            )
+        current_settings = user_settings()
+        bankroll = _safe_float(current_settings["starting_bankroll"])
+        page = max(request.args.get("page", 1, type=int) or 1, 1)
+        per_page = min(max(request.args.get("per_page", 100, type=int) or 100, 1), 100)
         hidden_records, hidden_by_key = hidden_records_by_key(g.iconbets_user_id)
         active_pins = tracker.database.get_whiteboard_pins(g.iconbets_user_id)
         pinned_keys = {
