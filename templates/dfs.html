@@ -19,6 +19,7 @@
       <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
       {% endfor %}
       <button class="dfs-devig-button" id="dfs-devig-open" type="button"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span><strong>Devig Settings</strong><small id="dfs-devig-summary">8 sharp books · 0%</small></span></button>
+      <button class="dfs-parlay-guide-button" id="dfs-parlay-guide-open" type="button" aria-haspopup="dialog" aria-controls="dfs-parlay-guide-dialog" aria-label="Best Parlay Type To Build?"><i class="ph ph-chart-bar" aria-hidden="true"></i><span><strong>Best Parlay Type</strong><small>To Build?</small></span></button>
     </div>
     <div class="dfs-filter-bar il-filter-bar">
       <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
@@ -32,12 +33,13 @@
 
   <div class="dfs-table-shell">
     <table class="dfs-table">
-      <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks line"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks line"></th><th>Chance to hit</th><th class="algo-odds-head" aria-label="IconLabs fair odds"><img src="{{ url_for('static', filename='assets/iconlabs-mark-white-transparent-balanced.png', v=asset_version) }}" alt="IconLabs" title="IconLabs fair odds"></th>{% for book, logo in [('FanDuel','fanduel'),('NoVIG','novig'),('ProphetX','prophetx'),('DraftKings','draftkings'),('Pinnacle','pinnacle'),('Circa','circa'),('Kalshi','kalshi'),('Polymarket','polymarket'),('PrizePicks','prizepicks'),('Underdog','underdog'),('DK Pick6','dk-pick6'),('Betr','betr'),('Dabble','dabble'),('Sleeper','sleeper')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
+      <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks line"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks line"></th><th>Chance to hit</th><th class="algo-odds-head" aria-label="IconLabs fair odds"><span class="dfs-algo-tooltip" tabindex="0" role="img" aria-label="IconAlgo Weightings" aria-describedby="dfs-iconalgo-tooltip"><img src="{{ url_for('static', filename='assets/iconlabs-mark-white-transparent-balanced.png', v=asset_version) }}" alt=""></span></th>{% for book, logo in [('FanDuel','fanduel'),('NoVIG','novig'),('ProphetX','prophetx'),('DraftKings','draftkings'),('Pinnacle','pinnacle'),('Circa','circa'),('Kalshi','kalshi'),('Polymarket','polymarket'),('PrizePicks','prizepicks'),('Underdog','underdog'),('DK Pick6','dk-pick6'),('Betr','betr'),('Dabble','dabble'),('Sleeper','sleeper')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
       <tbody id="dfs-body"></tbody>
     </table>
     <div class="dfs-empty" id="dfs-empty" hidden><i class="ph ph-magnifying-glass"></i><strong>No props match these filters</strong><span>Try another player, sport, or side.</span></div>
   </div>
 </section>
+<div class="dfs-iconalgo-tooltip-popover" id="dfs-iconalgo-tooltip" role="tooltip" hidden>IconAlgo Weightings</div>
 
 <dialog class="dfs-devig-dialog" id="dfs-devig-dialog" aria-labelledby="dfs-devig-title">
   <form method="dialog" class="dfs-devig-panel" id="dfs-devig-form">
@@ -57,6 +59,23 @@
     </div>
     <footer><button type="button" class="dfs-devig-reset" id="dfs-devig-reset">Clear all</button><div><button type="button" class="dfs-devig-cancel" id="dfs-devig-cancel">Cancel</button><button type="submit" class="dfs-devig-apply" id="dfs-devig-apply">Apply fair value model</button></div></footer>
   </form>
+</dialog>
+
+<dialog class="dfs-parlay-guide-dialog" id="dfs-parlay-guide-dialog" aria-labelledby="dfs-parlay-guide-title" aria-describedby="dfs-parlay-guide-description">
+  <section class="dfs-parlay-guide-panel">
+    <button class="dfs-parlay-guide-close" id="dfs-parlay-guide-close" type="button" aria-label="Close parlay type guide"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <header>
+      <img src="{{ url_for('static', filename='assets/iconlabs-horizontal-logo-white.webp', v=asset_version) }}" alt="IconLabs">
+      <h2 id="dfs-parlay-guide-title">Best <span>Parlay Type</span> To Build</h2>
+      <p id="dfs-parlay-guide-description">Equivalent American odds are shown beside every slip type and its required hit rate.</p>
+    </header>
+    <ol class="dfs-parlay-rankings" aria-label="Parlay type profitability rankings">
+      {% for slip, rate in [('4 Man Flex (Underdog) (-107)','51.7%'),('2 Man Flex (Underdog) (-116)','53.7%'),('3 Man Flex (Underdog) (-116)','53.7%'),('5 Pick Flex (-119)','54.3%'),('6 Pick Flex (-119)','54.3%'),('6 Pick Power (-121)','54.8%'),('3 Pick Power (-122)','55%'),('4 Pick Flex (-122)','55%'),('5 Pick Power (-122)','55%'),('4 Pick Power (-128)','56.1%'),('2 Pick Power (-136)','57.6%'),('3 Pick Flex (-137)','57.8%')] %}
+      <li><i class="ph ph-check" aria-hidden="true"></i><strong>{{ slip }}</strong><span>{{ rate }}</span></li>
+      {% endfor %}
+    </ol>
+    <p class="dfs-parlay-guide-note"><i class="ph ph-info" aria-hidden="true"></i>Reference rates are directional and do not guarantee results.</p>
+  </section>
 </dialog>
 {% endblock %}
 

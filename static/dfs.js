@@ -62,6 +62,9 @@
   const body = document.querySelector('#dfs-body');
   const statSelect = document.querySelector('#dfs-stat');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
+  const parlayGuideDialog = document.querySelector('#dfs-parlay-guide-dialog');
+  const iconAlgoTooltipTrigger = document.querySelector('.dfs-algo-tooltip');
+  const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
   const sharpOffsets = {fanduel:-0.7, novig:1.3, pinnacle:0.8, prophetx:0.4, kalshi:-0.2, polymarket:0.6, draftkings:-0.5, circa:0.1};
@@ -229,6 +232,26 @@
     syncDevigControls();
   }
 
+  function showIconAlgoTooltip() {
+    iconAlgoTooltipPopover.hidden = false;
+    const triggerRect = iconAlgoTooltipTrigger.getBoundingClientRect();
+    const tooltipRect = iconAlgoTooltipPopover.getBoundingClientRect();
+    const edge = 8;
+    const gap = 8;
+    const left = Math.min(
+      window.innerWidth - tooltipRect.width - edge,
+      Math.max(edge, triggerRect.left + (triggerRect.width - tooltipRect.width) / 2)
+    );
+    const above = triggerRect.top - tooltipRect.height - gap;
+    const top = above >= edge ? above : triggerRect.bottom + gap;
+    iconAlgoTooltipPopover.style.left = `${Math.round(left)}px`;
+    iconAlgoTooltipPopover.style.top = `${Math.round(top)}px`;
+  }
+
+  function hideIconAlgoTooltip() {
+    iconAlgoTooltipPopover.hidden = true;
+  }
+
   document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('[data-dfs-book]').forEach(item => { item.classList.toggle('active', item===btn); item.setAttribute('aria-selected', String(item===btn)); }); activeBook=btn.dataset.dfsBook; const lineHead=document.querySelector('#dfs-line-head'); const logo=btn.querySelector('img').cloneNode(); logo.alt=activeBook; logo.title=`${activeBook} line`; lineHead.replaceChildren(logo); lineHead.setAttribute('aria-label',`${activeBook} line`); reorderHeaders(); render(); }));
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
@@ -270,6 +293,20 @@
     render();
     devigDialog.close();
   });
+  document.querySelector('#dfs-parlay-guide-open').addEventListener('click', () => parlayGuideDialog.showModal());
+  document.querySelector('#dfs-parlay-guide-close').addEventListener('click', () => parlayGuideDialog.close());
+  parlayGuideDialog.addEventListener('click', event => {
+    if (event.target === parlayGuideDialog) parlayGuideDialog.close();
+  });
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && parlayGuideDialog.open) parlayGuideDialog.close();
+  });
+  iconAlgoTooltipTrigger.addEventListener('pointerenter', showIconAlgoTooltip);
+  iconAlgoTooltipTrigger.addEventListener('pointerleave', hideIconAlgoTooltip);
+  iconAlgoTooltipTrigger.addEventListener('focus', showIconAlgoTooltip);
+  iconAlgoTooltipTrigger.addEventListener('blur', hideIconAlgoTooltip);
+  window.addEventListener('resize', hideIconAlgoTooltip);
+  document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
   updateStats();
   reorderHeaders();
   updateDevigSummary();
