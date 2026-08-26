@@ -74,7 +74,7 @@ def test_product_foundation_defines_semantic_visual_tokens():
 def test_canonical_pages_opt_into_the_v2_foundation_last():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
 
-    assert 'data-design-system="{% if page in [\'trades\', \'positive-ev\', \'arbitrage\', \'sharp-money\', \'odds-screen\', \'dfs\', \'tracker\', \'lab-tracker\', \'shadow-test\', \'live-positions\', \'wallets\', \'wallet-lock\', \'position-history\', \'edge-map\', \'intelligence\'] %}v2' in template
+    assert 'data-design-system="{% if page in [\'trades\', \'positive-ev\', \'arbitrage\', \'sharp-money\', \'odds-screen\', \'dfs\', \'tracker\', \'lab-tracker\', \'shadow-test\', \'live-positions\', \'wallets\', \'wallet-lock\', \'position-history\', \'edge-map\', \'intelligence\', \'calculators\'] %}v2' in template
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
@@ -119,11 +119,11 @@ def test_canonical_pages_do_not_reload_legacy_override_layers():
         "sidebar-shell.css",
     ):
         excluded_for_canonical_pages = (
-            f"page not in ['trades', 'positive-ev', 'arbitrage', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            f"page not in ['trades', 'positive-ev', 'arbitrage', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
         excluded_for_home_and_canonical_pages = (
-            f"page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
+            f"page not in ['home', 'trades', 'positive-ev', 'arbitrage', 'sharp-money', 'odds-screen', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}}<link rel=\"stylesheet\" href=\"{{{{ url_for('static', filename='{stylesheet}'"
             in template
         )
         assert excluded_for_canonical_pages or (

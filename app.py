@@ -1215,6 +1215,14 @@ def create_app(start_background: bool = True) -> Flask:
             arbitrage_preview=preview_requested,
         )
 
+    @app.route("/calculators")
+    def calculators_page():
+        return render_template(
+            "calculators.html",
+            title="IconLabs Calculators",
+            page="calculators",
+        )
+
     @app.route("/live-positions")
     def live_positions_page():
         return render_template(

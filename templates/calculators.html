@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="calc-page">
+  <header class="calc-header il-page-header">
+    <div class="calc-title-block">
+      <p class="calc-eyebrow">BETTING TOOLKIT</p>
+      <div class="calc-title-row">
+        <h1 class="il-page-title">Calculators</h1>
+        <span class="calc-count-badge">15 tools</span>
+      </div>
+      <p>Price bets, remove the vig, size exposure, and compare outcomes with transparent math.</p>
+    </div>
+    <div class="calc-header-actions">
+      <label class="calc-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="calc-search" type="search" placeholder="Find a calculator" autocomplete="off"><kbd>/</kbd></label>
+      <button class="calc-secondary-button" id="calc-method-toggle" type="button" aria-expanded="false" aria-controls="calc-method-panel"><i class="ph ph-function" aria-hidden="true"></i>Methodology</button>
+    </div>
+  </header>
+
+  <nav class="calc-tabs" id="calc-tabs" aria-label="Betting calculators">
+    <button class="active" type="button" data-calculator="arbitrage" aria-selected="true"><i class="ph ph-intersect-three" aria-hidden="true"></i><span>Arbitrage</span></button>
+    <button type="button" data-calculator="expected-value" aria-selected="false"><i class="ph ph-trend-up" aria-hidden="true"></i><span>Expected Value</span></button>
+    <button type="button" data-calculator="bonus-bet" aria-selected="false"><i class="ph ph-gift" aria-hidden="true"></i><span>Bonus Bet</span></button>
+    <button type="button" data-calculator="half-point" aria-selected="false"><i class="ph ph-plus-minus" aria-hidden="true"></i><span>Half Point</span></button>
+    <button type="button" data-calculator="hold" aria-selected="false"><i class="ph ph-scales" aria-hidden="true"></i><span>Hold</span></button>
+    <button type="button" data-calculator="implied-probability" aria-selected="false"><i class="ph ph-percent" aria-hidden="true"></i><span>Implied Probability</span></button>
+    <button type="button" data-calculator="kelly" aria-selected="false"><i class="ph ph-chart-donut" aria-hidden="true"></i><span>Kelly</span></button>
+    <button type="button" data-calculator="no-vig" aria-selected="false"><i class="ph ph-shield-check" aria-hidden="true"></i><span>No-Vig Fair Odds</span></button>
+    <button type="button" data-calculator="odds-converter" aria-selected="false"><i class="ph ph-arrows-left-right" aria-hidden="true"></i><span>Odds Converter</span></button>
+    <button type="button" data-calculator="parlay" aria-selected="false"><i class="ph ph-stack" aria-hidden="true"></i><span>Parlay</span></button>
+    <button type="button" data-calculator="prediction-market" aria-selected="false"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span>Prediction Markets</span></button>
+    <button type="button" data-calculator="point-spread" aria-selected="false"><i class="ph ph-arrows-out-line-horizontal" aria-hidden="true"></i><span>Point Spread</span></button>
+    <button type="button" data-calculator="poisson" aria-selected="false"><i class="ph ph-wave-sine" aria-hidden="true"></i><span>Poisson</span></button>
+    <button type="button" data-calculator="round-robin" aria-selected="false"><i class="ph ph-circles-three-plus" aria-hidden="true"></i><span>Round Robin</span></button>
+    <button type="button" data-calculator="vig" aria-selected="false"><i class="ph ph-receipt" aria-hidden="true"></i><span>Vig</span></button>
+  </nav>
+
+  <section class="calc-method-panel" id="calc-method-panel" hidden>
+    <i class="ph ph-info" aria-hidden="true"></i>
+    <div><strong>Transparent, independently implemented math</strong><p>Standard odds identities drive the deterministic tools. Historical half-point and spread conversions use documented IconLabs league calibrations, because third-party proprietary datasets and source code are not available. Every assumption is shown beside its result.</p></div>
+    <button id="calc-method-close" type="button" aria-label="Close methodology"><i class="ph ph-x" aria-hidden="true"></i></button>
+  </section>
+
+  <main class="calc-workspace" aria-labelledby="calc-active-title">
+    <section class="calc-editor">
+      <header class="calc-tool-header">
+        <span class="calc-tool-icon" id="calc-active-icon"><i class="ph ph-intersect-three" aria-hidden="true"></i></span>
+        <div><p id="calc-active-kicker">HEDGE &amp; RISK</p><h2 id="calc-active-title">Arbitrage Calculator</h2><span id="calc-active-description">Split a stake across every outcome to equalize payout and identify a guaranteed return.</span></div>
+        <span class="calc-live-badge"><i class="ph ph-lightning" aria-hidden="true"></i>Instant</span>
+      </header>
+      <form class="calc-form" id="calc-form" novalidate></form>
+      <footer class="calc-form-actions">
+        <button class="calc-secondary-button" id="calc-example" type="button"><i class="ph ph-sparkle" aria-hidden="true"></i>Load example</button>
+        <button class="calc-secondary-button" id="calc-reset" type="button"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Reset</button>
+      </footer>
+    </section>
+
+    <aside class="calc-results" id="calc-results" aria-live="polite" aria-atomic="true">
+      <header><div><p>CALCULATED RESULT</p><h2 id="calc-result-heading">Guaranteed return</h2></div><button id="calc-copy" type="button" aria-label="Copy calculation result"><i class="ph ph-copy" aria-hidden="true"></i></button></header>
+      <section class="calc-result-hero" id="calc-result-hero"></section>
+      <div class="calc-result-grid" id="calc-result-grid"></div>
+      <section class="calc-verdict" id="calc-verdict"></section>
+      <section class="calc-formula" id="calc-formula"></section>
+    </aside>
+  </main>
+
+  <section class="calc-empty-search" id="calc-empty-search" hidden>
+    <i class="ph ph-magnifying-glass" aria-hidden="true"></i><strong>No calculator found</strong><p>Try a term like odds, probability, parlay, hedge, or vig.</p>
+  </section>
+</section>
+{% endblock %}
