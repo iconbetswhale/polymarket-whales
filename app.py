@@ -2046,19 +2046,23 @@ def create_app(start_background: bool = True) -> Flask:
             response.headers["Cache-Control"] = "private, no-store"
             return response
 
-        # This endpoint only returns the in-memory cache. It never refreshes a
-        # provider and is safe to poll while the collector is paused.
-        payload = app.extensions["sharp_money_collector"].payload()
+        # OddsEngine's Advanced endpoint is one materialized order-book read.
+        # Refresh it on demand at a bounded cadence in serverless production;
+        # the direct ProphetX collector retains its explicit local Play gate.
+        payload = app.extensions["sharp_money_collector"].payload(
+            refresh_if_stale=True
+        )
         signals = payload.get("signals") or []
-        # Avoid opening the durable store on every empty two-second poll. This
-        # also keeps the placeholder fallback instant on serverless cold starts.
+        # Avoid opening the durable store on empty polls.
         payload["labTracker"] = (
             app.extensions["lab_tracker_service"].observe_sharp_money(signals)
             if signals
             else {"observed": 0, "qualified": 0}
         )
         response = jsonify(payload)
-        response.headers["Cache-Control"] = "private, no-store"
+        response.headers["Cache-Control"] = (
+            "public, max-age=10, s-maxage=30, stale-while-revalidate=60"
+        )
         return response
 
     @app.post("/api/sharp-money/control")

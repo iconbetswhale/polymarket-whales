@@ -763,6 +763,30 @@ class OddsEngineProvider(ExecutionProvider):
             ),
         )
 
+    def sharp_money_snapshot(self, *, limit: int = 40) -> dict:
+        """Return OddsEngine's Advanced whale/depth snapshot for ProphetX.
+
+        The endpoint is a single materialized read and includes the full
+        two-sided exchange order book plus peer prices. Keeping this separate
+        from ``ev_events`` avoids rebuilding depth from top-of-book quotes.
+        """
+        if not self.api_key:
+            return {}
+        cache_key = f"__sharp_money_whale__:{max(1, min(int(limit), 100))}"
+        cached = self._cached(self._odds_cache, cache_key)
+        if cached is not None:
+            return cached
+        payload = self._request_json(
+            "/orderbook/top",
+            params={
+                "sort": "whale",
+                "selected_books": "prophetx",
+                "limit": max(1, min(int(limit), 100)),
+            },
+        )
+        self._store(self._odds_cache, cache_key, payload)
+        return payload
+
     def provider_catalog(self, trades: list[dict]) -> list[dict]:
         catalog = {
             _oddsengine_provider_key(book_key): {
@@ -991,6 +1015,8 @@ class OddsEngineProvider(ExecutionProvider):
                 "cache_entries": len(self._league_cache) + len(self._odds_cache),
                 "quota": dict(self._quota),
                 "requests": self._requests,
+                "metrics": {"requests": self._requests},
+                "supportsOrderBook": True,
                 "lastSuccessAt": self._last_success_at,
                 "lastErrorAt": self._last_error_at,
                 "credentials_exposed": False,

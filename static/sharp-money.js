@@ -336,7 +336,11 @@
   function render() {
     const payload = state.payload || {};
     const running = payload.running === true;
-    const prophetxConfigured = payload.provider?.configured === true;
+    const sourceConfigured = payload.provider?.configured === true;
+    const automatic = payload.automatic === true;
+    const sourceName = payload.provider?.provider === "odds_engine"
+      ? "OddsEngine ProphetX order books"
+      : "ProphetX";
     const comparisonsConfigured = payload.comparisonProvider?.configured === true;
     state.visible = state.signals.filter(matches).sort((left, right) => {
       const leftLiquidity = combinedDepthLiquidity(left) ?? -1;
@@ -351,14 +355,16 @@
     feedToggle.classList.toggle("active", running);
     feedToggle.setAttribute("aria-pressed", String(running));
     feedToggle.setAttribute("aria-label", running ? "Pause feed" : "Play feed");
-    feedToggle.disabled = previewOnly || state.controlling || (!running && !prophetxConfigured);
+    feedToggle.disabled = previewOnly || automatic || state.controlling || (!running && !sourceConfigured);
     feedToggle.title = previewOnly
       ? "Visual preview does not start provider requests"
       : running
         ? "Pause the local read-only collector"
-        : prophetxConfigured
+        : automatic
+          ? "OddsEngine order-book refresh is automatic"
+          : sourceConfigured
           ? "Start the local read-only collector"
-          : "Add ProphetX sandbox credentials to .env.local first";
+          : "Add an OddsEngine Advanced or ProphetX credential first";
     $("sharp-sort").setAttribute("aria-pressed", String(!state.sortDescending));
     $("sharp-sort").title = state.sortDescending ? "Combined liquidity: high to low" : "Combined liquidity: low to high";
     $("sharp-sort").querySelector("span").textContent = state.sortDescending ? "Highest liquidity first" : "Lowest liquidity first";
@@ -373,30 +379,30 @@
       ? `<i class="ph ph-eye"></i> Visual preview`
       : placeholderMode
         ? `<i class="ph ph-eye"></i> Sample trades`
-      : running ? `<i class="ph ph-waveform"></i> Live local feed` : `<i class="ph ph-pause"></i> Paused`;
+      : running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
     $("sharp-feed-notice").classList.toggle("live", running);
     $("sharp-feed-title").textContent = previewOnly
       ? "Five visual preview plays - no provider requests"
       : placeholderMode
         ? `${state.visible.length} visual placeholder trades - no sample is executable`
       : running
-      ? "Local collector active"
-      : prophetxConfigured
+      ? `${sourceName} active`
+      : sourceConfigured
         ? "Feed paused - zero new requests"
-        : "ProphetX credentials required - zero new requests";
+        : "Order-book credentials required - zero new requests";
     $("sharp-feed-copy").textContent = previewOnly
       ? "Synthetic layout fixtures only. Tracking, Discord, provider credits, and model data are disabled."
       : placeholderMode
         ? running
           ? "Sample cards remain visible while the live collector looks for exact markets. They are clearly labeled and never enter tracking."
-          : prophetxConfigured
+          : sourceConfigured
             ? "Sample cards are shown while the feed is empty. Press Play to replace them with real markets as they arrive."
-            : "Sample cards are shown for layout review. Connect ProphetX to replace them with real markets."
+            : "Sample cards are shown for layout review. Connect OddsEngine Advanced or ProphetX to replace them with real markets."
       : running
-      ? `ProphetX refreshes every ${payload.pollSeconds || 1}s; other-book comparisons every ${payload.comparisonSeconds || 60}s.`
-      : prophetxConfigured
-        ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add THE_ODDS_API_KEY for other-book comparisons"}.`
-        : "Add PROPHETX_ACCESS_KEY and PROPHETX_SECRET_KEY to .env.local, then restart this local preview.";
+      ? `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
+      : sourceConfigured
+        ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add an odds feed for other-book comparisons"}.`
+        : "Add ODDSENGINE_API_KEY with Advanced access or direct ProphetX credentials, then restart.";
     $("sharp-feed-state").innerHTML = `<i></i> ${previewOnly ? "Preview" : placeholderMode ? "Samples" : running ? "Collecting" : "Paused"}`;
     $("sharp-result-label").textContent = previewOnly
       ? `${state.visible.length} preview play${state.visible.length === 1 ? "" : "s"}`
@@ -410,14 +416,14 @@
     $("sharp-summary-liquidity").textContent = money(liquidity);
     $("sharp-summary-flow").textContent = String(flows);
     $("sharp-summary-cycles").textContent = String(payload.cycles || 0);
-    $("sharp-summary-signals-note").textContent = placeholderMode ? "Clearly labeled sample markets" : "Real ProphetX markets";
+    $("sharp-summary-signals-note").textContent = placeholderMode ? "Clearly labeled sample markets" : `Real ${sourceName} markets`;
     $("sharp-summary-liquidity-note").textContent = placeholderMode ? "Sample quoted depth" : "Quoted, not confirmed wagers";
     $("sharp-summary-flow-note").textContent = placeholderMode ? "Sample inferred pressure" : "Snapshot-inferred pressure";
     const requests = payload.provider?.metrics?.requests || 0;
-    $("sharp-summary-requests").textContent = running ? `${requests} ProphetX requests this process` : "No requests while paused";
+    $("sharp-summary-requests").textContent = running ? `${requests} ${sourceName} requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length
       ? state.visible.map(signalCard).join("")
-      : `<div class="sharp-empty-state"><div><i class="ph ${running ? "ph-radar" : prophetxConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${running ? "Waiting for exact ProphetX markets" : prophetxConfigured ? "Sharp Money is paused" : "Connect ProphetX to begin"}</strong><span>${payload.lastError || (running ? "The first authenticated snapshot may take a few seconds." : prophetxConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials stay local and the integration remains read-only.")}</span></div></div>`;
+      : `<div class="sharp-empty-state"><div><i class="ph ${running ? "ph-radar" : sourceConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${running ? `Waiting for exact ${sourceName} markets` : sourceConfigured ? "Sharp Money is paused" : "Connect an order-book source"}</strong><span>${payload.lastError || (running ? "The first authenticated snapshot may take a few seconds." : sourceConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials remain server-side and the integration is read-only.")}</span></div></div>`;
     const selected = state.visible.find(row => row.id === state.selectedId);
     $("sharp-detail-panel").innerHTML = selected
       ? detail(selected)
@@ -427,7 +433,7 @@
   async function load() {
     try {
       const endpoint = state.preview ? "/api/sharp-money/live?preview=1" : "/api/sharp-money/live";
-      const response = await fetch(endpoint, { cache: "no-store", credentials: "same-origin" });
+      const response = await fetch(endpoint, { cache: "default", credentials: "same-origin" });
       if (!response.ok) throw new Error(`Sharp Money returned ${response.status}`);
       state.payload = await response.json();
       const liveSignals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
@@ -570,6 +576,6 @@
   if (document.body.dataset.page === "sharp-money") {
     bind();
     load();
-    if (!state.preview) window.setInterval(load, 2000);
+    if (!state.preview) window.setInterval(load, 30000);
   }
 })();

@@ -13,6 +13,31 @@ from execution_providers import PROPHETX_LOGO_URL
 
 LOGGER = logging.getLogger(__name__)
 
+ORDERBOOK_BOOK_NAMES = {
+    "prophetx": "ProphetX",
+    "novig": "NoVIG",
+    "polymarket": "Polymarket",
+    "kalshi": "Kalshi",
+    "pinnacle": "Pinnacle",
+    "fanduel": "FanDuel",
+    "draftkings": "DraftKings",
+    "betmgm": "BetMGM",
+    "caesars": "Caesars",
+    "betonline": "BetOnline",
+}
+ORDERBOOK_BOOK_LOGOS = {
+    "prophetx": "/static/assets/providers/prophetx.ico",
+    "novig": "/static/assets/providers/novig.png",
+    "polymarket": "/static/assets/sportsbooks/polymarket.png",
+    "kalshi": "/static/assets/providers/kalshi.png",
+    "pinnacle": "/static/assets/providers/pinnacle.png",
+    "fanduel": "/static/assets/sportsbooks/fanduel.png",
+    "draftkings": "/static/assets/sportsbooks/draftkings.png",
+    "betmgm": "/static/assets/sportsbooks/betmgm.png",
+    "caesars": "/static/assets/sportsbooks/caesars.png",
+    "betonline": "/static/assets/sportsbooks/betonline.png",
+}
+
 
 class OddsComparisonFallback:
     """Prefer OddsEngine while preserving the existing comparison fallback."""
@@ -169,11 +194,101 @@ def _liquidity(level: dict) -> float:
     )
 
 
-class SharpMoneyCollector:
-    """Local, read-only ProphetX flow monitor.
+def _book_key(value: object) -> str:
+    normalized = "".join(
+        character
+        for character in str(value or "").lower()
+        if character.isalnum()
+    )
+    return {
+        "prophetexchange": "prophetx",
+        "betonlineag": "betonline",
+        "draftkingssportsbook": "draftkings",
+        "hardrockbet": "hardrock",
+    }.get(normalized, normalized)
 
-    The collector always boots paused. Cached GETs never call an upstream
-    provider. Only ``play`` opens the request gate; ``pause`` closes it.
+
+def _decimal_from_american(value: object) -> float | None:
+    american = _number(value)
+    if american >= 100:
+        return 1 + american / 100
+    if american <= -100:
+        return 1 + 100 / abs(american)
+    return None
+
+
+def _orderbook_levels(book: dict) -> list[dict]:
+    rows = []
+    for level in book.get("order_book") or []:
+        if not isinstance(level, dict):
+            continue
+        raw_odds = _number(level.get("odds"))
+        decimal = (
+            raw_odds
+            if 1 < raw_odds < 100
+            else _decimal_from_american(raw_odds)
+        )
+        american = _american(decimal)
+        if american is None:
+            continue
+        rows.append(
+            {
+                "americanOdds": american,
+                "decimalOdds": decimal,
+                "liquidity": _liquidity(level),
+            }
+        )
+    return rows
+
+
+def _book_liquidity(book: dict) -> float:
+    explicit = _number(
+        book.get("total_liquidity")
+        if book.get("total_liquidity") is not None
+        else book.get("liquidity")
+    )
+    if explicit > 0:
+        return explicit
+    return sum(row["liquidity"] for row in _orderbook_levels(book))
+
+
+def _side_name(side: dict, market: dict) -> str:
+    side_key = str(side.get("side") or "").upper()
+    line = (
+        side.get("line")
+        if side.get("line") is not None
+        else market.get("line")
+    )
+    if side_key == "HOME":
+        return str(market.get("home_team") or "Home").strip()
+    if side_key == "AWAY":
+        return str(market.get("away_team") or "Away").strip()
+    if side_key in {"OVER", "UNDER"}:
+        entity = str(market.get("entity_name") or "").strip()
+        selection = (
+            f"{side_key.title()} {line}"
+            if line is not None
+            else side_key.title()
+        )
+        return f"{entity} · {selection}" if entity else selection
+    return side_key.title() or "Selection"
+
+
+def _side_book(
+    side: dict, target: str
+) -> tuple[str, dict] | tuple[None, None]:
+    for raw_key, value in (side.get("books") or {}).items():
+        if isinstance(value, dict) and _book_key(raw_key) == target:
+            return str(raw_key), value
+    return None, None
+
+
+class SharpMoneyCollector:
+    """Read-only exchange-depth flow monitor.
+
+    Direct ProphetX collection keeps the existing local Play/Pause gate.
+    OddsEngine's materialized order-book endpoint refreshes automatically on
+    serverless reads, with a process cache and an edge-cache-friendly cadence.
     """
 
     def __init__(
@@ -181,20 +296,28 @@ class SharpMoneyCollector:
         prophetx_provider,
         odds_provider=None,
         *,
+        fallback_source=None,
         poll_seconds: float = 1.0,
         comparison_seconds: float = 60.0,
+        automatic_refresh_seconds: float = 30.0,
         local_control: bool | None = None,
     ) -> None:
         self.prophetx = prophetx_provider
+        self.fallback_source = fallback_source
+        self._active_source = prophetx_provider
         self.odds_provider = odds_provider
         self.poll_seconds = max(1.0, float(poll_seconds))
         self.comparison_seconds = max(20.0, float(comparison_seconds))
+        self.automatic_refresh_seconds = max(
+            20.0, float(automatic_refresh_seconds)
+        )
         self.local_control = (
             not bool(os.getenv("VERCEL"))
             if local_control is None
             else bool(local_control)
         )
         self._lock = threading.RLock()
+        self._refresh_lock = threading.Lock()
         self._wake = threading.Event()
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
@@ -209,18 +332,38 @@ class SharpMoneyCollector:
         self._signals: list[dict] = []
         self._comparisons: dict[str, list[dict]] = {}
         self._last_comparison_monotonic = 0.0
+        self._last_refresh_monotonic = 0.0
+
+    @staticmethod
+    def _configured(provider) -> bool:
+        if provider is None:
+            return False
+        if hasattr(provider, "diagnostics"):
+            return bool(provider.diagnostics().get("configured"))
+        return True
+
+    def _automatic(self) -> bool:
+        if self.local_control:
+            return False
+        return any(
+            self._configured(provider)
+            and hasattr(provider, "sharp_money_snapshot")
+            for provider in (self.prophetx, self.fallback_source)
+        )
 
     def play(self) -> tuple[bool, str]:
         if not self.local_control:
+            if self._automatic():
+                return False, "OddsEngine order-book refresh is automatic."
             return False, "Live Sharp Money control is local-only."
         if self.prophetx is None:
-            return False, "ProphetX is not configured."
+            return False, "No Sharp Money depth source is configured."
         if hasattr(self.prophetx, "diagnostics"):
             diagnostics = self.prophetx.diagnostics()
             if not diagnostics.get("configured"):
                 return (
                     False,
-                    "Add PROPHETX_ACCESS_KEY and PROPHETX_SECRET_KEY before Play.",
+                    "Add an OddsEngine or ProphetX depth credential before Play.",
                 )
         with self._lock:
             self._running = True
@@ -235,7 +378,7 @@ class SharpMoneyCollector:
                 )
                 self._thread.start()
         self._wake.set()
-        return True, "ProphetX Sharp Money collector started."
+        return True, "Sharp Money order-book collector started."
 
     def pause(self) -> tuple[bool, str]:
         with self._lock:
@@ -249,12 +392,15 @@ class SharpMoneyCollector:
 
     def status(self) -> dict:
         with self._lock:
-            running = self._running
+            automatic = self._automatic()
+            running = self._running or automatic
+            source = self._active_source or self.prophetx
             return {
                 "schemaVersion": "sharp-money-live-v1",
                 "mode": "live" if running else "paused",
                 "running": running,
                 "paused": not running,
+                "automatic": automatic,
                 "localControl": self.local_control,
                 "readOnly": True,
                 "executionEnabled": False,
@@ -268,49 +414,129 @@ class SharpMoneyCollector:
                 "cycles": self._cycles,
                 "pollSeconds": self.poll_seconds,
                 "comparisonSeconds": self.comparison_seconds,
+                "refreshSeconds": (
+                    self.automatic_refresh_seconds
+                    if automatic
+                    else self.poll_seconds
+                ),
                 "signalCount": len(self._signals),
                 "provider": (
-                    self.prophetx.diagnostics()
-                    if self.prophetx is not None
-                    and hasattr(self.prophetx, "diagnostics")
-                    else {"provider": "prophetx", "configured": False}
+                    source.diagnostics()
+                    if source is not None and hasattr(source, "diagnostics")
+                    else {"provider": "orderbook", "configured": False}
                 ),
+                "sourceFallbacks": [
+                    provider.provider_key
+                    for provider in (self.fallback_source,)
+                    if provider is not None
+                    and getattr(provider, "provider_key", None)
+                ],
                 "comparisonProvider": self._odds_diagnostics(),
             }
 
-    def payload(self) -> dict:
+    def payload(self, *, refresh_if_stale: bool = False) -> dict:
+        if refresh_if_stale and self._automatic():
+            self._refresh_automatic_if_stale()
         with self._lock:
             payload = self.status()
             payload["signals"] = copy.deepcopy(self._signals)
             return payload
 
+    def _refresh_automatic_if_stale(self) -> None:
+        now = time.monotonic()
+        if (
+            self._last_refresh_monotonic
+            and now - self._last_refresh_monotonic
+            < self.automatic_refresh_seconds
+        ):
+            return
+        if not self._refresh_lock.acquire(blocking=False):
+            return
+        try:
+            now = time.monotonic()
+            if (
+                self._last_refresh_monotonic
+                and now - self._last_refresh_monotonic
+                < self.automatic_refresh_seconds
+            ):
+                return
+            try:
+                self.refresh_once()
+            except Exception as exc:
+                LOGGER.warning(
+                    "Automatic Sharp Money order-book refresh failed: %s",
+                    type(exc).__name__,
+                )
+                with self._lock:
+                    self._last_error = (
+                        "OddsEngine order-book access failed. Confirm the API "
+                        "key includes the Advanced plan."
+                    )
+                    self._last_refresh_monotonic = time.monotonic()
+        finally:
+            self._refresh_lock.release()
+
     def refresh_once(self) -> list[dict]:
         """Run one read-only provider snapshot for scheduled consumers."""
-        if self.prophetx is None:
+        if self.prophetx is None and self.fallback_source is None:
             return []
-        snapshot = self.prophetx.live_market_snapshot()
-        signals = self._build_signals(snapshot)
+        source, source_kind, snapshot = self._read_source_snapshot()
+        signals = (
+            self._build_oddsengine_signals(snapshot)
+            if source_kind == "odds_engine_orderbook"
+            else self._build_signals(snapshot)
+        )
         now = time.monotonic()
         if (
             self.odds_provider is not None
             and signals
+            and source_kind != "odds_engine_orderbook"
             and now - self._last_comparison_monotonic >= self.comparison_seconds
         ):
             self._refresh_comparisons(signals)
             self._last_comparison_monotonic = now
         for signal in signals:
-            signal["comparisonLines"] = copy.deepcopy(
-                self._comparisons.get(signal["id"], [])
-            )
+            if not signal.get("comparisonLines"):
+                signal["comparisonLines"] = copy.deepcopy(
+                    self._comparisons.get(signal["id"], [])
+                )
         with self._lock:
+            self._active_source = source
             self._signals = signals
             self._cycles += 1
             self._last_snapshot_at = str(
                 snapshot.get("observedAt")
+                or (snapshot.get("meta") or {}).get("updated_at")
                 or datetime.now(timezone.utc).isoformat()
             )
+            if source_kind == "odds_engine_orderbook":
+                self._last_comparison_at = self._last_snapshot_at
             self._last_error = None
+            self._last_refresh_monotonic = time.monotonic()
         return copy.deepcopy(signals)
+
+    def _read_source_snapshot(self):
+        last_error: Exception | None = None
+        for provider in (self.prophetx, self.fallback_source):
+            if not self._configured(provider):
+                continue
+            try:
+                if hasattr(provider, "sharp_money_snapshot"):
+                    return (
+                        provider,
+                        "odds_engine_orderbook",
+                        provider.sharp_money_snapshot(limit=40),
+                    )
+                return provider, "prophetx_rest", provider.live_market_snapshot()
+            except Exception as exc:
+                last_error = exc
+                LOGGER.warning(
+                    "Sharp Money source %s failed; trying fallback",
+                    getattr(provider, "provider_key", "unknown"),
+                )
+        if last_error is not None:
+            raise last_error
+        return self.prophetx, "unconfigured", {}
 
     def _odds_diagnostics(self) -> dict:
         if self.odds_provider is None:
@@ -337,8 +563,8 @@ class SharpMoneyCollector:
                 )
                 with self._lock:
                     self._last_error = (
-                        "ProphetX refresh failed. Credentials, sandbox access, "
-                        "and API connectivity should be checked."
+                        "Sharp Money depth refresh failed. Credentials, plan "
+                        "access, and API connectivity should be checked."
                     )
             elapsed = time.monotonic() - started
             self._wake.wait(max(0.05, self.poll_seconds - elapsed))
@@ -518,6 +744,256 @@ class SharpMoneyCollector:
             reverse=True,
         )[:40]
 
+    @staticmethod
+    def _oddsengine_outcome(
+        market: dict,
+        side: dict,
+        *,
+        fallback_american: object = None,
+        fallback_liquidity: object = None,
+    ) -> dict | None:
+        _raw_book, book = _side_book(side, "prophetx")
+        book = book or {}
+        american = round(
+            _number(
+                book.get("odds_american")
+                if book.get("odds_american") is not None
+                else fallback_american
+            )
+        )
+        decimal = _number(book.get("odds_decimal")) or _decimal_from_american(
+            american
+        )
+        if decimal is None or decimal <= 1:
+            return None
+        liquidity = _book_liquidity(book) or _number(fallback_liquidity)
+        return {
+            "key": (
+                f"{market.get('event_id')}:{market.get('id')}:"
+                f"{str(side.get('side') or '').lower()}"
+            ),
+            "selectionId": str(side.get("side") or "").lower(),
+            "name": _side_name(side, market),
+            "decimalOdds": decimal,
+            "americanOdds": american,
+            "probability": 1 / decimal,
+            "liquidity": liquidity,
+            "line": (
+                side.get("line")
+                if side.get("line") is not None
+                else market.get("line")
+            ),
+            "levels": _orderbook_levels(book),
+        }
+
+    @staticmethod
+    def _oddsengine_comparisons(
+        recommended: dict,
+        opposite: dict,
+    ) -> list[dict]:
+        opposite_books = {
+            _book_key(raw_key): value
+            for raw_key, value in (opposite.get("books") or {}).items()
+            if isinstance(value, dict)
+        }
+        rows: dict[str, dict] = {}
+        for raw_key, raw_book in (recommended.get("books") or {}).items():
+            if not isinstance(raw_book, dict):
+                continue
+            key = _book_key(raw_key)
+            if not key:
+                continue
+            opposite_book = opposite_books.get(key, {})
+            american = round(_number(raw_book.get("odds_american")))
+            if not american:
+                continue
+            opposite_american = round(
+                _number(opposite_book.get("odds_american"))
+            )
+            rows[key] = {
+                "providerName": ORDERBOOK_BOOK_NAMES.get(
+                    key, str(raw_key).strip() or key.title()
+                ),
+                "providerKey": key,
+                "displayOdds": f"+{american}" if american > 0 else str(american),
+                "americanOdds": american,
+                "oppositeAmericanOdds": opposite_american or None,
+                "availableLiquidity": _book_liquidity(raw_book),
+                "oppositeAvailableLiquidity": _book_liquidity(opposite_book),
+                "marketLimit": raw_book.get("limit"),
+                "deepLink": str(raw_book.get("bet_link") or ""),
+                "logoUrl": ORDERBOOK_BOOK_LOGOS.get(key, ""),
+                "isAvailable": True,
+                "matchingConfidence": "Exact",
+                "orderBookLevels": _orderbook_levels(raw_book),
+                "oppositeOrderBookLevels": _orderbook_levels(opposite_book),
+                "tooltip": "OddsEngine two-sided order-book quote",
+            }
+        for peer in recommended.get("peers") or []:
+            if not isinstance(peer, dict):
+                continue
+            key = _book_key(peer.get("book"))
+            if not key or key in rows:
+                continue
+            american = round(_number(peer.get("odds_american")))
+            if not american:
+                continue
+            rows[key] = {
+                "providerName": ORDERBOOK_BOOK_NAMES.get(
+                    key, str(peer.get("book") or key).strip().title()
+                ),
+                "providerKey": key,
+                "displayOdds": f"+{american}" if american > 0 else str(american),
+                "americanOdds": american,
+                "oppositeAmericanOdds": (
+                    round(_number(peer.get("opp_odds_american"))) or None
+                ),
+                "availableLiquidity": peer.get("limit"),
+                "oppositeAvailableLiquidity": None,
+                "marketLimit": peer.get("limit"),
+                "deepLink": str(peer.get("bet_link") or ""),
+                "logoUrl": ORDERBOOK_BOOK_LOGOS.get(key, ""),
+                "isAvailable": True,
+                "matchingConfidence": "Exact",
+                "tooltip": "OddsEngine retail peer quote",
+            }
+        return list(rows.values())
+
+    def _build_oddsengine_signals(self, snapshot: dict) -> list[dict]:
+        opportunities = snapshot.get("opportunities") or []
+        observed_at = str(
+            (snapshot.get("meta") or {}).get("updated_at")
+            or datetime.now(timezone.utc).isoformat()
+        )
+        current: dict[str, dict] = {}
+        rows: list[dict] = []
+        for opportunity in opportunities:
+            if not isinstance(opportunity, dict):
+                continue
+            market = opportunity.get("market_data") or {}
+            recommended = opportunity.get("recommended_side") or {}
+            opposite = opportunity.get("opposite_side") or {}
+            if not isinstance(market, dict) or not isinstance(recommended, dict):
+                continue
+            if not isinstance(opposite, dict) or not opposite:
+                continue
+            selected = self._oddsengine_outcome(
+                market,
+                recommended,
+                fallback_american=opportunity.get("best_odds"),
+                fallback_liquidity=opportunity.get("edge_supporting_liquidity"),
+            )
+            opposing = self._oddsengine_outcome(market, opposite)
+            if selected is None or opposing is None:
+                continue
+            previous = self._previous.get(selected["key"])
+            probability_delta = (
+                selected["probability"] - previous["probability"]
+                if previous
+                else 0.0
+            )
+            liquidity_delta = (
+                selected["liquidity"] - previous["liquidity"]
+                if previous
+                else 0.0
+            )
+            edge_percent = _number(opportunity.get("edge_percent"))
+            pressure = edge_percent / 100 if edge_percent else probability_delta
+            selected.update(
+                {
+                    "probabilityDelta": probability_delta,
+                    "liquidityDelta": liquidity_delta,
+                    "pressure": pressure,
+                }
+            )
+            current[selected["key"]] = selected
+            self._history[selected["key"]].append(
+                {
+                    "observedAt": observed_at,
+                    "americanOdds": selected["americanOdds"],
+                    "liquidity": selected["liquidity"],
+                    "pressure": pressure,
+                }
+            )
+            event_id = str(market.get("event_id") or "")
+            market_id = str(market.get("id") or "")
+            if not event_id or not market_id:
+                continue
+            home = str(market.get("home_team") or "").strip()
+            away = str(market.get("away_team") or "").strip()
+            event_name = str(market.get("event") or "").strip()
+            if not event_name:
+                event_name = " vs. ".join(value for value in (away, home) if value)
+            market_name = str(market.get("market") or "Market").strip()
+            whale_volume = _number(opportunity.get("whale_volume"))
+            total_liquidity = _number(market.get("total_liquidity")) or (
+                selected["liquidity"] + opposing["liquidity"]
+            )
+            confidence = min(
+                99,
+                round(
+                    45
+                    + min(abs(edge_percent) * 4, 30)
+                    + min(math.log10(max(1.0, whale_volume)) * 4, 20)
+                ),
+            )
+            rows.append(
+                {
+                    "id": f"oe:px:{event_id}:{market_id}:{selected['selectionId']}",
+                    "provider": "ProphetX",
+                    "providerKey": "prophetx",
+                    "providerLogo": PROPHETX_LOGO_URL,
+                    "sport": str(market.get("sport") or market.get("league") or ""),
+                    "league": str(market.get("league") or "Other").upper(),
+                    "event": event_name,
+                    "homeTeam": home,
+                    "awayTeam": away,
+                    "startsAt": market.get("event_start"),
+                    "market": {
+                        "id": market_id,
+                        "name": market_name,
+                        "kind": _market_kind(market_name),
+                        "line": selected.get("line"),
+                    },
+                    "selection": selected["name"],
+                    "americanOdds": selected["americanOdds"],
+                    "decimalOdds": selected["decimalOdds"],
+                    "liquidity": selected["liquidity"],
+                    "totalLiquidity": total_liquidity,
+                    "liquidityDelta": liquidity_delta,
+                    "probabilityDelta": probability_delta,
+                    "pressure": pressure,
+                    "pressureLabel": (
+                        "Whale flow detected"
+                        if abs(pressure) >= 0.01
+                        else "Monitoring"
+                    ),
+                    "confidence": confidence,
+                    "inferenceOnly": True,
+                    "transport": "OddsEngine ProphetX full order book",
+                    "outcomes": [selected, opposing],
+                    "history": list(self._history[selected["key"]]),
+                    "comparisonLines": self._oddsengine_comparisons(
+                        recommended, opposite
+                    ),
+                    "edgePercent": edge_percent,
+                    "fairOdds": opportunity.get("fair_odds"),
+                    "whaleVolume": whale_volume,
+                    "whaleVolumeMode": opportunity.get("whale_volume_mode"),
+                    "bestBook": opportunity.get("best_book"),
+                }
+            )
+        self._previous = current
+        return sorted(
+            rows,
+            key=lambda item: (
+                abs(item["pressure"]),
+                item["whaleVolume"],
+                item["totalLiquidity"],
+            ),
+            reverse=True,
+        )[:40]
+
     def _trade_for_signal(self, signal: dict) -> dict:
         kind = signal["market"]["kind"]
         market_type = {
@@ -594,13 +1070,25 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
             providers.get("the_odds_api"),
         )
     )
+    odds_engine = providers.get("odds_engine")
+    direct_prophetx = providers.get("prophetx")
+    primary_source = (
+        odds_engine
+        if odds_engine is not None and getattr(odds_engine, "api_key", None)
+        else direct_prophetx
+    )
+    fallback_source = direct_prophetx if primary_source is odds_engine else None
     return SharpMoneyCollector(
-        providers.get("prophetx"),
+        primary_source,
         comparison_provider,
+        fallback_source=fallback_source,
         poll_seconds=float(
             os.getenv("SHARP_MONEY_PROPHETX_POLL_SECONDS", "1")
         ),
         comparison_seconds=float(
             os.getenv("SHARP_MONEY_COMPARISON_SECONDS", "60")
+        ),
+        automatic_refresh_seconds=float(
+            os.getenv("SHARP_MONEY_ODDSENGINE_REFRESH_SECONDS", "30")
         ),
     )

@@ -477,6 +477,35 @@ def test_provider_health_authenticates_without_exposing_credentials() -> None:
     ).health_status(authenticate=True) is ProviderHealthStatus.UNAUTHORIZED
 
 
+def test_provider_reads_and_caches_advanced_prophetx_orderbook() -> None:
+    payload = {
+        "meta": {"format": "whale", "returned": 1},
+        "opportunities": [{"best_book": "prophetx", "best_odds": 105}],
+    }
+    session = FakeSession(
+        {
+            "/orderbook/top": FakeResponse(
+                payload,
+                headers={"X-RateLimit-Remaining": "59"},
+            )
+        }
+    )
+    provider = OddsEngineProvider("advanced-key", session=session)
+
+    first = provider.sharp_money_snapshot(limit=40)
+    second = provider.sharp_money_snapshot(limit=40)
+
+    assert first == second == payload
+    assert len(session.calls) == 1
+    assert session.calls[0]["url"].endswith("/v1/orderbook/top")
+    assert session.calls[0]["params"] == {
+        "sort": "whale",
+        "selected_books": "prophetx",
+        "limit": 40,
+    }
+    assert provider.diagnostics()["supportsOrderBook"] is True
+
+
 def test_normalized_feed_is_accepted_by_all_four_existing_calculators() -> None:
     provider = OddsEngineProvider("key", session=_fixture_session())
     events = provider.ev_events(

@@ -80,6 +80,127 @@ class FakeComparisonProvider:
         return self.result
 
 
+class FakeOddsEngineOrderBook:
+    provider_key = "odds_engine"
+
+    def __init__(self):
+        self.api_key = "advanced-key"
+        self.calls = 0
+
+    def diagnostics(self):
+        return {
+            "provider": self.provider_key,
+            "configured": True,
+            "supportsOrderBook": True,
+            "metrics": {"requests": self.calls},
+        }
+
+    def sharp_money_snapshot(self, *, limit=40):
+        self.calls += 1
+        assert limit == 40
+        recommended = {
+            "side": "HOME",
+            "line": -1.5,
+            "books": {
+                "prophetx": {
+                    "odds_american": 115,
+                    "odds_decimal": 2.15,
+                    "liquidity": 1500,
+                    "total_liquidity": 2500,
+                    "bet_link": "https://prophetx.test/market-1",
+                    "order_book": [
+                        {"odds": 115, "liquidity": 1000},
+                        {"odds": 120, "liquidity": 1500},
+                    ],
+                },
+                "novig": {
+                    "odds_american": 110,
+                    "odds_decimal": 2.1,
+                    "liquidity": 800,
+                    "order_book": [{"odds": 110, "liquidity": 800}],
+                },
+                "fanduel": {
+                    "odds_american": 105,
+                    "odds_decimal": 2.05,
+                    "limit": 500,
+                    "bet_link": "https://fanduel.test/market-1",
+                },
+            },
+            "peers": [
+                {
+                    "book": "pinnacle",
+                    "odds_american": 108,
+                    "opp_odds_american": -112,
+                    "limit": 5000,
+                    "bet_link": "https://pinnacle.test/market-1",
+                }
+            ],
+        }
+        opposite = {
+            "side": "AWAY",
+            "line": 1.5,
+            "books": {
+                "prophetx": {
+                    "odds_american": -125,
+                    "odds_decimal": 1.8,
+                    "liquidity": 1400,
+                    "total_liquidity": 2100,
+                    "order_book": [
+                        {"odds": -125, "liquidity": 1400},
+                        {"odds": -120, "liquidity": 700},
+                    ],
+                },
+                "novig": {
+                    "odds_american": -120,
+                    "odds_decimal": 1.8333,
+                    "liquidity": 700,
+                    "order_book": [{"odds": -120, "liquidity": 700}],
+                },
+                "fanduel": {
+                    "odds_american": -125,
+                    "odds_decimal": 1.8,
+                },
+            },
+        }
+        return {
+            "meta": {
+                "format": "whale",
+                "returned": 1,
+                "updated_at": "2026-08-26T18:00:00+00:00",
+            },
+            "opportunities": [
+                {
+                    "best_book": "prophetx",
+                    "best_odds": 115,
+                    "edge_percent": 4.2,
+                    "edge_supporting_liquidity": 2500,
+                    "fair_odds": 105,
+                    "same_side_conviction_liquidity": 3200,
+                    "whale_volume": 8400,
+                    "whale_volume_mode": "same_side_conviction",
+                    "recommended_side": recommended,
+                    "opposite_side": opposite,
+                    "market_data": {
+                        "id": "market-1",
+                        "event_id": "event-1",
+                        "event": "New York Mets vs Philadelphia Phillies",
+                        "event_start": "2026-08-27T23:10:00+00:00",
+                        "sport": "Baseball",
+                        "league": "MLB",
+                        "market": "Run Line",
+                        "market_type": "game",
+                        "line": -1.5,
+                        "home_team": "Philadelphia Phillies",
+                        "away_team": "New York Mets",
+                        "side_a": recommended,
+                        "side_b": opposite,
+                        "total_liquidity": 7400,
+                    },
+                }
+            ],
+        }
+
+
 def test_odds_comparison_prefers_odds_engine_and_falls_back() -> None:
     primary = FakeComparisonProvider("odds_engine", fails=True)
     fallback = FakeComparisonProvider(
@@ -143,3 +264,43 @@ def test_local_control_is_disabled_in_serverless_mode():
     assert accepted is False
     assert "local-only" in message
     assert provider.calls == 0
+
+
+def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
+    provider = FakeOddsEngineOrderBook()
+    collector = SharpMoneyCollector(
+        provider,
+        local_control=False,
+        automatic_refresh_seconds=30,
+    )
+
+    payload = collector.payload(refresh_if_stale=True)
+    cached = collector.payload(refresh_if_stale=True)
+
+    assert provider.calls == 1
+    assert payload["automatic"] is True
+    assert payload["running"] is True
+    assert payload["paused"] is False
+    assert cached["signalCount"] == 1
+    signal = payload["signals"][0]
+    assert signal["provider"] == "ProphetX"
+    assert signal["transport"] == "OddsEngine ProphetX full order book"
+    assert signal["selection"] == "Philadelphia Phillies"
+    assert signal["edgePercent"] == 4.2
+    assert signal["whaleVolume"] == 8400
+    assert signal["pressure"] == 0.042
+    prophetx = next(
+        row
+        for row in signal["comparisonLines"]
+        if row["providerKey"] == "prophetx"
+    )
+    assert prophetx["americanOdds"] == 115
+    assert prophetx["oppositeAmericanOdds"] == -125
+    assert len(prophetx["orderBookLevels"]) == 2
+    assert len(prophetx["oppositeOrderBookLevels"]) == 2
+    assert {row["providerKey"] for row in signal["comparisonLines"]} >= {
+        "prophetx",
+        "novig",
+        "fanduel",
+        "pinnacle",
+    }
