@@ -202,3 +202,55 @@ def test_refresh_transaction_reuses_one_postgres_connection():
     assert connection.commits == 1
     assert connection.rollbacks == 0
     assert connection.closes == 1
+
+
+def test_current_schema_skips_full_postgres_bootstrap_on_cold_start():
+    connection = ReturningConnection({"ready": 1})
+
+    class FakePsycopg:
+        def __init__(self):
+            self.connect_calls = 0
+
+        def connect(self, *_args, **_kwargs):
+            self.connect_calls += 1
+            return connection
+
+    store = object.__new__(PostgresUserStore)
+    store.database_url = "postgresql://durable.example/iconbets"
+    store._psycopg = FakePsycopg()
+    store._dict_row = object()
+    store._connection_state = threading.local()
+    store._initialize_lock = threading.Lock()
+    store._initialized = False
+    bootstrap_calls = []
+    store.initialize = lambda: bootstrap_calls.append(True)
+
+    store._ensure_initialized()
+
+    assert store._initialized is True
+    assert bootstrap_calls == []
+    assert store._psycopg.connect_calls == 1
+    assert "SELECT 1 FROM schema_migrations" in connection.queries[0][0]
+
+
+def test_missing_schema_marker_runs_full_postgres_bootstrap():
+    connection = ReturningConnection(None)
+
+    class FakePsycopg:
+        def connect(self, *_args, **_kwargs):
+            return connection
+
+    store = object.__new__(PostgresUserStore)
+    store.database_url = "postgresql://durable.example/iconbets"
+    store._psycopg = FakePsycopg()
+    store._dict_row = object()
+    store._connection_state = threading.local()
+    store._initialize_lock = threading.Lock()
+    store._initialized = False
+    bootstrap_calls = []
+    store.initialize = lambda: bootstrap_calls.append(True)
+
+    store._ensure_initialized()
+
+    assert store._initialized is True
+    assert bootstrap_calls == [True]

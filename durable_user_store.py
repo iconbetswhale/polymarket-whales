@@ -62,8 +62,26 @@ class PostgresUserStore:
         with self._initialize_lock:
             if self._initialized:
                 return
+            if self._schema_is_current():
+                self._initialized = True
+                return
             self.initialize()
             self._initialized = True
+
+    def _schema_is_current(self) -> bool:
+        """Avoid replaying the full DDL bootstrap on every serverless cold start."""
+
+        try:
+            with self._raw_connection() as conn:
+                row = conn.execute(
+                    "SELECT 1 FROM schema_migrations WHERE version = %s LIMIT 1",
+                    (MARKET_QUOTE_MIGRATION_VERSION,),
+                ).fetchone()
+            return row is not None
+        except Exception as exc:
+            if getattr(exc, "sqlstate", None) == "42P01":
+                return False
+            raise
 
     @contextmanager
     def _raw_connection(self) -> Iterator[Any]:
