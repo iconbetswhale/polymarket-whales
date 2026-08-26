@@ -350,13 +350,13 @@ def test_prediction_controls_expose_selected_and_focus_states():
     assert 'item.setAttribute("aria-pressed", String(active))' in script
 
 
-def test_existing_brand_fonts_and_wordmark_assets_remain_available():
+def test_existing_brand_fonts_and_new_mark_assets_remain_available():
     template = TEMPLATE_PATH.read_text(encoding="utf-8")
     style = STYLE_PATH.read_text(encoding="utf-8")
 
     assert "family=DM+Sans" in template
     assert "family=Fraunces" in template
     assert "family=Roboto+Condensed" in template
-    assert "assets/iconlabs-horizontal-logo-white.webp" in template
-    assert "assets/iconlabs-mark-white.webp" in template
+    assert "assets/iconlabs-mark-transparent-v3.png" in template
+    assert "assets/iconlabs-mark-v3.webp" in template
     assert '--font-display: "Fraunces", Georgia, serif' in style

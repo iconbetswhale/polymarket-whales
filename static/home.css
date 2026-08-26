@@ -335,7 +335,7 @@ body[data-page="home"] .marketing-nav {
 body[data-page="home"] .marketing-brand {
   width:max-content;
   min-width:0;
-  gap:0;
+  gap:10px;
 }
 body[data-page="home"] .marketing-brand-lockup {
   width:clamp(170px,11.2vw,194px);

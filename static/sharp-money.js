@@ -124,6 +124,27 @@
     "novig", "prophetx", "4cx", "fourcx", "polymarket", "kalshi",
   ]);
   const DEPTH_PROVIDER_ORDER = ["novig", "prophetx"];
+  const TEAM_LOGO_KEYS = {
+    mlb: {
+      "Arizona Diamondbacks": "ari", "Atlanta Braves": "atl", "Baltimore Orioles": "bal",
+      "Boston Red Sox": "bos", "Chicago Cubs": "chc", "Chicago White Sox": "chw",
+      "Cincinnati Reds": "cin", "Cleveland Guardians": "cle", "Colorado Rockies": "col",
+      "Detroit Tigers": "det", "Houston Astros": "hou", "Kansas City Royals": "kc",
+      "Los Angeles Angels": "laa", "Los Angeles Dodgers": "lad", "Miami Marlins": "mia",
+      "Milwaukee Brewers": "mil", "Minnesota Twins": "min", "New York Mets": "nym",
+      "New York Yankees": "nyy", "Oakland Athletics": "oak", "Philadelphia Phillies": "phi",
+      "Pittsburgh Pirates": "pit", "San Diego Padres": "sd", "Seattle Mariners": "sea",
+      "San Francisco Giants": "sf", "St. Louis Cardinals": "stl", "Tampa Bay Rays": "tb",
+      "Texas Rangers": "tex", "Toronto Blue Jays": "tor", "Washington Nationals": "wsh",
+    },
+    wnba: {
+      "Atlanta Dream": "atl", "Chicago Sky": "chi", "Connecticut Sun": "connecticut",
+      "Dallas Wings": "dal", "Golden State Valkyries": "gs", "Indiana Fever": "ind",
+      "Los Angeles Sparks": "la", "Las Vegas Aces": "lv", "Minnesota Lynx": "min",
+      "New York Liberty": "ny", "Phoenix Mercury": "phx", "Seattle Storm": "sea",
+      "Washington Mystics": "wsh",
+    },
+  };
 
   function providerKey(row) {
     const raw = row?.providerKey || row?.providerName || row?.provider || "";
@@ -169,16 +190,43 @@
     return `<a class="sharp-sportsbook-action" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>${logo(quote, String(quote.providerName || "?").slice(0, 2))}<span><small>${escapeHtml(quote.providerName || "Sportsbook")}</small><b>${escapeHtml(odds(quote.americanOdds ?? fallbackOdds))}</b></span></a>`;
   }
 
-  function depthStrip(signal) {
-    return `<div class="sharp-depth-pair" aria-label="NoVIG and ProphetX liquidity intelligence">
-      ${depthQuotes(signal).map(({ key, row, isBest }) => {
+  function eventTeams(signal) {
+    const eventParts = String(signal.event || "").split(/\s+vs\.?\s+/i).map(value => value.trim()).filter(Boolean);
+    return {
+      away: signal.awayTeam && !/^(over|under)\b/i.test(signal.awayTeam) ? signal.awayTeam : eventParts[0],
+      home: signal.homeTeam || eventParts[1],
+    };
+  }
+
+  function teamLogoUrl(signal, team) {
+    const league = String(signal.league || signal.sport || "").toLowerCase();
+    const key = TEAM_LOGO_KEYS[league]?.[team];
+    return key ? `/static/assets/teams/${league}/${key}.png` : "";
+  }
+
+  function teamLogos(signal) {
+    const teams = eventTeams(signal);
+    const logos = [teams.away, teams.home].map(team => {
+      const url = teamLogoUrl(signal, team);
+      return url ? `<span class="sharp-card-team-logo" title="${escapeHtml(team)}"><img src="${escapeHtml(url)}" alt="${escapeHtml(team)} logo" loading="lazy"></span>` : "";
+    }).filter(Boolean);
+    return logos.length ? `<div class="sharp-card-team-logos" aria-label="Teams">${logos.join("")}</div>` : "";
+  }
+
+  function depthSummary(signal) {
+    const quotes = depthQuotes(signal);
+    const best = bestQuote(quotes.map(item => item.row).filter(Boolean));
+    return `<div class="sharp-card-depth-summary" aria-label="NoVIG and ProphetX liquidity intelligence">
+      <div class="sharp-card-depth-sources">
+      ${quotes.map(({ key, row }) => {
         const label = key === "novig" ? "NoVIG" : "ProphetX";
-        return `<div class="sharp-depth-chip${isBest ? " best" : ""}${row ? "" : " unavailable"}">
+        return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
           <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} liquidity`}</small></span>
-          <b>${escapeHtml(row ? odds(row.americanOdds) : "—")}</b>
         </div>`;
       }).join("")}
+      </div>
+      <div class="sharp-card-best-price"><small>Best sharp price</small><strong>${escapeHtml(best ? odds(best.americanOdds) : "—")}</strong></div>
     </div>`;
   }
 
@@ -199,19 +247,21 @@
           <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
-          <div class="sharp-card-heading">
-            <div><small>${escapeHtml(competition)}</small><strong>${escapeHtml(signal.event)}</strong><em>${escapeHtml(signal.market?.name)}</em></div>
+          <div class="sharp-card-event">
+            ${teamLogos(signal)}
+            <strong>${escapeHtml(signal.event)}</strong>
+            <em>${escapeHtml(signal.market?.name)}</em>
             <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
+            <b>${escapeHtml(sides.selected)}</b>
           </div>
-          <div class="sharp-card-market">
-            <div class="sharp-card-market-row primary">
-              <strong>${escapeHtml(sides.selected)}</strong>
+          <div class="sharp-card-execution">
+            <div class="sharp-card-action-row">
               <span class="sharp-card-rec-bet"><b>${money(recBet, false)}</b><small>Rec Bet</small></span>
               ${sportsbookAction(quote, signal.americanOdds)}
               ${quote ? `<a class="sharp-card-bet" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : ""}
               <button class="sharp-card-add" type="button" aria-label="Add ${escapeHtml(sides.selected)}"><i class="ph ph-plus"></i></button>
             </div>
-            ${depthStrip(signal)}
+            ${depthSummary(signal)}
           </div>
         </div>
       </article>`;

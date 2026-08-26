@@ -78,3 +78,9 @@ def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:
     assert "onerror=" in SCRIPT
     assert "object-fit: contain" in CSS
     assert "object-position: center" in CSS
+    assert ".mid-book-logo {" in CSS
+    assert "background: transparent" in CSS
+    assert "border: 0" in CSS
+    assert "padding: 0" in CSS
+    assert ".mid-book-logo-fallback" in CSS
+    assert "background: var(--il-surface-selected-badge)" in CSS
