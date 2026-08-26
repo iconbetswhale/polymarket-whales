@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
@@ -439,6 +440,7 @@ class OddsEngineProvider(ExecutionProvider):
         cache_ttl_seconds: int = 45,
         max_events_per_league: int = 5,
         max_total_events: int = 20,
+        max_parallel_requests: int = 4,
         request_timeout: int = 15,
         session: requests.Session | None = None,
     ) -> None:
@@ -450,6 +452,7 @@ class OddsEngineProvider(ExecutionProvider):
         self.cache_ttl_seconds = max(15, int(cache_ttl_seconds))
         self.max_events_per_league = max(1, min(50, int(max_events_per_league)))
         self.max_total_events = max(1, min(100, int(max_total_events)))
+        self.max_parallel_requests = max(1, min(8, int(max_parallel_requests)))
         self.request_timeout = max(1, int(request_timeout))
         self.session = session or requests.Session()
         self._league_cache: dict[str, _TimedValue] = {}
@@ -871,36 +874,80 @@ class OddsEngineProvider(ExecutionProvider):
             ]:
                 candidates.append((start, sport_key, event))
 
+        pending = [
+            item
+            for item in sorted(candidates, key=lambda item: item[0])[
+                : self.max_total_events
+            ]
+            if str(item[2].get("event_id") or "").strip()
+        ]
         normalized: list[dict] = []
-        for _start, sport_key, event in sorted(candidates, key=lambda item: item[0])[
-            : self.max_total_events
-        ]:
-            # Preserve a usable partial snapshot when this request reaches the
-            # plan limit. A fresh serverless invocation cannot share in-memory
-            # cache state, so stopping here is materially better than turning
-            # already-fetched events into a page-wide 502.
+        cursor = 0
+        while cursor < len(pending):
+            # Fetch independent event snapshots concurrently. OddsEngine's
+            # standard endpoint is one request per event; doing these serially
+            # made a ten-event Positive EV scan take several minutes even
+            # though the same normalization/calculation work is inexpensive.
+            remaining = self._quota_remaining()
+            available = len(pending) - cursor
+            quota_slots = available if remaining is None else max(1, remaining)
+            batch_size = min(
+                self.max_parallel_requests,
+                available,
+                quota_slots,
+            )
+            batch = pending[cursor : cursor + batch_size]
+            cursor += batch_size
+            fetched: dict[int, tuple[dict | None, Exception | None]] = {}
+            with ThreadPoolExecutor(max_workers=batch_size) as executor:
+                futures = {
+                    executor.submit(
+                        self._event_odds,
+                        str(event.get("event_id") or "").strip(),
+                    ): index
+                    for index, (_start, _sport_key, event) in enumerate(batch)
+                }
+                for future in as_completed(futures):
+                    index = futures[future]
+                    try:
+                        fetched[index] = (future.result(), None)
+                    except Exception as exc:  # handled in stable event order below
+                        fetched[index] = (None, exc)
+
+            rate_limited: requests.HTTPError | None = None
+            for index, (_start, sport_key, _event) in enumerate(batch):
+                odds, error = fetched[index]
+                if error is not None:
+                    if isinstance(error, requests.HTTPError):
+                        status = getattr(error.response, "status_code", None)
+                        if status == 429:
+                            rate_limited = error
+                            continue
+                        if status in {401, 403}:
+                            raise error
+                        LOGGER.warning(
+                            "OddsEngine skipped event after HTTP %s",
+                            status or "error",
+                        )
+                        continue
+                    raise error
+                converted = normalize_odds_engine_event(
+                    odds or {},
+                    sport_key=sport_key,
+                    requested_markets=requested_markets,
+                )
+                if converted:
+                    normalized.append(converted)
+
+            # Preserve a usable partial snapshot when the plan limit is hit.
+            # A fresh serverless invocation cannot share in-memory cache state,
+            # so this is materially better than a page-wide 502.
+            if rate_limited is not None:
+                if normalized:
+                    break
+                raise rate_limited
             if normalized and self._quota_remaining() == 0:
                 break
-            event_id = str(event.get("event_id") or "").strip()
-            if not event_id:
-                continue
-            try:
-                odds = self._event_odds(event_id)
-            except requests.HTTPError as exc:
-                status = getattr(exc.response, "status_code", None)
-                if status == 429 and normalized:
-                    break
-                if status in {401, 403, 429}:
-                    raise
-                LOGGER.warning("OddsEngine skipped event after HTTP %s", status or "error")
-                continue
-            converted = normalize_odds_engine_event(
-                odds,
-                sport_key=sport_key,
-                requested_markets=requested_markets,
-            )
-            if converted:
-                normalized.append(converted)
         return normalized
 
     def _quota_remaining(self) -> int | None:

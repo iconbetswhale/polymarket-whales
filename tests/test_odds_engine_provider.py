@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import threading
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -364,6 +365,53 @@ def test_provider_returns_partial_snapshot_when_rate_limit_is_reached() -> None:
         "remaining": "0",
         "reset": "30",
     }
+
+
+def test_provider_fetches_independent_event_odds_concurrently(monkeypatch) -> None:
+    fixture = _fixture_session()
+    source_event = fixture.routes["/events"]._payload["data"][0]
+    source_odds = fixture.routes["/odds"]._payload["data"]
+    events = [
+        {
+            **source_event,
+            "event_id": f"event-{index}",
+            "event_start": (
+                datetime.now(timezone.utc) + timedelta(hours=8 + index)
+            ).isoformat(),
+        }
+        for index in range(2)
+    ]
+    barrier = threading.Barrier(2)
+    active = 0
+    maximum_active = 0
+    active_lock = threading.Lock()
+
+    provider = OddsEngineProvider(
+        "key",
+        session=fixture,
+        max_parallel_requests=2,
+    )
+    monkeypatch.setattr(provider, "_league_events", lambda _league: events)
+
+    def event_odds(event_id: str) -> dict:
+        nonlocal active, maximum_active
+        with active_lock:
+            active += 1
+            maximum_active = max(maximum_active, active)
+        barrier.wait(timeout=1)
+        with active_lock:
+            active -= 1
+        return {**source_odds, "event_id": event_id}
+
+    monkeypatch.setattr(provider, "_event_odds", event_odds)
+
+    rows = provider.ev_events(
+        sport_keys=("baseball_mlb",),
+        market_keys=("h2h",),
+    )
+
+    assert [row["id"] for row in rows] == ["event-0", "event-1"]
+    assert maximum_active == 2
 
 
 def test_provider_health_authenticates_without_exposing_credentials() -> None:
