@@ -351,6 +351,23 @@ class SharpMoneyCollector:
             for provider in (self.prophetx, self.fallback_source)
         )
 
+    @staticmethod
+    def _orderbook_error_message(exc: Exception) -> str:
+        response = getattr(exc, "response", None)
+        status = getattr(response, "status_code", None)
+        if status == 401:
+            return "OddsEngine rejected the API key (HTTP 401)."
+        if status == 403:
+            return (
+                "OddsEngine rejected Advanced order-book access (HTTP 403). "
+                "Confirm this API key includes the Advanced plan."
+            )
+        if status == 429:
+            return "OddsEngine order-book rate limit reached (HTTP 429)."
+        if status is not None:
+            return f"OddsEngine order-book request failed (HTTP {status})."
+        return "OddsEngine order-book request failed before an HTTP response."
+
     def play(self) -> tuple[bool, str]:
         if not self.local_control:
             if self._automatic():
@@ -468,10 +485,7 @@ class SharpMoneyCollector:
                     type(exc).__name__,
                 )
                 with self._lock:
-                    self._last_error = (
-                        "OddsEngine order-book access failed. Confirm the API "
-                        "key includes the Advanced plan."
-                    )
+                    self._last_error = self._orderbook_error_message(exc)
                     self._last_refresh_monotonic = time.monotonic()
         finally:
             self._refresh_lock.release()
@@ -530,9 +544,12 @@ class SharpMoneyCollector:
                 return provider, "prophetx_rest", provider.live_market_snapshot()
             except Exception as exc:
                 last_error = exc
+                status = getattr(getattr(exc, "response", None), "status_code", None)
                 LOGGER.warning(
-                    "Sharp Money source %s failed; trying fallback",
+                    "Sharp Money source %s failed (%s, HTTP %s); trying fallback",
                     getattr(provider, "provider_key", "unknown"),
+                    type(exc).__name__,
+                    status if status is not None else "n/a",
                 )
         if last_error is not None:
             raise last_error

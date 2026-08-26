@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import time
 
+import requests
+
 from sharp_money_live import OddsComparisonFallback, SharpMoneyCollector
 
 
@@ -304,3 +306,23 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
         "fanduel",
         "pinnacle",
     }
+
+
+def test_oddsengine_advanced_plan_error_reports_safe_http_status():
+    provider = FakeOddsEngineOrderBook()
+
+    def reject(*, limit=40):
+        response = requests.Response()
+        response.status_code = 403
+        raise requests.HTTPError(response=response)
+
+    provider.sharp_money_snapshot = reject
+    collector = SharpMoneyCollector(provider, local_control=False)
+
+    payload = collector.payload(refresh_if_stale=True)
+
+    assert payload["signals"] == []
+    assert payload["lastError"] == (
+        "OddsEngine rejected Advanced order-book access (HTTP 403). "
+        "Confirm this API key includes the Advanced plan."
+    )
