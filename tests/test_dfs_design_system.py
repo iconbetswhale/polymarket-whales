@@ -70,7 +70,7 @@ def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
         assert f"var({token})" in CSS
     assert "gradient(" not in CSS
     assert "assets/dfs-books/" in TEMPLATE
-    assert "IconLabs fair odds" in TEMPLATE
+    assert "IconLabs Algo Odds using default weights" in TEMPLATE
     assert "fairAmericanOdds" in SCRIPT
     assert "americanOddsToProbability" in SCRIPT
     assert "positive-edge" in SCRIPT
@@ -125,12 +125,49 @@ def test_iconlabs_fair_odds_uses_the_current_white_mark() -> None:
 
 def test_iconlabs_fair_odds_logo_explains_the_weightings_on_hover() -> None:
     assert 'class="dfs-algo-tooltip"' in TEMPLATE
-    assert 'aria-label="IconAlgo Weightings"' in TEMPLATE
+    assert 'aria-label="IconLabs Algo Odds using default weights"' in TEMPLATE
     assert 'id="dfs-iconalgo-tooltip"' in TEMPLATE
     assert ".dfs-iconalgo-tooltip-popover" in CSS
     assert "position: fixed;" in CSS
     assert "showIconAlgoTooltip" in SCRIPT
     assert "getBoundingClientRect()" in SCRIPT
+
+
+def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents() -> None:
+    assert 'class="dfs-app-selector"' in TEMPLATE
+    assert 'id="dfs-fantasy-apps-label">Fantasy Apps' in TEMPLATE
+    assert 'id="dfs-optimizer-label">Optimizer' in TEMPLATE
+    assert 'class="dfs-optimizer-actions"' in TEMPLATE
+    for book_key in ("prizepicks", "underdog", "dk-pick6", "betr", "dabble"):
+        assert f'data-book-key="{{{{ logo }}}}"' in TEMPLATE or book_key in TEMPLATE
+        assert f'.dfs-book[data-book-key="{book_key}"]' in CSS
+    assert "--dfs-book-accent" in CSS
+    assert "background: var(--dfs-book-accent-soft" in CSS
+
+
+def test_iconlabs_column_matches_book_width_and_alternate_line_does_not_shift_odds() -> None:
+    assert '.algo-odds-head,\nbody[data-design-system="v2"][data-page="dfs"] .algo-odds-cell' in CSS
+    assert "width: 88px;" in CSS
+    assert "min-width: 88px;" in CSS
+    assert "max-width: 88px;" in CSS
+    assert "alternateLine===null?'':'has-alternate'" in SCRIPT
+    assert ".book-cell.has-alternate > strong" in CSS
+    assert "top: 50%;" in CSS
+    assert ".book-cell.has-alternate .alternate-line" in CSS
+    assert "top: calc(50% + 12px);" in CSS
+
+
+def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
+    assert "return {...defaultWeights};" in SCRIPT
+    assert "validKeys && total === 100" in SCRIPT
+    assert "total === 0 || total === 100" not in SCRIPT
+    assert "const fairHitRate = fairProbability(r);" in SCRIPT
+    assert "fairAmericanOdds(fairHitRate)" in SCRIPT
+    assert "Your Odds using custom Devig Settings" in SCRIPT
+    assert "Your Odds from custom Devig weights" in SCRIPT
+    assert "You’re changing IconLabs Algo Odds to Your Odds." in TEMPLATE
+    assert "recalculates both Chance to Hit and the fair odds" in TEMPLATE
+    assert ".dfs-devig-impact" in CSS
 
 
 def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:

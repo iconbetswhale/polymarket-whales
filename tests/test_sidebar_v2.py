@@ -71,12 +71,14 @@ def test_flat_sidebar_uses_reference_phosphor_icon_mapping():
 
 def test_sidebar_groups_and_icons_match_the_product_navigation_contract():
     core = BASE.index(">Core</span>")
+    fantasy_optimizer = BASE.index(">Fantasy Optimizer</span>")
+    prediction_traders = BASE.index(">Prediction Traders</span>")
     labs = BASE.index(">Labs</span>")
     portfolio = BASE.index(">Portfolio</span>")
     bet_tracker = BASE.index(">Bet Tracker</span>")
     lab_tracker = BASE.index(">LabTracker</span>")
 
-    assert core < labs < bet_tracker < lab_tracker < portfolio
+    assert core < fantasy_optimizer < prediction_traders < labs < bet_tracker < lab_tracker < portfolio
     assert 'class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money' in BASE
     assert 'class="ph ph-trend-up"></i><span data-short="+EV">Positive EV' in BASE
     assert 'class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen' in BASE

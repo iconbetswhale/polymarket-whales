@@ -84,8 +84,8 @@
       const stored = JSON.parse(localStorage.getItem('dfsDevigWeightsV2') || 'null');
       const validKeys = stored && Object.keys(defaultWeights).every(key => Number.isFinite(Number(stored[key])));
       const total = validKeys ? Object.values(defaultWeights).reduce((sum,_,index) => sum + Number(stored[Object.keys(defaultWeights)[index]]),0) : 0;
-      return validKeys && (total === 0 || total === 100) ? Object.fromEntries(Object.keys(defaultWeights).map(key => [key,Number(stored[key])])) : {...zeroWeights};
-    } catch (_) { return {...zeroWeights}; }
+      return validKeys && total === 100 ? Object.fromEntries(Object.keys(defaultWeights).map(key => [key,Number(stored[key])])) : {...defaultWeights};
+    } catch (_) { return {...defaultWeights}; }
   }
 
   function loadPresets() {
@@ -102,6 +102,21 @@
   }
 
   function weightsMatch(a,b) { return Object.keys(defaultWeights).every(key => Number(a[key])===Number(b[key])); }
+
+  function updateAlgoPresentation() {
+    const customWeights = !weightsMatch(savedWeights,defaultWeights);
+    const accessibleLabel = customWeights
+      ? 'Your Odds using custom Devig Settings'
+      : 'IconLabs Algo Odds using default weights';
+    const tooltipLabel = customWeights
+      ? 'Your Odds · custom Devig weights'
+      : 'IconLabs Algo Odds · default weights';
+    const head = document.querySelector('#dfs-algo-odds-head');
+    head.setAttribute('aria-label',accessibleLabel);
+    head.dataset.model = customWeights ? 'custom' : 'iconlabs';
+    iconAlgoTooltipTrigger.setAttribute('aria-label',accessibleLabel);
+    iconAlgoTooltipPopover.textContent = tooltipLabel;
+  }
 
   function updateDevigSummary() {
     const total = Object.values(savedWeights).reduce((sum,value)=>sum+Number(value||0),0);
@@ -153,6 +168,7 @@
   }
 
   function render() {
+    updateAlgoPresentation();
     const sport = document.querySelector('#dfs-sport').value;
     const date = document.querySelector('#dfs-date').value;
     const stat = statSelect.value;
@@ -187,10 +203,12 @@
         const unavailable = market === '—';
         const price = typeof market === 'object' ? market.odds : market;
         const alternateLine = typeof market === 'object' && Number(market.line) !== Number(activeLine) ? market.line : null;
-        return `<td class="book-cell ${unavailable?'muted':''}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
+        const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate'].filter(Boolean).join(' ');
+        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
       const selectedSlipOdds = activeBook === 'PrizePicks' ? '' : `<small class="selected-slip-odds">${esc(bestSlipOdds[activeBook])}</small>`;
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong>${selectedSlipOdds}</td><td><span class="hit-rate ${hitRateBand}" title="${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="IconLabs fair odds from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
+      const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${activeLine}</strong>${selectedSlipOdds}</td><td><span class="hit-rate ${hitRateBand}" title="${fairHitRate.toFixed(1)}% fair hit rate · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}"><strong>${fairHitRate.toFixed(1)}%</strong></span></td><td class="algo-odds-cell" title="${oddsSource} from ${fairHitRate.toFixed(1)}% probability"><strong>${fairAmericanOdds(fairHitRate)}</strong></td>${cells}</tr>`;
     }).join('');
     document.querySelector('#dfs-empty').hidden = visible.length > 0;
   }
@@ -218,7 +236,7 @@
     document.querySelector('#dfs-devig-total').textContent = `${total}%`;
     document.querySelector('#dfs-devig-progress').style.width = `${Math.min(total,100)}%`;
     const message = document.querySelector('#dfs-devig-message');
-    message.textContent = total === 100 ? 'Ready to apply' : `${100-total}% left to allocate`;
+    message.textContent = total === 100 ? 'Ready to replace IconLabs odds with Your Odds' : `${100-total}% left to allocate`;
     message.classList.toggle('ready',total===100);
     document.querySelector('#dfs-devig-apply').disabled = total !== 100;
   }
