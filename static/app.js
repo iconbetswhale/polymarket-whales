@@ -6948,8 +6948,8 @@ function syncOddsNavigation(view = oddsState.kind.startsWith("player_") ? "props
 }
 
 function loadOrRenderOddsScreen() {
-  if (oddsState.feedActive) loadOddsScreen();
-  else renderOddsScreen();
+  renderOddsScreen();
+  if (!oddsState.rows.length && oddsState.feedActive) loadOddsScreen();
 }
 
 function bindOddsScreen() {
@@ -6981,7 +6981,7 @@ function bindOddsScreen() {
     if (leagueLabel) leagueLabel.textContent = oddsState.league || oddsState.sport || "All Sports";
     syncOddsNavigation();
     closeOddsMenus();
-    if (oddsState.feedActive) loadOddsScreen(); else renderOddsScreen();
+    loadOrRenderOddsScreen();
   });
 
   document.getElementById("odds-props-list")?.addEventListener("click", event => {
@@ -6991,7 +6991,7 @@ function bindOddsScreen() {
     document.querySelectorAll("[data-odds-kind]").forEach(item => item.classList.remove("active"));
     propsTrigger.classList.add("active");
     closeOddsMenus();
-    if (oddsState.feedActive) loadOddsScreen(); else renderOddsScreen();
+    loadOrRenderOddsScreen();
   });
 
   document.getElementById("odds-search")?.addEventListener("input", event => { oddsState.search = event.target.value.trim().toLowerCase(); renderOddsScreen(); });
@@ -7028,7 +7028,7 @@ function bindOddsScreen() {
     if (leagueLabel) leagueLabel.textContent = "All Sports";
     syncOddsNavigation("games");
     closeOddsMenus();
-    if (oddsState.feedActive) loadOddsScreen(); else renderOddsScreen();
+    loadOrRenderOddsScreen();
   });
   document.getElementById("odds-books-all")?.addEventListener("click", () => { booksMenu.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = true; }); document.getElementById("odds-books-count").textContent = `${booksMenu.querySelectorAll('input[type="checkbox"]').length} selected`; });
   document.getElementById("odds-books-none")?.addEventListener("click", () => { booksMenu.querySelectorAll('input[type="checkbox"]').forEach(input => { input.checked = false; }); document.getElementById("odds-books-count").textContent = "0 selected"; });

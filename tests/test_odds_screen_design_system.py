@@ -162,6 +162,7 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert 'params.set("sport", oddsState.sport)' not in script
     assert 'params.set("league", oddsState.league)' not in script
     assert 'params.set("market", oddsState.kind)' not in script
+    assert "function loadOrRenderOddsScreen() {\n  renderOddsScreen();\n  if (!oddsState.rows.length && oddsState.feedActive) loadOddsScreen();\n}" in script
     assert "persistOddsProviderOrder()" in script
     assert 'oddsState.providerOrder = [...previewKeys, "best"]' not in script
     assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
