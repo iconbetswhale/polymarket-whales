@@ -100,6 +100,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "fanduel",
             [
                 ("spreads", [_outcome(liberty, 112, point=-4.5), _outcome(aces, -125, point=4.5)]),
+                ("totals", [_outcome("Over", 120, point=166.5), _outcome("Under", -140, point=166.5)]),
                 ("player_points", [_outcome("Over", 130, point=23.5, description=stewart), _outcome("Under", -150, point=23.5, description=stewart)]),
             ],
             updated_at=updated,
@@ -108,6 +109,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "draftkings",
             [
                 ("spreads", [_outcome(liberty, 105, point=-4.5), _outcome(aces, 103, point=4.5)]),
+                ("totals", [_outcome("Over", 105, point=166.5), _outcome("Under", 110, point=166.5)]),
                 ("player_points", [_outcome("Over", 125, point=23.5, description=stewart), _outcome("Under", -105, point=23.5, description=stewart)]),
             ],
             updated_at=updated,
@@ -116,6 +118,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "caesars",
             [
                 ("spreads", [_outcome(liberty, 100, point=-4.5), _outcome(aces, 108, point=4.5)]),
+                ("totals", [_outcome("Over", 108, point=166.5), _outcome("Under", -118, point=166.5)]),
                 ("player_points", [_outcome("Over", 118, point=23.5, description=stewart), _outcome("Under", -112, point=23.5, description=stewart)]),
             ],
             updated_at=updated,
@@ -124,6 +127,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "hardrockbet",
             [
                 ("spreads", [_outcome(liberty, 102, point=-4.5), _outcome(aces, 101, point=4.5)]),
+                ("totals", [_outcome("Over", 100, point=166.5), _outcome("Under", -110, point=166.5)]),
                 ("player_points", [_outcome("Over", 120, point=23.5, description=stewart), _outcome("Under", -118, point=23.5, description=stewart)]),
             ],
             updated_at=updated,
@@ -138,6 +142,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "bet365",
             [
                 ("spreads", [_outcome(mets, 106, point=1.5), _outcome(phillies, -118, point=-1.5)]),
+                ("totals", [_outcome("Over", 115, point=7.5), _outcome("Under", -130, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 145, point=6.5, description=wheeler), _outcome("Under", -155, point=6.5, description=wheeler)]),
             ],
             updated_at=updated,
@@ -146,6 +151,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "betonline",
             [
                 ("spreads", [_outcome(mets, 102, point=1.5), _outcome(phillies, 104, point=-1.5)]),
+                ("totals", [_outcome("Over", -120, point=7.5), _outcome("Under", 115, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 138, point=6.5, description=wheeler), _outcome("Under", -110, point=6.5, description=wheeler)]),
             ],
             updated_at=updated,
@@ -154,6 +160,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "fanatics",
             [
                 ("spreads", [_outcome(mets, 112, point=1.5), _outcome(phillies, -122, point=-1.5)]),
+                ("totals", [_outcome("Over", 105, point=7.5), _outcome("Under", -120, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 135, point=6.5, description=wheeler), _outcome("Under", -118, point=6.5, description=wheeler)]),
             ],
             updated_at=updated,
@@ -162,6 +169,7 @@ def temporary_arbitrage_events(now: datetime | None = None) -> list[dict]:
             "betrivers",
             [
                 ("spreads", [_outcome(mets, 104, point=1.5), _outcome(phillies, 107, point=-1.5)]),
+                ("totals", [_outcome("Over", -110, point=7.5), _outcome("Under", 102, point=7.5)]),
                 ("pitcher_strikeouts", [_outcome("Over", 130, point=6.5, description=wheeler), _outcome("Under", -120, point=6.5, description=wheeler)]),
             ],
             updated_at=updated,

@@ -2452,10 +2452,11 @@ def create_app(start_background: bool = True) -> Flask:
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
+            preview_rows = board["data"][:7]
             response = jsonify(
                 {
-                    "data": board["data"],
-                    "total": len(board["data"]),
+                    "data": preview_rows,
+                    "total": len(preview_rows),
                     "diagnostics": board["diagnostics"],
                     "configured": configured,
                     "previewOnly": True,
@@ -2658,10 +2659,11 @@ def create_app(start_background: bool = True) -> Flask:
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
+            preview_rows = board["data"][:7]
             response = jsonify(
                 {
-                    "data": board["data"],
-                    "total": len(board["data"]),
+                    "data": preview_rows,
+                    "total": len(preview_rows),
                     "diagnostics": board["diagnostics"],
                     "configured": configured,
                     "previewOnly": True,
@@ -2932,10 +2934,11 @@ def create_app(start_background: bool = True) -> Flask:
             from low_hold_preview import temporary_low_hold_events
 
             board = build_low_hold_board(temporary_low_hold_events(), **board_kwargs)
+            preview_rows = board["data"][:7]
             response = jsonify(
                 {
-                    "data": board["data"][:250],
-                    "total": len(board["data"]),
+                    "data": preview_rows,
+                    "total": len(preview_rows),
                     "diagnostics": board["diagnostics"],
                     "configured": configured,
                     "previewOnly": True,

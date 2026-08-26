@@ -98,3 +98,6 @@ def test_low_hold_rows_render_real_team_matchups_without_changing_the_payload() 
     assert 'class="lh-matchup-vs">VS<' in SCRIPT
     assert "/static/assets/teams/${league}/" in SCRIPT
     assert ".lh-team-logo-frame" in CSS
+    assert "justify-content: center" in CSS
+    assert "background: transparent" in CSS
+    assert "text-align: center" in CSS
