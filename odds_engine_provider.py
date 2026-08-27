@@ -173,6 +173,201 @@ MARKET_ALIASES = {
 }
 
 
+def _display_name(value: object) -> str:
+    """Return a compact human label without inventing provider metadata."""
+
+    return " ".join(str(value or "").replace("_", " ").split()).title()
+
+
+def _future_book_key(value: object) -> str | None:
+    """Keep every book returned by OddsEngine, including newly added books."""
+
+    known = _book_key(value)
+    if known:
+        return known
+    normalized = _slug(value).replace("_", "")
+    return normalized or None
+
+
+def normalize_odds_engine_future_event(
+    payload: dict,
+    *,
+    schedule_event: dict | None = None,
+) -> dict:
+    """Flatten every priced outright in one OddsEngine future event.
+
+    Futures are intentionally not filtered through ``SUPPORTED_MARKET_KEYS``.
+    The API marks future events in discovery and can add new future types at any
+    time, so this normalizer preserves every market, outcome, and sportsbook it
+    receives.
+    """
+
+    schedule = schedule_event or {}
+    event_id = str(payload.get("event_id") or schedule.get("event_id") or "").strip()
+    if not event_id:
+        return {"rows": [], "providers": []}
+
+    event_title = " ".join(
+        str(payload.get("event") or schedule.get("event") or "Futures").split()
+    )
+    league = str(payload.get("league") or schedule.get("league") or "").strip()
+    sport = str(payload.get("sport") or schedule.get("sport") or league).strip()
+    resolution_time = str(
+        payload.get("event_start") or schedule.get("event_start") or ""
+    ).strip()
+    future_type = str(
+        payload.get("future_type") or schedule.get("future_type") or ""
+    ).strip()
+    observed_at = datetime.now(timezone.utc).isoformat()
+    rows: dict[tuple, dict] = {}
+    providers: dict[str, dict] = {}
+
+    for category in payload.get("market_categories") or []:
+        if not isinstance(category, dict):
+            continue
+        category_name = " ".join(str(category.get("category") or "future").split())
+        for offer in category.get("offers") or []:
+            if not isinstance(offer, dict):
+                continue
+            market_title = " ".join(
+                str(offer.get("market") or offer.get("market_key") or "Futures").split()
+            )
+            if not market_title:
+                continue
+            market_key = _slug(offer.get("market_key") or market_title)
+            raw_market_id = str(
+                offer.get("market_id") or f"{event_id}:{market_key}"
+            ).strip()
+            offer_line = offer.get("line")
+            for raw_book in offer.get("books") or []:
+                if not isinstance(raw_book, dict):
+                    continue
+                book_key = _future_book_key(raw_book.get("book"))
+                if not book_key:
+                    continue
+                provider_key = _oddsengine_provider_key(book_key)
+                metadata = ODDSENGINE_BOOKMAKERS.get(book_key, {})
+                provider_name = metadata.get("name") or _display_name(
+                    raw_book.get("book") or book_key
+                )
+                providers[provider_key] = {
+                    "key": provider_key,
+                    "name": provider_name,
+                    "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                    "source": "odds_engine",
+                    "region": "",
+                }
+                for selection in raw_book.get("selections") or []:
+                    if not isinstance(selection, dict):
+                        continue
+                    american_odds = _american_odds(selection.get("odds_american"))
+                    if american_odds is None:
+                        continue
+                    outcome = " ".join(
+                        str(
+                            selection.get("entity_name")
+                            or selection.get("side")
+                            or "Selection"
+                        ).split()
+                    )
+                    outcome_key = str(selection.get("entity_name_std") or "").strip()
+                    outcome_key = outcome_key or _slug(outcome)
+                    line = selection.get("line")
+                    if line is None:
+                        line = offer_line
+                    identity = (raw_market_id, outcome_key, str(line or ""))
+                    row = rows.setdefault(
+                        identity,
+                        {
+                            "id": (
+                                f"oddsengine::future::{event_id}::{raw_market_id}::"
+                                f"{outcome_key}::{line if line is not None else ''}"
+                            ),
+                            "event_id": event_id,
+                            "event_title": event_title,
+                            "market_id": (
+                                f"oddsengine::future::{event_id}::{raw_market_id}::"
+                                f"{line if line is not None else ''}"
+                            ),
+                            "provider_market_id": raw_market_id,
+                            "market_key": market_key,
+                            "market_title": market_title,
+                            "sports_market_type": market_title,
+                            "market_category": category_name,
+                            "future_type": future_type or market_key,
+                            "outcome": outcome,
+                            "outcome_key": outcome_key,
+                            "market_line": line,
+                            "category": _display_name(sport),
+                            "canonical_sport_id": sport.lower(),
+                            "league": league.upper(),
+                            "canonical_league_id": league.upper(),
+                            "resolution_time": resolution_time,
+                            "event_date_et": resolution_time,
+                            "is_future": True,
+                            "is_sports": True,
+                            "odds_engine_event": True,
+                            "executionOptions": [],
+                        },
+                    )
+                    implied = american_to_probability(american_odds)
+                    liquidity = _safe_nonnegative(selection.get("liquidity"))
+                    bet_limit = _safe_nonnegative(selection.get("limit"))
+                    last_update = str(
+                        selection.get("odds_changed_at")
+                        or selection.get("last_fetched")
+                        or observed_at
+                    )
+                    row["executionOptions"].append(
+                        {
+                            "providerKey": provider_key,
+                            "providerName": provider_name,
+                            "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                            "americanOdds": american_odds,
+                            "displayOdds": (
+                                f"+{american_odds}"
+                                if american_odds > 0
+                                else str(american_odds)
+                            ),
+                            "bestExecutablePrice": implied,
+                            "contractPrice": None,
+                            "availableLiquidity": liquidity,
+                            "betLimit": bet_limit,
+                            "isAvailable": True,
+                            "isStale": False,
+                            "marketStatus": "OPEN",
+                            "quoteStatus": "OPEN",
+                            "matchingConfidence": "Exact",
+                            "deepLink": str(selection.get("bet_link") or ""),
+                            "lastUpdated": last_update,
+                            "marketId": raw_market_id,
+                            "selectionId": str(selection.get("selection_id") or ""),
+                            "providerEventId": event_id,
+                        }
+                    )
+
+    normalized_rows = list(rows.values())
+    for row in normalized_rows:
+        row["executionOptions"].sort(
+            key=lambda option: (
+                str(option.get("providerName") or "").casefold(),
+                str(option.get("providerKey") or ""),
+            )
+        )
+    normalized_rows.sort(
+        key=lambda row: (
+            str(row.get("market_title") or "").casefold(),
+            str(row.get("outcome") or "").casefold(),
+        )
+    )
+    return {
+        "rows": normalized_rows,
+        "providers": sorted(
+            providers.values(), key=lambda provider: provider["name"].casefold()
+        ),
+    }
+
+
 @dataclass
 class _TimedValue:
     loaded_at: float
@@ -506,6 +701,7 @@ class OddsEngineProvider(ExecutionProvider):
         self._league_cache: dict[str, _TimedValue] = {}
         self._odds_cache: dict[str, _TimedValue] = {}
         self._last_screen_events: _TimedValue | None = None
+        self._futures_screen_cache: _TimedValue | None = None
         self._quota: dict[str, str] = {}
         self._requests = 0
         self._last_success_at: str | None = None
@@ -684,6 +880,7 @@ class OddsEngineProvider(ExecutionProvider):
             self._league_cache.clear()
             self._odds_cache.clear()
             self._last_screen_events = None
+            self._futures_screen_cache = None
 
     def ev_events(
         self,
@@ -831,6 +1028,191 @@ class OddsEngineProvider(ExecutionProvider):
                 str(row.get("outcome") or ""),
             ),
         )
+
+    def futures_screen_snapshot(self, *, force: bool = False) -> dict:
+        """Discover and return every currently priced OddsEngine future."""
+
+        if not self.api_key:
+            return {
+                "configured": False,
+                "complete": False,
+                "data": [],
+                "providers": [],
+                "leagues": [],
+                "markets": [],
+                "futureTypes": [],
+                "message": "OddsEngine is not configured.",
+            }
+
+        cache_ttl = max(60, self.cache_ttl_seconds * 4)
+        if not force:
+            with self._lock:
+                cached = self._futures_screen_cache
+                if cached and time.monotonic() - cached.loaded_at < cache_ttl:
+                    return dict(cached.value)
+
+        started = time.monotonic()
+        with self._scan_lock:
+            if not force:
+                with self._lock:
+                    cached = self._futures_screen_cache
+                    if cached and time.monotonic() - cached.loaded_at < cache_ttl:
+                        return dict(cached.value)
+
+            league_payload = self._request_json("/leagues")
+            league_codes = tuple(
+                dict.fromkeys(
+                    str(item.get("league") or "").strip().lower()
+                    for item in league_payload.get("data") or []
+                    if isinstance(item, dict)
+                    and str(item.get("league") or "").strip()
+                )
+            )
+            discovery_errors: list[str] = []
+            discovered_events: dict[str, dict] = {}
+            if league_codes:
+                with ThreadPoolExecutor(
+                    max_workers=min(self.max_parallel_requests, len(league_codes))
+                ) as executor:
+                    futures = {
+                        executor.submit(self._league_events, league): league
+                        for league in league_codes
+                    }
+                    for future in as_completed(futures):
+                        league = futures[future]
+                        try:
+                            events = future.result()
+                        except Exception as exc:
+                            discovery_errors.append(f"{league}:{type(exc).__name__}")
+                            continue
+                        for event in events:
+                            if not isinstance(event, dict):
+                                continue
+                            is_future = bool(event.get("is_future"))
+                            is_future = is_future or bool(event.get("future_type"))
+                            is_future = is_future or bool(event.get("outrights"))
+                            event_id = str(event.get("event_id") or "").strip()
+                            if is_future and event_id:
+                                discovered_events.setdefault(event_id, event)
+
+            ordered_events = sorted(
+                discovered_events.values(),
+                key=lambda event: (
+                    str(event.get("league") or ""),
+                    str(event.get("event_start") or ""),
+                    str(event.get("event") or ""),
+                ),
+            )
+            normalized_rows: list[dict] = []
+            provider_catalog: dict[str, dict] = {}
+            fetched_events = 0
+            odds_errors: list[str] = []
+            cursor = 0
+            while cursor < len(ordered_events):
+                remaining = self._quota_remaining()
+                if remaining == 0:
+                    break
+                available = len(ordered_events) - cursor
+                batch_size = min(
+                    self.max_parallel_requests,
+                    available,
+                    available if remaining is None else remaining,
+                )
+                if batch_size <= 0:
+                    break
+                batch = ordered_events[cursor : cursor + batch_size]
+                cursor += batch_size
+                fetched: dict[int, tuple[dict | None, Exception | None]] = {}
+                with ThreadPoolExecutor(max_workers=batch_size) as executor:
+                    futures = {
+                        executor.submit(
+                            self._event_odds,
+                            str(event.get("event_id") or "").strip(),
+                        ): index
+                        for index, event in enumerate(batch)
+                    }
+                    for future in as_completed(futures):
+                        index = futures[future]
+                        try:
+                            fetched[index] = (future.result(), None)
+                        except Exception as exc:
+                            fetched[index] = (None, exc)
+                for index, event in enumerate(batch):
+                    odds, error = fetched[index]
+                    if error is not None:
+                        odds_errors.append(
+                            f"{event.get('event_id')}:{type(error).__name__}"
+                        )
+                        continue
+                    fetched_events += 1
+                    normalized = normalize_odds_engine_future_event(
+                        odds or {}, schedule_event=event
+                    )
+                    normalized_rows.extend(normalized["rows"])
+                    for provider in normalized["providers"]:
+                        provider_catalog[provider["key"]] = provider
+
+            leagues = sorted(
+                {
+                    str(row.get("canonical_league_id") or "").upper()
+                    for row in normalized_rows
+                    if row.get("canonical_league_id")
+                }
+            )
+            markets = sorted(
+                {
+                    str(row.get("market_title") or "").strip()
+                    for row in normalized_rows
+                    if row.get("market_title")
+                },
+                key=str.casefold,
+            )
+            future_types = sorted(
+                {
+                    str(row.get("future_type") or "").strip()
+                    for row in normalized_rows
+                    if row.get("future_type")
+                },
+                key=str.casefold,
+            )
+            complete = (
+                not discovery_errors
+                and not odds_errors
+                and fetched_events == len(ordered_events)
+            )
+            payload = {
+                "configured": True,
+                "complete": complete,
+                "data": normalized_rows,
+                "providers": sorted(
+                    provider_catalog.values(),
+                    key=lambda provider: provider["name"].casefold(),
+                ),
+                "leagues": leagues,
+                "markets": markets,
+                "futureTypes": future_types,
+                "meta": {
+                    "activeLeagueCount": len(league_codes),
+                    "futureEventCount": len(ordered_events),
+                    "fetchedEventCount": fetched_events,
+                    "selectionCount": len(normalized_rows),
+                    "providerCount": len(provider_catalog),
+                    "discoveryErrors": discovery_errors,
+                    "oddsErrors": odds_errors,
+                    "responseMs": int((time.monotonic() - started) * 1000),
+                    "quota": dict(self._quota),
+                },
+                "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "refreshSeconds": 60,
+                "message": (
+                    "Every discovered future is loaded."
+                    if complete
+                    else "Showing the priced inventory returned before the current API limit."
+                ),
+            }
+            with self._lock:
+                self._futures_screen_cache = _TimedValue(time.monotonic(), payload)
+            return dict(payload)
 
     def sharp_money_snapshot(self, *, limit: int = 40) -> dict:
         """Return OddsEngine's Advanced whale/depth snapshot for ProphetX.

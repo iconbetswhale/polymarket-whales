@@ -1188,6 +1188,15 @@ def create_app(start_background: bool = True) -> Flask:
             odds_screen_provider_catalog=oddsengine_provider_catalog(),
         )
 
+    @app.route("/futures")
+    def futures_page():
+        return render_template(
+            "futures.html",
+            title="IconLabs Futures Odds",
+            page="futures",
+            futures_provider_catalog=oddsengine_provider_catalog(),
+        )
+
     @app.route("/dfs")
     def dfs_page():
         return render_template(
@@ -2454,6 +2463,75 @@ def create_app(start_background: bool = True) -> Flask:
                 f"public, max-age=15, s-maxage={edge_ttl}, "
                 "stale-while-revalidate=60"
             )
+        return response
+
+    @app.route("/api/futures")
+    def api_futures():
+        """Dynamic, read-only inventory of every future exposed by OddsEngine."""
+
+        if request.args.get("active", "").strip().lower() not in {
+            "1",
+            "true",
+            "yes",
+        }:
+            return jsonify(
+                {
+                    "data": [],
+                    "providers": [],
+                    "leagues": [],
+                    "markets": [],
+                    "futureTypes": [],
+                    "paused": True,
+                    "message": "Futures discovery is paused.",
+                }
+            )
+
+        provider = app.extensions.get("odds_engine_provider")
+        if provider is None or not callable(
+            getattr(provider, "futures_screen_snapshot", None)
+        ):
+            return (
+                jsonify(
+                    {
+                        "configured": False,
+                        "complete": False,
+                        "data": [],
+                        "providers": [],
+                        "leagues": [],
+                        "markets": [],
+                        "futureTypes": [],
+                        "message": "OddsEngine is not configured.",
+                    }
+                ),
+                503,
+            )
+        try:
+            payload = (
+                provider.futures_screen_snapshot(force=True)
+                if request.args.get("_")
+                else provider.futures_screen_snapshot()
+            )
+        except Exception as exc:
+            LOGGER.warning("Futures odds refresh failed: %s", type(exc).__name__)
+            return (
+                jsonify(
+                    {
+                        "configured": True,
+                        "complete": False,
+                        "data": [],
+                        "providers": [],
+                        "leagues": [],
+                        "markets": [],
+                        "futureTypes": [],
+                        "message": "Futures odds are temporarily unavailable.",
+                    }
+                ),
+                502,
+            )
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = (
+            "public, max-age=15, s-maxage=60, stale-while-revalidate=180"
+        )
         return response
 
     @app.route("/api/arbitrage")

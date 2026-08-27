@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="futures-page">
+  <header class="futures-header">
+    <div class="futures-title-block">
+      <span class="futures-eyebrow"><i class="ph ph-trophy" aria-hidden="true"></i> Long-term markets</span>
+      <div class="futures-title-row">
+        <div>
+          <h1>Futures Odds</h1>
+          <p>Every outright market currently available from OddsEngine, compared across books.</p>
+        </div>
+        <span class="futures-live-status" id="futures-live-status" role="status"><i aria-hidden="true"></i><strong>Discovering markets</strong></span>
+      </div>
+    </div>
+    <div class="futures-summary" aria-label="Futures inventory summary">
+      <span><small>Markets</small><strong id="futures-market-count">—</strong></span>
+      <span><small>Selections</small><strong id="futures-selection-count">—</strong></span>
+      <span><small>Books</small><strong id="futures-book-count">—</strong></span>
+    </div>
+  </header>
+
+  <section class="futures-control-deck" aria-label="Futures filters">
+    <div class="futures-view-toggle" role="group" aria-label="Odds view">
+      <button class="active" type="button" aria-pressed="true"><i class="ph ph-table" aria-hidden="true"></i> Odds board</button>
+      <a href="{{ url_for('odds_screen_page') }}"><i class="ph ph-calendar-dots" aria-hidden="true"></i> Daily games</a>
+    </div>
+
+    <div class="futures-filters">
+      <label class="futures-select-control">
+        <span>League</span>
+        <span><img id="futures-league-icon" src="{{ url_for('static', filename='assets/leagues/mlb.png') }}" alt=""><select id="futures-league"><option value="">All leagues</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span>
+      </label>
+      <label class="futures-select-control futures-market-select">
+        <span>Market</span>
+        <span><i class="ph ph-trophy" aria-hidden="true"></i><select id="futures-market"><option value="">All futures</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span>
+      </label>
+      <label class="futures-select-control futures-sort-select">
+        <span>Sort</span>
+        <span><i class="ph ph-sort-ascending" aria-hidden="true"></i><select id="futures-sort"><option value="best">Favorite first</option><option value="name">Selection A–Z</option><option value="market">Market</option><option value="probability">Longest odds</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span>
+      </label>
+      <label class="futures-search-control">
+        <span>Search</span>
+        <span><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="futures-search" type="search" placeholder="Team, player, or market" autocomplete="off"><button id="futures-search-clear" type="button" aria-label="Clear search" hidden><i class="ph ph-x" aria-hidden="true"></i></button></span>
+      </label>
+      <div class="futures-book-filter">
+        <span>Sportsbooks</span>
+        <button id="futures-books-trigger" type="button" aria-expanded="false" aria-controls="futures-books-popover"><i class="ph ph-buildings" aria-hidden="true"></i><strong id="futures-books-label">All books</strong><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+        <section class="futures-books-popover" id="futures-books-popover" hidden>
+          <header><div><strong>Sportsbooks</strong><small>Choose columns to compare</small></div><button id="futures-books-close" type="button" aria-label="Close sportsbook filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+          <div class="futures-book-actions"><button id="futures-books-all" type="button">Select all</button><button id="futures-books-none" type="button">Clear</button></div>
+          <div class="futures-book-options" id="futures-book-options"></div>
+          <button class="futures-books-apply" id="futures-books-apply" type="button">Apply books</button>
+        </section>
+      </div>
+      <button class="futures-refresh" id="futures-refresh" type="button" aria-label="Refresh futures odds"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh</span></button>
+    </div>
+
+    <nav class="futures-league-tabs" id="futures-league-tabs" aria-label="Quick league filter">
+      <button class="active" type="button" data-futures-league="" aria-pressed="true"><i class="ph ph-globe-hemisphere-west" aria-hidden="true"></i>All markets</button>
+    </nav>
+  </section>
+
+  <section class="futures-board" aria-label="Futures odds comparison">
+    <div class="futures-board-meta">
+      <div><span class="futures-source-mark"><i class="ph ph-lightning" aria-hidden="true"></i></span><strong id="futures-board-title">All available futures</strong><small id="futures-board-subtitle">Scanning every active league</small></div>
+      <span id="futures-inventory-state"><i class="ph ph-database" aria-hidden="true"></i> Live API inventory</span>
+    </div>
+    <div class="futures-table-scroll" id="futures-table-scroll">
+      <table class="futures-table">
+        <thead>
+          <tr id="futures-table-head">
+            <th class="futures-selection-head" scope="col">Selection</th>
+            <th class="futures-best-head" scope="col"><span>Best odds</span><small>Top available price</small></th>
+          </tr>
+        </thead>
+        <tbody id="futures-table-body" aria-live="polite">
+          <tr class="futures-state-row"><td colspan="8"><div class="futures-loading"><i class="ph ph-spinner-gap" aria-hidden="true"></i><strong>Finding futures across every league</strong><small>Championships, awards, playoffs, divisions, win totals, and any other live outright.</small></div></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <footer class="futures-footer">
+      <span id="futures-results-label">Discovering available futures…</span>
+      <span id="futures-updated-label"><i class="ph ph-clock" aria-hidden="true"></i> Waiting for first snapshot</span>
+    </footer>
+  </section>
+</section>
+<script id="futures-provider-catalog" type="application/json">{{ futures_provider_catalog | tojson }}</script>
+{% endblock %}
