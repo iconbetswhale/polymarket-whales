@@ -841,9 +841,9 @@ body[data-design-system="v2"][data-page="dfs"] #dfs-line-head,
 body[data-design-system="v2"][data-page="dfs"] .algo-odds-head,
 body[data-design-system="v2"][data-page="dfs"] .algo-odds-cell,
 body[data-design-system="v2"][data-page="dfs"] .compare-book {
-  width: 88px;
-  min-width: 88px;
-  max-width: 88px;
+  width: 72px;
+  min-width: 72px;
+  max-width: 72px;
   white-space: normal;
 }
 

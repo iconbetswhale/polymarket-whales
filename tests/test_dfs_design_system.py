@@ -178,11 +178,11 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
     assert "padding-top: 14px;" in CSS
 
 
-def test_iconlabs_column_matches_book_width_and_alternate_line_does_not_shift_odds() -> None:
+def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odds() -> None:
     assert '.algo-odds-head,\nbody[data-design-system="v2"][data-page="dfs"] .algo-odds-cell' in CSS
-    assert "width: 88px;" in CSS
-    assert "min-width: 88px;" in CSS
-    assert "max-width: 88px;" in CSS
+    assert "width: 72px;" in CSS
+    assert "min-width: 72px;" in CSS
+    assert "max-width: 72px;" in CSS
     assert "alternateLine===null?'':'has-alternate'" in SCRIPT
     assert ".book-cell.has-alternate > strong" in CSS
     assert "top: 50%;" in CSS
