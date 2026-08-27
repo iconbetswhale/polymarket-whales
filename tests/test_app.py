@@ -466,6 +466,7 @@ def test_positive_ev_page_uses_complete_oddsengine_book_catalog(app_client):
     assert 'bankroll:bankrollConfig.amount' in positive_ev_javascript
     assert "previewOnly" not in positive_ev_javascript
     assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
+    assert "/api/positive-ev/live" in positive_ev_javascript
     assert "/api/positive-ev/line-history" in positive_ev_javascript
     assert "no synthetic points" in positive_ev_javascript
 
@@ -773,6 +774,56 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     assert bad_source.status_code == 400
     assert bad_source.get_json()["error"] == "INVALID_DEVIG_SOURCE"
     assert len(calls) == 4
+
+
+def test_positive_ev_public_live_feed_reuses_last_good_snapshot_during_provider_failure(
+    app_client, temp_settings, monkeypatch
+):
+    object.__setattr__(temp_settings, "positive_ev_enabled", True)
+    object.__setattr__(temp_settings, "novig_api_key", "all-lines-key")
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "novig"
+    )
+    provider.api_key = "all-lines-key"
+    calls = 0
+
+    def ev_events(*, sport_keys, market_keys):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise ValueError("upstream unavailable")
+        return []
+
+    monkeypatch.setattr(provider, "ev_events", ev_events)
+    monkeypatch.setattr(
+        provider,
+        "diagnostics",
+        lambda authenticate=False: {
+            "provider": "sports_game_odds",
+            "quota": {},
+        },
+    )
+
+    live = app_client.get("/api/positive-ev/live")
+
+    assert live.status_code == 200
+    assert live.get_json()["degraded"] is False
+    assert live.headers["Cache-Control"] == (
+        "public, max-age=5, s-maxage=15, stale-while-revalidate=120"
+    )
+    assert "iconbets_user" not in live.headers.get("Set-Cookie", "")
+
+    degraded = app_client.get("/api/positive-ev/live")
+    payload = degraded.get_json()
+
+    assert degraded.status_code == 200
+    assert payload["degraded"] is True
+    assert payload["stale"] is True
+    assert payload["upstreamStatus"] == "PROVIDER_ERROR"
+    assert payload["message"] == (
+        "Recent verified odds shown while the live feed reconnects."
+    )
 
 
 def test_app_starts_with_no_enabled_wallets(tmp_path):
@@ -1311,7 +1362,9 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
 def test_tracker_page_uses_one_shared_shell_for_both_trackers(app_client):
     html = app_client.get("/tracker?view=personal").get_data(as_text=True)
 
-    assert html.count('href="/tracker"') == 1
+    # The same tracker workspace is reachable from the desktop sidebar and the
+    # responsive bottom navigation; neither link points at a second tracker.
+    assert html.count('href="/tracker"') == 2
     assert 'id="tracker-metrics"' in html
     assert 'id="tracker-chart"' in html
     assert 'id="tracker-summary-clv"' in html

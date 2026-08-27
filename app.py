@@ -752,6 +752,47 @@ def create_app(start_background: bool = True) -> Flask:
             raise last_error
         return providers[0], []
 
+    positive_ev_live_snapshots: dict[str, dict] = {}
+    positive_ev_live_snapshots_lock = threading.RLock()
+
+    def positive_ev_live_cache_key() -> str:
+        return request.query_string.decode("utf-8", errors="ignore")
+
+    def positive_ev_degraded_response(error_code: str):
+        """Keep the public board usable while an upstream feed reconnects."""
+        cache_key = positive_ev_live_cache_key()
+        with positive_ev_live_snapshots_lock:
+            cached = positive_ev_live_snapshots.get(cache_key)
+            if cached:
+                stored_at = datetime.fromisoformat(str(cached["storedAt"]))
+                if datetime.now(timezone.utc) - stored_at > timedelta(minutes=15):
+                    positive_ev_live_snapshots.pop(cache_key, None)
+                    cached = None
+        if cached:
+            payload = dict(cached["payload"])
+            payload.update(
+                {
+                    "degraded": True,
+                    "stale": True,
+                    "message": "Recent verified odds shown while the live feed reconnects.",
+                    "upstreamStatus": error_code,
+                }
+            )
+        else:
+            payload = {
+                "data": [],
+                "total": 0,
+                "configured": bool(odds_feed_providers()),
+                "degraded": True,
+                "stale": False,
+                "message": "Live odds are reconnecting. The board will retry automatically.",
+                "refreshSeconds": 5,
+                "upstreamStatus": error_code,
+            }
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+        return response
+
     def refresh_polymarket_execution_quotes(trades: list[dict]) -> None:
         """Attach current CLOB depth used only for provider line-shopping."""
         tracker.refresh_execution_quotes(trades)
@@ -762,6 +803,7 @@ def create_app(start_background: bool = True) -> Flask:
         "api_low_hold",
         "api_middles",
         "api_odds_screen",
+        "api_positive_ev_live",
         "api_sharp_money_live",
         "api_sharp_money_sandbox",
         "api_sharp_money_status",
@@ -3148,8 +3190,10 @@ def create_app(start_background: bool = True) -> Flask:
         return response
 
     @app.route("/api/positive-ev")
+    @app.route("/api/positive-ev/live", endpoint="api_positive_ev_live")
     def api_positive_ev():
         """Demand-driven +EV feed. It never mutates Prediction Traders."""
+        public_live_feed = request.endpoint == "api_positive_ev_live"
         positive_ev_configured = bool(odds_feed_providers())
         devig_method = request.args.get("devig_method", "power").strip().lower()
         if devig_method not in DEVIG_METHODS:
@@ -3390,13 +3434,22 @@ def create_app(start_background: bool = True) -> Flask:
                 ),
             )
             rows = board["data"]
-            tracking = tracker.database.record_ev_board(g.iconbets_user_id, rows)
+            tracking_user_id = "public-feed" if public_live_feed else g.iconbets_user_id
+            tracking = tracker.database.record_ev_board(tracking_user_id, rows)
             lab_tracking = app.extensions[
                 "lab_tracker_service"
             ].observe_positive_ev(rows[:250])
-            visible_rows = visible_positive_ev_rows(rows, g.iconbets_user_id)
+            visible_rows = (
+                rows
+                if public_live_feed
+                else visible_positive_ev_rows(rows, g.iconbets_user_id)
+            )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
+            if public_live_feed:
+                return positive_ev_degraded_response(
+                    "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+                )
             return jsonify(
                 {
                     "data": [],
@@ -3405,13 +3458,14 @@ def create_app(start_background: bool = True) -> Flask:
             ), 429 if status == 429 else 502
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Positive EV refresh failed: %s", type(exc).__name__)
+            if public_live_feed:
+                return positive_ev_degraded_response("PROVIDER_ERROR")
             return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
-        response = jsonify(
-            {
-                "data": visible_rows[:250],
-                "total": len(visible_rows),
+        response_payload = {
+                "data": (rows if public_live_feed else visible_rows)[:250],
+                "total": len(rows if public_live_feed else visible_rows),
                 "diagnostics": board["diagnostics"],
                 "tracking": tracking,
                 "labTracker": lab_tracking,
@@ -3432,9 +3486,29 @@ def create_app(start_background: bool = True) -> Flask:
                     if set(market_keys).issubset(set(MAIN_MARKETS))
                     else 60
                 ),
+                "degraded": False,
+                "stale": False,
             }
+        if public_live_feed:
+            with positive_ev_live_snapshots_lock:
+                cache_key = positive_ev_live_cache_key()
+                if (
+                    cache_key not in positive_ev_live_snapshots
+                    and len(positive_ev_live_snapshots) >= 64
+                ):
+                    positive_ev_live_snapshots.pop(
+                        next(iter(positive_ev_live_snapshots)), None
+                    )
+                positive_ev_live_snapshots[cache_key] = {
+                    "payload": response_payload,
+                    "storedAt": datetime.now(timezone.utc).isoformat(),
+                }
+        response = jsonify(response_payload)
+        response.headers["Cache-Control"] = (
+            "public, max-age=5, s-maxage=15, stale-while-revalidate=120"
+            if public_live_feed
+            else "private, no-store"
         )
-        response.headers["Cache-Control"] = "private, no-store"
         return response
 
     @app.route("/api/lab-tracker")

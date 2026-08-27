@@ -909,9 +909,8 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-loading span { animation-duration: 1.8s; }
 }
 
-/* Reference-led +EV market scanner. The desktop route intentionally becomes a
-   focused full-canvas tool while compact navigation remains available below
-   the desktop breakpoint. */
+/* Reference-led +EV market scanner. The reference controls the tool interior;
+   the shared IconLabs shell remains authoritative for global navigation. */
 body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selection { display: none; }
 
 @media (min-width: 981px) {
@@ -930,24 +929,6 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
     color: var(--ev-ref-text);
   }
 
-  body[data-design-system="v2"][data-page="positive-ev"] .app-nav,
-  body[data-design-system="v2"][data-page="positive-ev"] .mobile-bottom-nav,
-  body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-backdrop,
-  body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-sheet {
-    display: none;
-  }
-
-  body[data-design-system="v2"][data-page="positive-ev"] .app-shell,
-  body[data-design-system="v2"][data-page="positive-ev"].sidebar-expanded .app-shell {
-    width: 100vw;
-    max-width: none;
-    height: 100dvh;
-    margin: 0;
-    padding: 0;
-    overflow: hidden;
-    background: var(--ev-ref-bg);
-  }
-
   body[data-design-system="v2"][data-page="positive-ev"] .ev-page,
   body[data-design-system="v2"][data-page="positive-ev"] .ev-content {
     height: 100%;
@@ -960,10 +941,10 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   }
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar {
-    min-height: 106px;
-    height: 106px;
-    padding: 0 28px;
-    gap: 24px;
+    min-height: 92px;
+    height: 92px;
+    padding: 0 4px;
+    gap: 18px;
     border: 0;
     border-bottom: 1px solid var(--ev-ref-border);
     background: var(--ev-ref-bg);
@@ -1028,7 +1009,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   body[data-design-system="v2"][data-page="positive-ev"] .ev-mobile-info-panel { display: flex; align-items: center; gap: 7px; }
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-search.search-control {
-    width: 234px;
+    width: 210px;
     height: 47px;
     margin-right: 9px;
     padding: 0 14px;
@@ -1083,9 +1064,9 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-workspace {
     min-height: 0;
-    padding: 0 22px 47px 29px;
-    grid-template-columns: minmax(0, 2.13fr) minmax(360px, 1fr);
-    gap: 29px;
+    padding: 0 0 20px;
+    grid-template-columns: minmax(0, 1fr) minmax(340px, .45fr);
+    gap: 16px;
     overflow: hidden;
   }
 
@@ -1129,7 +1110,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity.watch {
     min-height: 133px;
     flex: 0 0 133px;
-    grid-template-columns: 128px minmax(225px, .88fr) 128px minmax(292px, 1.09fr);
+    grid-template-columns: 108px minmax(180px, 1fr) 104px minmax(238px, 1.2fr);
     border: 1px solid var(--ev-ref-border);
     border-radius: 6px;
     background: var(--ev-ref-panel);
@@ -1239,7 +1220,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity > .ev-execution {
     padding: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) 104px;
+    grid-template-columns: minmax(0, 1fr) 92px;
     gap: 0;
     border-right: 0;
   }
@@ -1247,7 +1228,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metrics {
     height: 100%;
     display: grid;
-    grid-template-columns: repeat(2, minmax(76px, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0;
   }
 
@@ -1270,9 +1251,9 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote,
   body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote:hover {
-    min-width: 104px;
+    min-width: 92px;
     min-height: 51px;
-    margin: auto 14px auto 0;
+    margin: auto 10px auto 0;
     padding: 0 9px;
     gap: 7px;
     border: 1px solid var(--il-border-standard);

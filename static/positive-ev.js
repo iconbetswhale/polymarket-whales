@@ -832,7 +832,7 @@
   }
   function query() {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
-    return `/api/positive-ev?${params}`;
+    return `/api/positive-ev/live?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
     const reasons = diagnostics.rejectionReasons || {};
@@ -846,7 +846,7 @@
   async function load(force=false) {
     if (paused && !force) return;
     const url = query();
-    const cacheKey = pagePayloadCacheKey("positive-ev", url);
+    const cacheKey = pagePayloadCacheKey("positive-ev", url.replace("/positive-ev/live", "/positive-ev"));
     let showedCached = false;
     if (!rows.length) {
       const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
@@ -867,6 +867,15 @@
       const response = await fetch(url, {headers:{"Accept":"application/json"}});
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Unable to load feed");
+      if (payload.degraded && rows.length && !(payload.data || []).length) {
+        retryCount += 1;
+        $("ev-updated").textContent = "Recent scan shown · live feed reconnecting";
+        $("ev-feed-label").textContent = "Live feed reconnecting";
+        feed.setAttribute("aria-busy", "false");
+        clearTimeout(timer);
+        timer = setTimeout(() => load(), Math.max(3000, Number(payload.refreshSeconds || 5) * 1000));
+        return;
+      }
       writePagePayloadCache(cacheKey, payload);
       retryCount = 0;
       if (payload.paused) {
@@ -889,7 +898,10 @@
       }
       rows = payload.data || [];
       $("ev-count").textContent = rows.length;
-      $("ev-updated").textContent = `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
+      $("ev-updated").textContent = payload.degraded
+        ? "Recent verified odds · live feed reconnecting"
+        : `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
+      $("ev-feed-label").textContent = payload.degraded ? "Live feed reconnecting" : "Live market scan";
       let history = {};
       try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
       renderDiagnostics(payload.diagnostics || {}, history);

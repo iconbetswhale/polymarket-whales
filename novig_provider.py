@@ -1106,6 +1106,7 @@ class NoVIGStateStore:
         if not self.configured:
             return []
         try:
+            self.initialize()
             clauses = []
             params: list[object] = []
             if league:
@@ -1135,6 +1136,7 @@ class NoVIGStateStore:
         if not self.configured:
             return None
         try:
+            self.initialize()
             with self._connect() as conn:
                 row = conn.execute(
                     "SELECT state_json FROM novig_market_state WHERE market_id = %s",
@@ -1175,6 +1177,7 @@ class NoVIGStateStore:
         if not self.configured:
             return {}
         try:
+            self.initialize()
             with self._connect() as conn:
                 row = conn.execute(
                     "SELECT status_json, updated_at FROM novig_feed_status "
