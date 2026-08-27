@@ -691,6 +691,7 @@ def test_settings_read_oddsengine_values_without_repr_leak(monkeypatch) -> None:
     monkeypatch.setenv("ODDSENGINE_CACHE_TTL_SECONDS", "75")
     monkeypatch.setenv("ODDSENGINE_MAX_EVENTS_PER_LEAGUE", "9")
     monkeypatch.setenv("ODDSENGINE_MAX_TOTAL_EVENTS", "31")
+    monkeypatch.setenv("SHARP_MONEY_ADVANCED_ORDERBOOK_ENABLED", "true")
 
     settings = get_settings()
 
@@ -699,4 +700,5 @@ def test_settings_read_oddsengine_values_without_repr_leak(monkeypatch) -> None:
     assert settings.oddsengine_cache_ttl_seconds == 75
     assert settings.oddsengine_max_events_per_league == 9
     assert settings.oddsengine_max_total_events == 31
+    assert settings.sharp_money_advanced_orderbook_enabled is True
     assert "settings-secret" not in repr(settings)

@@ -64,13 +64,14 @@ def test_sharp_money_surfaces_provider_entitlement_errors_instead_of_waiting():
 
     assert 'payload.signalMode === "quote_consensus"' in script
     assert "Live price movement" in script
-    assert "Full order-book depth activates automatically with an Advanced key" in script
+    assert "Advanced order-book depth can be enabled when the API key includes it" in script
     assert 'signal.depthAvailable === false ? "Price Pressure" : "Sharp Money"' in script
     assert "exact book" in script
     assert "advancedPlanRequired" in script
     assert "OddsEngine Advanced access required" in script
     assert "Upgrade OddsEngine to Advanced" in script
     assert "Order-book access blocked" in script
+    assert "Price feed temporarily unavailable" in script
 
 
 def test_sharp_money_reference_redesign_has_list_detail_contract():

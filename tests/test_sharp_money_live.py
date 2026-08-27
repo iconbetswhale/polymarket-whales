@@ -275,6 +275,7 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
         provider,
         local_control=False,
         automatic_refresh_seconds=30,
+        advanced_orderbook_enabled=True,
     )
 
     payload = collector.payload(refresh_if_stale=True)
@@ -309,16 +310,14 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
     }
 
 
-@pytest.mark.parametrize("advanced_status", [403, 503])
-def test_oddsengine_standard_plan_falls_back_to_exact_quote_consensus(
-    advanced_status,
-):
+def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_probe():
     provider = FakeOddsEngineOrderBook()
+    advanced_calls = 0
 
     def reject(*, limit=40):
-        response = requests.Response()
-        response.status_code = advanced_status
-        raise requests.HTTPError(response=response)
+        nonlocal advanced_calls
+        advanced_calls += 1
+        raise AssertionError("Standard mode must not call the Advanced endpoint")
 
     provider.sharp_money_snapshot = reject
     provider.sharp_money_quote_snapshot = lambda *, limit=40: {
@@ -387,7 +386,9 @@ def test_oddsengine_standard_plan_falls_back_to_exact_quote_consensus(
 
     payload = collector.payload(refresh_if_stale=True)
 
+    assert advanced_calls == 0
     assert payload["lastError"] is None
+    assert payload["advancedOrderBookEnabled"] is False
     assert payload["signalMode"] == "quote_consensus"
     assert payload["signalCount"] == 1
     signal = payload["signals"][0]
@@ -428,6 +429,7 @@ def test_oddsengine_advanced_plan_error_reports_safe_http_status():
         provider,
         fallback_source=BrokenFallback(),
         local_control=False,
+        advanced_orderbook_enabled=True,
     )
 
     payload = collector.payload(refresh_if_stale=True)
@@ -437,3 +439,25 @@ def test_oddsengine_advanced_plan_error_reports_safe_http_status():
         "OddsEngine rejected Advanced order-book access (HTTP 403). "
         "Confirm this API key includes the Advanced plan."
     )
+
+
+def test_oddsengine_standard_error_never_reports_an_advanced_upgrade():
+    provider = FakeOddsEngineOrderBook()
+
+    def reject(*, limit=40):
+        response = requests.Response()
+        response.status_code = 403
+        raise requests.HTTPError(response=response)
+
+    provider.sharp_money_quote_snapshot = reject
+    collector = SharpMoneyCollector(provider, local_control=False)
+
+    payload = collector.payload(refresh_if_stale=True)
+
+    assert payload["advancedOrderBookEnabled"] is False
+    assert payload["signals"] == []
+    assert payload["lastError"] == (
+        "OddsEngine rejected Sharp Money price-feed access (HTTP 403)."
+    )
+    assert "Advanced" not in payload["lastError"]
+    assert "plan" not in payload["lastError"].lower()

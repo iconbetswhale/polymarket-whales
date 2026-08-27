@@ -118,6 +118,7 @@ class Settings:
     oddsengine_cache_ttl_seconds: int = 45
     oddsengine_max_events_per_league: int = 5
     oddsengine_max_total_events: int = 20
+    sharp_money_advanced_orderbook_enabled: bool = False
     the_odds_api_key: str | None = field(default=None, repr=False)
     the_odds_api_base_url: str = "https://api.the-odds-api.com/v4"
     the_odds_api_regions: tuple[str, ...] = (
@@ -331,6 +332,9 @@ def get_settings() -> Settings:
         ),
         oddsengine_max_total_events=max(
             1, _get_int("ODDSENGINE_MAX_TOTAL_EVENTS", 20)
+        ),
+        sharp_money_advanced_orderbook_enabled=_get_bool(
+            "SHARP_MONEY_ADVANCED_ORDERBOOK_ENABLED", False
         ),
         the_odds_api_key=os.getenv("THE_ODDS_API_KEY") or None,
         the_odds_api_base_url=os.getenv(

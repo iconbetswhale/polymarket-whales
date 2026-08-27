@@ -310,6 +310,7 @@ class SharpMoneyCollector:
         poll_seconds: float = 1.0,
         comparison_seconds: float = 60.0,
         automatic_refresh_seconds: float = 30.0,
+        advanced_orderbook_enabled: bool = False,
         local_control: bool | None = None,
     ) -> None:
         self.prophetx = prophetx_provider
@@ -321,6 +322,7 @@ class SharpMoneyCollector:
         self.automatic_refresh_seconds = max(
             20.0, float(automatic_refresh_seconds)
         )
+        self.advanced_orderbook_enabled = bool(advanced_orderbook_enabled)
         self.local_control = (
             not bool(os.getenv("VERCEL"))
             if local_control is None
@@ -358,26 +360,36 @@ class SharpMoneyCollector:
             return False
         return any(
             self._configured(provider)
-            and hasattr(provider, "sharp_money_snapshot")
+            and (
+                hasattr(provider, "sharp_money_quote_snapshot")
+                or hasattr(provider, "sharp_money_snapshot")
+            )
             for provider in (self.prophetx, self.fallback_source)
         )
 
-    @staticmethod
-    def _orderbook_error_message(exc: Exception) -> str:
+    def _orderbook_error_message(self, exc: Exception) -> str:
         response = getattr(exc, "response", None)
         status = getattr(response, "status_code", None)
         if status == 401:
             return "OddsEngine rejected the API key (HTTP 401)."
         if status == 403:
+            if not self.advanced_orderbook_enabled:
+                return "OddsEngine rejected Sharp Money price-feed access (HTTP 403)."
             return (
                 "OddsEngine rejected Advanced order-book access (HTTP 403). "
                 "Confirm this API key includes the Advanced plan."
             )
         if status == 429:
-            return "OddsEngine order-book rate limit reached (HTTP 429)."
+            return (
+                "OddsEngine order-book rate limit reached (HTTP 429)."
+                if self.advanced_orderbook_enabled
+                else "OddsEngine price-feed rate limit reached (HTTP 429)."
+            )
         if status is not None:
-            return f"OddsEngine order-book request failed (HTTP {status})."
-        return "OddsEngine order-book request failed before an HTTP response."
+            feed = "order-book" if self.advanced_orderbook_enabled else "price-feed"
+            return f"OddsEngine {feed} request failed (HTTP {status})."
+        feed = "order-book" if self.advanced_orderbook_enabled else "price-feed"
+        return f"OddsEngine {feed} request failed before an HTTP response."
 
     def play(self) -> tuple[bool, str]:
         if not self.local_control:
@@ -429,6 +441,7 @@ class SharpMoneyCollector:
                 "running": running,
                 "paused": not running,
                 "automatic": automatic,
+                "advancedOrderBookEnabled": self.advanced_orderbook_enabled,
                 "localControl": self.local_control,
                 "readOnly": True,
                 "executionEnabled": False,
@@ -554,7 +567,19 @@ class SharpMoneyCollector:
             try:
                 if not self._configured(provider):
                     continue
-                if hasattr(provider, "sharp_money_snapshot"):
+                if (
+                    hasattr(provider, "sharp_money_quote_snapshot")
+                    and not self.advanced_orderbook_enabled
+                ):
+                    return (
+                        provider,
+                        "odds_engine_quotes",
+                        provider.sharp_money_quote_snapshot(limit=40),
+                    )
+                if (
+                    self.advanced_orderbook_enabled
+                    and hasattr(provider, "sharp_money_snapshot")
+                ):
                     try:
                         return (
                             provider,
@@ -577,6 +602,12 @@ class SharpMoneyCollector:
                             "odds_engine_quotes",
                             provider.sharp_money_quote_snapshot(limit=40),
                         )
+                if hasattr(provider, "sharp_money_quote_snapshot"):
+                    return (
+                        provider,
+                        "odds_engine_quotes",
+                        provider.sharp_money_quote_snapshot(limit=40),
+                    )
                 return provider, "prophetx_rest", provider.live_market_snapshot()
             except Exception as exc:
                 status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -1418,5 +1449,8 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
         ),
         automatic_refresh_seconds=float(
             os.getenv("SHARP_MONEY_ODDSENGINE_REFRESH_SECONDS", "30")
+        ),
+        advanced_orderbook_enabled=bool(
+            getattr(settings, "sharp_money_advanced_orderbook_enabled", False)
         ),
     )
