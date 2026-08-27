@@ -488,7 +488,7 @@ class SharpMoneyCollector:
     def play(self) -> tuple[bool, str]:
         if not self.local_control:
             if self._automatic():
-                return False, "OddsEngine order-book refresh is automatic."
+                return False, "Sharp Money order-book refresh is automatic."
             return False, "Live Sharp Money control is local-only."
         if self.prophetx is None:
             return False, "No Sharp Money depth source is configured."
@@ -529,6 +529,19 @@ class SharpMoneyCollector:
             automatic = self._automatic()
             running = self._running or automatic
             source = self._active_source or self.prophetx
+            source_diagnostics = {}
+            for provider in (self.prophetx, self.fallback_source):
+                if provider is None or not hasattr(provider, "diagnostics"):
+                    continue
+                key = str(getattr(provider, "provider_key", "source"))
+                try:
+                    source_diagnostics[key] = provider.diagnostics()
+                except Exception:
+                    source_diagnostics[key] = {
+                        "provider": key,
+                        "configured": False,
+                        "status": "diagnostic unavailable",
+                    }
             return {
                 "schemaVersion": "sharp-money-live-v1",
                 "mode": "live" if running else "paused",
@@ -567,6 +580,7 @@ class SharpMoneyCollector:
                     if provider is not None
                     and getattr(provider, "provider_key", None)
                 ],
+                "sourceDiagnostics": source_diagnostics,
                 "comparisonProvider": self._odds_diagnostics(),
             }
 

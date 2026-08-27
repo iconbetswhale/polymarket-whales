@@ -418,7 +418,7 @@ def test_local_control_is_disabled_in_serverless_mode():
     accepted, message = collector.play()
 
     assert accepted is False
-    assert "local-only" in message
+    assert "refresh is automatic" in message
     assert provider.calls == 0
 
 
