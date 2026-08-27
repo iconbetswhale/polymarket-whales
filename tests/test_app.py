@@ -1126,6 +1126,23 @@ def test_sharp_money_cached_reads_never_touch_live_tracker_or_provider(
     assert payload["trackerWritesEnabled"] is False
 
 
+def test_sharp_money_provider_errors_are_not_cached(app_client, monkeypatch):
+    collector = app_client.application.extensions["sharp_money_collector"]
+    monkeypatch.setattr(
+        collector,
+        "payload",
+        lambda **_kwargs: {
+            "signals": [],
+            "lastError": "temporary provider outage",
+        },
+    )
+
+    response = app_client.get("/api/sharp-money/live")
+
+    assert response.status_code == 200
+    assert response.headers["Cache-Control"] == "no-store"
+
+
 def test_sharp_money_preview_parameter_reads_live_collector(app_client, monkeypatch):
     collector = app_client.application.extensions["sharp_money_collector"]
     lab_tracker = app_client.application.extensions["lab_tracker_service"]
@@ -1167,7 +1184,8 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control(state.payload?.running ? "pause" : "play")' in script
     assert "function combinedDepthLiquidity" in script
-    assert 'title="Combined NoVIG + ProphetX liquidity"' in script
+    assert "Combined NoVIG + ProphetX liquidity" in script
+    assert "Sharp-consensus price pressure" in script
     assert "/api/odds-screen" not in script
     assert "active=1" not in script
     assert "sharp-sportsbook-filter-v1" in script

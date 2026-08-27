@@ -2020,7 +2020,9 @@ def create_app(start_background: bool = True) -> Flask:
         )
         response = jsonify(payload)
         response.headers["Cache-Control"] = (
-            "public, max-age=10, s-maxage=30, stale-while-revalidate=60"
+            "no-store"
+            if payload.get("lastError") and not signals
+            else "public, max-age=10, s-maxage=30, stale-while-revalidate=60"
         )
         return response
 
