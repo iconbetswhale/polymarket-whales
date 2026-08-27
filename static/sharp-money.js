@@ -235,6 +235,22 @@
     return values.length ? values.reduce((total, value) => total + value, 0) : null;
   }
 
+  function signalHeadline(signal) {
+    return signal.depthAvailable === false
+      ? pct(signal.pressure, true)
+      : liquidityMoney(combinedDepthLiquidity(signal));
+  }
+
+  function signalHeadlineLabel(signal) {
+    return signal.depthAvailable === false ? "Price Pressure" : "Sharp Money";
+  }
+
+  function signalCoverageLabel(signal) {
+    if (signal.depthAvailable !== false) return pinnacleLimitLabel(signal);
+    const count = (signal.comparisonLines || []).length;
+    return `${count} exact book${count === 1 ? "" : "s"}`;
+  }
+
   function sportsbookAction(quote, fallbackOdds) {
     if (!quote) {
       return `<span class="sharp-sportsbook-action unavailable"><small>Sportsbook</small><b>Awaiting line</b></span>`;
@@ -272,9 +288,12 @@
       <div class="sharp-card-depth-sources">
       ${quotes.map(({ key, row }) => {
         const label = key === "novig" ? "NoVIG" : "ProphetX";
+        const secondary = signal.depthAvailable === false
+          ? row ? `${odds(row.americanOdds)} exact quote` : "Exact quote unavailable"
+          : row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} liquidity`;
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
-          <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} liquidity`}</small></span>
+          <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${escapeHtml(secondary)}</small></span>
         </div>`;
       }).join("")}
       </div>
@@ -294,9 +313,9 @@
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
-          <strong title="Combined NoVIG + ProphetX liquidity">${escapeHtml(liquidityMoney(combinedDepthLiquidity(signal)))}</strong>
-          <small>Sharp Money</small>
-          <span>${escapeHtml(pinnacleLimitLabel(signal))}</span>
+          <strong title="${signal.depthAvailable === false ? "Sharp-consensus price pressure" : "Combined NoVIG + ProphetX liquidity"}">${escapeHtml(signalHeadline(signal))}</strong>
+          <small>${escapeHtml(signalHeadlineLabel(signal))}</small>
+          <span>${escapeHtml(signalCoverageLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
           <div class="sharp-card-event">
@@ -331,6 +350,9 @@
   }
 
   function flowRows(signal) {
+    if (signal.depthAvailable === false) {
+      return `<div class="sharp-awaiting-lines">Order-book depth requires Advanced access. Exact two-sided prices remain available below.</div>`;
+    }
     const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.availableLiquidity != null);
     const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
     return rows.map(row => `
@@ -406,7 +428,7 @@
     return `
       <button class="sharp-mobile-close" id="sharp-detail-close" type="button" aria-label="Close market detail"><i class="ph ph-x"></i></button>
       <section class="sharp-detail-overview">
-        <header class="sharp-detail-head"><div class="sharp-detail-money"><strong class="sharp-detail-liquidity">${escapeHtml(money(signal.liquidity))}</strong><small>Sharp Money</small></div><div><span>${escapeHtml(competition)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
+        <header class="sharp-detail-head"><div class="sharp-detail-money"><strong class="sharp-detail-liquidity">${escapeHtml(signalHeadline(signal))}</strong><small>${escapeHtml(signalHeadlineLabel(signal))}</small></div><div><span>${escapeHtml(competition)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
         <section class="sharp-recommendation">
           <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
           <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
