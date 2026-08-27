@@ -505,3 +505,503 @@ body[data-design-system="v2"][data-page="futures"] a:focus-visible {
   .futures-refresh.loading i,
   .futures-loading > i { animation: none; }
 }
+
+/* Desktop alignment with the canonical Odds Screen. The futures page keeps
+   its outright-specific controls, but shares the same compact navigation and
+   dense comparison-matrix proportions. */
+@media (min-width: 761px) {
+  body[data-design-system="v2"][data-page="futures"] {
+    --futures-canvas: var(--il-bg-app, #111827);
+    --futures-panel: var(--il-surface-1, #090e1a);
+    --futures-panel-raised: var(--il-surface-2, #0a101c);
+    --futures-panel-soft: rgba(30, 41, 59, .62);
+    --futures-line: rgba(71, 85, 105, .30);
+    --futures-line-strong: rgba(71, 85, 105, .45);
+    --futures-copy: var(--il-text-primary, #f4f4f5);
+    --futures-secondary: var(--il-text-secondary, #b8bcc7);
+    --futures-muted: var(--il-text-muted, #7d8496);
+    overflow: hidden;
+  }
+
+  body[data-design-system="v2"][data-page="futures"] .app-shell {
+    height: 100vh;
+    overflow: hidden;
+    background: var(--futures-canvas);
+  }
+
+  .futures-page {
+    height: 80vh;
+    padding: 14px 14px 0;
+    grid-template-rows: auto auto minmax(0, 1fr);
+    gap: 0;
+    zoom: 1.25;
+    background: var(--futures-canvas);
+  }
+
+  .futures-header {
+    min-height: 48px;
+    align-items: flex-start;
+  }
+
+  .futures-eyebrow,
+  .futures-summary { display: none; }
+
+  .futures-title-row {
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .futures-title-row h1 {
+    font: 700 24px/1.08 var(--il-font-ui, "DM Sans", sans-serif);
+    letter-spacing: -.035em;
+  }
+
+  .futures-title-row p {
+    margin-top: 3px;
+    color: var(--futures-secondary);
+    font: 500 12px/1.25 var(--il-font-ui, "DM Sans", sans-serif);
+  }
+
+  .futures-live-status {
+    min-height: 24px;
+    margin-top: 1px;
+    padding: 0 8px;
+    border-color: var(--futures-line);
+    border-radius: 6px;
+    background: var(--futures-panel);
+  }
+
+  .futures-live-status strong {
+    font-size: 8px;
+    letter-spacing: .04em;
+  }
+
+  .futures-control-deck {
+    margin-top: 12px;
+    padding-bottom: 7px;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      "views leagues"
+      "filters filters";
+    gap: 7px 9px;
+    border: 0;
+    border-bottom: 1px solid var(--futures-line-strong);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .futures-view-toggle {
+    grid-area: views;
+    min-height: 36px;
+    padding: 0;
+    gap: 5px;
+    border: 0;
+  }
+
+  .futures-view-toggle button,
+  .futures-view-toggle a {
+    min-height: 36px;
+    padding: 0 13px;
+    border: 1px solid rgba(71, 85, 105, .35);
+    border-radius: 6px;
+    color: var(--futures-muted);
+    background: rgba(9, 14, 26, .72);
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .futures-view-toggle button.active {
+    border-color: #8b5cf6;
+    color: #fff;
+    background: linear-gradient(180deg, rgba(81, 61, 128, .30), rgba(18, 20, 34, .94));
+    box-shadow: inset 0 0 0 1px rgba(164, 118, 255, .24), 0 0 14px rgba(124, 58, 237, .12);
+  }
+
+  .futures-league-tabs {
+    grid-area: leagues;
+    min-height: 36px;
+    padding: 0;
+    gap: 3px;
+    border: 0;
+  }
+
+  .futures-league-tabs button {
+    min-height: 36px;
+    height: 36px;
+    padding: 0 11px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    color: #8e91a2;
+    font-size: 11px;
+    font-weight: 650;
+  }
+
+  .futures-league-tabs button.active {
+    border-color: rgba(133, 92, 246, .48);
+    color: #a987ff;
+    background: linear-gradient(180deg, rgba(82, 52, 144, .34), rgba(43, 29, 73, .68));
+    box-shadow: inset 0 1px 0 rgba(213, 195, 255, .09);
+  }
+
+  .futures-league-tabs button img {
+    width: 16px;
+    height: 16px;
+  }
+
+  .futures-filters {
+    grid-area: filters;
+    min-height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .futures-select-control,
+  .futures-search-control,
+  .futures-book-filter {
+    display: block;
+    flex: 0 0 auto;
+  }
+
+  .futures-select-control > span:first-child,
+  .futures-search-control > span:first-child,
+  .futures-book-filter > span:first-child { display: none; }
+
+  .futures-select-control > span:last-child,
+  .futures-search-control > span:last-child,
+  .futures-book-filter > button,
+  .futures-refresh {
+    height: 32px;
+    border-color: var(--futures-line);
+    border-radius: 6px;
+    background: var(--futures-panel-raised);
+  }
+
+  .futures-select-control > span:last-child,
+  .futures-search-control > span:last-child { padding: 0 9px; }
+
+  .futures-select-control select,
+  .futures-search-control input {
+    height: 30px;
+    font-size: 10px;
+  }
+
+  .futures-select-control { width: 118px; }
+  .futures-market-select { width: 166px; }
+  .futures-sort-select { width: 148px; }
+  .futures-search-control { min-width: 150px; flex: 1 1 220px; }
+  .futures-book-filter { width: 132px; }
+  .futures-refresh { width: 32px; min-width: 32px; }
+
+  .futures-board {
+    margin-top: 0;
+    border-color: var(--futures-line-strong);
+    border-top: 0;
+    border-radius: 0;
+    background: var(--futures-panel);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, .025);
+  }
+
+  .futures-board-meta {
+    min-height: 36px;
+    padding: 0 10px;
+    border-bottom-color: var(--futures-line-strong);
+    background: var(--futures-panel);
+  }
+
+  .futures-source-mark {
+    width: 24px;
+    height: 24px;
+    border-radius: 5px;
+  }
+
+  .futures-board-meta strong { font-size: 10px; }
+  .futures-board-meta small,
+  .futures-board-meta > span { font-size: 8px; }
+
+  .futures-table-scroll {
+    scrollbar-color: #475569 #070b14;
+    scrollbar-width: auto;
+  }
+
+  .futures-table-scroll::-webkit-scrollbar { width: 10px; height: 12px; }
+  .futures-table-scroll::-webkit-scrollbar-track { background: #070b14; }
+  .futures-table-scroll::-webkit-scrollbar-thumb { border: 2px solid #070b14; border-radius: 999px; background: #475569; }
+
+  .futures-table th {
+    height: 36px;
+    padding: 0 7px;
+    color: var(--futures-muted);
+    background: var(--futures-panel);
+    font: 650 8.5px/1.15 var(--il-font-ui, "DM Sans", sans-serif);
+    letter-spacing: 0;
+  }
+
+  .futures-selection-head,
+  .futures-selection-cell {
+    width: 216px;
+    min-width: 216px;
+  }
+
+  .futures-best-head,
+  .futures-best-cell {
+    left: 216px;
+    width: 88px;
+    min-width: 88px;
+  }
+
+  .futures-best-head {
+    color: #77e0c3 !important;
+    background: #0d1b1a !important;
+  }
+
+  .futures-best-head small { display: none; }
+
+  .futures-provider-head,
+  .futures-price-cell {
+    width: 96px;
+    min-width: 96px;
+  }
+
+  .futures-provider-head > span { gap: 0; }
+  .futures-provider-head small { display: none; }
+  .futures-provider-head .futures-book-logo { width: 20px; height: 20px; }
+  .futures-provider-head[data-provider="oddsengine__caesars"] .futures-book-logo {
+    width: 52px;
+    height: 20px;
+    padding: 1px 3px;
+    border-radius: 3px;
+    background: #fff;
+  }
+
+  .futures-market-divider td {
+    height: 30px;
+    padding: 0 9px;
+    background: #111827;
+  }
+
+  .futures-league-badge {
+    min-width: 31px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 7px;
+  }
+
+  .futures-market-heading { gap: 8px; }
+  .futures-market-heading > span:first-child { gap: 6px; }
+  .futures-market-heading strong { font-size: 9px; }
+  .futures-market-heading small { font-size: 7.5px; }
+
+  .futures-selection-row td {
+    height: 46px;
+    padding: 0 7px;
+    border-bottom-color: var(--futures-line-strong);
+    background: var(--futures-panel);
+  }
+
+  .futures-selection-row:nth-child(even) td { background: rgba(141, 68, 246, .055); }
+  .futures-selection-row:hover td { background: rgba(139, 92, 246, .26); }
+  .futures-selection-row:hover .futures-selection-cell { background: rgba(139, 92, 246, .26); }
+
+  .futures-team-logo {
+    width: 22px;
+    height: 22px;
+  }
+
+  .futures-team-logo img {
+    max-width: 22px;
+    max-height: 22px;
+  }
+
+  .futures-selection-main { gap: 7px; }
+  .futures-selection-copy { gap: 2px; }
+  .futures-selection-copy strong { font-size: 9.5px; font-weight: 650; }
+  .futures-selection-copy small { font-size: 7px; }
+
+  .futures-best-cell { background: #0d1b1a !important; }
+
+  .futures-price,
+  .futures-best-price {
+    min-height: 32px;
+    padding: 3px 4px;
+    gap: 4px;
+    border-radius: 3px;
+  }
+
+  .futures-price strong,
+  .futures-best-price strong {
+    font: 700 11px/1 var(--il-font-data, "Roboto Condensed", sans-serif);
+  }
+
+  .futures-price small,
+  .futures-best-price small { font-size: 6px; }
+
+  .futures-best-price {
+    background: rgba(20, 109, 79, .32);
+    box-shadow: inset 0 0 0 1px rgba(45, 212, 164, .08);
+  }
+
+  .futures-best-price .futures-book-logo { width: 17px; height: 17px; }
+
+  .futures-footer {
+    min-height: 30px;
+    padding: 0 9px;
+    border-top-color: var(--futures-line-strong);
+    background: var(--futures-panel);
+    font-size: 8px;
+  }
+}
+
+/* The Odds Screen uses a dedicated scan-first mobile workspace. Futures keeps
+   the same hierarchy while retaining its extra market and book controls. */
+@media (max-width: 760px) {
+  body[data-design-system="v2"][data-page="futures"] .app-shell {
+    height: auto;
+    min-height: calc(100dvh - 58px);
+    overflow: visible;
+  }
+
+  .futures-page {
+    height: calc(100dvh - 58px);
+    min-height: 650px;
+    padding: 0 10px 86px;
+    display: grid;
+    grid-template-rows: 76px 116px minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .futures-header {
+    min-height: 0;
+    padding: 0;
+    align-items: center;
+    flex-direction: row;
+  }
+
+  .futures-eyebrow,
+  .futures-title-row p,
+  .futures-summary { display: none; }
+
+  .futures-title-block,
+  .futures-title-row { width: 100%; }
+
+  .futures-title-row {
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: row;
+    gap: 10px;
+  }
+
+  .futures-title-row h1 {
+    font-size: 21px;
+    letter-spacing: -.03em;
+  }
+
+  .futures-live-status {
+    min-height: 24px;
+    padding: 0 8px;
+    border-radius: 6px;
+  }
+
+  .futures-live-status strong { font-size: 8px; }
+
+  .futures-control-deck {
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--futures-line);
+    border-bottom: 1px solid var(--futures-line);
+    border-radius: 0;
+    background: transparent;
+  }
+
+  .futures-view-toggle,
+  .futures-league-tabs { display: none; }
+
+  .futures-filters {
+    height: 100%;
+    min-height: 0;
+    padding: 9px 0;
+    display: grid;
+    grid-template-columns: minmax(0, .9fr) minmax(0, 1.1fr) 42px;
+    grid-template-areas:
+      "league market refresh"
+      "search search books";
+    align-content: center;
+    gap: 7px;
+  }
+
+  .futures-select-control,
+  .futures-search-control,
+  .futures-book-filter { display: block; }
+
+  .futures-select-control > span:first-child,
+  .futures-search-control > span:first-child,
+  .futures-book-filter > span:first-child { display: none; }
+
+  .futures-select-control > span:last-child,
+  .futures-search-control > span:last-child,
+  .futures-book-filter > button,
+  .futures-refresh {
+    height: 42px;
+    border-color: var(--futures-line-strong);
+    border-radius: 7px;
+    background: var(--futures-panel-raised);
+  }
+
+  .futures-select-control select,
+  .futures-search-control input {
+    height: 40px;
+    font-size: 11px;
+  }
+
+  .futures-select-control { min-width: 0; }
+  .futures-select-control:not(.futures-market-select):not(.futures-sort-select) { grid-area: league; }
+  .futures-market-select { grid-area: market; }
+  .futures-sort-select { display: none; }
+  .futures-search-control { grid-area: search; }
+  .futures-book-filter { grid-area: books; width: 42px; min-width: 42px; }
+  .futures-book-filter > button {
+    width: 42px;
+    padding: 0;
+    justify-content: center;
+  }
+  .futures-book-filter > button strong,
+  .futures-book-filter > button .ph-caret-down { display: none; }
+  .futures-refresh { grid-area: refresh; width: 42px; }
+  .futures-refresh span { display: none; }
+
+  .futures-books-popover {
+    position: fixed;
+    inset: auto 10px 76px;
+    width: auto;
+  }
+
+  .futures-board {
+    min-height: 0;
+    margin: 0;
+    border-top: 0;
+    border-radius: 0;
+  }
+
+  .futures-board-meta {
+    min-height: 42px;
+    padding: 0 9px;
+  }
+
+  .futures-source-mark {
+    width: 25px;
+    height: 25px;
+  }
+
+  .futures-board-meta > span { display: none; }
+
+  .futures-footer {
+    min-height: 28px;
+    padding: 0 8px;
+    flex-direction: row;
+  }
+
+  .futures-footer #futures-updated-label { display: none; }
+}
