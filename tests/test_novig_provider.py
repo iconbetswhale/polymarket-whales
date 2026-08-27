@@ -524,6 +524,22 @@ def test_american_odds_and_live_fee_depth_math() -> None:
     )
 
 
+def test_direct_sharp_money_snapshot_uses_verified_two_sided_depth() -> None:
+    from novig_provider import NoVIGNBXProvider
+
+    provider = NoVIGNBXProvider("client-id", "client-secret")
+    provider.rest = FakeWorkerRest(sample_market())
+
+    payload = provider.sharp_money_direct_snapshot(limit=10)
+
+    assert payload["transport"] == "novig_nbx_direct"
+    assert len(payload["snapshots"]) == 1
+    snapshot = payload["snapshots"][0]
+    assert snapshot["marketId"] == "market-1"
+    assert len(snapshot["outcomes"]) == 2
+    assert snapshot["stale"] is False
+
+
 def test_credentials_and_tokens_never_appear_in_status_errors_or_repr() -> None:
     client_id = "super-sensitive-client-id"
     client_secret = "super-sensitive-client-secret"

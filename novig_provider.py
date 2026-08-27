@@ -1333,6 +1333,57 @@ class NoVIGNBXProvider(ExecutionProvider):
         except NoVIGError:
             return {}
 
+    def sharp_money_direct_snapshot(self, *, limit: int = 40) -> dict:
+        """Return a bounded two-sided NBX slate without a sportsbook seed feed.
+
+        Sharp Money normally uses OddsEngine prices to identify the retail
+        market before matching exact NoVIG depth. This direct snapshot is the
+        reliability fallback for a temporary OddsEngine throttle: it keeps
+        verified NBX liquidity visible instead of returning an empty page.
+        """
+        if not self.configured:
+            return {}
+        bounded = max(1, min(int(limit), 100))
+        snapshots = [
+            row
+            for row in self._state_snapshots([])
+            if not row.get("stale")
+            and _safe_text((row.get("market") or {}).get("status")).upper()
+            == "OPEN"
+        ]
+        if not snapshots:
+            snapshots = self._rest_snapshots([], limit=min(bounded * 2, 100))
+
+        def imbalance(row: dict) -> float:
+            liquidity = []
+            for outcome in row.get("outcomes") or []:
+                asks = outcome.get("asks") or []
+                best = _number(outcome.get("bestAsk"))
+                liquidity.append(
+                    sum(
+                        _number(level.get("liquidityDollars")) or 0.0
+                        for level in asks
+                        if best is not None
+                        and _number(level.get("price")) is not None
+                        and abs((_number(level.get("price")) or 0.0) - best) < 1e-9
+                    )
+                )
+            return abs(liquidity[0] - liquidity[1]) if len(liquidity) == 2 else 0.0
+
+        eligible = [
+            row
+            for row in snapshots
+            if not row.get("stale")
+            and len(row.get("outcomes") or []) == 2
+            and imbalance(row) > 0
+        ]
+        eligible.sort(key=imbalance, reverse=True)
+        return {
+            "observedAt": _iso_now(),
+            "snapshots": eligible[:bounded],
+            "transport": "novig_nbx_direct",
+        }
+
     def _index(self, trades: list) -> ProviderMarketIndex:
         now = self._monotonic()
         with self._lock:
@@ -1375,13 +1426,17 @@ class NoVIGNBXProvider(ExecutionProvider):
             or _safe_text((row.get("market") or {}).get("league")).upper() in wanted
         ]
 
-    def _rest_snapshots(self, leagues: list[str]) -> list[dict]:
+    def _rest_snapshots(
+        self, leagues: list[str], *, limit: int | None = None
+    ) -> list[dict]:
         markets: list[dict] = []
         if leagues:
             for league in leagues:
                 markets.extend(self.rest.list_open_markets(league=league))
         else:
             markets = self.rest.list_open_markets()
+        if limit is not None:
+            markets = markets[: max(1, min(int(limit), 1000))]
         try:
             events = self.rest.list_events()
         except NoVIGError:

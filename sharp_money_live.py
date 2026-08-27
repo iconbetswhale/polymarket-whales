@@ -536,9 +536,14 @@ class SharpMoneyCollector:
             and (
                 hasattr(provider, "sharp_money_quote_snapshot")
                 or hasattr(provider, "sharp_money_snapshot")
+                or hasattr(provider, "sharp_money_direct_snapshot")
                 or hasattr(provider, "live_market_snapshot")
             )
-            for provider in (self.prophetx, self.fallback_source)
+            for provider in (
+                self.prophetx,
+                self.fallback_source,
+                self.novig_provider,
+            )
         )
 
     def _orderbook_error_message(self, exc: Exception) -> str:
@@ -716,7 +721,11 @@ class SharpMoneyCollector:
 
     def refresh_once(self) -> list[dict]:
         """Run one read-only provider snapshot for scheduled consumers."""
-        if self.prophetx is None and self.fallback_source is None:
+        if (
+            self.prophetx is None
+            and self.fallback_source is None
+            and self.novig_provider is None
+        ):
             return []
         source, source_kind, snapshot = self._read_source_snapshot()
         if source_kind == "odds_engine_orderbook":
@@ -727,6 +736,8 @@ class SharpMoneyCollector:
             if direct_signals:
                 signals = direct_signals
                 source_kind = "direct_novig_quotes"
+        elif source_kind == "novig_direct":
+            signals = self._build_novig_direct_signals(snapshot)
         else:
             signals = self._build_signals(snapshot)
         now = time.monotonic()
@@ -738,7 +749,7 @@ class SharpMoneyCollector:
             self.odds_provider is not None
             and signals
             and direct_orderbook
-            and source_kind != "direct_novig_quotes"
+            and source_kind not in {"direct_novig_quotes", "novig_direct"}
             and now - self._last_comparison_monotonic >= self.comparison_seconds
         ):
             self._refresh_comparisons(signals)
@@ -854,6 +865,22 @@ class SharpMoneyCollector:
                     getattr(provider, "provider_key", "unknown"),
                     type(exc).__name__,
                     status if status is not None else "n/a",
+                )
+        direct_novig = self.novig_provider
+        if (
+            direct_novig is not None
+            and bool(getattr(direct_novig, "configured", False))
+            and hasattr(direct_novig, "sharp_money_direct_snapshot")
+        ):
+            try:
+                snapshot = direct_novig.sharp_money_direct_snapshot(limit=40)
+                if snapshot.get("snapshots"):
+                    return direct_novig, "novig_direct", snapshot
+            except Exception as exc:
+                last_error = exc
+                LOGGER.warning(
+                    "Direct NoVIG Sharp Money fallback failed (%s)",
+                    type(exc).__name__,
                 )
         if last_error is not None:
             raise last_error
@@ -1079,6 +1106,215 @@ class SharpMoneyCollector:
             ),
             reverse=True,
         )[:40]
+
+    def _build_novig_direct_signals(self, payload: dict) -> list[dict]:
+        """Build directional Sharp Money rows from verified NBX depth alone."""
+        rows: list[dict] = []
+        current: dict[str, dict] = {}
+        observed_at = str(
+            payload.get("observedAt") or datetime.now(timezone.utc).isoformat()
+        )
+        for snapshot in payload.get("snapshots") or []:
+            if not isinstance(snapshot, dict) or snapshot.get("stale"):
+                continue
+            market = snapshot.get("market") or {}
+            event = market.get("event") or {}
+            game = event.get("game") or {}
+            market_id = str(snapshot.get("marketId") or market.get("id") or "")
+            event_id = str(
+                snapshot.get("eventId")
+                or market.get("eventId")
+                or event.get("id")
+                or ""
+            )
+            home = _team_name(game.get("homeTeam"))
+            away = _team_name(game.get("awayTeam"))
+            if not home or not away:
+                event_parts = str(market.get("description") or "").split(" vs ")
+                if len(event_parts) == 2:
+                    home = home or event_parts[0].strip()
+                    away = away or event_parts[1].strip()
+            if not market_id or not event_id or not home or not away:
+                continue
+            league = str(
+                market.get("league")
+                or event.get("league")
+                or game.get("league")
+                or "Other"
+            ).upper()
+            market_type = str(market.get("type") or "Moneyline")
+            market_kind = _market_kind(market_type)
+            market_name = {
+                "moneyline": "Moneyline",
+                "spread": "Spread",
+                "game_total": "Game Total",
+            }[market_kind]
+            raw_outcomes = {
+                str(item.get("id") or ""): item
+                for item in market.get("outcomes") or []
+                if isinstance(item, dict) and item.get("id")
+            }
+            outcomes: list[dict] = []
+            for index, book in enumerate(snapshot.get("outcomes") or []):
+                if not isinstance(book, dict):
+                    continue
+                outcome_id = str(book.get("outcomeId") or "")
+                raw = raw_outcomes.get(outcome_id, {})
+                probability = _number(book.get("bestAsk"))
+                if not outcome_id or not 0 < probability < 1:
+                    continue
+                decimal = 1 / probability
+                american = _american(decimal)
+                if american is None:
+                    continue
+                asks = [
+                    level
+                    for level in book.get("asks") or []
+                    if isinstance(level, dict)
+                ]
+                top_liquidity = sum(
+                    max(0.0, _number(level.get("liquidityDollars")))
+                    for level in asks
+                    if abs(_number(level.get("price")) - probability) < 1e-9
+                )
+                if top_liquidity <= 0:
+                    continue
+                name = str(
+                    raw.get("description")
+                    or book.get("description")
+                    or (home if index == 0 else away)
+                ).strip()
+                line = (
+                    raw.get("line")
+                    if raw.get("line") is not None
+                    else raw.get("strike")
+                    if raw.get("strike") is not None
+                    else market.get("strike")
+                )
+                key = f"novig:{event_id}:{market_id}:{outcome_id}"
+                previous = self._previous.get(key)
+                probability_delta = (
+                    probability - previous["probability"] if previous else 0.0
+                )
+                outcome = {
+                    "key": key,
+                    "selectionId": outcome_id,
+                    "name": name,
+                    "decimalOdds": decimal,
+                    "americanOdds": american,
+                    "probability": probability,
+                    "liquidity": top_liquidity,
+                    "line": line,
+                    "probabilityDelta": probability_delta,
+                    "liquidityDelta": (
+                        top_liquidity - previous["liquidity"] if previous else 0.0
+                    ),
+                    "pressure": probability_delta,
+                    "levels": [
+                        {
+                            "americanOdds": _american(
+                                1 / _number(level.get("price"))
+                            ),
+                            "decimalOdds": 1 / _number(level.get("price")),
+                            "liquidity": max(
+                                0.0,
+                                _number(level.get("liquidityDollars")),
+                            ),
+                        }
+                        for level in asks
+                        if 0 < _number(level.get("price")) < 1
+                        and _number(level.get("liquidityDollars")) > 0
+                    ],
+                }
+                current[key] = outcome
+                self._history[key].append(
+                    {
+                        "observedAt": snapshot.get("timestamp") or observed_at,
+                        "americanOdds": american,
+                        "liquidity": top_liquidity,
+                        "pressure": probability_delta,
+                    }
+                )
+                outcomes.append(outcome)
+            if len(outcomes) != 2:
+                continue
+            selected, opposite = sorted(
+                outcomes, key=lambda item: item["liquidity"], reverse=True
+            )
+            net_liquidity = selected["liquidity"] - opposite["liquidity"]
+            if net_liquidity <= 0:
+                continue
+            comparison_lines = [
+                {
+                    "providerName": "NoVIG",
+                    "providerKey": "novig",
+                    "displayOdds": (
+                        f"+{selected['americanOdds']}"
+                        if selected["americanOdds"] > 0
+                        else str(selected["americanOdds"])
+                    ),
+                    "americanOdds": selected["americanOdds"],
+                    "oppositeAmericanOdds": opposite["americanOdds"],
+                    "availableLiquidity": selected["liquidity"],
+                    "oppositeAvailableLiquidity": opposite["liquidity"],
+                    "orderBookLevels": selected["levels"],
+                    "oppositeOrderBookLevels": opposite["levels"],
+                    "deepLink": "https://novig.com/",
+                    "logoUrl": ORDERBOOK_BOOK_LOGOS["novig"],
+                    "isAvailable": True,
+                    "matchingConfidence": "Exact",
+                    "tooltip": "Direct NoVIG executable order book",
+                }
+            ]
+            total_liquidity = selected["liquidity"] + opposite["liquidity"]
+            confidence = min(
+                99,
+                round(50 + 45 * net_liquidity / max(total_liquidity, 1.0)),
+            )
+            rows.append(
+                {
+                    "id": f"novig:{event_id}:{market_id}:{selected['selectionId']}",
+                    "provider": "NoVIG",
+                    "providerKey": "sharp_exchanges",
+                    "providerLogo": ORDERBOOK_BOOK_LOGOS["novig"],
+                    "sport": league,
+                    "league": league,
+                    "event": f"{away} vs. {home}",
+                    "homeTeam": home,
+                    "awayTeam": away,
+                    "startsAt": event.get("scheduledStart")
+                    or game.get("scheduledStart"),
+                    "market": {
+                        "id": market_id,
+                        "name": market_name,
+                        "kind": market_kind,
+                        "line": selected.get("line"),
+                    },
+                    "selection": selected["name"],
+                    "selectionId": selected["selectionId"],
+                    "oppositeSelection": copy.deepcopy(opposite),
+                    "americanOdds": selected["americanOdds"],
+                    "decimalOdds": selected["decimalOdds"],
+                    "liquidity": net_liquidity,
+                    "totalLiquidity": total_liquidity,
+                    "liquidityDelta": selected["liquidityDelta"],
+                    "probabilityDelta": selected["probabilityDelta"],
+                    "pressure": selected["pressure"],
+                    "pressureLabel": "Directional liquidity imbalance",
+                    "confidence": confidence,
+                    "inferenceOnly": False,
+                    "depthAvailable": True,
+                    "transport": "Direct NoVIG net order book",
+                    "outcomes": [selected, opposite],
+                    "history": list(self._history[selected["key"]]),
+                    "comparisonLines": comparison_lines,
+                    "edgePercent": 0.0,
+                    "whaleVolume": 0.0,
+                    "bestBook": None,
+                }
+            )
+        self._previous = current
+        return rows[:40]
 
     @staticmethod
     def _quote_selection_name(market, side_id: str, line: float | None) -> str:
@@ -1629,9 +1865,10 @@ class SharpMoneyCollector:
                 for key, name in (("novig", "NoVIG"), ("prophetx", "ProphetX"))
                 if key in sources
             ]
+            provider_label = " + ".join(provider_names)
             signal.update(
                 {
-                    "provider": " + ".join(provider_names),
+                    "provider": provider_label,
                     "providerKey": "sharp_exchanges",
                     "liquidity": net["liquidity"],
                     "crossedLiquidity": net["liquidity"],
@@ -1647,7 +1884,11 @@ class SharpMoneyCollector:
                     "counterLiquidity": net["oppositeLiquidity"],
                     "bestBook": net["retailBook"],
                     "depthAvailable": True,
-                    "transport": "Direct NoVIG + ProphetX net order books",
+                    "transport": (
+                        f"Direct {provider_label} net order book"
+                        if len(provider_names) == 1
+                        else "Direct NoVIG + ProphetX net order books"
+                    ),
                     "edgePercent": signal.get("edgePercent", 0.0),
                     "whaleVolume": 0,
                 }

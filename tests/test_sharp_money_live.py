@@ -154,6 +154,81 @@ class FakeDirectNoVIG:
         return result
 
 
+class FakeDirectNoVIGSlate:
+    configured = True
+    provider_key = "novig_nbx"
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def diagnostics(self):
+        return {"provider": self.provider_key, "configured": True}
+
+    def sharp_money_direct_snapshot(self, *, limit=40):
+        self.calls += 1
+        assert limit == 40
+        return {
+            "observedAt": "2026-08-27T05:30:00+00:00",
+            "snapshots": [
+                {
+                    "marketId": "novig-market-1",
+                    "eventId": "novig-event-1",
+                    "timestamp": "2026-08-27T05:30:00+00:00",
+                    "stale": False,
+                    "market": {
+                        "id": "novig-market-1",
+                        "eventId": "novig-event-1",
+                        "league": "MLB",
+                        "type": "MONEY",
+                        "status": "OPEN",
+                        "outcomes": [
+                            {
+                                "id": "yankees",
+                                "index": 0,
+                                "description": "New York Yankees",
+                            },
+                            {
+                                "id": "red-sox",
+                                "index": 1,
+                                "description": "Boston Red Sox",
+                            },
+                        ],
+                        "event": {
+                            "id": "novig-event-1",
+                            "scheduledStart": "2026-08-28T23:05:00+00:00",
+                            "game": {
+                                "homeTeam": {"name": "New York Yankees"},
+                                "awayTeam": {"name": "Boston Red Sox"},
+                            },
+                        },
+                    },
+                    "outcomes": [
+                        {
+                            "outcomeId": "yankees",
+                            "bestAsk": 0.5122,
+                            "asks": [
+                                {
+                                    "price": 0.5122,
+                                    "liquidityDollars": 10000,
+                                }
+                            ],
+                        },
+                        {
+                            "outcomeId": "red-sox",
+                            "bestAsk": 0.4878,
+                            "asks": [
+                                {
+                                    "price": 0.4878,
+                                    "liquidityDollars": 7000,
+                                }
+                            ],
+                        },
+                    ],
+                }
+            ],
+        }
+
+
 class FakeOddsEngineOrderBook:
     provider_key = "odds_engine"
 
@@ -287,6 +362,39 @@ def test_standard_plan_prioritizes_oddsengine_quotes_over_prophetx_login() -> No
     assert collector.prophetx is odds_engine
     assert collector.fallback_source is prophetx
     assert collector.advanced_orderbook_enabled is False
+
+
+def test_oddsengine_rate_limit_falls_back_to_direct_novig_slate() -> None:
+    odds_engine = FakeOddsEngineOrderBook()
+
+    def rate_limited(*, limit=40):
+        response = requests.Response()
+        response.status_code = 429
+        raise requests.HTTPError(response=response)
+
+    odds_engine.sharp_money_quote_snapshot = rate_limited
+    novig = FakeDirectNoVIGSlate()
+    collector = SharpMoneyCollector(
+        odds_engine,
+        novig_provider=novig,
+        local_control=False,
+        advanced_orderbook_enabled=False,
+    )
+
+    payload = collector.payload(refresh_if_stale=True)
+
+    assert novig.calls == 1
+    assert payload["lastError"] is None
+    assert payload["signalMode"] == "direct_order_book"
+    assert payload["depthProviders"] == ["NoVIG"]
+    assert payload["signalCount"] == 1
+    signal = payload["signals"][0]
+    assert signal["selection"] == "New York Yankees"
+    assert signal["selectedLiquidity"] == 10000
+    assert signal["oppositeLiquidity"] == 7000
+    assert signal["crossedLiquidity"] == 3000
+    assert signal["liquiditySources"] == {"novig": 3000}
+    assert signal["transport"] == "Direct NoVIG net order book"
 
 
 def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
