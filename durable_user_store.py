@@ -74,7 +74,19 @@ class PostgresUserStore:
         try:
             with self._raw_connection() as conn:
                 row = conn.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version = %s LIMIT 1",
+                    """
+                    SELECT 1 AS ready
+                    FROM schema_migrations
+                    WHERE version = %s
+                      AND EXISTS (
+                          SELECT 1
+                          FROM information_schema.columns
+                          WHERE table_schema = current_schema()
+                            AND table_name = 'user_settings'
+                            AND column_name = 'dfs_compare_book_order_json'
+                      )
+                    LIMIT 1
+                    """,
                     (MARKET_QUOTE_MIGRATION_VERSION,),
                 ).fetchone()
             return row is not None

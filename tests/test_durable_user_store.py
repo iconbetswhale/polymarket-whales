@@ -230,7 +230,10 @@ def test_current_schema_skips_full_postgres_bootstrap_on_cold_start():
     assert store._initialized is True
     assert bootstrap_calls == []
     assert store._psycopg.connect_calls == 1
-    assert "SELECT 1 FROM schema_migrations" in connection.queries[0][0]
+    schema_query = connection.queries[0][0]
+    assert "FROM schema_migrations" in schema_query
+    assert "information_schema.columns" in schema_query
+    assert "dfs_compare_book_order_json" in schema_query
 
 
 def test_missing_schema_marker_runs_full_postgres_bootstrap():
