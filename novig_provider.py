@@ -1464,9 +1464,18 @@ class NoVIGNBXProvider(ExecutionProvider):
             try:
                 for event_status in SHARP_MONEY_OPEN_EVENT_STATUSES:
                     try:
-                        events.extend(
-                            self.rest.list_events(event_status=event_status)
-                        )
+                        if hasattr(self.rest, "list_events_page"):
+                            events.extend(
+                                self.rest.list_events_page(
+                                    event_status=event_status,
+                                    limit=100,
+                                    offset=0,
+                                )
+                            )
+                        else:
+                            events.extend(
+                                self.rest.list_events(event_status=event_status)
+                            )
                     except NoVIGError:
                         continue
             except TypeError:

@@ -557,6 +557,9 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
     current_market["event"] = {"id": "event-1"}
 
     class SelectiveRest:
+        def __init__(self):
+            self.event_page_calls = []
+
         def list_open_markets(self):
             return [
                 deepcopy(final_market),
@@ -564,7 +567,10 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
                 deepcopy(current_market),
             ]
 
-        def list_events(self, *, event_status=None):
+        def list_events_page(
+            self, *, event_status=None, limit=100, offset=0
+        ):
+            self.event_page_calls.append((event_status, limit, offset))
             events = [
                 final_market["event"],
                 prop_market["event"],
@@ -578,6 +584,9 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
                 ]
             return deepcopy(events)
 
+        def list_events(self, **_filters):
+            raise AssertionError("direct snapshots must not paginate every event")
+
         def get_markets_by_events(self, event_ids):
             assert list(event_ids) == ["event-1"]
             return [deepcopy(current_market)]
@@ -586,12 +595,17 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
             assert market_id == "market-1"
             return sample_book()
 
+    rest = SelectiveRest()
     provider = NoVIGNBXProvider("client-id", "client-secret")
-    provider.rest = SelectiveRest()
+    provider.rest = rest
 
     payload = provider.sharp_money_direct_snapshot(limit=1)
 
     assert [row["marketId"] for row in payload["snapshots"]] == ["market-1"]
+    assert rest.event_page_calls == [
+        ("OPEN_INGAME", 100, 0),
+        ("OPEN_PREGAME", 100, 0),
+    ]
 
 
 def test_credentials_and_tokens_never_appear_in_status_errors_or_repr() -> None:
