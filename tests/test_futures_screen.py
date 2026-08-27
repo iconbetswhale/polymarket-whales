@@ -169,6 +169,144 @@ def test_provider_discovers_future_flags_across_all_active_leagues_and_caches() 
     assert len(session.calls) > calls_after_first
 
 
+class OutrightPointerSession:
+    def __init__(self) -> None:
+        self.odds_event_ids: list[str] = []
+
+    def get(self, url, *, params=None, headers=None, timeout=None):
+        path = url.removeprefix("https://api.oddsengine.dev/v1")
+        query = dict(params or {})
+        if path == "/leagues":
+            return FakeResponse({"data": [{"league": "mlb"}]})
+        if path == "/events":
+            return FakeResponse(
+                {
+                    "data": [
+                        {
+                            "event_id": "regular-game",
+                            "event": "Dodgers vs Yankees",
+                            "event_start": "2026-09-01T00:00:00Z",
+                            "league": "mlb",
+                            "sport": "baseball",
+                            "outrights": [
+                                {
+                                    "event_id": "mlb-world-series-2026",
+                                    "market": "World Series Winner",
+                                    "future_type": "championship_winner",
+                                }
+                            ],
+                        }
+                    ]
+                }
+            )
+        if path == "/odds":
+            event_id = query["event_id"]
+            self.odds_event_ids.append(event_id)
+            schedule, odds = future_event_payload()
+            assert event_id == schedule["event_id"]
+            return FakeResponse({"data": odds})
+        raise AssertionError(f"unexpected path {path}")
+
+
+def test_provider_follows_outright_parent_without_fetching_regular_game() -> None:
+    session = OutrightPointerSession()
+    provider = OddsEngineProvider("test-key", session=session)
+
+    snapshot = provider.futures_screen_snapshot()
+
+    assert snapshot["complete"] is True
+    assert snapshot["meta"]["futureEventCount"] == 1
+    assert session.odds_event_ids == ["mlb-world-series-2026"]
+
+
+class LowQuotaFuturesSession:
+    def __init__(self) -> None:
+        self.odds_event_ids: list[str] = []
+
+    def get(self, url, *, params=None, headers=None, timeout=None):
+        path = url.removeprefix("https://api.oddsengine.dev/v1")
+        query = dict(params or {})
+        if path == "/leagues":
+            response = FakeResponse(
+                {
+                    "data": [
+                        {"league": "wnba"},
+                        {"league": "nfl"},
+                        {"league": "nba"},
+                        {"league": "mlb"},
+                    ]
+                }
+            )
+        elif path == "/events":
+            league = query["league"]
+            response = FakeResponse(
+                {
+                    "data": [
+                        {
+                            "event_id": f"{league}-champion",
+                            "event": f"{league.upper()} Champion",
+                            "event_start": "2027-01-01T00:00:00Z",
+                            "league": league,
+                            "sport": league,
+                            "is_future": True,
+                        }
+                    ]
+                }
+            )
+            response.headers["X-RateLimit-Remaining"] = "2"
+        elif path == "/odds":
+            event_id = query["event_id"]
+            league = event_id.split("-", 1)[0]
+            self.odds_event_ids.append(event_id)
+            response = FakeResponse(
+                {
+                    "data": {
+                        "event_id": event_id,
+                        "event": f"{league.upper()} Champion",
+                        "league": league,
+                        "sport": league,
+                        "market_categories": [
+                            {
+                                "category": "future",
+                                "offers": [
+                                    {
+                                        "market": "Champion",
+                                        "books": [
+                                            {
+                                                "book": "draftkings",
+                                                "selections": [
+                                                    {
+                                                        "entity_name": "Selection",
+                                                        "odds_american": 200,
+                                                    }
+                                                ],
+                                            }
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                }
+            )
+            response.headers["X-RateLimit-Remaining"] = "0"
+        else:
+            raise AssertionError(f"unexpected path {path}")
+        return response
+
+
+def test_provider_rotates_low_quota_across_priority_leagues() -> None:
+    session = LowQuotaFuturesSession()
+    provider = OddsEngineProvider("test-key", session=session)
+
+    snapshot = provider.futures_screen_snapshot()
+
+    assert snapshot["complete"] is False
+    assert snapshot["meta"]["futureEventCount"] == 4
+    assert snapshot["meta"]["fetchedEventCount"] == 2
+    assert session.odds_event_ids == ["mlb-champion", "nba-champion"]
+
+
 class ManyFuturesSession:
     def get(self, url, *, params=None, headers=None, timeout=None):
         path = url.removeprefix("https://api.oddsengine.dev/v1")

@@ -189,6 +189,99 @@ def _future_book_key(value: object) -> str | None:
     return normalized or None
 
 
+def _future_event_from_pointer(source_event: dict, pointer: object) -> dict | None:
+    """Expand an OddsEngine outright parent pointer into a fetchable event."""
+
+    if not isinstance(pointer, dict):
+        return None
+    event_id = next(
+        (
+            str(pointer.get(key) or "").strip()
+            for key in (
+                "event_id",
+                "future_event_id",
+                "outright_event_id",
+                "parent_event_id",
+                "canonical_event_id",
+            )
+            if str(pointer.get(key) or "").strip()
+        ),
+        "",
+    )
+    if not event_id:
+        return None
+    return {
+        "event_id": event_id,
+        "event": (
+            pointer.get("event")
+            or pointer.get("title")
+            or pointer.get("name")
+            or pointer.get("market")
+            or "Futures"
+        ),
+        "event_start": (
+            pointer.get("event_start")
+            or pointer.get("resolution_time")
+            or source_event.get("event_start")
+        ),
+        "league": pointer.get("league") or source_event.get("league"),
+        "sport": pointer.get("sport") or source_event.get("sport"),
+        "is_future": True,
+        "future_type": (
+            pointer.get("future_type")
+            or pointer.get("type")
+            or pointer.get("market_type")
+            or ""
+        ),
+    }
+
+
+def _ordered_future_events(events: Iterable[dict]) -> list[dict]:
+    """Prioritize title futures and rotate leagues when quota is constrained."""
+
+    groups: dict[str, list[dict]] = {}
+    for event in events:
+        league = str(event.get("league") or "").strip().lower()
+        groups.setdefault(league, []).append(event)
+
+    title_terms = (
+        "champion",
+        "championship",
+        "winner",
+        "world series",
+        "super bowl",
+        "finals",
+        "title",
+    )
+
+    def event_key(event: dict) -> tuple:
+        label = " ".join(
+            str(event.get(key) or "")
+            for key in ("event", "future_type")
+        ).lower()
+        return (
+            0 if any(term in label for term in title_terms) else 1,
+            str(event.get("event_start") or ""),
+            str(event.get("event") or "").casefold(),
+            str(event.get("event_id") or ""),
+        )
+
+    for league_events in groups.values():
+        league_events.sort(key=event_key)
+
+    league_priority = {"mlb": 0, "nba": 1, "nfl": 2, "wnba": 3}
+    leagues = sorted(
+        groups,
+        key=lambda league: (league_priority.get(league, 4), league),
+    )
+    ordered: list[dict] = []
+    for index in range(max((len(group) for group in groups.values()), default=0)):
+        for league in leagues:
+            if index < len(groups[league]):
+                ordered.append(groups[league][index])
+    return ordered
+
+
 def normalize_odds_engine_future_event(
     payload: dict,
     *,
@@ -1088,21 +1181,22 @@ class OddsEngineProvider(ExecutionProvider):
                         for event in events:
                             if not isinstance(event, dict):
                                 continue
-                            is_future = bool(event.get("is_future"))
-                            is_future = is_future or bool(event.get("future_type"))
-                            is_future = is_future or bool(event.get("outrights"))
                             event_id = str(event.get("event_id") or "").strip()
-                            if is_future and event_id:
-                                discovered_events.setdefault(event_id, event)
+                            is_direct_future = event.get("is_future") or event.get(
+                                "future_type"
+                            )
+                            if is_direct_future and event_id:
+                                # A direct future record is richer than a parent
+                                # pointer and must win if both forms are present.
+                                discovered_events[event_id] = event
+                            for pointer in event.get("outrights") or []:
+                                parent = _future_event_from_pointer(event, pointer)
+                                if parent is not None:
+                                    discovered_events.setdefault(
+                                        parent["event_id"], parent
+                                    )
 
-            ordered_events = sorted(
-                discovered_events.values(),
-                key=lambda event: (
-                    str(event.get("league") or ""),
-                    str(event.get("event_start") or ""),
-                    str(event.get("event") or ""),
-                ),
-            )
+            ordered_events = _ordered_future_events(discovered_events.values())
             normalized_rows: list[dict] = []
             provider_catalog: dict[str, dict] = {}
             fetched_events = 0
