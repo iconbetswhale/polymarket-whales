@@ -1485,6 +1485,34 @@ class NoVIGNBXProvider(ExecutionProvider):
                     events = self.rest.list_events()
                 except NoVIGError:
                     events = []
+        elif leagues:
+            try:
+                for league in leagues:
+                    for event_status in SHARP_MONEY_OPEN_EVENT_STATUSES:
+                        try:
+                            if hasattr(self.rest, "list_events_page"):
+                                events.extend(
+                                    self.rest.list_events_page(
+                                        league=league,
+                                        event_status=event_status,
+                                        limit=100,
+                                        offset=0,
+                                    )
+                                )
+                            else:
+                                events.extend(
+                                    self.rest.list_events(
+                                        league=league,
+                                        event_status=event_status,
+                                    )
+                                )
+                        except NoVIGError:
+                            continue
+            except TypeError:
+                try:
+                    events = self.rest.list_events()
+                except NoVIGError:
+                    events = []
         else:
             try:
                 events = self.rest.list_events()
@@ -1504,6 +1532,18 @@ class NoVIGNBXProvider(ExecutionProvider):
                 for row in markets
                 if _safe_text(row.get("id"))
             }
+        elif leagues and events:
+            active_event_ids = {
+                _safe_text(row.get("id") or row.get("eventId"))
+                for row in events
+                if isinstance(row, dict)
+                and _safe_text(row.get("id") or row.get("eventId"))
+            }
+            markets = [
+                row
+                for row in markets
+                if _market_event_id(row) in active_event_ids
+            ]
         event_ids = list(
             dict.fromkeys(
                 _safe_text(row.get("eventId"))

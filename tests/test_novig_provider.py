@@ -608,6 +608,43 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
     ]
 
 
+def test_exact_matching_reads_only_active_events_in_requested_league() -> None:
+    from novig_provider import NoVIGNBXProvider
+
+    class PagedRest(FakeWorkerRest):
+        def __init__(self, market):
+            super().__init__(market)
+            self.event_page_calls = []
+
+        def list_open_markets(self, *, league=None):
+            assert league == "MLB"
+            return [deepcopy(self.market)]
+
+        def list_events_page(
+            self, *, league=None, event_status=None, limit=100, offset=0
+        ):
+            self.event_page_calls.append(
+                (league, event_status, limit, offset)
+            )
+            event = self.market["event"]
+            return [deepcopy(event)] if event["status"] == event_status else []
+
+        def list_events(self, **_filters):
+            raise AssertionError("exact matching must not scan historical events")
+
+    rest = PagedRest(sample_market())
+    provider = NoVIGNBXProvider("client-id", "client-secret")
+    provider.rest = rest
+
+    options = provider.options_for_trades([sample_trade()])
+
+    assert options["trade-1"].matching_confidence is MatchConfidence.EXACT
+    assert rest.event_page_calls == [
+        ("MLB", "OPEN_INGAME", 100, 0),
+        ("MLB", "OPEN_PREGAME", 100, 0),
+    ]
+
+
 def test_credentials_and_tokens_never_appear_in_status_errors_or_repr() -> None:
     client_id = "super-sensitive-client-id"
     client_secret = "super-sensitive-client-secret"
