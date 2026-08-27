@@ -28,7 +28,7 @@
   {% if page == 'trades' %}
   <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-canonical-v1') }}">
   {% endif %}
-  {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-reference-market-scanner-v8') }}">{% endif %}
+  {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-reference-market-scanner-v9-refresh-resilience') }}">{% endif %}
   {% if page == 'arbitrage' %}<link rel="stylesheet" href="{{ url_for('static', filename='arbitrage.css', v=asset_version ~ '-canonical-v6') }}">{% endif %}
   {% if page == 'calculators' %}<link rel="stylesheet" href="{{ url_for('static', filename='calculators.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'middles' %}<link rel="stylesheet" href="{{ url_for('static', filename='middles.css', v=asset_version ~ '-production-v6') }}">{% endif %}
@@ -192,7 +192,7 @@
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3-crossed-liquidity-v2-direct') }}"></script>{% endif %}
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v8-stable-inline-mobile-trades-dfs-prewarm-v5-instant-devig') }}"></script>
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
-  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v8') }}"></script>{% endif %}
+  {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v9-refresh-resilience') }}"></script>{% endif %}
   {% if page == 'arbitrage' %}<script src="{{ url_for('static', filename='arbitrage.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}
   {% if page == 'calculators' %}<script src="{{ url_for('static', filename='calculator-math.js', v=asset_version ~ '-canonical-v1') }}"></script><script src="{{ url_for('static', filename='calculators.js', v=asset_version ~ '-canonical-v1') }}"></script>{% endif %}
   {% if page == 'middles' %}<script src="{{ url_for('static', filename='middles.js', v=asset_version ~ '-live-autostart-v1') }}"></script>{% endif %}

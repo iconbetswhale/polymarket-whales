@@ -862,7 +862,7 @@
       }
     }
     feed.setAttribute("aria-busy", "true");
-    if (!showedCached) feed.innerHTML = `<div class="ev-loading il-state il-state-loading"><span></span><p>Validating exact markets and executable prices...</p></div>`;
+    if (!showedCached && !rows.length) feed.innerHTML = `<div class="ev-loading il-state il-state-loading"><span></span><p>Validating exact markets and executable prices...</p></div>`;
     try {
       const response = await fetch(url, {headers:{"Accept":"application/json"}});
       const payload = await response.json();
