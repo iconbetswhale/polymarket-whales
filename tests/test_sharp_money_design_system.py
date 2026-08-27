@@ -62,6 +62,9 @@ def test_sharp_money_cards_support_keyboard_selection():
 def test_sharp_money_surfaces_provider_entitlement_errors_instead_of_waiting():
     script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
 
+    assert 'payload.signalMode === "quote_consensus"' in script
+    assert "Live price movement" in script
+    assert "Full order-book depth activates automatically with an Advanced key" in script
     assert "advancedPlanRequired" in script
     assert "OddsEngine Advanced access required" in script
     assert "Upgrade OddsEngine to Advanced" in script

@@ -441,8 +441,9 @@
     const running = payload.running === true;
     const sourceConfigured = payload.provider?.configured === true;
     const automatic = payload.automatic === true;
+    const quoteConsensus = payload.signalMode === "quote_consensus";
     const sourceName = payload.provider?.provider === "odds_engine"
-      ? "OddsEngine ProphetX order books"
+      ? quoteConsensus ? "OddsEngine sharp consensus" : "OddsEngine ProphetX order books"
       : "ProphetX";
     const providerError = String(payload.lastError || "").trim();
     const accessBlocked = Boolean(providerError && state.signals.length === 0);
@@ -480,7 +481,7 @@
     $("sharp-mode-badge").classList.toggle("live", running && !accessBlocked);
     $("sharp-mode-badge").innerHTML = accessBlocked
       ? `<i class="ph ph-warning-circle"></i> Provider blocked`
-      : running ? `<i class="ph ph-waveform"></i> ${automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
+      : running ? `<i class="ph ph-waveform"></i> ${quoteConsensus ? "Live price movement" : automatic ? "Live order books" : "Live local feed"}` : `<i class="ph ph-pause"></i> Paused`;
     $("sharp-feed-notice").classList.toggle("live", running && !accessBlocked);
     $("sharp-feed-title").textContent = accessBlocked
       ? advancedPlanRequired ? "OddsEngine Advanced access required" : "Order-book provider unavailable"
@@ -492,7 +493,9 @@
     $("sharp-feed-copy").textContent = accessBlocked
       ? providerError
       : running
-      ? `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
+      ? quoteConsensus
+        ? `${sourceName} refreshes every ${payload.refreshSeconds || 30}s from exact two-sided REST prices. Full order-book depth activates automatically with an Advanced key.`
+        : `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
       : sourceConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add an odds feed for other-book comparisons"}.`
         : "Add ODDSENGINE_API_KEY with Advanced access or direct ProphetX credentials, then restart.";
@@ -505,9 +508,9 @@
     $("sharp-summary-liquidity").textContent = money(liquidity);
     $("sharp-summary-flow").textContent = String(flows);
     $("sharp-summary-cycles").textContent = String(payload.cycles || 0);
-    $("sharp-summary-signals-note").textContent = `Real ${sourceName} markets`;
-    $("sharp-summary-liquidity-note").textContent = "Quoted, not confirmed wagers";
-    $("sharp-summary-flow-note").textContent = "Snapshot-inferred pressure";
+    $("sharp-summary-signals-note").textContent = quoteConsensus ? "Exact two-sided markets" : `Real ${sourceName} markets`;
+    $("sharp-summary-liquidity-note").textContent = quoteConsensus ? "Reported limits only" : "Quoted, not confirmed wagers";
+    $("sharp-summary-flow-note").textContent = quoteConsensus ? "Sharp-consensus price pressure" : "Snapshot-inferred pressure";
     const requests = payload.provider?.metrics?.requests || 0;
     $("sharp-summary-requests").textContent = running ? `${requests} ${sourceName} requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length

@@ -2005,9 +2005,9 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/sharp-money/live")
     def api_sharp_money_live():
-        # OddsEngine's Advanced endpoint is one materialized order-book read.
-        # Refresh it on demand at a bounded cadence in serverless production;
-        # the direct ProphetX collector retains its explicit local Play gate.
+        # Prefer OddsEngine's Advanced materialized order book, then fall back
+        # to exact standard-plan price consensus. Both refresh on demand at a
+        # bounded cadence; direct ProphetX retains its local Play gate.
         payload = app.extensions["sharp_money_collector"].payload(
             refresh_if_stale=True
         )

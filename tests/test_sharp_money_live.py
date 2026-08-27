@@ -308,6 +308,98 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
     }
 
 
+def test_oddsengine_standard_plan_falls_back_to_exact_quote_consensus():
+    provider = FakeOddsEngineOrderBook()
+
+    def reject(*, limit=40):
+        response = requests.Response()
+        response.status_code = 403
+        raise requests.HTTPError(response=response)
+
+    provider.sharp_money_snapshot = reject
+    provider.sharp_money_quote_snapshot = lambda *, limit=40: {
+        "observedAt": "2026-08-26T18:00:00+00:00",
+        "limit": limit,
+        "events": [
+            {
+                "id": "event-1",
+                "sport_key": "baseball_mlb",
+                "sport_title": "MLB",
+                "commence_time": "2026-08-27T23:10:00+00:00",
+                "home_team": "Philadelphia Phillies",
+                "away_team": "New York Mets",
+                "bookmakers": [
+                    {
+                        "key": "pinnacle",
+                        "title": "Pinnacle",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": "2026-08-26T17:59:58+00:00",
+                                "outcomes": [
+                                    {"name": "Philadelphia Phillies", "price": -125, "limit": 5000},
+                                    {"name": "New York Mets", "price": 115, "limit": 5000},
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "key": "prophetx",
+                        "title": "ProphetX",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": "2026-08-26T17:59:59+00:00",
+                                "outcomes": [
+                                    {"name": "Philadelphia Phillies", "price": -120, "limit": 1500},
+                                    {"name": "New York Mets", "price": 110, "limit": 1400},
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "key": "fanduel",
+                        "title": "FanDuel",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": "2026-08-26T17:59:57+00:00",
+                                "outcomes": [
+                                    {"name": "Philadelphia Phillies", "price": 105, "limit": 500},
+                                    {"name": "New York Mets", "price": -110, "limit": 500},
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+    collector = SharpMoneyCollector(
+        provider,
+        local_control=False,
+        automatic_refresh_seconds=30,
+    )
+
+    payload = collector.payload(refresh_if_stale=True)
+
+    assert payload["lastError"] is None
+    assert payload["signalMode"] == "quote_consensus"
+    assert payload["signalCount"] == 1
+    signal = payload["signals"][0]
+    assert signal["transport"] == "OddsEngine REST sharp-consensus snapshot"
+    assert signal["depthAvailable"] is False
+    assert signal["inferenceOnly"] is True
+    assert signal["selection"].startswith("Philadelphia Phillies")
+    assert signal["pressure"] > 0
+    assert signal["whaleVolume"] == 0
+    assert {row["providerKey"] for row in signal["comparisonLines"]} == {
+        "pinnacle",
+        "prophetx",
+        "fanduel",
+    }
+
+
 def test_oddsengine_advanced_plan_error_reports_safe_http_status():
     provider = FakeOddsEngineOrderBook()
 

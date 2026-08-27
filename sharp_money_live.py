@@ -10,6 +10,7 @@ from collections import defaultdict, deque
 from datetime import datetime, timezone
 
 from execution_providers import PROPHETX_LOGO_URL
+from the_odds_api_provider import normalize_the_odds_api_events
 
 LOGGER = logging.getLogger(__name__)
 
@@ -36,6 +37,15 @@ ORDERBOOK_BOOK_LOGOS = {
     "betmgm": "/static/assets/sportsbooks/betmgm.png",
     "caesars": "/static/assets/sportsbooks/caesars.png",
     "betonline": "/static/assets/sportsbooks/betonline.png",
+}
+
+SHARP_CONSENSUS_BOOKS = {
+    "betonline",
+    "circasports",
+    "lowvig",
+    "novig",
+    "pinnacle",
+    "prophetx",
 }
 
 
@@ -326,6 +336,7 @@ class SharpMoneyCollector:
         self._last_snapshot_at: str | None = None
         self._last_comparison_at: str | None = None
         self._last_error: str | None = None
+        self._signal_mode = "order_book"
         self._cycles = 0
         self._previous: dict[str, dict] = {}
         self._history: dict[str, deque] = defaultdict(lambda: deque(maxlen=90))
@@ -428,6 +439,7 @@ class SharpMoneyCollector:
                 "lastSnapshotAt": self._last_snapshot_at,
                 "lastComparisonAt": self._last_comparison_at,
                 "lastError": self._last_error,
+                "signalMode": self._signal_mode,
                 "cycles": self._cycles,
                 "pollSeconds": self.poll_seconds,
                 "comparisonSeconds": self.comparison_seconds,
@@ -495,16 +507,17 @@ class SharpMoneyCollector:
         if self.prophetx is None and self.fallback_source is None:
             return []
         source, source_kind, snapshot = self._read_source_snapshot()
-        signals = (
-            self._build_oddsengine_signals(snapshot)
-            if source_kind == "odds_engine_orderbook"
-            else self._build_signals(snapshot)
-        )
+        if source_kind == "odds_engine_orderbook":
+            signals = self._build_oddsengine_signals(snapshot)
+        elif source_kind == "odds_engine_quotes":
+            signals = self._build_oddsengine_quote_signals(snapshot)
+        else:
+            signals = self._build_signals(snapshot)
         now = time.monotonic()
         if (
             self.odds_provider is not None
             and signals
-            and source_kind != "odds_engine_orderbook"
+            and source_kind not in {"odds_engine_orderbook", "odds_engine_quotes"}
             and now - self._last_comparison_monotonic >= self.comparison_seconds
         ):
             self._refresh_comparisons(signals)
@@ -525,6 +538,12 @@ class SharpMoneyCollector:
             )
             if source_kind == "odds_engine_orderbook":
                 self._last_comparison_at = self._last_snapshot_at
+            elif source_kind == "odds_engine_quotes":
+                self._last_comparison_at = self._last_snapshot_at
+            self._signal_mode = {
+                "odds_engine_orderbook": "order_book",
+                "odds_engine_quotes": "quote_consensus",
+            }.get(source_kind, "direct_snapshot")
             self._last_error = None
             self._last_refresh_monotonic = time.monotonic()
         return copy.deepcopy(signals)
@@ -536,11 +555,29 @@ class SharpMoneyCollector:
                 if not self._configured(provider):
                     continue
                 if hasattr(provider, "sharp_money_snapshot"):
-                    return (
-                        provider,
-                        "odds_engine_orderbook",
-                        provider.sharp_money_snapshot(limit=40),
-                    )
+                    try:
+                        return (
+                            provider,
+                            "odds_engine_orderbook",
+                            provider.sharp_money_snapshot(limit=40),
+                        )
+                    except Exception as exc:
+                        status = getattr(
+                            getattr(exc, "response", None), "status_code", None
+                        )
+                        if status != 403 or not hasattr(
+                            provider, "sharp_money_quote_snapshot"
+                        ):
+                            raise
+                        LOGGER.info(
+                            "OddsEngine Advanced depth unavailable; using "
+                            "standard exact-price Sharp Money consensus"
+                        )
+                        return (
+                            provider,
+                            "odds_engine_quotes",
+                            provider.sharp_money_quote_snapshot(limit=40),
+                        )
                 return provider, "prophetx_rest", provider.live_market_snapshot()
             except Exception as exc:
                 status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -764,6 +801,277 @@ class SharpMoneyCollector:
             ),
             reverse=True,
         )[:40]
+
+    @staticmethod
+    def _quote_selection_name(market, side_id: str, line: float | None) -> str:
+        if side_id == "home":
+            name = market.home_names[0]
+        elif side_id == "away":
+            name = market.away_names[0]
+        elif side_id in {"over", "under"}:
+            return f"{side_id.title()} {line}" if line is not None else side_id.title()
+        else:
+            name = side_id.title()
+        if market.market_name == "spread" and line is not None:
+            return f"{name} {line:+g}"
+        return name
+
+    def _build_oddsengine_quote_signals(self, snapshot: dict) -> list[dict]:
+        """Infer sharp consensus from standard-plan exact REST prices.
+
+        This mode never claims wager volume or depth. Pressure combines the
+        movement in cross-book implied probability with the current difference
+        between recognized sharp books and the full market consensus.
+        """
+        events = snapshot.get("events") or []
+        by_book, metadata = normalize_the_odds_api_events(events)
+        groups: dict[tuple, dict] = {}
+        for raw_book_key, markets in by_book.items():
+            book_key = _book_key(raw_book_key)
+            for market in markets:
+                if market.is_alternative or market.american_odds is None:
+                    continue
+                group_line = (
+                    abs(float(market.line))
+                    if market.market_name == "spread" and market.line is not None
+                    else market.line
+                )
+                group_key = (
+                    market.event_id,
+                    market.market_name,
+                    group_line,
+                )
+                group = groups.setdefault(
+                    group_key,
+                    {
+                        "market": market,
+                        "sides": defaultdict(list),
+                    },
+                )
+                decimal = _decimal_from_american(market.american_odds)
+                if decimal is None:
+                    continue
+                meta = metadata.get(market.selection_id)
+                group["sides"][market.side_id].append(
+                    {
+                        "providerKey": book_key,
+                        "providerName": (
+                            getattr(meta, "name", None)
+                            or ORDERBOOK_BOOK_NAMES.get(book_key)
+                            or str(raw_book_key).title()
+                        ),
+                        "logoUrl": (
+                            ORDERBOOK_BOOK_LOGOS.get(book_key)
+                            or getattr(meta, "logo_url", "")
+                        ),
+                        "americanOdds": market.american_odds,
+                        "decimalOdds": decimal,
+                        "probability": 1 / decimal,
+                        "availableLiquidity": getattr(meta, "bet_limit", None),
+                        "deepLink": getattr(meta, "direct_link", None) or "",
+                        "lastUpdated": market.last_updated,
+                        "line": market.line,
+                    }
+                )
+
+        observed_at = str(
+            snapshot.get("observedAt") or datetime.now(timezone.utc).isoformat()
+        )
+        current: dict[str, dict] = {}
+        rows: list[dict] = []
+        for (event_id, market_kind, group_line), group in groups.items():
+            sides = {
+                side_id: quotes
+                for side_id, quotes in group["sides"].items()
+                if quotes
+            }
+            if len(sides) != 2:
+                continue
+            market = group["market"]
+            outcomes: list[dict] = []
+            quote_sets: dict[str, list[dict]] = {}
+            for side_id, quotes in sides.items():
+                probabilities = [row["probability"] for row in quotes]
+                consensus_probability = sum(probabilities) / len(probabilities)
+                sharp_probabilities = [
+                    row["probability"]
+                    for row in quotes
+                    if row["providerKey"] in SHARP_CONSENSUS_BOOKS
+                ]
+                sharp_probability = (
+                    sum(sharp_probabilities) / len(sharp_probabilities)
+                    if sharp_probabilities
+                    else consensus_probability
+                )
+                side_key = f"rest:{event_id}:{market_kind}:{group_line}:{side_id}"
+                known_liquidity = sum(
+                    max(0.0, _number(row.get("availableLiquidity")))
+                    for row in quotes
+                )
+                previous = self._previous.get(side_key)
+                probability_delta = (
+                    consensus_probability - previous["probability"]
+                    if previous
+                    else 0.0
+                )
+                liquidity_delta = (
+                    known_liquidity - previous["liquidity"] if previous else 0.0
+                )
+                sharp_edge = sharp_probability - consensus_probability
+                pressure = probability_delta + sharp_edge
+                line = quotes[0].get("line")
+                outcome = {
+                    "key": side_key,
+                    "selectionId": side_id,
+                    "name": self._quote_selection_name(market, side_id, line),
+                    "decimalOdds": 1 / consensus_probability,
+                    "americanOdds": _american(1 / consensus_probability),
+                    "probability": consensus_probability,
+                    "liquidity": known_liquidity,
+                    "line": line,
+                    "probabilityDelta": probability_delta,
+                    "liquidityDelta": liquidity_delta,
+                    "pressure": pressure,
+                    "sharpConsensusEdge": sharp_edge,
+                    "bookCount": len(quotes),
+                }
+                current[side_key] = outcome
+                self._history[side_key].append(
+                    {
+                        "observedAt": observed_at,
+                        "americanOdds": outcome["americanOdds"],
+                        "liquidity": known_liquidity,
+                        "pressure": pressure,
+                    }
+                )
+                outcomes.append(outcome)
+                quote_sets[side_id] = quotes
+
+            leader = max(
+                outcomes,
+                key=lambda item: (
+                    item["pressure"],
+                    item["bookCount"],
+                    item["liquidity"],
+                ),
+            )
+            opposite = next(row for row in outcomes if row is not leader)
+            leader_quotes = quote_sets[leader["selectionId"]]
+            opposite_quotes = {
+                row["providerKey"]: row
+                for row in quote_sets[opposite["selectionId"]]
+            }
+            comparisons: list[dict] = []
+            for quote in leader_quotes:
+                peer = opposite_quotes.get(quote["providerKey"], {})
+                comparisons.append(
+                    {
+                        "providerName": quote["providerName"],
+                        "providerKey": quote["providerKey"],
+                        "displayOdds": (
+                            f"+{quote['americanOdds']}"
+                            if quote["americanOdds"] > 0
+                            else str(quote["americanOdds"])
+                        ),
+                        "americanOdds": quote["americanOdds"],
+                        "oppositeAmericanOdds": peer.get("americanOdds"),
+                        "availableLiquidity": quote.get("availableLiquidity"),
+                        "oppositeAvailableLiquidity": peer.get(
+                            "availableLiquidity"
+                        ),
+                        "marketLimit": quote.get("availableLiquidity"),
+                        "deepLink": quote.get("deepLink") or "",
+                        "logoUrl": quote.get("logoUrl") or "",
+                        "isAvailable": True,
+                        "matchingConfidence": "Exact",
+                        "tooltip": (
+                            "OddsEngine exact REST quote; order-book depth is "
+                            "not available on this plan"
+                        ),
+                    }
+                )
+            comparisons.sort(
+                key=lambda row: _number(row.get("americanOdds"), -100000),
+                reverse=True,
+            )
+            total_liquidity = sum(row["liquidity"] for row in outcomes)
+            confidence = min(
+                95,
+                round(
+                    45
+                    + min(abs(leader["pressure"]) * 800, 30)
+                    + min(leader["bookCount"] * 2, 20)
+                ),
+            )
+            best_quote = max(
+                leader_quotes,
+                key=lambda row: row["americanOdds"],
+            )
+            market_name = {
+                "moneyline": "Moneyline",
+                "spread": "Spread",
+                "game_total": "Game Total",
+            }.get(market_kind, market_kind.replace("_", " ").title())
+            rows.append(
+                {
+                    "id": (
+                        f"oe:rest:{event_id}:{market_kind}:{group_line}:"
+                        f"{leader['selectionId']}"
+                    ),
+                    "provider": "OddsEngine",
+                    "providerKey": "odds_engine",
+                    "providerLogo": best_quote.get("logoUrl") or "",
+                    "sport": market.sport_id.title(),
+                    "league": market.league_id,
+                    "event": (
+                        f"{market.away_names[0]} vs. {market.home_names[0]}"
+                    ),
+                    "homeTeam": market.home_names[0],
+                    "awayTeam": market.away_names[0],
+                    "startsAt": market.start_at.isoformat(),
+                    "market": {
+                        "id": f"{event_id}:{market_kind}:{group_line}",
+                        "name": market_name,
+                        "kind": market_kind,
+                        "line": leader.get("line"),
+                    },
+                    "selection": leader["name"],
+                    "americanOdds": leader["americanOdds"],
+                    "decimalOdds": leader["decimalOdds"],
+                    "liquidity": leader["liquidity"],
+                    "totalLiquidity": total_liquidity,
+                    "liquidityDelta": leader["liquidityDelta"],
+                    "probabilityDelta": leader["probabilityDelta"],
+                    "pressure": leader["pressure"],
+                    "pressureLabel": (
+                        "Sharp consensus detected"
+                        if abs(leader["pressure"]) >= 0.01
+                        else "Monitoring consensus"
+                    ),
+                    "confidence": confidence,
+                    "inferenceOnly": True,
+                    "depthAvailable": False,
+                    "transport": "OddsEngine REST sharp-consensus snapshot",
+                    "outcomes": outcomes,
+                    "history": list(self._history[leader["key"]]),
+                    "comparisonLines": comparisons,
+                    "edgePercent": leader["pressure"] * 100,
+                    "fairOdds": leader["americanOdds"],
+                    "whaleVolume": 0.0,
+                    "whaleVolumeMode": "unavailable_on_standard_plan",
+                    "bestBook": best_quote["providerKey"],
+                }
+            )
+        self._previous = current
+        return sorted(
+            rows,
+            key=lambda item: (
+                abs(item["pressure"]),
+                max((row.get("bookCount", 0) for row in item["outcomes"]), default=0),
+                item["totalLiquidity"],
+            ),
+            reverse=True,
+        )[: max(1, min(int(snapshot.get("limit") or 40), 100))]
 
     @staticmethod
     def _oddsengine_outcome(

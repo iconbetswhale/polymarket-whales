@@ -864,6 +864,34 @@ class OddsEngineProvider(ExecutionProvider):
         self._store(self._odds_cache, cache_key, payload)
         return payload
 
+    def sharp_money_quote_snapshot(self, *, limit: int = 40) -> dict:
+        """Return the standard-plan exact-price slate used for Sharp Money.
+
+        Standard OddsEngine keys do not include materialized order books. This
+        snapshot intentionally exposes only the same exact REST prices already
+        used by line shopping so the collector can infer cross-book consensus
+        and price movement without inventing depth or wager volume.
+        """
+        if not self.api_key:
+            return {}
+        events = self.ev_events(
+            sport_keys=(
+                "baseball_mlb",
+                "basketball_wnba",
+                "americanfootball_nfl",
+                "americanfootball_ncaaf",
+                "basketball_nba",
+                "icehockey_nhl",
+            ),
+            market_keys=("h2h", "spreads", "totals"),
+        )
+        return {
+            "observedAt": datetime.now(timezone.utc).isoformat(),
+            "events": events,
+            "limit": max(1, min(int(limit), 100)),
+            "transport": "rest_snapshot",
+        }
+
     def provider_catalog(self, trades: list[dict]) -> list[dict]:
         catalog = {item["key"]: item for item in oddsengine_provider_catalog()}
         for trade in trades:
