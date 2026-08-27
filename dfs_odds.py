@@ -227,7 +227,7 @@ def build_dfs_odds_board(
                         "start": start,
                         "stat": STAT_TITLES[market_key],
                         "quotes": defaultdict(list),
-                        "dfs_lines": {},
+                        "dfs_options": defaultdict(dict),
                     },
                 )
                 for line, sides in by_line.items():
@@ -246,7 +246,15 @@ def build_dfs_odds_board(
                     if metadata["type"] == "dfs":
                         ui_key = DFS_BOOK_KEY_BY_PROVIDER.get(book_key)
                         if ui_key:
-                            group["dfs_lines"][ui_key] = line
+                            option = group["dfs_options"][ui_key].setdefault(
+                                line,
+                                {"sides": set(), "is_alt": True},
+                            )
+                            option["sides"].update(sides)
+                            option["is_alt"] = bool(option["is_alt"]) and all(
+                                bool(outcome.get("is_alt"))
+                                for outcome in sides.values()
+                            )
                     else:
                         group["quotes"][book_key].append(quote)
 
@@ -259,14 +267,38 @@ def build_dfs_odds_board(
     )
     rows: list[dict] = []
     for group in groups.values():
-        dfs_lines = dict(group["dfs_lines"])
+        dfs_options = group["dfs_options"]
+        if not dfs_options or (selected_book and selected_book not in dfs_options):
+            continue
+        dfs_lines: dict[str, float] = {}
+        dfs_sides: dict[str, set[str]] = {}
+        for ui_key, line_options in dfs_options.items():
+            if not line_options:
+                continue
+            primary_line, primary_option = min(
+                line_options.items(),
+                key=lambda item: (
+                    bool(item[1].get("is_alt")),
+                    -len(item[1].get("sides") or ()),
+                    float(item[0]),
+                ),
+            )
+            dfs_lines[ui_key] = float(primary_line)
+            dfs_sides[ui_key] = set(primary_option.get("sides") or ())
         if not dfs_lines or (selected_book and selected_book not in dfs_lines):
             continue
+        display_book = selected_book or (
+            "prizepicks" if "prizepicks" in dfs_lines else sorted(dfs_lines)[0]
+        )
+        selectable_sides = dfs_sides.get(display_book, set())
         target_lines = sorted(set(dfs_lines.values()))
         flat_quotes = [
             quote for book_quotes in group["quotes"].values() for quote in book_quotes
         ]
         for side in ("Over", "Under"):
+            side_key = side.lower()
+            if side_key not in selectable_sides:
+                continue
             hit_by_line: dict[str, float | None] = {}
             fair_odds_by_line: dict[str, float | None] = {}
             reliability_by_line: dict[str, float] = {}
@@ -296,11 +328,12 @@ def build_dfs_odds_board(
                     in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
                 }
 
-            primary_line = (
-                dfs_lines[selected_book]
-                if selected_book
-                else dfs_lines.get("prizepicks", target_lines[0])
-            )
+            primary_line = dfs_lines[display_book]
+            side_dfs_lines = {
+                book_key: line
+                for book_key, line in dfs_lines.items()
+                if side_key in dfs_sides.get(book_key, set())
+            }
             odds_by_book: dict[str, object] = {}
             for book_key, book_quotes in group["quotes"].items():
                 quote = _nearest_quote(book_quotes, primary_line)
@@ -336,7 +369,7 @@ def build_dfs_odds_board(
                     "side": side,
                     "stat": group["stat"],
                     "line": primary_line,
-                    "dfsLines": dfs_lines,
+                    "dfsLines": side_dfs_lines,
                     "hit": hit_by_line.get(primary_key),
                     "hitByLine": hit_by_line,
                     "fairOddsByLine": fair_odds_by_line,
