@@ -164,6 +164,10 @@ class FakeDirectNoVIGSlate:
     def diagnostics(self):
         return {"provider": self.provider_key, "configured": True}
 
+    @staticmethod
+    def options_for_trades(_trades):
+        return {}
+
     def sharp_money_direct_snapshot(self, *, limit=40):
         self.calls += 1
         assert limit == 40
@@ -750,6 +754,19 @@ def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_pr
     assert direct_signal["selectedLiquidity"] == 900
     assert direct_signal["oppositeLiquidity"] == 300
     assert direct_signal["bestBook"] == "fanduel"
+
+    unmatched_collector = SharpMoneyCollector(
+        provider,
+        novig_provider=FakeDirectNoVIGSlate(),
+        local_control=False,
+        automatic_refresh_seconds=30,
+    )
+    unmatched_payload = unmatched_collector.payload(refresh_if_stale=True)
+
+    assert unmatched_payload["signalMode"] == "direct_order_book"
+    assert unmatched_payload["depthProviders"] == ["NoVIG"]
+    assert unmatched_payload["signalCount"] == 1
+    assert unmatched_payload["signals"][0]["crossedLiquidity"] == 3000
 
 
 def test_oddsengine_advanced_plan_error_reports_safe_http_status():

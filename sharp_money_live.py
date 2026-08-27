@@ -736,6 +736,30 @@ class SharpMoneyCollector:
             if direct_signals:
                 signals = direct_signals
                 source_kind = "direct_novig_quotes"
+            else:
+                direct_novig = self.novig_provider
+                if (
+                    direct_novig is not None
+                    and bool(getattr(direct_novig, "configured", False))
+                    and hasattr(direct_novig, "sharp_money_direct_snapshot")
+                ):
+                    try:
+                        direct_snapshot = (
+                            direct_novig.sharp_money_direct_snapshot(limit=40)
+                        )
+                        direct_signals = self._build_novig_direct_signals(
+                            direct_snapshot
+                        )
+                        if direct_signals:
+                            source = direct_novig
+                            snapshot = direct_snapshot
+                            signals = direct_signals
+                            source_kind = "novig_direct"
+                    except Exception:
+                        LOGGER.warning(
+                            "Direct NoVIG liquidity slate failed after an "
+                            "unmatched OddsEngine response"
+                        )
         elif source_kind == "novig_direct":
             signals = self._build_novig_direct_signals(snapshot)
         else:
