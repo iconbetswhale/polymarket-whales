@@ -1183,13 +1183,15 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert "visual placeholder trades" not in script
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control(state.payload?.running ? "pause" : "play")' in script
-    assert "function combinedDepthLiquidity" in script
-    assert "Combined NoVIG + ProphetX liquidity" in script
-    assert "Sharp-consensus price pressure" in script
+    assert "function combinedCrossedLiquidity" in script
+    assert "Combined NoVIG + ProphetX crossed liquidity" in script
+    assert "Price Pressure" not in script
     assert "/api/odds-screen" not in script
     assert "active=1" not in script
     assert "sharp-sportsbook-filter-v1" in script
     assert "renderSharpSportsbookFilter" in script
+    assert "function isCrossedRetailQuote" in script
+    assert "if (signal.depthAvailable === false) return false" in script
     assert (
         'if (page !== "sharp-money") loadGlobalStatus();'
         in shell_script
@@ -1214,7 +1216,7 @@ def test_sharp_money_combined_liquidity_keeps_decimal_for_even_thousands():
 
     assert "function liquidityMoney(value)" in script
     assert "(absolute / 1000).toFixed(1)" in script
-    assert "liquidityMoney(combinedDepthLiquidity(signal))" in script
+    assert "liquidityMoney(combinedCrossedLiquidity(signal))" in script
 
 
 def test_sharp_money_frontend_separates_sportsbook_actions_from_depth_sources():

@@ -33,8 +33,8 @@
 
   <section class="sharp-summary sharp-utility-state" aria-label="Sharp Money status">
     <div><span>Markets monitored</span><strong id="sharp-summary-signals">0</strong><small id="sharp-summary-signals-note">Real ProphetX markets</small></div>
-    <div><span>ProphetX depth</span><strong id="sharp-summary-liquidity">$0</strong><small id="sharp-summary-liquidity-note">Quoted, not confirmed wagers</small></div>
-    <div><span>Flow detections</span><strong id="sharp-summary-flow">0</strong><small id="sharp-summary-flow-note">Snapshot-inferred pressure</small></div>
+    <div><span>Crossed liquidity</span><strong id="sharp-summary-liquidity">$0</strong><small id="sharp-summary-liquidity-note">NoVIG + ProphetX order books</small></div>
+    <div><span>Sharp opportunities</span><strong id="sharp-summary-flow">0</strong><small id="sharp-summary-flow-note">Crossed-market opportunities</small></div>
     <div><span>Collector cycles</span><strong id="sharp-summary-cycles">0</strong><small id="sharp-summary-requests">No requests while paused</small></div>
   </section>
 
@@ -63,7 +63,7 @@
 <aside class="sharp-filter-drawer" id="sharp-filter-drawer" aria-labelledby="sharp-filter-title" hidden>
   <header><div><span>Customize</span><h2 id="sharp-filter-title">Sharp Money filters</h2></div><button id="sharp-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x"></i></button></header>
   <div class="sharp-filter-body">
-    <section><label>Minimum quoted depth <span id="sharp-liquidity-value">$0</span><input id="sharp-liquidity-filter" type="range" min="0" max="25000" step="500" value="0"></label></section>
+    <section><label>Minimum crossed liquidity <span id="sharp-liquidity-value">$0</span><input id="sharp-liquidity-filter" type="range" min="0" max="25000" step="500" value="0"></label></section>
     <section><label>Flow state<select id="sharp-flow-filter"><option value="">All markets</option><option value="detected">Flow detected</option><option value="monitoring">Monitoring</option></select></label></section>
     <section><label>Market type<select id="sharp-market-filter"><option value="">All markets</option><option value="moneyline">Moneyline</option><option value="spread">Spread</option><option value="game_total">Totals</option></select></label></section>
     <section class="sharp-sportsbook-filter">
@@ -71,7 +71,7 @@
       <label class="sharp-sportsbook-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="sharp-sportsbook-search" type="search" placeholder="Search all OddsEngine books"></label>
       <div class="sharp-sportsbook-list" id="sharp-sportsbook-list"></div>
     </section>
-    <section class="sharp-filter-explainer"><i class="ph ph-info"></i><div><strong>Inference, not identity</strong><p>Pressure is inferred from changing prices and available depth. It does not claim to identify a bettor or guarantee that a displayed order was filled.</p></div></section>
+    <section class="sharp-filter-explainer"><i class="ph ph-info"></i><div><strong>Crossed-market signal</strong><p>Liquidity is the combined amount available on the equal-and-opposite NoVIG and ProphetX line. It does not claim that a displayed order was filled.</p></div></section>
   </div>
   <footer><button id="sharp-filter-reset" type="button">Reset</button><button id="sharp-filter-apply" type="button">Show results</button></footer>
 </aside>

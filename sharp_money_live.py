@@ -47,6 +47,12 @@ SHARP_CONSENSUS_BOOKS = {
     "pinnacle",
     "prophetx",
 }
+NON_RETAIL_MARKET_BOOKS = SHARP_CONSENSUS_BOOKS | {
+    "4cx",
+    "fourcx",
+    "kalshi",
+    "polymarket",
+}
 
 
 class OddsComparisonFallback:
@@ -260,6 +266,86 @@ def _book_liquidity(book: dict) -> float:
     if explicit > 0:
         return explicit
     return sum(row["liquidity"] for row in _orderbook_levels(book))
+
+
+def _quoted_book_liquidity(book: dict) -> float:
+    """Return executable dollars at the displayed exchange price.
+
+    ``total_liquidity`` can include worse prices deeper in the book. Crossed
+    market Sharp Money must use only the dollars available at the quoted line.
+    """
+    explicit = _number(book.get("liquidity"))
+    if explicit > 0:
+        return explicit
+    levels = _orderbook_levels(book)
+    return levels[0]["liquidity"] if levels else 0.0
+
+
+def _sharp_side_liquidity(side: dict) -> tuple[float, dict[str, float]]:
+    sources: dict[str, float] = {}
+    for raw_key, raw_book in (side.get("books") or {}).items():
+        key = _book_key(raw_key)
+        if key not in {"novig", "prophetx"} or not isinstance(raw_book, dict):
+            continue
+        value = _quoted_book_liquidity(raw_book)
+        if value > 0:
+            sources[key] = value
+    return sum(sources.values()), sources
+
+
+def _crossed_market_liquidity(comparisons: list[dict]) -> dict | None:
+    """Find the retail/sharp cross and its executable exchange liquidity.
+
+    The recommended bet is the best retail price. Liquidity comes from the
+    equal-and-opposite NoVIG/ProphetX quotes that individually cross it.
+    Liquidity on the recommended exchange side is not subtracted: it is a
+    different executable quote, not a matched-position balance.
+    """
+    retail = [
+        row
+        for row in comparisons
+        if _book_key(row.get("providerKey")) not in NON_RETAIL_MARKET_BOOKS
+        and _decimal_from_american(row.get("americanOdds")) is not None
+    ]
+    if not retail:
+        return None
+    best_retail = max(
+        retail,
+        key=lambda row: _number(row.get("americanOdds"), -100000),
+    )
+    retail_decimal = _decimal_from_american(best_retail.get("americanOdds"))
+    if retail_decimal is None:
+        return None
+    sources: dict[str, float] = {}
+    sharp_prices: dict[str, int] = {}
+    best_implied_sum: float | None = None
+    for row in comparisons:
+        key = _book_key(row.get("providerKey"))
+        if key not in {"novig", "prophetx"}:
+            continue
+        opposite_decimal = _decimal_from_american(
+            row.get("oppositeAmericanOdds")
+        )
+        liquidity = _number(row.get("oppositeAvailableLiquidity"))
+        if opposite_decimal is None or liquidity <= 0:
+            continue
+        implied_sum = (1 / retail_decimal) + (1 / opposite_decimal)
+        if implied_sum >= 1:
+            continue
+        sources[key] = liquidity
+        sharp_prices[key] = round(_number(row.get("oppositeAmericanOdds")))
+        if best_implied_sum is None or implied_sum < best_implied_sum:
+            best_implied_sum = implied_sum
+    if not sources or best_implied_sum is None:
+        return None
+    return {
+        "liquidity": sum(sources.values()),
+        "sources": sources,
+        "sharpPrices": sharp_prices,
+        "retailBook": _book_key(best_retail.get("providerKey")),
+        "retailOdds": round(_number(best_retail.get("americanOdds"))),
+        "roiPercent": (1 / best_implied_sum - 1) * 100,
+    }
 
 
 def _side_name(side: dict, market: dict) -> str:
@@ -934,19 +1020,14 @@ class SharpMoneyCollector:
                     else consensus_probability
                 )
                 side_key = f"rest:{event_id}:{market_kind}:{group_line}:{side_id}"
-                known_liquidity = sum(
-                    max(0.0, _number(row.get("availableLiquidity")))
-                    for row in quotes
-                )
+                known_liquidity = None
                 previous = self._previous.get(side_key)
                 probability_delta = (
                     consensus_probability - previous["probability"]
                     if previous
                     else 0.0
                 )
-                liquidity_delta = (
-                    known_liquidity - previous["liquidity"] if previous else 0.0
-                )
+                liquidity_delta = 0.0
                 sharp_edge = sharp_probability - consensus_probability
                 pressure = probability_delta + sharp_edge
                 line = quotes[0].get("line")
@@ -982,7 +1063,7 @@ class SharpMoneyCollector:
                 key=lambda item: (
                     item["pressure"],
                     item["bookCount"],
-                    item["liquidity"],
+                    item["liquidity"] or 0,
                 ),
             )
             opposite = next(row for row in outcomes if row is not leader)
@@ -1024,7 +1105,7 @@ class SharpMoneyCollector:
                 key=lambda row: _number(row.get("americanOdds"), -100000),
                 reverse=True,
             )
-            total_liquidity = sum(row["liquidity"] for row in outcomes)
+            total_liquidity = None
             confidence = min(
                 95,
                 round(
@@ -1068,7 +1149,9 @@ class SharpMoneyCollector:
                     "selection": leader["name"],
                     "americanOdds": leader["americanOdds"],
                     "decimalOdds": leader["decimalOdds"],
-                    "liquidity": leader["liquidity"],
+                    "liquidity": None,
+                    "crossedLiquidity": None,
+                    "liquiditySources": {},
                     "totalLiquidity": total_liquidity,
                     "liquidityDelta": leader["liquidityDelta"],
                     "probabilityDelta": leader["probabilityDelta"],
@@ -1098,7 +1181,7 @@ class SharpMoneyCollector:
             key=lambda item: (
                 abs(item["pressure"]),
                 max((row.get("bookCount", 0) for row in item["outcomes"]), default=0),
-                item["totalLiquidity"],
+                item["totalLiquidity"] or 0,
             ),
             reverse=True,
         )[: max(1, min(int(snapshot.get("limit") or 40), 100))]
@@ -1112,6 +1195,8 @@ class SharpMoneyCollector:
         fallback_liquidity: object = None,
     ) -> dict | None:
         _raw_book, book = _side_book(side, "prophetx")
+        if not book:
+            _raw_book, book = _side_book(side, "novig")
         book = book or {}
         american = round(
             _number(
@@ -1125,7 +1210,8 @@ class SharpMoneyCollector:
         )
         if decimal is None or decimal <= 1:
             return None
-        liquidity = _book_liquidity(book) or _number(fallback_liquidity)
+        liquidity, liquidity_sources = _sharp_side_liquidity(side)
+        liquidity = liquidity or _number(fallback_liquidity)
         return {
             "key": (
                 f"{market.get('event_id')}:{market.get('id')}:"
@@ -1137,6 +1223,7 @@ class SharpMoneyCollector:
             "americanOdds": american,
             "probability": 1 / decimal,
             "liquidity": liquidity,
+            "liquiditySources": liquidity_sources,
             "line": (
                 side.get("line")
                 if side.get("line") is not None
@@ -1177,8 +1264,10 @@ class SharpMoneyCollector:
                 "displayOdds": f"+{american}" if american > 0 else str(american),
                 "americanOdds": american,
                 "oppositeAmericanOdds": opposite_american or None,
-                "availableLiquidity": _book_liquidity(raw_book),
-                "oppositeAvailableLiquidity": _book_liquidity(opposite_book),
+                "availableLiquidity": _quoted_book_liquidity(raw_book),
+                "oppositeAvailableLiquidity": _quoted_book_liquidity(
+                    opposite_book
+                ),
                 "marketLimit": raw_book.get("limit"),
                 "deepLink": str(raw_book.get("bet_link") or ""),
                 "logoUrl": ORDERBOOK_BOOK_LOGOS.get(key, ""),
@@ -1245,6 +1334,12 @@ class SharpMoneyCollector:
             opposing = self._oddsengine_outcome(market, opposite)
             if selected is None or opposing is None:
                 continue
+            comparisons = self._oddsengine_comparisons(recommended, opposite)
+            crossed = _crossed_market_liquidity(comparisons)
+            if crossed is None:
+                continue
+            crossed_liquidity = crossed["liquidity"]
+            crossed_sources = crossed["sources"]
             previous = self._previous.get(selected["key"])
             probability_delta = (
                 selected["probability"] - previous["probability"]
@@ -1252,7 +1347,7 @@ class SharpMoneyCollector:
                 else 0.0
             )
             liquidity_delta = (
-                selected["liquidity"] - previous["liquidity"]
+                crossed_liquidity - previous.get("crossedLiquidity", 0.0)
                 if previous
                 else 0.0
             )
@@ -1263,6 +1358,7 @@ class SharpMoneyCollector:
                     "probabilityDelta": probability_delta,
                     "liquidityDelta": liquidity_delta,
                     "pressure": pressure,
+                    "crossedLiquidity": crossed_liquidity,
                 }
             )
             current[selected["key"]] = selected
@@ -1270,7 +1366,7 @@ class SharpMoneyCollector:
                 {
                     "observedAt": observed_at,
                     "americanOdds": selected["americanOdds"],
-                    "liquidity": selected["liquidity"],
+                    "liquidity": crossed_liquidity,
                     "pressure": pressure,
                 }
             )
@@ -1285,9 +1381,7 @@ class SharpMoneyCollector:
                 event_name = " vs. ".join(value for value in (away, home) if value)
             market_name = str(market.get("market") or "Market").strip()
             whale_volume = _number(opportunity.get("whale_volume"))
-            total_liquidity = _number(market.get("total_liquidity")) or (
-                selected["liquidity"] + opposing["liquidity"]
-            )
+            total_liquidity = selected["liquidity"] + opposing["liquidity"]
             confidence = min(
                 99,
                 round(
@@ -1299,8 +1393,8 @@ class SharpMoneyCollector:
             rows.append(
                 {
                     "id": f"oe:px:{event_id}:{market_id}:{selected['selectionId']}",
-                    "provider": "ProphetX",
-                    "providerKey": "prophetx",
+                    "provider": "NoVIG + ProphetX",
+                    "providerKey": "sharp_exchanges",
                     "providerLogo": PROPHETX_LOGO_URL,
                     "sport": str(market.get("sport") or market.get("league") or ""),
                     "league": str(market.get("league") or "Other").upper(),
@@ -1317,7 +1411,13 @@ class SharpMoneyCollector:
                     "selection": selected["name"],
                     "americanOdds": selected["americanOdds"],
                     "decimalOdds": selected["decimalOdds"],
-                    "liquidity": selected["liquidity"],
+                    "liquidity": crossed_liquidity,
+                    "crossedLiquidity": crossed_liquidity,
+                    "liquiditySources": crossed_sources,
+                    "crossedSharpOdds": crossed["sharpPrices"],
+                    "crossedRetailOdds": crossed["retailOdds"],
+                    "crossedRoiPercent": crossed["roiPercent"],
+                    "counterLiquidity": selected["liquidity"],
                     "totalLiquidity": total_liquidity,
                     "liquidityDelta": liquidity_delta,
                     "probabilityDelta": probability_delta,
@@ -1329,25 +1429,24 @@ class SharpMoneyCollector:
                     ),
                     "confidence": confidence,
                     "inferenceOnly": True,
-                    "transport": "OddsEngine ProphetX full order book",
+                    "depthAvailable": True,
+                    "transport": "OddsEngine NoVIG + ProphetX full order books",
                     "outcomes": [selected, opposing],
                     "history": list(self._history[selected["key"]]),
-                    "comparisonLines": self._oddsengine_comparisons(
-                        recommended, opposite
-                    ),
+                    "comparisonLines": comparisons,
                     "edgePercent": edge_percent,
                     "fairOdds": opportunity.get("fair_odds"),
                     "whaleVolume": whale_volume,
                     "whaleVolumeMode": opportunity.get("whale_volume_mode"),
-                    "bestBook": opportunity.get("best_book"),
+                    "bestBook": crossed["retailBook"],
                 }
             )
         self._previous = current
         return sorted(
             rows,
             key=lambda item: (
+                item["crossedLiquidity"],
                 abs(item["pressure"]),
-                item["whaleVolume"],
                 item["totalLiquidity"],
             ),
             reverse=True,

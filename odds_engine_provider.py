@@ -850,7 +850,6 @@ class OddsEngineProvider(ExecutionProvider):
                 "/orderbook/top",
                 params={
                     "sort": "whale",
-                    "selected_books": "prophetx",
                     "limit": max(1, min(int(limit), 100)),
                 },
             )

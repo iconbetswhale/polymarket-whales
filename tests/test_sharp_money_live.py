@@ -5,7 +5,11 @@ import time
 import pytest
 import requests
 
-from sharp_money_live import OddsComparisonFallback, SharpMoneyCollector
+from sharp_money_live import (
+    OddsComparisonFallback,
+    SharpMoneyCollector,
+    _crossed_market_liquidity,
+)
 
 
 class FakeProphetX:
@@ -123,8 +127,8 @@ class FakeOddsEngineOrderBook:
                     "order_book": [{"odds": 110, "liquidity": 800}],
                 },
                 "fanduel": {
-                    "odds_american": 105,
-                    "odds_decimal": 2.05,
+                    "odds_american": 130,
+                    "odds_decimal": 2.3,
                     "limit": 500,
                     "bet_link": "https://fanduel.test/market-1",
                 },
@@ -202,6 +206,31 @@ class FakeOddsEngineOrderBook:
                 }
             ],
         }
+
+
+def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
+    crossed = _crossed_market_liquidity(
+        [
+            {
+                "providerKey": "fanduel",
+                "americanOdds": 110,
+            },
+            {
+                "providerKey": "novig",
+                "americanOdds": 105,
+                "availableLiquidity": 7000,
+                "oppositeAmericanOdds": -105,
+                "oppositeAvailableLiquidity": 10000,
+            },
+        ]
+    )
+
+    assert crossed is not None
+    assert crossed["liquidity"] == 10000
+    assert crossed["sources"] == {"novig": 10000}
+    assert crossed["retailBook"] == "fanduel"
+    assert crossed["retailOdds"] == 110
+    assert crossed["roiPercent"] > 0
 
 
 def test_odds_comparison_prefers_odds_engine_and_falls_back() -> None:
@@ -287,12 +316,27 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
     assert payload["paused"] is False
     assert cached["signalCount"] == 1
     signal = payload["signals"][0]
-    assert signal["provider"] == "ProphetX"
-    assert signal["transport"] == "OddsEngine ProphetX full order book"
+    assert signal["provider"] == "NoVIG + ProphetX"
+    assert signal["transport"] == (
+        "OddsEngine NoVIG + ProphetX full order books"
+    )
     assert signal["selection"] == "Philadelphia Phillies"
     assert signal["edgePercent"] == 4.2
     assert signal["whaleVolume"] == 8400
     assert signal["pressure"] == 0.042
+    # OddsJam-style crossed liquidity is the amount available on the equal-
+    # and-opposite sharp side. It is summed across exchanges, not netted
+    # against the recommended side's $2,300.
+    assert signal["crossedLiquidity"] == 2100
+    assert signal["liquidity"] == 2100
+    assert signal["counterLiquidity"] == 2300
+    assert signal["totalLiquidity"] == 4400
+    assert signal["liquiditySources"] == {"prophetx": 1400, "novig": 700}
+    assert signal["crossedSharpOdds"] == {"prophetx": -125, "novig": -120}
+    assert signal["crossedRetailOdds"] == 130
+    assert signal["bestBook"] == "fanduel"
+    assert signal["crossedRoiPercent"] > 0
+    assert signal["depthAvailable"] is True
     prophetx = next(
         row
         for row in signal["comparisonLines"]
@@ -394,6 +438,8 @@ def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_pr
     signal = payload["signals"][0]
     assert signal["transport"] == "OddsEngine REST sharp-consensus snapshot"
     assert signal["depthAvailable"] is False
+    assert signal["crossedLiquidity"] is None
+    assert signal["liquidity"] is None
     assert signal["inferenceOnly"] is True
     assert signal["selection"].startswith("Philadelphia Phillies")
     assert signal["pressure"] > 0
