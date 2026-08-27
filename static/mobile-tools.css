@@ -184,6 +184,13 @@
     padding: 0 var(--il-mobile-gutter) max(28px, env(safe-area-inset-bottom)) !important;
   }
 
+  body[data-design-system="v2"][data-page="positive-ev"] .app-shell {
+    min-height: 100dvh !important;
+    height: auto !important;
+    padding: 0 0 max(92px, calc(76px + env(safe-area-inset-bottom))) !important;
+    overflow: visible !important;
+  }
+
   .arb-page h1,
   .mid-page h1,
   .lh-page h1,
@@ -350,6 +357,14 @@
   }
 
   /* Positive EV */
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-credit-banner {
+    display: none !important;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-content {
+    gap: 7px !important;
+  }
+
   .ev-workspace,
   .ev-workspace.detail-open,
   .ev-feed-column {
@@ -358,28 +373,240 @@
     min-width: 0 !important;
   }
 
-  .ev-toolbar {
-    padding: 12px 0 !important;
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar {
+    min-height: 0 !important;
+    padding: 10px 0 7px !important;
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    border: 0 !important;
+    box-shadow: none !important;
   }
 
   .ev-title-row {
+    width: 100% !important;
+    min-width: 0 !important;
+    justify-content: flex-start !important;
     gap: 9px !important;
+    overflow: hidden !important;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-title-row h1 {
+    font-size: 25px !important;
+    line-height: 1 !important;
+  }
+
+  .ev-mode-tabs {
+    width: auto !important;
+    max-width: calc(100% - 52px) !important;
+    flex: 0 1 auto !important;
+    display: inline-flex !important;
+    min-height: 34px !important;
+    padding: 3px !important;
+  }
+
+  .ev-mode-tabs button {
+    min-height: 28px !important;
+    padding: 0 9px !important;
+    font-size: 11px !important;
   }
 
   .ev-actions {
+    position: relative !important;
     display: grid !important;
-    grid-template-columns: minmax(0, 1fr) auto auto !important;
+    grid-template-columns: minmax(0, 1fr) 72px !important;
+    grid-template-areas: none !important;
     gap: 8px !important;
   }
 
-  .ev-toolbar-finance {
-    grid-column: 1 / -1;
-    width: 100%;
+  .ev-search {
+    grid-column: 1 !important;
+    grid-row: 1 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+  }
+
+  .ev-mobile-info {
+    position: static !important;
+    grid-column: 2 !important;
+    grid-row: 1 !important;
+    display: block !important;
+    min-width: 0 !important;
+  }
+
+  .ev-mobile-info > summary {
+    width: 100% !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    padding: 0 9px !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 5px !important;
+    border: 1px solid var(--il-border-subtle) !important;
+    border-radius: 11px !important;
+    background: var(--il-surface-play-card-purple) !important;
+    color: var(--il-text-secondary) !important;
+    font: 700 11px/1 var(--il-font-ui) !important;
+    list-style: none !important;
+    cursor: pointer !important;
+  }
+
+  .ev-mobile-info > summary::-webkit-details-marker {
+    display: none !important;
+  }
+
+  .ev-mobile-info > summary > .ph-info {
+    color: var(--il-brand-hover) !important;
+    font-size: 15px !important;
+  }
+
+  .ev-mobile-info-caret {
+    color: var(--il-text-muted) !important;
+    font-size: 11px !important;
+    transition: transform var(--il-motion-fast) ease !important;
+  }
+
+  .ev-mobile-info[open] > summary {
+    border-color: var(--il-border-interactive) !important;
+    background: var(--il-surface-play-card-purple-active) !important;
+    color: var(--il-text-primary) !important;
+  }
+
+  .ev-mobile-info[open] .ev-mobile-info-caret {
+    transform: rotate(180deg) !important;
+  }
+
+  .ev-mobile-info > .ev-mobile-info-panel {
+    display: none !important;
+  }
+
+  .ev-mobile-info[open] > .ev-mobile-info-panel {
+    position: absolute !important;
+    z-index: 45 !important;
+    top: 50px !important;
+    right: 0 !important;
+    left: 0 !important;
+    padding: 10px !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    border: 1px solid var(--il-border-interactive) !important;
+    border-radius: 13px !important;
+    background: #080d18 !important;
+    box-shadow: 0 18px 38px rgba(0, 0, 0, .44) !important;
+  }
+
+  .ev-mobile-info:not([data-mobile-ready]) > .ev-mobile-info-panel {
+    display: none !important;
+  }
+
+  .ev-mobile-credit-summary {
+    grid-column: 1 / -1 !important;
+    min-width: 0 !important;
+    padding: 1px 2px 7px !important;
+    display: flex !important;
+    align-items: flex-start !important;
+    gap: 8px !important;
+    border-bottom: 1px solid var(--il-border-hairline) !important;
+    color: var(--il-text-muted) !important;
+    font: 600 10px/1.35 var(--il-font-ui) !important;
+  }
+
+  .ev-mobile-credit-summary > i {
+    flex: 0 0 auto !important;
+    color: var(--il-brand-hover) !important;
+    font-size: 16px !important;
+  }
+
+  .ev-mobile-credit-summary strong {
+    color: var(--il-text-primary) !important;
+  }
+
+  .ev-finance-actions {
+    grid-column: 1 / -1 !important;
+    width: 100% !important;
+    height: 48px !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  .ev-toolbar-popover-shell,
+  .ev-toolbar-unit-size {
+    min-width: 0 !important;
+    flex: 1 1 0 !important;
+  }
+
+  .ev-bankroll-button {
+    width: 100% !important;
+  }
+
+  .ev-mobile-info-panel .ev-settings-trigger,
+  .ev-mobile-info-panel .ev-more-menu-wrap > .ev-icon-button {
+    width: 100% !important;
+    min-width: 0 !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 7px !important;
+    border: 1px solid var(--il-border-subtle) !important;
+    border-radius: 10px !important;
+    background: var(--il-surface-play-card-purple) !important;
+  }
+
+  .ev-control-label {
+    display: inline !important;
+    font: 700 11px/1 var(--il-font-ui) !important;
+  }
+
+  .ev-settings-trigger {
+    position: relative !important;
+    grid-area: auto !important;
+  }
+
+  .ev-more-menu-wrap {
+    position: relative !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+    grid-area: auto !important;
+  }
+
+  .ev-active-filter-count {
+    top: -5px !important;
+    right: -4px !important;
+  }
+
+  .ev-bankroll-popover {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: auto !important;
+    left: -10px !important;
+    width: calc(100vw - (var(--il-mobile-gutter) * 2)) !important;
+  }
+
+  .ev-more-menu {
+    position: absolute !important;
+    top: calc(100% + 8px) !important;
+    right: 0 !important;
+    left: auto !important;
+    width: min(286px, calc(100vw - (var(--il-mobile-gutter) * 2))) !important;
   }
 
   .ev-feed-status {
-    min-height: 36px !important;
-    padding-inline: 4px !important;
+    min-height: 27px !important;
+    padding: 0 3px !important;
+    gap: 8px !important;
+    font-size: 9.5px !important;
+  }
+
+  .ev-feed-status > span:last-child {
+    max-width: 48% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
   }
 
   .ev-feed {
@@ -474,8 +701,18 @@
   }
 
   .ev-bet-metrics {
-    display: flex !important;
-    gap: 12px !important;
+    width: 100% !important;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 5px !important;
+  }
+
+  .ev-bet-metric,
+  .ev-bet-metric.ev-to-win {
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 38px !important;
+    padding: 4px 5px !important;
   }
 
   .ev-bet-metric small {

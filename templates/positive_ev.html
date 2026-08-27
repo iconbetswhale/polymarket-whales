@@ -19,30 +19,39 @@
       </div>
       <div class="ev-actions">
         <label class="ev-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="ev-search" type="search" placeholder="Search" aria-label="Search Positive EV opportunities"></label>
-        <div class="ev-finance-actions il-finance-controls" aria-label="Positive EV bankroll settings">
-          <div class="ev-toolbar-popover-shell">
-            <button class="ev-bankroll-button" id="ev-bankroll-popover-button" type="button" aria-expanded="false" aria-controls="ev-bankroll-popover"><small>Bankroll</small><strong id="ev-bankroll-toolbar-value">Loading</strong></button>
-            <section class="ev-bankroll-popover" id="ev-bankroll-popover" aria-label="Positive EV bankroll settings" hidden>
-              <div class="ev-popover-heading"><span>Positive EV Bankroll</span><small>Controls recommended bet sizing</small></div>
-              <label class="ev-money-input is-loading"><span>$</span><input id="ev-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Positive EV sizing bankroll" disabled></label>
-              <div class="ev-unit-readout"><span>1 Unit</span><strong id="ev-unit-value">Loading</strong><small>1% of saved bankroll</small></div>
-              <span class="ev-bankroll-save-state" id="ev-bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
-              <button class="button compact primary" id="ev-save-bankroll" type="button" disabled>Save Bankroll</button>
-            </section>
+        <details class="ev-mobile-info" id="ev-mobile-info" open>
+          <summary aria-label="Show feed information and controls"><i class="ph ph-info" aria-hidden="true"></i><span>Info</span><i class="ph ph-caret-down ev-mobile-info-caret" aria-hidden="true"></i></summary>
+          <div class="ev-mobile-info-panel">
+            <div class="ev-mobile-credit-summary">
+              <i class="ph ph-shield-check" aria-hidden="true"></i>
+              <span id="ev-mobile-credit-summary-copy"><strong>Validating plays</strong> · checking execution and sources</span>
+            </div>
+            <div class="ev-finance-actions il-finance-controls" aria-label="Positive EV bankroll settings">
+              <div class="ev-toolbar-popover-shell">
+                <button class="ev-bankroll-button" id="ev-bankroll-popover-button" type="button" aria-expanded="false" aria-controls="ev-bankroll-popover"><small>Bankroll</small><strong id="ev-bankroll-toolbar-value">Loading</strong></button>
+                <section class="ev-bankroll-popover" id="ev-bankroll-popover" aria-label="Positive EV bankroll settings" hidden>
+                  <div class="ev-popover-heading"><span>Positive EV Bankroll</span><small>Controls recommended bet sizing</small></div>
+                  <label class="ev-money-input is-loading"><span>$</span><input id="ev-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Positive EV sizing bankroll" disabled></label>
+                  <div class="ev-unit-readout"><span>1 Unit</span><strong id="ev-unit-value">Loading</strong><small>1% of saved bankroll</small></div>
+                  <span class="ev-bankroll-save-state" id="ev-bankroll-save-state" data-state="loading" aria-live="polite">Loading saved bankroll</span>
+                  <button class="button compact primary" id="ev-save-bankroll" type="button" disabled>Save Bankroll</button>
+                </section>
+              </div>
+              <span class="ev-toolbar-unit-size"><small>Unit size</small><strong id="ev-unit-toolbar-value">Loading</strong></span>
+            </div>
+            <button class="ev-icon-button icon-button ev-settings-trigger" id="ev-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="ev-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="ev-control-label">Filters</span><span class="ev-active-filter-count" id="ev-active-filter-count" aria-label="0 customized filter groups">0</span></button>
+            <div class="ev-more-menu-wrap">
+              <button class="ev-icon-button icon-button" id="ev-more-menu-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="ev-more-menu" aria-label="More Positive EV actions" data-il-tooltip="More actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i><span class="ev-control-label">More</span></button>
+              <div class="ev-more-menu" id="ev-more-menu" role="menu" aria-label="More Positive EV actions" hidden>
+                <button class="ev-menu-action" id="ev-refresh" type="button" role="menuitem"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh opportunities</span><small>Now</small></button>
+                <button class="ev-menu-action" id="ev-pause" type="button" role="menuitem" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Automatic refresh</span><small>Active</small></button>
+                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
+                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
+                <small class="ev-menu-note">All event times shown in ET</small>
+              </div>
+            </div>
           </div>
-          <span class="ev-toolbar-unit-size"><small>Unit size</small><strong id="ev-unit-toolbar-value">Loading</strong></span>
-        </div>
-        <button class="ev-icon-button icon-button ev-settings-trigger" id="ev-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="ev-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="ev-active-filter-count" id="ev-active-filter-count" aria-label="0 customized filter groups">0</span></button>
-        <div class="ev-more-menu-wrap">
-          <button class="ev-icon-button icon-button" id="ev-more-menu-toggle" type="button" aria-expanded="false" aria-haspopup="menu" aria-controls="ev-more-menu" aria-label="More Positive EV actions" data-il-tooltip="More actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></button>
-          <div class="ev-more-menu" id="ev-more-menu" role="menu" aria-label="More Positive EV actions" hidden>
-            <button class="ev-menu-action" id="ev-refresh" type="button" role="menuitem"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh opportunities</span><small>Now</small></button>
-            <button class="ev-menu-action" id="ev-pause" type="button" role="menuitem" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Automatic refresh</span><small>Active</small></button>
-            <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
-            <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
-            <small class="ev-menu-note">All event times shown in ET</small>
-          </div>
-        </div>
+        </details>
       </div>
     </header>
 

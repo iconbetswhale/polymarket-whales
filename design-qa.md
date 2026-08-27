@@ -75,6 +75,62 @@ final result: passed
 
 ---
 
+# Positive EV plays-first mobile QA
+
+## Comparison target
+
+- Source visual truth: `C:\Users\15617\.codex\codex-remote-attachments\01a04079-93e0-70e2-a501-ce3f763bc948\9C763005-C625-4713-A73E-E66A24C0248D\1-Photo-1.jpg`.
+- Browser-rendered implementation: `C:\Users\15617\Documents\Polymarket\positive-ev-mobile-plays-first-20260826\.codex-artifacts\positive-ev-mobile-collapsed-final.png`.
+- Expanded-control state: `C:\Users\15617\Documents\Polymarket\positive-ev-mobile-plays-first-20260826\.codex-artifacts\positive-ev-mobile-info-open-final.png`.
+- Combined full-view evidence: `C:\Users\15617\Documents\Polymarket\positive-ev-mobile-plays-first-20260826\.codex-artifacts\positive-ev-mobile-before-after.png`.
+- Combined focused evidence: `C:\Users\15617\Documents\Polymarket\positive-ev-mobile-plays-first-20260826\.codex-artifacts\positive-ev-mobile-header-before-after.png`.
+- Viewport and density: 390 × 844 CSS px at device scale factor 1. The in-app browser capture is 375 × 812 pixels after browser-owned scrollbar/chrome cropping. The source is 589 × 1280 pixels and includes iOS status and Safari chrome; the app-owned source region was cropped from y=83 to y=1100 and proportionally normalized for the combined comparisons.
+- State: dark theme, ten populated +EV plays, information drawer collapsed and expanded.
+
+## Findings
+
+- No actionable P0, P1, or P2 findings remain.
+- Fonts and typography: the existing IconLabs UI/data font hierarchy is preserved. +EV and Pre-Match are compact, search remains at a legible 16 px input size, metadata is secondary, and matchup/selection values stay visually dominant without unintended wrapping or clipping.
+- Spacing and layout rhythm: the inherited 72 px desktop top padding is removed on phones. The first play begins at y=205, all primary content sits on consistent 11 px gutters, and the document and client widths both measure 375 px with no horizontal overflow.
+- Colors and visual tokens: the existing navy, near-black, purple, green, border, glow, and state tokens are reused. The information drawer reads as part of the same product rather than a new visual system.
+- Image quality and asset fidelity: existing team, league, and provider assets remain sharp and correctly contained. Existing Phosphor icons are used for Info, Filters, More, status, and carets; no handmade SVG, CSS art, emoji, or placeholder assets were introduced.
+- Copy and content: the collapsed phone state contains only +EV, Pre-Match count, Search, Info, live status, updated time, and plays. Validation counts, bankroll, unit size, filters, and secondary actions move into the Info drawer.
+- Accessibility and affordances: Info uses native `details`/`summary` behavior, the drawer has an explicit accessible label and state caret, search remains labelled, and existing filter, menu, bankroll, and card controls retain their original semantics.
+
+## Full-view and focused comparison evidence
+
+- Full-view: the supplied reference and final implementation were combined into one image. The reference devotes most of the first viewport to a blank band, validation banner, finance strip, and action chrome; the final layout removes the blank band and places the first complete play immediately after one compact command row.
+- Focused region: the header/card comparison confirms that the title, tab, search, and Info control share one aligned plane; the desktop finance strip no longer leaks into the collapsed phone state; and the first play keeps even metric columns and a full-width card boundary.
+- No additional focused image crop was required because the source and implementation use the same existing team/provider imagery and icon system, all of which is readable in the captured header/card region.
+
+## Interaction and runtime checks
+
+- Info opens and exposes validation counts, bankroll, unit size, Filters, and More.
+- Filters opens the existing bottom-sheet dialog and closes normally.
+- More opens the existing action menu.
+- Bankroll opens its editable popover.
+- Searching for `Aces` reduces the populated feed to exactly one play, then clearing search restores the feed.
+- The collapsed document reports `body.scrollWidth = documentElement.clientWidth = 375`; horizontal overflow is zero.
+- Browser console check after all interactions: zero errors.
+
+## Comparison history
+
+1. P1 — desktop shell padding produced the large blank band above +EV. Fixed with a page-specific phone shell reset. Post-fix evidence: first play starts at y=205 in `positive-ev-mobile-collapsed-final.png`.
+2. P1 — bankroll, unit size, filter, validation, and More controls all remained exposed above the feed. Fixed by grouping them into one native Info disclosure while leaving Search visible. Post-fix evidence: `positive-ev-mobile-info-open-final.png`.
+3. P2 — the Pre-Match tab inherited a full-row width and extended the title row beyond the phone canvas. Fixed by constraining the tab to its content width and allowing it to shrink. Post-fix measurement: document and client widths are both 375 px.
+4. P2 — recommended-bet and total-payout metrics used uneven flex sizing. Fixed with equal minmax grid tracks and consistent compact metric heights.
+
+## Automated checks
+
+- `node --check static/positive-ev.js`: passed.
+- `node --check static/mobile-tools.js`: passed.
+- `pytest tests/test_positive_ev_design_system.py tests/test_mobile_tools_assets.py -q -p no:cacheprovider`: 34 passed.
+- `pytest tests/test_app.py -k "positive_ev" -q -p no:cacheprovider`: 8 passed, 82 deselected.
+
+final result: passed
+
+---
+
 # Flush mobile navigation, DFS app picker, and scan-first Traders QA
 
 ## Comparison target

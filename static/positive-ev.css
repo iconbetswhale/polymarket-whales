@@ -96,6 +96,12 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar {
   gap: 6px;
 }
 
+.ev-mobile-info,
+.ev-mobile-info-panel { display: contents; }
+.ev-mobile-info > summary,
+.ev-mobile-credit-summary,
+.ev-control-label { display: none; }
+
 .ev-search {
   width: 200px;
   height: var(--il-control-height);

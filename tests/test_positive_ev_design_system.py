@@ -96,6 +96,23 @@ def test_positive_ev_reuses_prediction_traders_finance_toolbar_pattern() -> None
     assert ".ev-active-filter-count" in CSS
 
 
+def test_positive_ev_phone_header_collapses_secondary_information_into_one_drawer() -> None:
+    mobile_css = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+
+    assert '<details class="ev-mobile-info" id="ev-mobile-info" open>' in TEMPLATE
+    assert 'id="ev-mobile-credit-summary-copy"' in TEMPLATE
+    assert TEMPLATE.index('id="ev-search"') < TEMPLATE.index('id="ev-mobile-info"')
+    assert TEMPLATE.index('id="ev-mobile-info"') < TEMPLATE.index('id="ev-bankroll-popover-button"')
+    assert TEMPLATE.index('id="ev-bankroll-popover-button"') < TEMPLATE.index('id="ev-filter-open"')
+    assert TEMPLATE.index('id="ev-filter-open"') < TEMPLATE.index('id="ev-more-menu-toggle"')
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .app-shell' in mobile_css
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-credit-banner' in mobile_css
+    assert '.ev-mobile-info[open] > .ev-mobile-info-panel' in mobile_css
+    assert 'grid-template-columns: minmax(0, 1fr) 72px !important' in mobile_css
+    assert '$("ev-mobile-credit-summary-copy").innerHTML' in SCRIPT
+    assert 'mobileInfo.open = !mobileInfoViewport.matches' in SCRIPT
+
+
 def test_devig_method_filter_is_single_choice_and_drives_api_query() -> None:
     assert 'class="ev-devig-methods" role="radiogroup"' in TEMPLATE
     assert TEMPLATE.count('name="devig-method"') == 4

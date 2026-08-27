@@ -85,6 +85,14 @@
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
   const trackerDialog = $("ev-tracker-dialog");
+  const mobileInfo = $("ev-mobile-info"), mobileInfoViewport = matchMedia("(max-width:760px)");
+  const syncMobileInfo = () => {
+    if (!mobileInfo) return;
+    mobileInfo.open = !mobileInfoViewport.matches;
+    mobileInfo.dataset.mobileReady = "true";
+  };
+  mobileInfoViewport.addEventListener?.("change", syncMobileInfo);
+  syncMobileInfo();
   const esc = value => String(value ?? "").replace(/[&<>"']/g, ch => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[ch]));
   const teamBranding = Object.freeze({
     arizonadiamondbacks: {short:"Diamondbacks", logo:"/static/assets/teams/mlb/ari.png"},
@@ -837,6 +845,7 @@
     const bookClv = history.averageRespectiveBookClvPoints == null ? "collecting" : `${Number(history.averageRespectiveBookClvPoints) >= 0 ? "+" : ""}${Number(history.averageRespectiveBookClvPoints).toFixed(2)} pts`;
     const compositeClv = history.averageCompositeClvPoints == null ? "collecting" : `${Number(history.averageCompositeClvPoints) >= 0 ? "+" : ""}${Number(history.averageCompositeClvPoints).toFixed(2)} pts`;
     $("ev-credit-banner").innerHTML = `<i class="ph ph-shield-check" aria-hidden="true"></i><span><strong>${Number(diagnostics.qualified || 0)} executable</strong> · ${Number(diagnostics.watchOnly || 0)} watch-only · ${Number(diagnostics.rejected || 0)} rejected${topReason ? ` · most common: ${esc(topReason[0].replaceAll("_"," "))}` : ""}</span><span class="ev-history-stat">Tracked ${Number(history.opportunities || 0)} · book CLV ${bookClv} · composite ${compositeClv}</span><button class="button ghost compact" id="ev-adjust-filters" type="button">Adjust filters</button>`;
+    $("ev-mobile-credit-summary-copy").innerHTML = `<strong>${Number(diagnostics.qualified || 0)} executable</strong> · ${Number(diagnostics.watchOnly || 0)} watch-only · ${Number(diagnostics.rejected || 0)} rejected`;
     $("ev-adjust-filters").addEventListener("click", openFilters);
   }
   async function load(force=false) {
@@ -877,6 +886,7 @@
         $("ev-pause").setAttribute("aria-pressed", "true");
         updateMoreMenu();
         $("ev-credit-banner").innerHTML = `<i class="ph ph-shield-check" aria-hidden="true"></i><span><strong>EV optimizer paused</strong> · No paid odds requests or refreshes are running.</span>`;
+        $("ev-mobile-credit-summary-copy").innerHTML = `<strong>Optimizer paused</strong> · refreshes are off`;
         feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ph-pause-circle" aria-hidden="true"></i><p>${esc(payload.message || "Positive EV scanning is paused.")}</p></div>`;
         feed.setAttribute("aria-busy", "false");
         return;
