@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from dfs_odds import build_dfs_odds_board
+from dfs_odds import DFS_OPTIMIZER_BOOK_KEYS, build_dfs_odds_board
 
 
 def _market(
@@ -150,6 +150,15 @@ def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     assert payload["selectedBook"] == "prizepicks"
     assert payload["total"] == 2
     assert payload["data"][0]["hitByLine"]["1.5"] == 50.0
+    assert set(payload["dataByBook"]) == set(DFS_OPTIMIZER_BOOK_KEYS)
+    assert payload["dataByBook"]["prizepicks"] == payload["data"]
+    assert payload["totalsByBook"] == {
+        "prizepicks": 2,
+        "underdog": 0,
+        "dk-pick6": 0,
+        "betr": 0,
+        "dabble": 0,
+    }
 
 
 def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
@@ -202,6 +211,11 @@ def test_live_dfs_endpoint_scopes_results_to_requested_app(
     assert payload["selectedBook"] == "underdog"
     assert {row["player"] for row in payload["data"]} == {"Juan Soto"}
     assert all(row["line"] == 2.5 for row in payload["data"])
+    assert {row["player"] for row in payload["dataByBook"]["prizepicks"]} == {
+        "Aaron Judge"
+    }
+    for book_key, book_rows in payload["dataByBook"].items():
+        assert all(book_key in row["dfsLines"] for row in book_rows)
 
 
 def test_live_dfs_endpoint_rejects_unknown_app(app_client) -> None:

@@ -19,6 +19,7 @@
   };
   const allMarkets = [...new Set(Object.values(marketTypes).flat())].sort((a,b) => a.localeCompare(b));
   let rows = [];
+  let rowsByBook = {};
   let hasLoadedRows = false;
   let loadFailed = false;
   let liveRefreshEnabled = true;
@@ -161,6 +162,17 @@
       || String(a.side||'').localeCompare(String(b.side||''));
   }
 
+  function applyLivePayload(payload) {
+    const payloadBoards = payload?.dataByBook;
+    if (payloadBoards && typeof payloadBoards === 'object') {
+      rowsByBook = Object.fromEntries(
+        Object.entries(payloadBoards).filter(([,bookRows]) => Array.isArray(bookRows))
+      );
+    }
+    rows = rowsByBook[selectedBookKeys[activeBook]]
+      ?? (Array.isArray(payload?.data) ? payload.data : []);
+  }
+
   function render() {
     updateAlgoPresentation();
     const sport = document.querySelector('#dfs-sport').value;
@@ -254,7 +266,7 @@
   async function loadLiveRows() {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),book:selectedBookKeys[activeBook]});
+    const params = new URLSearchParams({weights:JSON.stringify(savedWeights)});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
@@ -263,7 +275,7 @@
     if (!hasLoadedRows && !rows.length) {
       const cached = readPagePayloadCache(cacheKey,5*60*1000);
       if (cached) {
-        rows = Array.isArray(cached.data) ? cached.data : [];
+        applyLivePayload(cached);
         hasLoadedRows = true;
         loadFailed = false;
         render();
@@ -277,7 +289,7 @@
         const response = await fetch(url, {headers:{Accept:'application/json'}, cache:'no-store', signal:controller.signal});
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
-        rows = Array.isArray(payload.data) ? payload.data : [];
+        applyLivePayload(payload);
         hasLoadedRows = true;
         loadFailed = false;
         const serverDelay = Number(payload.refreshSeconds)*1000;
@@ -372,9 +384,11 @@
     logo.title = selectedOddsTitle;
     lineHead.replaceChildren(logo);
     lineHead.setAttribute('aria-label',selectedOddsTitle);
+    const selectedRows = rowsByBook[selectedBookKeys[activeBook]];
+    if (Array.isArray(selectedRows)) rows = selectedRows;
     reorderHeaders();
     render();
-    if (changed) loadLiveRows();
+    if (changed && !Array.isArray(selectedRows)) loadLiveRows();
   }
 
   document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => setActiveBook(btn)));

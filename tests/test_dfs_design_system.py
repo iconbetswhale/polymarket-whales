@@ -120,7 +120,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v2-selected-app" in BASE
+    assert "dfs-prewarm-v3-all-apps" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -220,8 +220,11 @@ def test_selected_dfs_line_moves_into_stat_and_app_column_shows_best_odds() -> N
 def test_selected_app_only_shows_its_real_available_props() -> None:
     assert "function selectedDfsLine(row)" in SCRIPT
     assert ".filter(r => selectedDfsLine(r) !== null" in SCRIPT
-    assert "book:selectedBookKeys[activeBook]" in SCRIPT
-    assert "if (changed) loadLiveRows();" in SCRIPT
+    assert "function applyLivePayload(payload)" in SCRIPT
+    assert "payload?.dataByBook" in SCRIPT
+    assert "rowsByBook[selectedBookKeys[activeBook]]" in SCRIPT
+    assert "if (changed && !Array.isArray(selectedRows)) loadLiveRows();" in SCRIPT
+    assert "book:selectedBookKeys[activeBook]" not in SCRIPT
     assert "best available equivalent odds" in SCRIPT
     assert "PrizePicks best available equivalent odds" in TEMPLATE
     for book, odds in (

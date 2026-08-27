@@ -30,6 +30,13 @@ DFS_BOOK_KEY_BY_PROVIDER = {
     "sleeper": "sleeper",
 }
 DFS_BOOK_KEYS = frozenset(DFS_BOOK_KEY_BY_PROVIDER.values())
+DFS_OPTIMIZER_BOOK_KEYS = (
+    "prizepicks",
+    "underdog",
+    "dk-pick6",
+    "betr",
+    "dabble",
+)
 
 MODEL_PROVIDER_ALIASES = {
     "prophetexchange": "prophetx",
