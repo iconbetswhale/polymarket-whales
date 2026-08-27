@@ -761,7 +761,7 @@ class SharpMoneyCollector:
                 )
         if direct_orderbook and (
             self.odds_provider is not None
-            or source_kind == "direct_novig_quotes"
+            or source_kind in {"direct_novig_quotes", "novig_direct"}
         ):
             signals = self._finalize_direct_signals(signals)
         with self._lock:
