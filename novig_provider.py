@@ -47,6 +47,25 @@ NOVIG_CASH_QTY_PER_CONTRACT = 100.0
 NOVIG_LIVE_TAKER_FEE_COEFFICIENT = 0.03
 MAX_EVENT_PAGES = 50
 MAX_BATCH_EVENT_IDS = 50
+SHARP_MONEY_MARKET_TYPES = {
+    "MONEY",
+    "MONEYLINE",
+    "SPREAD",
+    "TOTAL",
+    "MONEY_1H",
+    "MONEYLINE_1H",
+    "SPREAD_1H",
+    "TOTAL_1H",
+}
+SHARP_MONEY_OPEN_EVENT_STATUSES = ("OPEN_INGAME", "OPEN_PREGAME")
+TERMINAL_EVENT_STATUSES = {
+    "CANCELED",
+    "CANCELLED",
+    "CLOSED",
+    "FINAL",
+    "POSTPONED",
+    "SETTLED",
+}
 
 
 def _utc_now() -> datetime:
@@ -1374,6 +1393,7 @@ class NoVIGNBXProvider(ExecutionProvider):
             row
             for row in snapshots
             if not row.get("stale")
+            and _sharp_money_market_supported(row.get("market") or {})
             and len(row.get("outcomes") or []) == 2
             and imbalance(row) > 0
         ]
@@ -1435,13 +1455,46 @@ class NoVIGNBXProvider(ExecutionProvider):
                 markets.extend(self.rest.list_open_markets(league=league))
         else:
             markets = self.rest.list_open_markets()
+        events: list[dict] = []
         if limit is not None:
-            markets = markets[: max(1, min(int(limit), 1000))]
-        try:
-            events = self.rest.list_events()
-        except NoVIGError:
-            events = []
+            # The unfiltered open-market catalog is not ordered by recency and
+            # can begin with hundreds of stale futures or already-final props.
+            # Query the two active event states first so Sharp Money spends its
+            # bounded book request on current, two-sided game markets.
+            try:
+                for event_status in SHARP_MONEY_OPEN_EVENT_STATUSES:
+                    try:
+                        events.extend(
+                            self.rest.list_events(event_status=event_status)
+                        )
+                    except NoVIGError:
+                        continue
+            except TypeError:
+                # Preserve compatibility with lightweight provider fakes and
+                # older adapters that do not accept event filters.
+                try:
+                    events = self.rest.list_events()
+                except NoVIGError:
+                    events = []
+        else:
+            try:
+                events = self.rest.list_events()
+            except NoVIGError:
+                events = []
         markets = enrich_novig_markets(markets, events)
+        selected_market_ids: set[str] | None = None
+        if limit is not None:
+            bounded = max(1, min(int(limit), 1000))
+            markets = [
+                row for row in markets if _sharp_money_market_supported(row)
+            ]
+            markets.sort(key=_sharp_money_market_priority)
+            markets = markets[:bounded]
+            selected_market_ids = {
+                _safe_text(row.get("id"))
+                for row in markets
+                if _safe_text(row.get("id"))
+            }
         event_ids = list(
             dict.fromkeys(
                 _safe_text(row.get("eventId"))
@@ -1454,6 +1507,12 @@ class NoVIGNBXProvider(ExecutionProvider):
             with_books = markets
         else:
             with_books = enrich_novig_markets(with_books, events)
+            if selected_market_ids is not None:
+                with_books = [
+                    row
+                    for row in with_books
+                    if _safe_text(row.get("id")) in selected_market_ids
+                ]
         engine = NoVIGOrderBookState()
         for market in with_books:
             book = market.get("book") if isinstance(market.get("book"), dict) else None
@@ -1719,15 +1778,84 @@ def enrich_novig_markets(
         if not isinstance(market, dict):
             continue
         event_id = _market_event_id(market)
-        event = market.get("event")
-        if not isinstance(event, dict) or not event:
-            event = events_by_id.get(event_id)
+        embedded = market.get("event")
+        event = dict(embedded) if isinstance(embedded, dict) else {}
+        catalog_event = events_by_id.get(event_id)
+        if isinstance(catalog_event, dict):
+            # The open-market response sometimes embeds only an event id or a
+            # stale status. The filtered event catalog is the authoritative
+            # source for current status, schedule, and team metadata.
+            event = {**event, **catalog_event}
         enriched.append(
             {**market, "event": json.loads(json.dumps(event))}
             if isinstance(event, dict) and event
             else dict(market)
         )
     return enriched
+
+
+def _sharp_money_market_supported(market: dict) -> bool:
+    """Return whether a NoVIG market can form a truthful two-sided game row."""
+    if not isinstance(market, dict):
+        return False
+    market_id = _safe_text(market.get("id"))
+    event_id = _market_event_id(market)
+    if not market_id or not event_id:
+        return False
+    if _safe_text(market.get("status")).upper() != "OPEN":
+        return False
+    if _safe_text(market.get("type")).upper() not in SHARP_MONEY_MARKET_TYPES:
+        return False
+    outcomes = market.get("outcomes") or market.get("outcomeIds") or []
+    if len(outcomes) != 2:
+        return False
+    event = market.get("event") if isinstance(market.get("event"), dict) else {}
+    event_status = _safe_text(event.get("status")).upper()
+    if event_status in TERMINAL_EVENT_STATUSES:
+        return False
+    game = event.get("game") if isinstance(event.get("game"), dict) else {}
+    home = _team_names(game.get("homeTeam"))
+    away = _team_names(game.get("awayTeam"))
+    if home and away:
+        return True
+    description = _safe_text(market.get("description"))
+    return len([part for part in description.split(" vs ") if part.strip()]) == 2
+
+
+def _sharp_money_market_priority(market: dict) -> tuple[object, ...]:
+    """Prefer live and near-term main game markets deterministically."""
+    event = market.get("event") if isinstance(market.get("event"), dict) else {}
+    game = event.get("game") if isinstance(event.get("game"), dict) else {}
+    status = _safe_text(event.get("status")).upper()
+    status_rank = {
+        "OPEN_INGAME": 0,
+        "OPEN_PREGAME": 1,
+    }.get(status, 2)
+    start = _parse_datetime(
+        event.get("scheduledStart") or game.get("scheduledStart")
+    )
+    if start is None:
+        start_rank = float("inf")
+    else:
+        delta = (start - _utc_now()).total_seconds()
+        # A provider can briefly leave a started pregame event open. Keep it
+        # close to current games, but push genuinely stale records behind all
+        # upcoming events.
+        start_rank = (
+            abs(delta) if delta >= -(8 * 60 * 60) else 1e12 + abs(delta)
+        )
+    market_type = _safe_text(market.get("type")).upper()
+    type_rank = {
+        "MONEY": 0,
+        "MONEYLINE": 0,
+        "SPREAD": 1,
+        "TOTAL": 2,
+        "MONEY_1H": 3,
+        "MONEYLINE_1H": 3,
+        "SPREAD_1H": 4,
+        "TOTAL_1H": 5,
+    }.get(market_type, 9)
+    return status_rank, start_rank, type_rank, _safe_text(market.get("id"))
 
 
 def normalize_novig_snapshot(snapshot: dict) -> list[NormalizedProviderMarket]:

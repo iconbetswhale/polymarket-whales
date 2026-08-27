@@ -540,6 +540,60 @@ def test_direct_sharp_money_snapshot_uses_verified_two_sided_depth() -> None:
     assert snapshot["stale"] is False
 
 
+def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
+    from novig_provider import NoVIGNBXProvider
+
+    final_market = sample_market(market_id="market-final", market_type="TOTAL")
+    final_market["eventId"] = "event-final"
+    final_market["event"]["id"] = "event-final"
+    final_market["event"]["status"] = "FINAL"
+    prop_market = sample_market(
+        market_id="market-player-prop", market_type="RUSHING_YARDS"
+    )
+    prop_market["eventId"] = "event-prop"
+    prop_market["event"]["id"] = "event-prop"
+    current_market = sample_market()
+    current_event = deepcopy(current_market["event"])
+    current_market["event"] = {"id": "event-1"}
+
+    class SelectiveRest:
+        def list_open_markets(self):
+            return [
+                deepcopy(final_market),
+                deepcopy(prop_market),
+                deepcopy(current_market),
+            ]
+
+        def list_events(self, *, event_status=None):
+            events = [
+                final_market["event"],
+                prop_market["event"],
+                current_event,
+            ]
+            if event_status:
+                events = [
+                    event
+                    for event in events
+                    if event.get("status") == event_status
+                ]
+            return deepcopy(events)
+
+        def get_markets_by_events(self, event_ids):
+            assert list(event_ids) == ["event-1"]
+            return [deepcopy(current_market)]
+
+        def get_book(self, market_id):
+            assert market_id == "market-1"
+            return sample_book()
+
+    provider = NoVIGNBXProvider("client-id", "client-secret")
+    provider.rest = SelectiveRest()
+
+    payload = provider.sharp_money_direct_snapshot(limit=1)
+
+    assert [row["marketId"] for row in payload["snapshots"]] == ["market-1"]
+
+
 def test_credentials_and_tokens_never_appear_in_status_errors_or_repr() -> None:
     client_id = "super-sensitive-client-id"
     client_secret = "super-sensitive-client-secret"
