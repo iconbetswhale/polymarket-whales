@@ -88,12 +88,16 @@ class NoVIGFeedWorker:
                 pass
 
     def bootstrap(self) -> list[str]:
-        markets = self.rest.list_open_markets()
-        try:
-            events = self.rest.list_events()
-        except NoVIGError:
+        if hasattr(self.rest, "list_active_markets"):
+            markets = self.rest.list_active_markets()
             events = []
-        markets = enrich_novig_markets(markets, events)
+        else:
+            markets = self.rest.list_open_markets()
+            try:
+                events = self.rest.list_events()
+            except NoVIGError:
+                events = []
+            markets = enrich_novig_markets(markets, events)
         event_ids = list(
             dict.fromkeys(
                 str(row.get("eventId") or "").strip()
@@ -406,13 +410,22 @@ def websocket_smoke_test(
 def select_websocket_smoke_market(rest: NoVIGRestClient) -> str:
     """Select one open market without materializing the full market universe."""
 
+    event_ids: list[str] = []
     for event_status in ("OPEN_INGAME", "OPEN_PREGAME"):
-        events = rest.list_events_page(event_status=event_status, limit=1)
-        if not events:
-            continue
-        market_ids = events[0].get("marketIds") or events[0].get("market_ids") or []
-        for value in market_ids:
-            market_id = str(value or "").strip()
+        events = rest.list_events_page(event_status=event_status, limit=10)
+        for event in events:
+            market_ids = event.get("marketIds") or event.get("market_ids") or []
+            for value in market_ids:
+                market_id = str(value or "").strip()
+                if market_id:
+                    return _validated_smoke_market_id(market_id)
+            event_id = str(event.get("id") or event.get("eventId") or "").strip()
+            if event_id:
+                event_ids.append(event_id)
+    if event_ids:
+        markets = rest.get_markets_by_events(list(dict.fromkeys(event_ids)))
+        for market in markets:
+            market_id = str(market.get("id") or "").strip()
             if market_id:
                 return _validated_smoke_market_id(market_id)
     raise NoVIGError("NOVIG_NO_OPEN_MARKETS", status_code=503)
