@@ -87,6 +87,70 @@ class FakeComparisonProvider:
         return self.result
 
 
+class FakeExecutionOption:
+    def __init__(
+        self,
+        provider_key: str,
+        american_odds: int,
+        *,
+        liquidity: float | None = None,
+    ) -> None:
+        self.provider_key = provider_key
+        self.provider_name = (
+            "NoVIG" if provider_key == "novig" else "FanDuel"
+        )
+        self.american_odds = american_odds
+        self.display_odds = (
+            f"+{american_odds}" if american_odds > 0 else str(american_odds)
+        )
+        self.is_available = True
+        self.top_price_liquidity = liquidity
+        self.deep_link = f"https://{provider_key}.test/market"
+        self.logo_url = f"/{provider_key}.png"
+        self.order_book = {
+            "asks": [
+                {
+                    "americanOdds": american_odds,
+                    "liquidityDollars": liquidity,
+                }
+            ]
+            if liquidity
+            else []
+        }
+
+    def to_dict(self) -> dict:
+        return {
+            "providerName": self.provider_name,
+            "providerKey": self.provider_key,
+            "americanOdds": self.american_odds,
+            "displayOdds": self.display_odds,
+            "isAvailable": True,
+            "deepLink": self.deep_link,
+            "logoUrl": self.logo_url,
+        }
+
+
+class FakeDirectNoVIG:
+    configured = True
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def options_for_trades(self, trades):
+        self.calls += 1
+        result = {}
+        for trade in trades:
+            if "Philadelphia Phillies" in trade["outcome"]:
+                result[trade["id"]] = FakeExecutionOption(
+                    "novig", 125, liquidity=500
+                )
+            elif "New York Mets" in trade["outcome"]:
+                result[trade["id"]] = FakeExecutionOption(
+                    "novig", -115, liquidity=700
+                )
+        return result
+
+
 class FakeOddsEngineOrderBook:
     provider_key = "odds_engine"
 
@@ -231,6 +295,66 @@ def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
     assert crossed["retailBook"] == "fanduel"
     assert crossed["retailOdds"] == 110
     assert crossed["roiPercent"] > 0
+
+
+def test_advanced_rejection_uses_direct_combined_exchange_order_books() -> None:
+    odds_engine = FakeOddsEngineOrderBook()
+    quote_fallback_calls = 0
+
+    def reject_advanced(*, limit=40):
+        response = requests.Response()
+        response.status_code = 403
+        raise requests.HTTPError(response=response)
+
+    def reject_quote_fallback(*, limit=40):
+        nonlocal quote_fallback_calls
+        quote_fallback_calls += 1
+        raise AssertionError("Direct order books must run before price fallback")
+
+    odds_engine.sharp_money_snapshot = reject_advanced
+    odds_engine.sharp_money_quote_snapshot = reject_quote_fallback
+    comparisons = FakeComparisonProvider(
+        "odds_engine",
+        {
+            "px:event-1:market-1:phillies": [
+                FakeExecutionOption("fanduel", 130)
+            ]
+        },
+    )
+    novig = FakeDirectNoVIG()
+    collector = SharpMoneyCollector(
+        odds_engine,
+        comparisons,
+        fallback_source=FakeProphetX(),
+        novig_provider=novig,
+        local_control=False,
+        automatic_refresh_seconds=30,
+        advanced_orderbook_enabled=True,
+    )
+
+    payload = collector.payload(refresh_if_stale=True)
+
+    assert quote_fallback_calls == 0
+    assert novig.calls == 1
+    assert payload["signalMode"] == "direct_order_book"
+    assert payload["lastError"] is None
+    assert payload["signalCount"] == 1
+    signal = payload["signals"][0]
+    assert signal["selection"] == "Philadelphia Phillies"
+    assert signal["provider"] == "NoVIG + ProphetX"
+    assert signal["crossedLiquidity"] == 1600
+    assert signal["liquiditySources"] == {
+        "prophetx": 900,
+        "novig": 700,
+    }
+    assert signal["crossedSharpOdds"] == {
+        "prophetx": -118,
+        "novig": -115,
+    }
+    assert signal["crossedRetailOdds"] == 130
+    assert signal["bestBook"] == "fanduel"
+    assert signal["depthAvailable"] is True
+    assert signal["transport"] == "Direct NoVIG + ProphetX order books"
 
 
 def test_odds_comparison_prefers_odds_engine_and_falls_back() -> None:

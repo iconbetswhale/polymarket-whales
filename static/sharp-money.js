@@ -483,9 +483,12 @@
     const sourceConfigured = payload.provider?.configured === true;
     const automatic = payload.automatic === true;
     const quoteConsensus = payload.signalMode === "quote_consensus";
+    const directOrderBook = payload.signalMode === "direct_order_book";
     const advancedOrderBookEnabled = payload.advancedOrderBookEnabled === true;
     const standardOddsEngine = payload.provider?.provider === "odds_engine" && !advancedOrderBookEnabled;
-    const sourceName = payload.provider?.provider === "odds_engine"
+    const sourceName = directOrderBook
+      ? "direct NoVIG + ProphetX"
+      : payload.provider?.provider === "odds_engine"
       ? quoteConsensus || standardOddsEngine ? "OddsEngine sharp consensus" : "OddsEngine NoVIG + ProphetX order books"
       : "ProphetX";
     const providerError = String(payload.lastError || "").trim();

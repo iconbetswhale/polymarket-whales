@@ -7,6 +7,7 @@ import os
 import threading
 import time
 from collections import defaultdict, deque
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from execution_providers import PROPHETX_LOGO_URL
@@ -216,6 +217,10 @@ def _book_key(value: object) -> str:
         for character in str(value or "").lower()
         if character.isalnum()
     )
+    for prefix in ("oddsengine", "oddsapi"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
+            break
     return {
         "prophetexchange": "prophetx",
         "betonlineag": "betonline",
@@ -397,6 +402,7 @@ class SharpMoneyCollector:
         comparison_seconds: float = 60.0,
         automatic_refresh_seconds: float = 30.0,
         advanced_orderbook_enabled: bool = False,
+        novig_provider=None,
         local_control: bool | None = None,
     ) -> None:
         self.prophetx = prophetx_provider
@@ -409,6 +415,7 @@ class SharpMoneyCollector:
             20.0, float(automatic_refresh_seconds)
         )
         self.advanced_orderbook_enabled = bool(advanced_orderbook_enabled)
+        self.novig_provider = novig_provider
         self.local_control = (
             not bool(os.getenv("VERCEL"))
             if local_control is None
@@ -449,6 +456,7 @@ class SharpMoneyCollector:
             and (
                 hasattr(provider, "sharp_money_quote_snapshot")
                 or hasattr(provider, "sharp_money_snapshot")
+                or hasattr(provider, "live_market_snapshot")
             )
             for provider in (self.prophetx, self.fallback_source)
         )
@@ -613,10 +621,14 @@ class SharpMoneyCollector:
         else:
             signals = self._build_signals(snapshot)
         now = time.monotonic()
+        direct_orderbook = source_kind not in {
+            "odds_engine_orderbook",
+            "odds_engine_quotes",
+        }
         if (
             self.odds_provider is not None
             and signals
-            and source_kind not in {"odds_engine_orderbook", "odds_engine_quotes"}
+            and direct_orderbook
             and now - self._last_comparison_monotonic >= self.comparison_seconds
         ):
             self._refresh_comparisons(signals)
@@ -626,6 +638,8 @@ class SharpMoneyCollector:
                 signal["comparisonLines"] = copy.deepcopy(
                     self._comparisons.get(signal["id"], [])
                 )
+        if direct_orderbook and self.odds_provider is not None:
+            signals = self._finalize_direct_signals(signals)
         with self._lock:
             self._active_source = source
             self._signals = signals
@@ -642,13 +656,14 @@ class SharpMoneyCollector:
             self._signal_mode = {
                 "odds_engine_orderbook": "order_book",
                 "odds_engine_quotes": "quote_consensus",
-            }.get(source_kind, "direct_snapshot")
+            }.get(source_kind, "direct_order_book")
             self._last_error = None
             self._last_refresh_monotonic = time.monotonic()
         return copy.deepcopy(signals)
 
     def _read_source_snapshot(self):
         last_error: Exception | None = None
+        quote_fallbacks = []
         for provider in (self.prophetx, self.fallback_source):
             try:
                 if not self._configured(provider):
@@ -676,18 +691,15 @@ class SharpMoneyCollector:
                         status = getattr(
                             getattr(exc, "response", None), "status_code", None
                         )
-                        if not hasattr(provider, "sharp_money_quote_snapshot"):
-                            raise
+                        last_error = exc
+                        if hasattr(provider, "sharp_money_quote_snapshot"):
+                            quote_fallbacks.append(provider)
                         LOGGER.info(
                             "OddsEngine Advanced depth unavailable (HTTP %s); "
-                            "using standard exact-price Sharp Money consensus",
+                            "trying direct exchange order books",
                             status if status is not None else "n/a",
                         )
-                        return (
-                            provider,
-                            "odds_engine_quotes",
-                            provider.sharp_money_quote_snapshot(limit=40),
-                        )
+                        continue
                 if hasattr(provider, "sharp_money_quote_snapshot"):
                     return (
                         provider,
@@ -704,6 +716,26 @@ class SharpMoneyCollector:
                     last_error = exc
                 LOGGER.warning(
                     "Sharp Money source %s failed (%s, HTTP %s); trying fallback",
+                    getattr(provider, "provider_key", "unknown"),
+                    type(exc).__name__,
+                    status if status is not None else "n/a",
+                )
+        for provider in quote_fallbacks:
+            try:
+                return (
+                    provider,
+                    "odds_engine_quotes",
+                    provider.sharp_money_quote_snapshot(limit=40),
+                )
+            except Exception as exc:
+                status = getattr(getattr(exc, "response", None), "status_code", None)
+                previous_status = getattr(
+                    getattr(last_error, "response", None), "status_code", None
+                )
+                if last_error is None or status is not None or previous_status is None:
+                    last_error = exc
+                LOGGER.warning(
+                    "Sharp Money exact-price fallback %s failed (%s, HTTP %s)",
                     getattr(provider, "provider_key", "unknown"),
                     type(exc).__name__,
                     status if status is not None else "n/a",
@@ -785,7 +817,16 @@ class SharpMoneyCollector:
                     )
                     name = str(selection.get("name") or "").strip()
                     decimal = _decimal_odds(selection)
-                    liquidity = sum(_liquidity(level) for level in levels)
+                    # Only dollars executable at the displayed top price count
+                    # toward crossed liquidity. Worse-price depth remains in
+                    # the detail ladder but is not added to the headline.
+                    liquidity = sum(
+                        _liquidity(level)
+                        for level in levels
+                        if decimal is not None
+                        and _decimal_odds(level) is not None
+                        and abs(_decimal_odds(level) - decimal) < 1e-9
+                    )
                     if not selection_id or not name or decimal is None:
                         continue
                     key = f"{event_id}:{market_id}:{selection_id}"
@@ -848,70 +889,72 @@ class SharpMoneyCollector:
                         }
                     )
                     selection_rows.append(sample)
-                if len(selection_rows) < 2:
+                # Sharp Money requires an unambiguous equal-and-opposite side.
+                # Three-way markets cannot be represented by this protocol.
+                if len(selection_rows) != 2:
                     continue
-                leader = max(
-                    selection_rows,
-                    key=lambda item: (
-                        item["pressure"],
-                        item["liquidity"],
-                    ),
-                )
                 total_liquidity = sum(
                     item["liquidity"] for item in selection_rows
                 )
-                confidence = min(
-                    99,
-                    round(
-                        45
-                        + abs(leader["pressure"]) * 260
-                        + min(total_liquidity / 10000, 25)
-                    ),
-                )
-                signal_id = f"px:{event_id}:{market_id}:{leader['selectionId']}"
-                rows.append(
-                    {
-                        "id": signal_id,
-                        "provider": "ProphetX",
-                        "providerKey": "prophetx",
-                        "providerLogo": PROPHETX_LOGO_URL,
-                        "sport": str(tournament.get("sport") or league),
-                        "league": league,
-                        "event": f"{away} vs. {home}",
-                        "homeTeam": home,
-                        "awayTeam": away,
-                        "startsAt": event.get("start_time"),
-                        "market": {
-                            "id": market_id,
-                            "name": market_name,
-                            "kind": _market_kind(market_name),
-                            "line": leader.get("line"),
-                        },
-                        "selection": leader["name"],
-                        "americanOdds": leader["americanOdds"],
-                        "decimalOdds": leader["decimalOdds"],
-                        "liquidity": leader["liquidity"],
-                        "totalLiquidity": total_liquidity,
-                        "liquidityDelta": leader["liquidityDelta"],
-                        "probabilityDelta": leader["probabilityDelta"],
-                        "pressure": leader["pressure"],
-                        "pressureLabel": (
-                            "Flow detected"
-                            if abs(leader["pressure"]) >= 0.01
-                            else "Monitoring"
+                for selected, opposing in (
+                    (selection_rows[0], selection_rows[1]),
+                    (selection_rows[1], selection_rows[0]),
+                ):
+                    # The displayed opportunity is the retail side. Exchange
+                    # liquidity belongs to the equal-and-opposite side.
+                    confidence = min(
+                        99,
+                        round(
+                            45
+                            + abs(opposing["pressure"]) * 260
+                            + min(opposing["liquidity"] / 10000, 25)
                         ),
-                        "confidence": confidence,
-                        "inferenceOnly": True,
-                        "transport": "ProphetX REST snapshot",
-                        "outcomes": selection_rows,
-                        "history": list(self._history[leader["key"]]),
-                        "comparisonLines": [],
-                    }
-                )
+                    )
+                    signal_id = (
+                        f"px:{event_id}:{market_id}:{selected['selectionId']}"
+                    )
+                    rows.append(
+                        {
+                            "id": signal_id,
+                            "provider": "ProphetX",
+                            "providerKey": "prophetx",
+                            "providerLogo": PROPHETX_LOGO_URL,
+                            "sport": str(tournament.get("sport") or league),
+                            "league": league,
+                            "event": f"{away} vs. {home}",
+                            "homeTeam": home,
+                            "awayTeam": away,
+                            "startsAt": event.get("start_time"),
+                            "market": {
+                                "id": market_id,
+                                "name": market_name,
+                                "kind": _market_kind(market_name),
+                                "line": selected.get("line"),
+                            },
+                            "selection": selected["name"],
+                            "selectionId": selected["selectionId"],
+                            "oppositeSelection": copy.deepcopy(opposing),
+                            "americanOdds": selected["americanOdds"],
+                            "decimalOdds": selected["decimalOdds"],
+                            "liquidity": opposing["liquidity"],
+                            "totalLiquidity": total_liquidity,
+                            "liquidityDelta": opposing["liquidityDelta"],
+                            "probabilityDelta": opposing["probabilityDelta"],
+                            "pressure": opposing["pressure"],
+                            "pressureLabel": "Crossed-market candidate",
+                            "confidence": confidence,
+                            "inferenceOnly": True,
+                            "transport": "ProphetX direct order book",
+                            "outcomes": [selected, opposing],
+                            "history": list(self._history[opposing["key"]]),
+                            "comparisonLines": [],
+                        }
+                    )
         self._previous = current
         return sorted(
             rows,
             key=lambda item: (
+                item["liquidity"],
                 abs(item["pressure"]),
                 item["totalLiquidity"],
             ),
@@ -1452,44 +1495,151 @@ class SharpMoneyCollector:
             reverse=True,
         )[:40]
 
-    def _trade_for_signal(self, signal: dict) -> dict:
+    def _finalize_direct_signals(self, signals: list[dict]) -> list[dict]:
+        rows = []
+        for signal in signals:
+            comparisons = signal.get("comparisonLines") or []
+            crossed = _crossed_market_liquidity(comparisons)
+            if crossed is None:
+                continue
+            sources = crossed["sources"]
+            provider_names = [
+                name
+                for key, name in (("novig", "NoVIG"), ("prophetx", "ProphetX"))
+                if key in sources
+            ]
+            selected_outcome = (signal.get("outcomes") or [{}])[0]
+            signal.update(
+                {
+                    "provider": " + ".join(provider_names),
+                    "providerKey": "sharp_exchanges",
+                    "liquidity": crossed["liquidity"],
+                    "crossedLiquidity": crossed["liquidity"],
+                    "liquiditySources": sources,
+                    "crossedSharpOdds": crossed["sharpPrices"],
+                    "crossedRetailOdds": crossed["retailOdds"],
+                    "crossedRoiPercent": crossed["roiPercent"],
+                    "counterLiquidity": _number(
+                        selected_outcome.get("liquidity")
+                    ),
+                    "bestBook": crossed["retailBook"],
+                    "depthAvailable": True,
+                    "transport": "Direct NoVIG + ProphetX order books",
+                    "edgePercent": crossed["roiPercent"],
+                    "whaleVolume": 0,
+                }
+            )
+            rows.append(signal)
+        return sorted(
+            rows,
+            key=lambda item: (
+                item["crossedLiquidity"],
+                item["crossedRoiPercent"],
+            ),
+            reverse=True,
+        )[:40]
+
+    def _trade_for_signal(
+        self,
+        signal: dict,
+        *,
+        outcome: dict | None = None,
+        trade_id: str | None = None,
+    ) -> dict:
         kind = signal["market"]["kind"]
         market_type = {
             "moneyline": "Moneyline",
             "spread": "Spread",
             "game_total": "Total",
         }[kind]
+        selected = outcome or {}
         return {
-            "id": signal["id"],
+            "id": trade_id or signal["id"],
             "category": signal["sport"],
             "league": signal["league"],
             "event_date_et": signal["startsAt"],
             "event_title": signal["event"],
             "market_title": signal["market"]["name"],
             "sports_market_type": market_type,
-            "outcome": signal["selection"],
-            "line": signal["market"].get("line"),
+            "outcome": selected.get("name") or signal["selection"],
+            "line": (
+                selected.get("line")
+                if selected.get("line") is not None
+                else signal["market"].get("line")
+            ),
             "recommended_amount": 100,
         }
 
     def _refresh_comparisons(self, signals: list[dict]) -> None:
-        trades = [self._trade_for_signal(signal) for signal in signals[:16]]
-        options = self.odds_provider.screen_options_for_trades(trades)
+        visible = signals[:16]
+        trades = [self._trade_for_signal(signal) for signal in visible]
+        novig_trades = []
+        for signal in visible:
+            novig_trades.append(self._trade_for_signal(signal))
+            novig_trades.append(
+                self._trade_for_signal(
+                    signal,
+                    outcome=signal.get("oppositeSelection") or {},
+                    trade_id=f"{signal['id']}:opposite",
+                )
+            )
+
+        def retail_options():
+            return self.odds_provider.screen_options_for_trades(trades)
+
+        def direct_novig_options():
+            provider = self.novig_provider
+            if not provider or not bool(getattr(provider, "configured", False)):
+                return {}
+            try:
+                return provider.options_for_trades(novig_trades)
+            except Exception:
+                LOGGER.warning("Direct NoVIG Sharp Money refresh failed")
+                return {}
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            retail_future = executor.submit(retail_options)
+            novig_future = executor.submit(direct_novig_options)
+            options = retail_future.result()
+            novig_options = novig_future.result()
+
+        def novig_liquidity(option) -> float:
+            return _number(getattr(option, "top_price_liquidity", None))
+
+        def novig_levels(option) -> list[dict]:
+            order_book = getattr(option, "order_book", None) or {}
+            levels = []
+            for row in order_book.get("asks") or []:
+                american = row.get("americanOdds")
+                liquidity = row.get("liquidityDollars")
+                if american is None or _number(liquidity) <= 0:
+                    continue
+                levels.append(
+                    {
+                        "americanOdds": round(_number(american)),
+                        "liquidity": _number(liquidity),
+                    }
+                )
+            return levels
+
         comparisons: dict[str, list[dict]] = {}
-        for signal in signals[:16]:
-            rows = [
-                option.to_dict()
-                for option in options.get(signal["id"], [])
-                if option.is_available and option.american_odds is not None
-            ]
-            # The Odds API exposes Pinnacle's reported bet limit through the
-            # normalized liquidity slot. Preserve that value under an explicit
-            # market-limit field so Sharp Money can render the same secondary
-            # metric as EV+ without guessing at unavailable limits.
-            for row in rows:
-                provider_key = str(row.get("providerKey") or "").lower()
-                if provider_key == "pinnacle" and row.get("marketLimit") is None:
+        for signal in visible:
+            rows = []
+            for option in options.get(signal["id"], []):
+                if not option.is_available or option.american_odds is None:
+                    continue
+                row = option.to_dict()
+                key = _book_key(row.get("providerKey"))
+                # Direct exchange rows below carry verified top-price depth.
+                # Never let price-only aggregator rows impersonate liquidity.
+                if key in {"novig", "prophetx"}:
+                    continue
+                if key == "pinnacle" and row.get("marketLimit") is None:
                     row["marketLimit"] = row.get("availableLiquidity")
+                rows.append(row)
+
+            selected = (signal.get("outcomes") or [{}])[0]
+            opposing = signal.get("oppositeSelection") or {}
             rows.append(
                 {
                     "providerName": "ProphetX",
@@ -1500,13 +1650,57 @@ class SharpMoneyCollector:
                         else str(signal["americanOdds"])
                     ),
                     "americanOdds": signal["americanOdds"],
-                    "availableLiquidity": signal["liquidity"],
+                    "oppositeAmericanOdds": opposing.get("americanOdds"),
+                    "availableLiquidity": _number(selected.get("liquidity")),
+                    "oppositeAvailableLiquidity": _number(
+                        opposing.get("liquidity")
+                    ),
+                    "orderBookLevels": selected.get("levels") or [],
+                    "oppositeOrderBookLevels": opposing.get("levels") or [],
                     "logoUrl": PROPHETX_LOGO_URL,
                     "isAvailable": True,
                     "matchingConfidence": "Exact",
-                    "tooltip": "Direct ProphetX sandbox quote",
+                    "tooltip": "Direct ProphetX executable order book",
                 }
             )
+
+            novig_selected = novig_options.get(signal["id"])
+            novig_opposing = novig_options.get(f"{signal['id']}:opposite")
+            if (
+                novig_selected is not None
+                and novig_opposing is not None
+                and getattr(novig_selected, "is_available", False)
+                and getattr(novig_opposing, "is_available", False)
+            ):
+                selected_liquidity = novig_liquidity(novig_selected)
+                opposing_liquidity = novig_liquidity(novig_opposing)
+                rows.append(
+                    {
+                        "providerName": "NoVIG",
+                        "providerKey": "novig",
+                        "displayOdds": getattr(
+                            novig_selected, "display_odds", ""
+                        ),
+                        "americanOdds": getattr(
+                            novig_selected, "american_odds", None
+                        ),
+                        "oppositeAmericanOdds": getattr(
+                            novig_opposing, "american_odds", None
+                        ),
+                        "availableLiquidity": selected_liquidity,
+                        "oppositeAvailableLiquidity": opposing_liquidity,
+                        "orderBookLevels": novig_levels(novig_selected),
+                        "oppositeOrderBookLevels": novig_levels(
+                            novig_opposing
+                        ),
+                        "deepLink": getattr(novig_selected, "deep_link", ""),
+                        "logoUrl": getattr(novig_selected, "logo_url", ""),
+                        "isAvailable": True,
+                        "matchingConfidence": "Exact",
+                        "tooltip": "Direct NoVIG executable order book",
+                    }
+                )
+
             rows.sort(
                 key=lambda row: _number(row.get("americanOdds"), -100000),
                 reverse=True,
@@ -1530,16 +1724,30 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
     )
     odds_engine = providers.get("odds_engine")
     direct_prophetx = providers.get("prophetx")
-    primary_source = (
-        odds_engine
-        if odds_engine is not None and getattr(odds_engine, "api_key", None)
-        else direct_prophetx
+    direct_prophetx_configured = bool(
+        direct_prophetx is not None
+        and direct_prophetx.diagnostics().get("configured")
     )
-    fallback_source = direct_prophetx if primary_source is odds_engine else None
+    odds_engine_configured = bool(
+        odds_engine is not None and getattr(odds_engine, "api_key", None)
+    )
+    # Direct exchange credentials expose executable depth without depending on
+    # the OddsEngine Advanced entitlement. OddsEngine remains the retail-price
+    # comparison feed and the order-book fallback when entitled.
+    if direct_prophetx_configured:
+        primary_source = direct_prophetx
+        fallback_source = odds_engine if odds_engine_configured else None
+    elif odds_engine_configured:
+        primary_source = odds_engine
+        fallback_source = None
+    else:
+        primary_source = None
+        fallback_source = None
     return SharpMoneyCollector(
         primary_source,
         comparison_provider,
         fallback_source=fallback_source,
+        novig_provider=providers.get("novig_nbx"),
         poll_seconds=float(
             os.getenv("SHARP_MONEY_PROPHETX_POLL_SECONDS", "1")
         ),
