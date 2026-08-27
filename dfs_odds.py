@@ -319,6 +319,7 @@ def build_dfs_odds_board(
                     "match": group["match"],
                     "sport": group["sport"],
                     "date": _date_label(group["start"], current),
+                    "eventDate": group["start"].astimezone(EASTERN).date().isoformat(),
                     "time": _time_label(group["start"], current),
                     "side": side,
                     "stat": group["stat"],

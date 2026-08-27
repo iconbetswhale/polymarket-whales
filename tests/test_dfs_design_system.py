@@ -120,7 +120,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v3-all-apps" in BASE
+    assert "dfs-prewarm-v4-date-range" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -294,6 +294,29 @@ def test_dfs_filter_controls_share_equal_columns_and_alignment() -> None:
     assert "align-items: end;" in CSS
     assert "justify-content: center;" in CSS
     assert "min-height: var(--il-control-height-compact);" in CSS
+
+
+def test_dfs_date_filter_supports_presets_and_inclusive_custom_ranges() -> None:
+    assert '<option value="today">Today</option>' in TEMPLATE
+    assert '<option value="tomorrow">Tomorrow</option>' in TEMPLATE
+    assert '<option value="next_7_days" selected>Next 7 days</option>' in TEMPLATE
+    assert '<option value="custom">Custom</option>' in TEMPLATE
+    assert 'id="dfs-custom-date-range" hidden' in TEMPLATE
+    assert 'id="dfs-date-from" type="date"' in TEMPLATE
+    assert 'id="dfs-date-to" type="date"' in TEMPLATE
+    assert 'id="dfs-date-error" role="alert"' in TEMPLATE
+    assert "function easternDateKey(date = new Date())" in SCRIPT
+    assert "function selectedDateRange()" in SCRIPT
+    assert "return {start:today,end:shiftDateKey(today,6)};" in SCRIPT
+    assert "eventDate >= dateRange.start && eventDate <= dateRange.end" in SCRIPT
+    assert "matchesDateRange(r,dateRange)" in SCRIPT
+    assert "schema:'date-v1'" in SCRIPT
+    assert 'schema:"date-v1"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "date === 'this_week'" not in SCRIPT
+    assert "dateSelect.value='next_7_days'" in SCRIPT
+    assert ".dfs-custom-date-range[hidden]" in CSS
+    assert "grid-template-columns: minmax(150px, 190px) auto minmax(150px, 190px);" in CSS
+    assert "color-scheme: dark;" in CSS
 
 
 def test_dfs_prop_typography_and_stat_alignment() -> None:

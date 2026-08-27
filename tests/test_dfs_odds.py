@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 from dfs_odds import DFS_OPTIMIZER_BOOK_KEYS, build_dfs_odds_board
 
@@ -60,7 +61,14 @@ def _events() -> list[dict]:
 
 
 def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
-    rows = build_dfs_odds_board(_events())
+    events = _events()
+    rows = build_dfs_odds_board(events)
+    expected_event_date = (
+        datetime.fromisoformat(events[0]["commence_time"])
+        .astimezone(ZoneInfo("America/New_York"))
+        .date()
+        .isoformat()
+    )
 
     assert len(rows) == 2
     assert {row["side"] for row in rows} == {"Over", "Under"}
@@ -68,6 +76,7 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
     assert {row["oddsByBook"]["fanduel"] for row in rows} == {"-110"}
+    assert {row["eventDate"] for row in rows} == {expected_event_date}
 
 
 def test_live_dfs_board_keeps_pairs_together_and_formats_exchange_cents() -> None:

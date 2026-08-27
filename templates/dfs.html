@@ -41,11 +41,19 @@
     </div>
     <div class="dfs-filter-bar il-filter-bar">
       <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-      <label class="dfs-select"><span>Date</span><select id="dfs-date"><option value="">All dates</option><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="this_week">This week</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Date range</span><select id="dfs-date"><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="next_7_days" selected>Next 7 days</option><option value="custom">Custom</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Stat</span><select id="dfs-stat"><option value="">All stats</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Side</span><select id="dfs-side"><option value="">Over &amp; under</option><option>Over</option><option>Under</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-search"><span>Player</span><i class="ph ph-magnifying-glass"></i><input id="dfs-search" type="search" placeholder="Search players"></label>
       <button class="dfs-reset" id="dfs-reset" type="button">Reset</button>
+    </div>
+    <div class="dfs-custom-date-range" id="dfs-custom-date-range" hidden>
+      <div class="dfs-custom-date-fields" role="group" aria-label="Custom event date range">
+        <label><span>From</span><input id="dfs-date-from" type="date" aria-describedby="dfs-date-error"></label>
+        <span class="dfs-custom-date-separator" aria-hidden="true">to</span>
+        <label><span>To</span><input id="dfs-date-to" type="date" aria-describedby="dfs-date-error"></label>
+      </div>
+      <p class="dfs-date-error" id="dfs-date-error" role="alert" aria-live="polite" hidden></p>
     </div>
   </section>
 

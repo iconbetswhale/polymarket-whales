@@ -31,6 +31,11 @@
   const emptyState = document.querySelector('#dfs-empty');
   const errorState = document.querySelector('#dfs-error');
   const statSelect = document.querySelector('#dfs-stat');
+  const dateSelect = document.querySelector('#dfs-date');
+  const customDateRange = document.querySelector('#dfs-custom-date-range');
+  const customDateStart = document.querySelector('#dfs-date-from');
+  const customDateEnd = document.querySelector('#dfs-date-to');
+  const customDateError = document.querySelector('#dfs-date-error');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
   const parlayGuideDialog = document.querySelector('#dfs-parlay-guide-dialog');
   const iconAlgoTooltipTrigger = document.querySelector('.dfs-algo-tooltip');
@@ -46,6 +51,7 @@
   let savedPresets = loadPresets();
   let activePreset = weightsMatch(savedWeights,defaultWeights) ? 'iconlabs' : '';
   const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+  const easternDateFormatter = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 
   function loadWeights() {
     try {
@@ -130,6 +136,78 @@
     statSelect.value = options.includes(current) ? current : '';
   }
 
+  function easternDateKey(date = new Date()) {
+    const parts = Object.fromEntries(
+      easternDateFormatter.formatToParts(date)
+        .filter(part => part.type !== 'literal')
+        .map(part => [part.type,part.value])
+    );
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
+
+  function shiftDateKey(dateKey,days) {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dateKey))) return '';
+    const [year,month,day] = String(dateKey).split('-').map(Number);
+    const shifted = new Date(Date.UTC(year,month-1,day+days,12));
+    return shifted.toISOString().slice(0,10);
+  }
+
+  function resetCustomDateRange() {
+    const today = easternDateKey();
+    customDateStart.value = today;
+    customDateEnd.value = shiftDateKey(today,6);
+  }
+
+  function syncCustomDateRange() {
+    const active = dateSelect.value === 'custom';
+    customDateRange.hidden = !active;
+    customDateEnd.min = customDateStart.value || '';
+    const incomplete = active && (!customDateStart.value || !customDateEnd.value);
+    const reversed = active && !incomplete && customDateStart.value > customDateEnd.value;
+    const message = incomplete
+      ? 'Choose both a start and end date.'
+      : reversed
+        ? 'End date must be on or after the start date.'
+        : '';
+    customDateError.textContent = message;
+    customDateError.hidden = !message;
+    customDateStart.setAttribute('aria-invalid',String(Boolean(message)));
+    customDateEnd.setAttribute('aria-invalid',String(Boolean(message)));
+  }
+
+  function selectedDateRange() {
+    const today = easternDateKey();
+    if (dateSelect.value === 'today') return {start:today,end:today};
+    if (dateSelect.value === 'tomorrow') {
+      const tomorrow = shiftDateKey(today,1);
+      return {start:tomorrow,end:tomorrow};
+    }
+    if (dateSelect.value === 'next_7_days') {
+      return {start:today,end:shiftDateKey(today,6)};
+    }
+    if (dateSelect.value === 'custom'
+      && customDateStart.value
+      && customDateEnd.value
+      && customDateStart.value <= customDateEnd.value) {
+      return {start:customDateStart.value,end:customDateEnd.value};
+    }
+    return null;
+  }
+
+  function rowEventDateKey(row,dateRange) {
+    const exactDate = String(row.eventDate || '');
+    if (/^\d{4}-\d{2}-\d{2}$/.test(exactDate)) return exactDate;
+    if (row.date === 'today') return dateRange?.today || easternDateKey();
+    if (row.date === 'tomorrow') return shiftDateKey(dateRange?.today || easternDateKey(),1);
+    return null;
+  }
+
+  function matchesDateRange(row,dateRange) {
+    if (!dateRange) return false;
+    const eventDate = rowEventDateKey(row,dateRange);
+    return eventDate !== null && eventDate >= dateRange.start && eventDate <= dateRange.end;
+  }
+
   function reorderHeaders() {
     const row = document.querySelector('#dfs-head-row');
     const selectedKey = selectedBookKeys[activeBook];
@@ -176,12 +254,13 @@
   function render() {
     updateAlgoPresentation();
     const sport = document.querySelector('#dfs-sport').value;
-    const date = document.querySelector('#dfs-date').value;
+    const dateRange = selectedDateRange();
+    if (dateRange) dateRange.today = easternDateKey();
     const stat = statSelect.value;
     const side = document.querySelector('#dfs-side').value;
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
     const visible = rows
-      .filter(r => selectedDfsLine(r) !== null && (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
+      .filter(r => selectedDfsLine(r) !== null && matchesDateRange(r,dateRange) && (!sport || r.sport === sport) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
       .sort(compareByHitRate);
     body.innerHTML = visible.map(r => {
       const activeLine = selectedDfsLine(r);
@@ -266,7 +345,7 @@
   async function loadLiveRows() {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({weights:JSON.stringify(savedWeights)});
+    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),schema:'date-v1'});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
@@ -395,9 +474,11 @@
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
-  ['dfs-date','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
+  ['dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
+  dateSelect.addEventListener('change', () => { syncCustomDateRange(); render(); });
+  [customDateStart,customDateEnd].forEach(input => input.addEventListener('input', () => { syncCustomDateRange(); render(); }));
   document.querySelector('#dfs-search').addEventListener('input', render);
-  document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); document.querySelector('#dfs-search').value=''; updateStats(); render(); });
+  document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); dateSelect.value='next_7_days'; document.querySelector('#dfs-search').value=''; resetCustomDateRange(); syncCustomDateRange(); updateStats(); render(); });
   document.querySelector('#dfs-live').addEventListener('click', () => setLiveRefresh(true));
   document.querySelector('#dfs-pause').addEventListener('click', () => setLiveRefresh(false));
   document.querySelector('#dfs-refresh').addEventListener('click', () => loadLiveRows());
@@ -443,6 +524,8 @@
     else if (liveRefreshEnabled) loadLiveRows();
   });
   updateStats();
+  resetCustomDateRange();
+  syncCustomDateRange();
   reorderHeaders();
   updateDevigSummary();
   renderPresets();
