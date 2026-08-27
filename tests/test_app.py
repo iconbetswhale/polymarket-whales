@@ -1184,7 +1184,7 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert 'fetch("/api/sharp-money/control"' in script
     assert 'control(state.payload?.running ? "pause" : "play")' in script
     assert "function combinedCrossedLiquidity" in script
-    assert "Combined NoVIG + ProphetX crossed liquidity" in script
+    assert "Selected-side liquidity minus opposing-side liquidity" in script
     assert "Price Pressure" not in script
     assert "/api/odds-screen" not in script
     assert "active=1" not in script

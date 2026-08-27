@@ -66,8 +66,8 @@ def test_sharp_money_surfaces_provider_entitlement_errors_instead_of_waiting():
     assert "Live price movement" in script
     assert "exact two-sided REST prices and sharp-consensus movement" in script
     assert "Live price-consensus mode" in script
-    assert 'return "Sharp Liquidity"' in script
-    assert "Combined NoVIG + ProphetX crossed liquidity" in script
+    assert 'return "Net Sharp Liquidity"' in script
+    assert "Selected-side liquidity minus opposing-side liquidity" in script
     assert "Price Pressure" not in script
     assert "advancedPlanRequired" in script
     assert "OddsEngine Advanced access required" in script

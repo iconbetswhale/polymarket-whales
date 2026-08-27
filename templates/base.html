@@ -189,7 +189,7 @@
       </form>
     </div>
   </dialog>
-  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3-crossed-liquidity-v2-direct') }}"></script>{% endif %}
+  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3-net-liquidity-v1-direct') }}"></script>{% endif %}
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v8-stable-inline-mobile-trades-dfs-prewarm-v5-instant-devig') }}"></script>
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v9-refresh-resilience') }}"></script>{% endif %}

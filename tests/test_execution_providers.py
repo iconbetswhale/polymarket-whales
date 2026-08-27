@@ -744,7 +744,7 @@ def test_prophetx_authentication_uses_the_sandbox_contract() -> None:
     assert status is ProviderHealthStatus.AUTHENTICATED
     assert session.calls == [
         (
-            "https://api-ss-sandbox.betprophet.co/partner/auth/login",
+            "https://api.sandbox.prophetx.dev/partner/auth/login",
             {
                 "json": {
                     "access_key": "test-access",
@@ -763,6 +763,19 @@ def test_prophetx_authentication_uses_the_sandbox_contract() -> None:
     assert len(session.calls) == 1
 
 
+def test_prophetx_migrates_retired_sandbox_hosts() -> None:
+    provider = ProphetXProvider(
+        "test-access",
+        "test-secret",
+        base_url="https://api-ss-sandbox.betprophet.co/partner",
+        trade_url="https://ss-sandbox.betprophet.co/",
+        session=FakeSession({}),
+    )
+
+    assert provider.base_url == "https://api.sandbox.prophetx.dev/partner"
+    assert provider.trade_url == "https://sandbox.prophetx.dev/"
+
+
 def test_prophetx_exact_market_adds_live_execution_option() -> None:
     session = FakeProphetXSession()
     provider = ProphetXProvider("test-access", "test-secret", session=session)
@@ -772,7 +785,7 @@ def test_prophetx_exact_market_adds_live_execution_option() -> None:
     assert option.provider_name == "ProphetX"
     assert option.display_odds == "+108"
     assert option.selection_id == "501"
-    assert option.deep_link == "https://ss-sandbox.betprophet.co/"
+    assert option.deep_link == "https://sandbox.prophetx.dev/"
     assert option.matching_confidence is MatchConfidence.EXACT
     assert [call[0] for call in session.calls] == ["POST", "GET", "GET", "GET"]
     market_call = session.calls[-1]

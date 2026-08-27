@@ -229,7 +229,7 @@
 
   function primaryQuote(signal) {
     const rows = selectedComparisonLines(signal);
-    return bestQuote(rows.filter(row => !isMarketIntelligenceProvider(row) && isCrossedRetailQuote(signal, row)));
+    return bestQuote(rows.filter(row => !isMarketIntelligenceProvider(row)));
   }
 
   function depthQuotes(signal) {
@@ -259,7 +259,7 @@
   }
 
   function signalHeadlineLabel(signal) {
-    return "Sharp Liquidity";
+    return "Net Sharp Liquidity";
   }
 
   function signalCoverageLabel(signal) {
@@ -300,14 +300,14 @@
 
   function depthSummary(signal) {
     const quotes = depthQuotes(signal);
-    const best = bestQuote(quotes.map(item => item.row && ({ ...item.row, americanOdds: item.row.oppositeAmericanOdds })).filter(Boolean));
+    const best = bestQuote(quotes.map(item => item.row).filter(Boolean));
     return `<div class="sharp-card-depth-summary" aria-label="NoVIG and ProphetX liquidity intelligence">
       <div class="sharp-card-depth-sources">
       ${quotes.map(({ key, row }) => {
         const label = key === "novig" ? "NoVIG" : "ProphetX";
         const secondary = signal.depthAvailable === false
           ? row ? `${odds(row.americanOdds)} exact quote` : "Exact quote unavailable"
-          : row?.oppositeAvailableLiquidity == null ? "Liquidity unavailable" : `${money(row.oppositeAvailableLiquidity)} at ${odds(row.oppositeAmericanOdds)}`;
+          : row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} at ${odds(row.americanOdds)}`;
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
           <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${escapeHtml(secondary)}</small></span>
@@ -330,7 +330,7 @@
     return `
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
-          <strong title="Combined NoVIG + ProphetX crossed liquidity">${escapeHtml(signalHeadline(signal))}</strong>
+          <strong title="Selected-side liquidity minus opposing-side liquidity across NoVIG and ProphetX">${escapeHtml(signalHeadline(signal))}</strong>
           <small>${escapeHtml(signalHeadlineLabel(signal))}</small>
           <span>${escapeHtml(signalCoverageLabel(signal))}</span>
         </div>
@@ -370,14 +370,14 @@
     if (signal.depthAvailable === false) {
       return `<div class="sharp-awaiting-lines">Live price-consensus mode. Exact two-sided prices are available below.</div>`;
     }
-    const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.oppositeAvailableLiquidity != null);
-    const max = Math.max(...rows.map(row => Number(row.oppositeAvailableLiquidity) || 0), 1);
+    const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.availableLiquidity != null);
+    const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
     return rows.map(row => `
       <div class="sharp-flow-depth-row">
         <span class="sharp-flow-book">${logo(row, String(row.providerName || "?").slice(0, 2))}<b>${escapeHtml(row.providerName || "Market")}</b></span>
-        <strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong>
-        <span class="sharp-flow-bar"><i style="--flow-width:${Math.max(4, (Number(row.oppositeAvailableLiquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
-        <small>${escapeHtml(money(row.oppositeAvailableLiquidity))}</small>
+        <strong>${escapeHtml(odds(row.americanOdds))}</strong>
+        <span class="sharp-flow-bar"><i style="--flow-width:${Math.max(4, (Number(row.availableLiquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
+        <small>${escapeHtml(money(row.availableLiquidity))}</small>
       </div>`).join("") || `<div class="sharp-awaiting-lines">Awaiting quoted depth</div>`;
   }
 
@@ -455,7 +455,7 @@
         </section>
       </section>
       <section class="sharp-liquidity-panel">
-        <header><strong>${escapeHtml(sides.opposite)}</strong><span>Avg Odds</span><span>Liquidity</span></header>
+        <header><strong>${escapeHtml(sides.selected)}</strong><span>Sharp Odds</span><span>Liquidity</span></header>
         <div class="sharp-flow-depth">${flowRows(signal)}</div>
       </section>
       <section class="sharp-market-comparison">
@@ -486,8 +486,11 @@
     const directOrderBook = payload.signalMode === "direct_order_book";
     const advancedOrderBookEnabled = payload.advancedOrderBookEnabled === true;
     const standardOddsEngine = payload.provider?.provider === "odds_engine" && !advancedOrderBookEnabled;
+    const directDepthName = Array.isArray(payload.depthProviders) && payload.depthProviders.length
+      ? payload.depthProviders.join(" + ")
+      : "NoVIG + ProphetX";
     const sourceName = directOrderBook
-      ? "direct NoVIG + ProphetX"
+      ? `direct ${directDepthName}`
       : payload.provider?.provider === "odds_engine"
       ? quoteConsensus || standardOddsEngine ? "OddsEngine sharp consensus" : "OddsEngine NoVIG + ProphetX order books"
       : "ProphetX";
@@ -556,17 +559,17 @@
     $("sharp-summary-flow").textContent = String(flows);
     $("sharp-summary-cycles").textContent = String(payload.cycles || 0);
     $("sharp-summary-signals-note").textContent = quoteConsensus ? "Exact two-sided markets" : `Real ${sourceName} markets`;
-    $("sharp-summary-liquidity-note").textContent = quoteConsensus ? "Order-book depth unavailable" : "NoVIG + ProphetX crossed depth";
-    $("sharp-summary-flow-note").textContent = quoteConsensus ? "Awaiting crossed liquidity" : "Crossed-market opportunities";
+    $("sharp-summary-liquidity-note").textContent = quoteConsensus ? "Order-book depth unavailable" : "Selected minus opposing liquidity";
+    $("sharp-summary-flow-note").textContent = quoteConsensus ? "Awaiting exact liquidity" : "Directional liquidity signals";
     const requests = payload.provider?.metrics?.requests || 0;
     $("sharp-summary-requests").textContent = running ? `${requests} ${sourceName} requests this process` : "No requests while paused";
     $("sharp-signal-list").innerHTML = state.visible.length
       ? state.visible.map(signalCard).join("")
-      : `<div class="sharp-empty-state"><div><i class="ph ${accessBlocked ? "ph-warning-circle" : running ? "ph-radar" : sourceConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${accessBlocked ? advancedPlanRequired ? "Upgrade OddsEngine to Advanced" : standardOddsEngine ? "Price feed temporarily unavailable" : "Order-book feed unavailable" : running ? quoteConsensus ? "Crossed liquidity unavailable" : `Waiting for exact ${sourceName} markets` : sourceConfigured ? "Sharp Money is paused" : "Connect a Sharp Money source"}</strong><span>${providerError || (running ? quoteConsensus ? "Exact prices are connected, but NoVIG and ProphetX order-book liquidity is not available in this response." : "The first authenticated snapshot may take a few seconds." : sourceConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials remain server-side and the integration is read-only.")}</span></div></div>`;
+      : `<div class="sharp-empty-state"><div><i class="ph ${accessBlocked ? "ph-warning-circle" : running ? "ph-radar" : sourceConfigured ? "ph-pause-circle" : "ph-key"}"></i><strong>${accessBlocked ? advancedPlanRequired ? "Upgrade OddsEngine to Advanced" : standardOddsEngine ? "Price feed temporarily unavailable" : "Order-book feed unavailable" : running ? quoteConsensus ? "Exact liquidity unavailable" : `Waiting for exact ${sourceName} markets` : sourceConfigured ? "Sharp Money is paused" : "Connect a Sharp Money source"}</strong><span>${providerError || (running ? quoteConsensus ? "Exact prices are connected, but no direct NoVIG or ProphetX order-book match is available in this response." : "The first authenticated snapshot may take a few seconds." : sourceConfigured ? "Start the local feed when you want to inspect real markets." : "Credentials remain server-side and the integration is read-only.")}</span></div></div>`;
     const selected = state.visible.find(row => row.id === state.selectedId);
     $("sharp-detail-panel").innerHTML = selected
       ? detail(selected)
-      : `<div class="sharp-detail-loading"><i class="ph ${accessBlocked ? "ph-warning-circle" : "ph-waveform"}"></i><strong>${accessBlocked ? advancedPlanRequired ? "Order-book access blocked" : standardOddsEngine ? "Price feed temporarily unavailable" : "Order-book feed unavailable" : quoteConsensus ? "Crossed liquidity unavailable" : "No market selected"}</strong><span>${accessBlocked ? providerError : running ? quoteConsensus ? "Waiting for NoVIG and ProphetX order-book depth." : `Waiting for ${sourceName} market data.` : "Play the feed, then select a market."}</span></div>`;
+      : `<div class="sharp-detail-loading"><i class="ph ${accessBlocked ? "ph-warning-circle" : "ph-waveform"}"></i><strong>${accessBlocked ? advancedPlanRequired ? "Order-book access blocked" : standardOddsEngine ? "Price feed temporarily unavailable" : "Order-book feed unavailable" : quoteConsensus ? "Exact liquidity unavailable" : "No market selected"}</strong><span>${accessBlocked ? providerError : running ? quoteConsensus ? "Waiting for direct NoVIG or ProphetX order-book depth." : `Waiting for ${sourceName} market data.` : "Play the feed, then select a market."}</span></div>`;
   }
 
   async function load() {

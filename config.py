@@ -101,7 +101,7 @@ class Settings:
     novig_ws_market_subscription_limit: int = 0
     prophetx_access_key: str | None = field(default=None, repr=False)
     prophetx_secret_key: str | None = field(default=None, repr=False)
-    prophetx_api_base_url: str = "https://api-ss-sandbox.betprophet.co/partner"
+    prophetx_api_base_url: str = "https://api.sandbox.prophetx.dev/partner"
     prophetx_trade_url: str | None = None
     prophetx_cache_ttl_seconds: int = 30
     fourcx_username: str | None = field(default=None, repr=False)
@@ -307,7 +307,7 @@ def get_settings() -> Settings:
         prophetx_secret_key=os.getenv("PROPHETX_SECRET_KEY") or None,
         prophetx_api_base_url=os.getenv(
             "PROPHETX_API_BASE_URL",
-            "https://api-ss-sandbox.betprophet.co/partner",
+            "https://api.sandbox.prophetx.dev/partner",
         ),
         prophetx_trade_url=os.getenv("PROPHETX_TRADE_URL") or None,
         prophetx_cache_ttl_seconds=_get_int("PROPHETX_CACHE_TTL_SECONDS", 30),

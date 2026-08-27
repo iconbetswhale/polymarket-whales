@@ -31,8 +31,12 @@ NOVIG_LOGO_URL = (
     "6436d7c4d343f31dbf62d683_favicon.png"
 )
 NOVIG_BOOKMAKER_ID = "novig"
-PROPHETX_SANDBOX_BASE_URL = "https://api-ss-sandbox.betprophet.co/partner"
-PROPHETX_SANDBOX_TRADE_URL = "https://ss-sandbox.betprophet.co/"
+PROPHETX_SANDBOX_BASE_URL = "https://api.sandbox.prophetx.dev/partner"
+PROPHETX_SANDBOX_TRADE_URL = "https://sandbox.prophetx.dev/"
+PROPHETX_LEGACY_SANDBOX_BASE_URL = (
+    "https://api-ss-sandbox.betprophet.co/partner"
+)
+PROPHETX_LEGACY_SANDBOX_TRADE_URL = "https://ss-sandbox.betprophet.co/"
 PROPHETX_PRODUCTION_TRADE_URL = "https://www.prophetx.co/lobby/"
 PROPHETX_LOGO_URL = "https://www.prophetx.co/favicon.ico"
 PROPHETX_TOKEN_REFRESH_SECONDS = 9 * 60
@@ -398,8 +402,18 @@ class ProphetXProvider(ExecutionProvider):
     ) -> None:
         self._access_key = str(access_key or "").strip() or None
         self._secret_key = str(secret_key or "").strip() or None
-        self.base_url = base_url.rstrip("/")
-        self.trade_url = str(trade_url or _default_prophetx_trade_url(base_url)).strip()
+        normalized_base_url = str(base_url or PROPHETX_SANDBOX_BASE_URL).rstrip("/")
+        if normalized_base_url == PROPHETX_LEGACY_SANDBOX_BASE_URL:
+            normalized_base_url = PROPHETX_SANDBOX_BASE_URL
+        normalized_trade_url = str(
+            trade_url or _default_prophetx_trade_url(normalized_base_url)
+        ).strip()
+        if normalized_trade_url.rstrip("/") == (
+            PROPHETX_LEGACY_SANDBOX_TRADE_URL.rstrip("/")
+        ):
+            normalized_trade_url = PROPHETX_SANDBOX_TRADE_URL
+        self.base_url = normalized_base_url
+        self.trade_url = normalized_trade_url
         self.cache_ttl_seconds = max(int(cache_ttl_seconds), 1)
         self.request_timeout = max(int(request_timeout), 1)
         self.session = session or requests.Session()

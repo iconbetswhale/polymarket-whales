@@ -9,6 +9,7 @@ from sharp_money_live import (
     OddsComparisonFallback,
     SharpMoneyCollector,
     _crossed_market_liquidity,
+    _net_exchange_liquidity,
 )
 
 
@@ -142,11 +143,11 @@ class FakeDirectNoVIG:
         for trade in trades:
             if "Philadelphia Phillies" in trade["outcome"]:
                 result[trade["id"]] = FakeExecutionOption(
-                    "novig", 125, liquidity=500
+                    "novig", 125, liquidity=900
                 )
             elif "New York Mets" in trade["outcome"]:
                 result[trade["id"]] = FakeExecutionOption(
-                    "novig", -115, liquidity=700
+                    "novig", -115, liquidity=300
                 )
         return result
 
@@ -297,6 +298,37 @@ def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
     assert crossed["roiPercent"] > 0
 
 
+def test_net_exchange_liquidity_subtracts_opposite_sides() -> None:
+    net = _net_exchange_liquidity(
+        [
+            {
+                "providerKey": "fanduel",
+                "americanOdds": -105,
+            },
+            {
+                "providerKey": "novig",
+                "americanOdds": -105,
+                "availableLiquidity": 6000,
+                "oppositeAmericanOdds": 105,
+                "oppositeAvailableLiquidity": 4000,
+            },
+            {
+                "providerKey": "prophetx",
+                "americanOdds": -105,
+                "availableLiquidity": 4000,
+                "oppositeAmericanOdds": 105,
+                "oppositeAvailableLiquidity": 3000,
+            },
+        ]
+    )
+
+    assert net is not None
+    assert net["selectedLiquidity"] == 10000
+    assert net["oppositeLiquidity"] == 7000
+    assert net["liquidity"] == 3000
+    assert net["sources"] == {"novig": 2000, "prophetx": 1000}
+
+
 def test_advanced_rejection_uses_direct_combined_exchange_order_books() -> None:
     odds_engine = FakeOddsEngineOrderBook()
     quote_fallback_calls = 0
@@ -342,19 +374,21 @@ def test_advanced_rejection_uses_direct_combined_exchange_order_books() -> None:
     signal = payload["signals"][0]
     assert signal["selection"] == "Philadelphia Phillies"
     assert signal["provider"] == "NoVIG + ProphetX"
-    assert signal["crossedLiquidity"] == 1600
+    assert signal["crossedLiquidity"] == 800
+    assert signal["selectedLiquidity"] == 2000
+    assert signal["oppositeLiquidity"] == 1200
     assert signal["liquiditySources"] == {
-        "prophetx": 900,
-        "novig": 700,
+        "prophetx": 200,
+        "novig": 600,
     }
     assert signal["crossedSharpOdds"] == {
-        "prophetx": -118,
-        "novig": -115,
+        "prophetx": -102,
+        "novig": 125,
     }
     assert signal["crossedRetailOdds"] == 130
     assert signal["bestBook"] == "fanduel"
     assert signal["depthAvailable"] is True
-    assert signal["transport"] == "Direct NoVIG + ProphetX order books"
+    assert signal["transport"] == "Direct NoVIG + ProphetX net order books"
 
 
 def test_odds_comparison_prefers_odds_engine_and_falls_back() -> None:
@@ -573,6 +607,25 @@ def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_pr
         "prophetx",
         "fanduel",
     }
+
+    direct_collector = SharpMoneyCollector(
+        provider,
+        novig_provider=FakeDirectNoVIG(),
+        local_control=False,
+        automatic_refresh_seconds=30,
+    )
+    direct_payload = direct_collector.payload(refresh_if_stale=True)
+
+    assert direct_payload["signalMode"] == "direct_order_book"
+    assert direct_payload["signalCount"] == 1
+    assert direct_payload["depthProviders"] == ["NoVIG"]
+    direct_signal = direct_payload["signals"][0]
+    assert direct_signal["provider"] == "NoVIG"
+    assert direct_signal["selection"].startswith("Philadelphia Phillies")
+    assert direct_signal["crossedLiquidity"] == 600
+    assert direct_signal["selectedLiquidity"] == 900
+    assert direct_signal["oppositeLiquidity"] == 300
+    assert direct_signal["bestBook"] == "fanduel"
 
 
 def test_oddsengine_advanced_plan_error_reports_safe_http_status():
