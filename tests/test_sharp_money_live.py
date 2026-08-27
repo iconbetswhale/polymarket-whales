@@ -52,16 +52,16 @@ class FakeProphetX:
                         "name": "Moneyline",
                         "selections": [
                             {
-                                "selection_id": "phillies",
+                                "outcome_id": "phillies",
                                 "name": "Philadelphia Phillies",
-                                "odds": self.price,
-                                "liquidity": self.liquidity,
+                                "price": self.price,
+                                "quantity": self.liquidity,
                             },
                             {
-                                "selection_id": "mets",
+                                "outcome_id": "mets",
                                 "name": "New York Mets",
-                                "odds": 1.85,
-                                "liquidity": 900,
+                                "price": 1.85,
+                                "quantity": 900,
                             },
                         ],
                     }

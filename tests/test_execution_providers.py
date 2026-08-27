@@ -63,17 +63,17 @@ class FakeProphetXSession:
         self.calls = []
         self.market_type = market_type
         self.selections = selections or [[{
-            "id": 501,
+            "outcome_id": 501,
             "name": "New York Yankees",
-            "odds": 2.08,
+            "price": 2.08,
             "line": None,
-            "liquidity": 900.0,
+            "quantity": 900.0,
         }], [{
-            "id": 502,
+            "outcome_id": 502,
             "name": "Boston Red Sox",
-            "odds": 1.83,
+            "price": 1.83,
             "line": None,
-            "liquidity": 850.0,
+            "quantity": 850.0,
         }]]
 
     def post(self, url, **kwargs):
@@ -793,6 +793,24 @@ def test_prophetx_exact_market_adds_live_execution_option() -> None:
     assert (
         market_call[2]["headers"]["Authorization"]
         == "Bearer temporary-session-token"
+    )
+    assert market_call[1].endswith(
+        "/v3/affiliate/get_multiple_markets"
+    )
+
+
+def test_prophetx_live_snapshot_uses_current_v3_market_data(monkeypatch) -> None:
+    monkeypatch.setenv("SHARP_MONEY_TOURNAMENTS", "MLB")
+    session = FakeProphetXSession()
+    provider = ProphetXProvider("test-access", "test-secret", session=session)
+
+    snapshot = provider.live_market_snapshot()
+
+    assert len(snapshot["tournaments"]) == 1
+    assert len(snapshot["events"]) == 1
+    assert len(snapshot["markets"]["101"]) == 1
+    assert session.calls[-1][1].endswith(
+        "/v3/affiliate/get_multiple_markets"
     )
 
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import re
 import threading
 import time
@@ -656,7 +657,7 @@ class ProphetXProvider(ExecutionProvider):
             market_payload = self._get_data(
                 "/v3/affiliate/get_multiple_markets",
                 headers,
-                params={"event_ids": ",".join(batch)},
+                params=[("event_ids", event_id) for event_id in batch],
             )
             for event_id, event_markets in _prophetx_markets_by_event(
                 market_payload
@@ -1995,7 +1996,9 @@ def normalize_prophetx_markets(
             if not isinstance(market, dict):
                 continue
             market_type = _normalize_name(
-                market.get("market_type") or market.get("type")
+                market.get("market_type")
+                or market.get("type")
+                or market.get("sub_type")
             )
             period_id = _prophetx_period_id(market)
             is_alternative = bool(market.get("is_alternative")) or bool(
@@ -2018,7 +2021,11 @@ def normalize_prophetx_markets(
                 )
                 if not side_id:
                     continue
-                line = _float_or_none(selection.get("line"))
+                line = _float_or_none(
+                    selection.get("line")
+                    if selection.get("line") is not None
+                    else selection.get("strike")
+                )
                 rules, bet_type_id, stat_id = _prophetx_settlement_rules(
                     market_type,
                     sport_id,
@@ -2029,6 +2036,10 @@ def normalize_prophetx_markets(
                     continue
                 american_odds, display_odds = _decimal_to_american_odds(
                     selection.get("odds")
+                    if selection.get("odds") is not None
+                    else selection.get("price")
+                    if selection.get("price") is not None
+                    else selection.get("adjusted_price")
                 )
                 selection_link = str(
                     selection.get("deep_link")
@@ -2041,7 +2052,9 @@ def normalize_prophetx_markets(
                 selection_id = str(
                     selection.get("id")
                     or selection.get("selection_id")
+                    or selection.get("outcome_id")
                     or selection.get("strike_id")
+                    or selection.get("line_id")
                     or ""
                 ).strip()
                 if not selection_id:
@@ -2068,7 +2081,15 @@ def normalize_prophetx_markets(
                         deep_link=selection_link,
                         is_available=bool(
                             american_odds is not None
-                            and (_float_or_none(selection.get("liquidity")) or 0) > 0
+                            and (
+                                _float_or_none(
+                                    selection.get("liquidity")
+                                    if selection.get("liquidity") is not None
+                                    else selection.get("quantity")
+                                )
+                                or 0
+                            )
+                            > 0
                         ),
                         last_updated=str(
                             selection.get("updated_at")

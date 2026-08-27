@@ -96,7 +96,13 @@ def _number(value, default: float = 0.0) -> float:
 
 
 def _decimal_odds(selection: dict) -> float | None:
-    value = selection.get("odds")
+    value = (
+        selection.get("odds")
+        if selection.get("odds") is not None
+        else selection.get("price")
+        if selection.get("price") is not None
+        else selection.get("adjusted_price")
+    )
     if isinstance(value, dict):
         value = (
             value.get("decimal")
@@ -921,7 +927,9 @@ class SharpMoneyCollector:
                     selection_id = str(
                         selection.get("id")
                         or selection.get("selection_id")
+                        or selection.get("outcome_id")
                         or selection.get("strike_id")
+                        or selection.get("line_id")
                         or ""
                     )
                     name = str(selection.get("name") or "").strip()
@@ -950,6 +958,8 @@ class SharpMoneyCollector:
                         "line": (
                             selection.get("line")
                             if selection.get("line") is not None
+                            else selection.get("strike")
+                            if selection.get("strike") is not None
                             else market.get("line")
                         ),
                         "levels": [
