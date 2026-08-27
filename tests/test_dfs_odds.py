@@ -78,6 +78,19 @@ def test_live_dfs_board_keeps_pairs_together_and_formats_exchange_cents() -> Non
     assert {row["oddsByBook"]["polymarket"] for row in rows} == {"52.4\u00a2"}
 
 
+def test_live_dfs_board_sorts_highest_hit_rate_first() -> None:
+    events = _events()
+    sportsbook_outcomes = events[0]["bookmakers"][0]["markets"][0]["outcomes"]
+    sportsbook_outcomes[0]["price"] = -150
+    sportsbook_outcomes[1]["price"] = 120
+
+    rows = build_dfs_odds_board(events)
+
+    hit_rates = [row["hit"] for row in rows if row["hit"] is not None]
+    assert hit_rates == sorted(hit_rates, reverse=True)
+    assert rows[0]["side"] == "Over"
+
+
 def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     application = app_client.application
     registry = application.extensions["execution_providers"]

@@ -323,6 +323,7 @@ def build_dfs_odds_board(
         rows,
         key=lambda row: (
             row["hit"] is None,
+            -float(row.get("hit") or 0.0),
             -float(row.get("reliability") or 0.0),
             row["time"],
             row["player"],

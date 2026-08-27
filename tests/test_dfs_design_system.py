@@ -92,8 +92,36 @@ def test_dfs_v2_keeps_responsive_and_interactive_contracts() -> None:
     assert "#dfs-devig-open" in SCRIPT
     assert "#dfs-discrepancies" not in SCRIPT
     assert "#dfs-search" in SCRIPT
-    assert "addEventListener('click', loadLiveRows)" in SCRIPT
+    assert "#dfs-refresh').addEventListener('click', () => loadLiveRows())" in SCRIPT
     assert "devigDialog.showModal()" in SCRIPT
+
+
+def test_dfs_live_pause_controls_refresh_immediately_and_never_overlap() -> None:
+    assert 'id="dfs-live" aria-pressed="true"' in TEMPLATE
+    assert 'id="dfs-pause" aria-pressed="false"' in TEMPLATE
+    assert "250 live props" not in TEMPLATE
+    assert "updated just now" not in SCRIPT
+    assert "setLiveRefresh(true)" in SCRIPT
+    assert "setLiveRefresh(false)" in SCRIPT
+    assert "if (!enabled)" in SCRIPT
+    assert "loadLiveRows();" in SCRIPT
+    assert "if (activeLoad?.signature === signature) return activeLoad.promise;" in SCRIPT
+    assert "window.setTimeout(loadLiveRows,refreshDelayMs)" in SCRIPT
+    assert "window.setInterval" not in SCRIPT
+
+
+def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -> None:
+    assert 'id="dfs-loading" role="status"' in TEMPLATE
+    assert 'id="dfs-error" hidden' in TEMPLATE
+    assert "loadingState.hidden = hasLoadedRows || loadFailed;" in SCRIPT
+    assert "emptyState.hidden = !hasLoadedRows || loadFailed || visible.length > 0;" in SCRIPT
+    assert ".sort(compareByHitRate)" in SCRIPT
+    assert "if (aHit !== null && bHit !== null && bHit !== aHit) return bHit-aHit;" in SCRIPT
+
+
+def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
+    assert "dfs-prewarm-v1" in BASE
+    assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
 def test_dfs_assets_load_after_the_v2_foundation() -> None:

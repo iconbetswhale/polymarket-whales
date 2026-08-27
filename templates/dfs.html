@@ -3,7 +3,11 @@
 <section class="dfs-page il-data-grid-page">
   <header class="dfs-heading il-page-header">
     <div class="il-page-title"><p class="eyebrow">DFS · LINE SHOPPING</p><h1>Fantasy Optimizer</h1><p>Find the strongest projection edge, then compare every available line in one place.</p></div>
-    <div class="dfs-heading-actions"><span class="dfs-live" id="dfs-live" aria-live="polite"><i></i> Loading live odds</span><button class="icon-button" type="button" id="dfs-refresh"><i class="ph ph-arrows-clockwise"></i><span>Refresh</span></button></div>
+    <div class="dfs-heading-actions" role="group" aria-label="Fantasy Optimizer refresh controls">
+      <button class="icon-button dfs-refresh-mode active" type="button" id="dfs-live" aria-pressed="true"><i class="ph ph-play" aria-hidden="true"></i><span>Live</span></button>
+      <button class="icon-button dfs-refresh-mode" type="button" id="dfs-pause" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Pause</span></button>
+      <button class="icon-button" type="button" id="dfs-refresh"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh</span></button>
+    </div>
   </header>
 
   <section class="dfs-control-deck il-data-grid">
@@ -50,7 +54,9 @@
       <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks line"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks line"></th><th>Chance to hit</th><th class="algo-odds-head" id="dfs-algo-odds-head" aria-label="IconLabs Algo Odds using default weights"><span class="dfs-algo-tooltip" tabindex="0" role="img" aria-label="IconLabs Algo Odds using default weights" aria-describedby="dfs-iconalgo-tooltip"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""></span></th>{% for book, logo in [('FanDuel','fanduel'),('NoVIG','novig'),('ProphetX','prophetx'),('DraftKings','draftkings'),('Pinnacle','pinnacle'),('Circa','circa'),('Kalshi','kalshi'),('Polymarket','polymarket'),('PrizePicks','prizepicks'),('Underdog','underdog'),('DK Pick6','dk-pick6'),('Betr','betr'),('Dabble','dabble'),('Sleeper','sleeper')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
       <tbody id="dfs-body"></tbody>
     </table>
+    <div class="dfs-load-state" id="dfs-loading" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><strong>Loading live props</strong><span>Fetching the latest lines and probabilities.</span></div>
     <div class="dfs-empty" id="dfs-empty" hidden><i class="ph ph-magnifying-glass"></i><strong>No props match these filters</strong><span>Try another player, sport, or side.</span></div>
+    <div class="dfs-empty dfs-error" id="dfs-error" hidden><i class="ph ph-warning-circle"></i><strong>Live props are temporarily unavailable</strong><span>Click Refresh to try again.</span></div>
   </div>
 </section>
 <div class="dfs-iconalgo-tooltip-popover" id="dfs-iconalgo-tooltip" role="tooltip" hidden>IconLabs Algo Odds · default weights</div>

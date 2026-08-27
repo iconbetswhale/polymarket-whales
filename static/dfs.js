@@ -19,7 +19,16 @@
   };
   const allMarkets = [...new Set(Object.values(marketTypes).flat())].sort((a,b) => a.localeCompare(b));
   let rows = [];
+  let hasLoadedRows = false;
+  let loadFailed = false;
+  let liveRefreshEnabled = true;
+  let refreshDelayMs = 15000;
+  let refreshTimer = null;
+  let activeLoad = null;
   const body = document.querySelector('#dfs-body');
+  const loadingState = document.querySelector('#dfs-loading');
+  const emptyState = document.querySelector('#dfs-empty');
+  const errorState = document.querySelector('#dfs-error');
   const statSelect = document.querySelector('#dfs-stat');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
   const parlayGuideDialog = document.querySelector('#dfs-parlay-guide-dialog');
@@ -130,6 +139,22 @@
     });
   }
 
+  function displayedHitRate(row) {
+    const activeLine = row.dfsLines?.[selectedBookKeys[activeBook]] ?? null;
+    return fairProbability(row,activeLine);
+  }
+
+  function compareByHitRate(a,b) {
+    const aHit = displayedHitRate(a);
+    const bHit = displayedHitRate(b);
+    if (aHit === null && bHit !== null) return 1;
+    if (aHit !== null && bHit === null) return -1;
+    if (aHit !== null && bHit !== null && bHit !== aHit) return bHit-aHit;
+    return String(a.player||'').localeCompare(String(b.player||''))
+      || String(a.stat||'').localeCompare(String(b.stat||''))
+      || String(a.side||'').localeCompare(String(b.side||''));
+  }
+
   function render() {
     updateAlgoPresentation();
     const sport = document.querySelector('#dfs-sport').value;
@@ -137,7 +162,9 @@
     const stat = statSelect.value;
     const side = document.querySelector('#dfs-side').value;
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
-    const visible = rows.filter(r => (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)));
+    const visible = rows
+      .filter(r => (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
+      .sort(compareByHitRate);
     body.innerHTML = visible.map(r => {
       const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? null;
       const fairHitRate = fairProbability(r,activeLine);
@@ -179,41 +206,90 @@
       const lineDisplay = activeLine === null ? '—' : activeLine;
       return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${esc(lineDisplay)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
     }).join('');
-    document.querySelector('#dfs-empty').hidden = visible.length > 0;
+    loadingState.hidden = hasLoadedRows || loadFailed;
+    errorState.hidden = !loadFailed || rows.length > 0;
+    emptyState.hidden = !hasLoadedRows || loadFailed || visible.length > 0;
+  }
+
+  function clearAutoRefresh() {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+
+  function scheduleAutoRefresh() {
+    clearAutoRefresh();
+    if (!liveRefreshEnabled || document.hidden) return;
+    refreshTimer = window.setTimeout(loadLiveRows,refreshDelayMs);
+  }
+
+  function syncRefreshControls() {
+    const liveButton = document.querySelector('#dfs-live');
+    const pauseButton = document.querySelector('#dfs-pause');
+    liveButton.classList.toggle('active',liveRefreshEnabled);
+    pauseButton.classList.toggle('active',!liveRefreshEnabled);
+    liveButton.setAttribute('aria-pressed',String(liveRefreshEnabled));
+    pauseButton.setAttribute('aria-pressed',String(!liveRefreshEnabled));
+  }
+
+  function setLiveRefresh(enabled) {
+    const wasLive = liveRefreshEnabled;
+    liveRefreshEnabled = enabled;
+    syncRefreshControls();
+    clearAutoRefresh();
+    if (!enabled) {
+      if (wasLive) activeLoad?.controller.abort();
+      return;
+    }
+    loadLiveRows();
   }
 
   async function loadLiveRows() {
+    clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const live = document.querySelector('#dfs-live');
     const params = new URLSearchParams({weights:JSON.stringify(savedWeights)});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
-    if (!rows.length) {
+    const signature = params.toString();
+    if (activeLoad?.signature === signature) return activeLoad.promise;
+    activeLoad?.controller.abort();
+    if (!hasLoadedRows && !rows.length) {
       const cached = readPagePayloadCache(cacheKey,5*60*1000);
       if (cached) {
         rows = Array.isArray(cached.data) ? cached.data : [];
-        if (live) live.lastChild.textContent = ` ${rows.length} recent props · updating live`;
+        hasLoadedRows = true;
+        loadFailed = false;
         render();
       }
     }
     button?.classList.add('spinning');
     if (button) button.disabled = true;
-    try {
-      const response = await fetch(url, {headers:{Accept:'application/json'}});
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
-      rows = Array.isArray(payload.data) ? payload.data : [];
-      writePagePayloadCache(cacheKey,payload);
-      if (live) live.lastChild.textContent = ` ${rows.length} live props · updated just now`;
-      render();
-    } catch (_error) {
-      if (live) live.lastChild.textContent = ' Live odds temporarily unavailable';
-      rows = [];
-      render();
-    } finally {
-      button?.classList.remove('spinning');
-      if (button) button.disabled = false;
-    }
+    const controller = new AbortController();
+    const promise = (async () => {
+      try {
+        const response = await fetch(url, {headers:{Accept:'application/json'}, cache:'no-store', signal:controller.signal});
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
+        rows = Array.isArray(payload.data) ? payload.data : [];
+        hasLoadedRows = true;
+        loadFailed = false;
+        const serverDelay = Number(payload.refreshSeconds)*1000;
+        if (Number.isFinite(serverDelay)) refreshDelayMs = Math.max(5000,serverDelay);
+        writePagePayloadCache(cacheKey,payload);
+      } catch (error) {
+        if (error.name === 'AbortError') return;
+        hasLoadedRows = true;
+        loadFailed = rows.length === 0;
+      } finally {
+        if (activeLoad?.promise !== promise) return;
+        activeLoad = null;
+        button?.classList.remove('spinning');
+        if (button) button.disabled = false;
+        render();
+        scheduleAutoRefresh();
+      }
+    })();
+    activeLoad = {signature,controller,promise};
+    return promise;
   }
 
   function enableDrag(container, itemSelector, onDrop) {
@@ -280,7 +356,9 @@
   ['dfs-date','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   document.querySelector('#dfs-search').addEventListener('input', render);
   document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); document.querySelector('#dfs-search').value=''; updateStats(); render(); });
-  document.querySelector('#dfs-refresh').addEventListener('click', loadLiveRows);
+  document.querySelector('#dfs-live').addEventListener('click', () => setLiveRefresh(true));
+  document.querySelector('#dfs-pause').addEventListener('click', () => setLiveRefresh(false));
+  document.querySelector('#dfs-refresh').addEventListener('click', () => loadLiveRows());
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
   document.querySelectorAll('[data-devig-number]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigNumber,event.target.value)));
   document.querySelector('#dfs-devig-open').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset=''; document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });
@@ -318,13 +396,17 @@
   iconAlgoTooltipTrigger.addEventListener('blur', hideIconAlgoTooltip);
   window.addEventListener('resize', hideIconAlgoTooltip);
   document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) clearAutoRefresh();
+    else if (liveRefreshEnabled) loadLiveRows();
+  });
   updateStats();
   reorderHeaders();
   updateDevigSummary();
   renderPresets();
   syncDevigControls();
+  syncRefreshControls();
   render();
   loadLiveRows();
-  window.setInterval(() => { if (!document.hidden) loadLiveRows(); },15000);
 })();
 

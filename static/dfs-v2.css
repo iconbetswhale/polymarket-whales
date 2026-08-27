@@ -96,30 +96,14 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-heading-actions {
   display: flex;
   flex: 0 0 auto;
   align-items: center;
-  gap: var(--il-space-3);
+  gap: var(--il-space-2);
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-live {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  color: var(--il-text-muted);
-  font: var(--il-type-metadata);
-  white-space: nowrap;
-}
-
-body[data-design-system="v2"][data-page="dfs"] .dfs-live i {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--il-positive);
-  box-shadow: 0 0 0 4px var(--il-positive-glow);
-}
-
+body[data-design-system="v2"][data-page="dfs"] .dfs-refresh-mode,
 body[data-design-system="v2"][data-page="dfs"] #dfs-refresh {
   display: inline-flex;
   width: auto;
-  min-width: 92px;
+  min-width: 82px;
   height: var(--il-control-height-compact);
   min-height: var(--il-control-height-compact);
   align-items: center;
@@ -133,10 +117,32 @@ body[data-design-system="v2"][data-page="dfs"] #dfs-refresh {
   font: var(--il-type-control);
 }
 
+body[data-design-system="v2"][data-page="dfs"] #dfs-refresh {
+  min-width: 92px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-refresh-mode:hover,
 body[data-design-system="v2"][data-page="dfs"] #dfs-refresh:hover {
   border-color: var(--il-border-interactive);
   color: var(--il-text-primary);
   background: var(--il-surface-hover);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-refresh-mode.active {
+  border-color: rgba(80,217,119,.55);
+  color: var(--il-positive);
+  background: rgba(80,217,119,.1);
+}
+
+body[data-design-system="v2"][data-page="dfs"] #dfs-pause.active {
+  border-color: var(--il-warning-border);
+  color: var(--il-warning);
+  background: rgba(233,184,94,.1);
+}
+
+body[data-design-system="v2"][data-page="dfs"] #dfs-refresh:disabled {
+  cursor: wait;
+  opacity: .72;
 }
 
 body[data-design-system="v2"][data-page="dfs"] #dfs-refresh.spinning i {
@@ -860,7 +866,8 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate .alterna
   transform: translateX(-50%);
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-empty {
+body[data-design-system="v2"][data-page="dfs"] .dfs-empty,
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state {
   position: absolute;
   inset: 110px 0 auto;
   display: flex;
@@ -869,21 +876,33 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-empty {
   color: var(--il-text-muted);
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-empty[hidden] {
+body[data-design-system="v2"][data-page="dfs"] .dfs-empty[hidden],
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state[hidden] {
   display: none;
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-empty i {
+body[data-design-system="v2"][data-page="dfs"] .dfs-empty i,
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state i {
   margin-bottom: 10px;
   color: var(--il-brand-hover);
   font-size: 28px;
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-empty strong {
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state i {
+  animation: dfs-v2-spin .9s linear infinite;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-error i {
+  color: var(--il-warning);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-empty strong,
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state strong {
   color: var(--il-text-primary);
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-empty span {
+body[data-design-system="v2"][data-page="dfs"] .dfs-empty span,
+body[data-design-system="v2"][data-page="dfs"] .dfs-load-state span {
   margin-top: 5px;
   font: var(--il-type-metadata);
 }
@@ -1403,7 +1422,10 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-note i {
     justify-content: space-between;
   }
 
-  body[data-design-system="v2"][data-page="dfs"] .dfs-live {
+  body[data-design-system="v2"][data-page="dfs"] .dfs-refresh-mode,
+  body[data-design-system="v2"][data-page="dfs"] #dfs-refresh {
+    min-width: 0;
+    flex: 1 1 0;
     font: 500 11px/1.2 var(--il-font-ui);
   }
 

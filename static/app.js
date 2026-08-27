@@ -43,6 +43,37 @@ function latestPagePayloadCacheKey(scope) {
   return pagePayloadCacheKey(scope, "latest");
 }
 
+const DFS_PREWARM_DEFAULT_WEIGHTS = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
+let dfsPrewarmPromise = null;
+
+function dfsPrewarmRequest() {
+  const keys = Object.keys(DFS_PREWARM_DEFAULT_WEIGHTS);
+  let stored = null;
+  try {
+    stored = JSON.parse(safeStorage.getItem("dfsDevigWeightsV2") || "null");
+  } catch (_error) {
+    stored = null;
+  }
+  const valid = stored
+    && keys.every((key) => Number.isFinite(Number(stored[key])))
+    && keys.reduce((total,key) => total+Number(stored[key]),0) === 100;
+  const weights = Object.fromEntries(keys.map((key) => [key,valid ? Number(stored[key]) : DFS_PREWARM_DEFAULT_WEIGHTS[key]]));
+  const params = new URLSearchParams({weights:JSON.stringify(weights)});
+  return {cacheKey:pagePayloadCacheKey("dfs",params.toString()), url:`/api/dfs/lines?${params}`};
+}
+
+function prewarmFantasyOptimizer() {
+  if (page === "dfs") return Promise.resolve();
+  const request = dfsPrewarmRequest();
+  if (readPagePayloadCache(request.cacheKey,5*60*1000)) return Promise.resolve();
+  if (dfsPrewarmPromise) return dfsPrewarmPromise;
+  dfsPrewarmPromise = fetchJson(request.url)
+    .then((payload) => writePagePayloadCache(request.cacheKey,payload))
+    .catch(() => {})
+    .finally(() => { dfsPrewarmPromise = null; });
+  return dfsPrewarmPromise;
+}
+
 function cachePagePayload(scope, key, payload) {
   writePagePayloadCache(key, payload);
   writePagePayloadCache(latestPagePayloadCacheKey(scope), payload);
@@ -5868,6 +5899,12 @@ function bindNavigation() {
   const moreBackdrop = document.getElementById("mobile-more-backdrop");
   const moreClose = document.getElementById("mobile-more-close");
   const moreAccount = document.getElementById("mobile-more-account");
+  if (page !== "dfs") {
+    document.querySelectorAll('a[href="/dfs"]').forEach((link) => {
+      link.addEventListener("pointerenter", prewarmFantasyOptimizer, {once:true});
+      link.addEventListener("focus", prewarmFantasyOptimizer, {once:true});
+    });
+  }
   let moreCloseTimer = 0;
   let moreReturnFocus = null;
   const renderDesktopNavigation = (expanded) => {
@@ -7269,6 +7306,8 @@ async function loadGlobalRiskState() {
 }
 
 function prewarmInstantPages() {
+  prewarmFantasyOptimizer();
+
   if (page !== "trades" && !readPagePayloadCache(latestPagePayloadCacheKey("trades"))) {
     fetchJson("/api/trades-to-play?fast=1")
       .then((payload) => writePagePayloadCache(latestPagePayloadCacheKey("trades"), payload))
