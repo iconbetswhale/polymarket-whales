@@ -29,6 +29,7 @@ DFS_BOOK_KEY_BY_PROVIDER = {
     "dabble": "dabble",
     "sleeper": "sleeper",
 }
+DFS_BOOK_KEYS = frozenset(DFS_BOOK_KEY_BY_PROVIDER.values())
 
 MODEL_PROVIDER_ALIASES = {
     "prophetexchange": "prophetx",
@@ -158,9 +159,13 @@ def build_dfs_odds_board(
     weights: dict[str, float] | None = None,
     now: datetime | None = None,
     limit: int = 250,
+    selected_dfs_book: str | None = None,
 ) -> list[dict]:
     """Build live DFS rows from normalized all-book prop markets."""
     current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    selected_book = str(selected_dfs_book or "").strip().lower() or None
+    if selected_book is not None and selected_book not in DFS_BOOK_KEYS:
+        raise ValueError("selected_dfs_book must be a supported DFS book")
     groups: dict[tuple[str, str, str], dict] = {}
     for event in events:
         event_id = str(event.get("id") or "").strip()
@@ -248,7 +253,7 @@ def build_dfs_odds_board(
     rows: list[dict] = []
     for group in groups.values():
         dfs_lines = dict(group["dfs_lines"])
-        if not dfs_lines:
+        if not dfs_lines or (selected_book and selected_book not in dfs_lines):
             continue
         target_lines = sorted(set(dfs_lines.values()))
         flat_quotes = [
@@ -272,7 +277,11 @@ def build_dfs_odds_board(
                 reliability_by_line[key] = result.reliability
                 exact_sources_by_line[key] = result.source_count
 
-            primary_line = dfs_lines.get("prizepicks", target_lines[0])
+            primary_line = (
+                dfs_lines[selected_book]
+                if selected_book
+                else dfs_lines.get("prizepicks", target_lines[0])
+            )
             odds_by_book: dict[str, object] = {}
             for book_key, book_quotes in group["quotes"].items():
                 quote = _nearest_quote(book_quotes, primary_line)

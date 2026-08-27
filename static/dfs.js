@@ -139,8 +139,14 @@
     });
   }
 
+  function selectedDfsLine(row) {
+    const value = row.dfsLines?.[selectedBookKeys[activeBook]];
+    if (value === null || value === undefined || value === '') return null;
+    return Number.isFinite(Number(value)) ? Number(value) : null;
+  }
+
   function displayedHitRate(row) {
-    const activeLine = row.dfsLines?.[selectedBookKeys[activeBook]] ?? null;
+    const activeLine = selectedDfsLine(row);
     return fairProbability(row,activeLine);
   }
 
@@ -163,10 +169,10 @@
     const side = document.querySelector('#dfs-side').value;
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
     const visible = rows
-      .filter(r => (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
+      .filter(r => selectedDfsLine(r) !== null && (!sport || r.sport === sport) && (!date || date === 'this_week' || r.date === date) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
       .sort(compareByHitRate);
     body.innerHTML = visible.map(r => {
-      const activeLine = r.dfsLines?.[selectedBookKeys[activeBook]] ?? null;
+      const activeLine = selectedDfsLine(r);
       const fairHitRate = fairProbability(r,activeLine);
       const requiredProbability = americanOddsToProbability(bestSlipOdds[activeBook]);
       const probabilityEdgePoints = requiredProbability === null || fairHitRate === null ? null : fairHitRate - requiredProbability*100;
@@ -203,8 +209,10 @@
       const exactSources = Number(r.exactSourcesByLine?.[String(Number(activeLine))] ?? r.sourceCount ?? 0);
       const hitTitle = fairHitRate === null ? 'Requires at least two reliable exact-line sportsbook sources' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact sources · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
       const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
-      const lineDisplay = activeLine === null ? '—' : activeLine;
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(r.stat)}</strong></td><td class="selected-line"><strong>${esc(lineDisplay)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      const statDisplay = `${activeLine} ${r.stat}`;
+      const selectedAppOdds = bestSlipOdds[activeBook] ?? '—';
+      const selectedOddsTitle = `${activeBook} best available equivalent odds`;
+      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(statDisplay)}</strong></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
     }).join('');
     loadingState.hidden = hasLoadedRows || loadFailed;
     errorState.hidden = !loadFailed || rows.length > 0;
@@ -246,7 +254,7 @@
   async function loadLiveRows() {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({weights:JSON.stringify(savedWeights)});
+    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),book:selectedBookKeys[activeBook]});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
@@ -349,7 +357,27 @@
     iconAlgoTooltipPopover.hidden = true;
   }
 
-  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => { document.querySelectorAll('[data-dfs-book]').forEach(item => { item.classList.toggle('active', item===btn); item.setAttribute('aria-selected', String(item===btn)); }); activeBook=btn.dataset.dfsBook; const lineHead=document.querySelector('#dfs-line-head'); const logo=btn.querySelector('img').cloneNode(); logo.alt=activeBook; logo.title=`${activeBook} line`; lineHead.replaceChildren(logo); lineHead.setAttribute('aria-label',`${activeBook} line`); reorderHeaders(); render(); }));
+  function setActiveBook(button) {
+    if (!button || !selectedBookKeys[button.dataset.dfsBook]) return;
+    const changed = activeBook !== button.dataset.dfsBook;
+    document.querySelectorAll('[data-dfs-book]').forEach(item => {
+      item.classList.toggle('active',item===button);
+      item.setAttribute('aria-selected',String(item===button));
+    });
+    activeBook = button.dataset.dfsBook;
+    const lineHead = document.querySelector('#dfs-line-head');
+    const logo = button.querySelector('img').cloneNode();
+    const selectedOddsTitle = `${activeBook} best available equivalent odds`;
+    logo.alt = activeBook;
+    logo.title = selectedOddsTitle;
+    lineHead.replaceChildren(logo);
+    lineHead.setAttribute('aria-label',selectedOddsTitle);
+    reorderHeaders();
+    render();
+    if (changed) loadLiveRows();
+  }
+
+  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => setActiveBook(btn)));
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });

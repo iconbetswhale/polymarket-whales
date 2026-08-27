@@ -5,7 +5,13 @@ from datetime import datetime, timedelta, timezone
 from dfs_odds import build_dfs_odds_board
 
 
-def _market(book_key: str, *, dfs: bool = False) -> dict:
+def _market(
+    book_key: str,
+    *,
+    dfs: bool = False,
+    line: float = 1.5,
+    player: str = "Aaron Judge",
+) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
         "key": book_key,
@@ -19,14 +25,14 @@ def _market(book_key: str, *, dfs: bool = False) -> dict:
                     {
                         "name": "Over",
                         "price": None if dfs else -110,
-                        "point": 1.5,
-                        "description": "Aaron Judge",
+                        "point": line,
+                        "description": player,
                     },
                     {
                         "name": "Under",
                         "price": None if dfs else -110,
-                        "point": 1.5,
-                        "description": "Aaron Judge",
+                        "point": line,
+                        "description": player,
                     },
                 ],
             }
@@ -91,6 +97,39 @@ def test_live_dfs_board_sorts_highest_hit_rate_first() -> None:
     assert rows[0]["side"] == "Over"
 
 
+def test_live_dfs_board_only_returns_props_available_on_selected_app() -> None:
+    events = _events()
+    events[0]["bookmakers"].extend(
+        [
+            _market("fanduel", player="Juan Soto"),
+            _market("underdog", dfs=True, line=2.5, player="Juan Soto"),
+        ]
+    )
+
+    prizepicks_rows = build_dfs_odds_board(
+        events,
+        selected_dfs_book="prizepicks",
+    )
+    underdog_rows = build_dfs_odds_board(
+        events,
+        selected_dfs_book="underdog",
+    )
+
+    assert {row["player"] for row in prizepicks_rows} == {"Aaron Judge"}
+    assert {row["player"] for row in underdog_rows} == {"Juan Soto"}
+    assert all(row["line"] == 2.5 for row in underdog_rows)
+    assert all("underdog" in row["dfsLines"] for row in underdog_rows)
+
+
+def test_live_dfs_board_rejects_unknown_selected_app() -> None:
+    try:
+        build_dfs_odds_board(_events(), selected_dfs_book="not-a-dfs-app")
+    except ValueError as exc:
+        assert "supported DFS book" in str(exc)
+    else:
+        raise AssertionError("unknown DFS apps must be rejected")
+
+
 def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     application = app_client.application
     registry = application.extensions["execution_providers"]
@@ -108,6 +147,7 @@ def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["dataSource"] == "odds_engine"
+    assert payload["selectedBook"] == "prizepicks"
     assert payload["total"] == 2
     assert payload["data"][0]["hitByLine"]["1.5"] == 50.0
 
@@ -132,3 +172,40 @@ def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
     assert response.get_json()["refreshSeconds"] == 15
     assert "s-maxage=15" in response.headers["Cache-Control"]
     assert not response.headers.getlist("Set-Cookie")
+
+
+def test_live_dfs_endpoint_scopes_results_to_requested_app(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    registry = application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "configured-in-test"
+    events = _events()
+    events[0]["bookmakers"].extend(
+        [
+            _market("fanduel", player="Juan Soto"),
+            _market("underdog", dfs=True, line=2.5, player="Juan Soto"),
+        ]
+    )
+    monkeypatch.setattr(provider, "ev_events", lambda **_kwargs: events)
+
+    response = app_client.get(
+        "/api/dfs/lines",
+        query_string={"book": "underdog"},
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["selectedBook"] == "underdog"
+    assert {row["player"] for row in payload["data"]} == {"Juan Soto"}
+    assert all(row["line"] == 2.5 for row in payload["data"])
+
+
+def test_live_dfs_endpoint_rejects_unknown_app(app_client) -> None:
+    response = app_client.get("/api/dfs/lines?book=not-a-dfs-app")
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "book must be a supported DFS app"

@@ -120,7 +120,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v1" in BASE
+    assert "dfs-prewarm-v2-selected-app" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -207,11 +207,31 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "color: #ffdd67;" in CSS
 
 
-def test_selected_dfs_line_never_renders_slip_odds_underneath() -> None:
+def test_selected_dfs_line_moves_into_stat_and_app_column_shows_best_odds() -> None:
     assert "selectedSlipOdds" not in SCRIPT
     assert "selected-slip-odds" not in SCRIPT
     assert "selected-slip-odds" not in CSS
-    assert '<td class="selected-line"><strong>${esc(lineDisplay)}</strong></td>' in SCRIPT
+    assert "const statDisplay = `${activeLine} ${r.stat}`;" in SCRIPT
+    assert "const selectedAppOdds = bestSlipOdds[activeBook] ?? '—';" in SCRIPT
+    assert 'class="dfs-stat">${esc(statDisplay)}</strong>' in SCRIPT
+    assert 'class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong>' in SCRIPT
+
+
+def test_selected_app_only_shows_its_real_available_props() -> None:
+    assert "function selectedDfsLine(row)" in SCRIPT
+    assert ".filter(r => selectedDfsLine(r) !== null" in SCRIPT
+    assert "book:selectedBookKeys[activeBook]" in SCRIPT
+    assert "if (changed) loadLiveRows();" in SCRIPT
+    assert "best available equivalent odds" in SCRIPT
+    assert "PrizePicks best available equivalent odds" in TEMPLATE
+    for book, odds in (
+        ("PrizePicks", "-119"),
+        ("Underdog", "-107"),
+        ("DK Pick6", "-122"),
+        ("Betr", "-118"),
+        ("Dabble", "-122"),
+    ):
+        assert f"'{book}':'{odds}'" in SCRIPT
 
 
 def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:

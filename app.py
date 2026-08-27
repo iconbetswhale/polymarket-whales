@@ -112,7 +112,7 @@ from dfs_probability_engine import (
     ICONLABS_DFS_WEIGHTS,
     SUPPORTED_DEVIG_METHODS,
 )
-from dfs_odds import build_dfs_odds_board
+from dfs_odds import DFS_BOOK_KEYS, build_dfs_odds_board
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
@@ -1253,6 +1253,10 @@ def create_app(start_background: bool = True) -> Flask:
         ):
             return jsonify({"error": "weights must contain non-negative percentages"}), 400
 
+        selected_book = str(request.args.get("book") or "prizepicks").strip().lower()
+        if selected_book not in DFS_BOOK_KEYS:
+            return jsonify({"error": "book must be a supported DFS app"}), 400
+
         requested_sports = tuple(
             dict.fromkeys(
                 item.strip()
@@ -1286,7 +1290,11 @@ def create_app(start_background: bool = True) -> Flask:
                 sport_keys=requested_sports,
                 market_keys=market_keys,
             )
-            rows = build_dfs_odds_board(events, weights=normalized_weights)
+            rows = build_dfs_odds_board(
+                events,
+                weights=normalized_weights,
+                selected_dfs_book=selected_book,
+            )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
             return jsonify(
@@ -1308,6 +1316,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "dataSource": diagnostics.get(
                     "provider", odds_provider.provider_key
                 ),
+                "selectedBook": selected_book,
                 "refreshSeconds": 15,
             }
         )
