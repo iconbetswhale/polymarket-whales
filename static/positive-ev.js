@@ -703,16 +703,11 @@
     const priceOf = quote => Number(quote?.topPriceAmericanOdds ?? quote?.americanOdds ?? -10000);
     bookKeys.sort((left, right) => priceOf(sideMaps[0].get(right)) - priceOf(sideMaps[0].get(left)));
     const bestBySide = sideMaps.map(sideMap => Math.max(...[...sideMap.values()].map(priceOf)));
-    const detailText = quote => quote?.topPriceLiquidity != null
-      ? `Liq ${money(quote.topPriceLiquidity)}`
-      : quote?.marketLimit != null
-        ? `Limit ${money(quote.marketLimit)}`
-        : "";
     const priceCell = (quote, sideIndex) => {
       if (!quote) return `<span class="ev-compare-price unavailable" aria-label="No price available">—</span>`;
       const quoteOdds = priceOf(quote);
       const best = quoteOdds === bestBySide[sideIndex];
-      const content = `<small>${esc(detailText(quote))}</small><strong>${odds(quoteOdds)}</strong><i class="ph ph-arrow-up-right"></i>`;
+      const content = `<strong>${odds(quoteOdds)}</strong><i class="ph ph-arrow-up-right" aria-hidden="true"></i>`;
       return quote.deepLink && quote.deepLink !== "#"
         ? `<a class="ev-compare-price ${best ? "best" : ""}" href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName || bookNames[quote.bookKey] || quote.bookKey)} ${esc(sides[sideIndex].selection)} at ${odds(quoteOdds)}">${content}</a>`
         : `<span class="ev-compare-price ${best ? "best" : ""}">${content}</span>`;
@@ -724,13 +719,13 @@
       const label = representative.bookName || bookNames[bookKey] || bookKey;
       return `<div class="ev-market-compare-row">
         ${priceCell(left, 0)}
-        <span class="ev-market-book-center" title="${esc(label)}" aria-label="${esc(label)}">${img(representative.logoUrl, bookKey)}</span>
+        <span class="ev-market-book-center" title="${esc(label)}" aria-label="${esc(label)}">${img(representative.logoUrl, bookKey)}<span>${esc(label)}</span></span>
         ${sides.length > 1 ? priceCell(right, 1) : ""}
       </div>`;
     }).join("");
     return `<section class="ev-market-odds ev-market-comparison il-detail-section">
       <header><h3>MARKET ODDS</h3></header>
-      <div class="ev-market-compare-head"><strong>${esc(sideLabels[0])}</strong><i class="ph ph-arrows-down-up" aria-hidden="true"></i>${sides.length > 1 ? `<strong>${esc(sideLabels[1])}</strong>` : ""}</div>
+      <div class="ev-market-compare-head"><span>Sportsbook</span><strong>${esc(sideLabels[0])}</strong>${sides.length > 1 ? `<strong>${esc(sideLabels[1])}</strong>` : ""}</div>
       <div class="ev-market-compare-rows">${rowsHtml}</div>
     </section>`;
   }
@@ -888,6 +883,7 @@
         $("ev-credit-banner").innerHTML = `<i class="ph ph-shield-check" aria-hidden="true"></i><span><strong>EV optimizer paused</strong> · No paid odds requests or refreshes are running.</span>`;
         $("ev-mobile-credit-summary-copy").innerHTML = `<strong>Optimizer paused</strong> · refreshes are off`;
         feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ph-pause-circle" aria-hidden="true"></i><p>${esc(payload.message || "Positive EV scanning is paused.")}</p></div>`;
+        $("ev-feed-footer").textContent = "Showing 0 of 0 markets";
         feed.setAttribute("aria-busy", "false");
         return;
       }
@@ -956,6 +952,7 @@
     const shown = visibleRows();
     updateHiddenMenu();
     $("ev-count").textContent = shown.length;
+    $("ev-feed-footer").textContent = `Showing ${shown.length} of ${rows.length} markets`;
     if (!shown.length) {
       const emptyIcon = feedView === "hidden" ? "ph-eye-slash" : "ph-shield-check";
       const emptyCopy = feedView === "hidden" ? "No hidden bets yet. Use Track and Hide on a bet to save it here." : "No opportunity passed every validation gate. That is safer than displaying a false edge.";
@@ -972,9 +969,9 @@
       return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
         <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong>${scoreAction}</div>
-        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
-        <div class="ev-pick">${leagueWatermark(row)}<small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
-        <div class="ev-execution"><div class="ev-selection">${esc(fullSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
+        <div class="ev-event"><span class="ev-event-meta"><time>${esc(time(row.commenceTime))}</time><span><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</span></span><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong><small>${esc(row.marketLabel)}</small></div>
+        <div class="ev-pick">${leagueWatermark(row)}<small>Best Bet</small><strong>${esc(detailSelection(row))}</strong></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(detailSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
       </article>`;
     }).join("");
     feed.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => {
@@ -1008,17 +1005,27 @@
       <div class="ev-detail-pick ev-trend-pick"><strong>${esc(detailSelection(row))} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       ${marketOddsVisual(row)}
-      <section class="ev-section ev-market-trend il-detail-section"><header><h3>MARKET TREND</h3></header><div class="ev-trend-metrics il-metric-group">
-        <span class="il-metric positive"><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
-        <span class="il-metric"><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
-        <span class="il-metric"><small>1H</small><b>--</b></span>
-        <span class="il-metric"><small>OPEN</small><b>--</b></span>
-      </div>${marketTrendVisual(row)}</section>
-      ${evExplanationVisual(row)}${sharpBooksVisual(row)}
+      <button class="ev-full-market-button" type="button" aria-expanded="false"><span>View full market depth</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
+      <div class="ev-full-market-depth" hidden><section class="ev-section ev-market-trend il-detail-section"><header><h3>MARKET TREND</h3></header><div class="ev-trend-metrics il-metric-group">
+          <span class="il-metric positive"><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
+          <span class="il-metric"><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
+          <span class="il-metric"><small>1H</small><b>--</b></span>
+          <span class="il-metric"><small>OPEN</small><b>--</b></span>
+        </div>${marketTrendVisual(row)}</section>
+        ${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
     </article>`;
     bindTrendControls();
     loadLiveLineHistory(row);
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
+    detail.querySelector(".ev-full-market-button")?.addEventListener("click", event => {
+      const button = event.currentTarget;
+      const expanded = button.getAttribute("aria-expanded") !== "true";
+      button.setAttribute("aria-expanded", String(expanded));
+      button.querySelector("span").textContent = expanded ? "Collapse market depth" : "View full market depth";
+      button.querySelector("i").className = `ph ph-arrow-${expanded ? "up" : "right"}`;
+      detail.querySelector(".ev-full-market-depth").hidden = !expanded;
+      detail.classList.toggle("market-depth-open", expanded);
+    });
     detail.classList.add("open");
     detail.closest(".ev-workspace")?.classList.add("detail-open");
     detail.removeAttribute("inert");

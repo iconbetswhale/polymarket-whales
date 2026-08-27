@@ -908,3 +908,552 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-trend-limit { transition: none; }
   .ev-loading span { animation-duration: 1.8s; }
 }
+
+/* Reference-led +EV market scanner. The desktop route intentionally becomes a
+   focused full-canvas tool while compact navigation remains available below
+   the desktop breakpoint. */
+body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selection { display: none; }
+
+@media (min-width: 981px) {
+  body[data-design-system="v2"][data-page="positive-ev"] {
+    --ev-ref-bg: var(--il-bg-pure-black);
+    --ev-ref-panel: var(--il-surface-1);
+    --ev-ref-panel-raised: var(--il-surface-2);
+    --ev-ref-border: var(--il-border-subtle);
+    --ev-ref-border-soft: var(--il-border-hairline);
+    --ev-ref-text: var(--il-text-primary);
+    --ev-ref-muted: var(--il-text-muted);
+    --ev-ref-positive: var(--il-positive);
+    --ev-ref-purple: var(--il-border-interactive);
+    overflow: hidden;
+    background: var(--ev-ref-bg);
+    color: var(--ev-ref-text);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .app-nav,
+  body[data-design-system="v2"][data-page="positive-ev"] .mobile-bottom-nav,
+  body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-backdrop,
+  body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-sheet {
+    display: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .app-shell,
+  body[data-design-system="v2"][data-page="positive-ev"].sidebar-expanded .app-shell {
+    width: 100vw;
+    max-width: none;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background: var(--ev-ref-bg);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-page,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-content {
+    height: 100%;
+    gap: 0;
+    font-family: Inter, "DM Sans", sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-credit-banner {
+    display: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar {
+    min-height: 106px;
+    height: 106px;
+    padding: 0 28px;
+    gap: 24px;
+    border: 0;
+    border-bottom: 1px solid var(--ev-ref-border);
+    background: var(--ev-ref-bg);
+    box-shadow: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-title-row {
+    gap: 18px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-heading,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-actions { transform: translateY(7px); }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-title-row h1 {
+    color: var(--ev-ref-text);
+    font: 700 29px/1 Inter, sans-serif;
+    letter-spacing: -.055em;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mode-tabs {
+    min-width: 151px;
+    height: 43px;
+    padding: 0;
+    overflow: hidden;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 6px;
+    background: var(--il-surface-2);
+    box-shadow: var(--il-shadow-popover);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mode-tabs button {
+    width: 100%;
+    min-height: 41px;
+    padding: 0 16px;
+    justify-content: space-between;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--il-text-secondary);
+    font: 600 12px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mode-tabs button span {
+    order: 2;
+    min-width: 0;
+    height: auto;
+    margin: 0 0 0 3px;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    color: var(--il-text-secondary);
+    font-size: inherit;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mode-tabs button span b { color: inherit; font: inherit; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mode-tabs button > i { order: 3; margin-left: auto; color: var(--ev-ref-muted); font-size: 14px; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-actions { gap: 7px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mobile-info { display: block; flex: 0 0 auto; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-mobile-info-panel { display: flex; align-items: center; gap: 7px; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-search.search-control {
+    width: 234px;
+    height: 47px;
+    margin-right: 9px;
+    padding: 0 14px;
+    border: 1px solid var(--ev-ref-border-soft);
+    border-radius: 5px;
+    background: var(--il-surface-2);
+    color: var(--ev-ref-muted);
+    box-shadow: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-search.search-control:focus-within {
+    border-color: var(--il-border-standard);
+    background: var(--il-surface-hover);
+    box-shadow: 0 0 0 2px var(--il-positive-glow);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-search input,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-search input::placeholder {
+    color: var(--ev-ref-muted);
+    font: 500 12px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-finance-actions {
+    min-width: 197px;
+    height: 47px;
+    margin-right: 4px;
+    border-color: var(--ev-ref-border);
+    border-radius: 5px;
+    background: var(--il-surface-1);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bankroll-button { min-width: 104px; padding-inline: 12px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar-unit-size { min-width: 92px; padding-inline: 12px; border-color: var(--ev-ref-border); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bankroll-button small,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar-unit-size small { color: var(--ev-ref-muted); font-size: 9px; letter-spacing: .04em; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bankroll-button strong,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-toolbar-unit-size strong { color: var(--ev-ref-text); font: 700 14px/1.3 Inter, sans-serif; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-settings-trigger.icon-button,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-more-menu-wrap > .ev-icon-button.icon-button {
+    width: 37px;
+    min-width: 37px;
+    height: 47px;
+    min-height: 47px;
+    color: var(--ev-ref-muted);
+    font-size: 18px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-more-menu-wrap { width: 37px; height: 47px; margin-left: 0; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-active-filter-count { display: none; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-workspace {
+    min-height: 0;
+    padding: 0 22px 47px 29px;
+    grid-template-columns: minmax(0, 2.13fr) minmax(360px, 1fr);
+    gap: 29px;
+    overflow: hidden;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-feed-status {
+    min-height: 47px;
+    height: 47px;
+    padding: 0;
+    color: var(--ev-ref-muted);
+    font: 500 10px/1 Inter, sans-serif;
+    letter-spacing: 0;
+    text-transform: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-live-dot {
+    width: 7px;
+    height: 7px;
+    margin-right: 8px;
+    background: var(--ev-ref-positive);
+    box-shadow: 0 0 8px var(--il-positive-glow);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-feed-status strong { color: var(--il-text-secondary); font-weight: 500; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-feed {
+    padding: 0;
+    gap: 13px;
+    scrollbar-width: thin;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-feed-footer {
+    min-height: 38px;
+    margin-top: auto;
+    padding: 0 7px;
+    display: flex;
+    align-items: flex-end;
+    color: var(--il-text-muted);
+    font: 500 10px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity.watch {
+    min-height: 133px;
+    flex: 0 0 133px;
+    grid-template-columns: 128px minmax(225px, .88fr) 128px minmax(292px, 1.09fr);
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 6px;
+    background: var(--ev-ref-panel);
+    box-shadow: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity:hover {
+    border-color: var(--il-border-standard);
+    background: var(--il-surface-hover);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity.active {
+    border-color: var(--il-brand-outline-strong);
+    background: var(--ev-ref-panel);
+    box-shadow: 0 0 0 1px var(--il-brand-outline), inset 0 0 22px var(--il-surface-selected-quiet);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity > div {
+    padding: 13px 15px;
+    border-color: var(--ev-ref-border-soft);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity > .ev-score {
+    padding: 16px 12px 14px 18px;
+    align-items: flex-start;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+    text-align: left;
+    transform: translateY(8px);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-score.il-confidence-display > strong,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity.watch .ev-score.il-confidence-display > strong {
+    color: var(--ev-ref-positive);
+    font: 700 21px/1 Inter, sans-serif;
+    letter-spacing: -.025em;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button.button.compact {
+    width: 75px;
+    min-width: 75px;
+    height: 30px;
+    min-height: 30px;
+    margin: 0;
+    gap: 6px;
+    border: 1px solid var(--il-border-standard);
+    border-radius: 5px;
+    background: var(--il-surface-1);
+    color: var(--il-text-secondary);
+    font: 600 10px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-track-button i { color: var(--il-text-muted); font-size: 14px; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event {
+    position: relative;
+    padding: 15px 17px;
+    display: block;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta {
+    position: absolute;
+    top: 27px;
+    right: 17px;
+    left: 17px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--ev-ref-muted);
+    font: 500 10px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta time { width: auto; color: var(--ev-ref-muted); font: inherit; text-align: left; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta > span { display: inline-flex; align-items: center; gap: 4px; text-transform: uppercase; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta i { color: var(--il-text-muted); font-size: 11px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event strong { position: absolute; top: 56px; right: 17px; left: 17px; font: 650 16px/1.25 Inter, sans-serif; letter-spacing: -.015em; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event > small { position: absolute; top: 94px; right: 17px; left: 17px; color: var(--ev-ref-muted); font: 500 10px/1 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-matchup,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-matchup-inline { width: 100%; justify-content: flex-start; white-space: normal; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-matchup:has(.ev-matchup-line) { display: block; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-matchup-line { width: 100%; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-team-logo { display: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-team-name { flex: 0 1 auto; font-size: inherit; letter-spacing: inherit; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-matchup-vs { flex: 0 0 auto; color: var(--il-text-muted); }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-pick {
+    padding: 17px 14px;
+    justify-content: center;
+    gap: 9px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-pick small {
+    margin: 0;
+    color: var(--ev-ref-muted);
+    font: 600 9px/1 Inter, sans-serif;
+    text-transform: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-pick strong {
+    color: var(--il-text-primary);
+    font: 600 14px/1.3 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-league-watermark { display: none; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-opportunity > .ev-execution {
+    padding: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 104px;
+    gap: 0;
+    border-right: 0;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metrics {
+    height: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(76px, 1fr));
+    gap: 0;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metric,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metric.ev-to-win {
+    min-width: 0;
+    min-height: 100%;
+    padding: 0 10px;
+    border: 0;
+    border-right: 1px solid var(--ev-ref-border-soft);
+    border-radius: 0;
+    background: transparent;
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metric small { color: var(--ev-ref-muted); font: 600 9px/1.2 Inter, sans-serif; text-transform: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metric strong { margin-top: 10px; color: var(--il-text-primary); font: 650 14px/1 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-bet-metric.ev-to-win strong { color: var(--ev-ref-positive); }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button.il-executable-quote:hover {
+    min-width: 104px;
+    min-height: 51px;
+    margin: auto 14px auto 0;
+    padding: 0 9px;
+    gap: 7px;
+    border: 1px solid var(--il-border-standard);
+    border-radius: 5px;
+    background: var(--il-surface-1);
+    box-shadow: none;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-mark,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button .ev-book-logo { width: 25px; height: 25px; flex-basis: 25px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button > span:last-child { color: var(--il-text-primary); font: 650 15px/1 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-best-button > span:last-child i { color: var(--ev-ref-positive); font-size: 12px; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail {
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 6px;
+    background: var(--ev-ref-panel);
+    background-image: none;
+    box-shadow: none;
+    scrollbar-width: thin;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail.market-depth-open { overflow-y: auto; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-card { min-height: 100%; padding: 14px 15px 16px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-head { min-height: 70px; padding: 7px 6px 7px; border-color: var(--ev-ref-border-soft); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-head > strong { color: var(--ev-ref-positive); font: 700 25px/1 Inter, sans-serif; letter-spacing: -.025em; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-head h2 { color: var(--ev-ref-text); font: 650 15px/1.25 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-start { margin-top: 6px; color: var(--ev-ref-muted); font: 500 10px/1 Inter, sans-serif; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-pick {
+    min-height: 58px;
+    margin-top: 14px;
+    padding: 0 12px;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 5px;
+    background: var(--il-surface-2);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-pick strong { color: var(--il-text-primary); font: 650 14px/1.2 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-pick strong span { color: var(--ev-ref-positive); font: 650 16px/1 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-stake { color: var(--ev-ref-positive); font: 700 21px/1 Inter, sans-serif; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-warning-list { display: none; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-odds {
+    margin-top: 16px;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 5px;
+    background: var(--il-bg-pure-black);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-odds > header {
+    min-height: 42px;
+    padding: 0 14px;
+    justify-content: flex-start;
+    border-color: var(--ev-ref-border);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-odds > header h3 {
+    color: var(--il-text-primary);
+    font: 650 11px/1 Inter, sans-serif;
+    letter-spacing: .01em;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row {
+    width: 100%;
+    max-width: none;
+    grid-template-columns: 82px repeat(2, minmax(0, 1fr));
+    gap: 0;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head {
+    min-height: 44px;
+    padding: 0 10px;
+    border-bottom: 1px solid var(--ev-ref-border-soft);
+    color: var(--ev-ref-muted);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head span,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head strong {
+    min-width: 0;
+    padding: 0 5px;
+    overflow: hidden;
+    color: var(--il-text-secondary);
+    font: 600 9px/1.2 Inter, sans-serif;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head span { text-align: left; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-rows { width: 100%; max-width: none; padding: 0 10px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row { min-height: 44px; border-color: var(--ev-ref-border-soft); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row:nth-child(n + 10) { display: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .market-depth-open .ev-market-compare-row:nth-child(n + 10) { display: grid; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+    padding-left: 5px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 8px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center .ev-book-mark,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center .ev-book-logo { width: 25px; height: 25px; flex-basis: 25px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center > span:last-child { display: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row > .ev-compare-price:first-child { grid-column: 2; grid-row: 1; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row > .ev-compare-price:last-child { grid-column: 3; grid-row: 1; }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price {
+    min-width: 0;
+    min-height: 35px;
+    margin: 4px 5px;
+    padding: 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price strong { color: var(--il-text-primary); font: 600 14px/1 Inter, sans-serif; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price i { color: var(--il-text-muted); font-size: 10px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.best { border-color: var(--il-positive); background: var(--il-surface-positive-hover); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.best strong,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.best i { color: var(--ev-ref-positive); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.unavailable { color: var(--il-text-muted); }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-button {
+    width: 100%;
+    min-height: 48px;
+    margin-top: 14px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 5px;
+    background: var(--il-bg-pure-black);
+    color: var(--il-text-secondary);
+    font: 500 10px/1 Inter, sans-serif;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-button:hover { border-color: var(--il-border-standard); color: var(--il-text-primary); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-button i { font-size: 14px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-depth[hidden] { display: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-depth { padding-bottom: 2px; }
+}
+
+@media (max-width: 980px) {
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-feed-footer {
+    min-height: 30px;
+    padding: 5px 3px;
+    color: var(--il-text-muted);
+    font: 500 10px/1.2 var(--il-font-ui);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event-meta > span { display: inline-flex; align-items: center; gap: 4px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-event > small { color: var(--il-text-muted); font-size: 10px; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-button { width: 100%; min-height: 44px; margin-top: 8px; display: flex; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--il-border-standard); border-radius: var(--il-radius-control); background: var(--il-surface-1); color: var(--il-text-secondary); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-depth[hidden] { display: none; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-head,
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row { grid-template-columns: 44px repeat(2, minmax(0, 1fr)); }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center { grid-column: 1; grid-row: 1; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row > .ev-compare-price:first-child { grid-column: 2; grid-row: 1; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-compare-row > .ev-compare-price:last-child { grid-column: 3; grid-row: 1; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-book-center > span:last-child { display: none; }
+}

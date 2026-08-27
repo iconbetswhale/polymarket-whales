@@ -26,6 +26,7 @@ personal-controls*.png
 redesign-*.png
 qa/
 .qa*
+.codex-artifacts/
 qa-*.png
 artifacts/
 tmp/
