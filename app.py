@@ -143,8 +143,37 @@ WALLET_PAGE_COOKIE = "iconbets_wallet_unlocked"
 AUTH_SESSION_DAYS = 30
 PASSWORD_ITERATIONS = 310_000
 VALID_TRADE_DATE_RANGES = {"today", "next24", "next7", "custom"}
+DFS_COMPARE_BOOK_KEYS = (
+    "fanduel",
+    "novig",
+    "prophetx",
+    "draftkings",
+    "pinnacle",
+    "circa",
+    "kalshi",
+    "polymarket",
+    "prizepicks",
+    "underdog",
+    "dk-pick6",
+    "betr",
+    "dabble",
+    "sleeper",
+)
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
+
+
+def _normalize_dfs_compare_book_order(value: object) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    normalized = [str(item).strip().lower() for item in value]
+    if len(normalized) != len(DFS_COMPARE_BOOK_KEYS):
+        return None
+    if len(set(normalized)) != len(normalized):
+        return None
+    if set(normalized) != set(DFS_COMPARE_BOOK_KEYS):
+        return None
+    return normalized
 
 
 def _attach_clv(rows: list[dict], snapshots: list[dict], record_key: str) -> list[dict]:
@@ -986,6 +1015,14 @@ def create_app(start_background: bool = True) -> Flask:
 
     def present_user_settings(current: dict) -> dict:
         current = dict(current)
+        raw_compare_order = current.pop("dfs_compare_book_order_json", "[]")
+        try:
+            stored_compare_order = json.loads(str(raw_compare_order or "[]"))
+        except json.JSONDecodeError:
+            stored_compare_order = []
+        current["dfs_compare_book_order"] = (
+            _normalize_dfs_compare_book_order(stored_compare_order) or []
+        )
         current["sizing_bankroll_configured"] = bool(
             current.get("sizing_bankroll_configured")
         )
@@ -5210,6 +5247,34 @@ def create_app(start_background: bool = True) -> Flask:
             current["trades_to_play_bankroll"]
         ) * _safe_float(current["unit_percentage"])
         return jsonify({"data": current})
+
+    @app.route("/api/dfs/preferences", methods=["GET", "PUT"])
+    def api_dfs_preferences():
+        current = user_settings()
+        if request.method == "PUT":
+            if not g.iconbets_authenticated:
+                return jsonify({"error": "Sign in to sync DFS preferences."}), 401
+            payload = request.get_json(silent=True) or {}
+            compare_order = _normalize_dfs_compare_book_order(
+                payload.get("compareBookOrder")
+            )
+            if compare_order is None:
+                return jsonify(
+                    {"error": "compareBookOrder must contain every DFS column once."}
+                ), 400
+            current = present_user_settings(
+                tracker.database.update_dfs_compare_book_order(
+                    g.iconbets_user_id, compare_order
+                )
+            )
+        return jsonify(
+            {
+                "data": {
+                    "compareBookOrder": current.get("dfs_compare_book_order", []),
+                    "accountAuthenticated": bool(g.iconbets_authenticated),
+                }
+            }
+        )
 
     @app.route("/api/tracker-preference", methods=["PUT"])
     def api_tracker_preference():

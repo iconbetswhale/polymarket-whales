@@ -12,6 +12,7 @@ from execution_providers import ProviderHealthStatus
 from model_tracker_discord import DiscordDeliveryResult
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
+    DFS_COMPARE_BOOK_KEYS,
     _attach_historical_personal_sharps,
     _format_event_start,
     _has_positive_recommendation,
@@ -1785,6 +1786,45 @@ def test_account_bankroll_persists_across_login_and_is_user_owned(app_client):
     assert another_device.post("/api/auth/logout").status_code == 200
     signed_out_settings = another_device.get("/api/user-settings").get_json()["data"]
     assert signed_out_settings["trades_to_play_bankroll"] == default_bankroll
+
+
+def test_dfs_compare_order_syncs_only_for_the_authenticated_account(app_client):
+    signed_out = app_client.application.test_client()
+    order = list(reversed(DFS_COMPARE_BOOK_KEYS))
+    assert signed_out.put(
+        "/api/dfs/preferences", json={"compareBookOrder": order}
+    ).status_code == 401
+
+    owner = app_client.application.test_client()
+    assert owner.post(
+        "/api/auth/register",
+        json={"email": "dfs-order@example.com", "password": "strong-pass-1"},
+    ).status_code == 201
+    assert owner.get("/api/dfs/preferences").get_json()["data"] == {
+        "compareBookOrder": [],
+        "accountAuthenticated": True,
+    }
+    saved = owner.put(
+        "/api/dfs/preferences", json={"compareBookOrder": order}
+    )
+    assert saved.status_code == 200
+    assert saved.get_json()["data"]["compareBookOrder"] == order
+
+    another_device = app_client.application.test_client()
+    assert another_device.post(
+        "/api/auth/login",
+        json={"email": "dfs-order@example.com", "password": "strong-pass-1"},
+    ).status_code == 200
+    assert (
+        another_device.get("/api/dfs/preferences").get_json()["data"]
+        ["compareBookOrder"]
+        == order
+    )
+
+    invalid = another_device.put(
+        "/api/dfs/preferences", json={"compareBookOrder": order[:-1] + [order[0]]}
+    )
+    assert invalid.status_code == 400
 
 
 def test_account_registration_persists_username_and_rejects_duplicates(app_client):

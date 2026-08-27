@@ -42,12 +42,15 @@
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
-  const detailBookKeys = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
+  const detailBookDefaults = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
+  const detailBookSet = new Set(detailBookDefaults);
   const detailBookNames = {'hard-rock':'Hard Rock','parlay-play':'ParlayPlay',propbuilder:'PropBuilder',betonline:'BetOnline',caesars:'Caesars',fliff:'Fliff',bovada:'Bovada'};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
   const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
   let activeBook = 'PrizePicks';
   let compareOrder = loadCompareOrder();
+  let accountOrderSyncEnabled = false;
+  let accountOrderSaveQueue = Promise.resolve();
   let savedWeights = loadWeights();
   let draftWeights = {...savedWeights};
   let savedPresets = loadPresets();
@@ -74,8 +77,53 @@
     const defaults = comparisonBooks.map(book => book.key);
     try {
       const stored = JSON.parse(localStorage.getItem('dfsCompareBookOrder') || 'null');
-      return Array.isArray(stored) && stored.length === defaults.length && defaults.every(key => stored.includes(key)) ? stored : defaults;
+      return validCompareOrder(stored) ? stored : defaults;
     } catch (_) { return defaults; }
+  }
+
+  function validCompareOrder(order) {
+    const defaults = comparisonBooks.map(book => book.key);
+    return Array.isArray(order)
+      && order.length === defaults.length
+      && defaults.every(key => order.includes(key));
+  }
+
+  function detailBookOrder() {
+    const ordered = compareOrder.filter(key => detailBookSet.has(key));
+    return [...ordered,...detailBookDefaults.filter(key => !ordered.includes(key))];
+  }
+
+  function persistCompareOrder() {
+    localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder));
+    if (!accountOrderSyncEnabled) return Promise.resolve();
+    const body = JSON.stringify({compareBookOrder:[...compareOrder]});
+    accountOrderSaveQueue = accountOrderSaveQueue
+      .catch(()=>{})
+      .then(()=>fetch('/api/dfs/preferences',{
+        method:'PUT',
+        headers:{'Content-Type':'application/json','Accept':'application/json'},
+        body,
+      }))
+      .catch(()=>{});
+    return accountOrderSaveQueue;
+  }
+
+  async function syncCompareOrderFromAccount() {
+    try {
+      const response = await fetch('/api/dfs/preferences',{headers:{Accept:'application/json'},cache:'no-store'});
+      if (!response.ok) return;
+      const payload = await response.json();
+      accountOrderSyncEnabled = Boolean(payload.data?.accountAuthenticated);
+      const remoteOrder = payload.data?.compareBookOrder;
+      if (validCompareOrder(remoteOrder)) {
+        compareOrder = [...remoteOrder];
+        localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder));
+        reorderHeaders();
+        render();
+      } else if (accountOrderSyncEnabled) {
+        persistCompareOrder();
+      }
+    } catch (_) {}
   }
 
   function weightsMatch(a,b) { return Object.keys(defaultWeights).every(key => Number(a[key])===Number(b[key])); }
@@ -222,7 +270,7 @@
   }
 
   function sideSummary(row) {
-    const snapshots = detailBookKeys.map(key=>marketSnapshot(row,key));
+    const snapshots = detailBookOrder().map(key=>marketSnapshot(row,key));
     const americanOdds = snapshots.map(item=>item.american).filter(Number.isFinite);
     const best = americanOdds.length ? Math.max(...americanOdds) : null;
     const probabilities = americanOdds.map(americanOddsToProbability).filter(Number.isFinite);
@@ -236,22 +284,23 @@
     const pair = detailPair(row);
     const over = sideSummary(pair.over);
     const under = sideSummary(pair.under);
-    const headerCells = detailBookKeys.map(key=>{
+    const orderedBooks = detailBookOrder();
+    const headerCells = orderedBooks.map(key=>{
       const logo = bookLogo(key);
       return `<div class="dfs-detail-book-head">${logo?`<img src="${esc(logo)}" alt="">`:''}<span>${esc(bookName(key))}</span></div>`;
     }).join('');
-    const sideLane = (label,sideRow,summary,icon) => {
+    const sideLane = (label,sideRow,summary) => {
       const line = selectedDfsLine(sideRow || row) ?? activeLine;
-      const bookCells = detailBookKeys.map((key,index)=>{
+      const bookCells = orderedBooks.map((key,index)=>{
         const snapshot = summary.snapshots[index];
         const isBest = snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
         const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(line) ? `Line ${snapshot.line}` : '';
         return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
       }).join('');
-      return `<div class="dfs-detail-side"><span><i class="ph ${icon}" aria-hidden="true"></i><b>${label} ${esc(line)}</b></span></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
+      return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };
     const colspan = 6 + compareOrder.filter(key=>key!==selectedBookKeys[activeBook]).length;
-    return `<tr class="dfs-odds-detail-row"><td colspan="${colspan}"><section class="dfs-odds-detail" aria-label="${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)} over and under odds"><div class="dfs-odds-detail-grid"><div class="dfs-detail-title"><strong>${esc(row.player)}</strong><small>${esc(activeLine)} ${esc(row.stat)} · all sportsbook prices</small></div><div class="dfs-detail-summary-head">Best odds</div><div class="dfs-detail-summary-head">Avg odds</div>${headerCells}${sideLane('Over',pair.over,over,'ph-trend-up')}${sideLane('Under',pair.under,under,'ph-trend-down')}</div></section></td></tr>`;
+    return `<tr class="dfs-odds-detail-row"><td colspan="${colspan}"><section class="dfs-odds-detail" aria-label="${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)} over and under odds"><div class="dfs-odds-detail-grid"><div class="dfs-detail-title"><strong>${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)}</strong></div><div class="dfs-detail-summary-head">Best odds</div><div class="dfs-detail-summary-head">Avg odds</div>${headerCells}${sideLane('Over',pair.over,over)}${sideLane('Under',pair.under,under)}</div></section></td></tr>`;
   }
 
   function updateStats() {
@@ -639,7 +688,7 @@
     body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
   });
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
-  enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
+  enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); persistCompareOrder(); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
   ['dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   dateSelect.addEventListener('change', () => { syncCustomDateRange(); render(); });
@@ -700,6 +749,7 @@
   syncDevigControls();
   syncRefreshControls();
   render();
+  syncCompareOrderFromAccount();
   loadLiveRows();
 })();
 
