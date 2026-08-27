@@ -556,6 +556,18 @@ def test_provider_reads_and_caches_advanced_prophetx_orderbook() -> None:
     assert provider.diagnostics()["supportsOrderBook"] is True
 
 
+def test_provider_builds_standard_sharp_money_quote_snapshot() -> None:
+    session = _fixture_session()
+    provider = OddsEngineProvider("standard-key", session=session)
+
+    snapshot = provider.sharp_money_quote_snapshot(limit=40)
+
+    assert snapshot["transport"] == "rest_snapshot"
+    assert snapshot["limit"] == 40
+    assert snapshot["events"]
+    assert all(event["bookmakers"] for event in snapshot["events"])
+
+
 def test_provider_records_advanced_entitlement_rejection() -> None:
     session = FakeSession(
         {"/orderbook/top": FakeResponse({"error": "plan required"}, status_code=403)}

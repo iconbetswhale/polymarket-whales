@@ -878,10 +878,6 @@ class OddsEngineProvider(ExecutionProvider):
             sport_keys=(
                 "baseball_mlb",
                 "basketball_wnba",
-                "americanfootball_nfl",
-                "americanfootball_ncaaf",
-                "basketball_nba",
-                "icehockey_nhl",
             ),
             market_keys=("h2h", "spreads", "totals"),
         )
@@ -996,7 +992,7 @@ class OddsEngineProvider(ExecutionProvider):
                 except Exception as exc:  # handled in requested sport order below
                     league_results[index] = (None, exc)
 
-        league_rate_limit: requests.HTTPError | None = None
+        league_retryable_error: requests.HTTPError | None = None
         per_league_limit = max(
             1,
             min(
@@ -1011,12 +1007,16 @@ class OddsEngineProvider(ExecutionProvider):
         for index, sport_key in enumerate(requested_sports):
             events, error = league_results[index]
             if error is not None:
-                if (
-                    isinstance(error, requests.HTTPError)
-                    and getattr(error.response, "status_code", None) == 429
-                ):
-                    league_rate_limit = error
-                    continue
+                if isinstance(error, requests.HTTPError):
+                    status = getattr(error.response, "status_code", None)
+                    if status not in {401, 403}:
+                        league_retryable_error = error
+                        LOGGER.warning(
+                            "OddsEngine skipped %s schedule after HTTP %s",
+                            sport_key,
+                            status or "error",
+                        )
+                        continue
                 raise error
             upcoming = []
             for event in events or []:
@@ -1027,8 +1027,8 @@ class OddsEngineProvider(ExecutionProvider):
                 :per_league_limit
             ]:
                 candidates.append((start, sport_key, event))
-        if league_rate_limit is not None and not candidates:
-            raise league_rate_limit
+        if league_retryable_error is not None and not candidates:
+            raise league_retryable_error
 
         pending = [
             item
