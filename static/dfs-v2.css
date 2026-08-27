@@ -1010,14 +1010,17 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head {
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-title {
   display: flex;
   min-width: 0;
+  align-items: center;
   justify-content: center;
   padding: 0 12px;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-title strong {
   overflow: hidden;
+  width: 100%;
   color: var(--il-text-primary);
   font: 750 13px/1.1 var(--il-font-ui);
+  text-align: center;
   text-overflow: ellipsis;
   white-space: nowrap;
 }

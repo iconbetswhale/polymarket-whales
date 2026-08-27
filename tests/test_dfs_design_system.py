@@ -246,6 +246,9 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
     assert "repeat(16, 74px)" in CSS
     assert "min-height: 44px" in CSS
     assert "min-height: 46px" in CSS
+    assert ".dfs-detail-title {" in CSS
+    assert "align-items: center;" in CSS
+    assert "text-align: center;" in CSS
     assert ".dfs-detail-price.best" in CSS
 
 
