@@ -1977,10 +1977,19 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
     odds_engine_configured = bool(
         odds_engine is not None and getattr(odds_engine, "api_key", None)
     )
+    advanced_orderbook_enabled = bool(
+        getattr(settings, "sharp_money_advanced_orderbook_enabled", False)
+    )
     # Direct exchange credentials expose executable depth without depending on
-    # the OddsEngine Advanced entitlement. OddsEngine remains the retail-price
-    # comparison feed and the order-book fallback when entitled.
-    if direct_prophetx_configured:
+    # the OddsEngine Advanced entitlement. On the standard plan, OddsEngine's
+    # quote feed must run first: it supplies the market map used to match direct
+    # NoVIG depth and avoids blocking every cold page load on an unavailable
+    # ProphetX production login. Direct ProphetX remains the fallback and is the
+    # preferred source only when Advanced depth is explicitly enabled.
+    if odds_engine_configured and not advanced_orderbook_enabled:
+        primary_source = odds_engine
+        fallback_source = direct_prophetx if direct_prophetx_configured else None
+    elif direct_prophetx_configured:
         primary_source = direct_prophetx
         fallback_source = odds_engine if odds_engine_configured else None
     elif odds_engine_configured:
@@ -2005,7 +2014,5 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
         automatic_refresh_seconds=float(
             os.getenv("SHARP_MONEY_ODDSENGINE_REFRESH_SECONDS", "30")
         ),
-        advanced_orderbook_enabled=bool(
-            getattr(settings, "sharp_money_advanced_orderbook_enabled", False)
-        ),
+        advanced_orderbook_enabled=advanced_orderbook_enabled,
     )

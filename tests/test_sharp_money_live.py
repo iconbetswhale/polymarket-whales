@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from types import SimpleNamespace
 
 import pytest
 import requests
@@ -10,6 +11,7 @@ from sharp_money_live import (
     SharpMoneyCollector,
     _crossed_market_liquidity,
     _net_exchange_liquidity,
+    build_sharp_money_collector,
 )
 
 
@@ -271,6 +273,20 @@ class FakeOddsEngineOrderBook:
                 }
             ],
         }
+
+
+def test_standard_plan_prioritizes_oddsengine_quotes_over_prophetx_login() -> None:
+    odds_engine = FakeOddsEngineOrderBook()
+    prophetx = FakeProphetX()
+    prophetx.provider_key = "prophetx"
+    registry = SimpleNamespace(providers=(prophetx, odds_engine))
+    settings = SimpleNamespace(sharp_money_advanced_orderbook_enabled=False)
+
+    collector = build_sharp_money_collector(registry, settings)
+
+    assert collector.prophetx is odds_engine
+    assert collector.fallback_source is prophetx
+    assert collector.advanced_orderbook_enabled is False
 
 
 def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
