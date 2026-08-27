@@ -271,6 +271,7 @@ def build_dfs_odds_board(
             fair_odds_by_line: dict[str, float | None] = {}
             reliability_by_line: dict[str, float] = {}
             exact_sources_by_line: dict[str, int] = {}
+            devig_sources_by_line: dict[str, dict[str, list[float]]] = {}
             for target_line in target_lines:
                 result = engine.calculate(
                     target_line=target_line,
@@ -283,6 +284,17 @@ def build_dfs_odds_board(
                 fair_odds_by_line[key] = result.fair_american_odds
                 reliability_by_line[key] = result.reliability
                 exact_sources_by_line[key] = result.source_count
+                devig_sources_by_line[key] = {
+                    str(contribution["provider"]): [
+                        round(float(contribution["no_vig_probability"]), 8),
+                        round(float(contribution["freshness_factor"]), 8),
+                    ]
+                    for contribution in result.contributions
+                    if contribution.get("provider") in ICONLABS_DFS_WEIGHTS
+                    and contribution.get("no_vig_probability") is not None
+                    and contribution.get("exclusion_reason")
+                    in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
+                }
 
             primary_line = (
                 dfs_lines[selected_book]
@@ -330,6 +342,7 @@ def build_dfs_odds_board(
                     "fairOddsByLine": fair_odds_by_line,
                     "reliabilityByLine": reliability_by_line,
                     "exactSourcesByLine": exact_sources_by_line,
+                    "devigSourcesByLine": devig_sources_by_line,
                     "reliability": reliability_by_line.get(primary_key, 0.0),
                     "oddsByBook": odds_by_book,
                     "sourceCount": exact_sources_by_line.get(primary_key, 0),

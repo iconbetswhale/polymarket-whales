@@ -42,6 +42,8 @@
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
+  const detailBookKeys = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
+  const detailBookNames = {'hard-rock':'Hard Rock','parlay-play':'ParlayPlay',propbuilder:'PropBuilder',betonline:'BetOnline',caesars:'Caesars',fliff:'Fliff',bovada:'Bovada'};
   const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
   const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
   let activeBook = 'PrizePicks';
@@ -49,7 +51,8 @@
   let savedWeights = loadWeights();
   let draftWeights = {...savedWeights};
   let savedPresets = loadPresets();
-  let activePreset = weightsMatch(savedWeights,defaultWeights) ? 'iconlabs' : '';
+  let activePreset = weightsMatch(savedWeights,defaultWeights) ? 'iconlabs' : presetForWeights(savedWeights);
+  let expandedRowId = '';
   const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const easternDateFormatter = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 
@@ -81,10 +84,10 @@
     const customWeights = !weightsMatch(savedWeights,defaultWeights);
     const accessibleLabel = customWeights
       ? 'Your Odds using custom Devig Settings'
-      : 'IconLabs Algo Odds using default weights';
+      : 'IconLabs Algo Odds active';
     const tooltipLabel = customWeights
       ? 'Your Odds · custom Devig weights'
-      : 'IconLabs Algo Odds · default weights';
+      : 'IconLabs Algo Odds · private model active';
     const head = document.querySelector('#dfs-algo-odds-head');
     head.setAttribute('aria-label',accessibleLabel);
     head.dataset.model = customWeights ? 'custom' : 'iconlabs';
@@ -93,24 +96,61 @@
   }
 
   function updateDevigSummary() {
-    const total = Object.values(savedWeights).reduce((sum,value)=>sum+Number(value||0),0);
-    document.querySelector('#dfs-devig-summary').textContent=`8 sharp books · ${total}%`;
+    const usingIconLabs = weightsMatch(savedWeights,defaultWeights);
+    document.querySelector('#dfs-devig-summary').textContent=usingIconLabs
+      ? 'IconLabs Algo · 100%'
+      : 'Custom DVIG · 100%';
   }
 
   function renderPresets() {
-    document.querySelector('#dfs-algo-preset').classList.toggle('active',activePreset==='iconlabs');
+    const algoPreset = document.querySelector('#dfs-algo-preset');
+    algoPreset.classList.toggle('active',activePreset==='iconlabs');
+    algoPreset.setAttribute('aria-pressed',String(activePreset==='iconlabs'));
+    algoPreset.querySelector('small').textContent = activePreset==='iconlabs' ? 'Private model · On' : 'Private model · Off';
     document.querySelector('#dfs-saved-presets').innerHTML=savedPresets.map((preset,index)=>`<button class="dfs-saved-preset ${activePreset===`custom-${index}`?'active':''}" type="button" data-preset-index="${index}">${esc(preset.name)}</button>`).join('');
     document.querySelector('#dfs-devig-delete').hidden=!/^custom-\d+$/.test(activePreset);
   }
 
-  function fairProbability(row,targetLine) {
+  function weightedDevigConsensus(row,targetLine) {
     if (!Number.isFinite(Number(targetLine))) return null;
     const lineKey = String(Number(targetLine));
-    const exactSources = Number(row.exactSourcesByLine?.[lineKey] ?? row.sourceCount ?? 0);
-    const reliability = Number(row.reliabilityByLine?.[lineKey] ?? row.reliability ?? 0);
-    if (exactSources < 2 || !Number.isFinite(reliability) || reliability < 0.08) return null;
+    const sources = row.devigSourcesByLine?.[lineKey];
+    if (!sources || typeof sources !== 'object') return null;
+    let weightedProbability = 0;
+    let effectiveWeightTotal = 0;
+    let sourceCount = 0;
+    Object.keys(defaultWeights).forEach(key => {
+      const source = sources[key];
+      const probability = Number(Array.isArray(source) ? source[0] : source?.probability);
+      const freshness = Number(Array.isArray(source) ? source[1] : source?.freshnessFactor);
+      const configuredWeight = Number(savedWeights[key] || 0);
+      const effectiveWeight = configuredWeight * freshness;
+      if (!(probability > 0 && probability < 1) || !(effectiveWeight > 0)) return;
+      weightedProbability += probability * effectiveWeight;
+      effectiveWeightTotal += effectiveWeight;
+      sourceCount += 1;
+    });
+    if (!(effectiveWeightTotal > 0)) return null;
+    return {
+      probability: Math.round(weightedProbability / effectiveWeightTotal * 10000) / 100,
+      sourceCount,
+    };
+  }
+
+  function fairProbability(row,targetLine) {
+    const consensus = weightedDevigConsensus(row,targetLine);
+    if (consensus) return consensus.probability;
+    if (!Number.isFinite(Number(targetLine))) return null;
+    const lineKey = String(Number(targetLine));
     const liveValue = row.hitByLine?.[lineKey] ?? row.hit;
     return Number.isFinite(Number(liveValue)) ? Number(liveValue) : null;
+  }
+
+  function fairSourceCount(row,targetLine) {
+    const consensus = weightedDevigConsensus(row,targetLine);
+    if (consensus) return consensus.sourceCount;
+    const lineKey = String(Number(targetLine));
+    return Number(row.exactSourcesByLine?.[lineKey] ?? row.sourceCount ?? 0);
   }
 
   function fairAmericanOdds(probabilityPercent) {
@@ -126,6 +166,92 @@
     const value = Number(odds);
     if (!Number.isFinite(value) || value === 0) return null;
     return value > 0 ? 100/(value+100) : Math.abs(value)/(Math.abs(value)+100);
+  }
+
+  function rowMarketKey(row) {
+    const id = String(row?.id || '');
+    if (/::(?:over|under)$/i.test(id)) return id.replace(/::(?:over|under)$/i,'');
+    return [row?.player,row?.match,row?.sport,row?.stat].map(value=>String(value||'')).join('::');
+  }
+
+  function detailPair(row) {
+    const marketKey = rowMarketKey(row);
+    const pair = {over:null,under:null};
+    rows.forEach(candidate => {
+      if (rowMarketKey(candidate) !== marketKey) return;
+      const side = String(candidate.side || '').toLowerCase();
+      if (side === 'over' || side === 'under') pair[side] = candidate;
+    });
+    return pair;
+  }
+
+  function bookName(key) {
+    return comparisonBooks.find(book=>book.key===key)?.name || detailBookNames[key] || key;
+  }
+
+  function bookLogo(key) {
+    const existing = document.querySelector(`[data-book-key="${key}"] img`)?.src;
+    if (existing) return existing;
+    const sample = document.querySelector('[data-book-key="fanduel"] img')?.src;
+    if (!sample) return '';
+    try {
+      const url = new URL(sample,window.location.href);
+      url.pathname = url.pathname.replace(/fanduel\.png$/,`${key}.png`);
+      return url.href;
+    } catch (_) { return ''; }
+  }
+
+  function marketSnapshot(row,key) {
+    if (!row) return {display:'—',american:null,line:null};
+    const oddsByKey = row.oddsByBook || Object.fromEntries(sourceOddsKeys.map((item,index)=>[item,row.odds?.[index] ?? '—']));
+    const market = oddsByKey[key];
+    const structured = market !== null && typeof market === 'object';
+    const display = structured ? (market.odds ?? market.displayOdds ?? market.americanOdds ?? '—') : (market ?? '—');
+    const rawAmerican = structured ? (market.americanOdds ?? market.american_odds ?? market.odds) : market;
+    const cents = String(display).trim().match(/^([0-9]+(?:\.[0-9]+)?)¢$/);
+    let american = Number(rawAmerican);
+    if (!Number.isFinite(american) && cents) {
+      const probability = Number(cents[1]) / 100;
+      american = Number(fairAmericanOdds(probability * 100));
+    }
+    return {
+      display: display === null || display === undefined || display === '' ? '—' : String(display),
+      american: Number.isFinite(american) ? american : null,
+      line: structured && Number.isFinite(Number(market.line)) ? Number(market.line) : null,
+    };
+  }
+
+  function sideSummary(row) {
+    const snapshots = detailBookKeys.map(key=>marketSnapshot(row,key));
+    const americanOdds = snapshots.map(item=>item.american).filter(Number.isFinite);
+    const best = americanOdds.length ? Math.max(...americanOdds) : null;
+    const probabilities = americanOdds.map(americanOddsToProbability).filter(Number.isFinite);
+    const average = probabilities.length
+      ? fairAmericanOdds(probabilities.reduce((sum,value)=>sum+value,0) / probabilities.length * 100)
+      : '—';
+    return {snapshots,best,bestDisplay:best===null?'—':`${best>0?'+':''}${Math.round(best)}`,average};
+  }
+
+  function renderOddsDetail(row,activeLine) {
+    const pair = detailPair(row);
+    const over = sideSummary(pair.over);
+    const under = sideSummary(pair.under);
+    const headerCells = detailBookKeys.map(key=>{
+      const logo = bookLogo(key);
+      return `<div class="dfs-detail-book-head">${logo?`<img src="${esc(logo)}" alt="">`:''}<span>${esc(bookName(key))}</span></div>`;
+    }).join('');
+    const sideLane = (label,sideRow,summary,icon) => {
+      const line = selectedDfsLine(sideRow || row) ?? activeLine;
+      const bookCells = detailBookKeys.map((key,index)=>{
+        const snapshot = summary.snapshots[index];
+        const isBest = snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
+        const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(line) ? `Line ${snapshot.line}` : '';
+        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
+      }).join('');
+      return `<div class="dfs-detail-side"><span><i class="ph ${icon}" aria-hidden="true"></i><b>${label} ${esc(line)}</b></span></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
+    };
+    const colspan = 6 + compareOrder.filter(key=>key!==selectedBookKeys[activeBook]).length;
+    return `<tr class="dfs-odds-detail-row"><td colspan="${colspan}"><section class="dfs-odds-detail" aria-label="${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)} over and under odds"><div class="dfs-odds-detail-grid"><div class="dfs-detail-title"><strong>${esc(row.player)}</strong><small>${esc(activeLine)} ${esc(row.stat)} · all sportsbook prices</small></div><div class="dfs-detail-summary-head">Best odds</div><div class="dfs-detail-summary-head">Avg odds</div>${headerCells}${sideLane('Over',pair.over,over,'ph-trend-up')}${sideLane('Under',pair.under,under,'ph-trend-down')}</div></section></td></tr>`;
   }
 
   function updateStats() {
@@ -297,13 +423,15 @@
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
-      const exactSources = Number(r.exactSourcesByLine?.[String(Number(activeLine))] ?? r.sourceCount ?? 0);
-      const hitTitle = fairHitRate === null ? 'Requires at least two reliable exact-line sportsbook sources' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact sources · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
+      const exactSources = fairSourceCount(r,activeLine);
+      const hitTitle = fairHitRate === null ? 'No fresh exact-line source matches the current Devig allocation' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
       const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
       const statDisplay = `${activeLine} ${r.stat}`;
       const selectedAppOdds = bestSlipOdds[activeBook] ?? '—';
       const selectedOddsTitle = `${activeBook} best available equivalent odds`;
-      return `<tr><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(statDisplay)}</strong></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      const expanded = expandedRowId === String(r.id || '');
+      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(statDisplay)}</strong></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      return primaryRow + (expanded ? renderOddsDetail(r,activeLine) : '');
     }).join('');
     loadingState.hidden = hasLoadedRows || loadFailed;
     errorState.hidden = !loadFailed || rows.length > 0;
@@ -345,7 +473,7 @@
   async function loadLiveRows() {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),schema:'date-v1'});
+    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),schema:'instant-devig-v2'});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
@@ -401,8 +529,16 @@
 
   function devigTotal() { return Object.values(draftWeights).reduce((sum,value) => sum + Number(value || 0),0); }
 
+  function selectedDevigTotal() { return activePreset === 'iconlabs' ? 100 : devigTotal(); }
+
+  function presetForWeights(weights) {
+    const index = savedPresets.findIndex(preset=>weightsMatch(weights,preset.weights));
+    return index >= 0 ? `custom-${index}` : '';
+  }
+
   function syncDevigControls() {
-    const total = devigTotal();
+    const total = selectedDevigTotal();
+    const iconLabsSelected = activePreset === 'iconlabs';
     Object.keys(defaultWeights).forEach(key => {
       const range = document.querySelector(`[data-devig-key="${key}"]`);
       const number = document.querySelector(`[data-devig-number="${key}"]`);
@@ -414,9 +550,24 @@
     document.querySelector('#dfs-devig-total').textContent = `${total}%`;
     document.querySelector('#dfs-devig-progress').style.width = `${Math.min(total,100)}%`;
     const message = document.querySelector('#dfs-devig-message');
-    message.textContent = total === 100 ? 'Ready to replace IconLabs odds with Your Odds' : `${100-total}% left to allocate`;
+    message.textContent = iconLabsSelected
+      ? 'IconLabs private model is on. Move any slider to start a custom DVIG.'
+      : total === 100
+        ? 'Custom DVIG is ready to apply'
+        : `${100-total}% left to allocate`;
     message.classList.toggle('ready',total===100);
     document.querySelector('#dfs-devig-apply').disabled = total !== 100;
+    document.querySelector('#dfs-devig-apply').textContent = iconLabsSelected ? 'Use IconLabs Algo Odds' : 'Apply custom DVIG';
+    document.querySelector('#dfs-devig-save-open').disabled = iconLabsSelected;
+    const impact = document.querySelector('#dfs-devig-impact');
+    impact.classList.toggle('algo-active',iconLabsSelected);
+    document.querySelector('#dfs-devig-impact-icon').className = `ph ${iconLabsSelected?'ph-shield-check':'ph-warning'}`;
+    document.querySelector('#dfs-devig-impact-title').textContent = iconLabsSelected
+      ? 'IconLabs Algo Odds is selected.'
+      : 'You’re building Your Odds.';
+    document.querySelector('#dfs-devig-impact-copy').textContent = iconLabsSelected
+      ? 'The internal book allocation stays private. Custom sliders remain at 0% until you move one.'
+      : 'Your custom weights replace the IconLabs model for Chance to Hit and fair odds.';
   }
 
   function updateDevigWeight(key,rawValue) {
@@ -456,6 +607,7 @@
       item.setAttribute('aria-selected',String(item===button));
     });
     activeBook = button.dataset.dfsBook;
+    if (changed) expandedRowId = '';
     const lineHead = document.querySelector('#dfs-line-head');
     const logo = button.querySelector('img').cloneNode();
     const selectedOddsTitle = `${activeBook} best available equivalent odds`;
@@ -471,6 +623,21 @@
   }
 
   document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => setActiveBook(btn)));
+  body.addEventListener('click', event => {
+    const row = event.target.closest('.dfs-prop-row');
+    if (!row) return;
+    expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
+    render();
+  });
+  body.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    const row = event.target.closest('.dfs-prop-row');
+    if (!row) return;
+    event.preventDefault();
+    expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
+    render();
+    body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
+  });
   enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); localStorage.setItem('dfsCompareBookOrder',JSON.stringify(compareOrder)); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
@@ -484,22 +651,23 @@
   document.querySelector('#dfs-refresh').addEventListener('click', () => loadLiveRows());
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
   document.querySelectorAll('[data-devig-number]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigNumber,event.target.value)));
-  document.querySelector('#dfs-devig-open').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset=''; document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });
+  document.querySelector('#dfs-devig-open').addEventListener('click', () => { const usingIconLabs=weightsMatch(savedWeights,defaultWeights); draftWeights=usingIconLabs?{...zeroWeights}:{...savedWeights}; activePreset=usingIconLabs?'iconlabs':presetForWeights(savedWeights); document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });
   document.querySelector('#dfs-devig-close').addEventListener('click', () => devigDialog.close());
-  document.querySelector('#dfs-devig-cancel').addEventListener('click', () => { savedWeights={...defaultWeights}; draftWeights={...defaultWeights}; activePreset='iconlabs'; localStorage.setItem('dfsDevigWeightsV2',JSON.stringify(savedWeights)); updateDevigSummary(); renderPresets(); syncDevigControls(); render(); devigDialog.close(); });
+  document.querySelector('#dfs-devig-cancel').addEventListener('click', () => devigDialog.close());
   document.querySelector('#dfs-devig-reset').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset=''; renderPresets(); syncDevigControls(); });
-  document.querySelector('#dfs-algo-preset').addEventListener('click', () => { draftWeights={...defaultWeights}; activePreset='iconlabs'; renderPresets(); syncDevigControls(); });
+  document.querySelector('#dfs-algo-preset').addEventListener('click', () => { draftWeights={...zeroWeights}; activePreset='iconlabs'; renderPresets(); syncDevigControls(); });
   document.querySelector('#dfs-saved-presets').addEventListener('click', event => { const button=event.target.closest('[data-preset-index]'); if(!button)return; const index=Number(button.dataset.presetIndex); draftWeights={...savedPresets[index].weights}; activePreset=`custom-${index}`; renderPresets(); syncDevigControls(); requestAnimationFrame(()=>document.querySelector('#dfs-devig-delete').scrollIntoView({block:'nearest',inline:'nearest'})); });
-  document.querySelector('#dfs-devig-save-open').addEventListener('click', () => { const popover=document.querySelector('#dfs-devig-save-popover'); popover.hidden=false; const error=document.querySelector('#dfs-devig-save-error'); error.textContent=devigTotal()===100?'':'Allocate exactly 100% before saving.'; const input=document.querySelector('#dfs-devig-filter-name'); input.value=''; requestAnimationFrame(()=>{popover.scrollIntoView({block:'nearest',inline:'nearest'});input.focus();}); });
-  document.querySelector('#dfs-devig-save-confirm').addEventListener('click', () => { const input=document.querySelector('#dfs-devig-filter-name'); const error=document.querySelector('#dfs-devig-save-error'); const name=input.value.trim(); if(!name){error.textContent='Enter a name for this filter.';return;} if(devigTotal()!==100){error.textContent='Allocate exactly 100% before saving.';return;} const duplicateName=weightsMatch(draftWeights,defaultWeights)?'IconLabs Algo Odds':savedPresets.find(preset=>weightsMatch(draftWeights,preset.weights))?.name; if(duplicateName){error.textContent=`This allocation is already saved as ${duplicateName}.`;return;} savedPresets.push({name,weights:{...draftWeights}}); localStorage.setItem('dfsDevigPresets',JSON.stringify(savedPresets)); activePreset=`custom-${savedPresets.length-1}`; document.querySelector('#dfs-devig-save-popover').hidden=true; renderPresets(); requestAnimationFrame(()=>document.querySelector('#dfs-devig-delete').scrollIntoView({block:'nearest',inline:'nearest'})); });
+  document.querySelector('#dfs-devig-save-open').addEventListener('click', () => { if(activePreset==='iconlabs')return; const popover=document.querySelector('#dfs-devig-save-popover'); popover.hidden=false; const error=document.querySelector('#dfs-devig-save-error'); error.textContent=devigTotal()===100?'':'Allocate exactly 100% before saving.'; const input=document.querySelector('#dfs-devig-filter-name'); input.value=''; requestAnimationFrame(()=>{popover.scrollIntoView({block:'nearest',inline:'nearest'});input.focus();}); });
+  document.querySelector('#dfs-devig-save-confirm').addEventListener('click', () => { const input=document.querySelector('#dfs-devig-filter-name'); const error=document.querySelector('#dfs-devig-save-error'); const name=input.value.trim(); if(activePreset==='iconlabs'){error.textContent='Move a slider to create a custom DVIG first.';return;} if(!name){error.textContent='Enter a name for this filter.';return;} if(devigTotal()!==100){error.textContent='Allocate exactly 100% before saving.';return;} const duplicateName=savedPresets.find(preset=>weightsMatch(draftWeights,preset.weights))?.name; if(duplicateName){error.textContent=`This allocation is already saved as ${duplicateName}.`;return;} savedPresets.push({name,weights:{...draftWeights}}); localStorage.setItem('dfsDevigPresets',JSON.stringify(savedPresets)); activePreset=`custom-${savedPresets.length-1}`; document.querySelector('#dfs-devig-save-popover').hidden=true; renderPresets(); requestAnimationFrame(()=>document.querySelector('#dfs-devig-delete').scrollIntoView({block:'nearest',inline:'nearest'})); });
   document.querySelector('#dfs-devig-delete').addEventListener('click', () => { const match=activePreset.match(/^custom-(\d+)$/); if(!match)return; savedPresets.splice(Number(match[1]),1); localStorage.setItem('dfsDevigPresets',JSON.stringify(savedPresets)); activePreset=''; renderPresets(); });
   document.querySelector('#dfs-devig-filter-name').addEventListener('input',()=>document.querySelector('#dfs-devig-save-error').textContent='');
   document.querySelector('#dfs-devig-filter-name').addEventListener('keydown', event => { if(event.key==='Enter'){event.preventDefault();document.querySelector('#dfs-devig-save-confirm').click();} if(event.key==='Escape')document.querySelector('#dfs-devig-save-popover').hidden=true; });
   document.querySelector('#dfs-devig-form').addEventListener('submit', event => {
     event.preventDefault();
-    if(devigTotal()!==100)return;
-    savedWeights={...draftWeights};
+    if(selectedDevigTotal()!==100)return;
+    savedWeights=activePreset==='iconlabs'?{...defaultWeights}:{...draftWeights};
     localStorage.setItem('dfsDevigWeightsV2',JSON.stringify(savedWeights));
+    activePreset=weightsMatch(savedWeights,defaultWeights)?'iconlabs':presetForWeights(savedWeights);
     updateDevigSummary();
     render();
     devigDialog.close();

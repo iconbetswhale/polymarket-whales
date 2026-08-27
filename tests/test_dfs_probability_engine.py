@@ -109,3 +109,23 @@ def test_only_freshest_quote_per_provider_is_used():
     )
     assert result.source_count == 1
     assert result.hit_probability == pytest.approx(0.5)
+
+
+def test_zero_weight_source_keeps_devig_probability_for_instant_reweighting():
+    engine = DfsProbabilityEngine({"fanduel": 100, "pinnacle": 0})
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[quote("fanduel", -110, -110), quote("pinnacle", -130, 110)],
+        now=NOW,
+    )
+
+    pinnacle = next(
+        item for item in result.contributions if item["provider"] == "pinnacle"
+    )
+    assert pinnacle["included"] is False
+    assert pinnacle["exclusion_reason"] == "PROVIDER_WEIGHT_NOT_CONFIGURED"
+    assert pinnacle["no_vig_probability"] == pytest.approx(
+        devig_two_way(-130, 110, "power")[0]
+    )
+    assert pinnacle["freshness_factor"] == pytest.approx(1)

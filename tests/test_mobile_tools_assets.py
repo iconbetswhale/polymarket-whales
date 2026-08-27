@@ -46,6 +46,9 @@ def test_mobile_styles_keep_tool_controls_and_detail_views_reachable():
     styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
 
     assert "@media (max-width: 760px)" in styles
+    desktop_hide = styles[: styles.index("@media (max-width: 760px)")]
+    assert ".dfs-mobile-list" in desktop_hide
+    assert "display: none" in desktop_hide
     assert ".mobile-inline-detail" in styles
     assert ".dfs-mobile-player" in styles
     assert ".mobile-odds-sheet" in styles

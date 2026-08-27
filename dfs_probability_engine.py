@@ -193,8 +193,6 @@ class DfsProbabilityEngine:
                 exclusion_reason = str(quote.get("missing_reason") or "PROVIDER_UNAVAILABLE")
             elif quote.get("mapping_confidence") is not None and str(quote.get("mapping_confidence")).upper() != "EXACT":
                 exclusion_reason = "MARKET_MAPPING_UNCERTAIN"
-            elif base_weight <= 0:
-                exclusion_reason = "PROVIDER_WEIGHT_NOT_CONFIGURED"
             elif quote_line is None or not math.isclose(quote_line, line, abs_tol=1e-9):
                 exclusion_reason = "LINE_MISMATCH"
             elif timestamp is None:
@@ -209,6 +207,12 @@ class DfsProbabilityEngine:
                     )
                     if fair_pair is None:
                         exclusion_reason = "INVALID_TWO_WAY_ODDS"
+                    elif base_weight <= 0:
+                        # Preserve a valid source probability even when its current
+                        # weight is zero. The DFS UI can then apply a newly saved
+                        # allocation immediately without waiting for another feed
+                        # request, while the aggregate still excludes this source.
+                        exclusion_reason = "PROVIDER_WEIGHT_NOT_CONFIGURED"
             probability = None if fair_pair is None else fair_pair[0 if normalized_side == "over" else 1]
             freshness_factor = 0.0 if age_seconds is None else 0.5 ** (age_seconds / self.freshness_half_life_seconds)
             effective_weight = base_weight * freshness_factor if exclusion_reason is None else 0.0

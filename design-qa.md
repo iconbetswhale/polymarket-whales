@@ -1,3 +1,40 @@
+# DFS Odds Detail and DVIG Design QA — 2026-08-27
+
+## Scope and source comparison
+
+Implemented the expandable sportsbook comparison and private IconLabs DVIG state in the existing Fantasy Optimizer. The two supplied OddsJam images were reviewed beside the final 1440 × 900 implementation capture in one comparison pass:
+
+- Sources: `ACE585E1-1FFF-40A7-96FE-488F882A3C00/1-Photo-1.jpg` (1278 × 338) and `ACE585E1-1FFF-40A7-96FE-488F882A3C00/2-Photo-2.jpg` (1278 × 253).
+- Implementation: `dfs-expanded-implementation.png` in the task visualization directory.
+- Supporting states: `dfs-devig-private-model.png` and `dfs-scrolled-player-column.png` in the same directory.
+
+The result preserves IconLabs typography, navy surfaces, purple selection, existing provider logos, and numeric styling while matching the reference hierarchy: player context, Best Odds, Avg Odds, one shared sportsbook header, and tightly aligned Over/Under rows. The best available price uses the existing green positive-value token. No placeholder or handmade assets were introduced.
+
+## Interaction and responsive checks
+
+- Clicking anywhere on a prop row expands or collapses its paired market; Enter also expands it and updates `aria-expanded`.
+- The detail shows both Over and Under for the same player, line, and stat across 16 sportsbook columns.
+- Horizontal scrolling moves the entire player column out of view; it no longer overlays later odds columns.
+- IconLabs Algo opens as selected with a 100% green allocation state while all eight visible sliders remain at 0%.
+- Moving FanDuel to 30% immediately turns the private preset off, shows a 30% custom allocation, and leaves the apply action disabled until the allocation totals 100%.
+- A 60% FanDuel / 40% Pinnacle custom allocation applied successfully, changed the displayed hit rate immediately, and updated the summary to `Custom DVIG · 100%`.
+- Re-selecting IconLabs Algo restored the private 100% state without exposing its internal weights.
+- At 390 × 844 the existing mobile card layout remains intact; the desktop-only table and detail do not leak into the phone layout.
+- Desktop and mobile browser passes produced zero console warnings and zero console errors.
+
+## Calculation and automated checks
+
+- The API rejects custom allocations that do not total exactly 100%.
+- The DFS payload retains per-book no-vig probability and freshness data so saved custom weights can reweight the board immediately.
+- Zero-weight books remain available for later custom allocation without contributing to the active aggregate.
+- `node --check static/dfs.js`: passed.
+- Focused pytest suite: 61 passed in 16.18s.
+- `git diff --check`: passed (line-ending notices only).
+
+final result: passed
+
+---
+
 # Mobile Tools Design QA
 
 ## Scope

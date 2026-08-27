@@ -1252,6 +1252,8 @@ def create_app(start_background: bool = True) -> Flask:
             for weight in normalized_weights.values()
         ):
             return jsonify({"error": "weights must contain non-negative percentages"}), 400
+        if not math.isclose(sum(normalized_weights.values()), 100.0, abs_tol=1e-6):
+            return jsonify({"error": "weights must total exactly 100 percent"}), 400
 
         selected_book = str(request.args.get("book") or "prizepicks").strip().lower()
         if selected_book not in DFS_OPTIMIZER_BOOK_KEYS:

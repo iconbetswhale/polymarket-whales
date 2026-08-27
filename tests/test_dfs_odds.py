@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
+import pytest
+
 from dfs_odds import DFS_OPTIMIZER_BOOK_KEYS, build_dfs_odds_board
 
 
@@ -12,6 +14,8 @@ def _market(
     dfs: bool = False,
     line: float = 1.5,
     player: str = "Aaron Judge",
+    over_price: int = -110,
+    under_price: int = -110,
 ) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
@@ -25,13 +29,13 @@ def _market(
                 "outcomes": [
                     {
                         "name": "Over",
-                        "price": None if dfs else -110,
+                        "price": None if dfs else over_price,
                         "point": line,
                         "description": player,
                     },
                     {
                         "name": "Under",
-                        "price": None if dfs else -110,
+                        "price": None if dfs else under_price,
                         "point": line,
                         "description": player,
                     },
@@ -76,7 +80,25 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
     assert {row["oddsByBook"]["fanduel"] for row in rows} == {"-110"}
+    assert all(
+        row["devigSourcesByLine"]["1.5"]["fanduel"][0] == 0.5
+        and row["devigSourcesByLine"]["1.5"]["fanduel"][1]
+        == pytest.approx(1, abs=0.001)
+        for row in rows
+    )
     assert {row["eventDate"] for row in rows} == {expected_event_date}
+
+
+def test_live_dfs_board_exposes_zero_weight_sources_for_instant_reweighting() -> None:
+    events = _events()
+    events[0]["bookmakers"].append(_market("pinnacle"))
+
+    rows = build_dfs_odds_board(events, weights={"fanduel": 100, "pinnacle": 0})
+
+    assert all(
+        set(row["devigSourcesByLine"]["1.5"]) == {"fanduel", "pinnacle"}
+        for row in rows
+    )
 
 
 def test_live_dfs_board_keeps_pairs_together_and_formats_exchange_cents() -> None:
@@ -104,6 +126,25 @@ def test_live_dfs_board_sorts_highest_hit_rate_first() -> None:
     hit_rates = [row["hit"] for row in rows if row["hit"] is not None]
     assert hit_rates == sorted(hit_rates, reverse=True)
     assert rows[0]["side"] == "Over"
+
+
+def test_live_dfs_board_applies_the_selected_custom_book_weights() -> None:
+    events = _events()
+    events[0]["bookmakers"][0] = _market(
+        "fanduel", over_price=-200, under_price=150
+    )
+    events[0]["bookmakers"].append(
+        _market("pinnacle", over_price=150, under_price=-200)
+    )
+
+    fanduel_rows = build_dfs_odds_board(events, weights={"fanduel": 100})
+    pinnacle_rows = build_dfs_odds_board(events, weights={"pinnacle": 100})
+    fanduel_over = next(row for row in fanduel_rows if row["side"] == "Over")
+    pinnacle_over = next(row for row in pinnacle_rows if row["side"] == "Over")
+
+    assert fanduel_over["hitByLine"]["1.5"] > 50
+    assert pinnacle_over["hitByLine"]["1.5"] < 50
+    assert fanduel_over["hitByLine"]["1.5"] > pinnacle_over["hitByLine"]["1.5"]
 
 
 def test_live_dfs_board_only_returns_props_available_on_selected_app() -> None:
@@ -232,3 +273,13 @@ def test_live_dfs_endpoint_rejects_unknown_app(app_client) -> None:
 
     assert response.status_code == 400
     assert response.get_json()["error"] == "book must be a supported DFS app"
+
+
+def test_live_dfs_endpoint_rejects_partial_custom_weight_allocation(app_client) -> None:
+    response = app_client.get(
+        "/api/dfs/lines",
+        query_string={"weights": '{"fanduel":60,"pinnacle":20}'},
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "weights must total exactly 100 percent"

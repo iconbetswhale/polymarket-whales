@@ -74,7 +74,7 @@ def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
         assert f"var({token})" in CSS
     assert "gradient(" not in CSS
     assert "assets/dfs-books/" in TEMPLATE
-    assert "IconLabs Algo Odds using default weights" in TEMPLATE
+    assert "IconLabs Algo Odds active" in TEMPLATE
     assert "fairAmericanOdds" in SCRIPT
     assert "americanOddsToProbability" in SCRIPT
     assert "positive-edge" in SCRIPT
@@ -120,7 +120,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v4-date-range" in BASE
+    assert "dfs-prewarm-v5-instant-devig" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -157,7 +157,7 @@ def test_iconlabs_fair_odds_uses_the_current_white_mark() -> None:
 
 def test_iconlabs_fair_odds_logo_explains_the_weightings_on_hover() -> None:
     assert 'class="dfs-algo-tooltip"' in TEMPLATE
-    assert 'aria-label="IconLabs Algo Odds using default weights"' in TEMPLATE
+    assert 'aria-label="IconLabs Algo Odds active"' in TEMPLATE
     assert 'id="dfs-iconalgo-tooltip"' in TEMPLATE
     assert ".dfs-iconalgo-tooltip-popover" in CSS
     assert "position: fixed;" in CSS
@@ -198,13 +198,59 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "fairAmericanOdds(fairHitRate)" in SCRIPT
     assert "Your Odds using custom Devig Settings" in SCRIPT
     assert "Your Odds from custom Devig weights" in SCRIPT
-    assert "You’re changing IconLabs Algo Odds to Your Odds." in TEMPLATE
-    assert "recalculates both Chance to Hit and the fair odds" in TEMPLATE
-    assert 'class="ph ph-warning"' in TEMPLATE
+    assert "function weightedDevigConsensus(row,targetLine)" in SCRIPT
+    assert "configuredWeight * freshness" in SCRIPT
+    assert "if (consensus) return consensus.probability;" in SCRIPT
+    assert "exactSources < 2" not in SCRIPT
+    assert "reliability < 0.08" not in SCRIPT
+    assert "updateDevigSummary();\n    render();" in SCRIPT
+    assert "schema:'instant-devig-v2'" in SCRIPT
+    assert 'schema:"instant-devig-v2"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "IconLabs Algo Odds is selected." in TEMPLATE
+    assert "internal book allocation stays private" in TEMPLATE
+    assert 'class="ph ph-shield-check"' in TEMPLATE
     assert ".dfs-devig-impact" in CSS
-    assert "white-space: nowrap;" in CSS
+    assert ".dfs-devig-impact.algo-active" in CSS
+    assert "white-space: normal;" in CSS
     assert "background: rgba(255, 193, 40, .2);" in CSS
     assert "color: #ffdd67;" in CSS
+
+
+def test_dfs_player_column_scrolls_with_the_rest_of_the_odds_grid() -> None:
+    start = CSS.index('.dfs-table .player-col {')
+    block = CSS[start : CSS.index("}", start)]
+
+    assert "position: sticky" not in block
+    assert "position: static" in block
+    assert "left: 0" not in block
+    assert "left: auto" in block
+    assert "width: 230px" in block
+
+
+def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
+    assert 'class="dfs-prop-row${expanded?' in SCRIPT
+    assert "data-row-id" in SCRIPT
+    assert "aria-expanded" in SCRIPT
+    assert "renderOddsDetail(r,activeLine)" in SCRIPT
+    assert "detailPair(row)" in SCRIPT
+    assert "sideLane('Over'" in SCRIPT
+    assert "sideLane('Under'" in SCRIPT
+    assert "all sportsbook prices" in SCRIPT
+    assert "Best odds" in SCRIPT
+    assert "Avg odds" in SCRIPT
+    assert ".dfs-odds-detail-grid" in CSS
+    assert "repeat(16, 82px)" in CSS
+    assert ".dfs-detail-price.best" in CSS
+
+
+def test_iconlabs_algo_hides_internal_weights_and_slider_input_switches_to_custom() -> None:
+    assert "draftWeights=usingIconLabs?{...zeroWeights}:{...savedWeights}" in SCRIPT
+    assert "draftWeights={...zeroWeights}; activePreset='iconlabs'" in SCRIPT
+    assert "selectedDevigTotal() { return activePreset === 'iconlabs' ? 100" in SCRIPT
+    assert "activePreset='';" in SCRIPT
+    assert "savedWeights=activePreset==='iconlabs'?{...defaultWeights}:{...draftWeights}" in SCRIPT
+    assert "IconLabs private model is on. Move any slider" in TEMPLATE
+    assert "IconLabs Algo · 100%" in TEMPLATE
 
 
 def test_selected_dfs_line_moves_into_stat_and_app_column_shows_best_odds() -> None:
@@ -310,8 +356,8 @@ def test_dfs_date_filter_supports_presets_and_inclusive_custom_ranges() -> None:
     assert "return {start:today,end:shiftDateKey(today,6)};" in SCRIPT
     assert "eventDate >= dateRange.start && eventDate <= dateRange.end" in SCRIPT
     assert "matchesDateRange(r,dateRange)" in SCRIPT
-    assert "schema:'date-v1'" in SCRIPT
-    assert 'schema:"date-v1"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "schema:'instant-devig-v2'" in SCRIPT
+    assert 'schema:"instant-devig-v2"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
     assert "date === 'this_week'" not in SCRIPT
     assert "dateSelect.value='next_7_days'" in SCRIPT
     assert ".dfs-custom-date-range[hidden]" in CSS

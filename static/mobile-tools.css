@@ -2,6 +2,7 @@
    Desktop layouts stay untouched; this layer is intentionally loaded last. */
 
 .dfs-mobile-other-apps,
+.dfs-mobile-list,
 .mobile-trade-samples {
   display: none;
 }
