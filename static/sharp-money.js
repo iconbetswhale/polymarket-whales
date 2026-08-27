@@ -351,7 +351,7 @@
 
   function flowRows(signal) {
     if (signal.depthAvailable === false) {
-      return `<div class="sharp-awaiting-lines">Order-book depth requires Advanced access. Exact two-sided prices remain available below.</div>`;
+      return `<div class="sharp-awaiting-lines">Live price-consensus mode. Exact two-sided prices are available below.</div>`;
     }
     const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.availableLiquidity != null);
     const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
@@ -519,7 +519,7 @@
       ? providerError
       : running
       ? quoteConsensus
-        ? `${sourceName} refreshes every ${payload.refreshSeconds || 30}s from exact two-sided REST prices. Advanced order-book depth can be enabled when the API key includes it.`
+        ? `${sourceName} refreshes every ${payload.refreshSeconds || 30}s from exact two-sided REST prices and sharp-consensus movement.`
         : `${sourceName} refreshes every ${payload.refreshSeconds || payload.pollSeconds || 30}s${automatic ? " with full two-sided depth." : `; other-book comparisons every ${payload.comparisonSeconds || 60}s.`}`
       : sourceConfigured
         ? `Press Play to start ProphetX${comparisonsConfigured ? " and sportsbook comparisons" : "; add an odds feed for other-book comparisons"}.`

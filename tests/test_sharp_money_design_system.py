@@ -64,7 +64,8 @@ def test_sharp_money_surfaces_provider_entitlement_errors_instead_of_waiting():
 
     assert 'payload.signalMode === "quote_consensus"' in script
     assert "Live price movement" in script
-    assert "Advanced order-book depth can be enabled when the API key includes it" in script
+    assert "exact two-sided REST prices and sharp-consensus movement" in script
+    assert "Live price-consensus mode" in script
     assert 'signal.depthAvailable === false ? "Price Pressure" : "Sharp Money"' in script
     assert "exact book" in script
     assert "advancedPlanRequired" in script
