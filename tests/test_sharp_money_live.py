@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+import pytest
 import requests
 
 from sharp_money_live import OddsComparisonFallback, SharpMoneyCollector
@@ -308,12 +309,15 @@ def test_oddsengine_advanced_orderbook_runs_automatically_with_full_depth():
     }
 
 
-def test_oddsengine_standard_plan_falls_back_to_exact_quote_consensus():
+@pytest.mark.parametrize("advanced_status", [403, 503])
+def test_oddsengine_standard_plan_falls_back_to_exact_quote_consensus(
+    advanced_status,
+):
     provider = FakeOddsEngineOrderBook()
 
     def reject(*, limit=40):
         response = requests.Response()
-        response.status_code = 403
+        response.status_code = advanced_status
         raise requests.HTTPError(response=response)
 
     provider.sharp_money_snapshot = reject

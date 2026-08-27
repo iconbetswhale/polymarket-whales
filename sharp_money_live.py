@@ -565,13 +565,12 @@ class SharpMoneyCollector:
                         status = getattr(
                             getattr(exc, "response", None), "status_code", None
                         )
-                        if status != 403 or not hasattr(
-                            provider, "sharp_money_quote_snapshot"
-                        ):
+                        if not hasattr(provider, "sharp_money_quote_snapshot"):
                             raise
                         LOGGER.info(
-                            "OddsEngine Advanced depth unavailable; using "
-                            "standard exact-price Sharp Money consensus"
+                            "OddsEngine Advanced depth unavailable (HTTP %s); "
+                            "using standard exact-price Sharp Money consensus",
+                            status if status is not None else "n/a",
                         )
                         return (
                             provider,
