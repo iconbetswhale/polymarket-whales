@@ -41,8 +41,9 @@
       </section>
     </div>
     <div class="dfs-filter-bar il-filter-bar">
-      <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Date range</span><select id="dfs-date"><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="next_7_days" selected>Next 7 days</option><option value="custom">Custom</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="dfs-select"><span>Teams</span><select id="dfs-team"><option value="">All teams</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Stat</span><select id="dfs-stat"><option value="">All stats</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Side</span><select id="dfs-side"><option value="">Over &amp; under</option><option>Over</option><option>Under</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-search"><span>Player</span><i class="ph ph-magnifying-glass"></i><input id="dfs-search" type="search" placeholder="Search players"></label>
@@ -75,7 +76,7 @@
       <tbody id="dfs-body"></tbody>
     </table>
     <div class="dfs-load-state" id="dfs-loading" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><strong>Loading live props</strong><span>Fetching the latest lines and probabilities.</span></div>
-    <div class="dfs-empty" id="dfs-empty" hidden><i class="ph ph-magnifying-glass"></i><strong>No props match these filters</strong><span>Try another player, sport, or side.</span></div>
+    <div class="dfs-empty" id="dfs-empty" hidden><i class="ph ph-magnifying-glass"></i><strong>No props match these filters</strong><span>Try another player, team, sport, or side.</span></div>
     <div class="dfs-empty dfs-error" id="dfs-error" hidden><i class="ph ph-warning-circle"></i><strong>Live props are temporarily unavailable</strong><span>Click Refresh to try again.</span></div>
   </div>
 </section>

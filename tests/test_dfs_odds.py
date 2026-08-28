@@ -82,6 +82,8 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
     assert {row["oddsByBook"]["fanduel"] for row in rows} == {"-110"}
+    assert {row["awayTeam"] for row in rows} == {"New York Yankees"}
+    assert {row["homeTeam"] for row in rows} == {"Boston Red Sox"}
     assert all(
         row["devigSourcesByLine"]["1.5"]["fanduel"][0] == 0.5
         and row["devigSourcesByLine"]["1.5"]["fanduel"][1]

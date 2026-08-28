@@ -456,7 +456,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button > i {
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-filter-bar {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(7, minmax(0, 1fr));
   align-items: end;
   justify-content: center;
   gap: var(--il-space-2);
@@ -2121,7 +2121,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-note i {
   }
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-search {
-    grid-column: span 3;
+    grid-column: span 2;
   }
 }
 
