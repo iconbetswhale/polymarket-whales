@@ -1542,7 +1542,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-side {
-  justify-content: flex-start;
+  justify-content: center;
   padding: 0 12px;
 }
 

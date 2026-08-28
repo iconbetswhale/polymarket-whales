@@ -258,6 +258,13 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
     assert ".dfs-detail-price.best" in CSS
 
 
+def test_dfs_detail_over_under_labels_are_centered() -> None:
+    start = CSS.index(".dfs-detail-side {")
+    block = CSS[start : CSS.index("}", start)]
+
+    assert "justify-content: center;" in block
+
+
 def test_dfs_detail_uses_and_syncs_the_main_saved_sportsbook_order() -> None:
     assert "function detailBookOrder()" in SCRIPT
     assert "detailBookSet.has(key) || optionalComparisonBookMap.has(key)" in SCRIPT
