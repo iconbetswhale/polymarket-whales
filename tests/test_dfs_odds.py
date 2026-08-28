@@ -201,24 +201,37 @@ def test_live_dfs_board_strictly_isolates_every_optimizer_app() -> None:
         assert all(ui_key in row["dfsLines"] for row in rows)
 
 
-def test_live_dfs_board_only_emits_sides_currently_offered_by_selected_app() -> None:
+@pytest.mark.parametrize(
+    ("provider_key", "ui_key"),
+    (
+        ("underdog", "underdog"),
+        ("pick6", "dk-pick6"),
+        ("betr_picks", "betr"),
+        ("dabble", "dabble"),
+    ),
+)
+def test_live_dfs_board_rejects_incomplete_app_props(
+    provider_key: str,
+    ui_key: str,
+) -> None:
     events = _events()
-    events[0]["bookmakers"].append(
-        _market("dabble", dfs=True, sides=("over",))
+    incomplete = _market(
+        provider_key,
+        dfs=True,
+        player="Phantom Home Run",
+        sides=("over",),
     )
+    incomplete["markets"][0]["key"] = "batter_home_runs"
+    events[0]["bookmakers"].append(incomplete)
 
-    dabble_rows = build_dfs_odds_board(events, selected_dfs_book="dabble")
+    selected_rows = build_dfs_odds_board(events, selected_dfs_book=ui_key)
     prizepicks_rows = build_dfs_odds_board(
         events, selected_dfs_book="prizepicks"
     )
 
-    assert {row["side"] for row in dabble_rows} == {"Over"}
-    assert "dabble" in next(
-        row for row in prizepicks_rows if row["side"] == "Over"
-    )["dfsLines"]
-    assert "dabble" not in next(
-        row for row in prizepicks_rows if row["side"] == "Under"
-    )["dfsLines"]
+    assert selected_rows == []
+    assert {row["player"] for row in prizepicks_rows} == {"Aaron Judge"}
+    assert all(ui_key not in row["dfsLines"] for row in prizepicks_rows)
 
 
 def test_live_dfs_board_prefers_the_app_headline_line_over_alternates() -> None:

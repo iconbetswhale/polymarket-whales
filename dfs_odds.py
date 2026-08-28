@@ -273,13 +273,17 @@ def build_dfs_odds_board(
         dfs_lines: dict[str, float] = {}
         dfs_sides: dict[str, set[str]] = {}
         for ui_key, line_options in dfs_options.items():
-            if not line_options:
+            complete_line_options = {
+                line: option
+                for line, option in line_options.items()
+                if {"over", "under"}.issubset(option.get("sides") or set())
+            }
+            if not complete_line_options:
                 continue
             primary_line, primary_option = min(
-                line_options.items(),
+                complete_line_options.items(),
                 key=lambda item: (
                     bool(item[1].get("is_alt")),
-                    -len(item[1].get("sides") or ()),
                     float(item[0]),
                 ),
             )
