@@ -6,11 +6,71 @@ import pytest
 
 from scripts.visual_qa_server import (
     QA_TIMEZONE,
+    qa_dfs_payload,
     qa_event_time,
     qa_price_history,
     qa_snapshot,
     qa_trades,
 )
+
+
+def test_visual_qa_dfs_payload_populates_every_fantasy_app():
+    frozen_now = datetime(2026, 8, 18, 15, 7, tzinfo=timezone.utc)
+    payload = qa_dfs_payload(now_utc=frozen_now)
+
+    assert payload["configured"] is True
+    assert payload["dataSource"] == "visual_qa"
+    assert payload["selectedBook"] == "prizepicks"
+    assert payload["data"] == payload["dataByBook"]["prizepicks"]
+    assert payload["totalsByBook"] == {
+        "prizepicks": 10,
+        "underdog": 10,
+        "dk-pick6": 10,
+        "betr": 10,
+        "dabble": 10,
+    }
+
+    expected_dfs_lines = {
+        "prizepicks",
+        "underdog",
+        "dk-pick6",
+        "betr",
+        "dabble",
+        "sleeper",
+    }
+    expected_sportsbook_odds = {
+        "fanduel",
+        "novig",
+        "prophetx",
+        "draftkings",
+        "pinnacle",
+        "circa",
+        "kalshi",
+        "polymarket",
+    }
+    for rows in payload["dataByBook"].values():
+        assert {row["side"] for row in rows} == {"Over", "Under"}
+        assert len({row["player"] for row in rows}) == 5
+        assert all(set(row["dfsLines"]) == expected_dfs_lines for row in rows)
+        assert all(
+            set(row["oddsByBook"]) == expected_sportsbook_odds
+            for row in rows
+        )
+
+
+def test_visual_qa_dfs_hit_rates_cover_multiple_value_bands():
+    frozen_now = datetime(2026, 8, 18, 15, 7, tzinfo=timezone.utc)
+    rows = qa_dfs_payload(now_utc=frozen_now)["data"]
+    hit_rates = [row["hit"] for row in rows]
+
+    assert min(hit_rates) < 45
+    assert max(hit_rates) > 57
+    judge_over = next(
+        row
+        for row in rows
+        if row["player"] == "Aaron Judge" and row["side"] == "Over"
+    )
+    assert 54 < judge_over["hit"] < 58
 
 
 def test_visual_qa_fixture_keeps_five_credible_trades_in_todays_view():

@@ -1275,6 +1275,10 @@
     gap: 9px !important;
   }
 
+  .dfs-parlay-config {
+    max-height: min(320px, 48vh);
+  }
+
   .dfs-book-row {
     display: block !important;
     width: 100% !important;

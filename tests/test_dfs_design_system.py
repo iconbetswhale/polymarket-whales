@@ -180,9 +180,11 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
 
 def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odds() -> None:
     assert '.algo-odds-head,\nbody[data-design-system="v2"][data-page="dfs"] .algo-odds-cell' in CSS
-    assert "width: 72px;" in CSS
-    assert "min-width: 72px;" in CSS
-    assert "max-width: 72px;" in CSS
+    odds_start = CSS.index("#dfs-line-head,")
+    odds_block = CSS[odds_start : CSS.index("}", odds_start)]
+    assert "width: 80px;" in odds_block
+    assert "min-width: 80px;" in odds_block
+    assert "max-width: 80px;" in odds_block
     assert "alternateLine===null?'':'has-alternate'" in SCRIPT
     assert ".book-cell.has-alternate > strong" in CSS
     assert "top: 50%;" in CSS
@@ -276,9 +278,9 @@ def test_selected_dfs_line_moves_into_stat_and_app_column_shows_best_odds() -> N
     assert "selectedSlipOdds" not in SCRIPT
     assert "selected-slip-odds" not in SCRIPT
     assert "selected-slip-odds" not in CSS
-    assert "const statDisplay = `${activeLine} ${r.stat}`;" in SCRIPT
-    assert "const selectedAppOdds = bestSlipOdds[activeBook] ?? '—';" in SCRIPT
-    assert 'class="dfs-stat">${esc(statDisplay)}</strong>' in SCRIPT
+    assert "const selectedAppOdds = activeParlayOdds;" in SCRIPT
+    assert 'class="dfs-stat-number">${esc(activeLine)}</strong>' in SCRIPT
+    assert 'class="dfs-stat-label">${esc(r.stat)}</span>' in SCRIPT
     assert 'class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong>' in SCRIPT
 
 
@@ -290,35 +292,21 @@ def test_selected_app_only_shows_its_real_available_props() -> None:
     assert "rowsByBook[selectedBookKeys[activeBook]]" in SCRIPT
     assert "if (changed && !Array.isArray(selectedRows)) loadLiveRows();" in SCRIPT
     assert "book:selectedBookKeys[activeBook]" not in SCRIPT
-    assert "best available equivalent odds" in SCRIPT
-    assert "PrizePicks best available equivalent odds" in TEMPLATE
-    for book, odds in (
-        ("PrizePicks", "-119"),
-        ("Underdog", "-107"),
-        ("DK Pick6", "-122"),
-        ("Betr", "-118"),
-        ("Dabble", "-122"),
-    ):
-        assert f"'{book}':'{odds}'" in SCRIPT
+    assert "function parlayOddsTitle(book=activeBook)" in SCRIPT
+    assert "PrizePicks 6 Pick Flex equivalent odds" in TEMPLATE
+    for book in ("PrizePicks", "Underdog", "DK Pick6", "Betr", "Dabble"):
+        assert f"{book}: [" in SCRIPT or f"'{book}': [" in SCRIPT
 
 
 def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() -> None:
     assert 'id="dfs-parlay-guide-open"' in TEMPLATE
     assert 'aria-label="Best Parlay Type To Build?"' in TEMPLATE
     assert 'id="dfs-parlay-guide-dialog"' in TEMPLATE
-    assert "4 Man Flex (Underdog) (-107)" in TEMPLATE
-    assert "51.7%" in TEMPLATE
-    assert "2 Man Flex (Underdog) (-116)" in TEMPLATE
-    assert "3 Man Flex (Underdog) (-116)" in TEMPLATE
-    assert "53.7%" in TEMPLATE
-    assert "5 Pick Flex (-119)" in TEMPLATE
-    assert "6 Pick Flex (-119)" in TEMPLATE
-    assert "6 Pick Power (-121)" in TEMPLATE
-    assert "3 Pick Power (-122)" in TEMPLATE
-    assert "4 Pick Power (-128)" in TEMPLATE
-    assert "2 Pick Power (-136)" in TEMPLATE
-    assert "3 Pick Flex (-137)" in TEMPLATE
-    assert "57.8%" in TEMPLATE
+    assert "Underdog · 2 Pick Standard (-115)" in TEMPLATE
+    assert "PrizePicks · 6 Pick Flex (-118)" in TEMPLATE
+    assert "Betr · 8 Pick Flex (-118)" in TEMPLATE
+    assert "Dabble · 6 Pick Hedge (-122)" in TEMPLATE
+    assert "DK Pick6 · 3 Pick base (-122)" in TEMPLATE
     assert "parlayGuideDialog.showModal()" in SCRIPT
     assert "event.target === parlayGuideDialog" in SCRIPT
     assert "event.key === 'Escape' && parlayGuideDialog.open" in SCRIPT
@@ -328,23 +316,135 @@ def test_parlay_type_guide_matches_the_supplied_rankings_and_is_interactive() ->
 
 def test_parlay_equivalent_odds_match_each_required_hit_rate() -> None:
     rows = (
-        (51.7, -107),
-        (53.7, -116),
-        (53.7, -116),
-        (54.3, -119),
-        (54.3, -119),
-        (54.8, -121),
+        (53.5, -115),
+        (54.2, -118),
+        (54.1, -118),
         (55.0, -122),
         (55.0, -122),
-        (55.0, -122),
-        (56.1, -128),
-        (57.6, -136),
-        (57.8, -137),
     )
 
     for hit_rate, displayed_odds in rows:
         equivalent_odds = round(-100 * hit_rate / (100 - hit_rate))
         assert equivalent_odds == displayed_odds
+
+
+def test_each_fantasy_app_has_a_persistent_parlay_type_dropdown() -> None:
+    assert 'id="dfs-parlay-config"' in TEMPLATE
+    assert 'role="listbox"' in TEMPLATE
+    assert "const parlayTypes = {" in SCRIPT
+    assert "dfsParlaySelectionsV1" in SCRIPT
+    assert "function bestParlayProfile(book)" in SCRIPT
+    assert "function selectedParlayProfile(book=activeBook)" in SCRIPT
+    assert "function syncParlayPicker()" in SCRIPT
+    assert "function parlayOptionLabel(profile)" in SCRIPT
+    assert "option.dataset.parlayId = profile.id;" in SCRIPT
+    assert "option.textContent = parlayOptionLabel(profile);" in SCRIPT
+    assert "`${label}: ${formatAmericanOdds(profile?.odds)} (${parlayMaxPayout(profile)})`" in SCRIPT
+    assert "parlayConfig.addEventListener('click'" in SCRIPT
+    assert "americanOddsToProbability(activeParlay?.odds)" in SCRIPT
+    assert "const selectedAppOdds = activeParlayOdds;" in SCRIPT
+    assert "syncParlayPicker();" in SCRIPT
+
+
+def test_selected_fantasy_app_opens_parlay_picker_on_second_click() -> None:
+    app_row = TEMPLATE.split('class="dfs-book-row"', 1)[1].split("</div>", 1)[0]
+
+    assert 'draggable="true"' not in app_row
+    assert 'aria-expanded="false"' in app_row
+    assert 'aria-haspopup="listbox"' in app_row
+    assert "enableDrag(document.querySelector('.dfs-book-row')" not in SCRIPT
+    assert "if (activeBook !== btn.dataset.dfsBook)" in SCRIPT
+    assert "setParlayPickerOpen(parlayConfig.hidden,btn);" in SCRIPT
+    assert "function positionParlayPicker(button)" in SCRIPT
+    assert "buttonRect.left" in SCRIPT
+    assert "buttonRect.bottom+2" in SCRIPT
+    assert "--parlay-picker-accent" in SCRIPT
+    assert ".dfs-parlay-config[hidden]" in CSS
+
+
+def test_parlay_picker_uses_the_selected_app_card_color_and_width() -> None:
+    menu_start = CSS.index(".dfs-parlay-config {")
+    menu_block = CSS[menu_start : CSS.index("}", menu_start)]
+
+    assert "position: fixed;" in menu_block
+    assert "z-index: 60;" in menu_block
+    assert "box-sizing: border-box;" in menu_block
+    assert "var(--parlay-picker-accent" in menu_block
+    assert "var(--il-sidebar-active)" in menu_block
+    assert ".dfs-parlay-config button[aria-selected=\"true\"]" in CSS
+
+
+def test_prizepicks_two_pick_power_uses_three_x_equivalent_odds() -> None:
+    assert "{id:'2-power',label:'2 Pick Power',odds:-137,payout:'3x'}" in SCRIPT
+    required_probability = 137 / (137 + 100)
+    assert round(required_probability * required_probability * 3, 2) == 1.0
+
+
+def test_dk_pick6_uses_numeric_base_payouts() -> None:
+    for profile in (
+        "{id:'2-pick',label:'2 Pick',odds:-137,payout:'3x base + extra winnings'}",
+        "{id:'3-pick',label:'3 Pick',odds:-122,payout:'6x base + extra winnings'}",
+        "{id:'4-pick',label:'4 Pick',odds:-128,payout:'10x base + extra winnings'}",
+        "{id:'5-pick',label:'5 Pick',odds:-122,payout:'20x base + extra winnings'}",
+        "{id:'6-pick',label:'6 Pick',odds:-124,payout:'35x base + extra winnings'}",
+    ):
+        assert profile in SCRIPT
+    assert "Confirm live prize table" not in SCRIPT
+
+
+def test_dabble_includes_every_all_in_and_hedge_parlay_type() -> None:
+    dabble = SCRIPT.split("Dabble: [", 1)[1].split("\n    ],", 1)[0]
+
+    for picks in range(2, 13):
+        assert f"id:'{picks}-all-in'" in dabble
+    assert "id:'2-hedge'" not in dabble
+    for picks in range(3, 13):
+        assert f"id:'{picks}-hedge'" in dabble
+
+    for payout in (
+        "payout:'3x'",
+        "payout:'6x'",
+        "payout:'10x'",
+        "payout:'20x'",
+        "payout:'35x'",
+        "payout:'60x'",
+        "payout:'100x'",
+        "payout:'175x'",
+        "payout:'300x'",
+        "payout:'500x'",
+        "payout:'1000x'",
+        "payout:'250x / 40x / 7.5x / 1x'",
+    ):
+        assert payout in dabble
+
+
+def test_prizepicks_parlay_change_moves_the_hit_rate_value_band() -> None:
+    fair_hit_rate = 55.0
+    default_requirement = 118 / (118 + 100) * 100
+    two_power_requirement = 137 / (137 + 100) * 100
+
+    assert fair_hit_rate > default_requirement
+    assert fair_hit_rate - two_power_requirement < -2
+    assert "const requiredProbability = americanOddsToProbability(activeParlay?.odds);" in SCRIPT
+    assert "probabilityEdgePoints > 0" in SCRIPT
+    assert "probabilityEdgePoints >= -2" in SCRIPT
+
+
+def test_dfs_rebalances_side_chance_and_odds_column_widths() -> None:
+    side_start = CSS.index(".dfs-side {")
+    side_block = CSS[side_start : CSS.index("}", side_start)]
+    chance_start = CSS.index(".hit-rate {")
+    chance_block = CSS[chance_start : CSS.index("}", chance_start)]
+    odds_start = CSS.index("#dfs-line-head,")
+    odds_block = CSS[odds_start : CSS.index("}", odds_start)]
+
+    assert "min-width: 64px;" in side_block
+    assert ".dfs-table th:nth-child(2)" in CSS
+    assert "min-width: 63px;" in chance_block
+    assert ".dfs-table th:nth-child(5)" in CSS
+    assert "width: 93px;" in CSS
+    assert "width: 80px;" in odds_block
+    assert "min-width: 80px;" in odds_block
 
 
 def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
@@ -390,8 +490,24 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "font: 500 11px/1.2 var(--il-font-ui);" in CSS
     assert "font: 700 13px/1 var(--il-font-data);" in CSS
     assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
+    assert ".dfs-stat-number" in CSS
+    assert "font-size: 24px;" in CSS
+    assert "font-weight: 800;" in CSS
+    assert ".dfs-stat-label" in CSS
+    assert "font-size: 12px;" in CSS
+    assert "flex-direction: column;" in CSS
+    assert "align-items: center;" in CSS
     assert "margin-inline: auto;" in CSS
     assert "text-align: center;" in CSS
+
+
+def test_dfs_chance_to_hit_number_is_two_pixels_larger() -> None:
+    chance_number_start = CSS.index(".hit-rate strong {")
+    chance_number_block = CSS[
+        chance_number_start : CSS.index("}", chance_number_start)
+    ]
+
+    assert "font: 700 16px/1 var(--il-font-data);" in chance_number_block
 
 
 def test_dfs_stat_and_matchup_text_never_truncate() -> None:

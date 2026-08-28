@@ -1061,3 +1061,39 @@ No actionable P0, P1, or P2 findings remain.
 - No deployment, commit, or push was performed.
 
 final result: passed
+
+---
+
+# Design QA
+
+## Evidence
+
+- Reference: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-08-27 232041.png`
+- Implementation: `C:/Users/sport/Documents/polymarket-whales/design-qa-implementation.png`
+- Viewport: 2294 x 1093 CSS pixels at device scale factor 1
+- State: PrizePicks selected, parlay menu open, local representative DFS rows visible
+
+The reference and implementation were reviewed together at the same viewport and UI state. The reference's browser-native, page-wide select was intentionally replaced by the requested card-width branded menu.
+
+## Comparison history
+
+1. Initial custom menu: the menu was anchored to the selected card but clipped after its first option by an ancestor overflow boundary.
+2. Final custom menu: changed to viewport-positioned anchoring while preserving the selected card's exact horizontal origin and width. All 10 PrizePicks choices are visible within the bounded, scrollable menu.
+
+## Fidelity review
+
+- Layout and geometry: passed. Menu x-position matches the PrizePicks card at 303px; widths differ by less than 0.2px; menu begins 2.86px below the card.
+- Typography: passed. Stat number computes to 24px / 800 and is stacked above the unchanged 14px label.
+- Colors and surfaces: passed. Menu derives its surface, border, and shadow from the selected DFS app accent; PrizePicks and Underdog were both checked.
+- Assets and content: passed. Existing DFS app artwork and sportsbook assets remain unchanged. Menu copy follows `Parlay type: equivalent odds per leg (max payout)`.
+- Responsive and interaction behavior: passed. Selecting an inactive app does not open its menu; clicking the already-selected app opens it; choosing a parlay type updates that app's summary and closes the menu; the prior per-app choice was restored after testing.
+
+## Defects
+
+- P0: none
+- P1: none
+- P2: none
+- P3: none
+- Browser console errors: none
+
+final result: passed

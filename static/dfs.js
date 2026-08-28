@@ -38,6 +38,7 @@
   const customDateError = document.querySelector('#dfs-date-error');
   const devigDialog = document.querySelector('#dfs-devig-dialog');
   const parlayGuideDialog = document.querySelector('#dfs-parlay-guide-dialog');
+  const parlayConfig = document.querySelector('#dfs-parlay-config');
   const iconAlgoTooltipTrigger = document.querySelector('.dfs-algo-tooltip');
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
@@ -45,9 +46,87 @@
   const detailBookDefaults = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
   const detailBookSet = new Set(detailBookDefaults);
   const detailBookNames = {'hard-rock':'Hard Rock','parlay-play':'ParlayPlay',propbuilder:'PropBuilder',betonline:'BetOnline',caesars:'Caesars',fliff:'Fliff',bovada:'Bovada'};
-  const bestSlipOdds = {'PrizePicks':'-119','Underdog':'-107','DK Pick6':'-122','Betr':'-118','Dabble':'-122'};
+  // Equivalent per-leg prices come from each fixed or guaranteed base payout
+  // schedule. DraftKings can add extra peer-to-peer winnings above its base.
+  const parlayTypes = {
+    PrizePicks: [
+      {id:'6-flex',label:'6 Pick Flex',odds:-118,payout:'25x / 2x / 0.4x'},
+      {id:'5-flex',label:'5 Pick Flex',odds:-119,payout:'10x / 2x / 0.4x'},
+      {id:'6-power',label:'6 Pick Power',odds:-121,payout:'37.5x'},
+      {id:'3-power',label:'3 Pick Power',odds:-122,payout:'6x'},
+      {id:'4-flex',label:'4 Pick Flex',odds:-122,payout:'6x / 1.5x'},
+      {id:'5-power',label:'5 Pick Power',odds:-122,payout:'20x'},
+      {id:'4-power',label:'4 Pick Power',odds:-128,payout:'10x'},
+      {id:'2-power',label:'2 Pick Power',odds:-137,payout:'3x'},
+      {id:'3-flex',label:'3 Pick Flex',odds:-137,payout:'3x / 1x'},
+      {id:'2-flex',label:'2 Pick Flex',odds:-162,payout:'2x / 0.5x'},
+    ],
+    Underdog: [
+      {id:'2-standard',label:'2 Pick Standard',odds:-115,payout:'3.5x'},
+      {id:'3-standard',label:'3 Pick Standard',odds:-115,payout:'6.5x'},
+      {id:'4-standard',label:'4 Pick Standard',odds:-116,payout:'12x'},
+      {id:'6-flex',label:'6 Pick Flex',odds:-117,payout:'25x / 2.6x / 0.25x'},
+      {id:'5-flex',label:'5 Pick Flex',odds:-121,payout:'10x / 2.5x'},
+      {id:'4-flex',label:'4 Pick Flex',odds:-122,payout:'6x / 1.5x'},
+      {id:'5-standard',label:'5 Pick Standard',odds:-122,payout:'20x'},
+      {id:'8-standard',label:'8 Pick Standard',odds:-122,payout:'120x'},
+      {id:'7-standard',label:'7 Pick Standard',odds:-123,payout:'65x'},
+      {id:'8-flex',label:'8 Pick Flex',odds:-123,payout:'80x / 3x / 1x'},
+      {id:'3-flex',label:'3 Pick Flex',odds:-124,payout:'3.25x / 1.09x'},
+      {id:'6-standard',label:'6 Pick Standard',odds:-124,payout:'35x'},
+      {id:'7-flex',label:'7 Pick Flex',odds:-124,payout:'40x / 2.75x / 0.5x'},
+    ],
+    'DK Pick6': [
+      {id:'3-pick',label:'3 Pick',odds:-122,payout:'6x base + extra winnings'},
+      {id:'5-pick',label:'5 Pick',odds:-122,payout:'20x base + extra winnings'},
+      {id:'6-pick',label:'6 Pick',odds:-124,payout:'35x base + extra winnings'},
+      {id:'4-pick',label:'4 Pick',odds:-128,payout:'10x base + extra winnings'},
+      {id:'2-pick',label:'2 Pick',odds:-137,payout:'3x base + extra winnings'},
+    ],
+    Betr: [
+      {id:'8-flex',label:'8 Pick Flex',odds:-118,payout:'50x / 2x / 1.5x / 1.25x'},
+      {id:'10-flex',label:'10 Pick Flex',odds:-118,payout:'200x / 2x / 1.5x / 1.25x / 1x'},
+      {id:'5-flex',label:'5 Pick Flex',odds:-119,payout:'10x / 2x / 0.4x'},
+      {id:'6-flex',label:'6 Pick Flex',odds:-120,payout:'20x / 1.5x / 1x'},
+      {id:'4-flex',label:'4 Pick Flex',odds:-122,payout:'6x / 1.5x'},
+      {id:'5-perfect',label:'5 Pick Perfect',odds:-122,payout:'20x'},
+      {id:'7-flex',label:'7 Pick Flex',odds:-124,payout:'35x / 2x / 1.25x'},
+      {id:'9-flex',label:'9 Pick Flex',odds:-124,payout:'100x / 2x / 1.5x / 1.25x'},
+      {id:'4-perfect',label:'4 Pick Perfect',odds:-128,payout:'10x'},
+      {id:'8-perfect',label:'8 Pick Perfect',odds:-128,payout:'100x'},
+      {id:'6-perfect',label:'6 Pick Perfect',odds:-131,payout:'30x'},
+      {id:'7-perfect',label:'7 Pick Perfect',odds:-134,payout:'50x'},
+      {id:'2-perfect',label:'2 Pick Perfect',odds:-137,payout:'3x'},
+      {id:'3-flex',label:'3 Pick Flex',odds:-137,payout:'3x / 1x'},
+      {id:'3-perfect',label:'3 Pick Perfect',odds:-141,payout:'5x'},
+    ],
+    Dabble: [
+      {id:'6-hedge',label:'6 Pick Hedge',odds:-122,payout:'25x / 1.5x / 0.4x'},
+      {id:'5-all-in',label:'5 Pick All-In',odds:-122,payout:'20x'},
+      {id:'3-all-in',label:'3 Pick All-In',odds:-122,payout:'6x'},
+      {id:'7-hedge',label:'7 Pick Hedge',odds:-124,payout:'35x / 2.5x / 1x'},
+      {id:'6-all-in',label:'6 Pick All-In',odds:-124,payout:'35x'},
+      {id:'5-hedge',label:'5 Pick Hedge',odds:-126,payout:'10x / 1.5x / 0.4x'},
+      {id:'8-hedge',label:'8 Pick Hedge',odds:-126,payout:'50x / 5x / 1.5x'},
+      {id:'7-all-in',label:'7 Pick All-In',odds:-126,payout:'60x'},
+      {id:'10-hedge',label:'10 Pick Hedge',odds:-128,payout:'75x / 15x / 4x / 0.4x'},
+      {id:'12-hedge',label:'12 Pick Hedge',odds:-128,payout:'250x / 40x / 7.5x / 1x'},
+      {id:'9-hedge',label:'9 Pick Hedge',odds:-128,payout:'50x / 10x / 2x / 0.4x'},
+      {id:'4-all-in',label:'4 Pick All-In',odds:-128,payout:'10x'},
+      {id:'8-all-in',label:'8 Pick All-In',odds:-128,payout:'100x'},
+      {id:'12-all-in',label:'12 Pick All-In',odds:-128,payout:'1000x'},
+      {id:'9-all-in',label:'9 Pick All-In',odds:-129,payout:'175x'},
+      {id:'11-hedge',label:'11 Pick Hedge',odds:-130,payout:'125x / 20x / 5x / 1x'},
+      {id:'10-all-in',label:'10 Pick All-In',odds:-130,payout:'300x'},
+      {id:'11-all-in',label:'11 Pick All-In',odds:-132,payout:'500x'},
+      {id:'4-hedge',label:'4 Pick Hedge',odds:-132,payout:'5x / 1.5x'},
+      {id:'3-hedge',label:'3 Pick Hedge',odds:-135,payout:'2.5x / 1.25x'},
+      {id:'2-all-in',label:'2 Pick All-In',odds:-137,payout:'3x'},
+    ],
+  };
   const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
   let activeBook = 'PrizePicks';
+  let parlaySelections = loadParlaySelections();
   let compareOrder = loadCompareOrder();
   let accountOrderSyncEnabled = false;
   let accountOrderSaveQueue = Promise.resolve();
@@ -71,6 +150,105 @@
   function loadPresets() {
     try { const stored=JSON.parse(localStorage.getItem('dfsDevigPresets')||'[]'); return Array.isArray(stored) ? stored.filter(item=>item&&item.name&&item.weights) : []; }
     catch (_) { return []; }
+  }
+
+  function bestParlayProfile(book) {
+    const profiles = parlayTypes[book] || [];
+    return profiles.reduce((best,profile) => {
+      if (!best) return profile;
+      const probability = americanOddsToProbability(profile.odds);
+      const bestProbability = americanOddsToProbability(best.odds);
+      return probability !== null && (bestProbability === null || probability < bestProbability) ? profile : best;
+    },null);
+  }
+
+  function loadParlaySelections() {
+    let stored = {};
+    try { stored = JSON.parse(localStorage.getItem('dfsParlaySelectionsV1') || '{}') || {}; }
+    catch (_) { stored = {}; }
+    return Object.fromEntries(Object.keys(parlayTypes).map(book => {
+      const profiles = parlayTypes[book];
+      const storedId = String(stored[book] || '');
+      const selected = profiles.find(profile => profile.id === storedId) || bestParlayProfile(book);
+      return [book,selected?.id || ''];
+    }));
+  }
+
+  function selectedParlayProfile(book=activeBook) {
+    const profiles = parlayTypes[book] || [];
+    return profiles.find(profile => profile.id === parlaySelections[book]) || bestParlayProfile(book);
+  }
+
+  function formatAmericanOdds(odds) {
+    const value = Number(odds);
+    if (!Number.isFinite(value)) return '—';
+    return value > 0 ? `+${Math.round(value)}` : String(Math.round(value));
+  }
+
+  function parlayMaxPayout(profile) {
+    const match = String(profile?.payout || '').match(/\d+(?:\.\d+)?x/i);
+    return match?.[0] || 'Reference';
+  }
+
+  function parlayOptionLabel(profile) {
+    const label = String(profile?.label || '').replace(/\s*·\s*reference$/i,'');
+    return `${label}: ${formatAmericanOdds(profile?.odds)} (${parlayMaxPayout(profile)})`;
+  }
+
+  function parlayOddsTitle(book=activeBook) {
+    const profile = selectedParlayProfile(book);
+    return profile ? `${book} ${profile.label} equivalent odds · ${profile.payout}` : `${book} equivalent odds`;
+  }
+
+  function updateParlaySummaries() {
+    document.querySelectorAll('[data-dfs-book]').forEach(button => {
+      const profile = selectedParlayProfile(button.dataset.dfsBook);
+      const summary = button.querySelector('[data-dfs-parlay-summary]');
+      if (summary && profile) summary.textContent = `${profile.label} · ${formatAmericanOdds(profile.odds)}`;
+    });
+  }
+
+  function syncParlayPicker() {
+    const profiles = parlayTypes[activeBook] || [];
+    const selected = selectedParlayProfile(activeBook);
+    parlayConfig.replaceChildren(...profiles.map(profile => {
+      const option = document.createElement('button');
+      option.type = 'button';
+      option.dataset.parlayId = profile.id;
+      option.setAttribute('role','option');
+      option.setAttribute('aria-selected',String(profile.id === selected?.id));
+      option.textContent = parlayOptionLabel(profile);
+      return option;
+    }));
+    parlayConfig.setAttribute('aria-label',`${activeBook} parlay type`);
+    updateParlaySummaries();
+  }
+
+  function positionParlayPicker(button) {
+    if (!button) return;
+    const buttonRect = button.getBoundingClientRect();
+    const accent = getComputedStyle(button).getPropertyValue('--dfs-book-accent').trim();
+    parlayConfig.style.left = `${Math.round(buttonRect.left)}px`;
+    parlayConfig.style.top = `${Math.round(buttonRect.bottom+2)}px`;
+    parlayConfig.style.width = `${Math.round(buttonRect.width)}px`;
+    parlayConfig.style.setProperty('--parlay-picker-accent',accent || 'var(--il-brand)');
+  }
+
+  function setParlayPickerOpen(open,button=document.querySelector(`[data-dfs-book="${CSS.escape(activeBook)}"]`)) {
+    if (open) positionParlayPicker(button);
+    parlayConfig.hidden = !open;
+    document.querySelectorAll('[data-dfs-book]').forEach(item => {
+      item.setAttribute('aria-expanded',String(open && item===button));
+    });
+    if (!open) return;
+    parlayConfig.querySelector('[aria-selected="true"]')?.focus({preventScroll:true});
+  }
+
+  function positionOpenParlayPicker() {
+    if (parlayConfig.hidden) return;
+    positionParlayPicker(
+      document.querySelector(`[data-dfs-book="${CSS.escape(activeBook)}"]`)
+    );
   }
 
   function loadCompareOrder() {
@@ -428,6 +606,8 @@
 
   function render() {
     updateAlgoPresentation();
+    const activeParlay = selectedParlayProfile();
+    const activeParlayOdds = formatAmericanOdds(activeParlay?.odds);
     const sport = document.querySelector('#dfs-sport').value;
     const dateRange = selectedDateRange();
     if (dateRange) dateRange.today = easternDateKey();
@@ -440,7 +620,7 @@
     body.innerHTML = visible.map(r => {
       const activeLine = selectedDfsLine(r);
       const fairHitRate = fairProbability(r,activeLine);
-      const requiredProbability = americanOddsToProbability(bestSlipOdds[activeBook]);
+      const requiredProbability = americanOddsToProbability(activeParlay?.odds);
       const probabilityEdgePoints = requiredProbability === null || fairHitRate === null ? null : fairHitRate - requiredProbability*100;
       const hitRateBand = probabilityEdgePoints === null
         ? 'below-threshold'
@@ -473,13 +653,12 @@
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
       const exactSources = fairSourceCount(r,activeLine);
-      const hitTitle = fairHitRate === null ? 'No fresh exact-line source matches the current Devig allocation' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${bestSlipOdds[activeBook]} · ${edgeLabel}`;
+      const hitTitle = fairHitRate === null ? 'No fresh exact-line source matches the current Devig allocation' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${activeParlay?.label || ''} ${activeParlayOdds} · ${edgeLabel}`;
       const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
-      const statDisplay = `${activeLine} ${r.stat}`;
-      const selectedAppOdds = bestSlipOdds[activeBook] ?? '—';
-      const selectedOddsTitle = `${activeBook} best available equivalent odds`;
+      const selectedAppOdds = activeParlayOdds;
+      const selectedOddsTitle = parlayOddsTitle();
       const expanded = expandedRowId === String(r.id || '');
-      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><strong class="dfs-stat">${esc(statDisplay)}</strong></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
       return primaryRow + (expanded ? renderOddsDetail(r,activeLine) : '');
     }).join('');
     loadingState.hidden = hasLoadedRows || loadFailed;
@@ -651,15 +830,17 @@
   function setActiveBook(button) {
     if (!button || !selectedBookKeys[button.dataset.dfsBook]) return;
     const changed = activeBook !== button.dataset.dfsBook;
+    if (changed) setParlayPickerOpen(false);
     document.querySelectorAll('[data-dfs-book]').forEach(item => {
       item.classList.toggle('active',item===button);
       item.setAttribute('aria-selected',String(item===button));
     });
     activeBook = button.dataset.dfsBook;
     if (changed) expandedRowId = '';
+    syncParlayPicker();
     const lineHead = document.querySelector('#dfs-line-head');
     const logo = button.querySelector('img').cloneNode();
-    const selectedOddsTitle = `${activeBook} best available equivalent odds`;
+    const selectedOddsTitle = parlayOddsTitle();
     logo.alt = activeBook;
     logo.title = selectedOddsTitle;
     lineHead.replaceChildren(logo);
@@ -671,7 +852,51 @@
     if (changed && !Array.isArray(selectedRows)) loadLiveRows();
   }
 
-  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => setActiveBook(btn)));
+  document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => {
+    if (activeBook !== btn.dataset.dfsBook) {
+      setActiveBook(btn);
+      return;
+    }
+    setParlayPickerOpen(parlayConfig.hidden,btn);
+  }));
+  parlayConfig.addEventListener('click', event => {
+    const option = event.target.closest('[data-parlay-id]');
+    if (!option) return;
+    const profiles = parlayTypes[activeBook] || [];
+    if (!profiles.some(profile => profile.id === option.dataset.parlayId)) return;
+    parlaySelections[activeBook] = option.dataset.parlayId;
+    localStorage.setItem('dfsParlaySelectionsV1',JSON.stringify(parlaySelections));
+    syncParlayPicker();
+    setParlayPickerOpen(false);
+    const activeButton = document.querySelector(`[data-dfs-book="${CSS.escape(activeBook)}"]`);
+    const lineHead = document.querySelector('#dfs-line-head');
+    const selectedOddsTitle = parlayOddsTitle();
+    const logo = activeButton?.querySelector('img')?.cloneNode();
+    if (logo) {
+      logo.alt = activeBook;
+      logo.title = selectedOddsTitle;
+      lineHead.replaceChildren(logo);
+    }
+    lineHead.setAttribute('aria-label',selectedOddsTitle);
+    render();
+  });
+  parlayConfig.addEventListener('keydown', event => {
+    if (!['ArrowDown','ArrowUp','Home','End'].includes(event.key)) return;
+    const options = [...parlayConfig.querySelectorAll('[data-parlay-id]')];
+    const currentIndex = Math.max(0,options.indexOf(document.activeElement));
+    const nextIndex = event.key === 'Home'
+      ? 0
+      : event.key === 'End'
+        ? options.length-1
+        : (currentIndex + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+    event.preventDefault();
+    options[nextIndex]?.focus();
+  });
+  document.addEventListener('click', event => {
+    if (parlayConfig.hidden) return;
+    if (event.target.closest('#dfs-parlay-config,[data-dfs-book]')) return;
+    setParlayPickerOpen(false);
+  });
   body.addEventListener('click', event => {
     const row = event.target.closest('.dfs-prop-row');
     if (!row) return;
@@ -687,7 +912,6 @@
     render();
     body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
   });
-  enableDrag(document.querySelector('.dfs-book-row'), '.dfs-book', () => {});
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); persistCompareOrder(); reorderHeaders(); render(); });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
   ['dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
@@ -729,12 +953,18 @@
   });
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && parlayGuideDialog.open) parlayGuideDialog.close();
+    if (event.key === 'Escape' && !parlayConfig.hidden) setParlayPickerOpen(false);
   });
   iconAlgoTooltipTrigger.addEventListener('pointerenter', showIconAlgoTooltip);
   iconAlgoTooltipTrigger.addEventListener('pointerleave', hideIconAlgoTooltip);
   iconAlgoTooltipTrigger.addEventListener('focus', showIconAlgoTooltip);
   iconAlgoTooltipTrigger.addEventListener('blur', hideIconAlgoTooltip);
-  window.addEventListener('resize', hideIconAlgoTooltip);
+  window.addEventListener('resize', () => {
+    hideIconAlgoTooltip();
+    positionOpenParlayPicker();
+  });
+  document.querySelector('.dfs-book-row').addEventListener('scroll',positionOpenParlayPicker);
+  window.addEventListener('scroll',positionOpenParlayPicker,{capture:true,passive:true});
   document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearAutoRefresh();
@@ -748,6 +978,7 @@
   renderPresets();
   syncDevigControls();
   syncRefreshControls();
+  syncParlayPicker();
   render();
   syncCompareOrderFromAccount();
   loadLiveRows();

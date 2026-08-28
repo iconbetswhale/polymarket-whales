@@ -16,8 +16,8 @@
         <h2 id="dfs-fantasy-apps-label">Fantasy Apps</h2>
         <div class="dfs-app-picker">
           <div class="dfs-book-row" role="tablist" aria-label="DFS book">
-            {% for book, logo, slip in [('PrizePicks','prizepicks','5 Pick Flex · -119'),('Underdog','underdog','4 Man Flex · -107'),('DK Pick6','dk-pick6','3 Man Power · -122'),('Betr','betr','5 Man Flex · -118'),('Dabble','dabble','3 Man Power · -122')] %}
-            <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" data-dfs-book="{{ book }}" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small>{{ slip }}</small></span><i class="ph ph-dots-six-vertical dfs-drag-handle" aria-hidden="true"></i></button>
+            {% for book, logo, slip in [('PrizePicks','prizepicks','6 Pick Flex · -118'),('Underdog','underdog','2 Pick Standard · -115'),('DK Pick6','dk-pick6','3 Pick · -122'),('Betr','betr','8 Pick Flex · -118'),('Dabble','dabble','6 Pick Hedge · -122')] %}
+            <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-expanded="false" aria-haspopup="listbox" aria-controls="dfs-parlay-config" data-dfs-book="{{ book }}" data-book-key="{{ logo }}"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small data-dfs-parlay-summary>{{ slip }}</small></span><i class="ph ph-caret-down dfs-parlay-tab-caret" aria-hidden="true"></i></button>
             {% endfor %}
           </div>
           <label class="dfs-mobile-other-apps" for="dfs-mobile-book-select">
@@ -29,6 +29,7 @@
             </select>
             <i class="ph ph-caret-down" aria-hidden="true"></i>
           </label>
+          <div class="dfs-parlay-config" id="dfs-parlay-config" role="listbox" aria-label="PrizePicks parlay type" hidden></div>
         </div>
       </section>
       <section class="dfs-app-group dfs-optimizer-group" aria-labelledby="dfs-optimizer-label">
@@ -59,7 +60,7 @@
 
   <div class="dfs-table-shell">
     <table class="dfs-table">
-      <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks best available equivalent odds"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks best available equivalent odds"></th><th>Chance to hit</th><th class="algo-odds-head" id="dfs-algo-odds-head" aria-label="IconLabs Algo Odds active"><span class="dfs-algo-tooltip" tabindex="0" role="img" aria-label="IconLabs Algo Odds active" aria-describedby="dfs-iconalgo-tooltip"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""></span></th>{% for book, logo in [('FanDuel','fanduel'),('NoVIG','novig'),('ProphetX','prophetx'),('DraftKings','draftkings'),('Pinnacle','pinnacle'),('Circa','circa'),('Kalshi','kalshi'),('Polymarket','polymarket'),('PrizePicks','prizepicks'),('Underdog','underdog'),('DK Pick6','dk-pick6'),('Betr','betr'),('Dabble','dabble'),('Sleeper','sleeper')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
+      <thead><tr id="dfs-head-row"><th class="player-col">Player</th><th>O/U</th><th>Stat</th><th id="dfs-line-head" aria-label="PrizePicks 6 Pick Flex equivalent odds"><img src="{{ url_for('static', filename='assets/dfs-books/prizepicks.png', v=asset_version) }}" alt="PrizePicks" title="PrizePicks 6 Pick Flex equivalent odds"></th><th>Chance to hit</th><th class="algo-odds-head" id="dfs-algo-odds-head" aria-label="IconLabs Algo Odds active"><span class="dfs-algo-tooltip" tabindex="0" role="img" aria-label="IconLabs Algo Odds active" aria-describedby="dfs-iconalgo-tooltip"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""></span></th>{% for book, logo in [('FanDuel','fanduel'),('NoVIG','novig'),('ProphetX','prophetx'),('DraftKings','draftkings'),('Pinnacle','pinnacle'),('Circa','circa'),('Kalshi','kalshi'),('Polymarket','polymarket'),('PrizePicks','prizepicks'),('Underdog','underdog'),('DK Pick6','dk-pick6'),('Betr','betr'),('Dabble','dabble'),('Sleeper','sleeper')] %}<th class="compare-book" data-book-key="{{ logo }}" draggable="true"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt="{{ book }}" title="{{ book }}"><i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i></th>{% endfor %}</tr></thead>
       <tbody id="dfs-body"></tbody>
     </table>
     <div class="dfs-load-state" id="dfs-loading" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><strong>Loading live props</strong><span>Fetching the latest lines and probabilities.</span></div>
@@ -96,14 +97,14 @@
     <header>
       <span class="dfs-parlay-brand"><img src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt=""><strong>IconLabs</strong></span>
       <h2 id="dfs-parlay-guide-title">Best <span>Parlay Type</span> To Build</h2>
-      <p id="dfs-parlay-guide-description">Equivalent American odds are shown beside every slip type and its required hit rate.</p>
+      <p id="dfs-parlay-guide-description">Each app now defaults to its strongest reference format. Use the dropdown below the app tabs to compare every supported parlay type.</p>
     </header>
     <ol class="dfs-parlay-rankings" aria-label="Parlay type profitability rankings">
-      {% for slip, rate in [('4 Man Flex (Underdog) (-107)','51.7%'),('2 Man Flex (Underdog) (-116)','53.7%'),('3 Man Flex (Underdog) (-116)','53.7%'),('5 Pick Flex (-119)','54.3%'),('6 Pick Flex (-119)','54.3%'),('6 Pick Power (-121)','54.8%'),('3 Pick Power (-122)','55%'),('4 Pick Flex (-122)','55%'),('5 Pick Power (-122)','55%'),('4 Pick Power (-128)','56.1%'),('2 Pick Power (-136)','57.6%'),('3 Pick Flex (-137)','57.8%')] %}
+      {% for slip, rate in [('Underdog · 2 Pick Standard (-115)','53.5%'),('PrizePicks · 6 Pick Flex (-118)','54.2%'),('Betr · 8 Pick Flex (-118)','54.1%'),('Dabble · 6 Pick Hedge (-122)','55.0%'),('DK Pick6 · 3 Pick base (-122)','55.0%')] %}
       <li><i class="ph ph-check" aria-hidden="true"></i><strong>{{ slip }}</strong><span>{{ rate }}</span></li>
       {% endfor %}
     </ol>
-    <p class="dfs-parlay-guide-note"><i class="ph ph-info" aria-hidden="true"></i>Reference rates are directional and do not guarantee results.</p>
+    <p class="dfs-parlay-guide-note"><i class="ph ph-info" aria-hidden="true"></i>Equivalent odds are reference values. Confirm the live payout shown by the DFS app before submitting an entry.</p>
   </section>
 </dialog>
 {% endblock %}

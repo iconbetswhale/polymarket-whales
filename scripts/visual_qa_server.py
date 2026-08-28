@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from math import pi, sin
 from pathlib import Path
+import json
 import os
 import sys
 from types import MethodType
@@ -32,6 +33,81 @@ QA_TRADE_SPECS = (
     {"sharps": 2, "score": 55, "entry": 0.40, "sharp_entry": 0.389},
     {"sharps": 2, "score": 64, "entry": 0.455, "sharp_entry": 0.46},
     {"sharps": 2, "score": 53, "entry": 0.525, "sharp_entry": 0.51},
+)
+QA_DFS_APP_PROVIDERS = (
+    "prizepicks",
+    "underdog",
+    "pick6",
+    "betr_picks",
+    "dabble",
+    "sleeper",
+)
+QA_DFS_SPORTSBOOKS = (
+    ("fanduel", 0),
+    ("novig", 3),
+    ("prophetexchange", -2),
+    ("draftkings", -4),
+    ("pinnacle", 5),
+    ("circa", 2),
+    ("kalshi", -3),
+    ("polymarket", 4),
+)
+QA_DFS_PROP_SPECS = (
+    (
+        "qa-dfs-yankees-red-sox",
+        "MLB",
+        "Boston Red Sox",
+        "New York Yankees",
+        "batter_hits",
+        "Aaron Judge",
+        1.5,
+        -140,
+        110,
+    ),
+    (
+        "qa-dfs-dodgers-padres",
+        "MLB",
+        "San Diego Padres",
+        "Los Angeles Dodgers",
+        "batter_total_bases",
+        "Shohei Ohtani",
+        1.5,
+        105,
+        -135,
+    ),
+    (
+        "qa-dfs-aces-liberty",
+        "WNBA",
+        "New York Liberty",
+        "Las Vegas Aces",
+        "player_points",
+        "A'ja Wilson",
+        24.5,
+        -160,
+        125,
+    ),
+    (
+        "qa-dfs-fever-sky",
+        "WNBA",
+        "Chicago Sky",
+        "Indiana Fever",
+        "player_assists",
+        "Caitlin Clark",
+        8.5,
+        -115,
+        -105,
+    ),
+    (
+        "qa-dfs-lakers-warriors",
+        "NBA",
+        "Golden State Warriors",
+        "Los Angeles Lakers",
+        "player_points_assists",
+        "Luka Doncic",
+        36.5,
+        120,
+        -150,
+    ),
 )
 
 
@@ -240,6 +316,138 @@ def qa_snapshot(now_utc: datetime | None = None) -> dict:
             "enabled_wallet_count": 9,
             "last_successful_refresh": now.isoformat(),
         },
+    }
+
+
+def _qa_dfs_bookmaker(
+    book_key: str,
+    *,
+    market_key: str,
+    player: str,
+    line: float,
+    over_odds: int | None,
+    under_odds: int | None,
+    observed_at: str,
+) -> dict:
+    return {
+        "key": book_key,
+        "title": book_key.replace("_", " ").title(),
+        "last_update": observed_at,
+        "markets": [
+            {
+                "key": market_key,
+                "last_update": observed_at,
+                "outcomes": [
+                    {
+                        "name": side,
+                        "price": price,
+                        "point": line,
+                        "description": player,
+                        "is_alt": False,
+                    }
+                    for side, price in (
+                        ("Over", over_odds),
+                        ("Under", under_odds),
+                    )
+                ],
+            }
+        ],
+    }
+
+
+def qa_dfs_events(now_utc: datetime | None = None) -> list[dict]:
+    """Return realistic prop markets for local Fantasy Optimizer QA."""
+
+    now = now_utc or datetime.now(timezone.utc)
+    observed_at = now.isoformat()
+    events = []
+    for index, (
+        event_id,
+        sport,
+        away_team,
+        home_team,
+        market_key,
+        player,
+        line,
+        over_odds,
+        under_odds,
+    ) in enumerate(QA_DFS_PROP_SPECS):
+        bookmakers = [
+            _qa_dfs_bookmaker(
+                book_key,
+                market_key=market_key,
+                player=player,
+                line=line,
+                over_odds=over_odds + offset,
+                under_odds=under_odds - offset,
+                observed_at=observed_at,
+            )
+            for book_key, offset in QA_DFS_SPORTSBOOKS
+        ]
+        bookmakers.extend(
+            _qa_dfs_bookmaker(
+                book_key,
+                market_key=market_key,
+                player=player,
+                line=line,
+                over_odds=None,
+                under_odds=None,
+                observed_at=observed_at,
+            )
+            for book_key in QA_DFS_APP_PROVIDERS
+        )
+        events.append(
+            {
+                "id": event_id,
+                "sport_key": f"qa_{sport.lower()}",
+                "sport_title": sport,
+                "commence_time": (
+                    now + timedelta(hours=2 + index * 2)
+                ).isoformat(),
+                "home_team": home_team,
+                "away_team": away_team,
+                "bookmakers": bookmakers,
+            }
+        )
+    return events
+
+
+def qa_dfs_payload(
+    *,
+    weights: dict[str, float] | None = None,
+    selected_book: str = "prizepicks",
+    now_utc: datetime | None = None,
+) -> dict:
+    """Build complete per-app DFS boards without requiring live credentials."""
+
+    now = now_utc or datetime.now(timezone.utc)
+    events = qa_dfs_events(now)
+    active_book = (
+        selected_book
+        if selected_book in app_module.DFS_OPTIMIZER_BOOK_KEYS
+        else "prizepicks"
+    )
+    rows_by_book = {
+        book_key: app_module.build_dfs_odds_board(
+            events,
+            weights=weights,
+            selected_dfs_book=book_key,
+            now=now,
+        )
+        for book_key in app_module.DFS_OPTIMIZER_BOOK_KEYS
+    }
+    return {
+        "data": rows_by_book[active_book],
+        "dataByBook": rows_by_book,
+        "total": len(rows_by_book[active_book]),
+        "totalsByBook": {
+            book_key: len(book_rows)
+            for book_key, book_rows in rows_by_book.items()
+        },
+        "configured": True,
+        "dataSource": "visual_qa",
+        "selectedBook": active_book,
+        "refreshSeconds": 15,
     }
 
 
@@ -727,9 +935,27 @@ def build_app():
         return response
 
     @flask_app.before_request
-    def qa_positive_ev_live():
+    def qa_live_feeds():
         if request.path == "/api/positive-ev/live":
             response = jsonify(qa_positive_ev_payload())
+            response.headers["Cache-Control"] = "no-store"
+            return response
+        if request.path == "/api/dfs/lines":
+            payload = request.get_json(silent=True) or {}
+            raw_weights = request.args.get("weights")
+            if raw_weights:
+                try:
+                    payload["weights"] = json.loads(raw_weights)
+                except json.JSONDecodeError:
+                    payload.pop("weights", None)
+            response = jsonify(
+                qa_dfs_payload(
+                    weights=payload.get("weights"),
+                    selected_book=str(
+                        request.args.get("book") or "prizepicks"
+                    ).strip().lower(),
+                )
+            )
             response.headers["Cache-Control"] = "no-store"
             return response
         return None
