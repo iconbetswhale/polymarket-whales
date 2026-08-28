@@ -455,10 +455,27 @@ def test_dfs_removes_summary_row_and_prizepicks_line_odds() -> None:
 
 
 def test_dfs_filter_controls_share_equal_columns_and_alignment() -> None:
-    assert "grid-template-columns: repeat(6, minmax(0, 1fr));" in CSS
+    assert "grid-template-columns: repeat(7, minmax(0, 1fr));" in CSS
     assert "align-items: end;" in CSS
     assert "justify-content: center;" in CSS
     assert "min-height: var(--il-control-height-compact);" in CSS
+
+
+def test_dfs_team_filter_follows_date_sport_team_stat_order() -> None:
+    filter_start = TEMPLATE.index('<div class="dfs-filter-bar il-filter-bar">')
+    filter_end = TEMPLATE.index("</div>", filter_start)
+    filter_markup = TEMPLATE[filter_start:filter_end]
+
+    assert filter_markup.index('id="dfs-date"') < filter_markup.index('id="dfs-sport"')
+    assert filter_markup.index('id="dfs-sport"') < filter_markup.index('id="dfs-team"')
+    assert filter_markup.index('id="dfs-team"') < filter_markup.index('id="dfs-stat"')
+    assert '<span>Teams</span><select id="dfs-team"><option value="">All teams</option>' in filter_markup
+    assert "const teamSelect = document.querySelector('#dfs-team');" in SCRIPT
+    assert "function rowTeams(row)" in SCRIPT
+    assert "function updateTeams()" in SCRIPT
+    assert "rows.filter(row => !sport || row.sport === sport).flatMap(rowTeams)" in SCRIPT
+    assert "(!team || rowTeams(r).includes(team))" in SCRIPT
+    assert "sportSelect.addEventListener('change', () => { updateStats(); updateTeams(); render(); });" in SCRIPT
 
 
 def test_dfs_date_filter_supports_presets_and_inclusive_custom_ranges() -> None:

@@ -179,10 +179,9 @@ def build_dfs_odds_board(
         start = _parse_time(event.get("commence_time"))
         if not event_id or start is None or start <= current:
             continue
-        matchup = (
-            f"{event.get('away_team') or 'Away'} vs "
-            f"{event.get('home_team') or 'Home'}"
-        )
+        away_team = str(event.get("away_team") or "").strip()
+        home_team = str(event.get("home_team") or "").strip()
+        matchup = f"{away_team or 'Away'} vs {home_team or 'Home'}"
         sport = str(event.get("sport_title") or "").upper()
         for bookmaker in event.get("bookmakers") or []:
             book_key = str(bookmaker.get("key") or "").strip().lower()
@@ -223,6 +222,8 @@ def build_dfs_odds_board(
                         "event_id": event_id,
                         "player": player,
                         "match": matchup,
+                        "away_team": away_team,
+                        "home_team": home_team,
                         "sport": sport,
                         "start": start,
                         "stat": STAT_TITLES[market_key],
@@ -377,6 +378,8 @@ def build_dfs_odds_board(
                     ),
                     "player": group["player"],
                     "match": group["match"],
+                    "awayTeam": group["away_team"],
+                    "homeTeam": group["home_team"],
                     "sport": group["sport"],
                     "date": _date_label(group["start"], current),
                     "eventDate": group["start"].astimezone(EASTERN).date().isoformat(),

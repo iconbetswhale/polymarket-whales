@@ -30,6 +30,8 @@
   const loadingState = document.querySelector('#dfs-loading');
   const emptyState = document.querySelector('#dfs-empty');
   const errorState = document.querySelector('#dfs-error');
+  const sportSelect = document.querySelector('#dfs-sport');
+  const teamSelect = document.querySelector('#dfs-team');
   const statSelect = document.querySelector('#dfs-stat');
   const dateSelect = document.querySelector('#dfs-date');
   const customDateRange = document.querySelector('#dfs-custom-date-range');
@@ -483,10 +485,32 @@
 
   function updateStats() {
     const current = statSelect.value;
-    const sport = document.querySelector('#dfs-sport').value;
+    const sport = sportSelect.value;
     const options = sport ? marketTypes[sport] : allMarkets;
     statSelect.innerHTML = '<option value="">All stats</option>' + options.map(stat => `<option>${esc(stat)}</option>`).join('');
     statSelect.value = options.includes(current) ? current : '';
+  }
+
+  function rowTeams(row) {
+    const explicitTeams = [row.awayTeam,row.homeTeam]
+      .map(team => String(team || '').trim())
+      .filter(Boolean);
+    if (explicitTeams.length) return [...new Set(explicitTeams)];
+    return String(row.match || '')
+      .split(/\s+vs\.?\s+/i)
+      .map(team => team.trim())
+      .filter(team => team && !/^(away|home)$/i.test(team));
+  }
+
+  function updateTeams() {
+    const current = teamSelect.value;
+    const sport = sportSelect.value;
+    const teams = [...new Set(
+      rows.filter(row => !sport || row.sport === sport).flatMap(rowTeams)
+    )].sort((left,right) => left.localeCompare(right));
+    teamSelect.innerHTML = '<option value="">All teams</option>'
+      + teams.map(team => `<option value="${esc(team)}">${esc(team)}</option>`).join('');
+    teamSelect.value = teams.includes(current) ? current : '';
   }
 
   function easternDateKey(date = new Date()) {
@@ -602,20 +626,22 @@
     }
     rows = rowsByBook[selectedBookKeys[activeBook]]
       ?? (Array.isArray(payload?.data) ? payload.data : []);
+    updateTeams();
   }
 
   function render() {
     updateAlgoPresentation();
     const activeParlay = selectedParlayProfile();
     const activeParlayOdds = formatAmericanOdds(activeParlay?.odds);
-    const sport = document.querySelector('#dfs-sport').value;
+    const sport = sportSelect.value;
+    const team = teamSelect.value;
     const dateRange = selectedDateRange();
     if (dateRange) dateRange.today = easternDateKey();
     const stat = statSelect.value;
     const side = document.querySelector('#dfs-side').value;
     const search = document.querySelector('#dfs-search').value.trim().toLowerCase();
     const visible = rows
-      .filter(r => selectedDfsLine(r) !== null && matchesDateRange(r,dateRange) && (!sport || r.sport === sport) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
+      .filter(r => selectedDfsLine(r) !== null && matchesDateRange(r,dateRange) && (!sport || r.sport === sport) && (!team || rowTeams(r).includes(team)) && (!stat || r.stat === stat) && (!side || r.side === side) && (!search || `${r.player} ${r.match}`.toLowerCase().includes(search)))
       .sort(compareByHitRate);
     body.innerHTML = visible.map(r => {
       const activeLine = selectedDfsLine(r);
@@ -847,6 +873,7 @@
     lineHead.setAttribute('aria-label',selectedOddsTitle);
     const selectedRows = rowsByBook[selectedBookKeys[activeBook]];
     if (Array.isArray(selectedRows)) rows = selectedRows;
+    updateTeams();
     reorderHeaders();
     render();
     if (changed && !Array.isArray(selectedRows)) loadLiveRows();
@@ -913,12 +940,12 @@
     body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
   });
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); persistCompareOrder(); reorderHeaders(); render(); });
-  document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
-  ['dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
+  sportSelect.addEventListener('change', () => { updateStats(); updateTeams(); render(); });
+  ['dfs-team','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   dateSelect.addEventListener('change', () => { syncCustomDateRange(); render(); });
   [customDateStart,customDateEnd].forEach(input => input.addEventListener('input', () => { syncCustomDateRange(); render(); }));
   document.querySelector('#dfs-search').addEventListener('input', render);
-  document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); dateSelect.value='next_7_days'; document.querySelector('#dfs-search').value=''; resetCustomDateRange(); syncCustomDateRange(); updateStats(); render(); });
+  document.querySelector('#dfs-reset').addEventListener('click', () => { document.querySelectorAll('.dfs-filter-bar select').forEach(el=>el.value=''); dateSelect.value='next_7_days'; document.querySelector('#dfs-search').value=''; resetCustomDateRange(); syncCustomDateRange(); updateStats(); updateTeams(); render(); });
   document.querySelector('#dfs-live').addEventListener('click', () => setLiveRefresh(true));
   document.querySelector('#dfs-pause').addEventListener('click', () => setLiveRefresh(false));
   document.querySelector('#dfs-refresh').addEventListener('click', () => loadLiveRows());
@@ -971,6 +998,7 @@
     else if (liveRefreshEnabled) loadLiveRows();
   });
   updateStats();
+  updateTeams();
   resetCustomDateRange();
   syncCustomDateRange();
   reorderHeaders();
