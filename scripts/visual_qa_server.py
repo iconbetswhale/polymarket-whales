@@ -17,7 +17,7 @@ from execution_providers import (
     POLYMARKET_LOGO_URL,
     PROPHETX_LOGO_URL,
 )
-from flask import g, redirect, request
+from flask import g, jsonify, redirect, request
 from personal_tracker import personal_fill_snapshot
 from position_tracker import MODEL_TRACKER_USER_ID
 from sharp_tracking import sharp_snapshot_from_trade
@@ -239,6 +239,131 @@ def qa_snapshot(now_utc: datetime | None = None) -> dict:
             "state": "ok",
             "enabled_wallet_count": 9,
             "last_successful_refresh": now.isoformat(),
+        },
+    }
+
+
+def qa_positive_ev_payload(now_utc: datetime | None = None) -> dict:
+    """Stable, realistic +EV rows for responsive browser QA."""
+
+    now = now_utc or datetime.now(timezone.utc)
+    specs = (
+        ("qa-ev-royals", "baseball_mlb", "MLB", "Toronto Blue Jays", "Kansas City Royals", "Kansas City Royals", 100, 2.89, 35.80),
+        ("qa-ev-storm", "basketball_wnba", "WNBA", "Toronto Tempo", "Seattle Storm", "Seattle Storm", -238, 1.36, 43.64),
+        ("qa-ev-yankees", "baseball_mlb", "MLB", "Houston Astros", "New York Yankees", "New York Yankees", -144, 1.49, 27.02),
+    )
+    book_specs = (
+        ("novig", "Novig", NOVIG_LOGO_URL, 0),
+        ("polymarket", "Polymarket", POLYMARKET_LOGO_URL, -4),
+        ("prophetexchange", "Prophet Exchange", PROPHETX_LOGO_URL, -5),
+        ("pinnacle", "Pinnacle", "/static/assets/providers/pinnacle.png", -8),
+        ("circa", "Circa", "/static/assets/dfs-books/circa.png", -10),
+    )
+    rows = []
+    for index, (
+        opportunity_id,
+        sport_key,
+        league,
+        away_team,
+        home_team,
+        selection,
+        american_odds,
+        ev_percent,
+        recommended_stake,
+    ) in enumerate(specs):
+        opponent = away_team if selection == home_team else home_team
+        selection_quotes = []
+        opponent_quotes = []
+        for book_key, book_name, logo_url, offset in book_specs:
+            selected_price = american_odds + offset
+            opposing_price = -104 - offset - index
+            shared = {
+                "bookKey": book_key,
+                "bookName": book_name,
+                "logoUrl": logo_url,
+                "lastUpdated": now.isoformat(),
+                "quoteAgeSeconds": 4 + index,
+                "deepLink": "https://novig.com/" if book_key == "novig" else "https://polymarket.com/",
+            }
+            selection_quotes.append(
+                {
+                    **shared,
+                    "americanOdds": selected_price,
+                    "topPriceAmericanOdds": selected_price,
+                    "topPriceLiquidity": 1800 - index * 100,
+                }
+            )
+            opponent_quotes.append(
+                {
+                    **shared,
+                    "americanOdds": opposing_price,
+                    "topPriceAmericanOdds": opposing_price,
+                    "topPriceLiquidity": 1650 - index * 100,
+                }
+            )
+        best = {
+            **selection_quotes[0],
+            "effectiveDecimal": (
+                1 + american_odds / 100
+                if american_odds > 0
+                else 1 + 100 / abs(american_odds)
+            ),
+            "executionStatus": "executable",
+        }
+        rows.append(
+            {
+                "id": opportunity_id,
+                "eventId": f"event-{index}",
+                "sportKey": sport_key,
+                "league": league,
+                "eventTitle": f"{away_team} vs {home_team}",
+                "homeTeam": home_team,
+                "awayTeam": away_team,
+                "commenceTime": (now + timedelta(hours=2 + index * 2)).isoformat(),
+                "marketKey": "h2h",
+                "marketLabel": "Moneyline",
+                "selection": selection,
+                "evPercent": ev_percent,
+                "fairProbability": 0.51,
+                "fairAmerican": -104,
+                "fairConfidence": 0.91,
+                "sourceCount": 3,
+                "sourceBooks": [
+                    {
+                        "bookKey": quote["bookKey"],
+                        "bookName": quote["bookName"],
+                        "logoUrl": quote["logoUrl"],
+                        "americanOdds": quote["americanOdds"],
+                        "weight": weight,
+                    }
+                    for quote, weight in zip(selection_quotes[2:], (0.4, 0.35, 0.25))
+                ],
+                "bestQuote": best,
+                "quotes": selection_quotes,
+                "marketSides": [
+                    {"selection": selection, "quotes": selection_quotes},
+                    {"selection": opponent, "quotes": opponent_quotes},
+                ],
+                "executionStatus": "executable",
+                "portfolioStatus": "qualified",
+                "recommendedStake": recommended_stake,
+                "warnings": [],
+                "calculatedAt": now.isoformat(),
+            }
+        )
+    return {
+        "data": rows,
+        "total": len(rows),
+        "configured": True,
+        "degraded": False,
+        "stale": False,
+        "dataSource": "visual_qa",
+        "refreshSeconds": 15,
+        "diagnostics": {
+            "qualified": len(rows),
+            "watchOnly": 0,
+            "rejected": 0,
+            "rejectionReasons": {},
         },
     }
 
@@ -600,6 +725,14 @@ def build_app():
         response.set_cookie("iconbets_user", user_id)
         response.delete_cookie(app_module.AUTH_SESSION_COOKIE)
         return response
+
+    @flask_app.before_request
+    def qa_positive_ev_live():
+        if request.path == "/api/positive-ev/live":
+            response = jsonify(qa_positive_ev_payload())
+            response.headers["Cache-Control"] = "no-store"
+            return response
+        return None
 
     return flask_app
 

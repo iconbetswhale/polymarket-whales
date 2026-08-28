@@ -74,7 +74,19 @@ class PostgresUserStore:
         try:
             with self._raw_connection() as conn:
                 row = conn.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version = %s LIMIT 1",
+                    """
+                    SELECT 1 AS ready
+                    FROM schema_migrations
+                    WHERE version = %s
+                      AND EXISTS (
+                          SELECT 1
+                          FROM information_schema.columns
+                          WHERE table_schema = current_schema()
+                            AND table_name = 'user_settings'
+                            AND column_name = 'dfs_compare_book_order_json'
+                      )
+                    LIMIT 1
+                    """,
                     (MARKET_QUOTE_MIGRATION_VERSION,),
                 ).fetchone()
             return row is not None
@@ -144,6 +156,7 @@ class PostgresUserStore:
                 tracker_bankroll DOUBLE PRECISION NOT NULL,
                 personal_tracker_bankroll DOUBLE PRECISION NOT NULL,
                 tracker_view TEXT NOT NULL DEFAULT 'model',
+                dfs_compare_book_order_json TEXT NOT NULL DEFAULT '[]',
                 settings_version INTEGER NOT NULL DEFAULT 1,
                 unit_percentage DOUBLE PRECISION NOT NULL,
                 updated_at TEXT NOT NULL
@@ -608,6 +621,12 @@ class PostgresUserStore:
                 """
                 ALTER TABLE user_settings
                 ADD COLUMN IF NOT EXISTS tracker_view TEXT
+                """
+            )
+            conn.execute(
+                """
+                ALTER TABLE user_settings
+                ADD COLUMN IF NOT EXISTS dfs_compare_book_order_json TEXT NOT NULL DEFAULT '[]'
                 """
             )
             conn.execute(
@@ -1093,7 +1112,8 @@ class PostgresUserStore:
                 SELECT user_id, starting_bankroll, trades_to_play_bankroll,
                        sizing_bankroll_configured, tracker_bankroll,
                        personal_tracker_bankroll, tracker_view,
-                       settings_version, unit_percentage, updated_at
+                       dfs_compare_book_order_json, settings_version,
+                       unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = %s
                 """,
@@ -1134,7 +1154,8 @@ class PostgresUserStore:
                 RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
                           sizing_bankroll_configured, tracker_bankroll,
                           personal_tracker_bankroll, tracker_view,
-                          settings_version, unit_percentage, updated_at
+                          dfs_compare_book_order_json, settings_version,
+                          unit_percentage, updated_at
                 """,
                 values,
             ).fetchone()
@@ -1157,7 +1178,8 @@ class PostgresUserStore:
                 RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
                           sizing_bankroll_configured, tracker_bankroll,
                           personal_tracker_bankroll, tracker_view,
-                          settings_version, unit_percentage, updated_at
+                          dfs_compare_book_order_json, settings_version,
+                          unit_percentage, updated_at
                 """,
                 (tracker_bankroll, now, user_id),
             ).fetchone()
@@ -1179,7 +1201,8 @@ class PostgresUserStore:
                 RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
                           sizing_bankroll_configured, tracker_bankroll,
                           personal_tracker_bankroll, tracker_view,
-                          settings_version, unit_percentage, updated_at
+                          dfs_compare_book_order_json, settings_version,
+                          unit_percentage, updated_at
                 """,
                 (personal_tracker_bankroll, now, user_id),
             ).fetchone()
@@ -1199,9 +1222,33 @@ class PostgresUserStore:
                 RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
                           sizing_bankroll_configured, tracker_bankroll,
                           personal_tracker_bankroll, tracker_view,
-                          settings_version, unit_percentage, updated_at
+                          dfs_compare_book_order_json, settings_version,
+                          unit_percentage, updated_at
                 """,
                 (tracker_view, now, user_id),
+            ).fetchone()
+        if row is None:
+            raise LookupError(f"User settings not found for {user_id}")
+        return dict(row)
+
+    def update_dfs_compare_book_order(
+        self, user_id: str, compare_book_order: list[str]
+    ) -> dict:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            row = conn.execute(
+                """
+                UPDATE user_settings
+                SET dfs_compare_book_order_json = %s, updated_at = %s,
+                    settings_version = settings_version + 1
+                WHERE user_id = %s
+                RETURNING user_id, starting_bankroll, trades_to_play_bankroll,
+                          sizing_bankroll_configured, tracker_bankroll,
+                          personal_tracker_bankroll, tracker_view,
+                          dfs_compare_book_order_json, settings_version,
+                          unit_percentage, updated_at
+                """,
+                (json.dumps(compare_book_order), now, user_id),
             ).fetchone()
         if row is None:
             raise LookupError(f"User settings not found for {user_id}")
@@ -1214,7 +1261,8 @@ class PostgresUserStore:
                 SELECT user_id, starting_bankroll, trades_to_play_bankroll,
                        sizing_bankroll_configured, tracker_bankroll,
                        personal_tracker_bankroll, tracker_view,
-                       settings_version, unit_percentage, updated_at
+                       dfs_compare_book_order_json, settings_version,
+                       unit_percentage, updated_at
                 FROM user_settings
                 """
             ).fetchall()

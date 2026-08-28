@@ -225,18 +225,15 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     assert ".ev-execution" in CSS and "background: transparent" in CSS
 
 
-def test_positive_ev_desktop_keeps_the_shared_sidebar_and_its_workspace_offset() -> None:
-    desktop_scanner = CSS[CSS.index("/* Reference-led +EV market scanner.") :]
-    workspace_rule = desktop_scanner[
-        desktop_scanner.index('body[data-design-system="v2"][data-page="positive-ev"] .app-shell,') :
-        desktop_scanner.index('body[data-design-system="v2"][data-page="positive-ev"] .ev-page,')
-    ]
+def test_positive_ev_reference_design_stays_inside_the_shared_site_shell() -> None:
+    reference_css = CSS[CSS.index("/* Reference-led +EV market scanner.") :]
 
-    assert 'body[data-design-system="v2"][data-page="positive-ev"] .app-nav,' not in desktop_scanner
-    assert "width: 100vw;" not in workspace_rule
-    assert "max-width: none;" not in workspace_rule
-    assert "margin: 0;" not in workspace_rule
-    assert "Keep the shared desktop navigation rail" in desktop_scanner
+    assert "the shared IconLabs shell remains authoritative" in reference_css
+    assert '.app-nav,' not in reference_css
+    assert '.sidebar-expanded .app-shell' not in reference_css
+    assert "width: 100vw" not in reference_css
+    assert "grid-template-columns: minmax(0, 1fr) minmax(340px, .45fr)" in reference_css
+    assert "grid-template-columns: 108px minmax(180px, 1fr) 104px minmax(238px, 1.2fr)" in reference_css
 
 
 def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:

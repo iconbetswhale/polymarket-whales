@@ -92,7 +92,9 @@ ODDSENGINE_LOGOS = {
 }
 
 BOOK_ALIASES = {
-    "betr": "betrsportsbook",
+    # OddsEngine exposes Betr's DFS product as `betr` and its sportsbook as
+    # the separate `betrsportsbook` id. Keep those feeds isolated.
+    "betr": "betr_picks",
     "hardrock": "hardrockbet",
     "prophetx": "prophetexchange",
     "sportsbettingag": "sportsbetting_ag",
@@ -646,6 +648,7 @@ def _selection_outcome(
         "sid": str(selection.get("selection_id") or ""),
         "id": str(selection.get("selection_id") or ""),
         "link": str(selection.get("bet_link") or ""),
+        "is_alt": bool(selection.get("is_alt")),
     }
     if market_key != "h2h" and line is not None:
         try:

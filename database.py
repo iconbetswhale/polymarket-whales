@@ -175,6 +175,7 @@ class TrackerDatabase:
                     tracker_bankroll REAL NOT NULL,
                     personal_tracker_bankroll REAL NOT NULL,
                     tracker_view TEXT NOT NULL DEFAULT 'model',
+                    dfs_compare_book_order_json TEXT NOT NULL DEFAULT '[]',
                     settings_version INTEGER NOT NULL DEFAULT 1,
                     unit_percentage REAL NOT NULL,
                     updated_at TEXT NOT NULL
@@ -563,6 +564,10 @@ class TrackerDatabase:
             if "tracker_view" not in settings_columns:
                 conn.execute(
                     "ALTER TABLE user_settings ADD COLUMN tracker_view TEXT NOT NULL DEFAULT 'model'"
+                )
+            if "dfs_compare_book_order_json" not in settings_columns:
+                conn.execute(
+                    "ALTER TABLE user_settings ADD COLUMN dfs_compare_book_order_json TEXT NOT NULL DEFAULT '[]'"
                 )
             if "settings_version" not in settings_columns:
                 conn.execute(
@@ -1204,7 +1209,8 @@ class TrackerDatabase:
                 SELECT user_id, starting_bankroll, trades_to_play_bankroll,
                        sizing_bankroll_configured, tracker_bankroll,
                        personal_tracker_bankroll, tracker_view,
-                       settings_version, unit_percentage, updated_at
+                       dfs_compare_book_order_json, settings_version,
+                       unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = ?
                 """,
@@ -1275,7 +1281,8 @@ class TrackerDatabase:
                 SELECT user_id, starting_bankroll, trades_to_play_bankroll,
                        sizing_bankroll_configured, tracker_bankroll,
                        personal_tracker_bankroll, tracker_view,
-                       settings_version, unit_percentage, updated_at
+                       dfs_compare_book_order_json, settings_version,
+                       unit_percentage, updated_at
                 FROM user_settings
                 WHERE user_id = ?
                 """,
@@ -1325,6 +1332,28 @@ class TrackerDatabase:
                 raise LookupError(f"User settings not found for {user_id}")
         return self.get_or_create_user_settings(user_id, 1, 0.01)
 
+    def update_dfs_compare_book_order(
+        self, user_id: str, compare_book_order: list[str]
+    ) -> dict:
+        if self.user_store:
+            return self.user_store.update_dfs_compare_book_order(
+                user_id, compare_book_order
+            )
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE user_settings
+                SET dfs_compare_book_order_json = ?, updated_at = ?,
+                    settings_version = settings_version + 1
+                WHERE user_id = ?
+                """,
+                (json.dumps(compare_book_order), now, user_id),
+            )
+            if cursor.rowcount == 0:
+                raise LookupError(f"User settings not found for {user_id}")
+        return self.get_or_create_user_settings(user_id, 1, 0.01)
+
     def list_user_settings(self) -> list[dict]:
         if self.user_store:
             return self.user_store.list_user_settings()
@@ -1334,7 +1363,8 @@ class TrackerDatabase:
                 SELECT user_id, starting_bankroll, trades_to_play_bankroll,
                        sizing_bankroll_configured, tracker_bankroll,
                        personal_tracker_bankroll, tracker_view,
-                       settings_version, unit_percentage, updated_at
+                       dfs_compare_book_order_json, settings_version,
+                       unit_percentage, updated_at
                 FROM user_settings
                 """
             ).fetchall()

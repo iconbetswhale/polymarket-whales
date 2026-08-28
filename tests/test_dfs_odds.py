@@ -16,6 +16,8 @@ def _market(
     player: str = "Aaron Judge",
     over_price: int = -110,
     under_price: int = -110,
+    sides: tuple[str, ...] = ("over", "under"),
+    is_alt: bool = False,
 ) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
@@ -28,17 +30,17 @@ def _market(
                 "last_update": observed,
                 "outcomes": [
                     {
-                        "name": "Over",
-                        "price": None if dfs else over_price,
+                        "name": side.title(),
+                        "price": (
+                            None
+                            if dfs
+                            else over_price if side == "over" else under_price
+                        ),
                         "point": line,
                         "description": player,
-                    },
-                    {
-                        "name": "Under",
-                        "price": None if dfs else under_price,
-                        "point": line,
-                        "description": player,
-                    },
+                        "is_alt": is_alt,
+                    }
+                    for side in sides
                 ],
             }
         ],
@@ -169,6 +171,82 @@ def test_live_dfs_board_only_returns_props_available_on_selected_app() -> None:
     assert {row["player"] for row in underdog_rows} == {"Juan Soto"}
     assert all(row["line"] == 2.5 for row in underdog_rows)
     assert all("underdog" in row["dfsLines"] for row in underdog_rows)
+
+
+def test_live_dfs_board_strictly_isolates_every_optimizer_app() -> None:
+    events = _events()
+    app_props = {
+        "underdog": ("underdog", "Juan Soto", 2.5),
+        "dk-pick6": ("pick6", "Mookie Betts", 3.5),
+        "betr": ("betr_picks", "Shohei Ohtani", 4.5),
+        "dabble": ("dabble", "Vladimir Guerrero Jr.", 5.5),
+    }
+    for provider_key, player, line in app_props.values():
+        events[0]["bookmakers"].extend(
+            [
+                _market("fanduel", player=player, line=line),
+                _market(provider_key, dfs=True, player=player, line=line),
+            ]
+        )
+
+    expected_players = {
+        "prizepicks": "Aaron Judge",
+        **{ui_key: values[1] for ui_key, values in app_props.items()},
+    }
+    for ui_key, expected_player in expected_players.items():
+        rows = build_dfs_odds_board(events, selected_dfs_book=ui_key)
+
+        assert {row["player"] for row in rows} == {expected_player}
+        assert {row["side"] for row in rows} == {"Over", "Under"}
+        assert all(ui_key in row["dfsLines"] for row in rows)
+
+
+@pytest.mark.parametrize(
+    ("provider_key", "ui_key"),
+    (
+        ("underdog", "underdog"),
+        ("pick6", "dk-pick6"),
+        ("betr_picks", "betr"),
+        ("dabble", "dabble"),
+    ),
+)
+def test_live_dfs_board_rejects_incomplete_app_props(
+    provider_key: str,
+    ui_key: str,
+) -> None:
+    events = _events()
+    incomplete = _market(
+        provider_key,
+        dfs=True,
+        player="Phantom Home Run",
+        sides=("over",),
+    )
+    incomplete["markets"][0]["key"] = "batter_home_runs"
+    events[0]["bookmakers"].append(incomplete)
+
+    selected_rows = build_dfs_odds_board(events, selected_dfs_book=ui_key)
+    prizepicks_rows = build_dfs_odds_board(
+        events, selected_dfs_book="prizepicks"
+    )
+
+    assert selected_rows == []
+    assert {row["player"] for row in prizepicks_rows} == {"Aaron Judge"}
+    assert all(ui_key not in row["dfsLines"] for row in prizepicks_rows)
+
+
+def test_live_dfs_board_prefers_the_app_headline_line_over_alternates() -> None:
+    events = _events()
+    events[0]["bookmakers"].extend(
+        [
+            _market("underdog", dfs=True, line=2.5, is_alt=True),
+            _market("underdog", dfs=True, line=1.5),
+        ]
+    )
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="underdog")
+
+    assert rows
+    assert all(row["line"] == 1.5 for row in rows)
 
 
 def test_live_dfs_board_rejects_unknown_selected_app() -> None:

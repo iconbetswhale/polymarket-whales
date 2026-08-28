@@ -178,11 +178,11 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
     assert "padding-top: 14px;" in CSS
 
 
-def test_iconlabs_column_matches_book_width_and_alternate_line_does_not_shift_odds() -> None:
+def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odds() -> None:
     assert '.algo-odds-head,\nbody[data-design-system="v2"][data-page="dfs"] .algo-odds-cell' in CSS
-    assert "width: 88px;" in CSS
-    assert "min-width: 88px;" in CSS
-    assert "max-width: 88px;" in CSS
+    assert "width: 72px;" in CSS
+    assert "min-width: 72px;" in CSS
+    assert "max-width: 72px;" in CSS
     assert "alternateLine===null?'':'has-alternate'" in SCRIPT
     assert ".book-cell.has-alternate > strong" in CSS
     assert "top: 50%;" in CSS
@@ -235,12 +235,31 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
     assert "detailPair(row)" in SCRIPT
     assert "sideLane('Over'" in SCRIPT
     assert "sideLane('Under'" in SCRIPT
-    assert "all sportsbook prices" in SCRIPT
+    assert '${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)}' in SCRIPT
+    assert "all sportsbook prices" not in SCRIPT
+    assert "ph-trend-up" not in SCRIPT
+    assert "ph-trend-down" not in SCRIPT
     assert "Best odds" in SCRIPT
     assert "Avg odds" in SCRIPT
     assert ".dfs-odds-detail-grid" in CSS
-    assert "repeat(16, 82px)" in CSS
+    assert "grid-template-columns: 204px 72px 72px repeat(16, 74px)" in CSS
+    assert "repeat(16, 74px)" in CSS
+    assert "min-height: 44px" in CSS
+    assert "min-height: 46px" in CSS
+    assert ".dfs-detail-title {" in CSS
+    assert "align-items: center;" in CSS
+    assert "text-align: center;" in CSS
     assert ".dfs-detail-price.best" in CSS
+
+
+def test_dfs_detail_uses_and_syncs_the_main_saved_sportsbook_order() -> None:
+    assert "function detailBookOrder()" in SCRIPT
+    assert "compareOrder.filter(key => detailBookSet.has(key))" in SCRIPT
+    assert "detailBookOrder().map(key=>marketSnapshot(row,key))" in SCRIPT
+    assert "syncCompareOrderFromAccount()" in SCRIPT
+    assert "persistCompareOrder()" in SCRIPT
+    assert "'/api/dfs/preferences'" in SCRIPT
+    assert "accountOrderSyncEnabled" in SCRIPT
 
 
 def test_iconlabs_algo_hides_internal_weights_and_slider_input_switches_to_custom() -> None:

@@ -410,6 +410,58 @@ class NoVIGRestClient:
             raise NoVIGHTTPError("NOVIG_EVENTS_INVALID_PAYLOAD")
         return [row for row in payload if isinstance(row, dict)]
 
+    def list_active_markets(
+        self,
+        *,
+        league: str | None = None,
+        market_type: str | None = None,
+        limit: int | None = None,
+    ) -> list[dict]:
+        """Load current markets through bounded active-event queries.
+
+        NoVIG's unfiltered ``/markets/open`` response can be large enough to
+        exhaust a serverless function before Python can apply a slice. Active
+        event pages plus ``getMarketsByEvents`` keep the response bounded at
+        the provider and also include the book data needed by the live worker.
+        """
+
+        bounded = None if limit is None else max(1, min(int(limit), 1000))
+        events: list[dict] = []
+        for event_status in SHARP_MONEY_OPEN_EVENT_STATUSES:
+            if bounded is None:
+                events.extend(
+                    self.list_events(
+                        league=league,
+                        event_status=event_status,
+                    )
+                )
+            else:
+                events.extend(
+                    self.list_events_page(
+                        league=league,
+                        event_status=event_status,
+                        limit=min(100, max(10, bounded)),
+                        offset=0,
+                    )
+                )
+        event_ids = list(
+            dict.fromkeys(
+                _safe_text(row.get("id") or row.get("eventId"))
+                for row in events
+                if _safe_text(row.get("id") or row.get("eventId"))
+            )
+        )
+        markets = self.get_markets_by_events(event_ids) if event_ids else []
+        markets = enrich_novig_markets(markets, events)
+        if market_type:
+            wanted_type = _safe_text(market_type).upper()
+            markets = [
+                row
+                for row in markets
+                if _safe_text(row.get("type")).upper() == wanted_type
+            ]
+        return markets if bounded is None else markets[:bounded]
+
     def get_market(self, market_id: str) -> dict:
         payload = self.request(
             "GET", f"/emm/markets/{quote(_validated_identifier(market_id), safe='')}"
@@ -1106,6 +1158,7 @@ class NoVIGStateStore:
         if not self.configured:
             return []
         try:
+            self.initialize()
             clauses = []
             params: list[object] = []
             if league:
@@ -1135,6 +1188,7 @@ class NoVIGStateStore:
         if not self.configured:
             return None
         try:
+            self.initialize()
             with self._connect() as conn:
                 row = conn.execute(
                     "SELECT state_json FROM novig_market_state WHERE market_id = %s",
@@ -1175,6 +1229,7 @@ class NoVIGStateStore:
         if not self.configured:
             return {}
         try:
+            self.initialize()
             with self._connect() as conn:
                 row = conn.execute(
                     "SELECT status_json, updated_at FROM novig_feed_status "
@@ -1670,14 +1725,16 @@ class NoVIGNBXProvider(ExecutionProvider):
             for row in rows
         ]
         if not rows:
-            markets = self.rest.list_open_markets(
-                league=league, market_type=market_type
-            )[: max(1, min(int(limit), 1000))]
-            try:
-                events = self.rest.list_events(league=league)
-            except NoVIGError:
-                events = []
-            markets = enrich_novig_markets(markets, events)
+            if hasattr(self.rest, "list_active_markets"):
+                markets = self.rest.list_active_markets(
+                    league=league,
+                    market_type=market_type,
+                    limit=limit,
+                )
+            else:
+                markets = self.rest.list_open_markets(
+                    league=league, market_type=market_type
+                )[: max(1, min(int(limit), 1000))]
             rows = [
                 {
                     "marketId": market.get("id"),

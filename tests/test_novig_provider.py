@@ -462,7 +462,7 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
     assert result["update_received"] is False
     assert session.request_calls[0][2]["params"] == {
         "status": "OPEN_INGAME",
-        "limit": 1,
+        "limit": 10,
         "offset": 0,
     }
     assert len(session.request_calls) == 1
@@ -504,6 +504,64 @@ def test_websocket_smoke_can_use_preselected_market_without_rest_round_trip() ->
     assert result["success"] is True
     assert session.request_calls == []
     assert socket.sent[0] == {"event": "subscribe", "data": "market-1"}
+
+
+def test_websocket_smoke_resolves_market_from_bounded_active_events() -> None:
+    session = QueueSession(
+        responses=[
+            FakeResponse([{"id": "live-event", "status": "OPEN_INGAME"}]),
+            FakeResponse([]),
+            FakeResponse([sample_market()]),
+        ]
+    )
+    auth = NoVIGAuthClient("client-id", "client-secret", session=session)
+    rest = NoVIGRestClient(auth, session=session)
+    socket = FakeSocket([{"event": "book", "data": {"book": sample_book()}}])
+
+    result = websocket_smoke_test(
+        auth,
+        rest,
+        socket_factory=lambda *_args, **_kwargs: socket,
+    )
+
+    assert result["success"] is True
+    assert [call[1] for call in session.request_calls] == [
+        "https://api.novig.us/nbx/v2/emm/events",
+        "https://api.novig.us/nbx/v2/emm/events",
+        "https://api.novig.us/nbx/v2/emm/events/getMarketsByEvents",
+    ]
+    assert session.request_calls[2][2]["json"] == {
+        "eventIds": ["live-event"],
+        "currency": "CASH",
+    }
+    assert socket.sent[0] == {"event": "subscribe", "data": "market-1"}
+
+
+def test_active_market_catalog_uses_bounded_event_queries() -> None:
+    session = QueueSession(
+        responses=[
+            FakeResponse([sample_market()["event"]]),
+            FakeResponse([]),
+            FakeResponse([sample_market()]),
+        ]
+    )
+    auth = NoVIGAuthClient("client-id", "client-secret", session=session)
+    rest = NoVIGRestClient(auth, session=session)
+
+    markets = rest.list_active_markets(league="MLB", limit=3)
+
+    assert [row["id"] for row in markets] == ["market-1"]
+    assert [call[1] for call in session.request_calls] == [
+        "https://api.novig.us/nbx/v2/emm/events",
+        "https://api.novig.us/nbx/v2/emm/events",
+        "https://api.novig.us/nbx/v2/emm/events/getMarketsByEvents",
+    ]
+    assert session.request_calls[0][2]["params"] == {
+        "league": "MLB",
+        "status": "OPEN_INGAME",
+        "limit": 10,
+        "offset": 0,
+    }
 
 
 def test_american_odds_and_live_fee_depth_math() -> None:

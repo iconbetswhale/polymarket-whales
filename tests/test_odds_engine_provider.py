@@ -14,6 +14,7 @@ from low_hold import build_low_hold_board
 from middles import build_middles_board
 from odds_engine_provider import (
     OddsEngineProvider,
+    normalize_odds_engine_event,
     oddsengine_filter_catalog_payload,
     oddsengine_provider_catalog,
 )
@@ -289,6 +290,88 @@ def test_provider_normalizes_documented_event_odds_and_caches_requests() -> None
         "Aaron Judge"
     }
     assert all(outcome["link"].startswith("https://book.test/") for outcome in moneyline["outcomes"])
+
+
+@pytest.mark.parametrize(
+    ("raw_book", "expected_key"),
+    (
+        ("prizepicks", "prizepicks"),
+        ("underdog", "underdog"),
+        ("dkpick6", "pick6"),
+        ("betr", "betr_picks"),
+        ("dabble", "dabble"),
+        ("betrsportsbook", "betrsportsbook"),
+    ),
+)
+def test_provider_keeps_official_dfs_book_ids_separate_from_sportsbooks(
+    raw_book: str,
+    expected_key: str,
+) -> None:
+    observed_at = datetime.now(timezone.utc).isoformat()
+    payload = {
+        "event_id": "mlb-dfs-books",
+        "event_start": (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+        "home_team": "Boston Red Sox",
+        "away_team": "New York Yankees",
+        "league": "MLB",
+        "market_categories": [
+            {
+                "category": "player",
+                "offers": [
+                    {
+                        "market_key": "batter_hits",
+                        "market": "Batter Hits",
+                        "entity_name": "Aaron Judge",
+                        "books": [
+                            {
+                                "book": raw_book,
+                                "selections": [
+                                    {
+                                        "selection_id": f"{raw_book}-over",
+                                        "entity_name": "Aaron Judge",
+                                        "side": "over",
+                                        "line": 1.5,
+                                        "odds_american": (
+                                            -110
+                                            if expected_key == "betrsportsbook"
+                                            else None
+                                        ),
+                                        "last_fetched": observed_at,
+                                        "is_alt": False,
+                                    },
+                                    {
+                                        "selection_id": f"{raw_book}-under",
+                                        "entity_name": "Aaron Judge",
+                                        "side": "under",
+                                        "line": 1.5,
+                                        "odds_american": (
+                                            -110
+                                            if expected_key == "betrsportsbook"
+                                            else None
+                                        ),
+                                        "last_fetched": observed_at,
+                                        "is_alt": False,
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    normalized = normalize_odds_engine_event(
+        payload,
+        sport_key="baseball_mlb",
+        requested_markets=("batter_hits",),
+    )
+
+    assert normalized is not None
+    assert [book["key"] for book in normalized["bookmakers"]] == [expected_key]
+    outcomes = normalized["bookmakers"][0]["markets"][0]["outcomes"]
+    assert {outcome["name"] for outcome in outcomes} == {"Over", "Under"}
+    assert all(outcome["is_alt"] is False for outcome in outcomes)
 
 
 def test_provider_filter_missing_key_and_safe_diagnostics() -> None:
