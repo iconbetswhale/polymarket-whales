@@ -1399,6 +1399,9 @@ class OddsEngineProvider(ExecutionProvider):
                 "/orderbook/top",
                 params={
                     "sort": "whale",
+                    # Keep ProphetX in OddsEngine's best-odds selection while
+                    # retaining the full exchange depth carried on both sides.
+                    "selected_books": "prophetx",
                     "limit": max(1, min(int(limit), 100)),
                 },
             )

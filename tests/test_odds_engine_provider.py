@@ -697,6 +697,7 @@ def test_provider_reads_and_caches_advanced_prophetx_orderbook() -> None:
     assert session.calls[0]["url"].endswith("/v1/orderbook/top")
     assert session.calls[0]["params"] == {
         "sort": "whale",
+        "selected_books": "prophetx",
         "limit": 40,
     }
     assert provider.diagnostics()["supportsOrderBook"] is True
