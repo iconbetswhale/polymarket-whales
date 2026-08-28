@@ -963,7 +963,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table td:nth-child(5) {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-stat-number {
-  font-size: 24px;
+  font-size: 22px;
   font-weight: 800;
   line-height: 1;
 }
@@ -1012,7 +1012,7 @@ body[data-design-system="v2"][data-page="dfs"] .hit-rate {
 
 body[data-design-system="v2"][data-page="dfs"] .hit-rate strong {
   color: var(--il-text-secondary);
-  font: 700 16px/1 var(--il-font-data);
+  font: 700 15px/1 var(--il-font-data);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .hit-rate.positive-edge {

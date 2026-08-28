@@ -491,7 +491,7 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "font: 700 13px/1 var(--il-font-data);" in CSS
     assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
     assert ".dfs-stat-number" in CSS
-    assert "font-size: 24px;" in CSS
+    assert "font-size: 22px;" in CSS
     assert "font-weight: 800;" in CSS
     assert ".dfs-stat-label" in CSS
     assert "font-size: 12px;" in CSS
@@ -501,13 +501,13 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "text-align: center;" in CSS
 
 
-def test_dfs_chance_to_hit_number_is_two_pixels_larger() -> None:
+def test_dfs_chance_to_hit_number_stays_compact() -> None:
     chance_number_start = CSS.index(".hit-rate strong {")
     chance_number_block = CSS[
         chance_number_start : CSS.index("}", chance_number_start)
     ]
 
-    assert "font: 700 16px/1 var(--il-font-data);" in chance_number_block
+    assert "font: 700 15px/1 var(--il-font-data);" in chance_number_block
 
 
 def test_dfs_stat_and_matchup_text_never_truncate() -> None:
