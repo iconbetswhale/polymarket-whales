@@ -292,6 +292,39 @@ def test_request_uses_one_all_book_feed_and_exact_market_filters() -> None:
     assert "points-home-game-ml-home" in str(params["oddID"])
 
 
+def test_request_batches_every_supported_league_in_one_paginated_feed() -> None:
+    params = sports_game_odds_request_params(
+        (
+            "americanfootball_ncaaf",
+            "americanfootball_nfl",
+            "baseball_mlb",
+            "basketball_nba",
+            "basketball_ncaab",
+            "basketball_ncaaw",
+            "basketball_wnba",
+            "icehockey_nhl",
+            "soccer_epl",
+            "soccer_usa_mls",
+        ),
+        ("h2h", "spreads", "totals"),
+    )
+
+    assert params is not None
+    assert params["leagueID"].split(",") == [
+        "NCAAF",
+        "NFL",
+        "MLB",
+        "NBA",
+        "NCAAB",
+        "NCAAW",
+        "WNBA",
+        "NHL",
+        "EPL",
+        "MLS",
+    ]
+    assert params["limit"] == 100
+
+
 def test_request_supports_full_game_quarter_and_yes_no_player_props() -> None:
     params = sports_game_odds_request_params(
         ("baseball_mlb", "basketball_wnba"),

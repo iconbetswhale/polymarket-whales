@@ -104,51 +104,11 @@
               </div>
             </details>
             <details class="ev-market-filter-group" data-market-group="props">
-              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Player Props"><input type="checkbox" data-market-group-toggle="props" aria-label="Select all Player Props"><span aria-hidden="true"></span></label><strong>Player Props</strong></span><small>43 standard MLB and WNBA markets</small></span><span class="ev-market-group-meta"><b data-market-group-count="props">0/43</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
+              <summary><span class="ev-market-group-heading"><span class="ev-market-title-row"><label class="ev-market-group-toggle" title="Select or deselect all Player Props"><input type="checkbox" data-market-group-toggle="props" aria-label="Select all Player Props"><span aria-hidden="true"></span></label><strong>Player Props</strong></span><small>{{ positive_ev_config.marketGroups.props|length }} standard MLB, NBA, and WNBA markets</small></span><span class="ev-market-group-meta"><b data-market-group-count="props">0/{{ positive_ev_config.marketGroups.props|length }}</b><i class="ph ph-caret-down" aria-hidden="true"></i></span></summary>
               <div class="ev-market-options">
-                <label><input type="checkbox" name="markets" value="batter_hits" data-market-key="batter_hits" data-market-sport="baseball_mlb"><span>Batter Hits</span></label>
-                <label><input type="checkbox" name="markets" value="batter_total_bases" data-market-key="batter_total_bases" data-market-sport="baseball_mlb"><span>Batter Total Bases</span></label>
-                <label><input type="checkbox" name="markets" value="batter_home_runs" data-market-key="batter_home_runs" data-market-sport="baseball_mlb"><span>Batter Home Runs</span></label>
-                <label><input type="checkbox" name="markets" value="batter_first_home_run" data-market-key="batter_first_home_run" data-market-sport="baseball_mlb"><span>First Home Run</span></label>
-                <label><input type="checkbox" name="markets" value="batter_rbis" data-market-key="batter_rbis" data-market-sport="baseball_mlb"><span>Batter RBIs</span></label>
-                <label><input type="checkbox" name="markets" value="batter_runs_scored" data-market-key="batter_runs_scored" data-market-sport="baseball_mlb"><span>Batter Runs Scored</span></label>
-                <label><input type="checkbox" name="markets" value="batter_hits_runs_rbis" data-market-key="batter_hits_runs_rbis" data-market-sport="baseball_mlb"><span>Hits + Runs + RBIs</span></label>
-                <label><input type="checkbox" name="markets" value="batter_runs_rbis" data-market-key="batter_runs_rbis" data-market-sport="baseball_mlb"><span>Runs + RBIs</span></label>
-                <label><input type="checkbox" name="markets" value="batter_singles" data-market-key="batter_singles" data-market-sport="baseball_mlb"><span>Batter Singles</span></label>
-                <label><input type="checkbox" name="markets" value="batter_doubles" data-market-key="batter_doubles" data-market-sport="baseball_mlb"><span>Batter Doubles</span></label>
-                <label><input type="checkbox" name="markets" value="batter_triples" data-market-key="batter_triples" data-market-sport="baseball_mlb"><span>Batter Triples</span></label>
-                <label><input type="checkbox" name="markets" value="batter_walks" data-market-key="batter_walks" data-market-sport="baseball_mlb"><span>Batter Walks</span></label>
-                <label><input type="checkbox" name="markets" value="batter_strikeouts" data-market-key="batter_strikeouts" data-market-sport="baseball_mlb"><span>Batter Strikeouts</span></label>
-                <label><input type="checkbox" name="markets" value="batter_stolen_bases" data-market-key="batter_stolen_bases" data-market-sport="baseball_mlb"><span>Batter Stolen Bases</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_strikeouts" data-market-key="pitcher_strikeouts" data-market-sport="baseball_mlb"><span>Pitcher Strikeouts</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_hits_allowed" data-market-key="pitcher_hits_allowed" data-market-sport="baseball_mlb"><span>Pitcher Hits Allowed</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_walks" data-market-key="pitcher_walks" data-market-sport="baseball_mlb"><span>Pitcher Walks Allowed</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_earned_runs" data-market-key="pitcher_earned_runs" data-market-sport="baseball_mlb"><span>Pitcher Earned Runs</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_outs" data-market-key="pitcher_outs" data-market-sport="baseball_mlb"><span>Pitcher Outs Recorded</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_pitches_thrown" data-market-key="pitcher_pitches_thrown" data-market-sport="baseball_mlb"><span>Pitcher Pitches Thrown</span></label>
-                <label><input type="checkbox" name="markets" value="pitcher_record_a_win" data-market-key="pitcher_record_a_win" data-market-sport="baseball_mlb"><span>Pitcher to Record a Win</span></label>
-                <label><input type="checkbox" name="markets" value="player_points" data-market-key="player_points" data-market-sport="basketball_wnba"><span>Player Points</span></label>
-                <label><input type="checkbox" name="markets" value="player_points_q1" data-market-key="player_points_q1" data-market-sport="basketball_wnba"><span>1st Quarter Points</span></label>
-                <label><input type="checkbox" name="markets" value="player_rebounds" data-market-key="player_rebounds" data-market-sport="basketball_wnba"><span>Player Rebounds</span></label>
-                <label><input type="checkbox" name="markets" value="player_rebounds_q1" data-market-key="player_rebounds_q1" data-market-sport="basketball_wnba"><span>1st Quarter Rebounds</span></label>
-                <label><input type="checkbox" name="markets" value="player_assists" data-market-key="player_assists" data-market-sport="basketball_wnba"><span>Player Assists</span></label>
-                <label><input type="checkbox" name="markets" value="player_assists_q1" data-market-key="player_assists_q1" data-market-sport="basketball_wnba"><span>1st Quarter Assists</span></label>
-                <label><input type="checkbox" name="markets" value="player_threes" data-market-key="player_threes" data-market-sport="basketball_wnba"><span>Player Three-Pointers</span></label>
-                <label><input type="checkbox" name="markets" value="player_blocks" data-market-key="player_blocks" data-market-sport="basketball_wnba"><span>Player Blocks</span></label>
-                <label><input type="checkbox" name="markets" value="player_steals" data-market-key="player_steals" data-market-sport="basketball_wnba"><span>Player Steals</span></label>
-                <label><input type="checkbox" name="markets" value="player_blocks_steals" data-market-key="player_blocks_steals" data-market-sport="basketball_wnba"><span>Blocks + Steals</span></label>
-                <label><input type="checkbox" name="markets" value="player_turnovers" data-market-key="player_turnovers" data-market-sport="basketball_wnba"><span>Player Turnovers</span></label>
-                <label><input type="checkbox" name="markets" value="player_points_rebounds_assists" data-market-key="player_points_rebounds_assists" data-market-sport="basketball_wnba"><span>Points + Rebounds + Assists</span></label>
-                <label><input type="checkbox" name="markets" value="player_points_rebounds" data-market-key="player_points_rebounds" data-market-sport="basketball_wnba"><span>Points + Rebounds</span></label>
-                <label><input type="checkbox" name="markets" value="player_points_assists" data-market-key="player_points_assists" data-market-sport="basketball_wnba"><span>Points + Assists</span></label>
-                <label><input type="checkbox" name="markets" value="player_rebounds_assists" data-market-key="player_rebounds_assists" data-market-sport="basketball_wnba"><span>Rebounds + Assists</span></label>
-                <label><input type="checkbox" name="markets" value="player_field_goals" data-market-key="player_field_goals" data-market-sport="basketball_wnba"><span>Field Goals Made</span></label>
-                <label><input type="checkbox" name="markets" value="player_field_goals_attempted" data-market-key="player_field_goals_attempted" data-market-sport="basketball_wnba"><span>Field Goals Attempted</span></label>
-                <label><input type="checkbox" name="markets" value="player_frees_made" data-market-key="player_frees_made" data-market-sport="basketball_wnba"><span>Free Throws Made</span></label>
-                <label><input type="checkbox" name="markets" value="player_frees_attempts" data-market-key="player_frees_attempts" data-market-sport="basketball_wnba"><span>Free Throws Attempted</span></label>
-                <label><input type="checkbox" name="markets" value="player_first_basket" data-market-key="player_first_basket" data-market-sport="basketball_wnba"><span>First Basket</span></label>
-                <label><input type="checkbox" name="markets" value="player_double_double" data-market-key="player_double_double" data-market-sport="basketball_wnba"><span>Double-Double</span></label>
-                <label><input type="checkbox" name="markets" value="player_triple_double" data-market-key="player_triple_double" data-market-sport="basketball_wnba"><span>Triple-Double</span></label>
+                {% for market in positive_ev_config.marketGroups.props %}
+                <label><input type="checkbox" name="markets" value="{{ market.key }}" data-market-key="{{ market.key }}" data-market-sport="{{ market.sports[0] }}" data-market-sports="{{ market.sports|join(',') }}"><span>{{ market.name }}</span></label>
+                {% endfor %}
               </div>
             </details>
             <details class="ev-market-filter-group" data-market-group="alternate">
@@ -162,8 +122,9 @@
           <p class="ev-market-error" id="ev-market-error" role="status"></p>
           <h4>Leagues</h4>
           <div class="ev-chip-grid">
-            <label><input type="checkbox" name="sports" value="baseball_mlb" checked><span>MLB</span></label>
-            <label><input type="checkbox" name="sports" value="basketball_wnba" checked><span>WNBA</span></label>
+            {% for sport in positive_ev_config.sports %}
+            <label><input type="checkbox" name="sports" value="{{ sport.key }}" checked><span>{{ sport.name }}</span></label>
+            {% endfor %}
           </div>
         </section>
         <section class="ev-filter-panel" data-filter-panel="sportsbooks">

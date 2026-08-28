@@ -12,6 +12,7 @@ from execution_providers import ProviderHealthStatus
 from model_tracker_discord import DiscordDeliveryResult
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
+    ALL_ODDS_SPORT_KEYS,
     DFS_COMPARE_BOOK_KEYS,
     _attach_historical_personal_sharps,
     _format_event_start,
@@ -678,9 +679,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
 
     assert response.status_code == 200
     payload = response.get_json()
-    assert calls == [
-        (("baseball_mlb", "basketball_wnba"), ("h2h", "spreads", "totals"))
-    ]
+    assert calls == [(ALL_ODDS_SPORT_KEYS, ("h2h", "spreads", "totals"))]
     assert payload["dataSource"] == "sports_game_odds"
     assert set(payload["sourceWeights"]) == {
         "pinnacle",
@@ -726,7 +725,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     )
     assert custom_markets.status_code == 200
     assert calls[-1] == (
-        ("baseball_mlb", "basketball_wnba"),
+        ALL_ODDS_SPORT_KEYS,
         ("h2h", "batter_total_bases", "alternate_totals"),
     )
 
@@ -742,7 +741,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     )
     assert expanded_props.status_code == 200
     assert calls[-1] == (
-        ("baseball_mlb", "basketball_wnba"),
+        ALL_ODDS_SPORT_KEYS,
         (
             "batter_hits_runs_rbis",
             "pitcher_pitches_thrown",

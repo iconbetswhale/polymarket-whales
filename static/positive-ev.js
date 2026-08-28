@@ -34,7 +34,9 @@
   const defaults = {
     group: "custom",
     markets: [...marketGroups.main],
-    sports: ["baseball_mlb", "basketball_wnba"],
+    sports: Array.isArray(serverConfig.sports) && serverConfig.sports.length
+      ? serverConfig.sports.map(sport => sport.key).filter(Boolean)
+      : ["baseball_mlb", "basketball_nba", "basketball_wnba"],
     books: catalog.filter(book => book.defaultExecution).map(book => book.key),
     minEv: 1,
     kelly: .25,
@@ -43,7 +45,7 @@
     devigMethod: "power",
     weights: Object.fromEntries(devigCatalog.map(book => [book.key, Number(book.weight || 0)])),
     catalogVersion,
-    settingsVersion: 2
+    settingsVersion: 3
   };
   const bookNames = Object.fromEntries(catalog.map(book => [book.key, book.name]));
   const bookLogos = Object.fromEntries(catalog.map(book => [book.key, book.logoUrl || ""]));
@@ -54,7 +56,10 @@
     const saved = JSON.parse(localStorage.getItem("iconlabs-ev-settings") || "{}");
     const {books, weights, markets, requiredBooks, catalogVersion: savedVersion, bankroll, maxQuoteAge, maxDispersion, maxStakePct, maxEventPct, ...rest} = saved;
     const migrated = {...rest};
-    if (Number(saved.settingsVersion) !== defaults.settingsVersion) delete migrated.minSources;
+    if (Number(saved.settingsVersion) !== defaults.settingsVersion) {
+      delete migrated.minSources;
+      delete migrated.sports;
+    }
     settings = {...settings, ...migrated};
     if (!validDevigMethods.has(settings.devigMethod)) settings.devigMethod = defaults.devigMethod;
     settings.requiredBooks = Array.isArray(requiredBooks) ? [...new Set(requiredBooks.filter(key => validRequiredBookKeys.has(key)))] : [...defaults.requiredBooks];
@@ -802,7 +807,9 @@
     const activeSports = new Set([...document.querySelectorAll('input[name="sports"]:checked')].map(input => input.value));
     const inputs = [...document.querySelectorAll("[data-market-key]")];
     inputs.forEach(input => {
-      input.disabled = Boolean(input.dataset.marketSport && !activeSports.has(input.dataset.marketSport));
+      const supportedSports = String(input.dataset.marketSports || input.dataset.marketSport || "")
+        .split(",").map(value => value.trim()).filter(Boolean);
+      input.disabled = supportedSports.length > 0 && !supportedSports.some(sport => activeSports.has(sport));
       input.closest("label")?.classList.toggle("disabled", input.disabled);
     });
     Object.entries(marketGroups).forEach(([group, keys]) => {

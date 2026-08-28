@@ -499,7 +499,12 @@ def _book_key(value: object) -> str | None:
     return normalized if normalized in ODDSENGINE_BOOKMAKERS else None
 
 
-def _canonical_market_key(offer: dict, selections: list[dict]) -> str | None:
+def _canonical_market_key(
+    offer: dict,
+    selections: list[dict],
+    *,
+    category: dict | None = None,
+) -> str | None:
     candidates = (
         _slug(offer.get("market_key")),
         _slug(offer.get("market")),
@@ -537,6 +542,67 @@ def _canonical_market_key(offer: dict, selections: list[dict]) -> str | None:
         ):
             market_key = "totals"
             break
+
+    # The scanners currently model these three keys as full-game markets.  A
+    # loose ``contains('total')`` fallback previously collapsed team totals,
+    # first halves, quarters, periods, and innings into the same family.  That
+    # produced impossible middle windows (for example a WNBA team total paired
+    # with the full-game total) and crowded out real opportunities.
+    if market_key in {"h2h", "spreads", "totals"}:
+        scope = "_".join(
+            value
+            for value in (
+                *candidates,
+                _slug(offer.get("name")),
+                _slug(offer.get("period")),
+                _slug(offer.get("period_id")),
+                _slug((category or {}).get("category")),
+                _slug((category or {}).get("name")),
+            )
+            if value
+        )
+        non_full_game_scopes = (
+            "team_total",
+            "first_half",
+            "1st_half",
+            "second_half",
+            "2nd_half",
+            "first_quarter",
+            "1st_quarter",
+            "second_quarter",
+            "2nd_quarter",
+            "third_quarter",
+            "3rd_quarter",
+            "fourth_quarter",
+            "4th_quarter",
+            "first_period",
+            "1st_period",
+            "second_period",
+            "2nd_period",
+            "third_period",
+            "3rd_period",
+            "first_inning",
+            "1st_inning",
+            "first_5",
+            "first_five",
+            "_q1",
+            "_q2",
+            "_q3",
+            "_q4",
+            "_1h",
+            "_2h",
+            "_1p",
+            "_2p",
+            "_3p",
+        )
+        category_scope = _slug((category or {}).get("category"))
+        if any(token in scope for token in non_full_game_scopes) or category_scope in {
+            "half",
+            "quarter",
+            "period",
+            "inning",
+        }:
+            return None
 
     alternate_line = any(bool(selection.get("is_alt")) for selection in selections)
     alternate_line = alternate_line or any(
@@ -696,7 +762,11 @@ def normalize_odds_engine_event(
                     for selection in raw_book.get("selections") or []
                     if isinstance(selection, dict)
                 ]
-                market_key = _canonical_market_key(offer, selections)
+                market_key = _canonical_market_key(
+                    offer,
+                    selections,
+                    category=category,
+                )
                 if not market_key or (allowed and market_key not in allowed):
                     continue
                 book_key = _book_key(raw_book.get("book"))

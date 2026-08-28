@@ -14,8 +14,9 @@ DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-
 
 def test_positive_ev_defaults_to_two_independent_fair_sources() -> None:
     assert "minSources: 2" in SCRIPT
-    assert "settingsVersion: 2" in SCRIPT
+    assert "settingsVersion: 3" in SCRIPT
     assert "delete migrated.minSources" in SCRIPT
+    assert "delete migrated.sports" in SCRIPT
     assert 'id="ev-min-sources"' in TEMPLATE
     assert 'value="2"' in TEMPLATE
 

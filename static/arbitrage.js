@@ -8,7 +8,10 @@
 
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const defaultBookKeys = eligibleBooks.filter((book) => book.defaultExecution !== false).map((book) => book.key);
-  const storageKey = "iconlabsArbitrageSettingsV1";
+  const configuredMarketKeys = Object.values(config.marketGroups || {}).flat()
+    .map((market) => typeof market === "string" ? market : market?.key)
+    .filter(Boolean);
+  const storageKey = "iconlabsArbitrageSettingsV2";
   const defaults = {
     stake: 1000,
     minProfit: 0.1,
@@ -16,7 +19,7 @@
     commissionBps: 0,
     distinctBooks: false,
     books: defaultBookKeys,
-    markets: ["h2h", "spreads", "totals"],
+    markets: configuredMarketKeys.length ? configuredMarketKeys : ["h2h", "spreads", "totals"],
     sort: "profit-desc",
   };
   let stored = {};

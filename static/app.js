@@ -6944,7 +6944,10 @@ function setOddsFeedActive(active) {
   if (oddsState.feedActive) {
     document.getElementById("odds-latency").textContent = "Starting";
     loadOddsScreen();
-    oddsState.timer = window.setInterval(loadOddsScreen, 15000);
+    // The all-book endpoint publishes a 45-second shared snapshot. Polling it
+    // every 15 seconds created redundant serverless invocations and could burn
+    // through OddsEngine's per-minute event budget without fresher prices.
+    oddsState.timer = window.setInterval(loadOddsScreen, 45000);
   } else {
     document.getElementById("odds-latency").textContent = "Credit saver";
   }

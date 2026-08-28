@@ -224,9 +224,16 @@ SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS = {
 }
 
 SPORT_KEY_TO_LEAGUE_ID = {
+    "americanfootball_ncaaf": "NCAAF",
+    "americanfootball_nfl": "NFL",
     "baseball_mlb": "MLB",
     "basketball_nba": "NBA",
+    "basketball_ncaab": "NCAAB",
+    "basketball_ncaaw": "NCAAW",
     "basketball_wnba": "WNBA",
+    "icehockey_nhl": "NHL",
+    "soccer_epl": "EPL",
+    "soccer_usa_mls": "MLS",
 }
 LEAGUE_ID_TO_SPORT_KEY = {
     league_id: sport_key for sport_key, league_id in SPORT_KEY_TO_LEAGUE_ID.items()

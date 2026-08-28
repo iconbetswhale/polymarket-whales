@@ -398,6 +398,70 @@ def test_provider_filter_missing_key_and_safe_diagnostics() -> None:
     assert len(session.calls) == 2
 
 
+def test_normalizer_does_not_mix_team_or_period_totals_with_full_game_totals() -> None:
+    observed_at = datetime.now(timezone.utc).isoformat()
+
+    def total_offer(market_key: str, market_name: str, line: float) -> dict:
+        return {
+            "market_id": market_key,
+            "market_key": market_key,
+            "market": market_name,
+            "books": [
+                {
+                    "book": "FanDuel",
+                    "selections": [
+                        {
+                            "selection_id": f"{market_key}-over",
+                            "side": "over",
+                            "line": line,
+                            "odds_american": -110,
+                            "odds_changed_at": observed_at,
+                        },
+                        {
+                            "selection_id": f"{market_key}-under",
+                            "side": "under",
+                            "line": line,
+                            "odds_american": -110,
+                            "odds_changed_at": observed_at,
+                        },
+                    ],
+                }
+            ],
+        }
+
+    normalized = normalize_odds_engine_event(
+        {
+            "event_id": "wnba-total-scopes",
+            "event_start": (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+            "home_team": "New York Liberty",
+            "away_team": "Las Vegas Aces",
+            "league": "WNBA",
+            "sport": "Basketball",
+            "market_categories": [
+                {
+                    "category": "team",
+                    "offers": [
+                        total_offer("game_total", "Game Total", 178.5),
+                        total_offer("team_total", "New York Liberty Team Total", 82.5),
+                        total_offer("first_half_total", "First Half Total", 88.5),
+                    ],
+                }
+            ],
+        },
+        sport_key="basketball_wnba",
+        requested_markets=("totals",),
+    )
+
+    assert normalized is not None
+    markets = [
+        market
+        for book in normalized["bookmakers"]
+        for market in book["markets"]
+    ]
+    assert [market["key"] for market in markets] == ["totals"]
+    assert {outcome["point"] for outcome in markets[0]["outcomes"]} == {178.5}
+
+
 def test_provider_returns_partial_snapshot_when_rate_limit_is_reached() -> None:
     fixture = _fixture_session()
     first_event = fixture.routes["/events"]._payload["data"][0]
