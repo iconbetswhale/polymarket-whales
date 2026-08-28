@@ -215,6 +215,17 @@ def test_live_dfs_board_rejects_incomplete_app_props(
     ui_key: str,
 ) -> None:
     events = _events()
+    events[0]["bookmakers"].extend(
+        [
+            _market("fanduel", player="Verified App Prop", line=2.5),
+            _market(
+                provider_key,
+                dfs=True,
+                player="Verified App Prop",
+                line=2.5,
+            ),
+        ]
+    )
     incomplete = _market(
         provider_key,
         dfs=True,
@@ -229,9 +240,33 @@ def test_live_dfs_board_rejects_incomplete_app_props(
         events, selected_dfs_book="prizepicks"
     )
 
-    assert selected_rows == []
+    assert {row["player"] for row in selected_rows} == {"Verified App Prop"}
+    assert {row["side"] for row in selected_rows} == {"Over", "Under"}
     assert {row["player"] for row in prizepicks_rows} == {"Aaron Judge"}
     assert all(ui_key not in row["dfsLines"] for row in prizepicks_rows)
+
+
+@pytest.mark.parametrize(
+    ("provider_key", "ui_key"),
+    (
+        ("prizepicks", "prizepicks"),
+        ("pick6", "dk-pick6"),
+    ),
+)
+def test_live_dfs_board_keeps_verified_one_sided_provider_slates(
+    provider_key: str,
+    ui_key: str,
+) -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel"),
+        _market(provider_key, dfs=True, sides=("over",)),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book=ui_key)
+
+    assert {row["player"] for row in rows} == {"Aaron Judge"}
+    assert {row["side"] for row in rows} == {"Over"}
 
 
 def test_live_dfs_board_prefers_the_app_headline_line_over_alternates() -> None:

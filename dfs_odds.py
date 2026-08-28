@@ -265,6 +265,15 @@ def build_dfs_odds_board(
         freshness_half_life_seconds=300,
         minimum_sources=1,
     )
+    pair_capable_app_sports = {
+        (ui_key, group["sport"])
+        for group in groups.values()
+        for ui_key, line_options in group["dfs_options"].items()
+        if any(
+            {"over", "under"}.issubset(option.get("sides") or set())
+            for option in line_options.values()
+        )
+    }
     rows: list[dict] = []
     for group in groups.values():
         dfs_options = group["dfs_options"]
@@ -273,15 +282,17 @@ def build_dfs_odds_board(
         dfs_lines: dict[str, float] = {}
         dfs_sides: dict[str, set[str]] = {}
         for ui_key, line_options in dfs_options.items():
-            complete_line_options = {
-                line: option
-                for line, option in line_options.items()
-                if {"over", "under"}.issubset(option.get("sides") or set())
-            }
-            if not complete_line_options:
+            eligible_line_options = line_options
+            if (ui_key, group["sport"]) in pair_capable_app_sports:
+                eligible_line_options = {
+                    line: option
+                    for line, option in line_options.items()
+                    if {"over", "under"}.issubset(option.get("sides") or set())
+                }
+            if not eligible_line_options:
                 continue
             primary_line, primary_option = min(
-                complete_line_options.items(),
+                eligible_line_options.items(),
                 key=lambda item: (
                     bool(item[1].get("is_alt")),
                     float(item[0]),
