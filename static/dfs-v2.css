@@ -794,15 +794,22 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button,
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button {
   position: relative;
   z-index: 2;
-  border-color: var(--il-sidebar-active-border);
-  color: var(--il-sidebar-strong);
-  background: var(--il-sidebar-active);
+  height: 64px;
+  min-height: 64px;
+  max-height: 64px;
+  overflow: hidden;
+  gap: 6px;
+  padding: 7px 8px;
+  border-color: #7f5aa7;
+  border-radius: 10px;
+  color: #f7f2ff;
+  background: #171321;
   box-shadow:
-    inset 3px 0 0 var(--il-sidebar-active-ridge),
-    inset 0 1px 0 rgba(255, 255, 255, .22),
-    0 3px 0 var(--il-sidebar-active-depth),
-    0 8px 16px rgba(0, 0, 0, .42),
-    0 0 14px rgba(166, 90, 244, .22);
+    inset 0 1px 0 rgba(237, 217, 255, .42),
+    inset 0 0 0 1px rgba(139, 96, 183, .2),
+    0 3px 0 #452764,
+    0 8px 16px rgba(0, 0, 0, .5),
+    0 0 14px rgba(173, 81, 255, .25);
   transform: translateY(-1px);
   transition:
     border-color var(--il-motion-fast) ease,
@@ -814,27 +821,84 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button {
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button:hover,
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button:hover {
-  border-color: #c789ff;
+  border-color: #c692f4;
   color: #fff;
-  background: #241245;
+  background: #21162f;
   box-shadow:
-    inset 3px 0 0 #d0a2ff,
-    inset 0 1px 0 rgba(255, 255, 255, .28),
-    0 4px 0 var(--il-sidebar-active-depth),
+    inset 0 1px 0 rgba(255, 240, 255, .5),
+    inset 0 0 0 1px rgba(198, 146, 244, .24),
+    0 4px 0 #542d77,
     0 10px 18px rgba(0, 0, 0, .46),
-    0 0 18px rgba(166, 90, 244, .3);
+    0 0 18px rgba(182, 89, 255, .38);
   transform: translateY(-2px);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button:active,
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button:active {
   box-shadow:
-    inset 3px 0 0 var(--il-sidebar-active-ridge),
-    inset 0 1px 0 rgba(255, 255, 255, .18),
-    0 1px 0 var(--il-sidebar-active-depth),
+    inset 0 1px 0 rgba(255, 255, 255, .24),
+    inset 0 0 0 1px rgba(198, 146, 244, .2),
+    0 1px 0 #452764,
     0 4px 9px rgba(0, 0, 0, .4),
-    0 0 10px rgba(166, 90, 244, .2);
+    0 0 10px rgba(173, 81, 255, .24);
   transform: translateY(1px);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button:focus-visible,
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button:focus-visible {
+  border-color: #e0b8ff;
+  outline: 2px solid rgba(199, 137, 255, .48);
+  outline-offset: 2px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button .dfs-action-icon,
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button .dfs-action-icon {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  place-items: center;
+  border: 1px solid #77509f;
+  border-radius: 8px;
+  color: #c784ff;
+  background: #291a3e;
+  box-shadow:
+    inset 0 1px 0 rgba(236, 209, 255, .38),
+    0 2px 0 #4b246b,
+    0 0 9px rgba(184, 75, 255, .26);
+  font-size: 18px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button .dfs-action-arrow,
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button .dfs-action-arrow {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  flex: 0 0 22px;
+  place-items: center;
+  border: 1px solid #65517b;
+  border-radius: 50%;
+  color: #cf95ff;
+  background: #1d1827;
+  box-shadow:
+    inset 0 1px 0 rgba(246, 226, 255, .3),
+    0 2px 5px rgba(0, 0, 0, .35),
+    0 0 8px rgba(166, 75, 244, .18);
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button strong,
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button strong {
+  font: 700 10.5px/1.1 var(--il-font-ui);
+  letter-spacing: -.015em;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button small,
+body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button small {
+  color: #a9a0b4;
+  font: 500 7.5px/1.1 var(--il-font-data);
+  letter-spacing: -.02em;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody tr:hover td {

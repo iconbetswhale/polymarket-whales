@@ -1097,3 +1097,51 @@ The reference and implementation were reviewed together at the same viewport and
 - Browser console errors: none
 
 final result: passed
+
+---
+
+# Fantasy Optimizer Action Buttons — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\.codex\codex-remote-attachments\01a046c3-1c4b-7102-b455-e7e5b2ffa247\3464F113-AB9A-4693-988D-6591C331BEEC\1-Photo-1.jpg` (1280 × 426 px).
+- Browser-rendered implementation: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046c3-1c4b-7102-b455-e7e5b2ffa247\dfs-page-after-full.png` (1440 × 900 px).
+- Focused implementation crop: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046c3-1c4b-7102-b455-e7e5b2ffa247\dfs-buttons-after.png` (354 × 120 px).
+- Combined comparison input: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046c3-1c4b-7102-b455-e7e5b2ffa247\dfs-buttons-comparison.png` (708 × 488 px).
+- Browser state: local visual-QA Fantasy Optimizer route, 1440 × 900 CSS px, DPR 1, sidebar expanded, PrizePicks selected, both optimizer dialogs closed.
+- Density normalization: the source and focused implementation were fit to the same 708 px comparison width. Geometry was judged from native CSS measurements because the user explicitly required the existing button dimensions and placement to remain unchanged.
+
+## Comparison history
+
+1. Initial reference treatment increased the grid row from 64 px to 72.5 px when the larger icon reduced the available title width.
+   - Fix: locked both actions to their original 64 px height and compacted only their internal icon, arrow, gap, and type treatment.
+   - Post-fix evidence: both buttons measure exactly 154 × 64 px and retain their original grid positions.
+2. The first compact pass left the feature icon visually narrow and clipped too much supporting copy.
+   - Fix: restored a square 32 px feature tile, scaled the circular arrow to the source proportions, and tightened the existing type hierarchy.
+   - Post-fix evidence: DVIG Settings remains on one line, both supporting lines remain visible, and the Best Parlay Type title uses the existing narrow-card two-line wrap without changing the card footprint.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing DM Sans/DM Sans data stack is preserved. Bright 700-weight titles and quieter lavender-gray supporting copy reproduce the reference hierarchy at the current compact size.
+- Spacing and layout rhythm: the optimizer grid, button width, 64 px height, position, and surrounding section spacing are unchanged. Internal spacing now follows the source's square icon → copy → circular arrow rhythm.
+- Colors and visual tokens: dark purple-black surfaces, mauve borders, top-edge highlight, hard lower edge, and restrained violet glow match the reference without changing the surrounding IconLabs shell.
+- Image quality and asset fidelity: no raster asset was required. The existing installed Phosphor icon library supplies the sliders, chart, and arrow icons; no handmade SVG, glyph substitute, placeholder, or CSS-drawn icon was introduced.
+- Copy and content: button labels, live DVIG summary behavior, ARIA label, and dialog destinations are unchanged.
+- Accessibility: both controls retain native button semantics, expose their original dialog relationships, and now have a visible two-pixel focus outline with offset.
+
+## Interaction and automated verification
+
+- DVIG Settings opened and closed its dialog successfully.
+- Best Parlay Type opened and closed its dialog successfully.
+- Keyboard focus resolved to the DVIG control with the expected visible focus ring.
+- Browser console errors: none.
+- Focused Fantasy Optimizer and visual-QA tests: 50 passed.
+- `git diff --check`: passed with line-ending notices only.
+
+## Follow-up polish
+
+- P3: Best Parlay Type remains a two-line title at the existing 154 px width. This is an accepted consequence of preserving the current footprint rather than widening the card to the reference's much larger proportions.
+
+final result: passed

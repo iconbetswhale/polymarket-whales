@@ -532,17 +532,23 @@ def test_dfs_stat_and_matchup_text_never_truncate() -> None:
     assert ".dfs-table td:nth-child(3)" in CSS
 
 
-def test_optimizer_buttons_share_the_selected_sidebar_depth_treatment() -> None:
+def test_optimizer_buttons_use_the_glass_action_card_treatment() -> None:
     assert ".dfs-devig-button,\nbody[data-design-system=\"v2\"][data-page=\"dfs\"] .dfs-parlay-guide-button" in CSS
-    assert "border-color: var(--il-sidebar-active-border);" in CSS
-    assert "background: var(--il-sidebar-active);" in CSS
-    assert "inset 3px 0 0 var(--il-sidebar-active-ridge)" in CSS
-    assert "0 3px 0 var(--il-sidebar-active-depth)" in CSS
-    assert "0 8px 16px rgba(0, 0, 0, .42)" in CSS
-    assert "0 0 14px rgba(166, 90, 244, .22)" in CSS
+    assert "height: 64px;" in CSS
+    assert "border-color: #7f5aa7;" in CSS
+    assert "border-radius: 10px;" in CSS
+    assert "background: #171321;" in CSS
+    assert "inset 0 1px 0 rgba(237, 217, 255, .42)" in CSS
+    assert "0 3px 0 #452764" in CSS
+    assert "0 8px 16px rgba(0, 0, 0, .5)" in CSS
+    assert "0 0 14px rgba(173, 81, 255, .25)" in CSS
     assert "transform: translateY(-1px);" in CSS
+    assert ".dfs-action-icon" in CSS
+    assert ".dfs-action-arrow" in CSS
+    assert 'ph ph-arrow-right dfs-action-arrow' in TEMPLATE
     assert ".dfs-devig-button:active" in CSS
     assert ".dfs-parlay-guide-button:active" in CSS
+    assert ".dfs-devig-button:focus-visible" in CSS
 
 
 def test_selected_fantasy_app_uses_branded_sidebar_depth_treatment() -> None:
