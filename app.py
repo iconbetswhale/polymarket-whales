@@ -846,15 +846,13 @@ def create_app(start_background: bool = True) -> Flask:
     app.jinja_env.globals["line_shop_refresh_interval_seconds"] = settings.line_shop_refresh_interval_seconds
 
     def odds_feed_providers():
-        """Configured all-book feeds in live-scan preference order."""
+        """Approved multi-book feed used by the four opportunity scanners."""
         return tuple(
             provider
-            # SportsGameOdds returns the requested leagues, markets, and books
-            # in a batched /events response.  Use that complete all-lines feed
-            # before OddsEngine's one-REST-request-per-event fallback; otherwise
-            # the four public scanners and Odds Screen exhaust the 60 req/min
-            # OddsEngine trial quota before a full slate can be assembled.
-            for provider_key in ("novig", "odds_engine", "the_odds_api")
+            # OddsEngine is the sole sportsbook-aggregation source approved for
+            # these tools. Direct NoVIG and the manually integrated exchanges
+            # remain attached later through the execution-provider registry.
+            for provider_key in ("odds_engine",)
             for provider in execution_providers.providers
             if provider.provider_key == provider_key
             and getattr(provider, "api_key", None)
@@ -862,11 +860,11 @@ def create_app(start_background: bool = True) -> Flask:
         )
 
     def positive_ev_provider():
-        """Return the preferred configured all-book odds feed."""
+        """Return the configured OddsEngine feed."""
         return next(iter(odds_feed_providers()), None)
 
     def load_odds_events(*, sport_keys, market_keys):
-        """Load once from the preferred feed and fail over on errors or empties."""
+        """Load real sportsbook odds from the configured OddsEngine feed."""
         providers = odds_feed_providers()
         if not providers:
             return None, []
@@ -885,7 +883,7 @@ def create_app(start_background: bool = True) -> Flask:
             except (requests.RequestException, ValueError, TypeError) as exc:
                 last_error = exc
                 LOGGER.warning(
-                    "Odds feed %s failed; trying fallback: %s",
+                    "Approved odds feed %s failed: %s",
                     provider.provider_key,
                     type(exc).__name__,
                 )
@@ -1531,11 +1529,11 @@ def create_app(start_background: bool = True) -> Flask:
                     "provider", odds_provider.provider_key
                 ),
                 "selectedBook": selected_book,
-                "refreshSeconds": 15,
+                "refreshSeconds": 60,
             }
         )
         response.headers["Cache-Control"] = (
-            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
         return response
 
@@ -2384,15 +2382,8 @@ def create_app(start_background: bool = True) -> Flask:
                     rows = build_all_book_odds_screen_rows(
                         events,
                         now=now,
-                        provider_namespace=(
-                            "oddsapi"
-                            if candidate.provider_key == "the_odds_api"
-                            else "oddsengine"
-                        ),
-                        max_quote_age_seconds=max(
-                            1800,
-                            int(settings.the_odds_api_max_quote_age_seconds),
-                        ),
+                        provider_namespace="oddsengine",
+                        max_quote_age_seconds=1800,
                     )
                     if rows:
                         return candidate, rows
@@ -2571,7 +2562,7 @@ def create_app(start_background: bool = True) -> Flask:
             rows,
             compare_all=True,
             include_non_comparison=True,
-            exclude_provider_keys=("odds_engine", "the_odds_api", "novig"),
+            exclude_provider_keys=("odds_engine",),
         )
         for row in rows:
             combined = list(row.get("executionOptions") or [])
@@ -2634,8 +2625,6 @@ def create_app(start_background: bool = True) -> Flask:
                     "source": (
                         "odds_engine"
                         if provider_key.startswith("oddsengine__")
-                        else "the_odds_api"
-                        if provider_key.startswith("oddsapi__")
                         else "exchange"
                     ),
                     "region": str(existing_provider.get("region") or ""),
@@ -2698,7 +2687,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "market": requested_market,
                 },
                 "generatedAt": datetime.now(timezone.utc).isoformat(),
-                "refreshSeconds": 45,
+                "refreshSeconds": 60,
                 "transport": {
                     "mode": "rest_snapshot",
                     "provider": getattr(
@@ -2712,7 +2701,7 @@ def create_app(start_background: bool = True) -> Flask:
                 },
             }
         )
-        edge_ttl = 45 if sportsbook_provider is not None else 15
+        edge_ttl = 60 if sportsbook_provider is not None else 15
         response.headers["Cache-Control"] = (
             f"public, max-age=10, s-maxage={edge_ttl}, "
             "stale-while-revalidate=120"
@@ -2976,11 +2965,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 15,
+                "refreshSeconds": 60,
             }
         )
         response.headers["Cache-Control"] = (
-            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
         return response
 
@@ -3144,11 +3133,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 15,
+                "refreshSeconds": 60,
             }
         )
         response.headers["Cache-Control"] = (
-            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
         return response
 
@@ -3382,11 +3371,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "diagnostics": board["diagnostics"],
                 "configured": True,
                 "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 15,
+                "refreshSeconds": 60,
             }
         )
         response.headers["Cache-Control"] = (
-            "public, max-age=5, s-maxage=15, stale-while-revalidate=45"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
         return response
 
@@ -3684,11 +3673,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "executionBooks": list(execution_books),
                 "requiredBooks": list(required_books),
                 "quota": diagnostics.get("quota", {}),
-                "refreshSeconds": (
-                    15
-                    if set(market_keys).issubset(set(MAIN_MARKETS))
-                    else 60
-                ),
+                "refreshSeconds": 60,
                 "degraded": False,
                 "stale": False,
             }
@@ -3708,7 +3693,7 @@ def create_app(start_background: bool = True) -> Flask:
                 }
         response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
-            "public, max-age=5, s-maxage=15, stale-while-revalidate=120"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=180"
             if public_live_feed
             else "private, no-store"
         )

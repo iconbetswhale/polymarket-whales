@@ -368,6 +368,17 @@ def test_standard_plan_prioritizes_oddsengine_quotes_over_prophetx_login() -> No
     assert collector.advanced_orderbook_enabled is False
 
 
+def test_production_collector_does_not_use_the_odds_api_fallback() -> None:
+    odds_engine = FakeOddsEngineOrderBook()
+    the_odds_api = FakeComparisonProvider("the_odds_api")
+    registry = SimpleNamespace(providers=(odds_engine, the_odds_api))
+    settings = SimpleNamespace(sharp_money_advanced_orderbook_enabled=False)
+
+    collector = build_sharp_money_collector(registry, settings)
+
+    assert collector.odds_provider.providers == (odds_engine,)
+
+
 def test_oddsengine_rate_limit_falls_back_to_direct_novig_slate() -> None:
     odds_engine = FakeOddsEngineOrderBook()
 

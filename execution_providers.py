@@ -1223,12 +1223,18 @@ class ExecutionProviderRegistry:
         comparison_provider_keys: Iterable[str] = (
             *EXCHANGE_EXECUTION_PROVIDER_KEYS,
         ),
+        disabled_provider_keys: Iterable[str] = (),
     ) -> None:
         self.providers = tuple(providers)
         self.max_quote_age_seconds = max(1, int(max_quote_age_seconds))
         self.min_liquidity = max(0.0, float(min_liquidity))
         self.include_fees = bool(include_fees)
         self.comparison_provider_keys = frozenset(str(key).lower() for key in comparison_provider_keys)
+        self.disabled_provider_keys = frozenset(
+            str(key or "").strip().lower()
+            for key in disabled_provider_keys
+            if str(key or "").strip()
+        )
 
     def attach_options(
         self,
@@ -1239,10 +1245,11 @@ class ExecutionProviderRegistry:
         exclude_provider_keys: Iterable[str] = (),
         force_refresh: bool = False,
     ) -> list[dict]:
-        excluded = {
+        excluded = set(self.disabled_provider_keys)
+        excluded.update({
             str(provider_key or "").strip().lower()
             for provider_key in exclude_provider_keys
-        }
+        })
         by_provider: list[
             tuple[
                 ExecutionProvider,
@@ -1360,6 +1367,8 @@ class ExecutionProviderRegistry:
         quotes: dict[str, list[dict]] = defaultdict(list)
         seen_providers: dict[str, set[str]] = defaultdict(set)
         for provider in self.providers:
+            if provider.provider_key.lower() in self.disabled_provider_keys:
+                continue
             try:
                 rows = provider.fair_price_quotes(trades)
             except Exception:
@@ -1378,7 +1387,10 @@ class ExecutionProviderRegistry:
     def fair_price_provider_health(self) -> list[dict]:
         rows = []
         for provider in self.providers:
-            if provider.provider_key == "polymarket":
+            if (
+                provider.provider_key == "polymarket"
+                or provider.provider_key.lower() in self.disabled_provider_keys
+            ):
                 continue
             checker = getattr(provider, "health_status", None)
             if callable(checker):
@@ -1757,9 +1769,8 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
                 ),
                 cache_ttl_seconds=getattr(settings, "novig_cache_ttl_seconds", 45),
                 request_timeout=getattr(settings, "request_timeout", 15),
-                # Once direct NBX is configured, SportsGameOdds remains the
-                # Positive-EV all-books feed but stops impersonating executable
-                # NoVIG depth.
+                # Legacy diagnostic adapter only. The production registry
+                # disables it below; direct NBX is the sole NoVIG quote source.
                 execution_enabled=not novig_nbx.configured,
             ),
             ProphetXProvider(
@@ -1845,6 +1856,10 @@ def build_execution_provider_registry(settings) -> ExecutionProviderRegistry:
         max_quote_age_seconds=getattr(settings, "line_shop_max_quote_age_seconds", 60),
         min_liquidity=getattr(settings, "line_shop_min_liquidity", 0.0),
         include_fees=getattr(settings, "line_shop_include_fees", True),
+        # These adapters remain available for isolated diagnostics and tests,
+        # but production odds must come only from OddsEngine or the direct
+        # NoVIG/manual exchange integrations.
+        disabled_provider_keys=("novig", "the_odds_api"),
     )
 
 

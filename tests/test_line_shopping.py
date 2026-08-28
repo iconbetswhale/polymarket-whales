@@ -224,6 +224,25 @@ def test_primary_click_does_not_prefer_novig_over_a_better_approved_price():
     assert value["execution_orderbook_source"] == "polymarket"
 
 
+def test_disabled_aggregator_provider_cannot_supply_runtime_odds():
+    value = trade()
+    registry = ExecutionProviderRegistry(
+        (
+            Provider(option("novig", 0.40, fee_rate=0.0)),
+            Provider(option("kalshi", 0.47, fee_rate=0.0)),
+        ),
+        disabled_provider_keys=("novig",),
+    )
+
+    registry.attach_options(
+        [value], compare_all=True, include_non_comparison=True
+    )
+
+    assert [row["providerKey"] for row in value["executionOptions"]] == [
+        "kalshi"
+    ]
+
+
 def test_novig_does_not_win_tie_without_enough_executable_liquidity():
     value = trade()
     registry = ExecutionProviderRegistry((
