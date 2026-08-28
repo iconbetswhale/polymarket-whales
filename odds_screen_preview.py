@@ -56,7 +56,7 @@ PROVIDERS = (
     {
         "key": "oddsapi__caesars",
         "name": "Caesars",
-        "logoUrl": "/static/assets/sportsbooks/caesars-sportsbook.jpg",
+        "logoUrl": "/static/assets/sportsbooks/caesars-sportsbook.png",
         "source": "preview",
     },
     {

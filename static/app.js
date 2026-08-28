@@ -6171,7 +6171,7 @@ const ODDS_DEFAULT_PROVIDER_CATALOG = {
   "oddsapi__draftkings": {key:"oddsapi__draftkings", name:"DraftKings", logoUrl:"/static/assets/sportsbooks/draftkings.png", source:"sportsbook"},
   "oddsapi__fanduel": {key:"oddsapi__fanduel", name:"FanDuel", logoUrl:"/static/assets/sportsbooks/fanduel.png", source:"sportsbook"},
   "oddsapi__betmgm": {key:"oddsapi__betmgm", name:"BetMGM", logoUrl:"/static/assets/sportsbooks/betmgm.png", source:"sportsbook"},
-  "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars-sportsbook.jpg", source:"sportsbook"},
+  "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars-sportsbook.png", source:"sportsbook"},
   "oddsapi__pinnacle": {key:"oddsapi__pinnacle", name:"Pinnacle", logoUrl:"/static/assets/providers/pinnacle.png", source:"sportsbook"},
 };
 const ODDS_EMBEDDED_PROVIDER_CATALOG = (() => {

@@ -909,9 +909,8 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-tracker-dialog .ev-tr
   .ev-loading span { animation-duration: 1.8s; }
 }
 
-/* Reference-led +EV market scanner. The desktop route intentionally becomes a
-   focused full-canvas tool while compact navigation remains available below
-   the desktop breakpoint. */
+/* Reference-led +EV market scanner. Keep the shared desktop navigation rail
+   available while the market workspace uses the remaining canvas. */
 body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selection { display: none; }
 
 @media (min-width: 981px) {
@@ -930,7 +929,6 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
     color: var(--ev-ref-text);
   }
 
-  body[data-design-system="v2"][data-page="positive-ev"] .app-nav,
   body[data-design-system="v2"][data-page="positive-ev"] .mobile-bottom-nav,
   body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-backdrop,
   body[data-design-system="v2"][data-page="positive-ev"] .mobile-more-sheet {
@@ -939,10 +937,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
 
   body[data-design-system="v2"][data-page="positive-ev"] .app-shell,
   body[data-design-system="v2"][data-page="positive-ev"].sidebar-expanded .app-shell {
-    width: 100vw;
-    max-width: none;
     height: 100dvh;
-    margin: 0;
     padding: 0;
     overflow: hidden;
     background: var(--ev-ref-bg);

@@ -174,7 +174,7 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
         assert f'data-book-key="{{{{ logo }}}}"' in TEMPLATE or book_key in TEMPLATE
         assert f'.dfs-book[data-book-key="{book_key}"]' in CSS
     assert "--dfs-book-accent" in CSS
-    assert "background: var(--dfs-book-accent-soft" in CSS
+    assert "background: color-mix(in srgb, var(--dfs-book-accent" in CSS
     assert "padding-top: 14px;" in CSS
 
 
@@ -224,7 +224,7 @@ def test_dfs_player_column_scrolls_with_the_rest_of_the_odds_grid() -> None:
     assert "position: static" in block
     assert "left: 0" not in block
     assert "left: auto" in block
-    assert "width: 230px" in block
+    assert "width: 260px" in block
 
 
 def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
@@ -373,4 +373,54 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
     assert "margin-inline: auto;" in CSS
     assert "text-align: center;" in CSS
+
+
+def test_dfs_stat_and_matchup_text_never_truncate() -> None:
+    player_start = CSS.index('.dfs-table .player-col {')
+    player_block = CSS[player_start : CSS.index("}", player_start)]
+    matchup_start = CSS.index(".dfs-player small {")
+    matchup_block = CSS[matchup_start : CSS.index("}", matchup_start)]
+    stat_start = CSS.index(".dfs-stat {")
+    stat_block = CSS[stat_start : CSS.index("}", stat_start)]
+
+    assert "width: 260px;" in player_block
+    assert "min-width: 260px;" in player_block
+    assert "overflow: visible;" in matchup_block
+    assert "overflow-wrap: anywhere;" in matchup_block
+    assert "text-overflow: clip;" in matchup_block
+    assert "white-space: normal;" in matchup_block
+    assert "min-width: 180px;" in stat_block
+    assert "max-width: none;" in stat_block
+    assert "overflow-wrap: anywhere;" in stat_block
+    assert "white-space: normal;" in stat_block
+    assert ".dfs-table th:nth-child(3)" in CSS
+    assert ".dfs-table td:nth-child(3)" in CSS
+
+
+def test_optimizer_buttons_share_the_selected_sidebar_depth_treatment() -> None:
+    assert ".dfs-devig-button,\nbody[data-design-system=\"v2\"][data-page=\"dfs\"] .dfs-parlay-guide-button" in CSS
+    assert "border-color: var(--il-sidebar-active-border);" in CSS
+    assert "background: var(--il-sidebar-active);" in CSS
+    assert "inset 3px 0 0 var(--il-sidebar-active-ridge)" in CSS
+    assert "0 3px 0 var(--il-sidebar-active-depth)" in CSS
+    assert "0 8px 16px rgba(0, 0, 0, .42)" in CSS
+    assert "0 0 14px rgba(166, 90, 244, .22)" in CSS
+    assert "transform: translateY(-1px);" in CSS
+    assert ".dfs-devig-button:active" in CSS
+    assert ".dfs-parlay-guide-button:active" in CSS
+
+
+def test_selected_fantasy_app_uses_branded_sidebar_depth_treatment() -> None:
+    active_start = CSS.index('.dfs-book.active {')
+    active_block = CSS[active_start : CSS.index("}", active_start)]
+
+    assert "position: relative;" in active_block
+    assert "inset 3px 0 0 var(--dfs-book-accent" in active_block
+    assert "inset 0 1px 0 rgba(255, 255, 255, .22)" in active_block
+    assert "0 3px 0 color-mix" in active_block
+    assert "0 8px 16px rgba(0, 0, 0, .42)" in active_block
+    assert "0 0 14px color-mix" in active_block
+    assert "transform: translateY(-1px);" in active_block
+    assert ".dfs-book.active:hover" in CSS
+    assert ".dfs-book.active:active" in CSS
 

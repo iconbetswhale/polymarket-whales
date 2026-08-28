@@ -225,6 +225,20 @@ def test_positive_ev_css_is_token_driven_and_page_owned() -> None:
     assert ".ev-execution" in CSS and "background: transparent" in CSS
 
 
+def test_positive_ev_desktop_keeps_the_shared_sidebar_and_its_workspace_offset() -> None:
+    desktop_scanner = CSS[CSS.index("/* Reference-led +EV market scanner.") :]
+    workspace_rule = desktop_scanner[
+        desktop_scanner.index('body[data-design-system="v2"][data-page="positive-ev"] .app-shell,') :
+        desktop_scanner.index('body[data-design-system="v2"][data-page="positive-ev"] .ev-page,')
+    ]
+
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .app-nav,' not in desktop_scanner
+    assert "width: 100vw;" not in workspace_rule
+    assert "max-width: none;" not in workspace_rule
+    assert "margin: 0;" not in workspace_rule
+    assert "Keep the shared desktop navigation rail" in desktop_scanner
+
+
 def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     for rule in (
         "font: 700 29px/1 var(--il-font-data)",

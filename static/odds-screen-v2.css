@@ -596,11 +596,11 @@ body[data-design-system="v2"][data-page="odds-screen"] .provider-logo-mark {
 body[data-design-system="v2"][data-page="odds-screen"] .provider-logo-mark img { width: 100%; height: 100%; object-fit: contain; }
 body[data-design-system="v2"][data-page="odds-screen"] .provider-logo-mark b { color: #d8dde2; font-size: 8px; }
 body[data-design-system="v2"][data-page="odds-screen"] .book-head[data-odds-column="oddsapi__caesars"] .provider-logo-mark {
-  width: 78px;
+  width: 22px;
   height: 22px;
-  padding: 1px 3px;
-  border-radius: 3px;
-  background: #fff;
+  padding: 0;
+  border-radius: 5px;
+  background: var(--il-surface-2);
 }
 
 body[data-design-system="v2"][data-page="odds-screen"] .odds-market-row:nth-child(odd) { background: var(--odds-row); }

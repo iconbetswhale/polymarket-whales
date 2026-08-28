@@ -166,6 +166,17 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "persistOddsProviderOrder()" in script
     assert 'oddsState.providerOrder = [...previewKeys, "best"]' not in script
     assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
+
+
+def test_odds_screen_uses_the_supplied_caesars_sportsbook_logo():
+    script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    preview = (ROOT / "odds_screen_preview.py").read_text(encoding="utf-8")
+    logo = ROOT / "static" / "assets" / "sportsbooks" / "caesars-sportsbook.png"
+
+    assert "/static/assets/sportsbooks/caesars-sportsbook.png" in script
+    assert "/static/assets/sportsbooks/caesars-sportsbook.png" in preview
+    assert logo.is_file()
+    assert logo.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "ODDS_LIQUIDITY_PROVIDER_KEYS" in script
     assert 'return `${formattedAmount} Limit`' in script
     assert "if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount" in script
