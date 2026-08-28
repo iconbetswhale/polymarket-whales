@@ -783,42 +783,41 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
         if item.provider_key == "the_odds_api"
     )
     start = datetime.now(timezone.utc) + timedelta(hours=4)
-    row = {
-        **_trade(start, stake=0),
-        "id": "screen-trade-1",
-        "market_id": "screen-market-1",
-        "schedule_date_et": start.astimezone().date().isoformat(),
-        "is_sports": True,
-    }
-    option = ExecutionOption(
-        provider_name="FanDuel",
-        provider_key="oddsapi__fanduel",
-        market_id="mlb-event-1:moneyline",
-        selection_id="fanduel:selection",
-        display_odds="+110",
-        deep_link="https://sportsbook.fanduel.com/betslip/selection",
-        is_available=True,
-        last_updated=datetime.now(timezone.utc).isoformat(),
-        matching_confidence=MatchConfidence.EXACT,
-        logo_url="https://sportsbook.fanduel.com/favicon.ico",
-        tooltip="FanDuel sportsbook quote via The Odds API",
-        american_odds=110,
-        can_fill_recommended_stake=True,
-        quote_status="OPEN",
-        native_price_format="AMERICAN",
-        quote_max_age_seconds=180,
-    )
-    monkeypatch.setattr(
-        provider, "odds_screen_rows", lambda **_kwargs: [dict(row)]
-    )
+    provider.api_key = "configured-in-test"
+    observed_at = datetime.now(timezone.utc).isoformat()
     monkeypatch.setattr(
         provider,
-        "screen_options_for_trades",
-        lambda trades: {
-            str(item["id"]): [option]
-            for item in trades
-            if str(item.get("id") or "") == "screen-trade-1"
-        },
+        "ev_events",
+        lambda **_kwargs: [
+            {
+                "id": "screen-trade-1",
+                "sport_key": "baseball_mlb",
+                "sport_title": "MLB",
+                "commence_time": start.isoformat(),
+                "home_team": "Miami Marlins",
+                "away_team": "San Diego Padres",
+                "bookmakers": [
+                    {
+                        "key": "fanduel",
+                        "title": "FanDuel",
+                        "logo": "https://sportsbook.fanduel.com/favicon.ico",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": observed_at,
+                                "outcomes": [
+                                    {
+                                        "name": "Miami Marlins",
+                                        "price": 110,
+                                        "link": "https://sportsbook.fanduel.com/betslip/selection",
+                                    }
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
     )
 
     response = app_client.get(
@@ -827,7 +826,7 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
 
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == (
-        "public, max-age=15, s-maxage=600, stale-while-revalidate=60"
+        "public, max-age=10, s-maxage=45, stale-while-revalidate=120"
     )
     payload = response.get_json()
     assert payload["filters"] == {
@@ -873,25 +872,36 @@ def test_odds_screen_preserves_both_moneyline_sides(
         if item.provider_key == "the_odds_api"
     )
     start = datetime.now(timezone.utc) + timedelta(hours=4)
-    base = {
-        **_trade(start, stake=0),
-        "event_id": "two-sided-event",
-        "event_title": "San Diego Padres vs Miami Marlins",
-        "market_id": "two-sided-moneyline",
-        "condition_id": "two-sided-moneyline",
-        "sports_market_type": "Moneyline",
-        "schedule_date_et": start.astimezone().date().isoformat(),
-        "is_sports": True,
-    }
-    rows = [
-        {**base, "id": "padres-moneyline", "outcome": "San Diego Padres"},
-        {**base, "id": "marlins-moneyline", "outcome": "Miami Marlins"},
-    ]
+    provider.api_key = "configured-in-test"
     monkeypatch.setattr(
-        provider, "odds_screen_rows", lambda **_kwargs: [dict(row) for row in rows]
-    )
-    monkeypatch.setattr(
-        provider, "screen_options_for_trades", lambda _rows: {}
+        provider,
+        "ev_events",
+        lambda **_kwargs: [
+            {
+                "id": "two-sided-event",
+                "sport_key": "baseball_mlb",
+                "sport_title": "MLB",
+                "commence_time": start.isoformat(),
+                "home_team": "Miami Marlins",
+                "away_team": "San Diego Padres",
+                "bookmakers": [
+                    {
+                        "key": "fanduel",
+                        "title": "FanDuel",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": datetime.now(timezone.utc).isoformat(),
+                                "outcomes": [
+                                    {"name": "San Diego Padres", "price": -105},
+                                    {"name": "Miami Marlins", "price": -105},
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
     )
 
     response = app_client.get("/api/odds-screen?active=1&league=MLB")

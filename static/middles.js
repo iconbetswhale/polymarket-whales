@@ -6,11 +6,18 @@
   const config = configNode ? JSON.parse(configNode.textContent || "{}") : {};
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const defaultBookKeys = eligibleBooks.filter((book) => book.defaultExecution !== false).map((book) => book.key);
-  const storageKey = "iconlabsMiddlesSettingsV1";
+  const configuredMiddleMarketKeys = Object.entries(config.marketGroups || {}).flatMap(([group, markets]) =>
+    group === "main"
+      ? (markets || []).filter((market) => (typeof market === "string" ? market : market?.key) !== "h2h")
+      : (markets || [])
+  ).map((market) => typeof market === "string" ? market : market?.key).filter(Boolean);
+  const storageKey = "iconlabsMiddlesSettingsV2";
   const trackedKey = "iconlabsTrackedMiddlesV1";
   const defaults = {
     books: defaultBookKeys,
-    markets: ["spreads", "alternate_spreads", "totals", "alternate_totals", "player_points", "pitcher_strikeouts"],
+    markets: configuredMiddleMarketKeys.length
+      ? configuredMiddleMarketKeys
+      : ["spreads", "alternate_spreads", "totals", "alternate_totals", "player_points", "pitcher_strikeouts"],
     minWidth: 0.5,
     maxCost: 12,
     maxAge: 180,

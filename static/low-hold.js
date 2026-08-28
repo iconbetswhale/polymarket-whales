@@ -26,12 +26,17 @@
     }),
   });
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
-  const storageKey = "iconlabsLowHoldSettingsV2";
-  const savedKey = "iconlabsLowHoldSavedFiltersV2";
+  const configuredMarketKeys = Object.values(config.marketGroups || {}).flat()
+    .map((market) => typeof market === "string" ? market : market?.key)
+    .filter(Boolean);
+  const storageKey = "iconlabsLowHoldSettingsV3";
+  const savedKey = "iconlabsLowHoldSavedFiltersV3";
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch (_error) { stored = {}; }
 
-  const defaultMarkets = ["h2h", "spreads", "totals", "alternate_spreads", "alternate_totals", "batter_hits", "pitcher_strikeouts", "player_points"];
+  const defaultMarkets = configuredMarketKeys.length
+    ? configuredMarketKeys
+    : ["h2h", "spreads", "totals", "alternate_spreads", "alternate_totals", "batter_hits", "pitcher_strikeouts", "player_points"];
   const defaults = {
     stake: 100,
     stakeMode: "first-leg",

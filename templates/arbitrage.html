@@ -97,7 +97,9 @@
             <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Totals</strong><small>Exact same total</small></span></label>
             <label><input type="checkbox" value="alternate_spreads"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt spreads</strong><small>Alternate lines</small></span></label>
             <label><input type="checkbox" value="alternate_totals"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt totals</strong><small>Alternate lines</small></span></label>
-            <label><input type="checkbox" value="player_points"><span><i class="ph ph-user-focus" aria-hidden="true"></i><strong>Player props</strong><small>Selected prop markets</small></span></label>
+            {% for market in arbitrage_config.marketGroups.props %}
+            <label><input type="checkbox" value="{{ market.key }}"><span><i class="ph ph-user-focus" aria-hidden="true"></i><strong>{{ market.name }}</strong><small>{{ market.sports|map('replace', '_', ' ')|join(', ')|title }}</small></span></label>
+            {% endfor %}
           </div>
         </section>
         <section class="arb-filter-panel" data-arb-filter-panel="execution">

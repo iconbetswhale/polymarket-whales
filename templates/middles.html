@@ -77,8 +77,9 @@
             <label><input type="checkbox" value="alternate_spreads" checked><span>Alternate spreads</span></label>
             <label><input type="checkbox" value="totals" checked><span>Game totals</span></label>
             <label><input type="checkbox" value="alternate_totals" checked><span>Alternate totals</span></label>
-            <label><input type="checkbox" value="player_points" checked><span>Player points</span></label>
-            <label><input type="checkbox" value="pitcher_strikeouts" checked><span>Pitcher strikeouts</span></label>
+            {% for market in middles_config.marketGroups.props %}
+            <label><input type="checkbox" value="{{ market.key }}"><span>{{ market.name }}</span></label>
+            {% endfor %}
           </fieldset>
           <label class="mid-switch"><input id="mid-distinct-books" type="checkbox"><span><b>Require different books</b><small>Useful when one book limits opposing alternate lines.</small></span></label>
         </section>

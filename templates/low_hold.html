@@ -125,9 +125,9 @@
             <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Game totals</strong><small>Exact and middle</small></span></label>
             <label><input type="checkbox" value="alternate_spreads" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt spreads</strong><small>Exact lines</small></span></label>
             <label><input type="checkbox" value="alternate_totals" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt totals</strong><small>Exact and middle</small></span></label>
-            <label><input type="checkbox" value="batter_hits" checked><span><i class="ph ph-baseball" aria-hidden="true"></i><strong>Batter hits</strong><small>Player middle windows</small></span></label>
-            <label><input type="checkbox" value="pitcher_strikeouts" checked><span><i class="ph ph-baseball-cap" aria-hidden="true"></i><strong>Strikeouts</strong><small>Player middle windows</small></span></label>
-            <label><input type="checkbox" value="player_points" checked><span><i class="ph ph-basketball" aria-hidden="true"></i><strong>Player points</strong><small>Exact and middle</small></span></label>
+            {% for market in low_hold_config.marketGroups.props %}
+            <label><input type="checkbox" value="{{ market.key }}"><span><i class="ph ph-user-focus" aria-hidden="true"></i><strong>{{ market.name }}</strong><small>Exact and middle lines</small></span></label>
+            {% endfor %}
           </div>
         </section>
 

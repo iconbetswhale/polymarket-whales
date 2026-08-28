@@ -73,6 +73,7 @@ from learning_system import (
 )
 from measurement_foundation import stable_hash
 from odds_schedule import PolymarketScheduleFeed
+from odds_screen_feed import build_all_book_odds_screen_rows
 from completion_system import explainability_trace
 from sharp_tracking import (
     sharp_snapshot_from_fill,
@@ -125,6 +126,7 @@ from sports_game_odds import (
 )
 from odds_engine_provider import (
     ODDSENGINE_BOOKMAKERS,
+    SPORT_KEY_TO_LEAGUE as ODDSENGINE_SPORT_KEY_TO_LEAGUE,
     oddsengine_filter_catalog_payload,
     oddsengine_provider_catalog,
 )
@@ -139,6 +141,83 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s"
 )
 LOGGER = logging.getLogger(__name__)
+
+ALL_ODDS_SPORT_KEYS = tuple(ODDSENGINE_SPORT_KEY_TO_LEAGUE)
+ALL_PLAYER_PROP_MARKETS = tuple(
+    dict.fromkeys(
+        market_key
+        for sport_key in PLAYER_PROP_MARKETS
+        for market_key in PLAYER_PROP_MARKETS[sport_key]
+    )
+)
+ALL_OPPORTUNITY_MARKETS = tuple(
+    dict.fromkeys((*MAIN_MARKETS, *ALTERNATE_MARKETS, *ALL_PLAYER_PROP_MARKETS))
+)
+SPORT_LABELS = {
+    sport_key: league.upper()
+    for sport_key, league in ODDSENGINE_SPORT_KEY_TO_LEAGUE.items()
+}
+MARKET_LABEL_OVERRIDES = {
+    "h2h": "Moneyline",
+    "spreads": "Spreads",
+    "totals": "Game Totals",
+    "alternate_spreads": "Alternate Spreads",
+    "alternate_totals": "Alternate Totals",
+    "batter_rbis": "Batter RBIs",
+    "batter_hits_runs_rbis": "Hits + Runs + RBIs",
+    "batter_runs_rbis": "Runs + RBIs",
+    "player_points_q1": "1st Quarter Points",
+    "player_rebounds_q1": "1st Quarter Rebounds",
+    "player_assists_q1": "1st Quarter Assists",
+}
+
+
+def _market_display_name(market_key: str) -> str:
+    return MARKET_LABEL_OVERRIDES.get(
+        market_key,
+        market_key.replace("_", " ").title(),
+    )
+
+
+def live_tool_filter_catalog_payload() -> dict:
+    """Complete book, sport, and market catalog shared by every live tool."""
+
+    payload = oddsengine_filter_catalog_payload()
+    market_sports = {
+        market_key: [
+            sport_key
+            for sport_key, sport_markets in PLAYER_PROP_MARKETS.items()
+            if market_key in sport_markets
+        ]
+        for market_key in ALL_PLAYER_PROP_MARKETS
+    }
+    payload.update(
+        {
+            "sports": [
+                {"key": sport_key, "name": SPORT_LABELS[sport_key]}
+                for sport_key in ALL_ODDS_SPORT_KEYS
+            ],
+            "marketGroups": {
+                "main": [
+                    {"key": key, "name": _market_display_name(key)}
+                    for key in MAIN_MARKETS
+                ],
+                "alternate": [
+                    {"key": key, "name": _market_display_name(key)}
+                    for key in ALTERNATE_MARKETS
+                ],
+                "props": [
+                    {
+                        "key": key,
+                        "name": _market_display_name(key),
+                        "sports": market_sports[key],
+                    }
+                    for key in ALL_PLAYER_PROP_MARKETS
+                ],
+            },
+        }
+    )
+    return payload
 EASTERN = ZoneInfo("America/New_York")
 USER_COOKIE = "iconbets_user"
 AUTH_SESSION_COOKIE = "iconbets_session"
@@ -770,7 +849,12 @@ def create_app(start_background: bool = True) -> Flask:
         """Configured all-book feeds in live-scan preference order."""
         return tuple(
             provider
-            for provider_key in ("odds_engine", "novig", "the_odds_api")
+            # SportsGameOdds returns the requested leagues, markets, and books
+            # in a batched /events response.  Use that complete all-lines feed
+            # before OddsEngine's one-REST-request-per-event fallback; otherwise
+            # the four public scanners and Odds Screen exhaust the 60 req/min
+            # OddsEngine trial quota before a full slate can be assembled.
+            for provider_key in ("novig", "odds_engine", "the_odds_api")
             for provider in execution_providers.providers
             if provider.provider_key == provider_key
             and getattr(provider, "api_key", None)
@@ -782,18 +866,22 @@ def create_app(start_background: bool = True) -> Flask:
         return next(iter(odds_feed_providers()), None)
 
     def load_odds_events(*, sport_keys, market_keys):
-        """Load once from the preferred feed and fail over only on provider errors."""
+        """Load once from the preferred feed and fail over on errors or empties."""
         providers = odds_feed_providers()
         if not providers:
             return None, []
         last_error = None
+        first_empty_provider = None
         for provider in providers:
             try:
                 events = provider.ev_events(
                     sport_keys=sport_keys,
                     market_keys=market_keys,
                 )
-                return provider, events
+                if events:
+                    return provider, events
+                if first_empty_provider is None:
+                    first_empty_provider = provider
             except (requests.RequestException, ValueError, TypeError) as exc:
                 last_error = exc
                 LOGGER.warning(
@@ -801,6 +889,8 @@ def create_app(start_background: bool = True) -> Flask:
                     provider.provider_key,
                     type(exc).__name__,
                 )
+        if first_empty_provider is not None:
+            return first_empty_provider, []
         if last_error is not None:
             raise last_error
         return providers[0], []
@@ -1451,7 +1541,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/positive-ev")
     def positive_ev_page():
-        positive_ev_config = oddsengine_filter_catalog_payload()
+        positive_ev_config = live_tool_filter_catalog_payload()
         return render_template(
             "positive_ev.html",
             title="IconBets Positive EV",
@@ -1461,7 +1551,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/arbitrage")
     def arbitrage_page():
-        arbitrage_config = oddsengine_filter_catalog_payload()
+        arbitrage_config = live_tool_filter_catalog_payload()
         return render_template(
             "arbitrage.html",
             title="IconLabs Arbitrage",
@@ -1479,7 +1569,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/low-hold")
     def low_hold_page():
-        low_hold_config = oddsengine_filter_catalog_payload()
+        low_hold_config = live_tool_filter_catalog_payload()
         return render_template(
             "low_hold.html",
             title="IconLabs Low Hold",
@@ -1489,7 +1579,7 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/middles")
     def middles_page():
-        middles_config = oddsengine_filter_catalog_payload()
+        middles_config = live_tool_filter_catalog_payload()
         return render_template(
             "middles.html",
             title="IconLabs Middles",
@@ -2203,6 +2293,13 @@ def create_app(start_background: bool = True) -> Flask:
         requested_sport = request.args.get("sport", "").strip()
         requested_league = request.args.get("league", "").strip()
         requested_market = request.args.get("market", "").strip()
+        odds_screen_market_lookup = {
+            "moneyline": "h2h",
+            "spread": "spreads",
+            "game_total": "totals",
+            "alternate_spread": "alternate_spreads",
+            "alternate_total": "alternate_totals",
+        }
 
         unique: dict[tuple, dict] = {}
 
@@ -2251,21 +2348,53 @@ def create_app(start_background: bool = True) -> Flask:
                 return []
 
         def load_sportsbook_rows() -> tuple[object | None, list[dict]]:
-            for candidate in (
-                provider
-                for provider_key in ("odds_engine", "the_odds_api")
-                for provider in execution_providers.providers
-                if provider.provider_key == provider_key
-                and callable(getattr(provider, "odds_screen_rows", None))
-            ):
+            normalized_league = requested_league.upper().replace(" ", "_")
+            if normalized_league:
+                sport_keys = tuple(
+                    sport_key
+                    for sport_key, league in ODDSENGINE_SPORT_KEY_TO_LEAGUE.items()
+                    if league.upper() == normalized_league
+                )
+            elif requested_sport:
+                normalized_sport = requested_sport.upper().replace(" ", "_")
+                sport_keys = tuple(
+                    sport_key
+                    for sport_key in ALL_ODDS_SPORT_KEYS
+                    if sport_key.split("_", 1)[0].upper() == normalized_sport
+                    or normalized_sport in sport_key.upper()
+                )
+            else:
+                sport_keys = ALL_ODDS_SPORT_KEYS
+
+            if requested_market in odds_screen_market_lookup:
+                market_keys = (odds_screen_market_lookup[requested_market],)
+            elif requested_market in ALL_OPPORTUNITY_MARKETS:
+                market_keys = (requested_market,)
+            else:
+                market_keys = ALL_OPPORTUNITY_MARKETS
+
+            if not sport_keys or not market_keys:
+                return None, []
+            for candidate in odds_feed_providers():
                 try:
-                    rows = candidate.odds_screen_rows(
-                        sport=requested_sport,
-                        league=requested_league,
-                        market_kind=requested_market,
-                        now=now,
+                    events = candidate.ev_events(
+                        sport_keys=sport_keys,
+                        market_keys=market_keys,
                     )
-                    if rows or getattr(candidate, "api_key", None):
+                    rows = build_all_book_odds_screen_rows(
+                        events,
+                        now=now,
+                        provider_namespace=(
+                            "oddsapi"
+                            if candidate.provider_key == "the_odds_api"
+                            else "oddsengine"
+                        ),
+                        max_quote_age_seconds=max(
+                            1800,
+                            int(settings.the_odds_api_max_quote_age_seconds),
+                        ),
+                    )
+                    if rows:
                         return candidate, rows
                 except requests.HTTPError as exc:
                     status = getattr(exc.response, "status_code", None)
@@ -2289,8 +2418,29 @@ def create_app(start_background: bool = True) -> Flask:
             sportsbook_future = executor.submit(load_sportsbook_rows)
             schedule_rows = schedule_future.result()
             sportsbook_provider, sportsbook_rows = sportsbook_future.result()
+        def merge_odds_row(row: dict) -> None:
+            identity = odds_identity(row)
+            existing = unique.get(identity)
+            if existing is None:
+                unique[identity] = row
+                return
+            combined_options = list(existing.get("executionOptions") or [])
+            combined_options.extend(row.get("executionOptions") or [])
+            if combined_options:
+                by_provider = {
+                    str(option.get("providerKey") or "").strip().lower(): option
+                    for option in combined_options
+                    if str(option.get("providerKey") or "").strip()
+                }
+                existing["executionOptions"] = list(by_provider.values())
+            for key, value in row.items():
+                if key == "executionOptions":
+                    continue
+                if existing.get(key) in (None, "", [], {}):
+                    existing[key] = value
+
         for row in schedule_rows:
-            unique.setdefault(odds_identity(row), row)
+            merge_odds_row(row)
 
         for source in snapshot.get("positions", []):
             if not source.get("is_sports") or source.get("market_closed") or source.get("event_closed"):
@@ -2317,12 +2467,34 @@ def create_app(start_background: bool = True) -> Flask:
             row["card"] = {"current_actionable_price": current, "recommended_amount": 0}
             row["recommendation"] = {"current_user_entry_price": current, "recommended_amount": 0}
             row.pop("orderbook", None)
-            unique.setdefault(odds_identity(row), row)
+            merge_odds_row(row)
 
         for row in sportsbook_rows:
-            unique.setdefault(odds_identity(row), row)
+            merge_odds_row(row)
 
         def matches_requested_filters(row: dict) -> bool:
+            if row.get("all_book_event"):
+                row_sport = str(row.get("canonical_sport_id") or "").upper()
+                row_league = str(row.get("canonical_league_id") or "").upper()
+                if (
+                    requested_sport
+                    and row_sport != requested_sport.upper().replace(" ", "_")
+                ):
+                    return False
+                if (
+                    requested_league
+                    and row_league != requested_league.upper().replace(" ", "_")
+                ):
+                    return False
+                if not requested_market:
+                    return True
+                expected_market_key = odds_screen_market_lookup.get(
+                    requested_market, requested_market
+                )
+                return (
+                    str(row.get("odds_market_key") or "").strip().lower()
+                    == expected_market_key
+                )
             canonical = canonicalize_trade(row)
             if canonical is None:
                 return not any(
@@ -2341,6 +2513,8 @@ def create_app(start_background: bool = True) -> Flask:
             ):
                 return False
             if not requested_market:
+                return True
+            if str(row.get("odds_market_key") or "").strip().lower() == requested_market:
                 return True
             expected = {
                 "moneyline": ("moneyline", False),
@@ -2362,7 +2536,7 @@ def create_app(start_background: bool = True) -> Flask:
                 if matches_requested_filters(row)
             ),
             key=lambda row: (str(row.get("schedule_date_et") or "~"), str(row.get("resolution_time") or "~")),
-        )[:2000]
+        )
         token_ids = [str(row.get("clob_token_id") or "") for row in rows if row.get("clob_token_id")]
         try:
             live_books = tracker.client.get_order_books(token_ids) if token_ids else {}
@@ -2389,68 +2563,56 @@ def create_app(start_background: bool = True) -> Flask:
             row["orderbook_summary"] = {"timestamp": book.get("timestamp")}
             row["card"]["current_actionable_price"] = best_ask
             row["recommendation"]["current_user_entry_price"] = best_ask
+        all_book_options = {
+            str(row.get("id") or ""): list(row.get("executionOptions") or [])
+            for row in rows
+        }
         execution_providers.attach_options(
             rows,
             compare_all=True,
             include_non_comparison=True,
-            exclude_provider_keys=("odds_engine", "the_odds_api"),
+            exclude_provider_keys=("odds_engine", "the_odds_api", "novig"),
         )
-        if sportsbook_provider is not None:
-            try:
-                sportsbook_options = sportsbook_provider.screen_options_for_trades(
-                    rows
-                )
-            except (requests.RequestException, ValueError, TypeError) as exc:
-                LOGGER.warning(
-                    "%s odds-screen comparison failed: %s",
-                    sportsbook_provider.provider_key,
-                    type(exc).__name__,
-                )
-                sportsbook_options = {}
-            for row in rows:
-                existing = list(row.get("executionOptions") or [])
-                additions = [
-                    option.to_dict()
-                    for option in sportsbook_options.get(
-                        str(row.get("id") or ""), []
+        for row in rows:
+            combined = list(row.get("executionOptions") or [])
+            combined.extend(all_book_options.get(str(row.get("id") or ""), []))
+            by_provider: dict[str, dict] = {}
+            for option in combined:
+                provider_key = str(option.get("providerKey") or "").strip().lower()
+                if not provider_key:
+                    continue
+                if (
+                    option.get("bestExecutablePrice") is None
+                    and option.get("americanOdds") is not None
+                ):
+                    option["bestExecutablePrice"] = american_to_probability(
+                        int(option["americanOdds"])
                     )
-                ]
-                for option in additions:
-                    if (
-                        option.get("bestExecutablePrice") is None
-                        and option.get("americanOdds") is not None
-                    ):
-                        option["bestExecutablePrice"] = (
-                            american_to_probability(
-                                int(option["americanOdds"])
-                            )
-                        )
-                combined = existing + additions
-                executable = [
-                    option
-                    for option in combined
-                    if option.get("isAvailable")
-                    and option.get("matchingConfidence") == "Exact"
-                    and option.get("bestExecutablePrice") is not None
-                ]
-                if executable:
-                    best = min(
-                        executable,
-                        key=lambda option: float(
-                            option["bestExecutablePrice"]
-                        ),
-                    )
-                    for option in combined:
-                        option["isBestPrice"] = option is best
-                row["executionOptions"] = combined
+                by_provider[provider_key] = option
+            combined = list(by_provider.values())
+            executable = [
+                option
+                for option in combined
+                if option.get("isAvailable")
+                and option.get("matchingConfidence") == "Exact"
+                and not option.get("isStale")
+                and option.get("bestExecutablePrice") is not None
+            ]
+            if executable:
+                best = min(
+                    executable,
+                    key=lambda option: float(option["bestExecutablePrice"]),
+                )
+                for option in combined:
+                    option["isBestPrice"] = option is best
+            row["executionOptions"] = combined
         provider_catalog: dict[str, dict] = {}
         if sportsbook_provider is not None:
-            provider_catalog.update(
-                {
-                    item["key"]: item
-                    for item in sportsbook_provider.provider_catalog(rows)
-                }
-            )
+            catalog_builder = getattr(sportsbook_provider, "provider_catalog", None)
+            if callable(catalog_builder):
+                provider_catalog.update(
+                    {item["key"]: item for item in catalog_builder(rows)}
+                )
         for row in rows:
             for option in row.get("executionOptions") or []:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
@@ -2517,7 +2679,7 @@ def create_app(start_background: bool = True) -> Flask:
         response = jsonify(
             {
                 "data": rows,
-                "pagination": {"total": len(rows), "page": 1, "per_page": 2000},
+                "pagination": {"total": len(rows), "page": 1, "per_page": len(rows)},
                 "status": snapshot["status"],
                 "source": (
                     "polymarket_novig_and_"
@@ -2536,7 +2698,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "market": requested_market,
                 },
                 "generatedAt": datetime.now(timezone.utc).isoformat(),
-                "refreshSeconds": 15,
+                "refreshSeconds": 45,
                 "transport": {
                     "mode": "rest_snapshot",
                     "provider": getattr(
@@ -2550,23 +2712,11 @@ def create_app(start_background: bool = True) -> Flask:
                 },
             }
         )
-        edge_ttl = (
-            15
-            if getattr(sportsbook_provider, "provider_key", "") == "odds_engine"
-            else 1200
-            if requested_market in {"alternate_spread", "alternate_total"}
-            else 600
+        edge_ttl = 45 if sportsbook_provider is not None else 15
+        response.headers["Cache-Control"] = (
+            f"public, max-age=10, s-maxage={edge_ttl}, "
+            "stale-while-revalidate=120"
         )
-        if getattr(sportsbook_provider, "provider_key", "") == "odds_engine":
-            response.headers["Cache-Control"] = (
-                f"public, max-age=5, s-maxage={edge_ttl}, "
-                "stale-while-revalidate=45"
-            )
-        else:
-            response.headers["Cache-Control"] = (
-                f"public, max-age=15, s-maxage={edge_ttl}, "
-                "stale-while-revalidate=60"
-            )
         return response
 
     @app.route("/api/futures")
@@ -2710,7 +2860,7 @@ def create_app(start_background: bool = True) -> Flask:
             dict.fromkeys(
                 item.strip().lower()
                 for item in request.args.get(
-                    "markets", ",".join(MAIN_MARKETS)
+                    "markets", ",".join(ALL_OPPORTUNITY_MARKETS)
                 ).split(",")
                 if item.strip()
             )
@@ -2783,11 +2933,11 @@ def create_app(start_background: bool = True) -> Flask:
             dict.fromkeys(
                 item.strip()
                 for item in request.args.get(
-                    "sports", "baseball_mlb,basketball_wnba"
+                    "sports", ",".join(ALL_ODDS_SPORT_KEYS)
                 ).split(",")
-                if item.strip()
+                if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
-        )[:4]
+        )
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -2821,7 +2971,7 @@ def create_app(start_background: bool = True) -> Flask:
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response = jsonify(
             {
-                "data": board["data"][:250],
+                "data": board["data"],
                 "total": len(board["data"]),
                 "diagnostics": board["diagnostics"],
                 "configured": True,
@@ -2889,9 +3039,8 @@ def create_app(start_background: bool = True) -> Flask:
         supported_markets.update(
             market for markets in PLAYER_PROP_MARKETS.values() for market in markets
         )
-        default_middle_markets = (
-            "spreads,totals,alternate_spreads,alternate_totals,"
-            "player_points,pitcher_strikeouts"
+        default_middle_markets = ",".join(
+            market for market in ALL_OPPORTUNITY_MARKETS if market != "h2h"
         )
         requested_markets = tuple(
             dict.fromkeys(
@@ -2957,12 +3106,11 @@ def create_app(start_background: bool = True) -> Flask:
             dict.fromkeys(
                 item.strip()
                 for item in request.args.get(
-                    "sports",
-                    "americanfootball_nfl,basketball_nba,baseball_mlb,basketball_wnba",
+                    "sports", ",".join(ALL_ODDS_SPORT_KEYS),
                 ).split(",")
-                if item.strip()
+                if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
-        )[:6]
+        )
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -2991,7 +3139,7 @@ def create_app(start_background: bool = True) -> Flask:
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response = jsonify(
             {
-                "data": board["data"][:250],
+                "data": board["data"],
                 "total": len(board["data"]),
                 "diagnostics": board["diagnostics"],
                 "configured": True,
@@ -3078,16 +3226,7 @@ def create_app(start_background: bool = True) -> Flask:
             for markets in PLAYER_PROP_MARKETS.values()
             for market in markets
         )
-        default_markets = (
-            "h2h",
-            "spreads",
-            "totals",
-            "alternate_spreads",
-            "alternate_totals",
-            "batter_hits",
-            "pitcher_strikeouts",
-            "player_points",
-        )
+        default_markets = ALL_OPPORTUNITY_MARKETS
         requested_markets = tuple(
             dict.fromkeys(
                 item.strip().lower()
@@ -3209,11 +3348,11 @@ def create_app(start_background: bool = True) -> Flask:
             dict.fromkeys(
                 item.strip()
                 for item in request.args.get(
-                    "sports", "baseball_mlb,basketball_wnba"
+                    "sports", ",".join(ALL_ODDS_SPORT_KEYS)
                 ).split(",")
-                if item.strip()
+                if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
-        )[:4]
+        )
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -3238,7 +3377,7 @@ def create_app(start_background: bool = True) -> Flask:
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response = jsonify(
             {
-                "data": board["data"][:250],
+                "data": board["data"],
                 "total": len(board["data"]),
                 "diagnostics": board["diagnostics"],
                 "configured": True,
@@ -3318,12 +3457,14 @@ def create_app(start_background: bool = True) -> Flask:
             )
 
         sport_keys = tuple(
-            item.strip()
-            for item in request.args.get(
-                "sports", "baseball_mlb,basketball_wnba"
-            ).split(",")
-            if item.strip()
-        )[:4]
+            dict.fromkeys(
+                item.strip()
+                for item in request.args.get(
+                    "sports", ",".join(ALL_ODDS_SPORT_KEYS)
+                ).split(",")
+                if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
+            )
+        )
         requested_markets = tuple(
             dict.fromkeys(
                 item.strip()
@@ -3526,7 +3667,7 @@ def create_app(start_background: bool = True) -> Flask:
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response_payload = {
-                "data": (rows if public_live_feed else visible_rows)[:250],
+                "data": (rows if public_live_feed else visible_rows),
                 "total": len(rows if public_live_feed else visible_rows),
                 "diagnostics": board["diagnostics"],
                 "tracking": tracking,

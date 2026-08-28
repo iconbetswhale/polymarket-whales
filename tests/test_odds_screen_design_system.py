@@ -157,7 +157,7 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert 'params.set("preview", "1")' not in script
     assert 'document.getElementById("odds-preview-data")' not in script
     assert "previewPayload" not in script
-    assert "oddsState.timer = window.setInterval(loadOddsScreen, 15000)" in script
+    assert "oddsState.timer = window.setInterval(loadOddsScreen, 45000)" in script
     assert 'params.set("active", "1")' in script
     assert 'params.set("sport", oddsState.sport)' not in script
     assert 'params.set("league", oddsState.league)' not in script
