@@ -46,7 +46,18 @@
       <label class="dfs-select"><span>Stat</span><select id="dfs-stat"><option value="">All stats</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Side</span><select id="dfs-side"><option value="">Over &amp; under</option><option>Over</option><option>Under</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-search"><span>Player</span><i class="ph ph-magnifying-glass"></i><input id="dfs-search" type="search" placeholder="Search players"></label>
-      <button class="dfs-reset" id="dfs-reset" type="button">Reset</button>
+      <div class="dfs-filter-actions">
+        <button class="dfs-reset" id="dfs-reset" type="button">Reset</button>
+        <div class="dfs-add-book">
+          <button class="dfs-add-book-open" id="dfs-add-book-open" type="button" aria-expanded="false" aria-haspopup="dialog" aria-controls="dfs-add-book-picker"><i class="ph ph-plus" aria-hidden="true"></i><span>Add book</span></button>
+          <section class="dfs-add-book-picker" id="dfs-add-book-picker" role="dialog" aria-label="Add or remove optional comparison books" hidden>
+            <header><span><strong>Comparison books</strong><small>Core columns stay locked</small></span><button id="dfs-add-book-close" type="button" aria-label="Close comparison book picker"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+            <label class="dfs-add-book-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="dfs-add-book-search" type="search" placeholder="Search books" autocomplete="off" aria-label="Search comparison books"></label>
+            <div class="dfs-add-book-list" id="dfs-add-book-list"></div>
+            <p class="dfs-add-book-empty" id="dfs-add-book-empty" hidden>No books match that search.</p>
+          </section>
+        </div>
+      </div>
     </div>
     <div class="dfs-custom-date-range" id="dfs-custom-date-range" hidden>
       <div class="dfs-custom-date-fields" role="group" aria-label="Custom event date range">
@@ -68,6 +79,7 @@
     <div class="dfs-empty dfs-error" id="dfs-error" hidden><i class="ph ph-warning-circle"></i><strong>Live props are temporarily unavailable</strong><span>Click Refresh to try again.</span></div>
   </div>
 </section>
+<script type="application/json" id="dfs-comparison-book-catalog">{{ dfs_optional_comparison_books | tojson }}</script>
 <div class="dfs-iconalgo-tooltip-popover" id="dfs-iconalgo-tooltip" role="tooltip" hidden>IconLabs Algo Odds · private model active</div>
 
 <dialog class="dfs-devig-dialog" id="dfs-devig-dialog" aria-labelledby="dfs-devig-title">

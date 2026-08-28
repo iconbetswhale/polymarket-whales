@@ -13,6 +13,7 @@ from model_tracker_discord import DiscordDeliveryResult
 from position_tracker import MODEL_TRACKER_USER_ID, TrackerService
 from app import (
     DFS_COMPARE_BOOK_KEYS,
+    DFS_OPTIONAL_COMPARE_BOOK_KEYS,
     _attach_historical_personal_sharps,
     _format_event_start,
     _has_positive_recommendation,
@@ -1910,6 +1911,34 @@ def test_dfs_compare_order_syncs_only_for_the_authenticated_account(app_client):
         "/api/dfs/preferences", json={"compareBookOrder": order[:-1] + [order[0]]}
     )
     assert invalid.status_code == 400
+
+
+def test_dfs_compare_order_keeps_core_books_and_allows_supported_optional_books(
+    app_client,
+):
+    owner = app_client.application.test_client()
+    assert owner.post(
+        "/api/auth/register",
+        json={"email": "dfs-optional@example.com", "password": "strong-pass-1"},
+    ).status_code == 201
+
+    optional_key = "fanatics"
+    assert optional_key in DFS_OPTIONAL_COMPARE_BOOK_KEYS
+    order = [*DFS_COMPARE_BOOK_KEYS, optional_key]
+    saved = owner.put(
+        "/api/dfs/preferences", json={"compareBookOrder": order}
+    )
+    assert saved.status_code == 200
+    assert saved.get_json()["data"]["compareBookOrder"] == order
+
+    missing_core = owner.put(
+        "/api/dfs/preferences", json={"compareBookOrder": order[1:]}
+    )
+    assert missing_core.status_code == 400
+    unsupported = owner.put(
+        "/api/dfs/preferences", json={"compareBookOrder": [*order, "fake-book"]}
+    )
+    assert unsupported.status_code == 400
 
 
 def test_account_registration_persists_username_and_rejects_duplicates(app_client):

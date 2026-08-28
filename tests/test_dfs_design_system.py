@@ -163,6 +163,10 @@ def test_iconlabs_fair_odds_logo_explains_the_weightings_on_hover() -> None:
     assert "position: fixed;" in CSS
     assert "showIconAlgoTooltip" in SCRIPT
     assert "getBoundingClientRect()" in SCRIPT
+    tooltip_start = CSS.index(".dfs-algo-tooltip {")
+    tooltip_block = CSS[tooltip_start : CSS.index("}", tooltip_start)]
+    assert "cursor: default;" in tooltip_block
+    assert "cursor: help;" not in tooltip_block
 
 
 def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents() -> None:
@@ -244,8 +248,8 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
     assert "Best odds" in SCRIPT
     assert "Avg odds" in SCRIPT
     assert ".dfs-odds-detail-grid" in CSS
-    assert "grid-template-columns: 204px 72px 72px repeat(16, 74px)" in CSS
-    assert "repeat(16, 74px)" in CSS
+    assert "grid-template-columns: 204px 72px 72px repeat(var(--dfs-detail-book-count, 16), 74px)" in CSS
+    assert "--dfs-detail-book-count:${orderedBooks.length}" in SCRIPT
     assert "min-height: 44px" in CSS
     assert "min-height: 46px" in CSS
     assert ".dfs-detail-title {" in CSS
@@ -256,7 +260,7 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
 
 def test_dfs_detail_uses_and_syncs_the_main_saved_sportsbook_order() -> None:
     assert "function detailBookOrder()" in SCRIPT
-    assert "compareOrder.filter(key => detailBookSet.has(key))" in SCRIPT
+    assert "detailBookSet.has(key) || optionalComparisonBookMap.has(key)" in SCRIPT
     assert "detailBookOrder().map(key=>marketSnapshot(row,key))" in SCRIPT
     assert "syncCompareOrderFromAccount()" in SCRIPT
     assert "persistCompareOrder()" in SCRIPT
@@ -488,10 +492,10 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "font: 700 15px/1.2 var(--il-font-ui);" in CSS
     assert "font: 500 12px/1.2 var(--il-font-ui);" in CSS
     assert "font: 500 11px/1.2 var(--il-font-ui);" in CSS
-    assert "font: 700 13px/1 var(--il-font-data);" in CSS
+    assert "font: 800 13px/1 var(--il-font-data);" in CSS
     assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
     assert ".dfs-stat-number" in CSS
-    assert "font-size: 24px;" in CSS
+    assert "font-size: 18px;" in CSS
     assert "font-weight: 800;" in CSS
     assert ".dfs-stat-label" in CSS
     assert "font-size: 12px;" in CSS
@@ -501,13 +505,49 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "text-align: center;" in CSS
 
 
-def test_dfs_chance_to_hit_number_is_two_pixels_larger() -> None:
+def test_dfs_chance_to_hit_number_is_fifteen_pixels() -> None:
     chance_number_start = CSS.index(".hit-rate strong {")
     chance_number_block = CSS[
         chance_number_start : CSS.index("}", chance_number_start)
     ]
 
-    assert "font: 700 16px/1 var(--il-font-data);" in chance_number_block
+    assert "font: 700 15px/1 var(--il-font-data);" in chance_number_block
+
+
+def test_dfs_app_parlay_summary_is_two_pixels_larger() -> None:
+    summary_start = CSS.index(".dfs-book small {")
+    summary_block = CSS[summary_start : CSS.index("}", summary_start)]
+
+    assert "font-size: 11px;" in summary_block
+
+
+def test_dfs_side_badge_has_a_stronger_border_and_bold_label() -> None:
+    side_start = CSS.index(".dfs-side {")
+    side_block = CSS[side_start : CSS.index("}", side_start)]
+
+    assert "border: 2px solid transparent;" in side_block
+    assert "font: 800 13px/1 var(--il-font-data);" in side_block
+    assert "rgba(80, 217, 119, .72)" in CSS
+    assert "var(--il-brand-hover) 72%" in CSS
+
+
+def test_optional_comparison_books_are_searchable_removable_and_persistent() -> None:
+    assert 'id="dfs-comparison-book-catalog"' in TEMPLATE
+    assert 'id="dfs-add-book-open"' in TEMPLATE
+    assert 'id="dfs-add-book-picker"' in TEMPLATE
+    assert 'id="dfs-add-book-search"' in TEMPLATE
+    assert "optionalComparisonBookMap" in SCRIPT
+    assert "function toggleOptionalComparisonBook(key)" in SCRIPT
+    assert "function positionComparisonBookPicker()" in SCRIPT
+    assert "position: fixed;" in CSS
+    assert "data-remove-comparison-book" in SCRIPT
+    assert "requiredComparisonBookKeys" in SCRIPT
+    assert "defaults.every(key => order.includes(key))" in SCRIPT
+    assert "order.every(key => allowedComparisonBookKeys.has(key))" in SCRIPT
+    assert "persistCompareOrder();" in SCRIPT
+
+    static_headers = TEMPLATE.split('id="dfs-head-row"', 1)[1].split("</tr>", 1)[0]
+    assert "data-remove-comparison-book" not in static_headers
 
 
 def test_dfs_stat_and_matchup_text_never_truncate() -> None:

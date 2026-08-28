@@ -40,6 +40,7 @@ def test_visual_qa_dfs_payload_populates_every_fantasy_app():
     }
     expected_sportsbook_odds = {
         "fanduel",
+        "fanatics",
         "novig",
         "prophetx",
         "draftkings",

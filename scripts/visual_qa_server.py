@@ -44,6 +44,7 @@ QA_DFS_APP_PROVIDERS = (
 )
 QA_DFS_SPORTSBOOKS = (
     ("fanduel", 0),
+    ("fanatics", 1),
     ("novig", 3),
     ("prophetexchange", -2),
     ("draftkings", -4),

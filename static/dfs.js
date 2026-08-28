@@ -8,6 +8,17 @@
     {key:'dk-pick6', name:'DK Pick6'}, {key:'betr', name:'Betr'},
     {key:'dabble', name:'Dabble'}, {key:'sleeper', name:'Sleeper'}
   ];
+  const optionalComparisonBooks = (() => {
+    try {
+      const catalog = JSON.parse(document.querySelector('#dfs-comparison-book-catalog')?.textContent || '[]');
+      return Array.isArray(catalog)
+        ? catalog.filter(book=>book && book.key && book.name)
+        : [];
+    } catch (_) { return []; }
+  })();
+  const requiredComparisonBookKeys = new Set(comparisonBooks.map(book=>book.key));
+  const optionalComparisonBookMap = new Map(optionalComparisonBooks.map(book=>[book.key,book]));
+  const allowedComparisonBookKeys = new Set([...requiredComparisonBookKeys,...optionalComparisonBookMap.keys()]);
   const sourceOddsKeys = ['novig','prophetx','fanduel','draftkings','kalshi','polymarket','caesars','hard-rock','fliff','sleeper','betonline','pinnacle','parlay-play','propbuilder','bovada'];
   const selectedBookKeys = {'PrizePicks':'prizepicks','Underdog':'underdog','DK Pick6':'dk-pick6','Betr':'betr','Dabble':'dabble'};
   const marketTypes = {
@@ -39,6 +50,11 @@
   const devigDialog = document.querySelector('#dfs-devig-dialog');
   const parlayGuideDialog = document.querySelector('#dfs-parlay-guide-dialog');
   const parlayConfig = document.querySelector('#dfs-parlay-config');
+  const comparisonBookOpen = document.querySelector('#dfs-add-book-open');
+  const comparisonBookPicker = document.querySelector('#dfs-add-book-picker');
+  const comparisonBookSearch = document.querySelector('#dfs-add-book-search');
+  const comparisonBookList = document.querySelector('#dfs-add-book-list');
+  const comparisonBookEmpty = document.querySelector('#dfs-add-book-empty');
   const iconAlgoTooltipTrigger = document.querySelector('.dfs-algo-tooltip');
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
@@ -262,12 +278,14 @@
   function validCompareOrder(order) {
     const defaults = comparisonBooks.map(book => book.key);
     return Array.isArray(order)
-      && order.length === defaults.length
-      && defaults.every(key => order.includes(key));
+      && order.length >= defaults.length
+      && new Set(order).size === order.length
+      && defaults.every(key => order.includes(key))
+      && order.every(key => allowedComparisonBookKeys.has(key));
   }
 
   function detailBookOrder() {
-    const ordered = compareOrder.filter(key => detailBookSet.has(key));
+    const ordered = compareOrder.filter(key => detailBookSet.has(key) || optionalComparisonBookMap.has(key));
     return [...ordered,...detailBookDefaults.filter(key => !ordered.includes(key))];
   }
 
@@ -412,12 +430,14 @@
   }
 
   function bookName(key) {
-    return comparisonBooks.find(book=>book.key===key)?.name || detailBookNames[key] || key;
+    return comparisonBooks.find(book=>book.key===key)?.name || optionalComparisonBookMap.get(key)?.name || detailBookNames[key] || key;
   }
 
   function bookLogo(key) {
     const existing = document.querySelector(`[data-book-key="${key}"] img`)?.src;
     if (existing) return existing;
+    const optionalLogo = optionalComparisonBookMap.get(key)?.logoUrl;
+    if (optionalLogo) return new URL(optionalLogo,window.location.href).href;
     const sample = document.querySelector('[data-book-key="fanduel"] img')?.src;
     if (!sample) return '';
     try {
@@ -478,7 +498,7 @@
       return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };
     const colspan = 6 + compareOrder.filter(key=>key!==selectedBookKeys[activeBook]).length;
-    return `<tr class="dfs-odds-detail-row"><td colspan="${colspan}"><section class="dfs-odds-detail" aria-label="${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)} over and under odds"><div class="dfs-odds-detail-grid"><div class="dfs-detail-title"><strong>${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)}</strong></div><div class="dfs-detail-summary-head">Best odds</div><div class="dfs-detail-summary-head">Avg odds</div>${headerCells}${sideLane('Over',pair.over,over)}${sideLane('Under',pair.under,under)}</div></section></td></tr>`;
+    return `<tr class="dfs-odds-detail-row"><td colspan="${colspan}"><section class="dfs-odds-detail" aria-label="${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)} over and under odds"><div class="dfs-odds-detail-grid" style="--dfs-detail-book-count:${orderedBooks.length}"><div class="dfs-detail-title"><strong>${esc(row.player)} ${esc(activeLine)} ${esc(row.stat)}</strong></div><div class="dfs-detail-summary-head">Best odds</div><div class="dfs-detail-summary-head">Avg odds</div>${headerCells}${sideLane('Over',pair.over,over)}${sideLane('Under',pair.under,under)}</div></section></td></tr>`;
   }
 
   function updateStats() {
@@ -564,11 +584,101 @@
   function reorderHeaders() {
     const row = document.querySelector('#dfs-head-row');
     const selectedKey = selectedBookKeys[activeBook];
+    syncOptionalComparisonHeaders();
     compareOrder.forEach(key => {
       const header = row.querySelector(`[data-book-key="${key}"]`);
+      if (!header) return;
       header.hidden = key === selectedKey;
       row.appendChild(header);
     });
+  }
+
+  function createOptionalComparisonHeader(book) {
+    const header = document.createElement('th');
+    header.className = 'compare-book is-optional';
+    header.dataset.bookKey = book.key;
+    header.dataset.optionalComparisonBook = 'true';
+    header.draggable = true;
+    const logo = book.logoUrl
+      ? `<img src="${esc(book.logoUrl)}" alt="${esc(book.name)}" title="${esc(book.name)}">`
+      : '';
+    header.innerHTML = `${logo}<i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i><button class="dfs-remove-comparison-book" type="button" data-remove-comparison-book="${esc(book.key)}" aria-label="Remove ${esc(book.name)} comparison column" title="Remove ${esc(book.name)}"><i class="ph ph-x" aria-hidden="true"></i></button>`;
+    return header;
+  }
+
+  function syncOptionalComparisonHeaders() {
+    const row = document.querySelector('#dfs-head-row');
+    row.querySelectorAll('[data-optional-comparison-book="true"]').forEach(header => {
+      if (!compareOrder.includes(header.dataset.bookKey)) header.remove();
+    });
+    compareOrder.forEach(key => {
+      const book = optionalComparisonBookMap.get(key);
+      if (!book || row.querySelector(`[data-book-key="${key}"]`)) return;
+      row.appendChild(createOptionalComparisonHeader(book));
+    });
+  }
+
+  function renderComparisonBookPicker() {
+    const query = comparisonBookSearch.value.trim().toLowerCase();
+    const matches = optionalComparisonBooks.filter(book =>
+      !query || `${book.name} ${book.key}`.toLowerCase().includes(query)
+    );
+    comparisonBookList.replaceChildren(...matches.map(book => {
+      const added = compareOrder.includes(book.key);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'dfs-add-book-option';
+      button.dataset.comparisonBookKey = book.key;
+      button.setAttribute('aria-pressed',String(added));
+      button.setAttribute('aria-label',`${added?'Remove':'Add'} ${book.name} comparison column`);
+      const logo = book.logoUrl ? `<img src="${esc(book.logoUrl)}" alt="">` : '<span></span>';
+      button.innerHTML = `${logo}<span>${esc(book.name)}</span><i class="ph ${added?'ph-check':'ph-plus'}" aria-hidden="true"></i>`;
+      return button;
+    }));
+    comparisonBookEmpty.hidden = matches.length > 0;
+  }
+
+  function positionComparisonBookPicker() {
+    if (comparisonBookPicker.hidden) return;
+    const triggerRect = comparisonBookOpen.getBoundingClientRect();
+    const edge = 12;
+    const gap = 8;
+    const width = Math.min(340,window.innerWidth-edge*2);
+    comparisonBookPicker.style.width = `${Math.round(width)}px`;
+    comparisonBookPicker.style.left = `${Math.round(Math.min(
+      window.innerWidth-width-edge,
+      Math.max(edge,triggerRect.right-width)
+    ))}px`;
+    comparisonBookPicker.style.top = `${Math.round(triggerRect.bottom+gap)}px`;
+    const pickerHeight = comparisonBookPicker.getBoundingClientRect().height;
+    const belowTop = triggerRect.bottom+gap;
+    const aboveTop = triggerRect.top-gap-pickerHeight;
+    const top = belowTop+pickerHeight <= window.innerHeight-edge
+      ? belowTop
+      : aboveTop >= edge
+        ? aboveTop
+        : Math.max(edge,window.innerHeight-edge-pickerHeight);
+    comparisonBookPicker.style.top = `${Math.round(top)}px`;
+  }
+
+  function setComparisonBookPickerOpen(open) {
+    comparisonBookPicker.hidden = !open;
+    comparisonBookOpen.setAttribute('aria-expanded',String(open));
+    if (!open) return;
+    renderComparisonBookPicker();
+    positionComparisonBookPicker();
+    requestAnimationFrame(()=>comparisonBookSearch.focus({preventScroll:true}));
+  }
+
+  function toggleOptionalComparisonBook(key) {
+    if (!optionalComparisonBookMap.has(key)) return;
+    compareOrder = compareOrder.includes(key)
+      ? compareOrder.filter(item=>item!==key)
+      : [...compareOrder,key];
+    persistCompareOrder();
+    reorderHeaders();
+    renderComparisonBookPicker();
+    render();
   }
 
   function selectedDfsLine(row) {
@@ -893,9 +1003,12 @@
     options[nextIndex]?.focus();
   });
   document.addEventListener('click', event => {
-    if (parlayConfig.hidden) return;
-    if (event.target.closest('#dfs-parlay-config,[data-dfs-book]')) return;
-    setParlayPickerOpen(false);
+    if (!parlayConfig.hidden && !event.target.closest('#dfs-parlay-config,[data-dfs-book]')) {
+      setParlayPickerOpen(false);
+    }
+    if (!comparisonBookPicker.hidden && !event.target.closest('.dfs-add-book')) {
+      setComparisonBookPickerOpen(false);
+    }
   });
   body.addEventListener('click', event => {
     const row = event.target.closest('.dfs-prop-row');
@@ -913,6 +1026,20 @@
     body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
   });
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); persistCompareOrder(); reorderHeaders(); render(); });
+  comparisonBookOpen.addEventListener('click', () => setComparisonBookPickerOpen(comparisonBookPicker.hidden));
+  document.querySelector('#dfs-add-book-close').addEventListener('click', () => setComparisonBookPickerOpen(false));
+  comparisonBookSearch.addEventListener('input',renderComparisonBookPicker);
+  comparisonBookList.addEventListener('click', event => {
+    const option = event.target.closest('[data-comparison-book-key]');
+    if (!option) return;
+    toggleOptionalComparisonBook(option.dataset.comparisonBookKey);
+  });
+  document.querySelector('#dfs-head-row').addEventListener('click', event => {
+    const remove = event.target.closest('[data-remove-comparison-book]');
+    if (!remove) return;
+    event.stopPropagation();
+    toggleOptionalComparisonBook(remove.dataset.removeComparisonBook);
+  });
   document.querySelector('#dfs-sport').addEventListener('change', () => { updateStats(); render(); });
   ['dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   dateSelect.addEventListener('change', () => { syncCustomDateRange(); render(); });
@@ -954,6 +1081,10 @@
   document.addEventListener('keydown', event => {
     if (event.key === 'Escape' && parlayGuideDialog.open) parlayGuideDialog.close();
     if (event.key === 'Escape' && !parlayConfig.hidden) setParlayPickerOpen(false);
+    if (event.key === 'Escape' && !comparisonBookPicker.hidden) {
+      setComparisonBookPickerOpen(false);
+      comparisonBookOpen.focus();
+    }
   });
   iconAlgoTooltipTrigger.addEventListener('pointerenter', showIconAlgoTooltip);
   iconAlgoTooltipTrigger.addEventListener('pointerleave', hideIconAlgoTooltip);
@@ -962,9 +1093,13 @@
   window.addEventListener('resize', () => {
     hideIconAlgoTooltip();
     positionOpenParlayPicker();
+    positionComparisonBookPicker();
   });
   document.querySelector('.dfs-book-row').addEventListener('scroll',positionOpenParlayPicker);
-  window.addEventListener('scroll',positionOpenParlayPicker,{capture:true,passive:true});
+  window.addEventListener('scroll',() => {
+    positionOpenParlayPicker();
+    positionComparisonBookPicker();
+  },{capture:true,passive:true});
   document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearAutoRefresh();

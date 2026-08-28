@@ -112,11 +112,16 @@ from dfs_probability_engine import (
     ICONLABS_DFS_WEIGHTS,
     SUPPORTED_DEVIG_METHODS,
 )
-from dfs_odds import DFS_OPTIMIZER_BOOK_KEYS, build_dfs_odds_board
+from dfs_odds import (
+    DFS_OPTIMIZER_BOOK_KEYS,
+    DISPLAY_PROVIDER_ALIASES,
+    build_dfs_odds_board,
+)
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
     SPORTS_GAME_ODDS_BOOKMAKERS,
+    SPORTS_GAME_ODDS_LOGOS,
 )
 from odds_engine_provider import (
     ODDSENGINE_BOOKMAKERS,
@@ -159,6 +164,23 @@ DFS_COMPARE_BOOK_KEYS = (
     "dabble",
     "sleeper",
 )
+DFS_OPTIONAL_COMPARE_BOOKS = tuple(
+    {
+        "key": DISPLAY_PROVIDER_ALIASES.get(provider_key, provider_key),
+        "name": metadata["name"],
+        "logoUrl": SPORTS_GAME_ODDS_LOGOS.get(provider_key, ""),
+    }
+    for provider_key, metadata in SPORTS_GAME_ODDS_BOOKMAKERS.items()
+    if metadata["type"] != "dfs"
+    and DISPLAY_PROVIDER_ALIASES.get(provider_key, provider_key)
+    not in DFS_COMPARE_BOOK_KEYS
+)
+DFS_OPTIONAL_COMPARE_BOOK_KEYS = tuple(
+    book["key"] for book in DFS_OPTIONAL_COMPARE_BOOKS
+)
+DFS_ALLOWED_COMPARE_BOOK_KEYS = frozenset(
+    (*DFS_COMPARE_BOOK_KEYS, *DFS_OPTIONAL_COMPARE_BOOK_KEYS)
+)
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
 
@@ -167,11 +189,13 @@ def _normalize_dfs_compare_book_order(value: object) -> list[str] | None:
     if not isinstance(value, list):
         return None
     normalized = [str(item).strip().lower() for item in value]
-    if len(normalized) != len(DFS_COMPARE_BOOK_KEYS):
+    if len(normalized) < len(DFS_COMPARE_BOOK_KEYS):
         return None
     if len(set(normalized)) != len(normalized):
         return None
-    if set(normalized) != set(DFS_COMPARE_BOOK_KEYS):
+    if not set(DFS_COMPARE_BOOK_KEYS).issubset(normalized):
+        return None
+    if not set(normalized).issubset(DFS_ALLOWED_COMPARE_BOOK_KEYS):
         return None
     return normalized
 
@@ -1282,6 +1306,7 @@ def create_app(start_background: bool = True) -> Flask:
             "dfs.html",
             title="IconBets Fantasy Optimizer",
             page="dfs",
+            dfs_optional_comparison_books=DFS_OPTIONAL_COMPARE_BOOKS,
         )
 
     @app.post("/api/dfs/fair-probability")
@@ -5302,7 +5327,12 @@ def create_app(start_background: bool = True) -> Flask:
             )
             if compare_order is None:
                 return jsonify(
-                    {"error": "compareBookOrder must contain every DFS column once."}
+                    {
+                        "error": (
+                            "compareBookOrder must contain every locked DFS column "
+                            "once and only supported optional books."
+                        )
+                    }
                 ), 400
             current = present_user_settings(
                 tracker.database.update_dfs_compare_book_order(
