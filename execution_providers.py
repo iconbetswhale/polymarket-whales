@@ -1141,6 +1141,7 @@ class NoVIGProvider(ExecutionProvider):
                 headers={"x-api-key": self.api_key},
                 timeout=self.request_timeout,
             )
+            self._log_provider_error(response, operation="event matching")
             response.raise_for_status()
             payload = response.json()
             if payload.get("success") is False:
@@ -1167,6 +1168,7 @@ class NoVIGProvider(ExecutionProvider):
                 headers={"x-api-key": self.api_key},
                 timeout=self.request_timeout,
             )
+            self._log_provider_error(response, operation="all-book event scan")
             response.raise_for_status()
             payload = response.json()
             if payload.get("success") is False:
@@ -1183,6 +1185,31 @@ class NoVIGProvider(ExecutionProvider):
             if not cursor:
                 return events
         raise ValueError("Provider response exceeded the pagination safety limit")
+
+    @staticmethod
+    def _log_provider_error(response: requests.Response, *, operation: str) -> None:
+        """Log the provider's safe error label without credentials or headers."""
+
+        if int(getattr(response, "status_code", 0) or 0) < 400:
+            return
+        message = ""
+        try:
+            payload = response.json()
+            if isinstance(payload, dict):
+                message = str(
+                    payload.get("message")
+                    or payload.get("error")
+                    or payload.get("detail")
+                    or ""
+                ).strip()
+        except (TypeError, ValueError):
+            message = ""
+        LOGGER.warning(
+            "SportsGameOdds %s failed with status %s%s",
+            operation,
+            getattr(response, "status_code", "unknown"),
+            f": {message[:240]}" if message else "",
+        )
 
 
 class ExecutionProviderRegistry:
