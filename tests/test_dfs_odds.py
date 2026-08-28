@@ -341,8 +341,8 @@ def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
     )
 
     assert response.status_code == 200
-    assert response.get_json()["refreshSeconds"] == 15
-    assert "s-maxage=15" in response.headers["Cache-Control"]
+    assert response.get_json()["refreshSeconds"] == 60
+    assert "s-maxage=60" in response.headers["Cache-Control"]
     assert not response.headers.getlist("Set-Cookie")
 
 

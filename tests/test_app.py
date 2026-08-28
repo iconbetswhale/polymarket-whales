@@ -649,14 +649,14 @@ def test_live_tool_pages_embed_complete_oddsengine_filter_catalog(app_client):
     assert attempted_preview.get_data(as_text=True) == live_response.get_data(as_text=True)
 
 
-def test_positive_ev_live_scan_prefers_sports_game_odds(
+def test_positive_ev_live_scan_uses_odds_engine(
     app_client, temp_settings, monkeypatch
 ):
     object.__setattr__(temp_settings, "positive_ev_enabled", True)
-    object.__setattr__(temp_settings, "novig_api_key", "all-lines-key")
+    object.__setattr__(temp_settings, "oddsengine_api_key", "all-lines-key")
     registry = app_client.application.extensions["execution_providers"]
     provider = next(
-        item for item in registry.providers if item.provider_key == "novig"
+        item for item in registry.providers if item.provider_key == "odds_engine"
     )
     provider.api_key = "all-lines-key"
     calls = []
@@ -670,7 +670,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
         provider,
         "diagnostics",
         lambda authenticate=False: {
-            "provider": "sports_game_odds",
+            "provider": "odds_engine",
             "quota": {},
         },
     )
@@ -680,7 +680,7 @@ def test_positive_ev_live_scan_prefers_sports_game_odds(
     assert response.status_code == 200
     payload = response.get_json()
     assert calls == [(ALL_ODDS_SPORT_KEYS, ("h2h", "spreads", "totals"))]
-    assert payload["dataSource"] == "sports_game_odds"
+    assert payload["dataSource"] == "odds_engine"
     assert set(payload["sourceWeights"]) == {
         "pinnacle",
         "circa",
@@ -780,10 +780,10 @@ def test_positive_ev_public_live_feed_reuses_last_good_snapshot_during_provider_
     app_client, temp_settings, monkeypatch
 ):
     object.__setattr__(temp_settings, "positive_ev_enabled", True)
-    object.__setattr__(temp_settings, "novig_api_key", "all-lines-key")
+    object.__setattr__(temp_settings, "oddsengine_api_key", "all-lines-key")
     registry = app_client.application.extensions["execution_providers"]
     provider = next(
-        item for item in registry.providers if item.provider_key == "novig"
+        item for item in registry.providers if item.provider_key == "odds_engine"
     )
     provider.api_key = "all-lines-key"
     calls = 0
@@ -800,7 +800,7 @@ def test_positive_ev_public_live_feed_reuses_last_good_snapshot_during_provider_
         provider,
         "diagnostics",
         lambda authenticate=False: {
-            "provider": "sports_game_odds",
+            "provider": "odds_engine",
             "quota": {},
         },
     )
@@ -810,7 +810,7 @@ def test_positive_ev_public_live_feed_reuses_last_good_snapshot_during_provider_
     assert live.status_code == 200
     assert live.get_json()["degraded"] is False
     assert live.headers["Cache-Control"] == (
-        "public, max-age=5, s-maxage=15, stale-while-revalidate=120"
+        "public, max-age=10, s-maxage=60, stale-while-revalidate=180"
     )
     assert "iconbets_user" not in live.headers.get("Set-Cookie", "")
 

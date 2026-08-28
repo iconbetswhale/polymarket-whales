@@ -57,7 +57,7 @@ NON_RETAIL_MARKET_BOOKS = SHARP_CONSENSUS_BOOKS | {
 
 
 class OddsComparisonFallback:
-    """Prefer OddsEngine while preserving the existing comparison fallback."""
+    """Use configured approved providers for sportsbook comparisons."""
 
     def __init__(self, providers) -> None:
         self.providers = tuple(
@@ -2230,7 +2230,6 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
     comparison_provider = OddsComparisonFallback(
         (
             providers.get("odds_engine"),
-            providers.get("the_odds_api"),
         )
     )
     odds_engine = providers.get("odds_engine")

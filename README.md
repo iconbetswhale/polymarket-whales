@@ -240,25 +240,25 @@ Maximum persisted Discord jobs claimed during one backend reconciliation run.
 The Model Tracker insert is the notification source of truth. A qualifying Today recommendation and its unique Discord outbox job are written in one database transaction. The existing scheduled Model Tracker reconciliation drains that outbox, records success or a safe error code, and retries transient failures without requiring a browser page to be open. Personal Tracker records and dashboard-only recommendations never enter this outbox.
 
 `ODDSENGINE_API_KEY=`
-Server-only OddsEngine key used as the preferred live all-book feed for Positive EV, Arbitrage, Middles, Low Hold, Odds Screen, Fantasy Optimizer, Sharp Money, model fair pricing, and sportsbook line shopping. Requests authenticate with `X-API-Key`; the key is never sent to the browser or included in diagnostics. The standard event and odds endpoints feed IconLabs' existing calculators and models, so provider changes do not alter their math. With an Advanced-plan key, Sharp Money reads `/v1/orderbook/top?sort=whale&selected_books=prophetx` for ProphetX's two-sided depth, liquidity, retail peers, edge, and whale-volume fields; separate direct ProphetX credentials are then optional.
+Server-only OddsEngine key used as the sole live sportsbook-aggregation feed for Positive EV, Arbitrage, Middles, Low Hold, Odds Screen, Fantasy Optimizer, Sharp Money, model fair pricing, and sportsbook line shopping. Requests authenticate with `X-API-Key`; the key is never sent to the browser or included in diagnostics. Direct NoVIG NBX, Polymarket, ProphetX, 4CX, and Kalshi integrations remain independent exchange sources. The standard event and odds endpoints feed IconLabs' existing calculators and models, so provider changes do not alter their math. With an Advanced-plan key, Sharp Money reads `/v1/orderbook/top?sort=whale&selected_books=prophetx` for ProphetX's two-sided depth, liquidity, retail peers, edge, and whale-volume fields; separate direct ProphetX credentials are then optional.
 
 `ODDSENGINE_API_BASE_URL=https://api.oddsengine.dev/v1`
-OddsEngine API base URL. One shared 15-second raw-event cache serves every compatible live page, so a league schedule and event snapshot are reused across calculators, model cards, DFS, Sharp Money, and the Odds Screen. Opportunity scanners stay capped at 5 upcoming events per league and 20 total events; the Odds Screen expands to the provider's available 50-event request budget so the selected league's full slate can populate. The adapter records rate-limit headers and returns already-fetched events as a partial snapshot if a scan reaches the limit. SportsGameOdds and The Odds API remain automatic fallbacks when an OddsEngine request fails; historical close and score settlement continue using providers with those specialized endpoints.
+OddsEngine API base URL. One shared 60-second raw-event cache serves every compatible live page, so a league schedule and event snapshot are reused across calculators, model cards, DFS, Sharp Money, and the Odds Screen. Opportunity scanners stay capped at 5 upcoming events per league and 20 total events to remain inside the provider request budget; the Odds Screen can consume up to 50 events for a selected full slate. The adapter records rate-limit headers and returns already-fetched real events as a partial snapshot if a scan reaches the limit. It does not substitute SportsGameOdds, The Odds API, demo odds, or generated prices when OddsEngine is unavailable.
 
-`ODDSENGINE_CACHE_TTL_SECONDS=15`
+`ODDSENGINE_CACHE_TTL_SECONDS=60`
 Minimum age before a standard REST event or odds snapshot is refreshed. OddsEngine WebSocket and full order-book access require an Advanced or Dev key and a persistent worker; Vercel request functions use the documented REST snapshots when that entitlement is unavailable.
 
 `SHARP_MONEY_ODDSENGINE_REFRESH_SECONDS=30`
 Minimum server-side refresh interval for the materialized OddsEngine whale/order-book snapshot. The live response is edge cached for 30 seconds so browser polling does not spend one provider request per viewer.
 
 `SPORTSGAMEODDS_API_KEY=`
-Server-side SportsGameOdds All Lines API key for the Positive EV feed and normalized NoVIG prices. `NOVIG_ODDS_API_KEY` remains a backward-compatible alias. When no key is configured, the Positive EV live scan and NoVIG options remain unavailable while Polymarket execution is unaffected.
+Legacy diagnostic adapter key. SportsGameOdds is intentionally disabled as a runtime odds source; Positive EV and the other live sportsbook tools use OddsEngine, while NoVIG quotes come only from direct NBX.
 
 `SPORTSGAMEODDS_API_BASE_URL=https://api.sportsgameodds.com/v2`
 All-book market-feed base URL. `NOVIG_ODDS_API_BASE_URL` remains a backward-compatible alias. Override only for a compatible proxy or test service.
 
 `SPORTSGAMEODDS_CACHE_TTL_SECONDS=45`
-Maximum in-memory age for the all-book feed and live NoVIG prices. `NOVIG_ODDS_CACHE_TTL_SECONDS` remains a backward-compatible alias. One cached provider feed powers the Positive EV board and matches all visible trades, avoiding per-card API requests.
+Legacy adapter cache setting retained for isolated diagnostics and compatibility. It does not power production odds boards or execution options.
 
 `NOVIG_CLIENT_ID=` and `NOVIG_CLIENT_SECRET=`
 Server-only OAuth client credentials for NoVIG's production NBX exchange API.
@@ -269,7 +269,7 @@ responses, logs, browser assets, or diagnostics.
 
 `NOVIG_ENABLED=true`
 Global kill switch for the direct NBX provider. Turning it off does not affect
-SportsGameOdds, Polymarket, Kalshi, ProphetX, 4CX, or The Odds API.
+OddsEngine, Polymarket, Kalshi, ProphetX, or 4CX.
 
 `NOVIG_AUTH_URL=https://api.novig.us/nbx/v1/auth/emm-token`,
 `NOVIG_REST_BASE_URL=https://api.novig.us/nbx/v2`, and
@@ -326,12 +326,12 @@ Maximum in-memory age for the batched ProphetX market feed. The provider never p
 
 Trades to Play exposes execution providers through an ordered provider registry. Polymarket is always first. NoVIG is included only when the normalized sport, league, participants, event time, market type, period, line, side, alternate-line status, and settlement rules all match exactly.
 
-When direct NBX credentials are absent, the legacy NoVIG comparison continues
-to use the paginated SportsGameOdds event feed. When NBX is configured, direct
-REST/WebSocket prices and full CASH order-book depth become authoritative for
-NoVIG while SportsGameOdds continues powering the all-books Positive EV feed.
-Probable and ambiguous matches are never silently merged; sanitized unmatched
-records are available through the protected diagnostic endpoint.
+When direct NBX credentials are absent, NoVIG execution quotes remain
+unavailable; the app does not replace them with a sportsbook aggregator.
+When NBX is configured, direct REST/WebSocket prices and full CASH order-book
+depth are authoritative for NoVIG. Probable and ambiguous matches are never
+silently merged; sanitized unmatched records are available through the
+protected diagnostic endpoint.
 
 The backend exposes direct NoVIG data at `GET /api/providers/novig/markets`,
 lazy full ladders at `GET /api/providers/novig/book/{marketId}`, and protected

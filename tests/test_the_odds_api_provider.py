@@ -773,14 +773,14 @@ def test_missing_key_is_fail_closed_without_network_call() -> None:
     assert session.calls == []
 
 
-def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
+def test_odds_screen_api_exposes_odds_engine_sportsbook_catalog(
     app_client, monkeypatch
 ) -> None:
     registry = app_client.application.extensions["execution_providers"]
     provider = next(
         item
         for item in registry.providers
-        if item.provider_key == "the_odds_api"
+        if item.provider_key == "odds_engine"
     )
     start = datetime.now(timezone.utc) + timedelta(hours=4)
     provider.api_key = "configured-in-test"
@@ -826,7 +826,7 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
 
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == (
-        "public, max-age=10, s-maxage=45, stale-while-revalidate=120"
+        "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
     )
     payload = response.get_json()
     assert payload["filters"] == {
@@ -835,19 +835,17 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
         "market": "moneyline",
     }
     assert any(
-        item["key"] == "oddsapi__fanduel"
+        item["key"] == "oddsengine__fanduel"
         and item["name"] == "FanDuel"
-        and item["source"] == "the_odds_api"
-        and item["region"] == "us"
+        and item["source"] == "odds_engine"
         for item in payload["providers"]
     )
     assert any(
-        item["key"] == "oddsapi__prizepicks"
-        and item["region"] == "us_dfs"
+        item["key"] == "oddsengine__prizepicks"
         for item in payload["providers"]
     )
     assert any(
-        option["providerKey"] == "oddsapi__fanduel"
+        option["providerKey"] == "oddsengine__fanduel"
         for item in payload["data"]
         for option in item["executionOptions"]
     )
@@ -855,7 +853,7 @@ def test_odds_screen_api_exposes_dynamic_sportsbook_catalog(
         option
         for item in payload["data"]
         for option in item["executionOptions"]
-        if option["providerKey"] == "oddsapi__fanduel"
+        if option["providerKey"] == "oddsengine__fanduel"
     )
     assert fanduel_option["bestExecutablePrice"] == pytest.approx(100 / 210)
     assert fanduel_option["isStale"] is False
@@ -869,7 +867,7 @@ def test_odds_screen_preserves_both_moneyline_sides(
     provider = next(
         item
         for item in registry.providers
-        if item.provider_key == "the_odds_api"
+        if item.provider_key == "odds_engine"
     )
     start = datetime.now(timezone.utc) + timedelta(hours=4)
     provider.api_key = "configured-in-test"

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-import requests
-
 
 def _provider(application, provider_key: str):
     registry = application.extensions["execution_providers"]
@@ -44,57 +42,34 @@ def test_live_calculator_routes_use_the_configured_all_book_feed(app_client, mon
     assert len(calls) == 4
 
 
-def test_live_scan_prefers_batched_sports_game_odds(app_client, monkeypatch) -> None:
+def test_live_scan_uses_only_odds_engine_for_aggregated_odds(
+    app_client, monkeypatch
+) -> None:
     application = app_client.application
     odds_engine = _provider(application, "odds_engine")
     sports_game_odds = _provider(application, "novig")
+    the_odds_api = _provider(application, "the_odds_api")
     odds_engine.api_key = "configured-in-test"
-    sports_game_odds.api_key = "fallback-in-test"
-    sports_game_odds_calls = []
+    sports_game_odds.api_key = "must-not-be-used"
+    the_odds_api.api_key = "must-not-be-used"
     odds_engine_calls = []
 
     def odds_engine_events(*, sport_keys, market_keys):
         odds_engine_calls.append((tuple(sport_keys), tuple(market_keys)))
         return []
 
-    def sports_game_odds_events(*, sport_keys, market_keys):
-        sports_game_odds_calls.append((tuple(sport_keys), tuple(market_keys)))
-        return [{"id": "batched-slate", "bookmakers": []}]
+    def unapproved_events(**_kwargs):
+        raise AssertionError("unapproved aggregated odds provider was called")
 
     monkeypatch.setattr(odds_engine, "ev_events", odds_engine_events)
-    monkeypatch.setattr(sports_game_odds, "ev_events", sports_game_odds_events)
-
-    response = app_client.get("/api/arbitrage?active=1")
-
-    assert response.status_code == 200
-    assert response.get_json()["dataSource"] == "sports_game_odds"
-    assert len(sports_game_odds_calls) == 1
-    assert odds_engine_calls == []
-
-
-def test_live_scan_falls_back_after_batched_feed_error(app_client, monkeypatch) -> None:
-    application = app_client.application
-    odds_engine = _provider(application, "odds_engine")
-    sports_game_odds = _provider(application, "novig")
-    odds_engine.api_key = "fallback-in-test"
-    sports_game_odds.api_key = "configured-in-test"
-    fallback_calls = []
-
-    def sports_game_odds_failure(*, sport_keys, market_keys):
-        raise requests.ConnectionError("synthetic outage")
-
-    def fallback_events(*, sport_keys, market_keys):
-        fallback_calls.append((tuple(sport_keys), tuple(market_keys)))
-        return []
-
-    monkeypatch.setattr(sports_game_odds, "ev_events", sports_game_odds_failure)
-    monkeypatch.setattr(odds_engine, "ev_events", fallback_events)
+    monkeypatch.setattr(sports_game_odds, "ev_events", unapproved_events)
+    monkeypatch.setattr(the_odds_api, "ev_events", unapproved_events)
 
     response = app_client.get("/api/arbitrage?active=1")
 
     assert response.status_code == 200
     assert response.get_json()["dataSource"] == "odds_engine"
-    assert len(fallback_calls) == 1
+    assert len(odds_engine_calls) == 1
 
 
 def test_odds_engine_health_is_protected(app_client) -> None:
@@ -157,9 +132,9 @@ def test_odds_screen_uses_all_book_events_without_a_second_event_scan(app_client
     assert payload["source"].endswith(
         "odds_engine_read_only_feeds"
     )
-    assert "s-maxage=45" in response.headers["Cache-Control"]
+    assert "s-maxage=60" in response.headers["Cache-Control"]
     assert not response.headers.getlist("Set-Cookie")
-    assert payload["refreshSeconds"] == 45
+    assert payload["refreshSeconds"] == 60
     assert payload["transport"] == {
         "mode": "rest_snapshot",
         "provider": "odds_engine",
