@@ -551,8 +551,11 @@ def test_dfs_side_badge_has_a_stronger_border_and_bold_label() -> None:
 
     assert "border: 2px solid transparent;" in side_block
     assert "font: 800 13px/1 var(--il-font-data);" in side_block
-    assert "rgba(80, 217, 119, .72)" in CSS
-    assert "var(--il-brand-hover) 72%" in CSS
+    assert "rgba(98, 238, 158, .72)" in CSS
+    assert "color: #6effaa;" in CSS
+    assert "rgba(177, 91, 255, .74)" in CSS
+    assert "color: #b75cff;" in CSS
+    assert "text-shadow: 0 0 8px" in CSS
 
 
 def test_optional_comparison_books_are_searchable_removable_and_persistent() -> None:

@@ -1150,17 +1150,25 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-side {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-side.over {
-  border-color: rgba(80, 217, 119, .72);
-  color: var(--il-positive-hover);
-  background: var(--il-surface-positive-subtle);
-  box-shadow: inset 0 0 0 1px rgba(80, 217, 119, .14);
+  border-color: rgba(98, 238, 158, .72);
+  color: #6effaa;
+  background: rgba(7, 27, 24, .82);
+  box-shadow:
+    inset 0 0 0 1px rgba(210, 255, 229, .14),
+    inset 0 0 10px rgba(69, 235, 143, .06),
+    0 0 8px rgba(63, 225, 132, .18);
+  text-shadow: 0 0 8px rgba(86, 255, 160, .28);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-side.under {
-  border-color: color-mix(in srgb, var(--il-brand-hover) 72%, transparent);
-  color: var(--il-brand-hover);
-  background: var(--il-surface-selected-quiet);
-  box-shadow: inset 0 0 0 1px rgba(166, 90, 244, .14);
+  border-color: rgba(177, 91, 255, .74);
+  color: #b75cff;
+  background: rgba(22, 11, 37, .84);
+  box-shadow:
+    inset 0 0 0 1px rgba(236, 215, 255, .13),
+    inset 0 0 10px rgba(166, 74, 255, .07),
+    0 0 8px rgba(162, 69, 255, .2);
+  text-shadow: 0 0 8px rgba(180, 83, 255, .3);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-stat {
