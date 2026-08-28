@@ -561,6 +561,8 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 .ev-trend-line,
 .ev-trend-limit { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .ev-trend-limit { stroke: var(--il-text-primary); stroke-dasharray: 5 4; }
+.ev-trend-line.is-selected { stroke-width: 3; }
+.ev-trend-limit-point { fill: var(--il-bg-pure-black); stroke: var(--il-text-primary); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .ev-trend-grid { stroke: var(--il-chart-grid); stroke-width: 1; vector-effect: non-scaling-stroke; }
 .ev-trend-axis,
 .ev-trend-limit-label { fill: var(--il-text-muted); font: 500 12px var(--il-font-data); }
@@ -569,6 +571,10 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 .ev-trend-legend-toggle { min-height: 30px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-sm); background: var(--il-surface-2); color: var(--il-text-secondary); font: 600 12px/1 var(--il-font-ui); }
 .ev-trend-legend-toggle::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--legend); }
 .ev-trend-legend-toggle b { color: var(--il-text-primary); font: 700 11px/1 var(--il-font-data); }
+.ev-trend-legend-toggle small { color: var(--il-text-muted); font: 650 8px/1 var(--il-font-ui); text-transform: uppercase; }
+.ev-trend-legend-toggle.is-selected { box-shadow: inset 0 0 0 1px var(--il-border-interactive); }
+.ev-trend-legend-toggle.is-limit { color: var(--il-text-secondary); }
+.ev-trend-legend-toggle.is-limit::before { width: 14px; height: 0; border-top: 2px dashed var(--il-text-primary); border-radius: 0; background: transparent; }
 .ev-trend-legend-toggle.off { color: var(--il-text-muted); opacity: .55; }
 .ev-trend-preview-note { margin: var(--il-space-2) 0 0; padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 6px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-info-subtle); color: var(--il-text-muted); font: 500 9px/1.4 var(--il-font-ui); }
 .ev-trend-preview-note i { color: var(--il-info); }
@@ -1279,6 +1285,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   }
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-detail.market-depth-open { overflow-y: auto; }
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-detail.line-history-visible { overflow-y: auto; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-card { min-height: 100%; padding: 14px 15px 16px; }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-head { min-height: 70px; padding: 7px 6px 7px; border-color: var(--ev-ref-border-soft); }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-head > strong { color: var(--ev-ref-positive); font: 700 25px/1 Inter, sans-serif; letter-spacing: -.025em; }
@@ -1390,6 +1397,26 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-execution > .ev-selec
   body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.best strong,
   body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.best i { color: var(--ev-ref-positive); }
   body[data-design-system="v2"][data-page="positive-ev"] .ev-compare-price.unavailable { color: var(--il-text-muted); }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-trend {
+    margin-top: 16px;
+    overflow: hidden;
+    border: 1px solid var(--ev-ref-border);
+    border-radius: 5px;
+    background: var(--il-bg-pure-black);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-trend > header {
+    min-height: 42px;
+    padding: 0 14px;
+    border-color: var(--ev-ref-border);
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-trend > header h3 {
+    color: var(--il-text-primary);
+    font: 650 11px/1 Inter, sans-serif;
+    letter-spacing: .01em;
+  }
 
   body[data-design-system="v2"][data-page="positive-ev"] .ev-full-market-button {
     width: 100%;

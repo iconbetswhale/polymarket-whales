@@ -359,7 +359,6 @@
       : `<span class="ev-book-mark il-provider-logo fallback" aria-label="${esc(label)}"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`;
   };
   const statusLabel = row => row.portfolioStatus !== "qualified" ? "Suppressed" : row.executionStatus === "executable" ? "Executable" : "Verify liquidity";
-  const chartPath = points => points.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(" ");
   const stableSeed = value => [...String(value || "")].reduce((total, character) => total + character.charCodeAt(0), 0);
 
   function trackerSelectOptions(select, values, selectedValue = "", emptyLabel = null) {
@@ -537,12 +536,11 @@
   }
 
   function liveHistoryBookKeys(row) {
-    const ordered = [
-      row.bestQuote?.bookKey,
-      ...(row.sourceBooks || []).map(source => source.bookKey),
-      ...(row.quotes || []).map(quote => quote.bookKey),
-    ].filter(Boolean);
-    return [...new Set(ordered)].slice(0, 10);
+    const isPlayerProp = /^(player_|batter_|pitcher_)/.test(String(row.marketKey || ""));
+    const sharpBooks = isPlayerProp
+      ? ["pinnacle", "fanduel"]
+      : ["pinnacle", "circa", "bookmakereu"];
+    return [...new Set([row.bestQuote?.bookKey, ...sharpBooks].filter(Boolean))];
   }
 
   function marketTrendVisual(row) {
@@ -555,16 +553,54 @@
     </div>`;
   }
 
-  const liveChartColors = ["#a65cff", "#20d6a2", "#36a7ff", "#ff4fa0", "#f3c324", "#ff8b3d", "#77e1ff", "#d6d9e0", "#8b7cff", "#54c9ff"];
+  const liveChartColors = ["#a65cff", "#20d6a2", "#36a7ff", "#ff4fa0", "#f3c324", "#ff8b3d", "#77e1ff", "#d6d9e0"];
+  const liveChartBookColors = Object.freeze({
+    pinnacle: "#ff4fa0",
+    circa: "#20d6a2",
+    bookmakereu: "#f3c324",
+    fanduel: "#36a7ff",
+    hardrockbet: "#8b5cff",
+    draftkings: "#53d337",
+    betmgm: "#3f78ff",
+    caesars: "#f0c34a",
+    bet365: "#16a05d",
+    fanatics: "#ff5a4f",
+  });
+
+  const finiteOrNull = value => {
+    const number = Number(value);
+    return value == null || value === "" || !Number.isFinite(number) ? null : number;
+  };
+
+  function liveChartColor(bookKey, index = 0) {
+    const key = String(bookKey || "").toLowerCase();
+    return liveChartBookColors[key] || liveChartColors[(stableSeed(key) + index) % liveChartColors.length];
+  }
+
+  function prepareLiveHistorySeries(row, rawSeries) {
+    const order = liveHistoryBookKeys(row);
+    const selectedBook = String(row.bestQuote?.bookKey || "").toLowerCase();
+    return [...(rawSeries || [])].map((series, index) => ({
+      ...series,
+      color: liveChartColor(series.bookKey, index),
+      isSelected: String(series.bookKey || "").toLowerCase() === selectedBook,
+    })).sort((left, right) => {
+      const leftIndex = order.indexOf(left.bookKey);
+      const rightIndex = order.indexOf(right.bookKey);
+      return (leftIndex < 0 ? order.length : leftIndex) - (rightIndex < 0 ? order.length : rightIndex);
+    });
+  }
 
   function liveHistorySeries(rawSeries, mode) {
     const normalized = (rawSeries || []).map((series, index) => ({
       ...series,
       key: `live-${String(series.bookKey || index).replace(/[^a-z0-9_-]/gi, "-")}`,
-      color: liveChartColors[index % liveChartColors.length],
+      color: series.color || liveChartColor(series.bookKey, index),
       points: (series.points || []).map(point => ({
         timestamp: Date.parse(point.timestamp),
         americanOdds: Number(point.americanOdds),
+        line: finiteOrNull(point.line),
+        marketLimit: finiteOrNull(point.marketLimit),
       })).filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.americanOdds)),
     })).filter(series => series.points.length);
     if (mode !== "trend") return normalized;
@@ -576,46 +612,106 @@
     });
   }
 
+  const liveHistoryMetric = rawSeries => (rawSeries || []).some(series =>
+    (series.points || []).some(point => finiteOrNull(point.line) != null)
+  ) ? "line" : "americanOdds";
+  const liveHistoryValue = (point, metric) => metric === "line" ? point.line : point.americanOdds;
+  const lineValue = value => {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return "--";
+    const formatted = Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
+    return formatted;
+  };
+  const historyValueLabel = (value, metric) => metric === "line" ? lineValue(value) : odds(value);
+  const compactDollars = value => {
+    const number = Number(value || 0);
+    if (number >= 1000) return `$${(number / 1000).toFixed(number >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`;
+    return `$${Math.round(number)}`;
+  };
+  const chartStepPath = points => points.length
+    ? points.slice(1).reduce((path, point, index) => `${path} H${point[0].toFixed(1)} V${point[1].toFixed(1)}`, `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`)
+    : "";
+
   function liveHistorySvg(rawSeries, mode) {
     const series = liveHistorySeries(rawSeries, mode);
-    const points = series.flatMap(item => item.points);
+    const metric = liveHistoryMetric(series);
+    const points = series.flatMap(item => item.points).filter(point => Number.isFinite(liveHistoryValue(point, metric)));
     if (!points.length) return "";
-    const width = 520, height = 250, left = 52, right = 24, top = 28, bottom = 42;
+    const width = 520, height = 250, left = 52, right = 58, top = 28, bottom = 42;
     const minTime = Math.min(...points.map(point => point.timestamp));
     const maxTime = Math.max(...points.map(point => point.timestamp));
-    const minOdds = Math.min(...points.map(point => point.americanOdds)) - 6;
-    const maxOdds = Math.max(...points.map(point => point.americanOdds)) + 6;
+    const values = points.map(point => liveHistoryValue(point, metric));
+    const rawMin = Math.min(...values), rawMax = Math.max(...values);
+    const valuePadding = metric === "line" ? Math.max(.5, (rawMax - rawMin) * .15) : Math.max(6, (rawMax - rawMin) * .12);
+    const minValue = rawMin - valuePadding;
+    const maxValue = rawMax + valuePadding;
     const timeSpan = Math.max(1, maxTime - minTime);
-    const oddsSpan = Math.max(1, maxOdds - minOdds);
+    const valueSpan = Math.max(.01, maxValue - minValue);
     const x = timestamp => left + ((timestamp - minTime) / timeSpan) * (width - left - right);
-    const y = value => top + ((maxOdds - value) / oddsSpan) * (height - top - bottom);
+    const y = value => top + ((maxValue - value) / valueSpan) * (height - top - bottom);
     const grid = [0, .25, .5, .75, 1].map(ratio => {
       const gridY = top + ratio * (height - top - bottom);
-      const label = Math.round(maxOdds - ratio * oddsSpan);
-      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${odds(label)}</text>`;
+      const value = maxValue - ratio * valueSpan;
+      const label = metric === "line" ? Math.round(value * 2) / 2 : Math.round(value);
+      return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${historyValueLabel(label, metric)}</text>`;
     }).join("");
     const paths = series.map(item => {
-      const plotted = item.points.map(point => [x(point.timestamp), y(point.americanOdds)]);
+      const plotted = item.points.filter(point => Number.isFinite(liveHistoryValue(point, metric))).map(point => [x(point.timestamp), y(liveHistoryValue(point, metric)), point]);
       const path = plotted.length > 1
-        ? `<path class="ev-trend-line ev-history-line" d="${chartPath(plotted)}" stroke="${item.color}"></path>`
+        ? `<path class="ev-trend-line ev-history-line ${item.isSelected ? "is-selected" : ""}" d="${chartStepPath(plotted)}" stroke="${item.color}"></path>`
         : "";
-      return `<g data-series="${esc(item.key)}">${path}${plotted.map(point => `<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="2.8" fill="${item.color}"></circle>`).join("")}</g>`;
+      return `<g data-series="${esc(item.key)}">${path}${plotted.map(point => `<circle cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="${item.isSelected ? "3.4" : "2.8"}" fill="${item.color}"><title>${esc(item.bookName || item.bookKey)} ${historyValueLabel(liveHistoryValue(point[2], metric), metric)} at ${esc(new Date(point[2].timestamp).toLocaleString())}</title></circle>`).join("")}</g>`;
     }).join("");
+    const pinnacle = series.find(item => String(item.bookKey).toLowerCase() === "pinnacle");
+    const limitPoints = (pinnacle?.points || []).filter(point => Number.isFinite(point.marketLimit));
+    const maxLimit = limitPoints.length ? Math.max(100, ...limitPoints.map(point => point.marketLimit)) * 1.1 : 0;
+    const limitY = value => top + ((maxLimit - value) / maxLimit) * (height - top - bottom);
+    const plottedLimits = limitPoints.map(point => [x(point.timestamp), limitY(point.marketLimit), point]);
+    const limitPath = plottedLimits.length > 1
+      ? `<g data-series="live-pinnacle-limit"><path class="ev-trend-limit" stroke-dasharray="8 6" d="${chartStepPath(plottedLimits)}"></path>${plottedLimits.map(point => `<circle class="ev-trend-limit-point" cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="3"><title>Pinnacle limit ${compactDollars(point[2].marketLimit)} at ${esc(new Date(point[2].timestamp).toLocaleString())}</title></circle>`).join("")}</g>`
+      : "";
+    const limitAxis = plottedLimits.length > 1
+      ? `<text x="${width-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">${compactDollars(maxLimit)}</text><text x="${width-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>`
+      : "";
     const axisTime = timestamp => new Intl.DateTimeFormat("en-US", {hour:"numeric", minute:"2-digit"}).format(new Date(timestamp));
-    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook line history">${grid}${paths}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook ${metric === "line" ? "line" : "price"} history">${grid}${limitAxis}${paths}${limitPath}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
   }
 
   function liveHistoryLegend(rawSeries, mode) {
-    return liveHistorySeries(rawSeries, mode).map(item => {
+    const series = liveHistorySeries(rawSeries, mode);
+    const metric = liveHistoryMetric(series);
+    const books = series.map(item => {
       const latest = item.points[item.points.length - 1];
-      return `<button type="button" class="ev-trend-legend-toggle" data-series-toggle="${esc(item.key)}" aria-pressed="true" style="--legend:${item.color}">${esc(item.bookName || bookNames[item.bookKey] || item.bookKey)} <b>${odds(latest.americanOdds)}</b></button>`;
+      const value = liveHistoryValue(latest, metric);
+      return `<button type="button" class="ev-trend-legend-toggle ${item.isSelected ? "is-selected" : ""}" data-series-toggle="${esc(item.key)}" aria-pressed="true" style="--legend:${item.color}">${esc(item.bookName || bookNames[item.bookKey] || item.bookKey)}${item.isSelected ? " <small>Compared</small>" : ""} <b>${historyValueLabel(value, metric)} · ${odds(latest.americanOdds)}</b></button>`;
     }).join("");
+    const pinnacle = series.find(item => String(item.bookKey).toLowerCase() === "pinnacle");
+    const latestLimit = [...(pinnacle?.points || [])].reverse().find(point => Number.isFinite(point.marketLimit));
+    const limit = latestLimit && (pinnacle?.points || []).filter(point => Number.isFinite(point.marketLimit)).length > 1
+      ? `<button type="button" class="ev-trend-legend-toggle is-limit" data-series-toggle="live-pinnacle-limit" aria-pressed="true">Pinnacle limit <b>${compactDollars(latestLimit.marketLimit)}</b></button>`
+      : "";
+    return books + limit;
+  }
+
+  function updateTrendMetrics(rawSeries) {
+    const series = liveHistorySeries(rawSeries, "history");
+    const metric = liveHistoryMetric(series);
+    const primary = series.find(item => item.isSelected) || series.find(item => item.bookKey === "pinnacle") || series[0];
+    if (!primary?.points?.length) return;
+    const open = primary.points[0];
+    const latestTime = primary.points[primary.points.length - 1].timestamp;
+    const oneHourCutoff = latestTime - 60 * 60 * 1000;
+    const oneHour = [...primary.points].reverse().find(point => point.timestamp <= oneHourCutoff) || open;
+    const openMetric = detail.querySelector('[data-trend-metric="open"]');
+    const hourMetric = detail.querySelector('[data-trend-metric="1h"]');
+    if (openMetric) openMetric.textContent = historyValueLabel(liveHistoryValue(open, metric), metric);
+    if (hourMetric) hourMetric.textContent = historyValueLabel(liveHistoryValue(oneHour, metric), metric);
   }
 
   function renderLiveLineHistory(row, payload) {
     const container = $("ev-live-line-history");
     if (!container || String(selectedId) !== String(row.id)) return;
-    const series = payload.series || [];
+    const series = prepareLiveHistorySeries(row, payload.series || []);
     const observationCount = Number(payload.observationCount || 0);
     if (!observationCount) {
       container.setAttribute("aria-busy", "false");
@@ -625,23 +721,34 @@
     const trendSvg = liveHistorySvg(series, "trend");
     const historySvg = liveHistorySvg(series, "history");
     const singleSnapshot = series.every(item => (item.points || []).length < 2);
+    const metric = liveHistoryMetric(series);
     container.setAttribute("aria-busy", "false");
     container.innerHTML = `<div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Live line chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
-      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>Live movement from selected books</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend")}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next price change or checkpoint." : "Real timestamped odds; refreshed with the live +EV feed."}</p></div>
+      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${metric === "line" ? "Live line movement" : "Live price movement"} from the compared and sharp books</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend")}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next line, price, limit, or checkpoint update." : "Real timestamped lines, prices, and reported Pinnacle limits; refreshed with the live +EV feed."}</p></div>
       <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>${historySvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "history")}</div><p class="ev-trend-live-note"><i class="ph ph-database"></i>${observationCount} stored bookmaker observation${observationCount === 1 ? "" : "s"}; no synthetic points.</p></div>`;
+    updateTrendMetrics(series);
     bindTrendControls();
   }
 
   async function loadLiveLineHistory(row) {
     if (!row.lineHistoryIdentity?.eventId || !row.lineHistoryIdentity?.marketId || !row.lineHistoryIdentity?.selectionId) return;
+    const identity = row.lineHistoryIdentity;
     const books = liveHistoryBookKeys(row);
     const params = new URLSearchParams({
-      event_id: row.lineHistoryIdentity.eventId,
-      market_id: row.lineHistoryIdentity.marketId,
-      selection_id: row.lineHistoryIdentity.selectionId,
+      event_id: identity.eventId,
+      market_id: identity.marketId,
+      selection_id: identity.selectionId,
       books: books.join(","),
       limit: "1000",
     });
+    if (identity.marketType && identity.marketFamily && identity.period && identity.selection && typeof identity.isAlternate === "boolean") {
+      params.set("market_type", identity.marketType);
+      params.set("market_family", identity.marketFamily);
+      params.set("period", identity.period);
+      params.set("selection", identity.selection);
+      params.set("side", identity.side || "");
+      params.set("is_alternate", String(identity.isAlternate));
+    }
     try {
       const response = await fetch(`/api/positive-ev/line-history?${params}`, {headers:{"Accept":"application/json"}});
       const payload = await response.json();
@@ -1003,6 +1110,7 @@
   }
   function showDetailPlaceholder() {
     const isHiddenView = feedView === "hidden";
+    detail.classList.remove("line-history-visible", "market-depth-open");
     detail.innerHTML = `<div class="ev-detail-empty il-state il-state-empty">
       <i class="ph ${isHiddenView ? "ph-eye-slash" : "ph-chart-line-up"}" aria-hidden="true"></i>
       <h2>${isHiddenView ? "No hidden bet selected" : "Select an opportunity"}</h2>
@@ -1012,19 +1120,20 @@
   }
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
+    detail.classList.remove("market-depth-open");
     renderFeed(); const best=row.bestQuote||{};
     detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${evPercent(row.evPercent)}</strong><div><h2>${esc(row.eventTitle)}</h2><time class="ev-detail-start" datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
       <div class="ev-detail-pick ev-trend-pick"><strong>${esc(detailSelection(row))} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       ${marketOddsVisual(row)}
+      <section class="ev-section ev-market-trend il-detail-section"><header><h3>LINE MOVEMENT</h3></header><div class="ev-trend-metrics il-metric-group">
+        <span class="il-metric positive"><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
+        <span class="il-metric"><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
+        <span class="il-metric"><small>1H</small><b data-trend-metric="1h">--</b></span>
+        <span class="il-metric"><small>OPEN</small><b data-trend-metric="open">--</b></span>
+      </div>${marketTrendVisual(row)}</section>
       <button class="ev-full-market-button" type="button" aria-expanded="false"><span>View full market depth</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
-      <div class="ev-full-market-depth" hidden><section class="ev-section ev-market-trend il-detail-section"><header><h3>MARKET TREND</h3></header><div class="ev-trend-metrics il-metric-group">
-          <span class="il-metric positive"><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
-          <span class="il-metric"><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
-          <span class="il-metric"><small>1H</small><b>--</b></span>
-          <span class="il-metric"><small>OPEN</small><b>--</b></span>
-        </div>${marketTrendVisual(row)}</section>
-        ${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
+      <div class="ev-full-market-depth" hidden>${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
     </article>`;
     bindTrendControls();
     loadLiveLineHistory(row);
@@ -1038,7 +1147,7 @@
       detail.querySelector(".ev-full-market-depth").hidden = !expanded;
       detail.classList.toggle("market-depth-open", expanded);
     });
-    detail.classList.add("open");
+    detail.classList.add("open", "line-history-visible");
     detail.closest(".ev-workspace")?.classList.add("detail-open");
     detail.removeAttribute("inert");
     detail.setAttribute("aria-hidden", "false");

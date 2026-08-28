@@ -532,6 +532,91 @@ def test_positive_ev_line_history_returns_real_grouped_book_snapshots(
         -108,
         -112,
     ]
+    assert payload["valueKind"] == "american_odds"
+
+
+def test_positive_ev_line_history_follows_selection_across_line_moves(
+    app_client, monkeypatch
+):
+    database = app_client.application.extensions["tracker_service"].database
+    calls = []
+
+    def history(**filters):
+        calls.append(filters)
+        return [
+            {
+                "provider": "hardrockbet",
+                "received_timestamp": "2026-08-26T12:30:00+00:00",
+                "american_odds": -110,
+                "line": 11.5,
+            },
+            {
+                "provider": "pinnacle",
+                "received_timestamp": "2026-08-26T12:30:00+00:00",
+                "american_odds": -112,
+                "line": 11.5,
+                "market_limit": 3500,
+            },
+            {
+                "provider": "hardrockbet",
+                "received_timestamp": "2026-08-26T12:00:00+00:00",
+                "american_odds": -105,
+                "line": 13.5,
+            },
+            {
+                "provider": "pinnacle",
+                "received_timestamp": "2026-08-26T12:00:00+00:00",
+                "american_odds": -108,
+                "line": 13.5,
+                "market_limit": 2000,
+            },
+            {
+                "provider": "fanduel",
+                "received_timestamp": "2026-08-26T12:00:00+00:00",
+                "american_odds": -110,
+                "line": 13.5,
+            },
+        ]
+
+    monkeypatch.setattr(database, "get_normalized_market_quote_history", history)
+    response = app_client.get(
+        "/api/positive-ev/line-history",
+        query_string={
+            "event_id": "evt_history_test",
+            "market_id": "mkt_current_line",
+            "selection_id": "sel_current_line",
+            "market_type": "player_points",
+            "market_family": "player_prop",
+            "period": "full_game",
+            "selection": "Example Player Under",
+            "side": "Under",
+            "is_alternate": "false",
+            "books": "hardrockbet,pinnacle",
+        },
+    )
+
+    assert response.status_code == 200
+    assert calls == [
+        {
+            "event_id": "evt_history_test",
+            "market_type": "player_points",
+            "market_family": "player_prop",
+            "period": "full_game",
+            "is_alternate": False,
+            "selection": "Example Player Under",
+            "side": "Under",
+            "limit": 1000,
+        }
+    ]
+    payload = response.get_json()
+    assert payload["valueKind"] == "line"
+    assert payload["observationCount"] == 4
+    by_book = {item["bookKey"]: item["points"] for item in payload["series"]}
+    assert [point["line"] for point in by_book["hardrockbet"]] == [13.5, 11.5]
+    assert [point["marketLimit"] for point in by_book["pinnacle"]] == [
+        2000.0,
+        3500.0,
+    ]
 
 
 def test_positive_ev_line_history_requires_indexed_canonical_identity(app_client):

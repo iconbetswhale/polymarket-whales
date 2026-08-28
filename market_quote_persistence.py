@@ -25,6 +25,7 @@ def meaningful_quote_hash(quote: NormalizedMarketQuote) -> str:
     payload = {
         "provider": quote.provider,
         "provider_selection_id": quote.provider_selection_id,
+        "line": quote.line,
         "american_odds": quote.american_odds,
         "decimal_odds": round(quote.decimal_odds, 10),
         "implied_probability": round(quote.implied_probability, 10),
@@ -205,6 +206,12 @@ def list_history(
     event_id: str | None = None,
     market_id: str | None = None,
     selection_id: str | None = None,
+    market_type: str | None = None,
+    market_family: str | None = None,
+    period: str | None = None,
+    is_alternate: bool | None = None,
+    selection: str | None = None,
+    side: str | None = None,
     limit: int = 500,
 ) -> list[dict]:
     placeholder = "%s" if dialect == "postgres" else "?"
@@ -213,10 +220,15 @@ def list_history(
     for column, value in (
         ("provider", provider), ("event_id", event_id),
         ("market_id", market_id), ("selection_id", selection_id),
+        ("market_type", market_type), ("market_family", market_family),
+        ("period", period), ("selection", selection), ("side", side),
     ):
         if value:
             clauses.append(f"{column} = {placeholder}")
             params.append(value)
+    if is_alternate is not None:
+        clauses.append(f"is_alternate = {placeholder}")
+        params.append(bool(is_alternate))
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.append(max(1, min(int(limit), 5000)))
     rows = conn.execute(

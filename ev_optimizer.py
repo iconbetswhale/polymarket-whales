@@ -399,7 +399,7 @@ def _line_history_identity(
     away: str,
     market_key: str,
     outcome: dict,
-) -> dict[str, str]:
+) -> dict[str, object]:
     """Build the same canonical identity used by normalized quote history."""
     alternate = market_key.startswith("alternate_")
     base_market = market_key.removeprefix("alternate_")
@@ -449,6 +449,17 @@ def _line_history_identity(
             selection=normalized_selection,
             side=side,
         ),
+        # These stable market-shape fields let the chart follow the same
+        # selection across line changes. The canonical market/selection ids
+        # intentionally include the point, so querying only those ids would
+        # stop a 13.5 -> 11.5 player-prop move from appearing in history.
+        "marketType": market_type,
+        "marketFamily": market_family,
+        "period": period,
+        "isAlternate": alternate,
+        "selection": normalized_selection,
+        "side": side or "",
+        "line": outcome.get("point"),
     }
 
 

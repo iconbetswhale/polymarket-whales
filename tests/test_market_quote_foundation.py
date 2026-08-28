@@ -15,7 +15,7 @@ from market_quote_adapters import normalize_odds_api_events
 from market_quotes import NormalizedMarketQuote
 
 
-def _quote(*, odds=138, received=None, liquidity=75, limit=500):
+def _quote(*, odds=138, received=None, liquidity=75, limit=500, line=None):
     return NormalizedMarketQuote.create(
         provider="novig",
         provider_event_id="provider-event",
@@ -29,6 +29,7 @@ def _quote(*, odds=138, received=None, liquidity=75, limit=500):
         start_time="2099-08-12T23:10:00Z",
         market_type="moneyline",
         market_family="main",
+        line=line,
         selection="Mets",
         american_odds=odds,
         quote_timestamp=received or datetime.now(timezone.utc),
@@ -90,6 +91,26 @@ def test_quote_history_adds_periodic_checkpoint_without_poll_duplicates(tmp_path
         checkpoint_seconds=900,
     )["checkpoints"] == 1
     assert len(db.get_normalized_market_quote_history(provider="novig")) == 2
+
+
+def test_quote_history_records_and_filters_same_price_line_moves(tmp_path):
+    db = TrackerDatabase(tmp_path / "quote-line-moves.db")
+    observed = datetime(2026, 8, 12, 12, tzinfo=timezone.utc)
+    opening = _quote(line=13.5, received=observed)
+    moved = _quote(line=11.5, received=observed + timedelta(minutes=30))
+
+    assert db.record_normalized_market_quotes([opening])["material_snapshots"] == 1
+    assert db.record_normalized_market_quotes([moved])["material_snapshots"] == 1
+
+    history = db.get_normalized_market_quote_history(
+        event_id=opening.event_id,
+        market_type="moneyline",
+        market_family="main",
+        period="full_game",
+        is_alternate=False,
+        selection="Mets",
+    )
+    assert [row["line"] for row in history] == [11.5, 13.5]
 
 
 def test_weighting_profiles_support_roles_leave_one_out_and_future_maturity():

@@ -3602,6 +3602,12 @@ def create_app(start_background: bool = True) -> Flask:
         event_id = request.args.get("event_id", "").strip()
         market_id = request.args.get("market_id", "").strip()
         selection_id = request.args.get("selection_id", "").strip()
+        market_type = request.args.get("market_type", "").strip()
+        market_family = request.args.get("market_family", "").strip()
+        period = request.args.get("period", "").strip()
+        selection = request.args.get("selection", "").strip()
+        side = request.args.get("side", "").strip()
+        alternate = request.args.get("is_alternate", "").strip().lower()
         valid_identity = (
             event_id.startswith("evt_")
             and market_id.startswith("mkt_")
@@ -3616,6 +3622,20 @@ def create_app(start_background: bool = True) -> Flask:
                     )
                 }
             ), 400
+        scope_values = (market_type, market_family, period, selection)
+        has_scope = all(scope_values) and alternate in {"true", "false"}
+        has_partial_scope = any(scope_values) or bool(alternate) or bool(side)
+        if has_partial_scope and not has_scope:
+            return jsonify(
+                {
+                    "error": (
+                        "Complete market_type, market_family, period, selection, "
+                        "and is_alternate values are required for line movement."
+                    )
+                }
+            ), 400
+        if has_scope and any(len(value) > 160 for value in (*scope_values, side)):
+            return jsonify({"error": "Line-history market scope is too long."}), 400
         requested_books = {
             item.strip().lower()
             for item in request.args.get("books", "").split(",")
@@ -3630,12 +3650,24 @@ def create_app(start_background: bool = True) -> Flask:
                 }
             ), 400
         limit = max(1, min(request.args.get("limit", 1000, type=int) or 1000, 2000))
-        rows = tracker.database.get_normalized_market_quote_history(
-            event_id=event_id,
-            market_id=market_id,
-            selection_id=selection_id,
-            limit=limit,
-        )
+        history_filters: dict[str, object] = {"event_id": event_id, "limit": limit}
+        if has_scope:
+            history_filters.update(
+                {
+                    "market_type": market_type,
+                    "market_family": market_family,
+                    "period": period,
+                    "is_alternate": alternate == "true",
+                    "selection": selection,
+                }
+            )
+            if side:
+                history_filters["side"] = side
+        else:
+            history_filters.update(
+                {"market_id": market_id, "selection_id": selection_id}
+            )
+        rows = tracker.database.get_normalized_market_quote_history(**history_filters)
         by_provider: dict[str, list[dict]] = {}
         for row in reversed(rows):
             provider = str(row.get("provider") or "").strip().lower()
@@ -3649,6 +3681,7 @@ def create_app(start_background: bool = True) -> Flask:
             point = {
                 "timestamp": timestamp,
                 "americanOdds": int(round(american_odds)),
+                "line": _optional_float(row.get("line")),
                 "marketLimit": _optional_float(row.get("market_limit")),
                 "availableLiquidity": _optional_float(
                     row.get("available_liquidity")
@@ -3683,6 +3716,15 @@ def create_app(start_background: bool = True) -> Flask:
                 "selectionId": selection_id,
                 "series": series,
                 "observationCount": sum(len(item["points"]) for item in series),
+                "valueKind": (
+                    "line"
+                    if any(
+                        point.get("line") is not None
+                        for item in series
+                        for point in item["points"]
+                    )
+                    else "american_odds"
+                ),
                 "source": "normalized_market_quote_history",
                 "synthetic": False,
             }

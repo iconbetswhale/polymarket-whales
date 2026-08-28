@@ -182,6 +182,30 @@ def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     select = _function("select")
     assert select.index("marketOddsVisual(row)") < select.index("ev-market-trend")
     assert select.index("ev-market-trend") < select.index("marketTrendVisual(row)")
+    assert select.index("marketTrendVisual(row)") < select.index("ev-full-market-button")
+    assert '<h3>LINE MOVEMENT</h3>' in select
+    assert '<div class="ev-full-market-depth" hidden>${evExplanationVisual(row)}' in select
+
+
+def test_live_line_chart_restores_compared_and_sharp_book_history() -> None:
+    books = _function("liveHistoryBookKeys")
+    loader = _function("loadLiveLineHistory")
+    chart = _function("liveHistorySvg")
+    normalizer = _function("liveHistorySeries")
+
+    assert '["pinnacle", "circa", "bookmakereu"]' in books
+    assert '["pinnacle", "fanduel"]' in books
+    assert "row.bestQuote?.bookKey" in books
+    assert 'hardrockbet: "#8b5cff"' in SCRIPT
+    assert 'line: finiteOrNull(point.line)' in normalizer
+    assert 'marketLimit: finiteOrNull(point.marketLimit)' in normalizer
+    assert 'class="ev-trend-limit" stroke-dasharray="8 6"' in chart
+    assert 'data-series="live-pinnacle-limit"' in chart
+    assert 'params.set("market_type", identity.marketType)' in loader
+    assert 'params.set("selection", identity.selection)' in loader
+    assert 'params.set("is_alternate", String(identity.isAlternate))' in loader
+    assert ".ev-trend-legend-toggle.is-limit::before" in CSS
+    assert "border-top: 2px dashed var(--il-text-primary)" in CSS
 
 
 def test_market_odds_remains_two_sided_with_provider_between_prices() -> None:

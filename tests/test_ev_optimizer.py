@@ -141,6 +141,11 @@ def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     assert mets["lineHistoryIdentity"]["selectionId"].startswith("sel_")
     assert mets["lineHistoryIdentity"]["marketId"].startswith("mkt_")
     assert mets["lineHistoryIdentity"]["eventId"].startswith("evt_")
+    assert mets["lineHistoryIdentity"]["marketType"] == "moneyline"
+    assert mets["lineHistoryIdentity"]["marketFamily"] == "main"
+    assert mets["lineHistoryIdentity"]["period"] == "full_game"
+    assert mets["lineHistoryIdentity"]["selection"] == "New York Mets"
+    assert mets["lineHistoryIdentity"]["isAlternate"] is False
 
 
 def test_ev_line_history_identity_matches_normalized_quote_storage() -> None:
