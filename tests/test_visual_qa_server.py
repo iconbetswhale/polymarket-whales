@@ -8,10 +8,52 @@ from scripts.visual_qa_server import (
     QA_TIMEZONE,
     qa_dfs_payload,
     qa_event_time,
+    qa_positive_ev_line_history,
     qa_price_history,
     qa_snapshot,
     qa_trades,
 )
+
+
+def test_visual_qa_positive_ev_line_history_has_real_movement_and_limit_series():
+    frozen_now = datetime(2026, 8, 18, 15, 7, tzinfo=timezone.utc)
+    payload = qa_positive_ev_line_history(now_utc=frozen_now)
+
+    assert payload["synthetic"] is False
+    assert payload["valueKind"] == "americanOdds"
+    assert payload["observationCount"] == 28
+    assert [series["bookKey"] for series in payload["series"]] == [
+        "novig",
+        "pinnacle",
+        "circa",
+        "bookmakereu",
+    ]
+    for series in payload["series"]:
+        timestamps = [point["timestamp"] for point in series["points"]]
+        assert len(timestamps) == 7
+        assert timestamps == sorted(timestamps)
+        assert len({point["americanOdds"] for point in series["points"]}) > 1
+    pinnacle = next(series for series in payload["series"] if series["bookKey"] == "pinnacle")
+    limits = [point["marketLimit"] for point in pinnacle["points"]]
+    assert all(limit is not None for limit in limits)
+    assert limits == sorted(limits)
+
+    first_snapshot = qa_positive_ev_line_history(
+        now_utc=frozen_now, snapshot_only=True
+    )
+    assert first_snapshot["observationCount"] == 4
+    assert all(len(series["points"]) == 1 for series in first_snapshot["series"])
+
+    line_history = qa_positive_ev_line_history(
+        now_utc=frozen_now, include_lines=True
+    )
+    assert line_history["valueKind"] == "line"
+    assert all(
+        all(point["line"] is not None for point in series["points"])
+        for series in line_history["series"]
+    )
+    assert line_history["series"][0]["points"][0]["line"] == 2.5
+    assert line_history["series"][0]["points"][-1]["line"] == 1.0
 
 
 def test_visual_qa_dfs_payload_populates_every_fantasy_app():

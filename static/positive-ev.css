@@ -497,6 +497,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-detail-close { displa
 .ev-detail-pick { min-height: 54px; margin: var(--il-space-2) 0 0; padding: 0 var(--il-space-3); display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--il-space-3); border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-bg-pure-black); }
 .ev-detail-pick strong { min-width: 0; color: var(--il-text-primary); font: 700 18px/1.2 var(--il-font-ui); overflow-wrap: anywhere; }
 .ev-detail-pick strong span { margin-left: 5px; color: var(--il-positive); font-family: var(--il-font-data); }
+.ev-detail-pick strong .ev-detail-selection { margin-left: 0; color: var(--il-text-primary); font: inherit; }
 .ev-detail-stake { color: var(--il-positive); font: 700 24px/1 var(--il-font-data); white-space: nowrap; }
 .ev-warning-list { display: grid; gap: 6px; margin: var(--il-space-2) 0 0; }
 .ev-warning-list span { padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 7px; border: 1px solid var(--il-warning-border); border-radius: var(--il-radius-control); background: var(--il-surface-warning-subtle); color: var(--il-warning); font: 600 10px/1.4 var(--il-font-ui); }
@@ -517,6 +518,7 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-market-odds.il-detail
 .ev-market-compare-head strong { min-width: 0; font: 700 14px/1.25 var(--il-font-ui); text-align: center; overflow-wrap: anywhere; }
 .ev-market-compare-head i { justify-self: center; color: var(--il-text-muted); font-size: 13px; }
 .ev-market-compare-rows { padding: 0 var(--il-space-3) var(--il-space-2); }
+.ev-market-odds-toggle { display: none; }
 .ev-market-compare-row { min-height: 45px; border-top: 1px solid var(--il-border-hairline); }
 .ev-market-compare-row:first-child { border-top: 0; }
 .ev-market-book-center { display: grid; place-items: center; }
@@ -558,6 +560,10 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 .ev-trend-chart-title span,
 .ev-history-heading span { display: block; margin-top: 3px; color: var(--il-text-muted); font: 500 14px/1.2 var(--il-font-ui); }
 .ev-trend-chart svg { width: 100%; height: auto; max-height: 230px; display: block; overflow: visible; }
+.ev-trend-snapshot { min-height: 112px; margin: var(--il-space-2) 0; padding: var(--il-space-3); display: grid; place-content: center; justify-items: center; gap: 4px; border: 1px dashed var(--il-border-standard); border-radius: var(--il-radius-control); background: var(--il-surface-1); text-align: center; }
+.ev-trend-snapshot span { color: var(--il-brand-hover); font: 700 9px/1 var(--il-font-ui); letter-spacing: .08em; text-transform: uppercase; }
+.ev-trend-snapshot strong { color: var(--il-text-primary); font: 700 16px/1.2 var(--il-font-data); }
+.ev-trend-snapshot small { max-width: 330px; color: var(--il-text-muted); font: 500 10px/1.35 var(--il-font-ui); }
 .ev-trend-line,
 .ev-trend-limit { fill: none; stroke-width: 2; vector-effect: non-scaling-stroke; }
 .ev-trend-limit { stroke: var(--il-text-primary); stroke-dasharray: 5 4; }
@@ -569,12 +575,14 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 .series-hidden { display: none; }
 .ev-trend-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
 .ev-trend-legend-toggle { min-height: 30px; padding: 0 9px; display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-sm); background: var(--il-surface-2); color: var(--il-text-secondary); font: 600 12px/1 var(--il-font-ui); }
+.ev-trend-legend-toggle > span { min-width: 0; display: inline-flex; align-items: center; gap: 4px; }
 .ev-trend-legend-toggle::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--legend); }
 .ev-trend-legend-toggle b { color: var(--il-text-primary); font: 700 11px/1 var(--il-font-data); }
 .ev-trend-legend-toggle small { color: var(--il-text-muted); font: 650 8px/1 var(--il-font-ui); text-transform: uppercase; }
 .ev-trend-legend-toggle.is-selected { box-shadow: inset 0 0 0 1px var(--il-border-interactive); }
 .ev-trend-legend-toggle.is-limit { color: var(--il-text-secondary); }
 .ev-trend-legend-toggle.is-limit::before { width: 14px; height: 0; border-top: 2px dashed var(--il-text-primary); border-radius: 0; background: transparent; }
+.ev-trend-legend-toggle.is-limit:disabled { cursor: default; opacity: 1; }
 .ev-trend-legend-toggle.off { color: var(--il-text-muted); opacity: .55; }
 .ev-trend-preview-note { margin: var(--il-space-2) 0 0; padding: var(--il-space-2); display: flex; align-items: flex-start; gap: 6px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-info-subtle); color: var(--il-text-muted); font: 500 9px/1.4 var(--il-font-ui); }
 .ev-trend-preview-note i { color: var(--il-info); }

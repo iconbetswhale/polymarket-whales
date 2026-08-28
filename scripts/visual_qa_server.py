@@ -467,6 +467,10 @@ def qa_positive_ev_payload(now_utc: datetime | None = None) -> dict:
         ("prophetexchange", "Prophet Exchange", PROPHETX_LOGO_URL, -5),
         ("pinnacle", "Pinnacle", "/static/assets/providers/pinnacle.png", -8),
         ("circa", "Circa", "/static/assets/dfs-books/circa.png", -10),
+        ("draftkings", "DraftKings", "/static/assets/dfs-books/draftkings.png", -12),
+        ("fanduel", "FanDuel", "/static/assets/dfs-books/fanduel.png", -14),
+        ("hardrockbet", "Hard Rock Bet", "/static/assets/dfs-books/hard-rock.png", -16),
+        ("betonlineag", "BetOnline", "/static/assets/dfs-books/betonline.png", -18),
     )
     rows = []
     for index, (
@@ -558,6 +562,18 @@ def qa_positive_ev_payload(now_utc: datetime | None = None) -> dict:
                 "recommendedStake": recommended_stake,
                 "warnings": [],
                 "calculatedAt": now.isoformat(),
+                "lineHistoryIdentity": {
+                    "eventId": f"evt_qa_{index}",
+                    "marketId": f"mkt_qa_{index}",
+                    "selectionId": f"sel_qa_{index}",
+                    "marketType": "moneyline",
+                    "marketFamily": "main",
+                    "period": "full_game",
+                    "isAlternate": False,
+                    "selection": selection,
+                    "side": "",
+                    "line": None,
+                },
             }
         )
     return {
@@ -574,6 +590,74 @@ def qa_positive_ev_payload(now_utc: datetime | None = None) -> dict:
             "rejected": 0,
             "rejectionReasons": {},
         },
+    }
+
+
+def qa_positive_ev_line_history(
+    now_utc: datetime | None = None,
+    *,
+    snapshot_only: bool = False,
+    price_offset: int = 0,
+    include_lines: bool = False,
+) -> dict:
+    """Timestamped sportsbook movement for exercising the full EV chart UI."""
+
+    now = (now_utc or datetime.now(timezone.utc)).replace(second=0, microsecond=0)
+    book_specs = (
+        ("novig", "Novig", NOVIG_LOGO_URL, (92, 96, 101, 98, 104, 102, 100)),
+        (
+            "pinnacle",
+            "Pinnacle",
+            "/static/assets/providers/pinnacle.png",
+            (84, 86, 88, 90, 89, 91, 92),
+        ),
+        (
+            "circa",
+            "Circa",
+            "/static/assets/dfs-books/circa.png",
+            (80, 82, 85, 86, 88, 89, 90),
+        ),
+        ("bookmakereu", "Bookmaker", "", (78, 80, 82, 84, 85, 87, 88)),
+    )
+    line_paths = {
+        "novig": (2.5, 2.5, 2.0, 2.0, 1.5, 1.5, 1.0),
+        "pinnacle": (2.5, 2.0, 2.0, 1.5, 1.5, 1.0, 1.0),
+        "circa": (3.0, 2.5, 2.5, 2.0, 2.0, 1.5, 1.5),
+        "bookmakereu": (2.5, 2.5, 2.0, 2.0, 1.5, 1.5, 1.5),
+    }
+    series = []
+    for book_key, book_name, logo_url, prices in book_specs:
+        points = []
+        for point_index, price in enumerate(prices):
+            point = {
+                "timestamp": (
+                    now - timedelta(minutes=(len(prices) - point_index - 1) * 20)
+                ).isoformat(),
+                "americanOdds": price + price_offset,
+                "line": line_paths[book_key][point_index] if include_lines else None,
+                "marketLimit": None,
+                "availableLiquidity": 1750 + point_index * 25,
+            }
+            if book_key == "pinnacle":
+                point["marketLimit"] = 1500 + point_index * 250
+            points.append(point)
+        series.append(
+            {
+                "bookKey": book_key,
+                "bookName": book_name,
+                "logoUrl": logo_url,
+                "points": points[-1:] if snapshot_only else points,
+            }
+        )
+    return {
+        "eventId": "evt_qa_0",
+        "marketId": "mkt_qa_0",
+        "selectionId": "sel_qa_0",
+        "series": series,
+        "observationCount": sum(len(item["points"]) for item in series),
+        "source": "visual_qa_normalized_market_quote_history",
+        "synthetic": False,
+        "valueKind": "line" if include_lines else "americanOdds",
     }
 
 
@@ -937,6 +1021,35 @@ def build_app():
 
     @flask_app.before_request
     def qa_live_feeds():
+        if request.path == "/api/positive-ev/line-history":
+            requested_books = {
+                item.strip().lower()
+                for item in request.args.get("books", "").split(",")
+                if item.strip()
+            }
+            event_id = request.args.get("event_id", "")
+            price_offset = 0
+            if event_id.endswith("_1"):
+                price_offset = -338
+            elif event_id.endswith("_2"):
+                price_offset = -244
+            payload = qa_positive_ev_line_history(
+                snapshot_only=event_id.endswith("_1"),
+                price_offset=price_offset,
+                include_lines=event_id.endswith("_2"),
+            )
+            if requested_books:
+                payload["series"] = [
+                    item
+                    for item in payload["series"]
+                    if item["bookKey"] in requested_books
+                ]
+                payload["observationCount"] = sum(
+                    len(item["points"]) for item in payload["series"]
+                )
+            response = jsonify(payload)
+            response.headers["Cache-Control"] = "no-store"
+            return response
         if request.path == "/api/positive-ev/live":
             response = jsonify(qa_positive_ev_payload())
             response.headers["Cache-Control"] = "no-store"

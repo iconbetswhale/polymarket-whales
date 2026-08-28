@@ -83,6 +83,7 @@
     if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
   } catch {}
   let rows = [], selectedId = "", paused = false, timer = null, feedView = "active", retryCount = 0;
+  let lineHistoryRequestId = 0;
   let bankrollConfig = {amount:10000, unitPercentage:.01, settingsVersion:null, dirty:false, savePending:false};
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
@@ -606,8 +607,10 @@
         americanOdds: Number(point.americanOdds),
         line: finiteOrNull(point.line),
         marketLimit: finiteOrNull(point.marketLimit),
-      })).filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.americanOdds)),
+      })).filter(point => Number.isFinite(point.timestamp) && Number.isFinite(point.americanOdds))
+        .sort((left, right) => left.timestamp - right.timestamp),
     })).filter(series => series.points.length);
+    if (!normalized.length) return [];
     if (mode !== "trend") return normalized;
     const latest = Math.max(...normalized.flatMap(series => series.points.map(point => point.timestamp)));
     const cutoff = latest - 6 * 60 * 60 * 1000;
@@ -621,6 +624,9 @@
     (series.points || []).some(point => finiteOrNull(point.line) != null)
   ) ? "line" : "americanOdds";
   const liveHistoryValue = (point, metric) => metric === "line" ? point.line : point.americanOdds;
+  const liveHistoryHasMovement = rawSeries => new Set(
+    (rawSeries || []).flatMap(series => (series.points || []).map(point => point.timestamp))
+  ).size > 1;
   const lineValue = value => {
     const number = Number(value);
     if (!Number.isFinite(number)) return "--";
@@ -642,7 +648,11 @@
     const metric = liveHistoryMetric(series);
     const points = series.flatMap(item => item.points).filter(point => Number.isFinite(liveHistoryValue(point, metric)));
     if (!points.length) return "";
-    const width = 520, height = 250, left = 52, right = 58, top = 28, bottom = 42;
+    const axisTime = timestamp => new Intl.DateTimeFormat("en-US", {hour:"numeric", minute:"2-digit"}).format(new Date(timestamp));
+    if (!liveHistoryHasMovement(series)) {
+      return `<div class="ev-trend-snapshot" role="status"><span>Current snapshot</span><strong>${esc(axisTime(points[0].timestamp))}</strong><small>The next real line, price, limit, or checkpoint update will start the graph.</small></div>`;
+    }
+    const width = 520, height = 220, left = 48, right = 54, top = 20, bottom = 36;
     const minTime = Math.min(...points.map(point => point.timestamp));
     const maxTime = Math.max(...points.map(point => point.timestamp));
     const values = points.map(point => liveHistoryValue(point, metric));
@@ -678,7 +688,6 @@
     const limitAxis = plottedLimits.length > 1
       ? `<text x="${width-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">${compactDollars(maxLimit)}</text><text x="${width-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>`
       : "";
-    const axisTime = timestamp => new Intl.DateTimeFormat("en-US", {hour:"numeric", minute:"2-digit"}).format(new Date(timestamp));
     return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook ${metric === "line" ? "line" : "price"} history">${grid}${limitAxis}${paths}${limitPath}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
   }
 
@@ -688,12 +697,16 @@
     const books = series.map(item => {
       const latest = item.points[item.points.length - 1];
       const value = liveHistoryValue(latest, metric);
-      return `<button type="button" class="ev-trend-legend-toggle ${item.isSelected ? "is-selected" : ""}" data-series-toggle="${esc(item.key)}" aria-pressed="true" style="--legend:${item.color}">${esc(item.bookName || bookNames[item.bookKey] || item.bookKey)}${item.isSelected ? " <small>Compared</small>" : ""} <b>${historyValueLabel(value, metric)} · ${odds(latest.americanOdds)}</b></button>`;
+      const summary = metric === "line"
+        ? `${historyValueLabel(value, metric)} · ${odds(latest.americanOdds)}`
+        : odds(latest.americanOdds);
+      return `<button type="button" class="ev-trend-legend-toggle ${item.isSelected ? "is-selected" : ""}" data-series-toggle="${esc(item.key)}" aria-pressed="true" style="--legend:${item.color}"><span>${esc(item.bookName || bookNames[item.bookKey] || item.bookKey)}${item.isSelected ? " <small>Compared</small>" : ""}</span><b>${summary}</b></button>`;
     }).join("");
     const pinnacle = series.find(item => String(item.bookKey).toLowerCase() === "pinnacle");
     const latestLimit = [...(pinnacle?.points || [])].reverse().find(point => Number.isFinite(point.marketLimit));
-    const limit = latestLimit && (pinnacle?.points || []).filter(point => Number.isFinite(point.marketLimit)).length > 1
-      ? `<button type="button" class="ev-trend-legend-toggle is-limit" data-series-toggle="live-pinnacle-limit" aria-pressed="true">Pinnacle limit <b>${compactDollars(latestLimit.marketLimit)}</b></button>`
+    const limitPointCount = (pinnacle?.points || []).filter(point => Number.isFinite(point.marketLimit)).length;
+    const limit = latestLimit
+      ? `<button type="button" class="ev-trend-legend-toggle is-limit ${limitPointCount < 2 ? "is-snapshot" : ""}" ${limitPointCount > 1 ? 'data-series-toggle="live-pinnacle-limit" aria-pressed="true"' : 'disabled aria-disabled="true"'}><span>Pinnacle limit</span><b>${compactDollars(latestLimit.marketLimit)}</b></button>`
       : "";
     return books + limit;
   }
@@ -713,7 +726,7 @@
     if (hourMetric) hourMetric.textContent = historyValueLabel(liveHistoryValue(oneHour, metric), metric);
   }
 
-  function renderLiveLineHistory(row, payload) {
+  function renderLiveLineHistory(row, payload, viewState = {}) {
     const container = $("ev-live-line-history");
     if (!container || String(selectedId) !== String(row.id)) return;
     const series = prepareLiveHistorySeries(row, payload.series || []);
@@ -725,18 +738,20 @@
     }
     const trendSvg = liveHistorySvg(series, "trend");
     const historySvg = liveHistorySvg(series, "history");
-    const singleSnapshot = series.every(item => (item.points || []).length < 2);
+    const singleSnapshot = !liveHistoryHasMovement(series);
     const metric = liveHistoryMetric(series);
     container.setAttribute("aria-busy", "false");
     container.innerHTML = `<div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Live line chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
       <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${metric === "line" ? "Live line movement" : "Live price movement"} from the compared and sharp books</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend")}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next line, price, limit, or checkpoint update." : "Real timestamped lines, prices, and reported Pinnacle limits; refreshed with the live +EV feed."}</p></div>
       <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>${historySvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "history")}</div><p class="ev-trend-live-note"><i class="ph ph-database"></i>${observationCount} stored bookmaker observation${observationCount === 1 ? "" : "s"}; no synthetic points.</p></div>`;
     updateTrendMetrics(series);
-    bindTrendControls();
+    bindTrendControls(viewState);
+    if (Number.isFinite(viewState.scrollTop)) requestAnimationFrame(() => { detail.scrollTop = viewState.scrollTop; });
   }
 
-  async function loadLiveLineHistory(row) {
+  async function loadLiveLineHistory(row, viewState = {}) {
     if (!row.lineHistoryIdentity?.eventId || !row.lineHistoryIdentity?.marketId || !row.lineHistoryIdentity?.selectionId) return;
+    const requestId = ++lineHistoryRequestId;
     const identity = row.lineHistoryIdentity;
     const books = liveHistoryBookKeys(row);
     const params = new URLSearchParams({
@@ -758,16 +773,17 @@
       const response = await fetch(`/api/positive-ev/line-history?${params}`, {headers:{"Accept":"application/json"}});
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Line history unavailable");
-      renderLiveLineHistory(row, payload);
+      if (requestId !== lineHistoryRequestId) return;
+      renderLiveLineHistory(row, payload, viewState);
     } catch (error) {
       const container = $("ev-live-line-history");
-      if (!container || String(selectedId) !== String(row.id)) return;
+      if (requestId !== lineHistoryRequestId || !container || String(selectedId) !== String(row.id)) return;
       container.setAttribute("aria-busy", "false");
       container.innerHTML = `<div class="ev-chart-live-state il-state il-state-error"><i class="ph ph-warning-circle"></i><strong>Live history temporarily unavailable</strong><span>${esc(error.message)}</span></div>`;
     }
   }
 
-  function bindTrendControls() {
+  function bindTrendControls(viewState = {}) {
     const activateChartTab = button => {
       const mode = button.dataset.chartTab;
       detail.querySelectorAll("[data-chart-tab]").forEach(tab => {
@@ -794,13 +810,22 @@
         next.focus();
       });
     });
-    detail.querySelectorAll("[data-series-toggle]").forEach(button => button.addEventListener("click", () => {
+    detail.querySelectorAll("[data-series-toggle]:not(:disabled)").forEach(button => button.addEventListener("click", () => {
       const visible = button.getAttribute("aria-pressed") !== "true";
       button.setAttribute("aria-pressed", String(visible));
       button.classList.toggle("off", !visible);
       const view = button.closest("[data-chart-view]");
       view?.querySelectorAll(`[data-series="${button.dataset.seriesToggle}"]`).forEach(series => series.classList.toggle("series-hidden", !visible));
     }));
+    const preferredTab = detail.querySelector(`[data-chart-tab="${CSS.escape(viewState.chartMode || "trend")}"]`);
+    if (preferredTab) activateChartTab(preferredTab);
+    const hiddenSeries = new Set(viewState.hiddenSeries || []);
+    detail.querySelectorAll("[data-series-toggle]").forEach(button => {
+      if (!hiddenSeries.has(button.dataset.seriesToggle)) return;
+      button.setAttribute("aria-pressed", "false");
+      button.classList.add("off");
+      button.closest("[data-chart-view]")?.querySelectorAll(`[data-series="${button.dataset.seriesToggle}"]`).forEach(series => series.classList.add("series-hidden"));
+    });
   }
 
   function marketOddsVisual(row) {
@@ -835,11 +860,44 @@
         ${sides.length > 1 ? priceCell(right, 1) : ""}
       </div>`;
     }).join("");
-    return `<section class="ev-market-odds ev-market-comparison il-detail-section">
+    const collapsedBookCount = 5;
+    const canExpand = bookKeys.length > collapsedBookCount;
+    return `<section class="ev-market-odds ev-market-comparison il-detail-section" data-market-book-count="${bookKeys.length}">
       <header><h3>MARKET ODDS</h3></header>
       <div class="ev-market-compare-head"><span>Sportsbook</span><strong>${esc(sideLabels[0])}</strong>${sides.length > 1 ? `<strong>${esc(sideLabels[1])}</strong>` : ""}</div>
-      <div class="ev-market-compare-rows">${rowsHtml}</div>
+      <div class="ev-market-compare-rows" id="ev-market-compare-rows">${rowsHtml}</div>
+      ${canExpand ? `<button class="ev-market-odds-toggle" type="button" aria-expanded="false" aria-controls="ev-market-compare-rows"><span>Show all ${bookKeys.length} books</span><i class="ph ph-caret-down" aria-hidden="true"></i></button>` : ""}
     </section>`;
+  }
+
+  function setMarketOddsExpanded(section, expanded) {
+    if (!section) return;
+    const button = section.querySelector(".ev-market-odds-toggle");
+    if (!button) return;
+    const bookCount = Number(section.dataset.marketBookCount || 0);
+    section.classList.toggle("is-expanded", expanded);
+    button.setAttribute("aria-expanded", String(expanded));
+    button.querySelector("span").textContent = expanded ? "Show top 5 books" : `Show all ${bookCount} books`;
+    button.querySelector("i").className = `ph ph-caret-${expanded ? "up" : "down"}`;
+  }
+
+  function bindMarketOddsControls(expanded = false) {
+    const section = detail.querySelector(".ev-market-comparison");
+    if (!section) return;
+    setMarketOddsExpanded(section, expanded);
+    section.querySelector(".ev-market-odds-toggle")?.addEventListener("click", () => {
+      setMarketOddsExpanded(section, !section.classList.contains("is-expanded"));
+    });
+  }
+
+  function captureDetailViewState() {
+    return {
+      scrollTop: detail.scrollTop,
+      chartMode: detail.querySelector("[data-chart-tab].active")?.dataset.chartTab || "trend",
+      hiddenSeries: [...detail.querySelectorAll('[data-series-toggle][aria-pressed="false"]')].map(button => button.dataset.seriesToggle),
+      marketOddsExpanded: detail.querySelector(".ev-market-comparison")?.classList.contains("is-expanded") || false,
+      marketDepthExpanded: detail.querySelector(".ev-full-market-button")?.getAttribute("aria-expanded") === "true",
+    };
   }
 
   function quoteAgeLabel(source) {
@@ -1021,7 +1079,9 @@
       renderDiagnostics(payload.diagnostics || {}, history);
       const currentViewRows = visibleRows();
       const nextSelectedId = currentViewRows.some(row=>row.id===selectedId) ? selectedId : currentViewRows[0]?.id;
-      if (nextSelectedId) select(nextSelectedId);
+      if (nextSelectedId && String(nextSelectedId) === String(selectedId) && detail.classList.contains("open")) {
+        refreshSelectedDetail(currentViewRows.find(row => String(row.id) === String(nextSelectedId)));
+      } else if (nextSelectedId) select(nextSelectedId);
       else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
       feed.setAttribute("aria-busy", "false");
       clearTimeout(timer);
@@ -1125,17 +1185,65 @@
     </div>`;
     dismissDetail();
   }
+
+  function setFullMarketDepthExpanded(expanded) {
+    const button = detail.querySelector(".ev-full-market-button");
+    const content = detail.querySelector(".ev-full-market-depth");
+    if (!button || !content) return;
+    button.setAttribute("aria-expanded", String(expanded));
+    button.querySelector("span").textContent = expanded ? "Collapse market depth" : "View full market depth";
+    button.querySelector("i").className = `ph ph-arrow-${expanded ? "up" : "right"}`;
+    content.hidden = !expanded;
+    detail.classList.toggle("market-depth-open", expanded);
+  }
+
+  function refreshSelectedDetail(row) {
+    if (!row || String(row.id) !== String(selectedId)) return;
+    const viewState = captureDetailViewState();
+    const best = row.bestQuote || {};
+    renderFeed();
+    const setText = (selector, value) => {
+      const node = detail.querySelector(selector);
+      if (node) node.textContent = value;
+    };
+    setText("[data-detail-ev]", evPercent(row.evPercent));
+    setText("[data-detail-event]", row.eventTitle);
+    setText("[data-detail-start]", time(row.commenceTime));
+    const start = detail.querySelector("[data-detail-start]");
+    if (start) start.setAttribute("datetime", row.commenceTime || "");
+    setText("[data-detail-selection]", detailSelection(row));
+    setText("[data-detail-odds]", odds(best.topPriceAmericanOdds ?? best.americanOdds));
+    setText("[data-detail-stake]", money(row.recommendedStake));
+    setText('[data-trend-metric="ev"]', evPercent(row.evPercent));
+    setText('[data-trend-metric="fv"]', odds(row.fairAmerican));
+
+    const currentMarketOdds = detail.querySelector(".ev-market-comparison");
+    const marketOddsMarkup = marketOddsVisual(row);
+    if (currentMarketOdds && marketOddsMarkup) {
+      const template = document.createElement("template");
+      template.innerHTML = marketOddsMarkup.trim();
+      currentMarketOdds.replaceWith(template.content.firstElementChild);
+      bindMarketOddsControls(viewState.marketOddsExpanded);
+    }
+    const fullDepth = detail.querySelector(".ev-full-market-depth");
+    if (fullDepth && viewState.marketDepthExpanded) {
+      fullDepth.innerHTML = `${evExplanationVisual(row)}${sharpBooksVisual(row)}`;
+      setFullMarketDepthExpanded(true);
+    }
+    loadLiveLineHistory(row, viewState);
+  }
+
   function select(id) {
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
     detail.classList.remove("market-depth-open");
     renderFeed(); const best=row.bestQuote||{};
-    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong>${evPercent(row.evPercent)}</strong><div><h2>${esc(row.eventTitle)}</h2><time class="ev-detail-start" datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
-      <div class="ev-detail-pick ev-trend-pick"><strong>${esc(detailSelection(row))} <span>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake">${money(row.recommendedStake)}</div></div>
+    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong data-detail-ev>${evPercent(row.evPercent)}</strong><div><h2 data-detail-event>${esc(row.eventTitle)}</h2><time class="ev-detail-start" data-detail-start datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
+      <div class="ev-detail-pick ev-trend-pick"><strong><span class="ev-detail-selection" data-detail-selection>${esc(detailSelection(row))}</span> <span class="ev-detail-odds" data-detail-odds>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake" data-detail-stake>${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       ${marketOddsVisual(row)}
       <section class="ev-section ev-market-trend il-detail-section"><header><h3>LINE MOVEMENT</h3></header><div class="ev-trend-metrics il-metric-group">
-        <span class="il-metric positive"><small>EV</small><b>${evPercent(row.evPercent)}</b></span>
-        <span class="il-metric"><small>FV</small><b>${odds(row.fairAmerican)}</b></span>
+        <span class="il-metric positive"><small>EV</small><b data-trend-metric="ev">${evPercent(row.evPercent)}</b></span>
+        <span class="il-metric"><small>FV</small><b data-trend-metric="fv">${odds(row.fairAmerican)}</b></span>
         <span class="il-metric"><small>1H</small><b data-trend-metric="1h">--</b></span>
         <span class="il-metric"><small>OPEN</small><b data-trend-metric="open">--</b></span>
       </div>${marketTrendVisual(row)}</section>
@@ -1143,21 +1251,15 @@
       <div class="ev-full-market-depth" hidden>${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
     </article>`;
     bindTrendControls();
+    bindMarketOddsControls();
     loadLiveLineHistory(row);
     detail.querySelector(".ev-detail-close").addEventListener("click", closeDetail);
-    detail.querySelector(".ev-full-market-button")?.addEventListener("click", event => {
-      const button = event.currentTarget;
-      const expanded = button.getAttribute("aria-expanded") !== "true";
-      button.setAttribute("aria-expanded", String(expanded));
-      button.querySelector("span").textContent = expanded ? "Collapse market depth" : "View full market depth";
-      button.querySelector("i").className = `ph ph-arrow-${expanded ? "up" : "right"}`;
-      detail.querySelector(".ev-full-market-depth").hidden = !expanded;
-      detail.classList.toggle("market-depth-open", expanded);
-    });
+    detail.querySelector(".ev-full-market-button")?.addEventListener("click", event => setFullMarketDepthExpanded(event.currentTarget.getAttribute("aria-expanded") !== "true"));
     detail.classList.add("open", "line-history-visible");
     detail.closest(".ev-workspace")?.classList.add("detail-open");
     detail.removeAttribute("inert");
     detail.setAttribute("aria-hidden", "false");
+    detail.scrollTop = 0;
     if (matchMedia("(max-width:980px)").matches) {
       scrim.hidden=false;
       detail.setAttribute("role", "dialog");
@@ -1169,6 +1271,7 @@
     }
   }
   function dismissDetail(restoreFocus=false){
+    lineHistoryRequestId += 1;
     detail.classList.remove("open");
     detail.closest(".ev-workspace")?.classList.remove("detail-open");
     scrim.hidden=true;

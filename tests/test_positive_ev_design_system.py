@@ -9,6 +9,7 @@ BASE = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
 TEMPLATE = (ROOT / "templates" / "positive_ev.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "static" / "positive-ev.js").read_text(encoding="utf-8")
 CSS = (ROOT / "static" / "positive-ev.css").read_text(encoding="utf-8")
+MOBILE_TOOLS = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
 DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-8")
 
 
@@ -209,6 +210,41 @@ def test_live_line_chart_restores_compared_and_sharp_book_history() -> None:
     assert "border-top: 2px dashed var(--il-text-primary)" in CSS
 
 
+def test_live_line_chart_handles_first_snapshot_and_refreshes_without_resetting_detail() -> None:
+    normalizer = _function("liveHistorySeries")
+    chart = _function("liveHistorySvg")
+    loader = _function("loadLiveLineHistory")
+    refresh = _function("refreshSelectedDetail")
+
+    assert ".sort((left, right) => left.timestamp - right.timestamp)" in normalizer
+    assert "liveHistoryHasMovement(series)" in chart
+    assert 'class="ev-trend-snapshot"' in chart
+    assert "The next real line, price, limit, or checkpoint update will start the graph." in chart
+    assert "requestId !== lineHistoryRequestId" in loader
+    assert "captureDetailViewState()" in refresh
+    assert "bindMarketOddsControls(viewState.marketOddsExpanded)" in refresh
+    assert "loadLiveLineHistory(row, viewState)" in refresh
+    assert 'detail.classList.contains("open")' in SCRIPT
+    assert "refreshSelectedDetail(currentViewRows.find" in SCRIPT
+    assert "metric === \"line\"" in _function("liveHistoryLegend")
+
+
+def test_positive_ev_mobile_detail_is_compact_scroll_safe_and_expandable() -> None:
+    market_odds = _function("marketOddsVisual")
+
+    assert 'class="ev-market-odds-toggle"' in market_odds
+    assert "collapsedBookCount = 5" in market_odds
+    assert 'body[data-design-system="v2"][data-page="positive-ev"] .ev-detail.mobile-inline-detail' in MOBILE_TOOLS
+    assert "scroll-margin-bottom: calc(82px + env(safe-area-inset-bottom))" in MOBILE_TOOLS
+    assert "overflow: visible !important" in MOBILE_TOOLS
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr)) !important" in MOBILE_TOOLS
+    assert ".ev-market-comparison:not(.is-expanded) .ev-market-compare-row:nth-child(n + 6)" in MOBILE_TOOLS
+    assert ".ev-trend-legend-toggle.is-selected" in MOBILE_TOOLS
+    assert "grid-column: 1 / -1" in MOBILE_TOOLS
+    assert ".ev-trend-chart svg" in MOBILE_TOOLS
+    assert "min-height: 0 !important" in MOBILE_TOOLS
+
+
 def test_market_odds_remains_two_sided_with_provider_between_prices() -> None:
     market_odds = _function("marketOddsVisual")
     row = market_odds[market_odds.index('return `<div class="ev-market-compare-row">') :]
@@ -344,7 +380,7 @@ def test_positive_ev_responsive_and_accessibility_contracts() -> None:
 
 
 def test_positive_ev_detail_heading_uses_compact_ev_percentage() -> None:
-    assert 'class="ev-detail-head"><strong>${evPercent(row.evPercent)}</strong>' in SCRIPT
+    assert 'class="ev-detail-head"><strong data-detail-ev>${evPercent(row.evPercent)}</strong>' in SCRIPT
     assert 'class="ev-detail-head"><strong>${evPercent(row.evPercent)} EV</strong>' not in SCRIPT
     assert ".ev-detail-head > strong { color: var(--il-positive); font: 700 27px/1 var(--il-font-data);" in CSS
 
