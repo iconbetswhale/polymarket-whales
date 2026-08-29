@@ -1395,6 +1395,14 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell.muted {
   font-size: 14px;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .book-cell .cents-american {
+  display: block;
+  margin: 4px auto 0;
+  color: var(--il-text-muted);
+  font: 700 12px/1 var(--il-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
 body[data-design-system="v2"][data-page="dfs"] .book-cell .alternate-line {
   display: block;
   width: max-content;
@@ -1426,6 +1434,22 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate .alterna
   left: 50%;
   margin: 0;
   transform: translateX(-50%);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american > strong {
+  top: calc(50% - 10px);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american .cents-american {
+  position: absolute;
+  top: calc(50% + 1px);
+  left: 50%;
+  margin: 0;
+  transform: translateX(-50%);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american .alternate-line {
+  top: calc(50% + 14px);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-prop-row {
@@ -1591,6 +1615,15 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price small {
   color: var(--il-text-muted);
   background: var(--il-surface-2);
   font: 650 7px/1 var(--il-font-data);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price small.cents-american {
+  padding: 0;
+  border: 0;
+  color: var(--il-text-muted);
+  background: transparent;
+  font: 700 11px/1 var(--il-font-data);
+  font-variant-numeric: tabular-nums;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price.muted strong {

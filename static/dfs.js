@@ -469,6 +469,12 @@
     };
   }
 
+  function centsAmericanLabel(display,americanOdds) {
+    const isCentsPrice = /^([0-9]+(?:\.[0-9]+)?)¢$/.test(String(display).trim());
+    const american = Number(americanOdds);
+    return isCentsPrice && Number.isFinite(american) ? `(${formatAmericanOdds(american)})` : '';
+  }
+
   function sideSummary(row) {
     const snapshots = detailBookOrder().map(key=>marketSnapshot(row,key));
     const americanOdds = snapshots.map(item=>item.american).filter(Number.isFinite);
@@ -495,7 +501,8 @@
         const snapshot = summary.snapshots[index];
         const isBest = snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
         const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(line) ? `Line ${snapshot.line}` : '';
-        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
+        const centsAmerican = centsAmericanLabel(snapshot.display,snapshot.american);
+        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
       }).join('');
       return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };
@@ -783,8 +790,10 @@
           && Number(market.line) !== Number(activeLine)
           ? market.line
           : null;
-        const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate'].filter(Boolean).join(' ');
-        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
+        const snapshot = marketSnapshot(r,key);
+        const centsAmerican = centsAmericanLabel(price,snapshot.american);
+        const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate',centsAmerican?'has-cents-american':''].filter(Boolean).join(' ');
+        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;

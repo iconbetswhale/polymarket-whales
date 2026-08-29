@@ -196,6 +196,22 @@ def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odd
     assert "top: calc(50% + 12px);" in CSS
 
 
+def test_cents_prices_include_american_odds_on_a_second_line() -> None:
+    assert "function centsAmericanLabel(display,americanOdds)" in SCRIPT
+    assert "isCentsPrice && Number.isFinite(american)" in SCRIPT
+    assert "centsAmericanLabel(price,snapshot.american)" in SCRIPT
+    assert "centsAmericanLabel(snapshot.display,snapshot.american)" in SCRIPT
+    assert 'class="cents-american"' in SCRIPT
+    assert ".book-cell .cents-american" in CSS
+    assert ".dfs-detail-price small.cents-american" in CSS
+    main_start = CSS.index(".book-cell .cents-american")
+    main_block = CSS[main_start : CSS.index("}", main_start)]
+    detail_start = CSS.index(".dfs-detail-price small.cents-american")
+    detail_block = CSS[detail_start : CSS.index("}", detail_start)]
+    assert "font: 700 12px/1" in main_block
+    assert "font: 700 11px/1" in detail_block
+
+
 def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "return {...defaultWeights};" in SCRIPT
     assert "validKeys && total === 100" in SCRIPT
