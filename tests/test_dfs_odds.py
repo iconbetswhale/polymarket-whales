@@ -320,13 +320,25 @@ def test_live_dfs_board_removes_bumped_pick6_multiplier_lines() -> None:
 def test_live_dfs_board_keeps_standard_pick6_multiplier_lines() -> None:
     events = _events()
     events[0]["bookmakers"] = [
-        _market("fanduel", line=0.5),
-        _market("pick6", dfs=True, line=0.5, multiplier=1.0),
+        _market("fanduel", line=1.5),
+        _market("pick6", dfs=True, line=1.5, multiplier=1.0),
     ]
 
     rows = build_dfs_odds_board(events, selected_dfs_book="dk-pick6")
 
     assert {row["side"] for row in rows} == {"Over", "Under"}
+
+
+def test_live_dfs_board_removes_pick6_half_hit_lines_without_multiplier_metadata() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel", line=0.5),
+        _market("pick6", dfs=True, line=0.5),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="dk-pick6")
+
+    assert rows == []
 
 
 def test_live_dfs_board_exposes_exchange_liquidity_and_pair_quality() -> None:

@@ -45,6 +45,11 @@ DFS_OPTIMIZER_BOOK_KEYS = (
 UNSUPPORTED_DFS_MARKETS = {
     "underdog": frozenset({"batter_rbis"}),
 }
+UNSUPPORTED_DFS_LINES = {
+    # Pick6 currently lists these 0.5-hit offers only as boosted/bumped payout
+    # selections (for example 0.7x), not as its standard playable line.
+    "pick6": {"batter_hits": frozenset({0.5})},
+}
 
 MODEL_PROVIDER_ALIASES = {
     "prophetexchange": "prophetx",
@@ -273,6 +278,16 @@ def build_dfs_odds_board(
                     },
                 )
                 for line, sides in by_line.items():
+                    if (
+                        metadata["type"] == "dfs"
+                        and any(
+                            math.isclose(line, blocked_line, abs_tol=1e-9)
+                            for blocked_line in UNSUPPORTED_DFS_LINES.get(
+                                book_key, {}
+                            ).get(market_key, ())
+                        )
+                    ):
+                        continue
                     side_liquidity = {
                         side: _outcome_liquidity(outcome)
                         for side, outcome in sides.items()
