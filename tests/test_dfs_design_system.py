@@ -632,6 +632,7 @@ def test_expanded_odds_detail_is_edge_to_edge_logo_only_and_liquidity_aware() ->
     assert "dfs-detail-liquidity" in SCRIPT
     assert "1-way · excluded" in SCRIPT
     assert "snapshot.eligible" in SCRIPT
+    assert "oppositeRow\n        ? selectedDfsLine(oppositeRow)" in SCRIPT
 
 
 def test_selected_fantasy_app_uses_branded_sidebar_depth_treatment() -> None:

@@ -472,7 +472,11 @@
   }
 
   function sideSummary(row,oppositeRow) {
-    const targetLine = selectedDfsLine(row);
+    const targetLine = row
+      ? selectedDfsLine(row)
+      : oppositeRow
+        ? selectedDfsLine(oppositeRow)
+        : null;
     const snapshots = detailBookOrder().map(key=>{
       const snapshot = marketSnapshot(row,key);
       const opposite = marketSnapshot(oppositeRow,key);
