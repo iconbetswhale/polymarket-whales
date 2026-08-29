@@ -619,12 +619,12 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-picker header > spa
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-picker header strong {
-  font: 750 12px/1.2 var(--il-font-ui);
+  font: 750 13px/1.2 var(--il-font-ui);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-picker header small {
   color: var(--il-text-muted);
-  font: 500 10px/1.2 var(--il-font-ui);
+  font: 500 11px/1.2 var(--il-font-ui);
 }
 
 body[data-design-system="v2"][data-page="dfs"] #dfs-add-book-close {
@@ -692,7 +692,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-option {
   border-radius: var(--il-radius-control);
   color: var(--il-text-secondary);
   background: var(--il-surface-1);
-  font: 650 11px/1.2 var(--il-font-ui);
+  font: 650 13px/1.2 var(--il-font-ui);
   text-align: left;
 }
 
@@ -921,7 +921,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table th {
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-table td {
   box-sizing: border-box;
-  height: 70px;
+  height: 78px;
   padding: 0 12px;
   border-right: 1px solid var(--il-border-hairline);
   border-bottom: 1px solid var(--il-border-hairline);
@@ -1063,14 +1063,14 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button .dfs-act
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button strong,
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button strong {
-  font: 700 10.5px/1.1 var(--il-font-ui);
+  font: 700 12px/1.2 var(--il-font-ui);
   letter-spacing: -.015em;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-devig-button small,
 body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-button small {
   color: #a9a0b4;
-  font: 500 7.5px/1.1 var(--il-font-data);
+  font: 500 9px/1.15 var(--il-font-data);
   letter-spacing: -.02em;
 }
 

@@ -8,10 +8,18 @@ from sports_game_odds import (
     SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
     SPORTS_GAME_ODDS_DEFAULT_SOURCE_WEIGHTS,
     SPORTS_GAME_ODDS_DFS_BOOKS,
+    SPORTS_GAME_ODDS_LOGOS,
     normalize_sports_game_odds_ev_events,
     positive_ev_catalog_payload,
     sports_game_odds_request_params,
 )
+
+
+def test_caesars_uses_the_recently_supplied_sportsbook_logo():
+    assert (
+        SPORTS_GAME_ODDS_LOGOS["caesars"]
+        == "/static/assets/sportsbooks/caesars-sportsbook.png"
+    )
 
 
 EXPECTED_ALL_LINES_BOOK_KEYS = {

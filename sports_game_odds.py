@@ -105,7 +105,7 @@ SPORTS_GAME_ODDS_LOGOS = {
     "fanduel": "/static/assets/sportsbooks/fanduel.png",
     "draftkings": "/static/assets/sportsbooks/draftkings.png",
     "betmgm": "/static/assets/sportsbooks/betmgm.png",
-    "caesars": "/static/assets/sportsbooks/caesars.png",
+    "caesars": "/static/assets/sportsbooks/caesars-sportsbook.png",
     "espnbet": "/static/assets/sportsbooks/espn-bet.png",
     "bovada": "/static/assets/sportsbooks/bovada.png",
     "unibet": "/static/assets/sportsbooks/catalog/unibet.jpg",

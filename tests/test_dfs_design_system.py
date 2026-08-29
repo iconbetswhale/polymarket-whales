@@ -529,6 +529,13 @@ def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "text-align: center;" in CSS
 
 
+def test_dfs_prop_rows_have_more_vertical_breathing_room() -> None:
+    cell_start = CSS.index(".dfs-table td {")
+    cell_block = CSS[cell_start : CSS.index("}", cell_start)]
+
+    assert "height: 78px;" in cell_block
+
+
 def test_dfs_chance_to_hit_number_is_fifteen_pixels() -> None:
     chance_number_start = CSS.index(".hit-rate strong {")
     chance_number_block = CSS[
@@ -577,6 +584,20 @@ def test_optional_comparison_books_are_searchable_removable_and_persistent() -> 
     assert "data-remove-comparison-book" not in static_headers
 
 
+def test_optional_comparison_book_menu_uses_larger_title_case_labels() -> None:
+    assert "<strong>Comparison Books</strong>" in TEMPLATE
+    title_start = CSS.index(".dfs-add-book-picker header strong {")
+    title_block = CSS[title_start : CSS.index("}", title_start)]
+    subtitle_start = CSS.index(".dfs-add-book-picker header small {")
+    subtitle_block = CSS[subtitle_start : CSS.index("}", subtitle_start)]
+    option_start = CSS.index(".dfs-add-book-option {")
+    option_block = CSS[option_start : CSS.index("}", option_start)]
+
+    assert "font: 750 13px/1.2 var(--il-font-ui);" in title_block
+    assert "font: 500 11px/1.2 var(--il-font-ui);" in subtitle_block
+    assert "font: 650 13px/1.2 var(--il-font-ui);" in option_block
+
+
 def test_dfs_stat_and_matchup_text_never_truncate() -> None:
     player_start = CSS.index('.dfs-table .player-col {')
     player_block = CSS[player_start : CSS.index("}", player_start)]
@@ -616,6 +637,13 @@ def test_optimizer_buttons_use_the_glass_action_card_treatment() -> None:
     assert ".dfs-devig-button:active" in CSS
     assert ".dfs-parlay-guide-button:active" in CSS
     assert ".dfs-devig-button:focus-visible" in CSS
+
+    title_start = CSS.rindex('.dfs-devig-button strong,')
+    title_block = CSS[title_start : CSS.index("}", title_start)]
+    subtitle_start = CSS.rindex('.dfs-devig-button small,')
+    subtitle_block = CSS[subtitle_start : CSS.index("}", subtitle_start)]
+    assert "font: 700 12px/1.2 var(--il-font-ui);" in title_block
+    assert "font: 500 9px/1.15 var(--il-font-data);" in subtitle_block
 
 
 def test_selected_fantasy_app_uses_branded_sidebar_depth_treatment() -> None:
