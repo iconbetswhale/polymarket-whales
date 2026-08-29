@@ -40,7 +40,14 @@
         </div>
       </section>
     </div>
-    <div class="dfs-filter-bar il-filter-bar">
+    <div class="dfs-mobile-filter-command">
+      <button id="dfs-mobile-filter-toggle" type="button" aria-expanded="false" aria-controls="dfs-filter-bar">
+        <i class="ph ph-funnel-simple" aria-hidden="true"></i>
+        <span><strong>Filters</strong><small id="dfs-mobile-filter-summary">All plays</small></span>
+        <i class="ph ph-caret-down" aria-hidden="true"></i>
+      </button>
+    </div>
+    <div class="dfs-filter-bar il-filter-bar" id="dfs-filter-bar">
       <label class="dfs-select"><span>Date range</span><select id="dfs-date"><option value="today">Today</option><option value="tomorrow">Tomorrow</option><option value="next_7_days" selected>Next 7 days</option><option value="custom">Custom</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Sport</span><select id="dfs-sport"><option value="">All sports</option><option>MLB</option><option>WNBA</option><option>NFL</option><option>NBA</option><option>NHL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="dfs-select"><span>Teams</span><select id="dfs-team"><option value="">All teams</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>

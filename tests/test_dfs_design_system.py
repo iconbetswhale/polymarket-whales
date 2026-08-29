@@ -489,7 +489,7 @@ def test_dfs_filter_controls_share_equal_columns_and_alignment() -> None:
 
 
 def test_dfs_team_filter_follows_date_sport_team_stat_order() -> None:
-    filter_start = TEMPLATE.index('<div class="dfs-filter-bar il-filter-bar">')
+    filter_start = TEMPLATE.index('<div class="dfs-filter-bar il-filter-bar" id="dfs-filter-bar">')
     filter_end = TEMPLATE.index("</div>", filter_start)
     filter_markup = TEMPLATE[filter_start:filter_end]
 

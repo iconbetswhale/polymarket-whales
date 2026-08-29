@@ -486,6 +486,41 @@
     return {snapshots,best,bestDisplay:best===null?'—':`${best>0?'+':''}${Math.round(best)}`,average};
   }
 
+  function mobileBookSnapshot(row,key,referenceLine) {
+    if (!row) return {display:'—',secondary:''};
+    if (dfsComparisonKeys.has(key)) {
+      const comparisonLine = row.dfsLines?.[key] ?? null;
+      return {display:comparisonLine===null?'—':String(comparisonLine),secondary:''};
+    }
+    const snapshot = marketSnapshot(row,key);
+    const centsAmerican = centsAmericanLabel(snapshot.display,snapshot.american);
+    const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(referenceLine)
+      ? `L ${snapshot.line}`
+      : '';
+    return {display:snapshot.display,secondary:centsAmerican || alternate};
+  }
+
+  function mobileDetailPayload(row,activeLine) {
+    const pair = detailPair(row);
+    const selectedKey = selectedBookKeys[activeBook];
+    const comparisonKeys = compareOrder.filter(key=>key!==selectedKey);
+    const sidePayload = (sideRow) => {
+      const referenceLine = selectedDfsLine(sideRow) ?? activeLine;
+      return {
+        line: referenceLine,
+        books: Object.fromEntries(comparisonKeys.map(key=>[
+          key,
+          mobileBookSnapshot(sideRow,key,referenceLine),
+        ])),
+      };
+    };
+    return encodeURIComponent(JSON.stringify({
+      over:sidePayload(pair.over),
+      under:sidePayload(pair.under),
+      books:comparisonKeys,
+    }));
+  }
+
   function renderOddsDetail(row,activeLine) {
     const pair = detailPair(row);
     const over = sideSummary(pair.over);
@@ -803,7 +838,8 @@
       const selectedAppOdds = activeParlayOdds;
       const selectedOddsTitle = parlayOddsTitle();
       const expanded = expandedRowId === String(r.id || '');
-      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      const mobileDetail = mobileDetailPayload(r,activeLine);
+      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" data-mobile-detail="${esc(mobileDetail)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
       return primaryRow + (expanded ? renderOddsDetail(r,activeLine) : '');
     }).join('');
     loadingState.hidden = hasLoadedRows || loadFailed;

@@ -2,6 +2,7 @@
    Desktop layouts stay untouched; this layer is intentionally loaded last. */
 
 .dfs-mobile-other-apps,
+.dfs-mobile-filter-command,
 .dfs-mobile-list,
 .mobile-trade-samples {
   display: none;
@@ -1506,13 +1507,21 @@
   .dfs-app-selector {
     width: 100% !important;
     min-width: 0 !important;
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    align-items: stretch !important;
   }
 
   .dfs-app-group,
   .dfs-optimizer-group {
     width: 100% !important;
     min-width: 0 !important;
+    padding: 8px !important;
+  }
+
+  .dfs-app-group > h2 {
+    margin-bottom: 5px !important;
+    font-size: 7px !important;
+    letter-spacing: .08em !important;
   }
 
   .dfs-app-picker {
@@ -1541,21 +1550,55 @@
     display: none !important;
     width: 100% !important;
     min-width: 0 !important;
+    min-height: 50px !important;
+    gap: 6px !important;
+    padding: 5px 6px !important;
   }
 
   .dfs-book.active {
     display: flex !important;
+    background: var(--il-mobile-panel-strong) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  .dfs-book.active:hover,
+  .dfs-book.active:active {
+    background: var(--il-mobile-panel-strong) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  .dfs-book > img {
+    width: 30px !important;
+    height: 30px !important;
+    flex-basis: 30px !important;
+  }
+
+  .dfs-book > span strong,
+  .dfs-devig-button strong,
+  .dfs-parlay-guide-button strong {
+    font-size: 9px !important;
+    line-height: 1.08 !important;
+  }
+
+  .dfs-book > span small,
+  .dfs-devig-button small,
+  .dfs-parlay-guide-button small,
+  .dfs-action-arrow,
+  .dfs-parlay-tab-caret {
+    display: none !important;
   }
 
   .dfs-mobile-other-apps {
     position: relative;
     min-width: 0;
-    min-height: 66px;
-    padding: 9px;
+    min-height: 50px;
+    padding: 6px;
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) 14px;
+    grid-template-columns: 30px minmax(0, 1fr) 12px;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     overflow: hidden;
     border: 1px solid var(--il-mobile-line);
     border-radius: 10px;
@@ -1564,14 +1607,14 @@
   }
 
   .dfs-mobile-other-apps > i:first-child {
-    width: 32px;
-    height: 32px;
+    width: 30px;
+    height: 30px;
     display: grid;
     place-items: center;
     border-radius: 9px;
     background: rgba(155, 92, 246, .13);
     color: var(--il-mobile-purple);
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .dfs-mobile-other-apps > span {
@@ -1582,14 +1625,13 @@
 
   .dfs-mobile-other-apps strong {
     overflow: hidden;
-    font-size: 13.5px;
+    font-size: 9px;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
   .dfs-mobile-other-apps small {
-    color: var(--il-mobile-muted);
-    font-size: 10.5px;
+    display: none;
   }
 
   .dfs-mobile-other-apps > .ph-caret-down {
@@ -1610,24 +1652,123 @@
   .dfs-optimizer-actions {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 8px !important;
+    gap: 9px !important;
+    padding-top: 0 !important;
   }
 
   .dfs-devig-button,
   .dfs-parlay-guide-button {
     width: 100% !important;
     min-width: 0 !important;
+    height: 50px !important;
+    min-height: 50px !important;
+    max-height: 50px !important;
+    gap: 5px !important;
+    padding: 5px 6px !important;
+  }
+
+  .dfs-devig-button > i,
+  .dfs-parlay-guide-button > i:first-child {
+    width: 30px !important;
+    height: 30px !important;
+    flex: 0 0 30px !important;
+    font-size: 16px !important;
+  }
+
+  .dfs-mobile-filter-command {
+    display: flex;
+    justify-content: flex-end;
+    padding: 6px 8px;
+    border-bottom: 1px solid var(--il-mobile-line);
+    background: #09111e;
+  }
+
+  .dfs-mobile-filter-command button {
+    display: grid;
+    width: 100%;
+    min-height: 40px;
+    grid-template-columns: 28px minmax(0, 1fr) 16px;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 8px;
+    border: 1px solid #2a3750;
+    border-radius: 9px;
+    color: #edf1f8;
+    background: var(--il-mobile-panel-strong);
+    text-align: left;
+  }
+
+  .dfs-mobile-filter-command button > i:first-child {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 8px;
+    color: var(--il-mobile-purple);
+    background: rgba(155, 92, 246, .13);
+    font-size: 15px;
+  }
+
+  .dfs-mobile-filter-command button > span {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 6px;
+  }
+
+  .dfs-mobile-filter-command strong {
+    font-size: 11px;
+  }
+
+  .dfs-mobile-filter-command small {
+    overflow: hidden;
+    color: var(--il-mobile-muted);
+    font-size: 9px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dfs-mobile-filter-command button > .ph-caret-down {
+    color: var(--il-mobile-muted);
+    font-size: 13px;
+    transition: transform .18s ease;
+  }
+
+  .dfs-mobile-filter-command button[aria-expanded="true"] > .ph-caret-down {
+    transform: rotate(180deg);
   }
 
   .dfs-filter-bar {
-    display: grid !important;
+    display: none !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 10px !important;
+    gap: 7px !important;
+    padding: 8px !important;
+  }
+
+  .dfs-filter-bar.mobile-open {
+    display: grid !important;
+  }
+
+  .dfs-filter-bar label > span {
+    margin-bottom: 3px !important;
+    font-size: 7px !important;
+  }
+
+  .dfs-filter-bar select,
+  .dfs-filter-bar input,
+  .dfs-filter-bar button {
+    min-height: 34px !important;
+    height: 34px !important;
+    font-size: 10px !important;
   }
 
   .dfs-filter-bar .dfs-search,
   .dfs-filter-bar .dfs-reset {
     grid-column: 1 / -1 !important;
+  }
+
+  .dfs-control-deck:not(.mobile-filters-open) .dfs-custom-date-range {
+    display: none !important;
   }
 
   .dfs-table-shell {
@@ -1752,23 +1893,27 @@
   }
 
   .dfs-mobile-player-detail {
-    padding: 12px;
+    padding: 9px;
     border-top: 1px solid #273348;
   }
 
   .dfs-mobile-highlights {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    margin-bottom: 16px;
+    margin-bottom: 10px;
     border: 1px solid #28364d;
-    border-radius: 11px;
+    border-radius: 9px;
     background: #0d1726;
   }
 
   .dfs-mobile-highlights > div {
+    display: flex;
     min-width: 0;
-    min-height: 70px;
-    padding: 10px 7px;
+    min-height: 46px;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 5px 7px;
     border-left: 1px solid #28364d;
   }
 
@@ -1776,9 +1921,7 @@
     border-left: 0;
   }
 
-  .dfs-mobile-highlights > div > span:first-child,
-  .dfs-mobile-player-detail h3,
-  .dfs-mobile-comparisons > div > span:first-child {
+  .dfs-mobile-player-detail h3 {
     color: #7f8a9d;
     font-size: 8px;
     font-weight: 700;
@@ -1788,29 +1931,135 @@
 
   .dfs-mobile-cell-value {
     display: block;
-    margin-top: 6px;
+    margin-top: 0;
     color: #f2f4fa;
-    font-size: 13px;
+    font-size: 12px;
     font-weight: 700;
   }
 
+  .dfs-mobile-logo-value img {
+    width: 25px;
+    height: 25px;
+    flex: 0 0 25px;
+    border-radius: 7px;
+    object-fit: contain;
+  }
+
+  .dfs-mobile-logo-value .dfs-mobile-cell-value strong,
+  .dfs-mobile-hit-value .dfs-mobile-cell-value strong {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dfs-mobile-hit-value {
+    flex-direction: column;
+    gap: 2px !important;
+  }
+
+  .dfs-mobile-hit-value > small {
+    color: var(--il-mobile-muted);
+    font-size: 7px;
+    font-weight: 750;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+  }
+
   .dfs-mobile-player-detail h3 {
-    margin: 0 0 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 0 0 6px;
+  }
+
+  .dfs-mobile-player-detail h3 small {
+    color: #677286;
+    font-size: 7px;
+    font-weight: 650;
+    letter-spacing: .02em;
+    text-transform: none;
   }
 
   .dfs-mobile-comparisons {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 7px;
+    gap: 6px;
   }
 
-  .dfs-mobile-comparisons > div {
+  .dfs-mobile-comparison {
+    display: grid;
     min-width: 0;
-    min-height: 58px;
-    padding: 9px;
+    min-height: 43px;
+    grid-template-columns: 28px minmax(0, 1fr);
+    align-items: center;
+    gap: 6px;
+    padding: 5px 6px;
     border: 1px solid #263249;
-    border-radius: 9px;
+    border-radius: 8px;
     background: #09111e;
+  }
+
+  .dfs-mobile-comparison-logo {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    place-items: center;
+    border-radius: 7px;
+    background: #101a2a;
+  }
+
+  .dfs-mobile-comparison-logo img {
+    width: 23px;
+    height: 23px;
+    border-radius: 5px;
+    object-fit: contain;
+  }
+
+  .dfs-mobile-comparison-prices {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    border-left: 1px solid #243047;
+  }
+
+  .dfs-mobile-comparison-side {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: 9px minmax(0, 1fr);
+    align-items: center;
+    gap: 2px;
+    padding-left: 4px;
+  }
+
+  .dfs-mobile-comparison-side + .dfs-mobile-comparison-side {
+    border-left: 1px solid #243047;
+  }
+
+  .dfs-mobile-comparison-side small {
+    color: #7d879a;
+    font-size: 7px;
+    font-weight: 800;
+  }
+
+  .dfs-mobile-comparison-side strong {
+    overflow: hidden;
+    color: #f1f4f9;
+    font: 750 10px/1 var(--il-font-data, ui-monospace);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dfs-mobile-comparison-side em {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    color: #778296;
+    font: 650 6px/1 var(--il-font-data, ui-monospace);
+    font-style: normal;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* Calculators */
@@ -2266,6 +2515,27 @@
   }
 }
 
+@media (max-width: 480px) {
+  .dfs-book,
+  .dfs-devig-button,
+  .dfs-parlay-guide-button {
+    justify-content: center !important;
+  }
+
+  .dfs-book > span,
+  .dfs-devig-button > span,
+  .dfs-parlay-guide-button > span,
+  .dfs-mobile-other-apps > span,
+  .dfs-mobile-other-apps > .ph-caret-down {
+    display: none !important;
+  }
+
+  .dfs-mobile-other-apps {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+}
+
 @media (max-width: 420px) {
   :root {
     --il-mobile-gutter: 11px;
@@ -2313,10 +2583,6 @@
   .dfs-mobile-app-mark img {
     width: 30px;
     height: 30px;
-  }
-
-  .dfs-mobile-comparisons {
-    grid-template-columns: minmax(0, 1fr);
   }
 
   .calc-tool-header,

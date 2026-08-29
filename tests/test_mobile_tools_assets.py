@@ -110,6 +110,37 @@ def test_mobile_dfs_picker_keeps_one_active_app_and_an_other_apps_control():
     assert 'nextBook?.click()' in script
 
 
+def test_mobile_dfs_filters_collapse_behind_a_compact_icon_control():
+    template = (ROOT / "templates" / "dfs.html").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+    script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+
+    assert 'id="dfs-mobile-filter-toggle"' in template
+    assert 'aria-controls="dfs-filter-bar"' in template
+    assert 'id="dfs-mobile-filter-summary"' in template
+    assert ".dfs-mobile-filter-command" in styles
+    assert ".dfs-filter-bar.mobile-open" in styles
+    assert "setupDfsFilters" in script
+    assert 'deck.classList.toggle("mobile-filters-open"' in script
+
+
+def test_mobile_dfs_detail_uses_logos_and_horizontal_over_under_prices():
+    dfs_script = (ROOT / "static" / "dfs.js").read_text(encoding="utf-8")
+    mobile_script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+
+    assert "mobileDetailPayload" in dfs_script
+    assert 'data-mobile-detail="${esc(mobileDetail)}"' in dfs_script
+    assert "over:sidePayload(pair.over)" in dfs_script
+    assert "under:sidePayload(pair.under)" in dfs_script
+    assert "appendDfsLogoValue" in mobile_script
+    assert 'appendDfsComparisonSide(prices, "O"' in mobile_script
+    assert 'appendDfsComparisonSide(prices, "U"' in mobile_script
+    assert 'image.title = book.name || ""' in mobile_script
+    assert ".dfs-mobile-comparison-prices" in styles
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in styles
+
+
 def test_prediction_traders_mobile_is_scan_first_with_labeled_samples():
     template = (ROOT / "templates" / "trades.html").read_text(encoding="utf-8")
     styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")

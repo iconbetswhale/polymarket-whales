@@ -182,18 +182,98 @@
     onViewportChange();
   }
 
-  function cellLabel(cell, index) {
-    const header = document.querySelectorAll("#dfs-head-row th")[index];
-    const image = header?.querySelector("img");
-    return String(image?.alt || image?.title || header?.textContent || `Column ${index + 1}`).trim();
-  }
-
   function appendCellContent(target, source) {
     const wrapper = document.createElement("span");
     wrapper.className = "dfs-mobile-cell-value";
     [...source.childNodes].forEach((node) => wrapper.append(node.cloneNode(true)));
     if (!wrapper.textContent.trim() && !wrapper.querySelector("img")) wrapper.textContent = "—";
     target.append(wrapper);
+  }
+
+  function readDfsMobileDetail(row) {
+    try {
+      return JSON.parse(decodeURIComponent(row?.dataset.mobileDetail || ""));
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function appendDfsLogoValue(target, image, source, accessibleLabel) {
+    target.classList.add("dfs-mobile-logo-value");
+    target.setAttribute("aria-label", accessibleLabel);
+    const logo = image?.cloneNode(true);
+    if (logo) {
+      logo.alt = "";
+      logo.setAttribute("aria-hidden", "true");
+      target.append(logo);
+    }
+    appendCellContent(target, source);
+  }
+
+  function appendDfsComparisonSide(target, label, snapshot) {
+    const side = document.createElement("span");
+    side.className = "dfs-mobile-comparison-side";
+    const sideLabel = document.createElement("small");
+    sideLabel.textContent = label;
+    const value = document.createElement("strong");
+    value.textContent = snapshot?.display || "—";
+    side.append(sideLabel, value);
+    if (snapshot?.secondary) {
+      const secondary = document.createElement("em");
+      secondary.textContent = snapshot.secondary;
+      side.append(secondary);
+    }
+    target.append(side);
+  }
+
+  function dfsComparisonMeta(key) {
+    const header = [...document.querySelectorAll("#dfs-head-row [data-book-key]")]
+      .find((cell) => cell.dataset.bookKey === key);
+    const image = header?.querySelector("img");
+    return {
+      name: String(image?.alt || image?.title || key || "Sportsbook").trim(),
+      logo: image?.src || "",
+    };
+  }
+
+  function setupDfsFilters() {
+    const toggle = document.getElementById("dfs-mobile-filter-toggle");
+    const summary = document.getElementById("dfs-mobile-filter-summary");
+    const bar = document.getElementById("dfs-filter-bar");
+    const deck = document.querySelector(".dfs-control-deck");
+    if (!toggle || !summary || !bar || !deck) return;
+
+    const controls = [...bar.querySelectorAll("select, input")];
+    const syncSummary = () => {
+      const active = controls.filter((control) => {
+        const value = String(control.value || "").trim();
+        if (!value) return false;
+        if (control.id === "dfs-date" && value === "next_7_days") return false;
+        return true;
+      }).length;
+      summary.textContent = active ? `${active} active` : "All plays";
+    };
+    const setOpen = (open) => {
+      const expanded = Boolean(open && mobileViewport.matches);
+      toggle.setAttribute("aria-expanded", String(expanded));
+      bar.classList.toggle("mobile-open", expanded);
+      deck.classList.toggle("mobile-filters-open", expanded);
+    };
+
+    toggle.addEventListener("click", () => setOpen(toggle.getAttribute("aria-expanded") !== "true"));
+    controls.forEach((control) => {
+      control.addEventListener("change", syncSummary);
+      control.addEventListener("input", syncSummary);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && toggle.getAttribute("aria-expanded") === "true") {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+    mobileViewport.addEventListener?.("change", () => setOpen(false));
+    syncSummary();
+    setOpen(false);
   }
 
   function setupDfsCards() {
@@ -219,7 +299,9 @@
         const matchup = cells[0].querySelector("small")?.textContent?.trim() || "";
         const timing = cells[0].querySelector("em")?.textContent?.trim() || "";
         const side = cells[1].textContent.trim();
-        const stat = cells[2].textContent.trim();
+        const statNumber = cells[2].querySelector(".dfs-stat-number")?.textContent?.trim() || "";
+        const statLabel = cells[2].querySelector(".dfs-stat-label")?.textContent?.trim() || "";
+        const stat = [statNumber, statLabel].filter(Boolean).join(" ") || cells[2].textContent.trim();
         const line = cells[3].textContent.trim() || "—";
         const hit = cells[4].textContent.trim() || "—";
         const key = `${player}|${side}|${stat}|${line}`;
@@ -264,29 +346,64 @@
         caret.setAttribute("aria-hidden", "true");
         summary.append(mark, copy, score, caret);
 
+        const mobileDetail = readDfsMobileDetail(row);
         const detail = document.createElement("div");
         detail.className = "dfs-mobile-player-detail";
         const highlights = document.createElement("div");
         highlights.className = "dfs-mobile-highlights";
-        [["App line", 3], ["Chance to hit", 4], ["IconLabs fair odds", 5]].forEach(([label, index]) => {
-          const item = document.createElement("div");
-          const itemLabel = document.createElement("span");
-          itemLabel.textContent = label;
-          item.append(itemLabel);
-          appendCellContent(item, cells[index]);
-          highlights.append(item);
-        });
+        const appValue = document.createElement("div");
+        appendDfsLogoValue(
+          appValue,
+          document.querySelector("#dfs-line-head img"),
+          cells[3],
+          `Selected app odds ${cells[3].textContent.trim() || "unavailable"}`,
+        );
+        const chanceValue = document.createElement("div");
+        chanceValue.className = "dfs-mobile-hit-value";
+        const chanceLabel = document.createElement("small");
+        chanceLabel.textContent = "Hit";
+        chanceValue.append(chanceLabel);
+        appendCellContent(chanceValue, cells[4]);
+        const algoValue = document.createElement("div");
+        appendDfsLogoValue(
+          algoValue,
+          document.querySelector("#dfs-algo-odds-head img"),
+          cells[5],
+          `IconLabs fair odds ${cells[5].textContent.trim() || "unavailable"}`,
+        );
+        highlights.append(appValue, chanceValue, algoValue);
 
         const comparisonTitle = document.createElement("h3");
-        comparisonTitle.textContent = "All book comparisons";
+        const comparisonTitleText = document.createElement("span");
+        comparisonTitleText.textContent = "All book comparisons";
+        const comparisonLegend = document.createElement("small");
+        comparisonLegend.textContent = "O  Over   ·   U  Under";
+        comparisonTitle.append(comparisonTitleText, comparisonLegend);
         const comparison = document.createElement("div");
         comparison.className = "dfs-mobile-comparisons";
-        cells.slice(6).forEach((cell, offset) => {
+        (mobileDetail?.books || []).forEach((bookKey) => {
+          const book = dfsComparisonMeta(bookKey);
           const item = document.createElement("div");
-          const label = document.createElement("span");
-          label.textContent = cellLabel(cell, offset + 6);
-          item.append(label);
-          appendCellContent(item, cell);
+          item.className = "dfs-mobile-comparison";
+          item.title = book.name || "Sportsbook";
+          item.setAttribute(
+            "aria-label",
+            `${book.name || "Sportsbook"}: Over ${mobileDetail.over?.books?.[bookKey]?.display || "unavailable"}, Under ${mobileDetail.under?.books?.[bookKey]?.display || "unavailable"}`,
+          );
+          const logo = document.createElement("span");
+          logo.className = "dfs-mobile-comparison-logo";
+          if (book.logo) {
+            const image = document.createElement("img");
+            image.src = book.logo;
+            image.alt = book.name || "";
+            image.title = book.name || "";
+            logo.append(image);
+          }
+          const prices = document.createElement("span");
+          prices.className = "dfs-mobile-comparison-prices";
+          appendDfsComparisonSide(prices, "O", mobileDetail.over?.books?.[bookKey]);
+          appendDfsComparisonSide(prices, "U", mobileDetail.under?.books?.[bookKey]);
+          item.append(logo, prices);
           comparison.append(item);
         });
         detail.append(highlights, comparisonTitle, comparison);
@@ -353,6 +470,7 @@
 
   document.addEventListener("DOMContentLoaded", () => {
     setupNavigationState();
+    setupDfsFilters();
     setupDfsCards();
     setupDfsAppPicker();
     setupSampleTradeDisclosures();
