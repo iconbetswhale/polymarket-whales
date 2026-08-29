@@ -210,3 +210,49 @@ def test_odds_screen_league_and_prop_filters_keep_direct_all_book_rows(
     assert len(payload["data"]) == 1
     assert payload["data"][0]["player_name"] == "Aaron Judge"
     assert payload["data"][0]["odds_market_key"] == "batter_hits"
+
+
+def test_fast_odds_screen_scan_bounds_the_first_pass(app_client, monkeypatch) -> None:
+    application = app_client.application
+    odds_engine = _provider(application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+
+    def events(**kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(odds_engine, "ev_events", events)
+
+    response = app_client.get("/api/odds-screen?active=1&fast=1")
+
+    assert response.status_code == 200
+    assert response.get_json()["partial"] is True
+    assert calls[0]["max_events_per_league"] == 1
+    assert calls[0]["max_total_events"] == 6
+
+
+def test_fast_positive_ev_scan_bounds_the_first_pass(app_client, monkeypatch) -> None:
+    application = app_client.application
+    object.__setattr__(application.config["SETTINGS"], "positive_ev_enabled", True)
+    odds_engine = _provider(application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+
+    def events(**kwargs):
+        calls.append(kwargs)
+        return []
+
+    monkeypatch.setattr(odds_engine, "ev_events", events)
+    monkeypatch.setattr(
+        odds_engine,
+        "diagnostics",
+        lambda authenticate=False: {"provider": "odds_engine", "quota": {}},
+    )
+
+    response = app_client.get("/api/positive-ev/live?fast=1")
+
+    assert response.status_code == 200
+    assert response.get_json()["partial"] is True
+    assert calls[0]["max_events_per_league"] == 1
+    assert calls[0]["max_total_events"] == 8

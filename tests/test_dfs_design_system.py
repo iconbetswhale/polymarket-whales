@@ -120,7 +120,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v5-instant-devig" in BASE
+    assert "fast-first-odds-v1" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -130,8 +130,8 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
     script = BASE.index("filename='dfs.js'")
 
     assert canonical > foundation
-    assert "-filters-v2" in BASE[canonical : canonical + 160]
-    assert "-live-only-v2-undefined-guard" in BASE[script : script + 160]
+    assert "-quality-liquidity-compact-detail-v1" in BASE[canonical : canonical + 160]
+    assert "-quality-liquidity-pairing-v1" in BASE[script : script + 160]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
@@ -248,7 +248,7 @@ def test_dfs_rows_expand_into_an_oddsjam_style_two_sided_book_grid() -> None:
     assert "Best odds" in SCRIPT
     assert "Avg odds" in SCRIPT
     assert ".dfs-odds-detail-grid" in CSS
-    assert "grid-template-columns: 204px 72px 72px repeat(var(--dfs-detail-book-count, 16), 74px)" in CSS
+    assert "grid-template-columns: 198px 68px 68px repeat(var(--dfs-detail-book-count, 16), 72px)" in CSS
     assert "--dfs-detail-book-count:${orderedBooks.length}" in SCRIPT
     assert "min-height: 44px" in CSS
     assert "min-height: 46px" in CSS
@@ -268,7 +268,7 @@ def test_dfs_detail_over_under_labels_are_centered() -> None:
 def test_dfs_detail_uses_and_syncs_the_main_saved_sportsbook_order() -> None:
     assert "function detailBookOrder()" in SCRIPT
     assert "detailBookSet.has(key) || optionalComparisonBookMap.has(key)" in SCRIPT
-    assert "detailBookOrder().map(key=>marketSnapshot(row,key))" in SCRIPT
+    assert "detailBookOrder().map(key=>{" in SCRIPT
     assert "syncCompareOrderFromAccount()" in SCRIPT
     assert "persistCompareOrder()" in SCRIPT
     assert "'/api/dfs/preferences'" in SCRIPT
@@ -514,8 +514,8 @@ def test_dfs_date_filter_supports_presets_and_inclusive_custom_ranges() -> None:
 
 def test_dfs_prop_typography_and_stat_alignment() -> None:
     assert "font: 700 15px/1.2 var(--il-font-ui);" in CSS
-    assert "font: 500 12px/1.2 var(--il-font-ui);" in CSS
-    assert "font: 500 11px/1.2 var(--il-font-ui);" in CSS
+    assert "font: 500 10.5px/1.15 var(--il-font-ui);" in CSS
+    assert "font: 500 9.5px/1.15 var(--il-font-ui);" in CSS
     assert "font: 800 13px/1 var(--il-font-data);" in CSS
     assert "font: 650 14px/1.25 var(--il-font-ui);" in CSS
     assert ".dfs-stat-number" in CSS
@@ -577,7 +577,7 @@ def test_optional_comparison_books_are_searchable_removable_and_persistent() -> 
     assert "data-remove-comparison-book" not in static_headers
 
 
-def test_dfs_stat_and_matchup_text_never_truncate() -> None:
+def test_dfs_player_metadata_stays_on_one_line_with_the_name_largest() -> None:
     player_start = CSS.index('.dfs-table .player-col {')
     player_block = CSS[player_start : CSS.index("}", player_start)]
     matchup_start = CSS.index(".dfs-player small {")
@@ -587,10 +587,9 @@ def test_dfs_stat_and_matchup_text_never_truncate() -> None:
 
     assert "width: 260px;" in player_block
     assert "min-width: 260px;" in player_block
-    assert "overflow: visible;" in matchup_block
-    assert "overflow-wrap: anywhere;" in matchup_block
-    assert "text-overflow: clip;" in matchup_block
-    assert "white-space: normal;" in matchup_block
+    assert "overflow: hidden;" in matchup_block
+    assert "text-overflow: ellipsis;" in matchup_block
+    assert "white-space: nowrap;" in matchup_block
     assert "min-width: 180px;" in stat_block
     assert "max-width: none;" in stat_block
     assert "overflow-wrap: anywhere;" in stat_block
@@ -599,23 +598,40 @@ def test_dfs_stat_and_matchup_text_never_truncate() -> None:
     assert ".dfs-table td:nth-child(3)" in CSS
 
 
-def test_optimizer_buttons_use_the_glass_action_card_treatment() -> None:
+def test_optimizer_buttons_match_the_dfs_app_card_dimensions() -> None:
     assert ".dfs-devig-button,\nbody[data-design-system=\"v2\"][data-page=\"dfs\"] .dfs-parlay-guide-button" in CSS
     assert "height: 64px;" in CSS
-    assert "border-color: #7f5aa7;" in CSS
+    assert "border-color: var(--il-border-interactive);" in CSS
     assert "border-radius: 10px;" in CSS
-    assert "background: #171321;" in CSS
-    assert "inset 0 1px 0 rgba(237, 217, 255, .42)" in CSS
-    assert "0 3px 0 #452764" in CSS
-    assert "0 8px 16px rgba(0, 0, 0, .5)" in CSS
-    assert "0 0 14px rgba(173, 81, 255, .25)" in CSS
-    assert "transform: translateY(-1px);" in CSS
+    assert "width: 36px;" in CSS
+    assert "height: 36px;" in CSS
+    assert "flex: 0 0 36px;" in CSS
     assert ".dfs-action-icon" in CSS
     assert ".dfs-action-arrow" in CSS
     assert 'ph ph-arrow-right dfs-action-arrow' in TEMPLATE
     assert ".dfs-devig-button:active" in CSS
     assert ".dfs-parlay-guide-button:active" in CSS
     assert ".dfs-devig-button:focus-visible" in CSS
+
+
+def test_prizepicks_selection_keeps_outline_without_glow() -> None:
+    selector = '.dfs-book[data-book-key="prizepicks"].active,'
+    start = CSS.index(selector)
+    block = CSS[start : CSS.index("}", start)]
+
+    assert "border-color: #a834ff;" in block
+    assert "box-shadow: none;" in block
+    assert "transform: none;" in block
+
+
+def test_expanded_odds_detail_is_edge_to_edge_logo_only_and_liquidity_aware() -> None:
+    assert "padding: 0;" in CSS[CSS.index(".dfs-odds-detail {") :]
+    assert "border-radius: 0;" in CSS
+    assert "box-shadow: none;" in CSS
+    assert "<span>${esc(bookName(key))}</span>" not in SCRIPT
+    assert "dfs-detail-liquidity" in SCRIPT
+    assert "1-way · excluded" in SCRIPT
+    assert "snapshot.eligible" in SCRIPT
 
 
 def test_selected_fantasy_app_uses_branded_sidebar_depth_treatment() -> None:

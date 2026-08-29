@@ -450,7 +450,7 @@
   }
 
   function marketSnapshot(row,key) {
-    if (!row) return {display:'—',american:null,line:null};
+    if (!row) return {display:'—',american:null,line:null,liquidity:null,twoWay:null};
     const oddsByKey = row.oddsByBook || Object.fromEntries(sourceOddsKeys.map((item,index)=>[item,row.odds?.[index] ?? '—']));
     const market = oddsByKey[key];
     const structured = market !== null && typeof market === 'object';
@@ -466,12 +466,29 @@
       display: display === null || display === undefined || display === '' ? '—' : String(display),
       american: Number.isFinite(american) ? american : null,
       line: structured && Number.isFinite(Number(market.line)) ? Number(market.line) : null,
+      liquidity: structured && Number.isFinite(Number(market.liquidity)) ? Number(market.liquidity) : null,
+      twoWay: structured && typeof market.twoWay === 'boolean' ? market.twoWay : null,
     };
   }
 
-  function sideSummary(row) {
-    const snapshots = detailBookOrder().map(key=>marketSnapshot(row,key));
-    const americanOdds = snapshots.map(item=>item.american).filter(Number.isFinite);
+  function sideSummary(row,oppositeRow) {
+    const targetLine = selectedDfsLine(row);
+    const snapshots = detailBookOrder().map(key=>{
+      const snapshot = marketSnapshot(row,key);
+      const opposite = marketSnapshot(oppositeRow,key);
+      const exact = snapshot.line === null || targetLine === null || Number(snapshot.line) === Number(targetLine);
+      const oppositeExact = opposite.line === null || targetLine === null || Number(opposite.line) === Number(targetLine);
+      snapshot.eligible = Number.isFinite(snapshot.american)
+        && Number.isFinite(opposite.american)
+        && snapshot.twoWay !== false
+        && opposite.twoWay !== false
+        && exact
+        && oppositeExact;
+      snapshot.oneWay = snapshot.display !== '—'
+        && (!Number.isFinite(opposite.american) || snapshot.twoWay === false || opposite.twoWay === false);
+      return snapshot;
+    });
+    const americanOdds = snapshots.filter(item=>item.eligible).map(item=>item.american);
     const best = americanOdds.length ? Math.max(...americanOdds) : null;
     const probabilities = americanOdds.map(americanOddsToProbability).filter(Number.isFinite);
     const average = probabilities.length
@@ -480,22 +497,32 @@
     return {snapshots,best,bestDisplay:best===null?'—':`${best>0?'+':''}${Math.round(best)}`,average};
   }
 
+  function compactLiquidity(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount)) return '';
+    if (amount >= 1_000_000) return `$${(amount/1_000_000).toFixed(amount>=10_000_000?0:1)}M`;
+    if (amount >= 1_000) return `$${(amount/1_000).toFixed(amount>=10_000?0:1)}K`;
+    return `$${amount.toFixed(amount>=100?0:amount>=10?1:2)}`;
+  }
+
   function renderOddsDetail(row,activeLine) {
     const pair = detailPair(row);
-    const over = sideSummary(pair.over);
-    const under = sideSummary(pair.under);
+    const over = sideSummary(pair.over,pair.under);
+    const under = sideSummary(pair.under,pair.over);
     const orderedBooks = detailBookOrder();
     const headerCells = orderedBooks.map(key=>{
       const logo = bookLogo(key);
-      return `<div class="dfs-detail-book-head">${logo?`<img src="${esc(logo)}" alt="">`:''}<span>${esc(bookName(key))}</span></div>`;
+      return `<div class="dfs-detail-book-head" title="${esc(bookName(key))}">${logo?`<img src="${esc(logo)}" alt="${esc(bookName(key))}">`:''}</div>`;
     }).join('');
     const sideLane = (label,sideRow,summary) => {
       const line = selectedDfsLine(sideRow || row) ?? activeLine;
       const bookCells = orderedBooks.map((key,index)=>{
         const snapshot = summary.snapshots[index];
-        const isBest = snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
+        const isBest = snapshot.eligible && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
         const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(line) ? `Line ${snapshot.line}` : '';
-        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
+        const liquidity = ['novig','prophetx'].includes(key) ? compactLiquidity(snapshot.liquidity) : '';
+        const detail = alternate || (snapshot.oneWay ? '1-way · excluded' : '');
+        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}${snapshot.oneWay?' one-way':''}"><strong>${esc(snapshot.display)}</strong>${detail?`<small>${esc(detail)}</small>`:''}${liquidity?`<small class="dfs-detail-liquidity">${esc(liquidity)} liquid</small>`:''}</div>`;
       }).join('');
       return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };

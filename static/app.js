@@ -6217,7 +6217,7 @@ try {
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
   : initialOddsProviderOrder.filter(key => ODDS_DEFAULT_PROVIDER_KEYS.includes(key));
-const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
+const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, quickScanAttempted: false, mobileEventKey: "", mobileMarketKind: "main" };
 
 function oddsPlaceholderRows() {
   const providers = [
@@ -6898,6 +6898,7 @@ async function loadOddsScreen() {
   if (!oddsState.feedActive || oddsState.loading || document.hidden) return;
   oddsState.loading = true;
   const started = performance.now();
+  let quickScan = false;
   try {
     const params = new URLSearchParams();
     // Fetch one full slate and filter it in the browser. Using the selected
@@ -6906,7 +6907,8 @@ async function loadOddsScreen() {
     params.set("active", "1");
     const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
     if (!oddsState.rows.length) {
-      const cachedPayload = readPagePayloadCache(cacheKey, 10 * 60 * 1000);
+      const cachedPayload = readPagePayloadCache(cacheKey, 10 * 60 * 1000)
+        || readPagePayloadCache(latestPagePayloadCacheKey("odds-screen"), 10 * 60 * 1000);
       if (cachedPayload) {
         oddsState.rows = cachedPayload.data || [];
         syncOddsProviderCatalog(cachedPayload.providers || []);
@@ -6914,16 +6916,26 @@ async function loadOddsScreen() {
         renderOddsScreen();
       }
     }
-    const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
-    writePagePayloadCache(cacheKey, payload);
+    quickScan = !oddsState.rows.length && !oddsState.quickScanAttempted;
+    const requestParams = new URLSearchParams(params);
+    if (quickScan) {
+      oddsState.quickScanAttempted = true;
+      requestParams.set("fast", "1");
+    }
+    const payload = await fetchJson(`/api/odds-screen${requestParams.size ? `?${requestParams}` : ""}`);
+    if (!payload.partial) cachePagePayload("odds-screen", cacheKey, payload);
     oddsState.rows = payload.data || [];
     syncOddsProviderCatalog(payload.providers || []);
     const transport = payload.transport?.mode === "rest_snapshot" ? "snapshot" : "stream";
-    document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms ${transport}`;
+    document.getElementById("odds-latency").textContent = payload.partial
+      ? `${Math.round(performance.now() - started)}ms quick scan · loading full slate`
+      : `${Math.round(performance.now() - started)}ms ${transport}`;
     renderOddsScreen();
+    if (payload.partial) window.setTimeout(loadOddsScreen, 50);
   } catch (error) {
     document.getElementById("odds-latency").textContent = "Feed degraded";
     if (!oddsState.rows.length) document.getElementById("odds-grid").innerHTML = `<tr class="odds-state-row"><td colspan="${4 + oddsState.providers.length}"><div class="odds-loading">${escapeHtml(error.message)}</div></td></tr>`;
+    if (quickScan && !oddsState.rows.length) window.setTimeout(loadOddsScreen, 50);
   } finally { oddsState.loading = false; }
 }
 

@@ -166,6 +166,9 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "persistOddsProviderOrder()" in script
     assert 'oddsState.providerOrder = [...previewKeys, "best"]' not in script
     assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
+    assert 'requestParams.set("fast", "1")' in script
+    assert "quick scan · loading full slate" in script
+    assert 'cachePagePayload("odds-screen", cacheKey, payload)' in script
 
 
 def test_odds_screen_uses_the_supplied_caesars_sportsbook_logo():

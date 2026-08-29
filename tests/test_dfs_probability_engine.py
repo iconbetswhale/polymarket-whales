@@ -22,14 +22,17 @@ def test_iconlabs_default_weights_are_ranked_and_total_one_hundred():
     assert sum(ICONLABS_DFS_WEIGHTS.values()) == 100
 
 
-def quote(provider, over, under, *, line=6.5, age=0):
-    return {
+def quote(provider, over, under, *, line=6.5, age=0, liquidity=None):
+    payload = {
         "provider": provider,
         "line": line,
         "over_odds": over,
         "under_odds": under,
         "quote_timestamp": (NOW - timedelta(seconds=age)).isoformat(),
     }
+    if liquidity is not None:
+        payload["available_liquidity"] = liquidity
+    return payload
 
 
 def test_american_probability_round_trip():
@@ -129,3 +132,55 @@ def test_zero_weight_source_keeps_devig_probability_for_instant_reweighting():
         devig_two_way(-130, 110, "power")[0]
     )
     assert pinnacle["freshness_factor"] == pytest.approx(1)
+
+
+def test_weighted_one_way_quote_never_votes_in_consensus():
+    engine = DfsProbabilityEngine({"fanduel": 50, "novig": 50})
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[quote("fanduel", -130, 110), quote("novig", -185, None)],
+        now=NOW,
+    )
+
+    novig = next(item for item in result.contributions if item["provider"] == "novig")
+    assert result.source_count == 1
+    assert novig["included"] is False
+    assert novig["exclusion_reason"] == "INVALID_TWO_WAY_ODDS"
+
+
+def test_tiny_exchange_order_is_excluded_even_when_it_is_two_way():
+    engine = DfsProbabilityEngine({"fanduel": 50, "novig": 50})
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[
+            quote("fanduel", -130, 110),
+            quote("novig", -185, 145, liquidity=2),
+        ],
+        now=NOW,
+    )
+
+    novig = next(item for item in result.contributions if item["provider"] == "novig")
+    assert result.source_count == 1
+    assert novig["available_liquidity"] == 2
+    assert novig["exclusion_reason"] == "INSUFFICIENT_EXCHANGE_LIQUIDITY"
+
+
+def test_low_liquidity_exchange_outlier_is_excluded_against_two_market_peers():
+    engine = DfsProbabilityEngine({"fanduel": 34, "pinnacle": 33, "novig": 33})
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[
+            quote("fanduel", -130, 110),
+            quote("pinnacle", -140, 120),
+            quote("novig", -300, 200, liquidity=20),
+        ],
+        now=NOW,
+    )
+
+    novig = next(item for item in result.contributions if item["provider"] == "novig")
+    assert result.source_count == 2
+    assert novig["included"] is False
+    assert novig["exclusion_reason"] == "LOW_LIQUIDITY_OUTLIER"

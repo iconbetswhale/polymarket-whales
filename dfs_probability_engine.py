@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import math
+from statistics import median
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from typing import Any, Iterable
 
 
-DFS_PROBABILITY_VERSION = "dfs-market-consensus-v1"
+DFS_PROBABILITY_VERSION = "dfs-market-consensus-v2-liquidity-guard"
 SUPPORTED_DEVIG_METHODS = {"multiplicative", "additive", "power", "shin"}
 ICONLABS_DFS_WEIGHTS = {
     "fanduel": 30.0,
@@ -18,6 +19,7 @@ ICONLABS_DFS_WEIGHTS = {
     "kalshi": 5.0,
     "polymarket": 3.0,
 }
+EXCHANGE_PROVIDER_KEYS = frozenset({"novig", "prophetx"})
 
 
 def _finite(value: Any) -> float | None:
@@ -129,6 +131,9 @@ class DfsProbabilityEngine:
         max_quote_age_seconds: int = 600,
         freshness_half_life_seconds: int = 300,
         minimum_sources: int = 1,
+        minimum_exchange_liquidity: float = 10.0,
+        low_liquidity_outlier_threshold: float = 50.0,
+        max_low_liquidity_probability_gap: float = 0.05,
     ) -> None:
         if str(devig_method).lower() not in SUPPORTED_DEVIG_METHODS:
             raise ValueError(f"Unsupported devig method: {devig_method}")
@@ -140,6 +145,15 @@ class DfsProbabilityEngine:
         self.max_quote_age_seconds = max(1, int(max_quote_age_seconds))
         self.freshness_half_life_seconds = max(1, int(freshness_half_life_seconds))
         self.minimum_sources = max(1, int(minimum_sources))
+        self.minimum_exchange_liquidity = max(0.0, float(minimum_exchange_liquidity))
+        self.low_liquidity_outlier_threshold = max(
+            self.minimum_exchange_liquidity,
+            float(low_liquidity_outlier_threshold),
+        )
+        self.max_low_liquidity_probability_gap = max(
+            0.0,
+            float(max_low_liquidity_probability_gap),
+        )
 
     def calculate(
         self,
@@ -158,7 +172,6 @@ class DfsProbabilityEngine:
             raise ValueError("side must be Over or Under")
         now = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
         contributions: list[dict[str, Any]] = []
-        included: list[tuple[float, float]] = []
 
         # One provider gets one vote: keep its freshest exact-line quote.
         freshest_by_provider: dict[str, dict[str, Any]] = {}
@@ -189,6 +202,9 @@ class DfsProbabilityEngine:
             exclusion_reason: str | None = None
             fair_pair: tuple[float, float] | None = None
             age_seconds: float | None = None
+            available_liquidity = _finite(
+                quote.get("available_liquidity", quote.get("liquidity"))
+            )
             if quote.get("status") is not None and str(quote.get("status")).upper() != "AVAILABLE":
                 exclusion_reason = str(quote.get("missing_reason") or "PROVIDER_UNAVAILABLE")
             elif quote.get("mapping_confidence") is not None and str(quote.get("mapping_confidence")).upper() != "EXACT":
@@ -207,6 +223,12 @@ class DfsProbabilityEngine:
                     )
                     if fair_pair is None:
                         exclusion_reason = "INVALID_TWO_WAY_ODDS"
+                    elif (
+                        provider in EXCHANGE_PROVIDER_KEYS
+                        and available_liquidity is not None
+                        and available_liquidity < self.minimum_exchange_liquidity
+                    ):
+                        exclusion_reason = "INSUFFICIENT_EXCHANGE_LIQUIDITY"
                     elif base_weight <= 0:
                         # Preserve a valid source probability even when its current
                         # weight is zero. The DFS UI can then apply a newly saved
@@ -216,8 +238,6 @@ class DfsProbabilityEngine:
             probability = None if fair_pair is None else fair_pair[0 if normalized_side == "over" else 1]
             freshness_factor = 0.0 if age_seconds is None else 0.5 ** (age_seconds / self.freshness_half_life_seconds)
             effective_weight = base_weight * freshness_factor if exclusion_reason is None else 0.0
-            if exclusion_reason is None and effective_weight > 0 and probability is not None:
-                included.append((probability, effective_weight))
             contributions.append(
                 {
                     "provider": provider,
@@ -230,9 +250,48 @@ class DfsProbabilityEngine:
                     "freshness_factor": round(freshness_factor, 8),
                     "effective_weight": round(effective_weight, 8),
                     "quote_timestamp": timestamp.isoformat() if timestamp else None,
+                    "available_liquidity": available_liquidity,
                     "exclusion_reason": exclusion_reason,
                 }
             )
+
+        # Thin exchange orders can be real quotes while still being unusable as
+        # a fair-market signal. Compare low-liquidity exchange prices against at
+        # least two independent paired markets before allowing them to vote.
+        comparable_reasons = {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
+        for contribution in contributions:
+            if (
+                contribution["provider"] not in EXCHANGE_PROVIDER_KEYS
+                or contribution["exclusion_reason"] is not None
+                or contribution["available_liquidity"] is None
+                or contribution["available_liquidity"]
+                >= self.low_liquidity_outlier_threshold
+                or contribution["no_vig_probability"] is None
+            ):
+                continue
+            peers = [
+                float(peer["no_vig_probability"])
+                for peer in contributions
+                if peer is not contribution
+                and peer["exclusion_reason"] in comparable_reasons
+                and peer["no_vig_probability"] is not None
+            ]
+            if (
+                len(peers) >= 2
+                and abs(float(contribution["no_vig_probability"]) - median(peers))
+                >= self.max_low_liquidity_probability_gap
+            ):
+                contribution["included"] = False
+                contribution["effective_weight"] = 0.0
+                contribution["exclusion_reason"] = "LOW_LIQUIDITY_OUTLIER"
+
+        included = [
+            (float(item["no_vig_probability"]), float(item["effective_weight"]))
+            for item in contributions
+            if item["included"]
+            and item["no_vig_probability"] is not None
+            and float(item["effective_weight"]) > 0
+        ]
 
         if len(included) < self.minimum_sources:
             return DfsProbabilityResult(

@@ -18,6 +18,10 @@ def _market(
     under_price: int = -110,
     sides: tuple[str, ...] = ("over", "under"),
     is_alt: bool = False,
+    market_key: str = "batter_hits",
+    multiplier: float | None = None,
+    liquidity: float | None = None,
+    bet_limit: float | None = None,
 ) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
@@ -26,7 +30,7 @@ def _market(
         "last_update": observed,
         "markets": [
             {
-                "key": "batter_hits",
+                "key": market_key,
                 "last_update": observed,
                 "outcomes": [
                     {
@@ -39,6 +43,9 @@ def _market(
                         "point": line,
                         "description": player,
                         "is_alt": is_alt,
+                        "multiplier": multiplier,
+                        "liquidity": liquidity,
+                        "bet_limit": bet_limit,
                     }
                     for side in sides
                 ],
@@ -284,6 +291,56 @@ def test_live_dfs_board_prefers_the_app_headline_line_over_alternates() -> None:
 
     assert rows
     assert all(row["line"] == 1.5 for row in rows)
+
+
+def test_live_dfs_board_removes_underdog_rbi_catalog_phantoms() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel", market_key="batter_rbis"),
+        _market("underdog", dfs=True, market_key="batter_rbis"),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="underdog")
+
+    assert rows == []
+
+
+def test_live_dfs_board_removes_bumped_pick6_multiplier_lines() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel", line=0.5),
+        _market("pick6", dfs=True, line=0.5, multiplier=0.7),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="dk-pick6")
+
+    assert rows == []
+
+
+def test_live_dfs_board_keeps_standard_pick6_multiplier_lines() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel", line=0.5),
+        _market("pick6", dfs=True, line=0.5, multiplier=1.0),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="dk-pick6")
+
+    assert {row["side"] for row in rows} == {"Over", "Under"}
+
+
+def test_live_dfs_board_exposes_exchange_liquidity_and_pair_quality() -> None:
+    events = _events()
+    events[0]["bookmakers"].append(
+        _market("novig", liquidity=125.5, bet_limit=100)
+    )
+
+    rows = build_dfs_odds_board(events)
+    novig = rows[0]["oddsByBook"]["novig"]
+
+    assert novig["liquidity"] == 125.5
+    assert novig["betLimit"] == 100
+    assert novig["twoWay"] is True
 
 
 def test_live_dfs_board_rejects_unknown_selected_app() -> None:

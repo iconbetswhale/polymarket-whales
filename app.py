@@ -863,7 +863,13 @@ def create_app(start_background: bool = True) -> Flask:
         """Return the configured OddsEngine feed."""
         return next(iter(odds_feed_providers()), None)
 
-    def load_odds_events(*, sport_keys, market_keys):
+    def load_odds_events(
+        *,
+        sport_keys,
+        market_keys,
+        max_events_per_league=None,
+        max_total_events=None,
+    ):
         """Load real sportsbook odds from the configured OddsEngine feed."""
         providers = odds_feed_providers()
         if not providers:
@@ -872,9 +878,16 @@ def create_app(start_background: bool = True) -> Flask:
         first_empty_provider = None
         for provider in providers:
             try:
+                provider_kwargs = {
+                    "sport_keys": sport_keys,
+                    "market_keys": market_keys,
+                }
+                if max_events_per_league is not None:
+                    provider_kwargs["max_events_per_league"] = max_events_per_league
+                if max_total_events is not None:
+                    provider_kwargs["max_total_events"] = max_total_events
                 events = provider.ev_events(
-                    sport_keys=sport_keys,
-                    market_keys=market_keys,
+                    **provider_kwargs,
                 )
                 if events:
                     return provider, events
@@ -2291,6 +2304,9 @@ def create_app(start_background: bool = True) -> Flask:
         requested_sport = request.args.get("sport", "").strip()
         requested_league = request.args.get("league", "").strip()
         requested_market = request.args.get("market", "").strip()
+        fast_scan = request.args.get("fast", "").strip().lower() in {
+            "1", "true", "yes",
+        }
         odds_screen_market_lookup = {
             "moneyline": "h2h",
             "spread": "spreads",
@@ -2375,10 +2391,16 @@ def create_app(start_background: bool = True) -> Flask:
                 return None, []
             for candidate in odds_feed_providers():
                 try:
-                    events = candidate.ev_events(
-                        sport_keys=sport_keys,
-                        market_keys=market_keys,
-                    )
+                    provider_kwargs = {
+                        "sport_keys": sport_keys,
+                        "market_keys": market_keys,
+                    }
+                    if fast_scan:
+                        provider_kwargs.update(
+                            max_events_per_league=1,
+                            max_total_events=6,
+                        )
+                    events = candidate.ev_events(**provider_kwargs)
                     rows = build_all_book_odds_screen_rows(
                         events,
                         now=now,
@@ -2402,13 +2424,20 @@ def create_app(start_background: bool = True) -> Flask:
                     )
             return None, []
 
-        # These feeds are independent. Fetching them together keeps the first
-        # paint bounded by the slower provider instead of the sum of both.
-        with ThreadPoolExecutor(max_workers=2) as executor:
-            schedule_future = executor.submit(load_schedule_rows)
-            sportsbook_future = executor.submit(load_sportsbook_rows)
-            schedule_rows = schedule_future.result()
-            sportsbook_provider, sportsbook_rows = sportsbook_future.result()
+        if fast_scan:
+            # The quick pass exists only to paint usable sportsbook rows. The
+            # complete request immediately behind it adds schedules, CLOB depth,
+            # and every direct execution provider without delaying first paint.
+            schedule_rows = []
+            sportsbook_provider, sportsbook_rows = load_sportsbook_rows()
+        else:
+            # These feeds are independent. Fetching them together keeps the first
+            # paint bounded by the slower provider instead of the sum of both.
+            with ThreadPoolExecutor(max_workers=2) as executor:
+                schedule_future = executor.submit(load_schedule_rows)
+                sportsbook_future = executor.submit(load_sportsbook_rows)
+                schedule_rows = schedule_future.result()
+                sportsbook_provider, sportsbook_rows = sportsbook_future.result()
         def merge_odds_row(row: dict) -> None:
             identity = odds_identity(row)
             existing = unique.get(identity)
@@ -2433,7 +2462,7 @@ def create_app(start_background: bool = True) -> Flask:
         for row in schedule_rows:
             merge_odds_row(row)
 
-        for source in snapshot.get("positions", []):
+        for source in (() if fast_scan else snapshot.get("positions", [])):
             if not source.get("is_sports") or source.get("market_closed") or source.get("event_closed"):
                 continue
             starts_at = _parse_datetime(source.get("resolution_time"))
@@ -2558,12 +2587,13 @@ def create_app(start_background: bool = True) -> Flask:
             str(row.get("id") or ""): list(row.get("executionOptions") or [])
             for row in rows
         }
-        execution_providers.attach_options(
-            rows,
-            compare_all=True,
-            include_non_comparison=True,
-            exclude_provider_keys=("odds_engine",),
-        )
+        if not fast_scan:
+            execution_providers.attach_options(
+                rows,
+                compare_all=True,
+                include_non_comparison=True,
+                exclude_provider_keys=("odds_engine",),
+            )
         for row in rows:
             combined = list(row.get("executionOptions") or [])
             combined.extend(all_book_options.get(str(row.get("id") or ""), []))
@@ -2687,6 +2717,7 @@ def create_app(start_background: bool = True) -> Flask:
                     "market": requested_market,
                 },
                 "generatedAt": datetime.now(timezone.utc).isoformat(),
+                "partial": fast_scan,
                 "refreshSeconds": 60,
                 "transport": {
                     "mode": "rest_snapshot",
@@ -3384,6 +3415,9 @@ def create_app(start_background: bool = True) -> Flask:
     def api_positive_ev():
         """Demand-driven +EV feed. It never mutates Prediction Traders."""
         public_live_feed = request.endpoint == "api_positive_ev_live"
+        fast_scan = request.args.get("fast", "").strip().lower() in {
+            "1", "true", "yes",
+        }
         positive_ev_configured = bool(odds_feed_providers())
         devig_method = request.args.get("devig_method", "power").strip().lower()
         if devig_method not in DEVIG_METHODS:
@@ -3587,6 +3621,8 @@ def create_app(start_background: bool = True) -> Flask:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=market_keys,
+                max_events_per_league=1 if fast_scan else None,
+                max_total_events=8 if fast_scan else None,
             )
             # Quote history is additive infrastructure.  A persistence issue
             # must never take the existing EV+ board offline.
@@ -3674,6 +3710,7 @@ def create_app(start_background: bool = True) -> Flask:
                 "requiredBooks": list(required_books),
                 "quota": diagnostics.get("quota", {}),
                 "refreshSeconds": 60,
+                "partial": fast_scan,
                 "degraded": False,
                 "stale": False,
             }

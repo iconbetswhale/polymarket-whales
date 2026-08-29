@@ -470,6 +470,9 @@ def test_positive_ev_page_uses_complete_oddsengine_book_catalog(app_client):
     assert "previewOnly" not in positive_ev_javascript
     assert "loadBankrollSettings().finally(()=>load(true))" in positive_ev_javascript
     assert "/api/positive-ev/live" in positive_ev_javascript
+    assert 'if (fast) params.set("fast","1")' in positive_ev_javascript
+    assert "Quick scan shown · loading full slate" in positive_ev_javascript
+    assert 'cachePagePayload("positive-ev", cacheKey, payload)' in positive_ev_javascript
     assert "/api/positive-ev/line-history" in positive_ev_javascript
     assert "no synthetic points" in positive_ev_javascript
 

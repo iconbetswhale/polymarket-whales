@@ -338,6 +338,7 @@ def test_provider_keeps_official_dfs_book_ids_separate_from_sportsbooks(
                                         ),
                                         "last_fetched": observed_at,
                                         "is_alt": False,
+                                        "multiplier": 0.7 if expected_key == "pick6" else None,
                                     },
                                     {
                                         "selection_id": f"{raw_book}-under",
@@ -351,6 +352,7 @@ def test_provider_keeps_official_dfs_book_ids_separate_from_sportsbooks(
                                         ),
                                         "last_fetched": observed_at,
                                         "is_alt": False,
+                                        "multiplier": 1.4 if expected_key == "pick6" else None,
                                     },
                                 ],
                             }
@@ -372,6 +374,8 @@ def test_provider_keeps_official_dfs_book_ids_separate_from_sportsbooks(
     outcomes = normalized["bookmakers"][0]["markets"][0]["outcomes"]
     assert {outcome["name"] for outcome in outcomes} == {"Over", "Under"}
     assert all(outcome["is_alt"] is False for outcome in outcomes)
+    if expected_key == "pick6":
+        assert {outcome["multiplier"] for outcome in outcomes} == {0.7, 1.4}
 
 
 def test_provider_filter_missing_key_and_safe_diagnostics() -> None:

@@ -727,6 +727,8 @@ def _selection_outcome(
         outcome["liquidity"] = selection.get("liquidity")
     if selection.get("limit") is not None:
         outcome["bet_limit"] = selection.get("limit")
+    if selection.get("multiplier") is not None:
+        outcome["multiplier"] = selection.get("multiplier")
     return outcome
 
 
@@ -1053,6 +1055,8 @@ class OddsEngineProvider(ExecutionProvider):
         *,
         sport_keys: Iterable[str],
         market_keys: Iterable[str],
+        max_events_per_league: int | None = None,
+        max_total_events: int | None = None,
     ) -> list[dict]:
         if not self.api_key:
             return []
@@ -1072,7 +1076,12 @@ class OddsEngineProvider(ExecutionProvider):
         # A single process can serve all four tools concurrently. Serialize the
         # first cache fill so those requests share one upstream schedule/odds scan.
         with self._scan_lock:
-            return self._load_events(requested_sports, requested_markets)
+            return self._load_events(
+                requested_sports,
+                requested_markets,
+                max_events_per_league=max_events_per_league,
+                max_total_events=max_total_events,
+            )
 
     def odds_screen_rows(
         self,

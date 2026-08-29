@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
+import math
 from typing import Iterable
 from zoneinfo import ZoneInfo
 
@@ -37,6 +38,13 @@ DFS_OPTIMIZER_BOOK_KEYS = (
     "betr",
     "dabble",
 )
+
+# OddsEngine occasionally exposes stale catalog entries that are not actually
+# selectable in the DFS app. Keep these app-specific availability rules close
+# to normalization so the same phantom plays cannot leak into any UI view.
+UNSUPPORTED_DFS_MARKETS = {
+    "underdog": frozenset({"batter_rbis"}),
+}
 
 MODEL_PROVIDER_ALIASES = {
     "prophetexchange": "prophetx",
@@ -103,6 +111,30 @@ def _price(outcome: dict) -> int | None:
     except (TypeError, ValueError):
         return None
     return price if price != 0 else None
+
+
+def _finite_number(value: object) -> float | None:
+    try:
+        parsed = float(str(value).strip().rstrip("xX"))
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
+def _dfs_outcome_is_standard(outcome: dict) -> bool:
+    raw_multiplier = outcome.get("multiplier")
+    if raw_multiplier is None or str(raw_multiplier).strip() == "":
+        return True
+    multiplier = _finite_number(raw_multiplier)
+    return multiplier is not None and math.isclose(multiplier, 1.0, abs_tol=1e-9)
+
+
+def _outcome_liquidity(outcome: dict) -> float | None:
+    return _finite_number(outcome.get("liquidity"))
+
+
+def _outcome_limit(outcome: dict) -> float | None:
+    return _finite_number(outcome.get("bet_limit"))
 
 
 def _parse_time(value: object) -> datetime | None:
@@ -194,10 +226,19 @@ def build_dfs_odds_board(
                 market_key = str(market.get("key") or "").strip().lower()
                 if market_key not in STAT_TITLES:
                     continue
+                if (
+                    metadata["type"] == "dfs"
+                    and market_key in UNSUPPORTED_DFS_MARKETS.get(book_key, ())
+                ):
+                    continue
                 outcomes = [
                     outcome
                     for outcome in market.get("outcomes") or []
                     if isinstance(outcome, dict)
+                    and (
+                        metadata["type"] != "dfs"
+                        or _dfs_outcome_is_standard(outcome)
+                    )
                 ]
                 player = next(
                     (
@@ -232,12 +273,26 @@ def build_dfs_odds_board(
                     },
                 )
                 for line, sides in by_line.items():
+                    side_liquidity = {
+                        side: _outcome_liquidity(outcome)
+                        for side, outcome in sides.items()
+                    }
+                    known_liquidity = [
+                        value for value in side_liquidity.values() if value is not None
+                    ]
                     quote = {
                         "provider": MODEL_PROVIDER_ALIASES.get(book_key, book_key),
                         "book_key": book_key,
                         "line": line,
                         "over_odds": _price(sides.get("over", {})),
                         "under_odds": _price(sides.get("under", {})),
+                        "over_liquidity": side_liquidity.get("over"),
+                        "under_liquidity": side_liquidity.get("under"),
+                        "available_liquidity": (
+                            min(known_liquidity) if known_liquidity else None
+                        ),
+                        "over_limit": _outcome_limit(sides.get("over", {})),
+                        "under_limit": _outcome_limit(sides.get("under", {})),
                         "quote_timestamp": str(
                             market.get("last_update")
                             or bookmaker.get("last_update")
@@ -360,15 +415,24 @@ def build_dfs_odds_board(
                     continue
                 display_key = DISPLAY_PROVIDER_ALIASES.get(book_key, book_key)
                 display_odds = _display_price(book_key, price)
-                odds_by_book[display_key] = (
-                    display_odds
-                    if float(quote["line"]) == float(primary_line)
-                    else {
+                exact_line = float(quote["line"]) == float(primary_line)
+                paired = (
+                    quote.get("over_odds") is not None
+                    and quote.get("under_odds") is not None
+                )
+                liquidity = quote.get(f"{side_key}_liquidity")
+                bet_limit = quote.get(f"{side_key}_limit")
+                if exact_line and paired and liquidity is None and bet_limit is None:
+                    odds_by_book[display_key] = display_odds
+                else:
+                    odds_by_book[display_key] = {
                         "odds": display_odds,
                         "americanOdds": price,
                         "line": quote["line"],
+                        "liquidity": liquidity,
+                        "betLimit": bet_limit,
+                        "twoWay": paired,
                     }
-                )
             primary_key = _line_key(primary_line)
             rows.append(
                 {

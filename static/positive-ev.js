@@ -1002,8 +1002,9 @@
     $("ev-apply").disabled = !valid;
     return valid;
   }
-  function query() {
+  function query(fast=false) {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
+    if (fast) params.set("fast","1");
     return `/api/positive-ev/live?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
@@ -1017,8 +1018,8 @@
   }
   async function load(force=false) {
     if (paused && !force) return;
-    const url = query();
-    const cacheKey = pagePayloadCacheKey("positive-ev", url.replace("/positive-ev/live", "/positive-ev"));
+    const fullUrl = query();
+    const cacheKey = pagePayloadCacheKey("positive-ev", fullUrl.replace("/positive-ev/live", "/positive-ev"));
     let showedCached = false;
     if (!rows.length) {
       const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
@@ -1033,6 +1034,8 @@
         showedCached = true;
       }
     }
+    const quickScan = !force && !showedCached && !rows.length;
+    const url = quickScan ? query(true) : fullUrl;
     feed.setAttribute("aria-busy", "true");
     if (!showedCached && !rows.length) feed.innerHTML = `<div class="ev-loading il-state il-state-loading"><span></span><p>Validating exact markets and executable prices...</p></div>`;
     try {
@@ -1048,7 +1051,7 @@
         timer = setTimeout(() => load(), Math.max(3000, Number(payload.refreshSeconds || 5) * 1000));
         return;
       }
-      writePagePayloadCache(cacheKey, payload);
+      if (!payload.partial) cachePagePayload("positive-ev", cacheKey, payload);
       retryCount = 0;
       if (payload.paused) {
         rows = [];
@@ -1070,12 +1073,16 @@
       }
       rows = payload.data || [];
       $("ev-count").textContent = rows.length;
-      $("ev-updated").textContent = payload.degraded
+      $("ev-updated").textContent = payload.partial
+        ? "Quick scan shown · loading full slate"
+        : payload.degraded
         ? "Recent verified odds · live feed reconnecting"
         : `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
       $("ev-feed-label").textContent = payload.degraded ? "Live feed reconnecting" : "Live market scan";
       let history = {};
-      try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
+      if (!payload.partial) {
+        try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
+      }
       renderDiagnostics(payload.diagnostics || {}, history);
       const currentViewRows = visibleRows();
       const nextSelectedId = currentViewRows.some(row=>row.id===selectedId) ? selectedId : currentViewRows[0]?.id;
@@ -1085,7 +1092,8 @@
       else { selectedId = ""; renderFeed(); showDetailPlaceholder(); }
       feed.setAttribute("aria-busy", "false");
       clearTimeout(timer);
-      if (Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
+      if (payload.partial) timer = setTimeout(() => load(true), 50);
+      else if (Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
       if (rows.length) {
         $("ev-updated").textContent = "Recent scan shown · live refresh delayed";
