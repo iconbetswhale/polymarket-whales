@@ -141,6 +141,42 @@ def test_mobile_dfs_detail_uses_logos_and_horizontal_over_under_prices():
     assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in styles
 
 
+def test_mobile_dfs_starts_directly_below_the_brand_bar_and_recovers_failed_feeds():
+    template = (ROOT / "templates" / "dfs.html").read_text(encoding="utf-8")
+    dfs_script = (ROOT / "static" / "dfs.js").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+
+    assert 'body[data-design-system="v2"][data-page="dfs"] .app-shell' in styles
+    assert "min-height: calc(100dvh - 62px) !important" in styles
+    assert "padding: 0 !important" in styles
+    assert 'id="dfs-feed-notice"' in template
+    assert 'id="dfs-error-retry"' in template
+    assert "persistentSnapshotMaxAgeMs = 15*60*1000" in dfs_script
+    assert "readPersistentSnapshot()" in dfs_script
+    assert "writePersistentSnapshot(payload)" in dfs_script
+    assert "timedOut = true" in dfs_script
+    assert "},12000)" in dfs_script
+
+
+def test_mobile_dvig_uses_compact_two_column_book_controls():
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+
+    assert "DVIG becomes a dense, two-column control sheet on phones" in styles
+    assert 'body[data-design-system="v2"][data-page="dfs"] .dfs-devig-list' in styles
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr))" in styles
+    assert "grid-template-columns: 24px minmax(0, 1fr) 48px !important" in styles
+    assert "grid-column: 1 / -1 !important" in styles
+
+
+def test_mobile_ev_market_prices_are_optically_centered():
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+
+    assert ".ev-market-comparison .ev-compare-price" in styles
+    assert "justify-content: center" in styles
+    assert ".ev-market-comparison .ev-compare-price strong" in styles
+    assert "text-align: center" in styles
+
+
 def test_prediction_traders_mobile_is_scan_first_with_labeled_samples():
     template = (ROOT / "templates" / "trades.html").read_text(encoding="utf-8")
     styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")

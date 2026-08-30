@@ -1494,6 +1494,42 @@
   }
 
   /* Fantasy Optimizer: table on desktop, compact player disclosures on phone */
+  body[data-design-system="v2"][data-page="dfs"] .app-shell {
+    min-height: calc(100dvh - 62px) !important;
+    padding: 0 !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-page {
+    min-height: calc(100dvh - 62px) !important;
+    padding: 8px 10px max(88px, calc(76px + env(safe-area-inset-bottom))) !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-heading {
+    gap: 7px !important;
+    margin: 0 0 8px !important;
+    padding: 0 !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-heading .eyebrow {
+    margin-bottom: 3px !important;
+    font-size: 8px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-heading h1 {
+    font-size: clamp(24px, 7.3vw, 29px) !important;
+    line-height: 1 !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-heading .il-page-title > p:last-child {
+    max-width: 100% !important;
+    margin-top: 4px !important;
+    overflow: hidden;
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .dfs-header {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
@@ -1502,6 +1538,15 @@
   .dfs-heading-actions {
     display: flex !important;
     justify-content: space-between !important;
+    gap: 7px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-refresh-mode,
+  body[data-design-system="v2"][data-page="dfs"] #dfs-refresh {
+    height: 36px !important;
+    min-height: 36px !important;
+    padding-inline: 8px !important;
+    font-size: 10px !important;
   }
 
   .dfs-app-selector {
@@ -1515,7 +1560,7 @@
   .dfs-optimizer-group {
     width: 100% !important;
     min-width: 0 !important;
-    padding: 8px !important;
+    padding: 6px !important;
   }
 
   .dfs-app-group > h2 {
@@ -1527,7 +1572,7 @@
   .dfs-app-picker {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 9px !important;
+    gap: 7px !important;
   }
 
   .dfs-parlay-config {
@@ -1550,7 +1595,7 @@
     display: none !important;
     width: 100% !important;
     min-width: 0 !important;
-    min-height: 50px !important;
+    min-height: 42px !important;
     gap: 6px !important;
     padding: 5px 6px !important;
   }
@@ -1570,9 +1615,9 @@
   }
 
   .dfs-book > img {
-    width: 30px !important;
-    height: 30px !important;
-    flex-basis: 30px !important;
+    width: 27px !important;
+    height: 27px !important;
+    flex-basis: 27px !important;
   }
 
   .dfs-book > span strong,
@@ -1593,10 +1638,10 @@
   .dfs-mobile-other-apps {
     position: relative;
     min-width: 0;
-    min-height: 50px;
+    min-height: 42px;
     padding: 6px;
     display: grid;
-    grid-template-columns: 30px minmax(0, 1fr) 12px;
+    grid-template-columns: 27px minmax(0, 1fr) 12px;
     align-items: center;
     gap: 6px;
     overflow: hidden;
@@ -1607,8 +1652,8 @@
   }
 
   .dfs-mobile-other-apps > i:first-child {
-    width: 30px;
-    height: 30px;
+    width: 27px;
+    height: 27px;
     display: grid;
     place-items: center;
     border-radius: 9px;
@@ -1652,7 +1697,7 @@
   .dfs-optimizer-actions {
     display: grid !important;
     grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-    gap: 9px !important;
+    gap: 7px !important;
     padding-top: 0 !important;
   }
 
@@ -1660,25 +1705,25 @@
   .dfs-parlay-guide-button {
     width: 100% !important;
     min-width: 0 !important;
-    height: 50px !important;
-    min-height: 50px !important;
-    max-height: 50px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    max-height: 42px !important;
     gap: 5px !important;
     padding: 5px 6px !important;
   }
 
   .dfs-devig-button > i,
   .dfs-parlay-guide-button > i:first-child {
-    width: 30px !important;
-    height: 30px !important;
-    flex: 0 0 30px !important;
-    font-size: 16px !important;
+    width: 27px !important;
+    height: 27px !important;
+    flex: 0 0 27px !important;
+    font-size: 15px !important;
   }
 
   .dfs-mobile-filter-command {
     display: flex;
     justify-content: flex-end;
-    padding: 6px 8px;
+    padding: 5px 6px;
     border-bottom: 1px solid var(--il-mobile-line);
     background: #09111e;
   }
@@ -1686,8 +1731,8 @@
   .dfs-mobile-filter-command button {
     display: grid;
     width: 100%;
-    min-height: 40px;
-    grid-template-columns: 28px minmax(0, 1fr) 16px;
+    min-height: 34px;
+    grid-template-columns: 24px minmax(0, 1fr) 16px;
     align-items: center;
     gap: 7px;
     padding: 4px 8px;
@@ -1700,13 +1745,13 @@
 
   .dfs-mobile-filter-command button > i:first-child {
     display: grid;
-    width: 28px;
-    height: 28px;
+    width: 24px;
+    height: 24px;
     place-items: center;
     border-radius: 8px;
     color: var(--il-mobile-purple);
     background: rgba(155, 92, 246, .13);
-    font-size: 15px;
+    font-size: 13px;
   }
 
   .dfs-mobile-filter-command button > span {
@@ -1777,6 +1822,70 @@
     overflow: visible !important;
     border: 0 !important;
     background: transparent !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-feed-notice {
+    min-height: 34px;
+    margin: 7px 0;
+    padding: 5px 8px;
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid rgba(80, 217, 119, .48);
+    border-radius: 9px;
+    color: #b8c5d4;
+    background: rgba(80, 217, 119, .08);
+    font-size: 9px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-feed-notice[hidden] {
+    display: none !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-feed-notice > i {
+    color: #57dc8b;
+    font-size: 14px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-feed-notice button,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-error button {
+    min-height: 28px !important;
+    padding: 0 9px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    border: 1px solid #6c4f99;
+    border-radius: 7px;
+    color: #e4d6f7;
+    background: #171321;
+    font-size: 9px;
+    font-weight: 700;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-empty,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-load-state {
+    position: static !important;
+    inset: auto !important;
+    min-height: 126px;
+    justify-content: center;
+    padding: 20px 12px;
+    text-align: center;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-empty span,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-load-state span {
+    max-width: 300px;
+    font-size: 10px !important;
+    line-height: 1.35 !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-error button {
+    min-height: 34px !important;
+    margin-top: 12px;
+    padding-inline: 14px;
+    font-size: 10px;
   }
 
   .dfs-table {
@@ -2512,6 +2621,205 @@
     overflow-y: auto !important;
     overscroll-behavior: contain;
     padding-bottom: max(18px, env(safe-area-inset-bottom)) !important;
+  }
+
+  /* DVIG becomes a dense, two-column control sheet on phones. */
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-dialog[open] {
+    height: min(720px, 94dvh);
+    overflow: hidden;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel {
+    height: 100%;
+    max-height: 100% !important;
+    overflow: hidden !important;
+    padding-bottom: 0 !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel > header {
+    flex: 0 0 auto;
+    gap: 10px;
+    padding: 13px 14px 10px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel h2 {
+    margin: 2px 0 3px;
+    font-size: 22px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel header p:last-child {
+    max-width: 305px;
+    font-size: 10px;
+    line-height: 1.3;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-close {
+    width: 38px;
+    height: 38px;
+    min-height: 38px;
+    border-radius: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact {
+    flex: 0 0 auto;
+    min-height: 52px;
+    margin: 8px 12px 0 !important;
+    padding: 8px 10px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact > i {
+    width: 25px;
+    height: 25px;
+    font-size: 15px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact strong {
+    font-size: 11px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-impact small {
+    font-size: 9px;
+    line-height: 1.25;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-presets {
+    min-height: 44px;
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 6px 12px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-preset,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-save-open,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-saved-preset,
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-delete {
+    height: 32px;
+    min-height: 32px;
+    padding-inline: 9px;
+    font-size: 9px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-status {
+    flex: 0 0 auto;
+    gap: 4px 8px;
+    padding: 8px 12px !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-status > small {
+    overflow: hidden;
+    font-size: 8px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-list {
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-content: start;
+    gap: 6px;
+    padding: 8px 12px !important;
+    overflow-y: auto !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-row {
+    min-width: 0;
+    min-height: 66px;
+    grid-template-columns: 24px minmax(0, 1fr) 48px !important;
+    grid-template-rows: 28px 20px;
+    gap: 3px 6px !important;
+    padding: 6px 7px !important;
+    border: 1px solid #273348;
+    border-radius: 9px;
+    background: #09111e;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-row > img {
+    width: 24px;
+    height: 24px;
+    grid-column: 1;
+    grid-row: 1;
+    object-fit: contain;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-row > span:nth-of-type(1) {
+    grid-column: 2;
+    grid-row: 1;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-row strong {
+    overflow: hidden;
+    display: block;
+    font-size: 10px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-number {
+    height: 28px;
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-number input {
+    width: 30px;
+    min-height: 26px;
+    padding: 0;
+    font-size: 11px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-number b {
+    padding: 0 5px 0 2px;
+    font-size: 8px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-range {
+    width: 100%;
+    min-height: 20px;
+    grid-column: 1 / -1 !important;
+    grid-row: 2 !important;
+    margin: 0;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel > footer {
+    flex: 0 0 auto;
+    gap: 6px;
+    padding: 8px 12px max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel > footer > div {
+    gap: 6px;
+  }
+
+  body[data-design-system="v2"][data-page="dfs"] .dfs-devig-panel footer button {
+    height: 38px;
+    min-height: 38px;
+    padding-inline: 8px;
+    font-size: 10px;
+  }
+
+  /* Keep the odds optically centered while the trend arrows stay directional. */
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-comparison .ev-compare-price {
+    position: relative;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    padding-inline: 24px !important;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-comparison .ev-compare-price strong {
+    width: 100%;
+    text-align: center;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-comparison .ev-compare-price > i {
+    position: absolute;
+    right: 9px;
+  }
+
+  body[data-design-system="v2"][data-page="positive-ev"] .ev-market-comparison .ev-compare-price:nth-child(3) > i {
+    right: auto;
+    left: 9px;
   }
 }
 

@@ -348,6 +348,48 @@ def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
     assert not response.headers.getlist("Set-Cookie")
 
 
+def test_live_dfs_endpoint_reuses_last_verified_board_during_provider_failure(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    registry = application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "configured-in-test"
+    calls = 0
+
+    def ev_events(**_kwargs):
+        nonlocal calls
+        calls += 1
+        if calls > 1:
+            raise ValueError("upstream unavailable")
+        return _events()
+
+    monkeypatch.setattr(provider, "ev_events", ev_events)
+
+    live = app_client.get(
+        "/api/dfs/lines",
+        query_string={"weights": '{"fanduel":100}'},
+    )
+    degraded = app_client.get(
+        "/api/dfs/lines",
+        query_string={"weights": '{"fanduel":100}'},
+    )
+    payload = degraded.get_json()
+
+    assert live.status_code == 200
+    assert live.get_json()["degraded"] is False
+    assert degraded.status_code == 200
+    assert payload["degraded"] is True
+    assert payload["stale"] is True
+    assert payload["upstreamStatus"] == "PROVIDER_ERROR"
+    assert payload["data"] == live.get_json()["data"]
+    assert payload["message"] == (
+        "Recent verified props shown while the live feed reconnects."
+    )
+
+
 def test_live_dfs_endpoint_scopes_results_to_requested_app(
     app_client, monkeypatch
 ) -> None:

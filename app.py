@@ -895,6 +895,8 @@ def create_app(start_background: bool = True) -> Flask:
 
     positive_ev_live_snapshots: dict[str, dict] = {}
     positive_ev_live_snapshots_lock = threading.RLock()
+    dfs_live_snapshots: dict[str, dict] = {}
+    dfs_live_snapshots_lock = threading.RLock()
 
     def positive_ev_live_cache_key() -> str:
         return request.query_string.decode("utf-8", errors="ignore")
@@ -927,6 +929,43 @@ def create_app(start_background: bool = True) -> Flask:
                 "degraded": True,
                 "stale": False,
                 "message": "Live odds are reconnecting. The board will retry automatically.",
+                "refreshSeconds": 5,
+                "upstreamStatus": error_code,
+            }
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+        return response
+
+    def dfs_degraded_response(cache_key: str, error_code: str):
+        """Return the latest verified DFS board while OddsEngine reconnects."""
+        with dfs_live_snapshots_lock:
+            cached = dfs_live_snapshots.get(cache_key)
+            if cached:
+                stored_at = datetime.fromisoformat(str(cached["storedAt"]))
+                if datetime.now(timezone.utc) - stored_at > timedelta(minutes=15):
+                    dfs_live_snapshots.pop(cache_key, None)
+                    cached = None
+        if cached:
+            payload = dict(cached["payload"])
+            payload.update(
+                {
+                    "degraded": True,
+                    "stale": True,
+                    "message": "Recent verified props shown while the live feed reconnects.",
+                    "upstreamStatus": error_code,
+                    "refreshSeconds": 5,
+                }
+            )
+        else:
+            payload = {
+                "data": [],
+                "dataByBook": {},
+                "total": 0,
+                "totalsByBook": {},
+                "configured": bool(odds_feed_providers()),
+                "degraded": True,
+                "stale": False,
+                "message": "Live props are reconnecting. The optimizer will retry automatically.",
                 "refreshSeconds": 5,
                 "upstreamStatus": error_code,
             }
@@ -1470,6 +1509,15 @@ def create_app(start_background: bool = True) -> Flask:
                 if item.strip() in PLAYER_PROP_MARKETS
             )
         )[:4]
+        snapshot_key = json.dumps(
+            {
+                "book": selected_book,
+                "sports": requested_sports,
+                "weights": normalized_weights,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
         market_keys = tuple(
             dict.fromkeys(
                 market_key
@@ -1504,36 +1552,42 @@ def create_app(start_background: bool = True) -> Flask:
             rows = rows_by_book[selected_book]
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
-            return jsonify(
-                {
-                    "data": [],
-                    "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
-                }
-            ), 429 if status == 429 else 502
+            return dfs_degraded_response(
+                snapshot_key,
+                "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+            )
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("DFS odds refresh failed: %s", type(exc).__name__)
-            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+            return dfs_degraded_response(snapshot_key, "PROVIDER_ERROR")
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
-        response = jsonify(
-            {
-                "data": rows,
-                "dataByBook": rows_by_book,
-                "total": len(rows),
-                "totalsByBook": {
-                    book_key: len(book_rows)
-                    for book_key, book_rows in rows_by_book.items()
-                },
-                "configured": True,
-                "dataSource": diagnostics.get(
-                    "provider", odds_provider.provider_key
-                ),
-                "selectedBook": selected_book,
-                "refreshSeconds": 60,
+        response_payload = {
+            "data": rows,
+            "dataByBook": rows_by_book,
+            "total": len(rows),
+            "totalsByBook": {
+                book_key: len(book_rows)
+                for book_key, book_rows in rows_by_book.items()
+            },
+            "configured": True,
+            "dataSource": diagnostics.get(
+                "provider", odds_provider.provider_key
+            ),
+            "selectedBook": selected_book,
+            "refreshSeconds": 60,
+            "degraded": False,
+            "stale": False,
+        }
+        with dfs_live_snapshots_lock:
+            if snapshot_key not in dfs_live_snapshots and len(dfs_live_snapshots) >= 64:
+                dfs_live_snapshots.pop(next(iter(dfs_live_snapshots)), None)
+            dfs_live_snapshots[snapshot_key] = {
+                "storedAt": datetime.now(timezone.utc).isoformat(),
+                "payload": response_payload,
             }
-        )
+        response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
-            "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
+            "public, max-age=10, s-maxage=60, stale-while-revalidate=900"
         )
         return response
 

@@ -37,10 +37,16 @@
   let refreshDelayMs = 15000;
   let refreshTimer = null;
   let activeLoad = null;
+  let feedDegraded = false;
+  let feedNoticeCopy = 'Showing recent props while the live feed reconnects.';
   const body = document.querySelector('#dfs-body');
   const loadingState = document.querySelector('#dfs-loading');
   const emptyState = document.querySelector('#dfs-empty');
   const errorState = document.querySelector('#dfs-error');
+  const feedNotice = document.querySelector('#dfs-feed-notice');
+  const feedNoticeText = document.querySelector('#dfs-feed-notice-copy');
+  const persistentSnapshotKey = 'iconbets:dfs:last-successful-v1';
+  const persistentSnapshotMaxAgeMs = 15*60*1000;
   const sportSelect = document.querySelector('#dfs-sport');
   const teamSelect = document.querySelector('#dfs-team');
   const statSelect = document.querySelector('#dfs-stat');
@@ -64,6 +70,28 @@
   const detailBookDefaults = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
   const detailBookSet = new Set(detailBookDefaults);
   const detailBookNames = {'hard-rock':'Hard Rock','parlay-play':'ParlayPlay',propbuilder:'PropBuilder',betonline:'BetOnline',caesars:'Caesars',fliff:'Fliff',bovada:'Bovada'};
+
+  function readPersistentSnapshot() {
+    try {
+      const cached = JSON.parse(window.localStorage.getItem(persistentSnapshotKey) || 'null');
+      if (!cached?.savedAt || !cached?.payload) return null;
+      if (Date.now() - Number(cached.savedAt) > persistentSnapshotMaxAgeMs) return null;
+      return cached.payload;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  function writePersistentSnapshot(payload) {
+    const availableRows = Object.values(payload?.dataByBook || {}).some(bookRows => Array.isArray(bookRows) && bookRows.length);
+    if (!availableRows && !Array.isArray(payload?.data)) return;
+    if (!availableRows && !payload.data.length) return;
+    try {
+      window.localStorage.setItem(persistentSnapshotKey,JSON.stringify({savedAt:Date.now(),payload}));
+    } catch (_) {
+      // Browsers can block persistent storage; the in-memory board still renders.
+    }
+  }
   // Equivalent per-leg prices come from each fixed or guaranteed base payout
   // schedule. DraftKings can add extra peer-to-peer winnings above its base.
   const parlayTypes = {
@@ -845,6 +873,10 @@
     loadingState.hidden = hasLoadedRows || loadFailed;
     errorState.hidden = !loadFailed || rows.length > 0;
     emptyState.hidden = !hasLoadedRows || loadFailed || visible.length > 0;
+    if (feedNotice) {
+      feedNotice.hidden = !feedDegraded || rows.length === 0;
+      if (feedNoticeText) feedNoticeText.textContent = feedNoticeCopy;
+    }
   }
 
   function clearAutoRefresh() {
@@ -889,33 +921,61 @@
     if (activeLoad?.signature === signature) return activeLoad.promise;
     activeLoad?.controller.abort();
     if (!hasLoadedRows && !rows.length) {
-      const cached = readPagePayloadCache(cacheKey,5*60*1000);
+      const cached = readPagePayloadCache(cacheKey,5*60*1000) || readPersistentSnapshot();
       if (cached) {
         applyLivePayload(cached);
         hasLoadedRows = true;
         loadFailed = false;
+        feedDegraded = true;
+        feedNoticeCopy = 'Showing recent props while the live feed reconnects.';
         render();
       }
     }
     button?.classList.add('spinning');
     if (button) button.disabled = true;
     const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    },12000);
     const promise = (async () => {
       try {
-        const response = await fetch(url, {headers:{Accept:'application/json'}, cache:'no-store', signal:controller.signal});
+        const response = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
+        const payloadHasRows = Object.values(payload?.dataByBook || {}).some(bookRows => Array.isArray(bookRows) && bookRows.length)
+          || (Array.isArray(payload?.data) && payload.data.length > 0);
+        if (payload.degraded && !payloadHasRows) {
+          hasLoadedRows = true;
+          loadFailed = rows.length === 0;
+          feedDegraded = rows.length > 0;
+          feedNoticeCopy = payload.message || 'Showing recent props while the live feed reconnects.';
+          refreshDelayMs = Math.max(3000,Number(payload.refreshSeconds || 5)*1000);
+          return;
+        }
         applyLivePayload(payload);
         hasLoadedRows = true;
         loadFailed = false;
+        feedDegraded = Boolean(payload.degraded);
+        feedNoticeCopy = payload.message || 'Showing recent props while the live feed reconnects.';
         const serverDelay = Number(payload.refreshSeconds)*1000;
         if (Number.isFinite(serverDelay)) refreshDelayMs = Math.max(5000,serverDelay);
-        writePagePayloadCache(cacheKey,payload);
+        if (!payload.degraded) {
+          writePagePayloadCache(cacheKey,payload);
+          writePersistentSnapshot(payload);
+        }
       } catch (error) {
-        if (error.name === 'AbortError') return;
+        if (error.name === 'AbortError' && !timedOut) return;
         hasLoadedRows = true;
         loadFailed = rows.length === 0;
+        feedDegraded = rows.length > 0;
+        feedNoticeCopy = timedOut
+          ? 'Showing recent props because the live refresh timed out.'
+          : 'Showing recent props while the live feed reconnects.';
+        refreshDelayMs = 5000;
       } finally {
+        window.clearTimeout(timeoutId);
         if (activeLoad?.promise !== promise) return;
         activeLoad = null;
         button?.classList.remove('spinning');
@@ -1121,6 +1181,8 @@
   document.querySelector('#dfs-live').addEventListener('click', () => setLiveRefresh(true));
   document.querySelector('#dfs-pause').addEventListener('click', () => setLiveRefresh(false));
   document.querySelector('#dfs-refresh').addEventListener('click', () => loadLiveRows());
+  document.querySelector('#dfs-error-retry').addEventListener('click', () => loadLiveRows());
+  document.querySelector('#dfs-feed-notice-retry').addEventListener('click', () => loadLiveRows());
   document.querySelectorAll('[data-devig-key]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigKey,event.target.value)));
   document.querySelectorAll('[data-devig-number]').forEach(input => input.addEventListener('input', event => updateDevigWeight(event.target.dataset.devigNumber,event.target.value)));
   document.querySelector('#dfs-devig-open').addEventListener('click', () => { const usingIconLabs=weightsMatch(savedWeights,defaultWeights); draftWeights=usingIconLabs?{...zeroWeights}:{...savedWeights}; activePreset=usingIconLabs?'iconlabs':presetForWeights(savedWeights); document.querySelector('#dfs-devig-save-popover').hidden=true; document.querySelector('#dfs-devig-save-error').textContent=''; renderPresets(); syncDevigControls(); devigDialog.showModal(); requestAnimationFrame(()=>{document.querySelector('.dfs-devig-presets').scrollTo(0,0);document.querySelector('.dfs-devig-list').scrollTo(0,0);}); });
