@@ -810,6 +810,31 @@ def test_provider_builds_standard_sharp_money_quote_snapshot() -> None:
     assert SHARP_MONEY_MARKET_KEYS == ("*",)
 
 
+def test_sharp_money_scan_respects_shared_quota_event_caps(monkeypatch) -> None:
+    provider = OddsEngineProvider(
+        "standard-key",
+        session=_fixture_session(),
+        max_events_per_league=3,
+        max_total_events=12,
+    )
+    captured = {}
+
+    def capture_events(sports, markets, **kwargs):
+        captured["sports"] = sports
+        captured["markets"] = markets
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(provider, "_load_events", capture_events)
+
+    provider.sharp_money_quote_snapshot()
+
+    assert captured["sports"] == SHARP_MONEY_SPORT_KEYS
+    assert captured["markets"] == SHARP_MONEY_MARKET_KEYS
+    assert captured["max_events_per_league"] == 3
+    assert captured["max_total_events"] == 12
+
+
 def test_provider_records_advanced_entitlement_rejection() -> None:
     session = FakeSession(
         {"/orderbook/top": FakeResponse({"error": "plan required"}, status_code=403)}

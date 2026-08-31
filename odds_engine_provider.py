@@ -1461,15 +1461,16 @@ class OddsEngineProvider(ExecutionProvider):
         if not self.api_key:
             return {}
         # Keep this scan inside the same provider lock/cache used by the four
-        # opportunity tools. The cap respects the standard 60-request plan:
-        # ten league discovery calls leave up to fifty event-odds reads, and a
-        # provider rate-limit still returns the truthful partial snapshot.
+        # opportunity tools. The trial allowance is shared across the app, so
+        # honor the configured event caps (5 per league / 20 total by default)
+        # instead of spending the entire 60-request minute on one cold page.
+        # Each event response still includes every available market family.
         with self._scan_lock:
             events = self._load_events(
                 SHARP_MONEY_SPORT_KEYS,
                 SHARP_MONEY_MARKET_KEYS,
-                max_events_per_league=10,
-                max_total_events=50,
+                max_events_per_league=self.max_events_per_league,
+                max_total_events=self.max_total_events,
             )
         return {
             "observedAt": datetime.now(timezone.utc).isoformat(),
