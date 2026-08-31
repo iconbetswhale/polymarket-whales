@@ -298,10 +298,10 @@ def build_dfs_odds_board(
                         group["quotes"][book_key].append(quote)
 
     engine_weights = weights or ICONLABS_DFS_WEIGHTS
-    positive_weight_count = sum(
-        1 for weight in engine_weights.values() if float(weight) > 0
-    )
-    minimum_sources = 1 if positive_weight_count == 1 else 2
+    # One fresh, exact-line, genuinely two-way market is enough to establish a
+    # fair probability. Exact-line matching and paired Over/Under validation
+    # still prevent alternate or one-way markets from entering the model.
+    minimum_sources = 1
     engine = DfsProbabilityEngine(
         engine_weights,
         devig_method="power",

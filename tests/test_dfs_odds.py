@@ -89,7 +89,7 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
     assert {row["oddsByBook"]["fanduel"]["odds"] for row in rows} == {"-110"}
-    assert all(row["minimumSourcesByLine"]["1.5"] == 2 for row in rows)
+    assert all(row["minimumSourcesByLine"]["1.5"] == 1 for row in rows)
     assert {row["awayTeam"] for row in rows} == {"New York Yankees"}
     assert {row["homeTeam"] for row in rows} == {"Boston Red Sox"}
     assert all(
@@ -337,7 +337,7 @@ def test_live_dfs_board_exposes_exchange_liquidity_links_and_quality_flags() -> 
     assert "novig" not in rows[0]["devigSourcesByLine"]["1.5"]
 
 
-def test_live_dfs_board_does_not_model_mismatched_or_one_way_book_lines() -> None:
+def test_live_dfs_board_models_one_exact_two_way_source_but_not_mismatched_lines() -> None:
     events = _events()
     events[0]["bookmakers"] = [
         _market("prizepicks", dfs=True, line=0.5),
@@ -349,8 +349,9 @@ def test_live_dfs_board_does_not_model_mismatched_or_one_way_book_lines() -> Non
     rows = build_dfs_odds_board(events)
     over = next(row for row in rows if row["side"] == "Over")
 
-    assert over["hitByLine"]["0.5"] is None
-    assert over["fairOddsByLine"]["0.5"] is None
+    assert over["hitByLine"]["0.5"] is not None
+    assert over["fairOddsByLine"]["0.5"] is not None
+    assert over["minimumSourcesByLine"]["0.5"] == 1
     assert over["sourceCount"] == 1
     assert over["oddsByBook"]["fanduel"]["line"] == 1.5
     assert over["oddsByBook"]["fanduel"]["modelExclusionReason"] == "LINE_MISMATCH"

@@ -40,7 +40,7 @@ The response also returns weighted source dispersion, a reliability score based 
 ## Guardrails
 
 - Alternate sportsbook lines are excluded from the target probability rather than incorrectly treated as exact matches.
-- The standard IconLabs model requires at least two independent, fresh, exact-line two-way sources. A deliberately configured 100% single-book custom model may use that one selected source.
+- The standard IconLabs model requires at least one fresh, exact-line, two-way source. Additional independent sources improve reliability, but are not required for availability.
 - Only the freshest exact-line quote from each provider is used.
 - Stale, unmapped, invalid, one-sided, and zero-weight sources are excluded with explicit reasons.
 - NoVIG, ProphetX, Polymarket, and Kalshi quotes at extreme prices are checked against exact FanDuel/DraftKings two-way reference markets. Large probability disagreements are not weighted.
