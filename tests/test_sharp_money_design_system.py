@@ -19,7 +19,7 @@ def test_sharp_money_opts_into_v2_without_legacy_layers(app_client):
     assert b"mobile-product.css" not in response.data
     assert b"app-premium.css" not in response.data
     assert b"sidebar-shell.css" not in response.data
-    assert html.index("sharp-money.js") < html.index("app.js")
+    assert html.index("app.js") < html.index("sharp-money.js")
 
 
 def test_sharp_money_template_uses_canonical_v2_primitives():
@@ -94,6 +94,8 @@ def test_sharp_money_reference_redesign_has_list_detail_contract():
     assert 'class="sharp-flow-book"' in script
     assert 'class="sharp-card-teams"' in script
     assert 'class="sharp-card-rec-selection"' in script
+    assert "function displaySelection(signal)" in script
+    assert 'unit = "Runs"' in script
     assert "desktop-overlay-open" in script
     assert 'class="sharp-card-best-price"' not in script
     assert "Best sharp price" not in script
@@ -113,3 +115,24 @@ def test_sharp_money_reference_redesign_keeps_card_hover_state_inside_the_feed()
 
     assert ".sharp-signal-list .sharp-signal-card:hover" in stylesheet
     assert "transform: none !important;" in stylesheet
+
+
+def test_sharp_money_requires_a_retail_quote_and_filters_crossed_price_edge():
+    template = (ROOT / "templates" / "sharp_money.html").read_text(encoding="utf-8")
+    script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
+
+    assert 'if (!quote) return "";' in script
+    assert "return Boolean(retailQuote)" in script
+    assert "function crossedPriceGapPercent(signal)" in script
+    assert 'minimumCrossedEdgePercent: 0' in script
+    assert 'max="3" step="0.5"' in template
+    assert "Awaiting line" not in script
+    assert "row || {providerKey:key}" in script
+
+
+def test_sharp_money_line_shop_uses_shared_draggable_account_order():
+    script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
+
+    assert "data-line-shop-book" in script
+    assert 'draggable="true"' in script
+    assert "window.IconLabsLineShopOrder?.save(order)" in script

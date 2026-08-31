@@ -1592,6 +1592,11 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head img {
   object-fit: contain;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head[draggable="true"] { cursor: grab; }
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head[draggable="true"]:active { cursor: grabbing; }
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head.dragging { opacity: .45; }
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head > i { color: var(--il-text-faint); font-size: 8px; }
+
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-book-head span {
   overflow: hidden;
   width: 66px;

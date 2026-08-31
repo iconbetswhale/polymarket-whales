@@ -61,6 +61,21 @@ def test_trade_and_tracker_bankroll_updates_preserve_each_other(tmp_path):
     assert tracker_updated_again["tracker_bankroll"] == 30000
 
 
+def test_line_shop_order_is_stored_separately_from_dfs_column_selection(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    database.get_or_create_user_settings("user-1", 10000, 0.01)
+    dfs_order = ["fanduel", "novig"]
+    line_shop_order = ["prophetx", "pinnacle", "fanduel"]
+
+    database.update_dfs_compare_book_order("user-1", dfs_order)
+    assert database.update_line_shop_book_order("user-1", line_shop_order) == line_shop_order
+
+    settings = database.get_or_create_user_settings("user-1", 10000, 0.01)
+    assert settings["dfs_compare_book_order_json"] == '["fanduel", "novig"]'
+    assert database.get_line_shop_book_order("user-1") == line_shop_order
+    assert database.get_line_shop_book_order("user-2") == []
+
+
 def test_versioned_trade_bankroll_update_rejects_stale_session(tmp_path):
     database = TrackerDatabase(tmp_path / "tracker.db")
     original = database.get_or_create_user_settings("user-1", 10000, 0.01)

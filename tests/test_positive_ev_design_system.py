@@ -247,11 +247,13 @@ def test_positive_ev_mobile_detail_is_compact_scroll_safe_and_expandable() -> No
 
 def test_market_odds_remains_two_sided_with_provider_between_prices() -> None:
     market_odds = _function("marketOddsVisual")
-    row = market_odds[market_odds.index('return `<div class="ev-market-compare-row">') :]
+    row = market_odds[market_odds.index('return `<div class="ev-market-compare-row"') :]
     assert row.index("priceCell(left, 0)") < row.index("ev-market-book-center")
     assert row.index("ev-market-book-center") < row.index("priceCell(right, 1)")
     assert "ev-market-compare-head" in market_odds
     assert "ev-market-compare-rows" in market_odds
+    assert "data-line-shop-book" in market_odds
+    assert "IconLabsLineShopOrder" in market_odds
 
 
 def test_positive_ev_css_is_token_driven_and_page_owned() -> None:

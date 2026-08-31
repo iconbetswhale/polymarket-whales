@@ -213,7 +213,7 @@
   function quoteRow(quote, bestKey) {
     const best = quote.bookKey === bestKey;
     const age = quote.quoteAgeSeconds == null ? "Age n/a" : `${Math.round(quote.quoteAgeSeconds)}s old`;
-    return `<div class="mid-quote-row${best ? " best" : ""}">${logoMarkup(quote)}<span><strong>${esc(quote.bookName)}</strong><small>${esc(age)}</small></span><b>${odds(quote.americanOdds)}</b>${quote.deepLink ? `<a href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName)}"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ""}</div>`;
+    return `<div class="mid-quote-row${best ? " best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${logoMarkup(quote)}<span><strong>${esc(quote.bookName)}</strong><small>${esc(age)}</small></span><b>${odds(quote.americanOdds)}</b>${quote.deepLink ? `<a href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName)}"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ""}</div>`;
   }
 
   function scenarioRow(label, detail, profit, featured = false) {
@@ -236,8 +236,10 @@
     const outsideOne = legs[0] ? scenarioRow(`${legs[0].selection} wins`, "Result lands above / outside the middle", legs[0].outsideProfit) : "";
     const middle = scenarioRow("Both bets win", row.window?.label || "Inside the middle window", row.middleProfit, true);
     const outsideTwo = legs[1] ? scenarioRow(`${legs[1].selection} wins`, "Result lands below / outside the middle", legs[1].outsideProfit) : "";
-    const comparisons = (row.allQuotes || []).map((group) => `
-      <section class="mid-quote-group"><header><span>${esc(group.selection)}</span><small>Best first</small></header>${(group.quotes || []).map((quote) => quoteRow(quote, group.bestBookKey)).join("")}</section>`).join("");
+    const comparisons = (row.allQuotes || []).map((group) => {
+      const quotes = window.IconLabsLineShopOrder?.sortRows(group.quotes || []) || group.quotes || [];
+      return `<section class="mid-quote-group" data-line-shop-group><header><span>${esc(group.selection)}</span><small>Drag to reorder</small></header>${quotes.map((quote) => quoteRow(quote, group.bestBookKey)).join("")}</section>`;
+    }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="mid-detail-warning"><i class="ph ph-warning" aria-hidden="true"></i><span>${esc(warning)}</span></div>`).join("");
     const worstOutside = Math.min(...legs.map((leg) => Number(leg.outsideProfit || 0)));
     elements.detail.innerHTML = `
@@ -498,6 +500,11 @@
       if (event.target.closest("[data-mid-mobile-close]")) closeMobileDetail();
       if (event.target.closest("#mid-copy-plan")) copyPlan();
       if (event.target.closest("#mid-track")) toggleTracked();
+    });
+    window.IconLabsLineShopOrder?.bindDrag(elements.detail, ".mid-quote-row[data-line-shop-book]");
+    window.addEventListener("iconlabs:line-shop-order", () => {
+      const selected = state.rows.find((row) => row.id === state.selectedId);
+      if (selected) renderDetail(selected);
     });
     document.addEventListener("keydown", (event) => {
       const editable = event.target.matches("input, textarea, select") || event.target.isContentEditable;

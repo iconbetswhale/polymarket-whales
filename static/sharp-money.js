@@ -29,7 +29,7 @@
     sport: "",
     search: "",
     controlling: false,
-    filters: { minimumLiquidity: 0, flow: "", marketType: "", sportsbooks: initialSharpSportsbooks },
+    filters: { minimumCrossedEdgePercent: 0, flow: "", marketType: "", sportsbooks: initialSharpSportsbooks },
     filterDraftSportsbooks: new Set(initialSharpSportsbooks),
     sortDescending: true,
     detailVisible: true,
@@ -101,9 +101,10 @@
       novig: "/static/assets/providers/novig.png",
       prophetx: "/static/assets/sportsbooks/prophetx.png",
     };
-    const url = localLogos[providerKey(row)] || row?.logoUrl || row?.providerLogo;
+    const catalog = sharpBookCatalog.find(book => book.key === providerCatalogKey(row));
+    const url = localLogos[providerKey(row)] || catalog?.logoUrl || row?.logoUrl || row?.providerLogo;
     return url
-      ? `<img src="${escapeHtml(url)}" alt="" loading="lazy">`
+      ? `<img src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><span hidden>${escapeHtml(fallback)}</span>`
       : `<span>${escapeHtml(fallback)}</span>`;
   }
 
@@ -131,6 +132,30 @@
       oppositeOdds: opposite.americanOdds,
       oppositeLiquidity: opposite.liquidity,
     };
+  }
+
+  function displaySelection(signal) {
+    const selected = String(marketSides(signal).selected || "Selection").trim();
+    const marketName = String(signal.market?.name || "").trim();
+    const marketKind = String(signal.market?.kind || "").toLowerCase();
+    if (marketKind === "moneyline" && !/moneyline/i.test(selected)) {
+      return `${selected} Moneyline`;
+    }
+    if (!/^(over|under)\s+[+-]?\d/i.test(selected)) return selected;
+    let unit = "";
+    if (marketKind.includes("player")) {
+      unit = marketName.replace(/^(alternate\s+)?player\s+/i, "").trim();
+      if (/^(prop|alternate)$/i.test(unit)) unit = "";
+    } else if (marketKind.includes("total") || /total/i.test(marketName)) {
+      const competition = `${signal.league || ""} ${signal.sport || ""}`.toLowerCase();
+      if (/mlb|baseball/.test(competition)) unit = "Runs";
+      else if (/nba|wnba|basketball|nfl|football/.test(competition)) unit = "Points";
+      else if (/nhl|hockey/.test(competition)) unit = "Goals";
+      else if (/tennis/.test(competition)) unit = "Games";
+    }
+    return unit && !selected.toLowerCase().includes(unit.toLowerCase())
+      ? `${selected} ${unit}`
+      : selected;
   }
 
   const MARKET_INTELLIGENCE_PROVIDERS = new Set([
@@ -165,7 +190,7 @@
   };
 
   function providerKey(row) {
-    const raw = row?.providerKey || row?.providerName || row?.provider || "";
+    const raw = row?.providerKey || row?.key || row?.providerName || row?.provider || "";
     const normalized = String(raw).toLowerCase().replace(/[^a-z0-9]/g, "");
     return normalized === "fourcx" ? "4cx" : normalized;
   }
@@ -230,6 +255,19 @@
       return sharpDecimal != null && Number.isFinite(liquidity) && liquidity > 0
         && (1 / retailDecimal) + (1 / sharpDecimal) < 1;
     });
+  }
+
+  function crossedPriceGapPercent(signal) {
+    const retail = primaryQuote(signal);
+    const retailDecimal = decimalOdds(retail?.americanOdds);
+    if (retailDecimal == null) return 0;
+    return depthQuotes(signal).reduce((best, {row}) => {
+      const sharpOppositeDecimal = decimalOdds(row?.oppositeAmericanOdds);
+      const liquidity = Number(row?.oppositeAvailableLiquidity);
+      if (sharpOppositeDecimal == null || !Number.isFinite(liquidity) || liquidity <= 0) return best;
+      const gap = Math.max(0, (1 - (1 / retailDecimal) - (1 / sharpOppositeDecimal)) * 100);
+      return Math.max(best,gap);
+    },0);
   }
 
   function primaryQuote(signal) {
@@ -306,9 +344,7 @@
   }
 
   function sportsbookAction(quote, fallbackOdds) {
-    if (!quote) {
-      return `<span class="sharp-sportsbook-action unavailable"><small>Sportsbook</small><b>Awaiting line</b></span>`;
-    }
+    if (!quote) return "";
     return `<a class="sharp-sportsbook-action" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>${logo(quote, String(quote.providerName || "?").slice(0, 2))}<span><small>${escapeHtml(quote.providerName || "Sportsbook")}</small><b>${escapeHtml(odds(quote.americanOdds ?? fallbackOdds))}</b></span></a>`;
   }
 
@@ -352,7 +388,7 @@
             ? `${odds(row.americanOdds)} exact quote`
             : row.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} at ${odds(row.americanOdds)}`;
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
-          <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
+          <span class="sharp-depth-chip-logo">${logo(row || {providerKey:key}, key === "novig" ? "N" : "PX")}</span>
           <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${escapeHtml(secondary)}</small></span>
           ${exchangeAction(key, row)}
         </div>`;
@@ -362,7 +398,7 @@
   }
 
   function signalCard(signal) {
-    const sides = marketSides(signal);
+    const selection = displaySelection(signal);
     const quote = primaryQuote(signal);
     const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
     const league = String(signal.league || "").trim();
@@ -378,14 +414,15 @@
         <div class="sharp-card-body">
           <div class="sharp-card-event">
             ${eventTeamCards(signal)}
+            <strong class="sharp-card-featured-selection">${escapeHtml(selection)}</strong>
             <div class="sharp-card-market-meta"><em>${escapeHtml(signal.market?.name)}</em><time>${escapeHtml(timeLabel(signal.startsAt))}</time></div>
           </div>
           <div class="sharp-card-execution">
             <div class="sharp-card-action-row">
-              <span class="sharp-card-rec-bet"><span class="sharp-card-rec-stake"><b>${money(recBet, false)}</b><small>Rec Bet</small></span><strong class="sharp-card-rec-selection">${escapeHtml(sides.selected)}</strong></span>
+              <span class="sharp-card-rec-bet"><span class="sharp-card-rec-stake"><b>${money(recBet, false)}</b><small>Rec Bet</small></span><strong class="sharp-card-rec-selection">${escapeHtml(selection)}</strong></span>
               ${sportsbookAction(quote, signal.americanOdds)}
               ${quote ? `<a class="sharp-card-bet" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : ""}
-              <button class="sharp-card-add" type="button" aria-label="Add ${escapeHtml(sides.selected)}"><i class="ph ph-plus"></i></button>
+              <button class="sharp-card-add" type="button" aria-label="Add ${escapeHtml(selection)}"><i class="ph ph-plus"></i></button>
             </div>
             ${depthSummary(signal)}
           </div>
@@ -427,9 +464,13 @@
   function twoSidedComparison(signal) {
     const sides = marketSides(signal);
     const rows = [...selectedComparisonLines(signal)].sort((a, b) => {
+      const order = window.IconLabsLineShopOrder;
+      const aRank = order?.rank(providerCatalogKey(a),rows.map(providerCatalogKey)) ?? Number.MAX_SAFE_INTEGER;
+      const bRank = order?.rank(providerCatalogKey(b),rows.map(providerCatalogKey)) ?? Number.MAX_SAFE_INTEGER;
+      if (aRank !== bRank) return aRank-bRank;
       const aIntel = isMarketIntelligenceProvider(a) ? 1 : 0;
       const bIntel = isMarketIntelligenceProvider(b) ? 1 : 0;
-      return aIntel - bIntel;
+      return aIntel-bIntel;
     });
     const sportsbookRows = rows.filter(row => !isMarketIntelligenceProvider(row));
     const bestLeft = Math.max(...sportsbookRows.map(row => Number(row.americanOdds) || -99999));
@@ -441,7 +482,7 @@
         ${rows.map(row => {
           const leftBest = Number(row.americanOdds) === bestLeft;
           const rightBest = bestRight != null && Number(row.oppositeAmericanOdds) === bestRight;
-          return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}">
+          return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}" draggable="true" data-line-shop-book="${escapeHtml(providerCatalogKey(row))}" title="Drag ${escapeHtml(row.providerName || providerCatalogKey(row))} to reorder line shopping">
             <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
             <span class="sharp-market-book sharp-market-book--${providerKey(row)}">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
             <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.oppositeDeepLink || row.deepLink || "#")}" ${row.oppositeDeepLink || row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
@@ -478,6 +519,7 @@
 
   function detail(signal) {
     const sides = marketSides(signal);
+    const selection = displaySelection(signal);
     const quote = primaryQuote(signal);
     const recBet = Math.max(20, Math.round(Number(signal.confidence || 0) / 4) * 5);
     const league = String(signal.league || "").trim();
@@ -490,7 +532,7 @@
       <section class="sharp-detail-overview">
         <header class="sharp-detail-head"><div class="sharp-detail-money"><strong class="sharp-detail-liquidity">${escapeHtml(signalHeadline(signal))}</strong><small>${escapeHtml(signalHeadlineLabel(signal))}</small></div><div><span>${escapeHtml(competition)}</span><h2>${escapeHtml(signal.event)}</h2><em>${escapeHtml(signal.market?.name)}</em></div><div class="sharp-detail-time"><b>${escapeHtml(timeLabel(signal.startsAt))}</b><span class="sharp-detail-icons"><i class="ph ph-table"></i><i class="ph ph-calendar-blank"></i><i class="ph ph-chart-line-up"></i><i class="ph ph-eye-slash"></i></span></div></header>
         <section class="sharp-recommendation">
-          <div class="sharp-rec-copy"><strong>${escapeHtml(sides.selected)}</strong></div>
+          <div class="sharp-rec-copy"><strong>${escapeHtml(selection)}</strong></div>
           <div class="sharp-rec-stake"><strong>${money(recBet, false)}</strong><span>Rec Bet</span></div>
           <div class="sharp-rec-book">${sportsbookAction(quote, signal.americanOdds)}</div>
           ${quote ? `<a class="sharp-game-button" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : `<span class="sharp-game-button unavailable">WAIT</span>`}
@@ -514,9 +556,11 @@
     const marketFilterKind = signal.market?.isAlternative
       ? "alternate"
       : signal.market?.kind;
-    return (!state.sport || signal.league === state.sport || signal.sport === state.sport)
+    const retailQuote = primaryQuote(signal);
+    return Boolean(retailQuote)
+      && (!state.sport || signal.league === state.sport || signal.sport === state.sport)
       && (!state.search || haystack.includes(state.search))
-      && Number(crossedLiquidity || 0) >= state.filters.minimumLiquidity
+      && crossedPriceGapPercent(signal) >= state.filters.minimumCrossedEdgePercent
       && (!state.filters.flow || (state.filters.flow === "detected") === detected)
       && (!state.filters.marketType || marketFilterKind === state.filters.marketType)
       && (!sportsbookFilterActive() || selectedComparisonLines(signal).length > 0);
@@ -570,7 +614,7 @@
     $("sharp-detail-toggle").setAttribute("aria-pressed", String(state.detailVisible));
     $("sharp-detail-toggle").querySelector("span").textContent = state.detailVisible ? "Hide market details" : "Show market details";
     document.querySelector(".sharp-workspace")?.classList.toggle("detail-hidden", !state.detailVisible);
-    const activeFilterCount = Number(Boolean(state.sport)) + Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType)) + Number(sportsbookFilterActive());
+    const activeFilterCount = Number(Boolean(state.sport)) + Number(state.filters.minimumCrossedEdgePercent > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType)) + Number(sportsbookFilterActive());
     $("sharp-filter-count").textContent = String(activeFilterCount);
     $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
     $("sharp-mode-badge").classList.toggle("live", running && !accessBlocked);
@@ -687,7 +731,7 @@
       return false;
     }
     state.sport = $("sharp-sport-filter").value;
-    state.filters.minimumLiquidity = Number($("sharp-liquidity-filter").value) || 0;
+    state.filters.minimumCrossedEdgePercent = Number($("sharp-liquidity-filter").value) || 0;
     state.filters.flow = $("sharp-flow-filter").value;
     state.filters.marketType = $("sharp-market-filter").value;
     state.filters.sportsbooks = new Set(state.filterDraftSportsbooks);
@@ -698,6 +742,7 @@
 
   function bind() {
     const moreMenu = $("sharp-more-menu");
+    let draggedLineShopBook = "";
     const closeMoreMenu = () => {
       moreMenu.hidden = true;
       $("sharp-more").setAttribute("aria-expanded", "false");
@@ -741,6 +786,38 @@
       $("sharp-detail-panel").classList.remove("mobile-open", "desktop-overlay-open");
       document.body.classList.remove("sharp-detail-open", "sharp-desktop-detail-open");
     });
+    $("sharp-detail-panel").addEventListener("dragstart", event => {
+      const row = event.target.closest("[data-line-shop-book]");
+      if (!row) return;
+      draggedLineShopBook = row.dataset.lineShopBook;
+      row.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain",draggedLineShopBook);
+    });
+    $("sharp-detail-panel").addEventListener("dragover", event => {
+      const target = event.target.closest("[data-line-shop-book]");
+      if (!draggedLineShopBook || !target || target.dataset.lineShopBook === draggedLineShopBook) return;
+      event.preventDefault();
+    });
+    $("sharp-detail-panel").addEventListener("drop", event => {
+      const target = event.target.closest("[data-line-shop-book]");
+      if (!target || !draggedLineShopBook || target.dataset.lineShopBook === draggedLineShopBook) return;
+      event.preventDefault();
+      const order = [...$("sharp-detail-panel").querySelectorAll("[data-line-shop-book]")]
+        .map(row => row.dataset.lineShopBook);
+      const sourceIndex = order.indexOf(draggedLineShopBook);
+      const targetIndex = order.indexOf(target.dataset.lineShopBook);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      order.splice(sourceIndex,1);
+      order.splice(targetIndex,0,draggedLineShopBook);
+      window.IconLabsLineShopOrder?.save(order);
+      draggedLineShopBook = "";
+      render();
+    });
+    $("sharp-detail-panel").addEventListener("dragend", () => {
+      draggedLineShopBook = "";
+      $("sharp-detail-panel").querySelectorAll("[data-line-shop-book].dragging").forEach(row=>row.classList.remove("dragging"));
+    });
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
     $("sharp-refresh")?.addEventListener("click", load);
     $("sharp-alerts")?.addEventListener("click", () => window.showToast?.("No new Sharp Money alerts"));
@@ -757,7 +834,7 @@
     $("sharp-filter-reset").addEventListener("click", () => {
       $("sharp-sport-filter").value = "";
       $("sharp-liquidity-filter").value = "0";
-      $("sharp-liquidity-value").textContent = "$0";
+      $("sharp-liquidity-value").textContent = "0%";
       $("sharp-flow-filter").value = "";
       $("sharp-market-filter").value = "";
       state.filterDraftSportsbooks = new Set(sharpBookKeys);
@@ -783,7 +860,7 @@
       const count = $("sharp-sportsbook-count");
       if (count) count.textContent = `${state.filterDraftSportsbooks.size}/${sharpBookCatalog.length} selected`;
     });
-    $("sharp-liquidity-filter").addEventListener("input", event => { $("sharp-liquidity-value").textContent = money(event.target.value, false); });
+    $("sharp-liquidity-filter").addEventListener("input", event => { $("sharp-liquidity-value").textContent = `${Number(event.target.value).toFixed(Number(event.target.value)%1?1:0)}%`; });
     document.addEventListener("keydown", event => {
       if (event.key !== "Escape") return;
       closeMoreMenu();
@@ -795,6 +872,7 @@
       $("sharp-detail-panel").classList.remove("desktop-overlay-open");
       document.body.classList.remove("sharp-desktop-detail-open");
     });
+    window.addEventListener("iconlabs:line-shop-order",render);
   }
 
   if (document.body.dataset.page === "sharp-money") {

@@ -930,3 +930,14 @@ body[data-design-system="v2"] .brand-lockup img {
     animation-iteration-count: 1 !important;
   }
 }
+[data-design-system="v2"] [data-line-shop-book][draggable="true"] {
+  cursor: grab;
+}
+
+[data-design-system="v2"] [data-line-shop-book][draggable="true"]:active {
+  cursor: grabbing;
+}
+
+[data-design-system="v2"] [data-line-shop-book].dragging {
+  opacity: .45;
+}

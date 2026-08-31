@@ -264,7 +264,7 @@
 
   function quoteRow(quote, bestKey) {
     const age = quote.quoteAgeSeconds == null ? "Age n/a" : `${Math.round(quote.quoteAgeSeconds)}s`;
-    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b></div>`;
+    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b></div>`;
   }
 
   function renderDetail(row, openOnMobile = false) {
@@ -284,7 +284,8 @@
     const payouts = row.outcomes.map((leg) => `<div class="arb-payout-row"><span title="${esc(leg.selection)}">${esc(leg.selection)}</span><progress max="${payoutMax}" value="${Number(leg.payout)}"></progress><b>+${money(leg.profit)}</b></div>`).join("");
     const comparisons = (row.allQuotes || []).map((group) => {
       const selected = row.outcomes.find((leg) => leg.selection === group.selection);
-      return `<section class="arb-comparison-group"><h4>${esc(group.selection)}</h4>${(group.quotes || []).slice(0, 8).map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
+      const quotes = window.IconLabsLineShopOrder?.sortRows(group.quotes || []) || group.quotes || [];
+      return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4>${quotes.map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
     elements.detailContent.innerHTML = `
@@ -502,6 +503,10 @@
       if (event.target.closest("[data-arb-close-detail]")) closeMobileDetail();
       if (event.target.closest("[data-arb-copy-plan]")) copyPlan();
       if (event.target.closest("[data-arb-recalculate]")) loadBoard();
+    });
+    window.IconLabsLineShopOrder?.bindDrag(elements.detailContent, ".arb-quote-row[data-line-shop-book]");
+    window.addEventListener("iconlabs:line-shop-order", () => {
+      renderDetail(state.rows.find((row) => row.id === state.selectedId), false);
     });
     elements.mobileScrim.addEventListener("click", closeMobileDetail);
 

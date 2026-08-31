@@ -78,7 +78,7 @@ def test_canonical_pages_opt_into_the_v2_foundation_last():
     assert "filename='trades-hierarchy.css'" not in template
     assert "page == 'tracker' %}<link rel=\"stylesheet\" href=\"{{ url_for('static', filename='premium-compact.css'" in template
 
-    late_foundation = template.rindex("foundation-v11-flat-sidebar")
+    late_foundation = template.rindex("foundation-v12-line-shop-order")
     late_trades = template.index("filename='stage2-trades.css'", late_foundation)
     late_positive_ev = template.index("filename='positive-ev.css'", late_foundation)
     late_sharp_money = template.index("filename='sharp-money-v2.css'", late_foundation)

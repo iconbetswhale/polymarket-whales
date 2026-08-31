@@ -121,15 +121,18 @@ def test_dfs_live_pause_controls_refresh_immediately_and_never_overlap() -> None
 def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -> None:
     assert 'id="dfs-loading" role="status"' in TEMPLATE
     assert 'id="dfs-error" hidden' in TEMPLATE
-    assert "loadingState.hidden = hasLoadedRows || loadFailed;" in SCRIPT
-    assert "emptyState.hidden = !hasLoadedRows || loadFailed || visible.length > 0;" in SCRIPT
+    assert "const activeBookLoading = loadingBookKey === activeKey" in SCRIPT
+    assert "loadingState.hidden = !activeBookLoading" in SCRIPT
+    assert "emptyState.hidden = activeBookLoading || !hasLoadedRows || loadFailed || visible.length > 0;" in SCRIPT
     assert ".sort(compareByHitRate)" in SCRIPT
     assert "if (aHit !== null && bHit !== null && bHit !== aHit) return bHit-aHit;" in SCRIPT
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-quality-prewarm" in BASE
-    assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "instant-app-switch" in BASE
+    app_script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "prewarmFantasyOptimizer" in app_script
+    assert 'new URLSearchParams({book:"all"' in app_script
 
 
 def test_dfs_assets_load_after_the_v2_foundation() -> None:
@@ -138,8 +141,8 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
     script = BASE.index("filename='dfs.js'")
 
     assert canonical > foundation
-    assert "-quality-guardrails-v3" in BASE[canonical : canonical + 160]
-    assert "-quality-guardrails-v5" in BASE[script : script + 160]
+    assert "-quality-guardrails-v4" in BASE[canonical : canonical + 160]
+    assert "-quality-guardrails-v6" in BASE[script : script + 160]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
@@ -290,9 +293,10 @@ def test_dfs_detail_over_under_labels_are_centered() -> None:
 
 
 def test_dfs_detail_uses_and_syncs_the_main_saved_sportsbook_order() -> None:
-    assert "function detailBookOrder()" in SCRIPT
-    assert "detailBookSet.has(key) || optionalComparisonBookMap.has(key)" in SCRIPT
-    assert "detailBookOrder().map(key=>marketSnapshot(row,key))" in SCRIPT
+    assert "function detailBookOrder(...sideRows)" in SCRIPT
+    assert "window.IconLabsLineShopOrder?.order(candidates)" in SCRIPT
+    assert "Object.keys(row?.oddsByBook || {})" in SCRIPT
+    assert "detailBookOrder(pair.over,pair.under)" in SCRIPT
     assert "syncCompareOrderFromAccount()" in SCRIPT
     assert "persistCompareOrder()" in SCRIPT
     assert "'/api/dfs/preferences'" in SCRIPT
@@ -322,12 +326,17 @@ def test_selected_dfs_line_moves_into_stat_and_app_column_shows_best_odds() -> N
 def test_selected_app_only_shows_its_real_available_props() -> None:
     assert "function selectedDfsLine(row)" in SCRIPT
     assert ".filter(r => selectedDfsLine(r) !== null" in SCRIPT
-    assert "function applyLivePayload(payload)" in SCRIPT
+    assert "function applyLivePayload(payload, requestedBookKey = '')" in SCRIPT
+    assert "rows = Array.isArray(selectedRows) ? selectedRows : [];" in SCRIPT
+    assert "if (activeLoad?.controller !== controller) return;" in SCRIPT
+    assert "function warmAllDfsBoards()" in SCRIPT
+    assert "book:'all'" in SCRIPT
     assert "payload?.dataByBook" in SCRIPT
     assert "rowsByBook[selectedBookKeys[activeBook]]" in SCRIPT
     assert "...rowsByBook" in SCRIPT
-    assert "if (changed) loadLiveRows();" in SCRIPT
-    assert "book:selectedBookKeys[activeBook]" in SCRIPT
+    assert "payloadSelectedBook === requestedBookKey" in SCRIPT
+    assert "if (Array.isArray(selectedRows)) loadLiveRows(requestedBookKey);" in SCRIPT
+    assert "loadLiveRows(requestedBookKey)" in SCRIPT
     assert "function parlayOddsTitle(book=activeBook)" in SCRIPT
     assert "PrizePicks 6 Pick Flex equivalent odds" in TEMPLATE
     for book in ("PrizePicks", "Underdog", "DK Pick6", "Betr", "Dabble"):

@@ -260,6 +260,7 @@ DFS_OPTIONAL_COMPARE_BOOK_KEYS = tuple(
 DFS_ALLOWED_COMPARE_BOOK_KEYS = frozenset(
     (*DFS_COMPARE_BOOK_KEYS, *DFS_OPTIONAL_COMPARE_BOOK_KEYS)
 )
+LINE_SHOP_ALLOWED_BOOK_KEYS = frozenset((*DFS_ALLOWED_COMPARE_BOOK_KEYS, "4cx"))
 
 NO_LEAD_SHARP = "NO_LEAD_SHARP"
 
@@ -275,6 +276,21 @@ def _normalize_dfs_compare_book_order(value: object) -> list[str] | None:
     if not set(DFS_COMPARE_BOOK_KEYS).issubset(normalized):
         return None
     if not set(normalized).issubset(DFS_ALLOWED_COMPARE_BOOK_KEYS):
+        return None
+    return normalized
+
+
+def _normalize_line_shop_book_order(value: object) -> list[str] | None:
+    if not isinstance(value, list):
+        return None
+    normalized = [str(item).strip().lower() for item in value]
+    if len(normalized) < len(DFS_COMPARE_BOOK_KEYS):
+        return None
+    if len(set(normalized)) != len(normalized):
+        return None
+    if not set(DFS_COMPARE_BOOK_KEYS).issubset(normalized):
+        return None
+    if not set(normalized).issubset(LINE_SHOP_ALLOWED_BOOK_KEYS):
         return None
     return normalized
 
@@ -1496,7 +1512,8 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "weights must total exactly 100 percent"}), 400
 
         selected_book = str(request.args.get("book") or "prizepicks").strip().lower()
-        if selected_book not in DFS_OPTIMIZER_BOOK_KEYS:
+        include_all_books = selected_book == "all"
+        if not include_all_books and selected_book not in DFS_OPTIMIZER_BOOK_KEYS:
             return jsonify({"error": "book must be a supported DFS app"}), 400
 
         requested_sports = tuple(
@@ -1541,15 +1558,26 @@ def create_app(start_background: bool = True) -> Flask:
                 sport_keys=requested_sports,
                 market_keys=market_keys,
             )
-            rows = build_dfs_odds_board(
-                events,
-                weights=normalized_weights,
-                selected_dfs_book=selected_book,
-            )
-            # Return only the requested app board. The client keeps previously
-            # visited boards in memory and fetches another app when selected,
-            # avoiding five full optimizer builds in every refresh response.
-            rows_by_book = {selected_book: rows}
+            if include_all_books:
+                rows_by_book = {
+                    book_key: build_dfs_odds_board(
+                        events,
+                        weights=normalized_weights,
+                        selected_dfs_book=book_key,
+                    )
+                    for book_key in DFS_OPTIMIZER_BOOK_KEYS
+                }
+                rows = rows_by_book.get("prizepicks", [])
+            else:
+                rows = build_dfs_odds_board(
+                    events,
+                    weights=normalized_weights,
+                    selected_dfs_book=selected_book,
+                )
+                # Return the requested app first. The browser requests the
+                # all-app board in the background after this fast response so
+                # later app switches are immediate.
+                rows_by_book = {selected_book: rows}
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
             return dfs_degraded_response(
@@ -5523,6 +5551,40 @@ def create_app(start_background: bool = True) -> Flask:
             {
                 "data": {
                     "compareBookOrder": current.get("dfs_compare_book_order", []),
+                    "accountAuthenticated": bool(g.iconbets_authenticated),
+                }
+            }
+        )
+
+    @app.route("/api/line-shop/preferences", methods=["GET", "PUT"])
+    def api_line_shop_preferences():
+        if request.method == "PUT":
+            if not g.iconbets_authenticated:
+                return jsonify({"error": "Sign in to sync line shopping preferences."}), 401
+            payload = request.get_json(silent=True) or {}
+            book_order = _normalize_line_shop_book_order(payload.get("bookOrder"))
+            if book_order is None:
+                return jsonify(
+                    {
+                        "error": (
+                            "bookOrder must contain every core line-shopping book "
+                            "once and only supported books."
+                        )
+                    }
+                ), 400
+            stored_order = tracker.database.update_line_shop_book_order(
+                g.iconbets_user_id, book_order
+            )
+        else:
+            stored_order = (
+                tracker.database.get_line_shop_book_order(g.iconbets_user_id)
+                if g.iconbets_authenticated
+                else []
+            )
+        return jsonify(
+            {
+                "data": {
+                    "bookOrder": stored_order,
                     "accountAuthenticated": bool(g.iconbets_authenticated),
                 }
             }

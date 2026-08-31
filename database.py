@@ -181,6 +181,12 @@ class TrackerDatabase:
                     updated_at TEXT NOT NULL
                 );
 
+                CREATE TABLE IF NOT EXISTS line_shop_preferences (
+                    user_id TEXT PRIMARY KEY,
+                    book_order_json TEXT NOT NULL DEFAULT '[]',
+                    updated_at TEXT NOT NULL
+                );
+
                 CREATE TABLE IF NOT EXISTS user_accounts (
                     user_id TEXT PRIMARY KEY,
                     email TEXT NOT NULL UNIQUE COLLATE NOCASE,
@@ -1353,6 +1359,41 @@ class TrackerDatabase:
             if cursor.rowcount == 0:
                 raise LookupError(f"User settings not found for {user_id}")
         return self.get_or_create_user_settings(user_id, 1, 0.01)
+
+    def get_line_shop_book_order(self, user_id: str) -> list[str]:
+        if self.user_store:
+            return self.user_store.get_line_shop_book_order(user_id)
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT book_order_json FROM line_shop_preferences WHERE user_id = ?",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return []
+        try:
+            value = json.loads(row["book_order_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        return value if isinstance(value, list) else []
+
+    def update_line_shop_book_order(
+        self, user_id: str, book_order: list[str]
+    ) -> list[str]:
+        if self.user_store:
+            return self.user_store.update_line_shop_book_order(user_id, book_order)
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO line_shop_preferences (user_id, book_order_json, updated_at)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    book_order_json = excluded.book_order_json,
+                    updated_at = excluded.updated_at
+                """,
+                (user_id, json.dumps(book_order), now),
+            )
+        return list(book_order)
 
     def list_user_settings(self) -> list[dict]:
         if self.user_store:

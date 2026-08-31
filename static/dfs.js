@@ -37,6 +37,9 @@
   let refreshDelayMs = 15000;
   let refreshTimer = null;
   let activeLoad = null;
+  let allBoardsLoad = null;
+  let warmedBoardsSignature = '';
+  let loadingBookKey = '';
   let feedDegraded = false;
   let feedNoticeCopy = 'Showing recent props while the live feed reconnects.';
   const body = document.querySelector('#dfs-body');
@@ -183,6 +186,7 @@
   let savedPresets = loadPresets();
   let activePreset = weightsMatch(savedWeights,defaultWeights) ? 'iconlabs' : presetForWeights(savedWeights);
   let expandedRowId = '';
+  let draggedDetailBookKey = '';
   const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const easternDateFormatter = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
 
@@ -321,9 +325,15 @@
       && order.every(key => allowedComparisonBookKeys.has(key));
   }
 
-  function detailBookOrder() {
-    const ordered = compareOrder.filter(key => detailBookSet.has(key) || optionalComparisonBookMap.has(key));
-    return [...ordered,...detailBookDefaults.filter(key => !ordered.includes(key))];
+  function detailBookOrder(...sideRows) {
+    const available = sideRows.flatMap(row => [
+      ...Object.keys(row?.oddsByBook || {}),
+      ...Object.keys(row?.dfsLines || {}),
+    ]).filter(key=>allowedComparisonBookKeys.has(key));
+    const candidates = [...compareOrder,...detailBookDefaults,...available];
+    const candidateSet = new Set(candidates);
+    return (window.IconLabsLineShopOrder?.order(candidates) || candidates)
+      .filter((key,index,all)=>candidateSet.has(key) && all.indexOf(key)===index);
   }
 
   function persistCompareOrder() {
@@ -540,8 +550,8 @@
     return isCentsPrice && Number.isFinite(american) ? `(${formatAmericanOdds(american)})` : '';
   }
 
-  function sideSummary(row) {
-    const snapshots = detailBookOrder().map(key=>marketSnapshot(row,key));
+  function sideSummary(row, orderedBooks = detailBookOrder(row)) {
+    const snapshots = orderedBooks.map(key=>marketSnapshot(row,key));
     const referenceLine = selectedDfsLine(row);
     const eligibleSnapshots = snapshots.filter(item =>
       !item.modelExcluded
@@ -581,7 +591,7 @@
   function mobileDetailPayload(row,activeLine) {
     const pair = detailPair(row);
     const selectedKey = selectedBookKeys[activeBook];
-    const comparisonKeys = compareOrder.filter(key=>key!==selectedKey);
+    const comparisonKeys = detailBookOrder(pair.over,pair.under).filter(key=>key!==selectedKey);
     const sidePayload = (sideRow) => {
       const referenceLine = selectedDfsLine(sideRow) ?? activeLine;
       return {
@@ -601,12 +611,12 @@
 
   function renderOddsDetail(row,activeLine) {
     const pair = detailPair(row);
-    const over = sideSummary(pair.over);
-    const under = sideSummary(pair.under);
-    const orderedBooks = detailBookOrder();
+    const orderedBooks = detailBookOrder(pair.over,pair.under);
+    const over = sideSummary(pair.over,orderedBooks);
+    const under = sideSummary(pair.under,orderedBooks);
     const headerCells = orderedBooks.map(key=>{
       const logo = bookLogo(key);
-      return `<div class="dfs-detail-book-head" role="columnheader" aria-label="${esc(bookName(key))}" title="${esc(bookName(key))}">${logo?`<img src="${esc(logo)}" alt="">`:''}</div>`;
+      return `<div class="dfs-detail-book-head" role="columnheader" draggable="true" data-line-shop-book="${esc(key)}" aria-label="${esc(bookName(key))}. Drag to reorder across line shopping." title="Drag ${esc(bookName(key))} to reorder line shopping">${logo?`<img src="${esc(logo)}" alt="">`:''}<i class="ph ph-dots-six" aria-hidden="true"></i></div>`;
     }).join('');
     const sideLane = (label,sideRow,summary) => {
       const line = selectedDfsLine(sideRow || row) ?? activeLine;
@@ -857,7 +867,7 @@
       || String(a.side||'').localeCompare(String(b.side||''));
   }
 
-  function applyLivePayload(payload) {
+  function applyLivePayload(payload, requestedBookKey = '') {
     const payloadBoards = payload?.dataByBook;
     if (payloadBoards && typeof payloadBoards === 'object') {
       rowsByBook = {
@@ -867,8 +877,17 @@
         ),
       };
     }
-    rows = rowsByBook[selectedBookKeys[activeBook]]
-      ?? (Array.isArray(payload?.data) ? payload.data : []);
+    const activeKey = selectedBookKeys[activeBook];
+    const payloadSelectedBook = String(payload?.selectedBook || '').trim().toLowerCase();
+    if (!Array.isArray(rowsByBook[requestedBookKey])
+      && requestedBookKey
+      && requestedBookKey !== 'all'
+      && payloadSelectedBook === requestedBookKey
+      && Array.isArray(payload?.data)) {
+      rowsByBook[requestedBookKey] = payload.data;
+    }
+    rows = Array.isArray(rowsByBook[activeKey]) ? rowsByBook[activeKey] : [];
+    if (Array.isArray(rowsByBook[activeKey])) loadingBookKey = '';
     updateTeams();
   }
 
@@ -935,9 +954,11 @@
       const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" data-mobile-detail="${esc(mobileDetail)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
       return primaryRow + (expanded ? renderOddsDetail(r,activeLine) : '');
     }).join('');
-    loadingState.hidden = hasLoadedRows || loadFailed;
-    errorState.hidden = !loadFailed || rows.length > 0;
-    emptyState.hidden = !hasLoadedRows || loadFailed || visible.length > 0;
+    const activeKey = selectedBookKeys[activeBook];
+    const activeBookLoading = loadingBookKey === activeKey && !Array.isArray(rowsByBook[activeKey]);
+    loadingState.hidden = !activeBookLoading && (hasLoadedRows || loadFailed);
+    errorState.hidden = activeBookLoading || !loadFailed || rows.length > 0;
+    emptyState.hidden = activeBookLoading || !hasLoadedRows || loadFailed || visible.length > 0;
     if (feedNotice) {
       feedNotice.hidden = !feedDegraded || rows.length === 0;
       if (feedNoticeText) feedNoticeText.textContent = feedNoticeCopy;
@@ -976,25 +997,75 @@
     loadLiveRows();
   }
 
-  async function loadLiveRows() {
+  function allBoardsRequest() {
+    const params = new URLSearchParams({book:'all',weights:JSON.stringify(savedWeights),schema:'quality-guardrails-v3'});
+    return {params,signature:params.toString(),cacheKey:pagePayloadCacheKey('dfs',params.toString())};
+  }
+
+  async function warmAllDfsBoards() {
+    const request = allBoardsRequest();
+    const allKeys = Object.values(selectedBookKeys);
+    if (warmedBoardsSignature === request.signature && allKeys.every(key=>Array.isArray(rowsByBook[key]))) return;
+    if (allBoardsLoad?.signature === request.signature) return allBoardsLoad.promise;
+    const cached = readPagePayloadCache(request.cacheKey,5*60*1000);
+    if (cached) {
+      applyLivePayload(cached,'all');
+      warmedBoardsSignature = request.signature;
+      hasLoadedRows = true;
+      render();
+      if (allKeys.every(key=>Array.isArray(rowsByBook[key]))) return;
+    }
+    const controller = new AbortController();
+    const promise = (async () => {
+      try {
+        const response = await fetch(`/api/dfs/lines?${request.params}`,{headers:{Accept:'application/json'},signal:controller.signal});
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || 'DFS app boards unavailable');
+        applyLivePayload(payload,'all');
+        warmedBoardsSignature = request.signature;
+        hasLoadedRows = true;
+        if (!payload.degraded) {
+          writePagePayloadCache(request.cacheKey,payload);
+          writePersistentSnapshot(payload);
+        }
+        render();
+      } catch (_) {
+        // The selected app remains usable; a direct request is made on demand.
+      } finally {
+        if (allBoardsLoad?.promise === promise) allBoardsLoad = null;
+      }
+    })();
+    allBoardsLoad = {signature:request.signature,controller,promise};
+    return promise;
+  }
+
+  async function loadLiveRows(requestedBookKey = selectedBookKeys[activeBook]) {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({book:selectedBookKeys[activeBook],weights:JSON.stringify(savedWeights),schema:'quality-guardrails-v3'});
+    const params = new URLSearchParams({book:requestedBookKey,weights:JSON.stringify(savedWeights),schema:'quality-guardrails-v3'});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
     if (activeLoad?.signature === signature) return activeLoad.promise;
     activeLoad?.controller.abort();
-    if (!hasLoadedRows && !rows.length) {
-      const cached = readPagePayloadCache(cacheKey,5*60*1000) || readPersistentSnapshot();
+    if (!Array.isArray(rowsByBook[requestedBookKey])) {
+      const allRequest = allBoardsRequest();
+      const cached = readPagePayloadCache(cacheKey,5*60*1000)
+        || readPagePayloadCache(allRequest.cacheKey,5*60*1000)
+        || (!hasLoadedRows ? readPersistentSnapshot() : null);
       if (cached) {
-        applyLivePayload(cached);
+        applyLivePayload(cached,requestedBookKey);
         hasLoadedRows = true;
         loadFailed = false;
         feedDegraded = true;
         feedNoticeCopy = 'Showing recent props while the live feed reconnects.';
         render();
       }
+    }
+    if (requestedBookKey === selectedBookKeys[activeBook] && !Array.isArray(rowsByBook[requestedBookKey])) {
+      loadingBookKey = requestedBookKey;
+      rows = [];
+      render();
     }
     button?.classList.add('spinning');
     if (button) button.disabled = true;
@@ -1009,6 +1080,7 @@
         const response = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error || 'DFS odds unavailable');
+        if (activeLoad?.controller !== controller) return;
         const payloadHasRows = Object.values(payload?.dataByBook || {}).some(bookRows => Array.isArray(bookRows) && bookRows.length)
           || (Array.isArray(payload?.data) && payload.data.length > 0);
         if (payload.degraded && !payloadHasRows) {
@@ -1019,7 +1091,7 @@
           refreshDelayMs = Math.max(3000,Number(payload.refreshSeconds || 5)*1000);
           return;
         }
-        applyLivePayload(payload);
+        applyLivePayload(payload,requestedBookKey);
         hasLoadedRows = true;
         loadFailed = false;
         feedDegraded = Boolean(payload.degraded);
@@ -1029,11 +1101,12 @@
         if (!payload.degraded) {
           writePagePayloadCache(cacheKey,payload);
           writePersistentSnapshot(payload);
+          window.setTimeout(warmAllDfsBoards,0);
         }
       } catch (error) {
         if (error.name === 'AbortError' && !timedOut) return;
         hasLoadedRows = true;
-        loadFailed = rows.length === 0;
+        loadFailed = requestedBookKey === selectedBookKeys[activeBook] && rows.length === 0;
         feedDegraded = rows.length > 0;
         feedNoticeCopy = timedOut
           ? 'Showing recent props because the live refresh timed out.'
@@ -1046,7 +1119,7 @@
         button?.classList.remove('spinning');
         if (button) button.disabled = false;
         render();
-        scheduleAutoRefresh();
+        if (requestedBookKey === selectedBookKeys[activeBook]) scheduleAutoRefresh();
       }
     })();
     activeLoad = {signature,controller,promise};
@@ -1152,11 +1225,20 @@
     lineHead.replaceChildren(logo);
     lineHead.setAttribute('aria-label',selectedOddsTitle);
     const selectedRows = rowsByBook[selectedBookKeys[activeBook]];
-    if (Array.isArray(selectedRows)) rows = selectedRows;
+    rows = Array.isArray(selectedRows) ? selectedRows : [];
+    loadingBookKey = Array.isArray(selectedRows) ? '' : selectedBookKeys[activeBook];
     updateTeams();
     reorderHeaders();
     render();
-    if (changed) loadLiveRows();
+    if (changed) {
+      const requestedBookKey = selectedBookKeys[activeBook];
+      if (Array.isArray(selectedRows)) loadLiveRows(requestedBookKey);
+      else if (allBoardsLoad) {
+        allBoardsLoad.promise.finally(() => {
+          if (!Array.isArray(rowsByBook[requestedBookKey])) loadLiveRows(requestedBookKey);
+        });
+      } else loadLiveRows(requestedBookKey);
+    }
   }
 
   document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => {
@@ -1214,6 +1296,37 @@
     expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
     render();
   });
+  body.addEventListener('dragstart', event => {
+    const book = event.target.closest('[data-line-shop-book]');
+    if (!book) return;
+    draggedDetailBookKey = book.dataset.lineShopBook;
+    book.classList.add('dragging');
+    event.dataTransfer.effectAllowed = 'move';
+    event.dataTransfer.setData('text/plain',draggedDetailBookKey);
+  });
+  body.addEventListener('dragover', event => {
+    const target = event.target.closest('[data-line-shop-book]');
+    if (!draggedDetailBookKey || !target || target.dataset.lineShopBook===draggedDetailBookKey) return;
+    event.preventDefault();
+  });
+  body.addEventListener('drop', event => {
+    const target = event.target.closest('[data-line-shop-book]');
+    if (!target || !draggedDetailBookKey || target.dataset.lineShopBook===draggedDetailBookKey) return;
+    event.preventDefault();
+    const order = detailBookOrder(...Object.values(detailPair(rows.find(row=>row.id===expandedRowId) || {})));
+    const sourceIndex = order.indexOf(draggedDetailBookKey);
+    const targetIndex = order.indexOf(target.dataset.lineShopBook);
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    order.splice(sourceIndex,1);
+    order.splice(targetIndex,0,draggedDetailBookKey);
+    window.IconLabsLineShopOrder?.save(order);
+    draggedDetailBookKey = '';
+    render();
+  });
+  body.addEventListener('dragend', () => {
+    draggedDetailBookKey = '';
+    body.querySelectorAll('[data-line-shop-book].dragging').forEach(item=>item.classList.remove('dragging'));
+  });
   body.addEventListener('keydown', event => {
     if (event.key !== 'Enter' && event.key !== ' ') return;
     const row = event.target.closest('.dfs-prop-row');
@@ -1263,6 +1376,13 @@
     if(selectedDevigTotal()!==100)return;
     savedWeights=activePreset==='iconlabs'?{...defaultWeights}:{...draftWeights};
     localStorage.setItem('dfsDevigWeightsV2',JSON.stringify(savedWeights));
+    allBoardsLoad?.controller.abort();
+    allBoardsLoad=null;
+    warmedBoardsSignature='';
+    rowsByBook={};
+    rows=[];
+    hasLoadedRows=false;
+    loadingBookKey=selectedBookKeys[activeBook];
     activePreset=weightsMatch(savedWeights,defaultWeights)?'iconlabs':presetForWeights(savedWeights);
     updateDevigSummary();
     render();
@@ -1297,6 +1417,7 @@
     positionComparisonBookPicker();
   },{capture:true,passive:true});
   document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
+  window.addEventListener('iconlabs:line-shop-order',render);
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearAutoRefresh();
     else if (liveRefreshEnabled) loadLiveRows();

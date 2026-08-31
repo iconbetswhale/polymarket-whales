@@ -520,6 +520,9 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-market-odds.il-detail
 .ev-market-compare-rows { padding: 0 var(--il-space-3) var(--il-space-2); }
 .ev-market-odds-toggle { display: none; }
 .ev-market-compare-row { min-height: 45px; border-top: 1px solid var(--il-border-hairline); }
+.ev-market-compare-row[draggable="true"] { cursor: grab; }
+.ev-market-compare-row[draggable="true"]:active { cursor: grabbing; }
+.ev-market-compare-row.dragging { opacity: .45; }
 .ev-market-compare-row:first-child { border-top: 0; }
 .ev-market-book-center { display: grid; place-items: center; }
 .ev-market-book-center .ev-book-mark,

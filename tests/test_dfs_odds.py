@@ -488,6 +488,48 @@ def test_live_dfs_endpoint_scopes_results_to_requested_app(
         assert all(book_key in row["dfsLines"] for row in book_rows)
 
 
+def test_live_dfs_endpoint_can_warm_every_app_board_in_one_request(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    registry = application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "configured-in-test"
+    events = _events()
+    app_props = {
+        "underdog": ("underdog", "Juan Soto", 2.5),
+        "dk-pick6": ("pick6", "Mookie Betts", 3.5),
+        "betr": ("betr_picks", "Shohei Ohtani", 4.5),
+        "dabble": ("dabble", "Vladimir Guerrero Jr.", 5.5),
+    }
+    for provider_key, player, line in app_props.values():
+        events[0]["bookmakers"].extend(
+            [
+                _market("fanduel", player=player, line=line),
+                _market(provider_key, dfs=True, player=player, line=line),
+            ]
+        )
+    monkeypatch.setattr(provider, "ev_events", lambda **_kwargs: events)
+
+    response = app_client.get("/api/dfs/lines?book=all")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["selectedBook"] == "all"
+    assert set(payload["dataByBook"]) == {
+        "prizepicks", "underdog", "dk-pick6", "betr", "dabble"
+    }
+    assert {row["player"] for row in payload["dataByBook"]["prizepicks"]} == {
+        "Aaron Judge"
+    }
+    for ui_key, (_, player, _) in app_props.items():
+        assert {row["player"] for row in payload["dataByBook"][ui_key]} == {
+            player
+        }
+
+
 def test_live_dfs_endpoint_rejects_unknown_app(app_client) -> None:
     response = app_client.get("/api/dfs/lines?book=not-a-dfs-app")
 

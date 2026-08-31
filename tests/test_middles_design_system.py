@@ -59,6 +59,12 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         assert required in SCRIPT
 
 
+def test_middles_comparison_uses_shared_draggable_book_order() -> None:
+    assert 'draggable="true" data-line-shop-book' in SCRIPT
+    assert "IconLabsLineShopOrder?.sortRows" in SCRIPT
+    assert "IconLabsLineShopOrder?.bindDrag" in SCRIPT
+
+
 def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "mid-summary-metrics" in TEMPLATE
     assert "mid-scan-status" in TEMPLATE

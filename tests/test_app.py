@@ -1946,6 +1946,35 @@ def test_dfs_compare_order_keeps_core_books_and_allows_supported_optional_books(
     assert unsupported.status_code == 400
 
 
+def test_line_shop_order_syncs_across_tools_without_changing_dfs_columns(app_client):
+    owner = app_client.application.test_client()
+    assert owner.post(
+        "/api/auth/register",
+        json={"email": "line-order@example.com", "password": "strong-pass-1"},
+    ).status_code == 201
+    dfs_order = list(DFS_COMPARE_BOOK_KEYS)
+    assert owner.put(
+        "/api/dfs/preferences", json={"compareBookOrder": dfs_order}
+    ).status_code == 200
+    line_order = [*reversed(DFS_COMPARE_BOOK_KEYS), "fanatics", "4cx"]
+
+    saved = owner.put(
+        "/api/line-shop/preferences", json={"bookOrder": line_order}
+    )
+
+    assert saved.status_code == 200
+    assert saved.get_json()["data"]["bookOrder"] == line_order
+    assert owner.get("/api/line-shop/preferences").get_json()["data"] == {
+        "bookOrder": line_order,
+        "accountAuthenticated": True,
+    }
+    assert owner.get("/api/dfs/preferences").get_json()["data"]["compareBookOrder"] == dfs_order
+    assert app_client.get("/api/line-shop/preferences").get_json()["data"] == {
+        "bookOrder": [],
+        "accountAuthenticated": False,
+    }
+
+
 def test_account_registration_persists_username_and_rejects_duplicates(app_client):
     first = app_client.post(
         "/api/auth/register",

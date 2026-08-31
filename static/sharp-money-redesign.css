@@ -185,9 +185,9 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list {
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-signal-list .sharp-signal-card {
-  min-height: 156px !important;
-  height: 156px !important;
-  flex: 0 0 156px;
+  min-height: 172px !important;
+  height: 172px !important;
+  flex: 0 0 172px;
   grid-template-columns: 145px minmax(0, 1fr) !important;
   border-color: #273449 !important;
   border-radius: 9px !important;
@@ -269,7 +269,7 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-event {
   min-width: 0;
   padding: 9px 18px 2px 0;
   display: grid;
-  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-rows: minmax(0, 1fr) auto auto;
   align-content: center;
   gap: 8px;
   border-right: 1px solid #2b374a;
@@ -295,7 +295,7 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team {
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team > strong {
   width: 100%;
   color: #f4f7fb;
-  font: 750 14.5px/1.08 var(--il-font-ui);
+  font: 750 15.5px/1.08 var(--il-font-ui);
   letter-spacing: -.018em;
   text-wrap: balance;
 }
@@ -308,8 +308,8 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-versus {
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo {
-  width: 42px;
-  height: 42px;
+  width: 45px;
+  height: 45px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -319,18 +319,27 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo {
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-team-logo img {
-  width: 36px;
-  height: 36px;
+  width: 39px;
+  height: 39px;
   display: block;
   object-fit: contain;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-meta {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 3px;
   text-align: center;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-featured-selection {
+  min-width: 0;
+  color: #f5f7fb;
+  font: 800 16px/1.1 var(--il-font-ui);
+  text-align: center;
+  overflow-wrap: anywhere;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-market-meta > em {
@@ -349,23 +358,23 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-execution {
   padding: 0 !important;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: 42px 1fr;
+  grid-template-rows: 50px 1fr;
   align-items: stretch;
-  gap: 6px;
+  gap: 9px;
   background: transparent;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(154px, 1fr) 118px 66px 34px;
+  grid-template-columns: minmax(190px, 1.35fr) 112px 64px 34px;
   align-items: center;
   justify-content: end;
   gap: 7px;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-card-rec-bet {
-  min-height: 38px;
+  min-height: 46px;
   padding: 0 10px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -391,16 +400,16 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-rec-stake sma
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-rec-selection {
-  overflow: hidden;
+  overflow: visible;
   color: #f2f5fa;
   font: 750 13px/1.1 var(--il-font-ui);
   text-align: center;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row > .sharp-sportsbook-action {
-  min-height: 38px;
+  min-height: 46px;
   border-color: #2e3b51 !important;
   background: #101928 !important;
 }
@@ -432,11 +441,12 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-add {
   background: linear-gradient(180deg, #6d36c8, #442078);
   color: #fff;
   box-shadow: 0 5px 14px rgba(87, 34, 168, .28);
+  justify-self: end;
 }
 
 body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-depth-summary {
   min-width: 0;
-  padding-top: 6px;
+  padding-top: 10px;
   display: block;
   align-items: center;
   border-top: 1px solid #2b374a;
@@ -708,6 +718,18 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
   height: 34px;
 }
 
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-table-row[draggable="true"] {
+  cursor: grab;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-table-row[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-table-row.dragging {
+  opacity: .45;
+}
+
 @media (max-width: 1320px) and (min-width: 981px) {
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-workspace,
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-workspace.detail-hidden {
@@ -731,7 +753,7 @@ body[data-design-system="v2"][data-page="sharp-money"] .sharp-market-book img {
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-action-row {
-    grid-template-columns: minmax(142px, 1fr) 102px 32px;
+    grid-template-columns: minmax(190px, 1fr) 104px 32px;
   }
 
   body[data-design-system="v2"][data-page="sharp-money"] .sharp-card-bet {

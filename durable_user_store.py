@@ -85,6 +85,12 @@ class PostgresUserStore:
                             AND table_name = 'user_settings'
                             AND column_name = 'dfs_compare_book_order_json'
                       )
+                      AND EXISTS (
+                          SELECT 1
+                          FROM information_schema.tables
+                          WHERE table_schema = current_schema()
+                            AND table_name = 'line_shop_preferences'
+                      )
                     LIMIT 1
                     """,
                     (MARKET_QUOTE_MIGRATION_VERSION,),
@@ -159,6 +165,13 @@ class PostgresUserStore:
                 dfs_compare_book_order_json TEXT NOT NULL DEFAULT '[]',
                 settings_version INTEGER NOT NULL DEFAULT 1,
                 unit_percentage DOUBLE PRECISION NOT NULL,
+                updated_at TEXT NOT NULL
+            )
+            """,
+            """
+            CREATE TABLE IF NOT EXISTS line_shop_preferences (
+                user_id TEXT PRIMARY KEY,
+                book_order_json TEXT NOT NULL DEFAULT '[]',
                 updated_at TEXT NOT NULL
             )
             """,
@@ -1253,6 +1266,37 @@ class PostgresUserStore:
         if row is None:
             raise LookupError(f"User settings not found for {user_id}")
         return dict(row)
+
+    def get_line_shop_book_order(self, user_id: str) -> list[str]:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT book_order_json FROM line_shop_preferences WHERE user_id = %s",
+                (user_id,),
+            ).fetchone()
+        if row is None:
+            return []
+        try:
+            value = json.loads(row["book_order_json"])
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        return value if isinstance(value, list) else []
+
+    def update_line_shop_book_order(
+        self, user_id: str, book_order: list[str]
+    ) -> list[str]:
+        now = datetime.now(timezone.utc).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO line_shop_preferences (user_id, book_order_json, updated_at)
+                VALUES (%s, %s, %s)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    book_order_json = EXCLUDED.book_order_json,
+                    updated_at = EXCLUDED.updated_at
+                """,
+                (user_id, json.dumps(book_order), now),
+            )
+        return list(book_order)
 
     def list_user_settings(self) -> list[dict]:
         with self.connection() as conn:

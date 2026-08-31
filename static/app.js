@@ -43,8 +43,155 @@ function latestPagePayloadCacheKey(scope) {
   return pagePayloadCacheKey(scope, "latest");
 }
 
+const LINE_SHOP_ORDER_STORAGE_KEY = "iconlabsLineShopBookOrderV1";
+const LINE_SHOP_LEGACY_SEED_KEY = "dfsCompareBookOrder";
+const LINE_SHOP_REQUIRED_BOOKS = [
+  "fanduel", "novig", "prophetx", "draftkings", "pinnacle", "circa",
+  "kalshi", "polymarket", "prizepicks", "underdog", "dk-pick6", "betr",
+  "dabble", "sleeper",
+];
+let lineShopPreferenceSync = null;
+let lineShopAccountAuthenticated = false;
+let lineShopLocalOrderDirty = false;
+
+function normalizedLineShopBookKey(value) {
+  const raw = String(value || "").trim().toLowerCase().replace(/^(oddsapi__|oddsengine__)/, "");
+  return ({
+    prophetexchange:"prophetx", pick6:"dk-pick6", draftkingspick6:"dk-pick6",
+    hardrock:"hard-rock", hardrockbet:"hard-rock", fourcx:"4cx",
+    circasports:"circa", betonlineag:"betonline",
+  })[raw] || raw;
+}
+
+function uniqueLineShopBooks(values) {
+  const seen = new Set();
+  return (values || []).map(normalizedLineShopBookKey).filter(key => {
+    if (!key || !/^[a-z0-9_-]+$/.test(key) || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function storedLineShopBookOrder(extraBooks = []) {
+  let saved = [];
+  try {
+    saved = JSON.parse(
+      safeStorage.getItem(LINE_SHOP_ORDER_STORAGE_KEY)
+      || safeStorage.getItem(LINE_SHOP_LEGACY_SEED_KEY)
+      || "[]"
+    );
+  } catch (_) {}
+  return uniqueLineShopBooks([
+    ...(Array.isArray(saved) ? saved : []),
+    ...LINE_SHOP_REQUIRED_BOOKS,
+    ...extraBooks,
+  ]);
+}
+
+function lineShopBookRank(value, extraBooks = []) {
+  const key = normalizedLineShopBookKey(value);
+  const index = storedLineShopBookOrder(extraBooks).indexOf(key);
+  return index < 0 ? Number.MAX_SAFE_INTEGER : index;
+}
+
+function syncLineShopBookOrder() {
+  if (lineShopPreferenceSync) return lineShopPreferenceSync;
+  lineShopPreferenceSync = fetch("/api/line-shop/preferences", {headers:{Accept:"application/json"}, cache:"no-store"})
+    .then(response => response.ok ? response.json() : null)
+    .then(payload => {
+      lineShopAccountAuthenticated = Boolean(payload?.data?.accountAuthenticated);
+      const remote = uniqueLineShopBooks(payload?.data?.bookOrder || []);
+      if (remote.length && !lineShopLocalOrderDirty) {
+        safeStorage.setItem(LINE_SHOP_ORDER_STORAGE_KEY, JSON.stringify(remote));
+        window.dispatchEvent(new CustomEvent("iconlabs:line-shop-order", {detail:{order:remote}}));
+      }
+      return remote;
+    })
+    .catch(() => []);
+  return lineShopPreferenceSync;
+}
+
+function saveLineShopBookOrder(visibleOrder) {
+  lineShopLocalOrderDirty = true;
+  const visible = uniqueLineShopBooks(visibleOrder);
+  const visibleSet = new Set(visible);
+  const next = uniqueLineShopBooks([
+    ...visible,
+    ...storedLineShopBookOrder().filter(key => !visibleSet.has(key)),
+    ...LINE_SHOP_REQUIRED_BOOKS,
+  ]);
+  safeStorage.setItem(LINE_SHOP_ORDER_STORAGE_KEY, JSON.stringify(next));
+  window.dispatchEvent(new CustomEvent("iconlabs:line-shop-order", {detail:{order:next}}));
+  syncLineShopBookOrder().then(() => {
+    if (!lineShopAccountAuthenticated) return;
+    return fetch("/api/line-shop/preferences", {
+      method:"PUT",
+      headers:{"Content-Type":"application/json", Accept:"application/json"},
+      body:JSON.stringify({bookOrder:next}),
+    });
+  }).catch(() => {});
+  return next;
+}
+
+const boundLineShopDragContainers = new WeakSet();
+function sortedLineShopRows(rows, keyOf = row => row?.bookKey || row?.providerKey || "") {
+  const values = Array.isArray(rows) ? [...rows] : [];
+  const keys = values.map(keyOf);
+  return values
+    .map((row,index) => ({row,index,rank:lineShopBookRank(keyOf(row),keys)}))
+    .sort((left,right) => left.rank-right.rank || left.index-right.index)
+    .map(item => item.row);
+}
+
+function bindLineShopDrag(container, selector = "[data-line-shop-book]") {
+  if (!container || boundLineShopDragContainers.has(container)) return;
+  boundLineShopDragContainers.add(container);
+  let draggedBook = "";
+  container.addEventListener("dragstart", event => {
+    const row = event.target.closest(selector);
+    if (!row) return;
+    draggedBook = row.dataset.lineShopBook || "";
+    row.classList.add("dragging");
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain",draggedBook);
+  });
+  container.addEventListener("dragover", event => {
+    const target = event.target.closest(selector);
+    if (!draggedBook || !target || target.dataset.lineShopBook === draggedBook) return;
+    event.preventDefault();
+  });
+  container.addEventListener("drop", event => {
+    const target = event.target.closest(selector);
+    if (!target || !draggedBook || target.dataset.lineShopBook === draggedBook) return;
+    event.preventDefault();
+    const scope = target.closest("[data-line-shop-group]") || container;
+    const order = uniqueLineShopBooks([...scope.querySelectorAll(selector)].map(row => row.dataset.lineShopBook));
+    const sourceIndex = order.indexOf(normalizedLineShopBookKey(draggedBook));
+    const targetIndex = order.indexOf(normalizedLineShopBookKey(target.dataset.lineShopBook));
+    if (sourceIndex < 0 || targetIndex < 0) return;
+    order.splice(sourceIndex,1);
+    order.splice(targetIndex,0,normalizedLineShopBookKey(draggedBook));
+    saveLineShopBookOrder(order);
+  });
+  container.addEventListener("dragend", () => {
+    draggedBook = "";
+    container.querySelectorAll(`${selector}.dragging`).forEach(row => row.classList.remove("dragging"));
+  });
+}
+
+window.IconLabsLineShopOrder = Object.freeze({
+  normalize: normalizedLineShopBookKey,
+  order: storedLineShopBookOrder,
+  rank: lineShopBookRank,
+  save: saveLineShopBookOrder,
+  sync: syncLineShopBookOrder,
+  sortRows: sortedLineShopRows,
+  bindDrag: bindLineShopDrag,
+});
+
 const DFS_PREWARM_DEFAULT_WEIGHTS = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
 let dfsPrewarmPromise = null;
+let oddsScreenPrewarmPromise = null;
 
 function dfsPrewarmRequest() {
   const keys = Object.keys(DFS_PREWARM_DEFAULT_WEIGHTS);
@@ -58,7 +205,7 @@ function dfsPrewarmRequest() {
     && keys.every((key) => Number.isFinite(Number(stored[key])))
     && keys.reduce((total,key) => total+Number(stored[key]),0) === 100;
   const weights = Object.fromEntries(keys.map((key) => [key,valid ? Number(stored[key]) : DFS_PREWARM_DEFAULT_WEIGHTS[key]]));
-  const params = new URLSearchParams({book:"prizepicks",weights:JSON.stringify(weights),schema:"quality-guardrails-v3"});
+  const params = new URLSearchParams({book:"all",weights:JSON.stringify(weights),schema:"quality-guardrails-v3"});
   return {cacheKey:pagePayloadCacheKey("dfs",params.toString()), url:`/api/dfs/lines?${params}`};
 }
 
@@ -72,6 +219,19 @@ function prewarmFantasyOptimizer() {
     .catch(() => {})
     .finally(() => { dfsPrewarmPromise = null; });
   return dfsPrewarmPromise;
+}
+
+function prewarmOddsScreen() {
+  if (page === "odds-screen") return Promise.resolve();
+  const params = new URLSearchParams({active:"1"});
+  const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
+  if (readPagePayloadCache(cacheKey,10*60*1000)) return Promise.resolve();
+  if (oddsScreenPrewarmPromise) return oddsScreenPrewarmPromise;
+  oddsScreenPrewarmPromise = fetchJson(`/api/odds-screen?${params}`)
+    .then(payload => writePagePayloadCache(cacheKey,payload))
+    .catch(() => {})
+    .finally(() => { oddsScreenPrewarmPromise = null; });
+  return oddsScreenPrewarmPromise;
 }
 
 function cachePagePayload(scope, key, payload) {
@@ -5905,6 +6065,12 @@ function bindNavigation() {
       link.addEventListener("focus", prewarmFantasyOptimizer, {once:true});
     });
   }
+  if (page !== "odds-screen") {
+    document.querySelectorAll('a[href="/odds-screen"]').forEach((link) => {
+      link.addEventListener("pointerenter", prewarmOddsScreen, {once:true});
+      link.addEventListener("focus", prewarmOddsScreen, {once:true});
+    });
+  }
   let moreCloseTimer = 0;
   let moreReturnFocus = null;
   const renderDesktopNavigation = (expanded) => {
@@ -6198,9 +6364,16 @@ function savedOddsProviderOrder() {
   try {
     const saved = JSON.parse(safeStorage.getItem(ODDS_PROVIDER_ORDER_KEY) || "[]");
     const valid = Array.isArray(saved) ? saved.filter((key, index) => typeof key === "string" && /^[a-z0-9_]+$/.test(key) && saved.indexOf(key) === index) : [];
-    return [...valid, ...ODDS_PROVIDER_KEYS.filter(key => !valid.includes(key)), ...(valid.includes("best") ? [] : ["best"])];
+    const ordered = [...valid, ...ODDS_PROVIDER_KEYS.filter(key => !valid.includes(key))];
+    return ordered
+      .map((key,index) => ({key,index,rank:lineShopBookRank(key,ordered)}))
+      .sort((left,right) => left.rank-right.rank || left.index-right.index)
+      .map(item => item.key)
+      .concat("best");
   } catch (_) {
-    return [...ODDS_PROVIDER_KEYS, "best"];
+    return [...ODDS_PROVIDER_KEYS]
+      .sort((left,right) => lineShopBookRank(left,ODDS_PROVIDER_KEYS)-lineShopBookRank(right,ODDS_PROVIDER_KEYS))
+      .concat("best");
   }
 }
 
@@ -7043,6 +7216,7 @@ function bindOddsColumnDrag(header) {
       oddsState.providerOrder = next;
       oddsState.providers = next.filter(key => oddsState.providers.includes(key));
       persistOddsProviderOrder();
+      window.IconLabsLineShopOrder?.save(next.filter(key => key !== "best"));
       renderOddsScreen();
     }
     document.querySelectorAll("[data-odds-column]").forEach(item => item.classList.remove("dragging", "drop-before", "drop-after"));
@@ -7093,6 +7267,15 @@ function bindOddsScreen() {
   const propsTrigger = document.getElementById("odds-props-trigger");
   const propsMenu = document.getElementById("odds-props-menu");
   bindOddsDragAutoScroll();
+  window.addEventListener("iconlabs:line-shop-order", () => {
+    oddsState.providerOrder = oddsState.providerOrder
+      .filter(key => key !== "best")
+      .map((key,index) => ({key,index,rank:lineShopBookRank(key,oddsState.providerOrder)}))
+      .sort((left,right) => left.rank-right.rank || left.index-right.index)
+      .map(item => item.key)
+      .concat("best");
+    renderOddsScreen();
+  });
 
   leagueTrigger?.addEventListener("click", () => toggleOddsMenu(leagueTrigger, leagueMenu));
   booksTrigger?.addEventListener("click", () => toggleOddsMenu(booksTrigger, booksMenu));
@@ -7309,6 +7492,7 @@ async function loadGlobalRiskState() {
 
 function prewarmInstantPages() {
   prewarmFantasyOptimizer();
+  prewarmOddsScreen();
 
   if (page !== "trades" && !readPagePayloadCache(latestPagePayloadCacheKey("trades"))) {
     fetchJson("/api/trades-to-play?fast=1")
@@ -7331,6 +7515,7 @@ function prewarmInstantPages() {
 function initialize() {
   bindNavigation();
   bindAccount();
+  window.IconLabsLineShopOrder?.sync();
   // Sharp Money is an isolated static sandbox until a real liquidity feed exists.
   if (page !== "sharp-money") {
     const loadGlobalChrome = () => {
@@ -7350,7 +7535,9 @@ function initialize() {
   if (page === "intelligence") bindIntelligence();
   if (page === "shadow-test") loadShadowTest();
   if (page === "odds-screen") bindOddsScreen();
-  if (page !== "trades" && page !== "tracker" && page !== "sharp-money") {
+  if (page === "sharp-money") {
+    runWhenIdle(prewarmOddsScreen);
+  } else if (page !== "trades" && page !== "tracker") {
     runWhenIdle(prewarmInstantPages);
   }
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);

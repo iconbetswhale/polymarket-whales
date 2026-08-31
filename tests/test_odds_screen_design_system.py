@@ -168,6 +168,19 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
 
 
+def test_odds_screen_is_prewarmed_and_shares_account_backed_book_order():
+    script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+
+    assert "function prewarmOddsScreen()" in script
+    assert "prewarmOddsScreen();" in script
+    assert "window.IconLabsLineShopOrder" in script
+    assert "lineShopLocalOrderDirty" in script
+    assert 'LINE_SHOP_ORDER_STORAGE_KEY = "iconlabsLineShopBookOrderV1"' in script
+    assert 'fetch("/api/line-shop/preferences"' in script
+    assert 'window.IconLabsLineShopOrder?.save(next.filter(key => key !== "best"))' in script
+    assert 'window.addEventListener("iconlabs:line-shop-order"' in script
+
+
 def test_odds_screen_uses_the_supplied_caesars_sportsbook_logo():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
     preview = (ROOT / "odds_screen_preview.py").read_text(encoding="utf-8")

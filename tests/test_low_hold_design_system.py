@@ -70,6 +70,13 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         assert required in SCRIPT
 
 
+def test_low_hold_comparison_uses_shared_draggable_book_order() -> None:
+    assert 'draggable="true" data-line-shop-book' in SCRIPT
+    assert "IconLabsLineShopOrder?.sortRows" in SCRIPT
+    assert "IconLabsLineShopOrder?.bindDrag" in SCRIPT
+    assert "quotes.slice(0, 8)" not in SCRIPT
+
+
 def test_locked_first_leg_is_the_recommended_sizing_workflow() -> None:
     assert '<option value="first-leg">Bet 1 stake</option>' in TEMPLATE
     assert '<strong>Lock Bet 1</strong>' in TEMPLATE

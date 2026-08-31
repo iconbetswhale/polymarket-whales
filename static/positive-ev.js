@@ -838,7 +838,12 @@
     const bookKeys = [...new Set(sides.flatMap(side => side.quotes.map(quote => quote.bookKey)))];
     if (!bookKeys.length) return "";
     const priceOf = quote => Number(quote?.topPriceAmericanOdds ?? quote?.americanOdds ?? -10000);
-    bookKeys.sort((left, right) => priceOf(sideMaps[0].get(right)) - priceOf(sideMaps[0].get(left)));
+    bookKeys.sort((left, right) => {
+      const order = window.IconLabsLineShopOrder;
+      const leftRank = order?.rank(left,bookKeys) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = order?.rank(right,bookKeys) ?? Number.MAX_SAFE_INTEGER;
+      return leftRank-rightRank || priceOf(sideMaps[0].get(right))-priceOf(sideMaps[0].get(left));
+    });
     const bestBySide = sideMaps.map(sideMap => Math.max(...[...sideMap.values()].map(priceOf)));
     const priceCell = (quote, sideIndex) => {
       if (!quote) return `<span class="ev-compare-price unavailable" aria-label="No price available">—</span>`;
@@ -854,7 +859,7 @@
       const right = sideMaps[1]?.get(bookKey);
       const representative = left || right || {};
       const label = representative.bookName || bookNames[bookKey] || bookKey;
-      return `<div class="ev-market-compare-row">
+      return `<div class="ev-market-compare-row" draggable="true" data-line-shop-book="${esc(bookKey)}" title="Drag ${esc(label)} to reorder line shopping">
         ${priceCell(left, 0)}
         <span class="ev-market-book-center" title="${esc(label)}" aria-label="${esc(label)}">${img(representative.logoUrl, bookKey)}<span>${esc(label)}</span></span>
         ${sides.length > 1 ? priceCell(right, 1) : ""}
@@ -887,6 +892,45 @@
     setMarketOddsExpanded(section, expanded);
     section.querySelector(".ev-market-odds-toggle")?.addEventListener("click", () => {
       setMarketOddsExpanded(section, !section.classList.contains("is-expanded"));
+    });
+    let draggedBook = "";
+    section.addEventListener("dragstart", event => {
+      const row = event.target.closest("[data-line-shop-book]");
+      if (!row) return;
+      draggedBook = row.dataset.lineShopBook;
+      row.classList.add("dragging");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain",draggedBook);
+    });
+    section.addEventListener("dragover", event => {
+      const target = event.target.closest("[data-line-shop-book]");
+      if (!draggedBook || !target || target.dataset.lineShopBook===draggedBook) return;
+      event.preventDefault();
+    });
+    section.addEventListener("drop", event => {
+      const target = event.target.closest("[data-line-shop-book]");
+      if (!target || !draggedBook || target.dataset.lineShopBook===draggedBook) return;
+      event.preventDefault();
+      const order = [...section.querySelectorAll("[data-line-shop-book]")].map(item=>item.dataset.lineShopBook);
+      const sourceIndex = order.indexOf(draggedBook);
+      const targetIndex = order.indexOf(target.dataset.lineShopBook);
+      if (sourceIndex < 0 || targetIndex < 0) return;
+      order.splice(sourceIndex,1);
+      order.splice(targetIndex,0,draggedBook);
+      window.IconLabsLineShopOrder?.save(order);
+      const selected = rows.find(item=>String(item.id)===String(selectedId));
+      const markup = selected ? marketOddsVisual(selected) : "";
+      if (markup) {
+        const wasExpanded = section.classList.contains("is-expanded");
+        const template = document.createElement("template");
+        template.innerHTML = markup.trim();
+        section.replaceWith(template.content.firstElementChild);
+        bindMarketOddsControls(wasExpanded);
+      }
+    });
+    section.addEventListener("dragend", () => {
+      draggedBook = "";
+      section.querySelectorAll("[data-line-shop-book].dragging").forEach(item=>item.classList.remove("dragging"));
     });
   }
 
@@ -1415,6 +1459,16 @@
     renderTrackerTags();
   });
   document.addEventListener("error",event=>{if(event.target.matches(".ev-book-logo")){event.target.hidden=true;event.target.parentElement.classList.add("fallback");}},true);
+  window.addEventListener("iconlabs:line-shop-order",()=>{
+    const selected=rows.find(item=>String(item.id)===String(selectedId));
+    const section=detail.querySelector(".ev-market-comparison");
+    if(!selected||!section)return;
+    const expanded=section.classList.contains("is-expanded");
+    const template=document.createElement("template");
+    template.innerHTML=marketOddsVisual(selected).trim();
+    section.replaceWith(template.content.firstElementChild);
+    bindMarketOddsControls(expanded);
+  });
   renderFilters();
   loadBankrollSettings().finally(()=>load(true));
 })();

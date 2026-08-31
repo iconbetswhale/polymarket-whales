@@ -110,3 +110,10 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         "showModal()",
     ):
         assert required in SCRIPT
+
+
+def test_arbitrage_comparison_uses_shared_draggable_book_order() -> None:
+    assert 'draggable="true" data-line-shop-book' in SCRIPT
+    assert "IconLabsLineShopOrder?.sortRows" in SCRIPT
+    assert "IconLabsLineShopOrder?.bindDrag" in SCRIPT
+    assert "quotes.slice(0, 8)" not in SCRIPT
