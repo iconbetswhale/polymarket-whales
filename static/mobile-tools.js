@@ -304,6 +304,9 @@
         const stat = [statNumber, statLabel].filter(Boolean).join(" ") || cells[2].textContent.trim();
         const line = cells[3].textContent.trim() || "—";
         const hit = cells[4].textContent.trim() || "—";
+        const hitRate = cells[4].querySelector(".hit-rate");
+        const hitRateBand = ["positive-edge", "near-threshold", "negative-edge", "below-threshold"]
+          .find((band) => hitRate?.classList.contains(band)) || "below-threshold";
         const key = `${player}|${side}|${stat}|${line}`;
 
         const details = document.createElement("details");
@@ -334,7 +337,7 @@
         copy.append(title, pick, meta);
 
         const score = document.createElement("span");
-        score.className = "dfs-mobile-hit";
+        score.className = `dfs-mobile-hit ${hitRateBand}`;
         const scoreValue = document.createElement("strong");
         scoreValue.textContent = hit;
         const scoreLabel = document.createElement("small");

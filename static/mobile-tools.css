@@ -4,6 +4,7 @@
 .dfs-mobile-other-apps,
 .dfs-mobile-filter-command,
 .dfs-mobile-list,
+.dfs-mobile-control-label,
 .mobile-trade-samples {
   display: none;
 }
@@ -1932,9 +1933,11 @@
   }
 
   .dfs-mobile-app-mark img {
-    width: 34px;
-    height: 34px;
-    object-fit: contain;
+    display: block;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px;
+    object-fit: cover;
   }
 
   .dfs-mobile-player-copy {
@@ -1972,8 +1975,20 @@
   }
 
   .dfs-mobile-hit strong {
-    color: #57dc8b;
+    color: var(--il-mobile-muted);
     font-size: 15px;
+  }
+
+  .dfs-mobile-hit.positive-edge strong {
+    color: var(--il-positive-hover, #57dc8b);
+  }
+
+  .dfs-mobile-hit.near-threshold strong {
+    color: var(--il-warning, #f0c75e);
+  }
+
+  .dfs-mobile-hit.negative-edge strong {
+    color: var(--il-negative, #ff5c73);
   }
 
   .dfs-mobile-hit small {
@@ -2817,20 +2832,71 @@
   .dfs-book,
   .dfs-devig-button,
   .dfs-parlay-guide-button {
-    justify-content: center !important;
+    height: 46px !important;
+    min-height: 46px !important;
+    max-height: 46px !important;
+    grid-template-columns: 24px minmax(0, 1fr) 8px !important;
+    align-items: center !important;
+    justify-content: initial !important;
+    gap: 3px !important;
+    padding: 4px !important;
   }
 
-  .dfs-book > span,
-  .dfs-devig-button > span,
-  .dfs-parlay-guide-button > span,
-  .dfs-mobile-other-apps > span,
-  .dfs-mobile-other-apps > .ph-caret-down {
+  .dfs-book.active,
+  .dfs-devig-button,
+  .dfs-parlay-guide-button {
+    display: grid !important;
+  }
+
+  .dfs-book > img,
+  .dfs-devig-button > i:first-child,
+  .dfs-parlay-guide-button > i:first-child,
+  .dfs-mobile-other-apps > i:first-child {
+    width: 24px !important;
+    height: 24px !important;
+    flex-basis: 24px !important;
+  }
+
+  .dfs-book > span:not(.dfs-mobile-control-label),
+  .dfs-devig-button > span:not(.dfs-mobile-control-label),
+  .dfs-parlay-guide-button > span:not(.dfs-mobile-control-label) {
     display: none !important;
   }
 
+  .dfs-mobile-control-label {
+    display: flex !important;
+    min-width: 0;
+    align-items: center;
+  }
+
+  .dfs-mobile-control-label strong {
+    overflow: hidden;
+    color: #edf1f8;
+    font-size: 8px !important;
+    font-weight: 750;
+    line-height: 1 !important;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .dfs-mobile-other-apps,
+  .dfs-book.active {
+    border-color: rgba(155, 92, 246, .58) !important;
+    background: linear-gradient(135deg, rgba(155, 92, 246, .12), var(--il-mobile-panel-strong) 72%) !important;
+  }
+
   .dfs-mobile-other-apps {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
+    min-height: 46px;
+    grid-template-columns: 24px minmax(0, 1fr) 8px;
+    gap: 3px;
+    padding: 4px;
+  }
+
+  .dfs-book.active .dfs-parlay-tab-caret,
+  .dfs-mobile-other-apps > .ph-caret-down {
+    display: block !important;
+    color: #b9a1e8;
+    font-size: 9px;
   }
 }
 
@@ -2879,8 +2945,9 @@
   }
 
   .dfs-mobile-app-mark img {
-    width: 30px;
-    height: 30px;
+    width: 100%;
+    height: 100%;
+    border-radius: 9px;
   }
 
   .calc-tool-header,

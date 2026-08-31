@@ -274,9 +274,14 @@
     if (!button) return;
     const buttonRect = button.getBoundingClientRect();
     const accent = getComputedStyle(button).getPropertyValue('--dfs-book-accent').trim();
-    parlayConfig.style.left = `${Math.round(buttonRect.left)}px`;
+    const phonePicker = window.matchMedia('(max-width: 480px)').matches;
+    const pickerWidth = phonePicker ? Math.min(240,window.innerWidth-20) : buttonRect.width;
+    const pickerLeft = phonePicker
+      ? Math.min(Math.max(10,buttonRect.left),window.innerWidth-pickerWidth-10)
+      : buttonRect.left;
+    parlayConfig.style.left = `${Math.round(pickerLeft)}px`;
     parlayConfig.style.top = `${Math.round(buttonRect.bottom+2)}px`;
-    parlayConfig.style.width = `${Math.round(buttonRect.width)}px`;
+    parlayConfig.style.width = `${Math.round(pickerWidth)}px`;
     parlayConfig.style.setProperty('--parlay-picker-accent',accent || 'var(--il-brand)');
   }
 

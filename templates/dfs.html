@@ -17,12 +17,12 @@
         <div class="dfs-app-picker">
           <div class="dfs-book-row" role="tablist" aria-label="DFS book">
             {% for book, logo, slip in [('PrizePicks','prizepicks','6 Pick Flex · -118'),('Underdog','underdog','2 Pick Standard · -115'),('DK Pick6','dk-pick6','3 Pick · -122'),('Betr','betr','8 Pick Flex · -118'),('Dabble','dabble','6 Pick Hedge · -122')] %}
-            <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-expanded="false" aria-haspopup="listbox" aria-controls="dfs-parlay-config" data-dfs-book="{{ book }}" data-book-key="{{ logo }}"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small data-dfs-parlay-summary>{{ slip }}</small></span><i class="ph ph-caret-down dfs-parlay-tab-caret" aria-hidden="true"></i></button>
+            <button class="dfs-book{% if loop.first %} active{% endif %}" type="button" role="tab" aria-selected="{{ 'true' if loop.first else 'false' }}" aria-expanded="false" aria-haspopup="listbox" aria-controls="dfs-parlay-config" data-dfs-book="{{ book }}" data-book-key="{{ logo }}"><img src="{{ url_for('static', filename='assets/dfs-books/' ~ logo ~ '.png', v=asset_version) }}" alt=""><span><strong>{{ book }}</strong><small data-dfs-parlay-summary>{{ slip }}</small></span><span class="dfs-mobile-control-label" aria-hidden="true"><strong>Slip type</strong></span><i class="ph ph-caret-down dfs-parlay-tab-caret" aria-hidden="true"></i></button>
             {% endfor %}
           </div>
           <label class="dfs-mobile-other-apps" for="dfs-mobile-book-select">
             <i class="ph ph-squares-four" aria-hidden="true"></i>
-            <span><strong>Other apps</strong><small>Choose DFS</small></span>
+            <span class="dfs-mobile-control-label" aria-hidden="true"><strong>Apps</strong><small>Choose DFS</small></span>
             <select id="dfs-mobile-book-select" aria-label="Choose another fantasy app">
               <option value="">Select another app</option>
               {% for book in ['PrizePicks', 'Underdog', 'DK Pick6', 'Betr', 'Dabble'] %}<option value="{{ book }}">{{ book }}</option>{% endfor %}
@@ -35,8 +35,8 @@
       <section class="dfs-app-group dfs-optimizer-group" aria-labelledby="dfs-optimizer-label">
         <h2 id="dfs-optimizer-label">Optimizer</h2>
         <div class="dfs-optimizer-actions">
-          <button class="dfs-devig-button" id="dfs-devig-open" type="button" aria-labelledby="dfs-devig-label dfs-devig-summary"><i class="ph ph-sliders-horizontal dfs-action-icon" aria-hidden="true"></i><span><strong id="dfs-devig-label">DVIG Settings</strong><small id="dfs-devig-summary">IconLabs Algo · 100%</small></span><i class="ph ph-arrow-right dfs-action-arrow" aria-hidden="true"></i></button>
-          <button class="dfs-parlay-guide-button" id="dfs-parlay-guide-open" type="button" aria-haspopup="dialog" aria-controls="dfs-parlay-guide-dialog" aria-label="Best Parlay Type To Build?"><i class="ph ph-chart-bar dfs-action-icon" aria-hidden="true"></i><span><strong>Best Parlay Type</strong><small>To Build?</small></span><i class="ph ph-arrow-right dfs-action-arrow" aria-hidden="true"></i></button>
+          <button class="dfs-devig-button" id="dfs-devig-open" type="button" aria-labelledby="dfs-devig-label dfs-devig-summary"><i class="ph ph-sliders-horizontal dfs-action-icon" aria-hidden="true"></i><span><strong id="dfs-devig-label">DVIG Settings</strong><small id="dfs-devig-summary">IconLabs Algo · 100%</small></span><span class="dfs-mobile-control-label" aria-hidden="true"><strong>DVIG</strong></span><i class="ph ph-arrow-right dfs-action-arrow" aria-hidden="true"></i></button>
+          <button class="dfs-parlay-guide-button" id="dfs-parlay-guide-open" type="button" aria-haspopup="dialog" aria-controls="dfs-parlay-guide-dialog" aria-label="Best Parlay Type To Build?"><i class="ph ph-chart-bar dfs-action-icon" aria-hidden="true"></i><span><strong>Best Parlay Type</strong><small>To Build?</small></span><span class="dfs-mobile-control-label" aria-hidden="true"><strong>Best type</strong></span><i class="ph ph-arrow-right dfs-action-arrow" aria-hidden="true"></i></button>
         </div>
       </section>
     </div>

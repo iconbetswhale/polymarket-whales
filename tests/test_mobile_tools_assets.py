@@ -102,12 +102,33 @@ def test_mobile_dfs_picker_keeps_one_active_app_and_an_other_apps_control():
     template = (ROOT / "templates" / "dfs.html").read_text(encoding="utf-8")
     styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
     script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+    dfs_script = (ROOT / "static" / "dfs.js").read_text(encoding="utf-8")
 
     assert 'id="dfs-mobile-book-select"' in template
-    assert "Other apps" in template
+    assert "Apps" in template
+    assert "Slip type" in template
+    assert "dfs-mobile-control-label" in template
     assert ".dfs-book.active" in styles
     assert "setupDfsAppPicker" in script
     assert 'nextBook?.click()' in script
+    assert "window.matchMedia('(max-width: 480px)').matches" in dfs_script
+    assert "Math.min(240,window.innerWidth-20)" in dfs_script
+
+
+def test_mobile_dfs_labels_compact_actions_and_preserves_probability_bands():
+    template = (ROOT / "templates" / "dfs.html").read_text(encoding="utf-8")
+    styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+    script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+
+    for label in ("Slip type", "Apps", "DVIG", "Best type", "Filters"):
+        assert label in template
+    assert ".dfs-mobile-control-label" in styles
+    assert ".dfs-mobile-hit.positive-edge strong" in styles
+    assert ".dfs-mobile-hit.near-threshold strong" in styles
+    assert ".dfs-mobile-hit.negative-edge strong" in styles
+    assert 'hitRate?.classList.contains(band)' in script
+    assert 'score.className = `dfs-mobile-hit ${hitRateBand}`' in script
+    assert "object-fit: cover" in styles
 
 
 def test_mobile_dfs_filters_collapse_behind_a_compact_icon_control():
