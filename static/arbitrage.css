@@ -209,7 +209,8 @@ body[data-page="arbitrage"] .app-shell {
   letter-spacing: 0;
   text-transform: uppercase;
 }
-.arb-money-input { display: flex; align-items: center; min-width: 0; line-height: 1; }
+.arb-money-input { display: flex; align-items: center; min-width: 0; border-radius: 5px; line-height: 1; }
+.arb-money-input:focus-within { outline: 2px solid var(--il-focus, #a86dff); outline-offset: 2px; }
 .arb-money-input b { color: var(--arb-green); font-size: 16px; line-height: 1; }
 .arb-money-input input {
   width: 100%;
@@ -224,6 +225,7 @@ body[data-page="arbitrage"] .app-shell {
   font: 700 16px/15px "DM Sans", sans-serif;
   font-variant-numeric: tabular-nums;
 }
+body[data-design-system="v2"][data-page="arbitrage"] .arb-money-input input:focus-visible { outline: 0; }
 
 .arb-icon-button {
   position: relative;
@@ -372,7 +374,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 }
 .arb-opportunity:has(.arb-leg-summary:nth-child(3)) { min-height: 136px; }
 .arb-opportunity:hover { border-color: var(--arb-line-strong); background: var(--arb-card-hover); }
-.arb-opportunity.active { border-color: rgba(141, 68, 246, .82); background: var(--arb-card-active); box-shadow: inset 3px 0 0 var(--arb-purple); }
+.arb-opportunity.active { border-width: 2px; border-color: rgba(141, 68, 246, .82); background: var(--arb-card-active); box-shadow: inset 3px 0 0 var(--arb-purple); }
 .arb-opportunity:focus-visible { outline: 2px solid rgba(158, 92, 255, .75); outline-offset: 1px; }
 
 .arb-return-cell,
@@ -389,7 +391,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-market-cell { display: grid; grid-template-rows: auto 45px auto; align-content: center; }
 .arb-event-meta,
 .arb-market-cell > span { display: flex; align-items: center; gap: 5px; color: var(--arb-muted); font-size: 12px; font-weight: 650; }
-.arb-event-meta i { color: #8a68c8; }
+.arb-event-meta i { flex: 0 0 auto; color: #8a68c8; font-size: 14px; }
 .arb-event-cell h3 { margin: 5px 0 0; overflow: hidden; color: var(--arb-text); font-size: 16px; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
 .arb-event-cell p { margin: 4px 0 0; overflow: hidden; color: var(--arb-secondary); font-size: 12px; line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; }
 .arb-market-cell strong { margin-top: 5px; color: var(--arb-text); font-size: 16px; line-height: 1.25; }
@@ -408,7 +410,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
   background: rgba(0, 0, 0, .16);
 }
 .arb-leg-summary > span { min-width: 0; overflow: hidden; color: var(--arb-secondary); font-size: 14px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
-.arb-leg-summary > span:first-child { display: flex; align-self: stretch; align-items: center; line-height: 1.2; }
+.arb-leg-summary > span:first-child { display: flex; align-self: stretch; align-items: center; color: var(--arb-text); line-height: 1.2; }
 .arb-leg-summary > b { color: var(--arb-text); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
 .arb-leg-summary img { width: 22px; height: 22px; border-radius: 5px; object-fit: cover; background: #fff; }
 .arb-odds-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 25px; border: 1px solid rgba(80, 217, 119, .55); border-radius: 5px; color: var(--arb-text); font-size: 14px; font-weight: 800; font-variant-numeric: tabular-nums; }

@@ -81,6 +81,19 @@ def test_total_stake_input_formats_thousands_without_letter_spacing() -> None:
     assert "function stakeInputValue" in SCRIPT
     assert "function stakeInputNumber" in SCRIPT
     assert "letter-spacing: 0" in CSS
+    assert ".arb-money-input:focus-within" in CSS
+    assert ".arb-money-input input:focus-visible { outline: 0; }" in CSS
+
+
+def test_play_card_selection_and_sport_treatments_are_explicit() -> None:
+    assert ".arb-opportunity.active { border-width: 2px" in CSS
+    assert ".arb-leg-summary > span:first-child" in CSS
+    assert "color: var(--arb-text)" in CSS
+    assert "function sportIcon" in SCRIPT
+    for icon in ("ph-baseball", "ph-basketball", "ph-soccer-ball", "ph-football"):
+        assert icon in SCRIPT
+    assert "best-price" not in TEMPLATE
+    assert "fee-aware" not in TEMPLATE
 
 
 def test_primary_interactions_and_visible_states_are_implemented() -> None:

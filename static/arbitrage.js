@@ -115,6 +115,18 @@
     return String(row?.league || "").toUpperCase() === "EPL" ? "Soccer" : String(row?.league || "");
   }
 
+  function sportIcon(row) {
+    const sport = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
+    if (sport.includes("baseball") || sport.includes("mlb")) return "ph-baseball";
+    if (sport.includes("basketball") || sport.includes("nba") || sport.includes("wnba")) return "ph-basketball";
+    if (sport.includes("soccer") || sport.includes("epl") || sport.includes("mls")) return "ph-soccer-ball";
+    if (sport.includes("football") || sport.includes("nfl") || sport.includes("ncaaf")) return "ph-football";
+    if (sport.includes("hockey") || sport.includes("nhl")) return "ph-hockey";
+    if (sport.includes("tennis")) return "ph-tennis-ball";
+    if (sport.includes("golf") || sport.includes("pga")) return "ph-golf";
+    return "ph-trophy";
+  }
+
   function dateTime(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Time unavailable";
@@ -195,7 +207,7 @@
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} arbitrage on ${row.eventTitle}`)}">
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
         <div class="arb-event-cell">
-          <span class="arb-event-meta"><i class="ph ph-circle" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
+          <span class="arb-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(dateTime(row.commenceTime))} · ${row.bookCount} book${row.bookCount === 1 ? "" : "s"}</p>
         </div>
