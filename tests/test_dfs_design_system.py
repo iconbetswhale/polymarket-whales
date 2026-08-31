@@ -193,7 +193,7 @@ def test_fantasy_app_selector_matches_grouped_reference_and_uses_brand_accents()
     assert "padding-top: 14px;" in CSS
 
 
-def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odds() -> None:
+def test_compact_laptop_odds_columns_stack_price_metadata_without_collisions() -> None:
     assert '.algo-odds-head,\nbody[data-design-system="v2"][data-page="dfs"] .algo-odds-cell' in CSS
     odds_start = CSS.index("#dfs-line-head,")
     odds_block = CSS[odds_start : CSS.index("}", odds_start)]
@@ -201,10 +201,15 @@ def test_compact_laptop_odds_columns_match_and_alternate_line_does_not_shift_odd
     assert "min-width: 80px;" in odds_block
     assert "max-width: 80px;" in odds_block
     assert "alternateLine===null?'':'has-alternate'" in SCRIPT
-    assert ".book-cell.has-alternate > strong" in CSS
-    assert "top: 50%;" in CSS
-    assert ".book-cell.has-alternate .alternate-line" in CSS
-    assert "top: calc(50% + 12px);" in CSS
+    assert 'class="dfs-book-cell-stack"' in SCRIPT
+    stack_start = CSS.index(".book-cell .dfs-book-cell-stack")
+    stack_block = CSS[stack_start : CSS.index("}", stack_start)]
+    assert "flex-direction: column;" in stack_block
+    assert "align-items: center;" in stack_block
+    assert "gap: 3px;" in stack_block
+    assert ".book-cell.has-alternate > strong" not in CSS
+    assert ".book-cell.has-alternate > .dfs-price-link" not in CSS
+    assert ".book-cell.model-excluded .dfs-book-cell-stack > strong" in CSS
 
 
 def test_cents_prices_include_american_odds_on_a_second_line() -> None:
@@ -219,7 +224,7 @@ def test_cents_prices_include_american_odds_on_a_second_line() -> None:
     main_block = CSS[main_start : CSS.index("}", main_start)]
     detail_start = CSS.index(".dfs-detail-price small.cents-american")
     detail_block = CSS[detail_start : CSS.index("}", detail_start)]
-    assert "font: 700 12px/1" in main_block
+    assert "font: 700 11px/1" in main_block
     assert "font: 700 11px/1" in detail_block
 
 

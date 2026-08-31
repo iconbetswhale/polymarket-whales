@@ -1389,6 +1389,23 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell strong {
   font-variant-numeric: tabular-nums;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .book-cell {
+  vertical-align: middle;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell .dfs-book-cell-stack {
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 58px;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
 body[data-design-system="v2"][data-page="dfs"] .book-cell.muted {
   color: var(--il-text-muted);
   font-size: 14px;
@@ -1396,14 +1413,15 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell.muted {
 
 body[data-design-system="v2"][data-page="dfs"] .book-cell .cents-american {
   display: block;
-  margin: 4px auto 0;
+  margin: 0;
   color: var(--il-text-muted);
-  font: 700 12px/1 var(--il-font-data);
+  font: 700 11px/1 var(--il-font-data);
   font-variant-numeric: tabular-nums;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-price-link {
   display: inline-flex;
+  max-width: 100%;
   align-items: center;
   justify-content: center;
   gap: 3px;
@@ -1412,6 +1430,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-price-link {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-price-link i {
+  flex: 0 0 auto;
   color: var(--il-text-muted);
   font-size: 8px;
 }
@@ -1423,14 +1442,14 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-price-link:focus-visible str
 
 body[data-design-system="v2"][data-page="dfs"] .book-cell .dfs-book-liquidity {
   display: block;
-  margin: 6px auto 0;
+  margin: 0;
   color: var(--il-text-secondary);
-  font: 700 9px/1.1 var(--il-font-data);
+  font: 700 10px/1 var(--il-font-data);
   letter-spacing: .01em;
   font-variant-numeric: tabular-nums;
 }
 
-body[data-design-system="v2"][data-page="dfs"] .book-cell.model-excluded > strong,
+body[data-design-system="v2"][data-page="dfs"] .book-cell.model-excluded .dfs-book-cell-stack > strong,
 body[data-design-system="v2"][data-page="dfs"] .book-cell.model-excluded .dfs-price-link strong {
   color: var(--il-text-secondary);
 }
@@ -1439,7 +1458,7 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell .alternate-line {
   display: block;
   width: max-content;
   min-width: 28px;
-  margin: 6px auto 0;
+  margin: 0;
   padding: 2px 4px;
   border: 1px solid var(--il-border-standard);
   border-radius: var(--il-radius-sm);
@@ -1449,46 +1468,7 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell .alternate-line {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate {
-  position: relative;
   vertical-align: middle;
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate > strong {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate > .dfs-price-link {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate .alternate-line {
-  position: absolute;
-  top: calc(50% + 12px);
-  left: 50%;
-  margin: 0;
-  transform: translateX(-50%);
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american > strong {
-  top: calc(50% - 10px);
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american .cents-american {
-  position: absolute;
-  top: calc(50% + 1px);
-  left: 50%;
-  margin: 0;
-  transform: translateX(-50%);
-}
-
-body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate.has-cents-american .alternate-line {
-  top: calc(50% + 14px);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-prop-row {

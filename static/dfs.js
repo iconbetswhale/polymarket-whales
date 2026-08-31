@@ -940,7 +940,7 @@
         const liquidity = liquidityBookKeys.has(key) ? formatLiquidity(snapshot.liquidity) : '';
         const exclusion = snapshot.modelExcluded ? modelExclusionLabel(snapshot.modelExclusionReason) : '';
         const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate',centsAmerican?'has-cents-american':'',liquidity?'has-liquidity':'',snapshot.modelExcluded?'model-excluded':''].filter(Boolean).join(' ');
-        return `<td class="${classes}" data-book-cell="${key}"${exclusion?` title="${esc(exclusion)}"`:''}>${unavailable?'—':`${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
+        return `<td class="${classes}" data-book-cell="${key}"${exclusion?` title="${esc(exclusion)}"`:''}>${unavailable?'—':`<span class="dfs-book-cell-stack">${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}</span>`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
