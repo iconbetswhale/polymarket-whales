@@ -103,6 +103,18 @@
     return `${Number(value || 0).toFixed(digits)}%`;
   }
 
+  function stakeInputValue(value) {
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(value || 0));
+  }
+
+  function stakeInputNumber(value, fallback) {
+    return numberBetween(String(value ?? "").replaceAll(",", "").trim(), 1, 10_000_000, fallback);
+  }
+
+  function sportLabel(row) {
+    return String(row?.league || "").toUpperCase() === "EPL" ? "Soccer" : String(row?.league || "");
+  }
+
   function dateTime(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Time unavailable";
@@ -153,6 +165,7 @@
     const blob = [
       row.eventTitle,
       row.league,
+      sportLabel(row),
       row.marketLabel,
       row.marketContext,
       ...(row.outcomes || []).flatMap((leg) => [leg.selection, leg.bookName]),
@@ -182,7 +195,7 @@
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} arbitrage on ${row.eventTitle}`)}">
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
         <div class="arb-event-cell">
-          <span class="arb-event-meta"><i class="ph ph-circle" aria-hidden="true"></i>${esc(row.league)} · ${esc(timeUntil(row.commenceTime))}</span>
+          <span class="arb-event-meta"><i class="ph ph-circle" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(dateTime(row.commenceTime))} · ${row.bookCount} book${row.bookCount === 1 ? "" : "s"}</p>
         </div>
@@ -229,7 +242,7 @@
   function populateQuickFilters() {
     const currentSport = state.sport;
     const currentMarket = state.market;
-    const sports = [...new Map(state.rows.map((row) => [row.sportKey, row.league])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
+    const sports = [...new Map(state.rows.map((row) => [row.sportKey, sportLabel(row)])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
     const markets = [...new Map(state.rows.map((row) => [row.marketKey, row.marketLabel])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
     elements.sport.innerHTML = `<option value="">All sports</option>${sports.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("")}`;
     elements.market.innerHTML = `<option value="">All markets</option>${markets.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("")}`;
@@ -266,13 +279,13 @@
       <header class="arb-detail-hero">
         <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>guaranteed return</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
         <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p>
+        <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p>
         <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>Copy stake plan</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      <section class="arb-detail-section"><header><h3>Stake plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section"><header><h3>Guaranteed outcome</h3><span>after fee buffer &amp; cent rounding</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>Locked profit</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></section>
-      <section class="arb-detail-section"><header><h3>Odds comparison</h3><span>best price highlighted</span></header>${comparisons}</section>
-      <section class="arb-detail-section"><header><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span></header><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></section>`;
+      <section class="arb-detail-section"><header><h3>Stake Plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
+      <section class="arb-detail-section"><header><h3>Guaranteed Outcome</h3><span>after fee buffer &amp; cent rounding</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>Locked profit</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></section>
+      <section class="arb-detail-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header>${comparisons}</section>
+      <details class="arb-detail-section arb-calculation"><summary><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></details>`;
     elements.detailPlaceholder.hidden = true;
     elements.detailContent.hidden = false;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {
@@ -426,7 +439,7 @@
     state.commissionBps = numberBetween(elements.commission.value, 0, 2500, state.commissionBps);
     state.distinctBooks = elements.distinct.checked;
     state.sort = document.querySelector('input[name="arb-dialog-sort"]:checked')?.value || state.sort;
-    elements.stake.value = String(state.stake);
+    elements.stake.value = stakeInputValue(state.stake);
     elements.sort.value = state.sort;
     saveSettings();
     updateFilterCount();
@@ -457,7 +470,7 @@
   }
 
   function bind() {
-    elements.stake.value = String(state.stake);
+    elements.stake.value = stakeInputValue(state.stake);
     elements.sort.value = state.sort;
     syncDialog();
     updateFilterCount();
@@ -487,11 +500,22 @@
     elements.stake.addEventListener("input", () => {
       window.clearTimeout(state.stakeTimer);
       state.stakeTimer = window.setTimeout(() => {
-        state.stake = numberBetween(elements.stake.value, 1, 10_000_000, state.stake);
+        state.stake = stakeInputNumber(elements.stake.value, state.stake);
         elements.dialogStake.value = String(state.stake);
         saveSettings();
         if (state.liveActive) loadBoard();
       }, 350);
+    });
+    elements.stake.addEventListener("blur", () => {
+      window.clearTimeout(state.stakeTimer);
+      const previousStake = state.stake;
+      state.stake = stakeInputNumber(elements.stake.value, state.stake);
+      elements.stake.value = stakeInputValue(state.stake);
+      elements.dialogStake.value = String(state.stake);
+      if (state.stake !== previousStake) {
+        saveSettings();
+        if (state.liveActive) loadBoard();
+      }
     });
     elements.refresh.addEventListener("click", () => { if (!state.liveActive) startScanner(); else loadBoard(); });
     elements.pause.addEventListener("click", togglePause);

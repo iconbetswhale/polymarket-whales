@@ -39,9 +39,9 @@ def test_arbitrage_visuals_use_iconlabs_tokens_and_phosphor_icons() -> None:
     assert "var(--il-brand" in CSS
     assert "var(--il-positive" in CSS
     assert "--arb-card: var(--arb-bg)" in CSS
-    assert "--arb-panel: var(--arb-bg)" in CSS
-    assert "--arb-panel-2: var(--arb-bg)" in CSS
-    assert 'body[data-design-system="v2"][data-page="arbitrage"] .arb-search.search-control' in CSS
+    assert "--arb-panel: var(--il-surface-1" in CSS
+    assert "--arb-panel-2: var(--il-surface-2" in CSS
+    assert 'body[data-page="arbitrage"] :where(' not in CSS
     assert "ph ph-" in TEMPLATE
     assert "<svg" not in TEMPLATE
     assert "linear-gradient" not in CSS
@@ -54,12 +54,33 @@ def test_arbitrage_cards_and_toolbar_adapt_to_their_content() -> None:
     assert "flex: 0 0 auto" in CSS
     assert ".arb-opportunity:has(.arb-leg-summary:nth-child(3))" in CSS
     assert ".arb-leg-summary > span:first-child" in CSS
+    assert "grid-template-rows: auto 45px auto" in CSS
 
 
 def test_market_context_is_not_rendered_in_card_or_detail_metadata() -> None:
     assert "const context = row.marketContext" not in SCRIPT
     assert '<small>${esc(context' not in SCRIPT
     assert '${esc(row.marketLabel)}${row.marketContext ?' not in SCRIPT
+
+
+def test_requested_detail_labels_and_calculation_dropdown_are_rendered() -> None:
+    assert "Stake Plan" in SCRIPT
+    assert "Guaranteed Outcome" in SCRIPT
+    assert "Odds Comparison" in SCRIPT
+    assert '<details class="arb-detail-section arb-calculation">' in SCRIPT
+    assert "sportLabel(row)" in SCRIPT
+    assert '=== "EPL" ? "Soccer"' in SCRIPT
+    assert ".arb-comparison-group h4" in CSS and "font-size: 15px" in CSS
+    assert ".arb-quote-row span" in CSS and "font-size: 14px" in CSS
+    assert ".arb-math-note p" in CSS and "font-size: 11px" in CSS
+    assert ".arb-math-note code" in CSS and 'font: 600 10px/1.4 "DM Sans"' in CSS
+
+
+def test_total_stake_input_formats_thousands_without_letter_spacing() -> None:
+    assert 'id="arb-stake" type="text" value="1,000"' in TEMPLATE
+    assert "function stakeInputValue" in SCRIPT
+    assert "function stakeInputNumber" in SCRIPT
+    assert "letter-spacing: 0" in CSS
 
 
 def test_primary_interactions_and_visible_states_are_implemented() -> None:

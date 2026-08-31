@@ -12,8 +12,8 @@ body[data-page="arbitrage"] {
   --arb-green: var(--il-positive, #50d977);
   --arb-red: var(--il-negative, #ff5b70);
   --arb-yellow: var(--il-warning, #e9b85e);
-  --arb-panel: var(--arb-bg);
-  --arb-panel-2: var(--arb-bg);
+  --arb-panel: var(--il-surface-1, #090e1a);
+  --arb-panel-2: var(--il-surface-2, #0a101c);
   --arb-muted: var(--il-text-muted, #7d899a);
   --arb-secondary: var(--il-text-secondary, #b4becc);
   --arb-text: var(--il-text-primary, #f5f7fa);
@@ -206,7 +206,7 @@ body[data-page="arbitrage"] .app-shell {
   font-size: 11.5px;
   font-weight: 700;
   line-height: 1;
-  letter-spacing: .08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 .arb-money-input { display: flex; align-items: center; min-width: 0; line-height: 1; }
@@ -386,13 +386,14 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-return-cell small { margin-top: 7px; color: var(--arb-muted); font-size: 10px; }
 
 .arb-event-cell,
-.arb-market-cell { display: flex; flex-direction: column; justify-content: center; }
+.arb-market-cell { display: grid; grid-template-rows: auto 45px auto; align-content: center; }
 .arb-event-meta,
 .arb-market-cell > span { display: flex; align-items: center; gap: 5px; color: var(--arb-muted); font-size: 12px; font-weight: 650; }
 .arb-event-meta i { color: #8a68c8; }
 .arb-event-cell h3 { margin: 5px 0 0; overflow: hidden; color: var(--arb-text); font-size: 16px; line-height: 1.25; white-space: nowrap; text-overflow: ellipsis; }
-.arb-event-cell p { margin: 4px 0 0; overflow: hidden; color: var(--arb-secondary); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
-.arb-market-cell strong { margin-top: 5px; color: var(--arb-text); font-size: 16px; }
+.arb-event-cell p { margin: 4px 0 0; overflow: hidden; color: var(--arb-secondary); font-size: 12px; line-height: 1.2; white-space: nowrap; text-overflow: ellipsis; }
+.arb-market-cell strong { margin-top: 5px; color: var(--arb-text); font-size: 16px; line-height: 1.25; }
+.arb-market-cell::after { content: ""; min-height: 14.4px; margin-top: 4px; }
 
 .arb-legs-cell { display: flex; flex-direction: column; justify-content: center; gap: 5px; padding: 8px; }
 .arb-leg-summary {
@@ -404,7 +405,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
   padding: 4px 6px;
   border: 1px solid rgba(71, 85, 105, .38);
   border-radius: 6px;
-  background: var(--arb-bg);
+  background: rgba(0, 0, 0, .16);
 }
 .arb-leg-summary > span { min-width: 0; overflow: hidden; color: var(--arb-secondary); font-size: 14px; font-weight: 650; white-space: nowrap; text-overflow: ellipsis; }
 .arb-leg-summary > span:first-child { display: flex; align-self: stretch; align-items: center; line-height: 1.2; }
@@ -446,7 +447,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-detail-return span { color: var(--arb-green); font-size: 12px; font-weight: 700; text-transform: uppercase; }
 .arb-detail-close { display: none; }
 .arb-detail-hero h2 { margin: 9px 0 0; color: var(--arb-text); font-size: 16px; line-height: 1.25; }
-.arb-detail-hero p { margin: 4px 0 0; color: var(--arb-muted); font-size: 12px; }
+.arb-detail-hero p { margin: 4px 0 0; color: var(--arb-muted); font-size: 13px; }
 .arb-detail-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 12px; }
 .arb-detail-actions button { height: 31px; font-size: 13px; }
 
@@ -468,9 +469,12 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 
 .arb-detail-section { padding: 13px 15px; border-bottom: 1px solid var(--arb-line); }
 .arb-detail-section:last-child { border-bottom: 0; }
-.arb-detail-section > header { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 9px; }
+.arb-detail-section > header,
+.arb-detail-section > summary { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.arb-detail-section > header { margin-bottom: 9px; }
 .arb-detail-section h3 { margin: 0; color: var(--arb-text); font-size: 14px; }
-.arb-detail-section header span { color: var(--arb-muted); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; }
+.arb-detail-section header span,
+.arb-detail-section summary span { color: var(--arb-muted); font-size: 10px; font-weight: 650; text-transform: uppercase; letter-spacing: .07em; }
 
 .arb-plan-list { display: flex; flex-direction: column; gap: 7px; }
 .arb-plan-leg { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto auto; align-items: center; gap: 8px; padding: 8px; border: 1px solid var(--arb-line); border-radius: 7px; background: var(--arb-card); }
@@ -502,20 +506,27 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-payout-row b { color: var(--arb-green); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .arb-comparison-group + .arb-comparison-group { margin-top: 11px; }
-.arb-comparison-group h4 { margin: 0 0 5px; color: var(--arb-secondary); font-size: 13px; }
+.arb-comparison-group h4 { margin: 0 0 5px; color: var(--arb-secondary); font-size: 15px; }
 .arb-quote-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 50px 53px; align-items: center; gap: 7px; min-height: 32px; padding: 4px 6px; border-bottom: 1px solid rgba(71, 85, 105, .28); }
 .arb-quote-row:last-child { border-bottom: 0; }
 .arb-quote-row.best { background: rgba(80, 217, 119, .05); }
 .arb-quote-row img { width: 20px; height: 20px; border-radius: 5px; object-fit: cover; background: #fff; }
-.arb-quote-row span { min-width: 0; overflow: hidden; color: var(--arb-secondary); font-size: 12px; white-space: nowrap; text-overflow: ellipsis; }
+.arb-quote-row span { min-width: 0; overflow: hidden; color: var(--arb-secondary); font-size: 14px; white-space: nowrap; text-overflow: ellipsis; }
 .arb-quote-row small { color: var(--arb-muted); font-size: 10px; text-align: right; }
 .arb-quote-row b { color: var(--arb-text); font-size: 13px; text-align: right; font-variant-numeric: tabular-nums; }
 
 .arb-math-note { display: flex; gap: 9px; padding: 9px; border: 1px solid rgba(141, 68, 246, .3); border-radius: 7px; background: rgba(141, 68, 246, .06); }
 .arb-math-note > i { color: #ad7cff; font-size: 16px; }
-.arb-math-note p { margin: 0; color: var(--arb-secondary); font-size: 9px; line-height: 1.5; }
-.arb-math-note code { display: block; margin-top: 5px; color: #ceb6f7; font: 600 8px/1.4 "DM Sans", sans-serif; }
-.arb-detail-warning { display: flex; gap: 7px; margin-top: 8px; color: var(--arb-yellow); font-size: 8px; line-height: 1.45; }
+.arb-math-note p { margin: 0; color: var(--arb-secondary); font-size: 11px; line-height: 1.5; }
+.arb-math-note code { display: block; margin-top: 5px; color: #ceb6f7; font: 600 10px/1.4 "DM Sans", sans-serif; }
+.arb-detail-warning { display: flex; gap: 7px; margin-top: 8px; color: var(--arb-yellow); font-size: 10px; line-height: 1.45; }
+
+.arb-calculation > summary { cursor: pointer; list-style: none; }
+.arb-calculation > summary::-webkit-details-marker { display: none; }
+.arb-calculation > summary span { margin-left: auto; }
+.arb-calculation > summary i { color: var(--arb-muted); font-size: 14px; transition: transform 140ms ease; }
+.arb-calculation[open] > summary { margin-bottom: 9px; }
+.arb-calculation[open] > summary i { transform: rotate(180deg); }
 
 .arb-state {
   display: flex;
@@ -633,37 +644,6 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-learn-dialog > article > .arb-primary-button { margin: 14px 16px 0 auto; }
 
 .arb-mobile-scrim { position: fixed; inset: 0; z-index: 79; background: rgba(2, 6, 14, .75); }
-
-body[data-page="arbitrage"] :where(
-  .arb-mode-tabs,
-  .arb-learn-button,
-  .arb-search,
-  .arb-stake-control,
-  .arb-icon-button,
-  .arb-kpi-strip,
-  .arb-board,
-  .arb-detail,
-  .arb-board-actions select,
-  .arb-opportunity,
-  .arb-leg-summary,
-  .arb-detail-hero,
-  .arb-secondary-button,
-  .arb-plan-leg,
-  .arb-profit-proof,
-  .arb-dialog,
-  .arb-filter-nav,
-  .arb-dialog-search,
-  .arb-book-option,
-  .arb-field-money,
-  .arb-field-suffix,
-  .arb-choice-grid label > span,
-  .arb-toggle-row,
-  .arb-radio-list label,
-  .arb-learn-grid section
-) { background: var(--arb-bg); }
-
-body[data-design-system="v2"][data-page="arbitrage"] .arb-search.search-control,
-body[data-design-system="v2"][data-page="arbitrage"] .arb-search.search-control:focus-within { background: var(--arb-bg); }
 
 @keyframes arb-spin { to { transform: rotate(360deg); } }
 
