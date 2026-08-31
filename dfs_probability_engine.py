@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 
-DFS_PROBABILITY_VERSION = "dfs-market-consensus-v2-quality-guardrails"
+DFS_PROBABILITY_VERSION = "dfs-market-consensus-v3-contextual-liquidity"
 SUPPORTED_DEVIG_METHODS = {"multiplicative", "additive", "power", "shin"}
 EXCHANGE_EXECUTION_PROVIDERS = {"novig", "prophetx", "polymarket", "kalshi"}
 REFERENCE_PROVIDERS = {"fanduel", "draftkings"}
@@ -14,6 +14,7 @@ EXTREME_FAVORITE_ODDS = -250.0
 LOW_LIQUIDITY_FAVORITE_ODDS = -175.0
 MIN_EXECUTABLE_LIQUIDITY = 25.0
 MAX_REFERENCE_PROBABILITY_GAP = 0.10
+MAX_LOW_LIQUIDITY_REFERENCE_GAP = 0.03
 MAX_TWO_WAY_OVERROUND = 1.30
 ICONLABS_DFS_WEIGHTS = {
     "fanduel": 30.0,
@@ -283,6 +284,9 @@ class DfsProbabilityEngine:
                             and minimum_liquidity is not None
                             and minimum_liquidity < MIN_EXECUTABLE_LIQUIDITY
                             and favorite_price <= LOW_LIQUIDITY_FAVORITE_ODDS
+                            and reference_divergence is not None
+                            and reference_divergence
+                            > MAX_LOW_LIQUIDITY_REFERENCE_GAP
                         ):
                             exclusion_reason = "LOW_LIQUIDITY_EXTREME_QUOTE"
                         elif (

@@ -611,7 +611,8 @@ class ProphetXProvider(ExecutionProvider):
             configured_names = {
                 value.strip().upper()
                 for value in os.getenv(
-                    "SHARP_MONEY_TOURNAMENTS", "MLB,WNBA"
+                    "SHARP_MONEY_TOURNAMENTS",
+                    "MLB,WNBA,NFL,NCAAF,NBA,NCAAB,NCAAW,NHL,MLS,EPL",
                 ).split(",")
                 if value.strip()
             }

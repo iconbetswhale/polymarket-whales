@@ -56,7 +56,7 @@ def test_visual_qa_positive_ev_line_history_has_real_movement_and_limit_series()
     assert line_history["series"][0]["points"][-1]["line"] == 1.0
 
 
-def test_visual_qa_dfs_payload_populates_every_fantasy_app():
+def test_visual_qa_dfs_payload_populates_the_requested_fantasy_app():
     frozen_now = datetime(2026, 8, 18, 15, 7, tzinfo=timezone.utc)
     payload = qa_dfs_payload(now_utc=frozen_now)
 
@@ -64,13 +64,8 @@ def test_visual_qa_dfs_payload_populates_every_fantasy_app():
     assert payload["dataSource"] == "visual_qa"
     assert payload["selectedBook"] == "prizepicks"
     assert payload["data"] == payload["dataByBook"]["prizepicks"]
-    assert payload["totalsByBook"] == {
-        "prizepicks": 10,
-        "underdog": 10,
-        "dk-pick6": 10,
-        "betr": 10,
-        "dabble": 10,
-    }
+    assert payload["totalsByBook"] == {"prizepicks": 10}
+    assert set(payload["dataByBook"]) == {"prizepicks"}
 
     expected_dfs_lines = {
         "prizepicks",
@@ -99,6 +94,14 @@ def test_visual_qa_dfs_payload_populates_every_fantasy_app():
             set(row["oddsByBook"]) == expected_sportsbook_odds
             for row in rows
         )
+
+    underdog = qa_dfs_payload(
+        now_utc=frozen_now,
+        selected_book="underdog",
+    )
+    assert underdog["selectedBook"] == "underdog"
+    assert underdog["totalsByBook"] == {"underdog": 10}
+    assert underdog["data"] == underdog["dataByBook"]["underdog"]
 
 
 def test_visual_qa_dfs_hit_rates_cover_multiple_value_bands():

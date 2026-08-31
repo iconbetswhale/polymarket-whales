@@ -180,6 +180,30 @@ def test_low_liquidity_exchange_favorite_is_not_weighted():
     assert prophetx["minimum_liquidity"] == 2
 
 
+def test_low_liquidity_exchange_quote_near_reference_market_is_weighted():
+    engine = DfsProbabilityEngine(
+        {"fanduel": 50, "prophetx": 50},
+        minimum_sources=1,
+    )
+    result = engine.calculate(
+        target_line=36.5,
+        side="under",
+        quotes=[
+            quote("fanduel", 120, -150, line=36.5),
+            quote("prophetx", 123, -153, line=36.5, liquidity=9),
+        ],
+        now=NOW,
+    )
+
+    prophetx = next(
+        item for item in result.contributions if item["provider"] == "prophetx"
+    )
+    assert prophetx["included"] is True
+    assert prophetx["exclusion_reason"] is None
+    assert prophetx["minimum_liquidity"] == 9
+    assert result.source_count == 2
+
+
 def test_liquid_extreme_exchange_outlier_is_checked_against_reference_books():
     engine = DfsProbabilityEngine(
         {"fanduel": 40, "draftkings": 40, "polymarket": 20},

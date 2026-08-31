@@ -296,6 +296,14 @@
     return sources.length ? `${sources.length} sharp exchange${sources.length === 1 ? "" : "s"}` : "NoVIG + ProphetX";
   }
 
+  function depthProviderUnavailableLabel(key) {
+    const diagnostics = state.payload?.sourceDiagnostics?.[key] || {};
+    const status = String(diagnostics.health || diagnostics.status || "").toLowerCase();
+    if (status === "unauthorized") return "Login needs reconnect";
+    if (status.includes("connection")) return "Connection unavailable";
+    return "Exact quote unavailable";
+  }
+
   function sportsbookAction(quote, fallbackOdds) {
     if (!quote) {
       return `<span class="sharp-sportsbook-action unavailable"><small>Sportsbook</small><b>Awaiting line</b></span>`;
@@ -334,7 +342,7 @@
       ${quotes.map(({ key, row }) => {
         const label = key === "novig" ? "NoVIG" : "ProphetX";
         const secondary = signal.depthAvailable === false
-          ? row ? `${odds(row.americanOdds)} exact quote` : "Exact quote unavailable"
+          ? row ? `${odds(row.americanOdds)} exact quote` : depthProviderUnavailableLabel(key)
           : row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} at ${odds(row.americanOdds)}`;
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
@@ -401,13 +409,18 @@
     }
     const rows = depthQuotes(signal).map(item => item.row).filter(row => row?.availableLiquidity != null);
     const max = Math.max(...rows.map(row => Number(row.availableLiquidity) || 0), 1);
-    return rows.map(row => `
-      <div class="sharp-flow-depth-row">
+    return rows.map(row => {
+      const price = `<strong>${escapeHtml(odds(row.americanOdds))}</strong>`;
+      const priceAction = row.deepLink
+        ? `<a class="sharp-flow-bet-link" href="${escapeHtml(row.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(row.providerName || "exchange")} ${escapeHtml(odds(row.americanOdds))} in a new tab">${price}<i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>`
+        : price;
+      return `<div class="sharp-flow-depth-row">
         <span class="sharp-flow-book">${logo(row, String(row.providerName || "?").slice(0, 2))}<b>${escapeHtml(row.providerName || "Market")}</b></span>
-        <strong>${escapeHtml(odds(row.americanOdds))}</strong>
+        ${priceAction}
         <span class="sharp-flow-bar"><i style="--flow-width:${Math.max(4, (Number(row.availableLiquidity || 0) / max) * 100).toFixed(1)}%"></i></span>
         <small>${escapeHtml(money(row.availableLiquidity))}</small>
-      </div>`).join("") || `<div class="sharp-awaiting-lines">Awaiting quoted depth</div>`;
+      </div>`;
+    }).join("") || `<div class="sharp-awaiting-lines">Awaiting quoted depth</div>`;
   }
 
   function twoSidedComparison(signal) {

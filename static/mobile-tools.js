@@ -245,11 +245,8 @@
       side.append(liquidity);
     }
     if (snapshot?.modelExcluded) {
-      const flag = document.createElement("em");
-      flag.className = "dfs-mobile-model-excluded";
-      flag.textContent = "Not weighted";
-      flag.title = snapshot.modelExclusionReason || "Excluded from the fair-odds model";
-      side.append(flag);
+      side.classList.add("model-excluded");
+      side.title = snapshot.modelExclusionReason || "Excluded from the fair-odds model";
     }
     target.append(side);
   }

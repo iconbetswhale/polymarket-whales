@@ -824,7 +824,7 @@ class SharpMoneyCollector:
                 # Deduplicate the obvious same event/market/selection rows.
                 combined: list[dict] = []
                 seen: set[tuple] = set()
-                for signal in (*matched_signals, *slate_signals):
+                for signal in (*matched_signals, *slate_signals, *signals):
                     market = signal.get("market") or {}
                     identity = (
                         str(signal.get("league") or "").casefold(),
@@ -867,9 +867,15 @@ class SharpMoneyCollector:
                 signal["comparisonLines"] = copy.deepcopy(
                     self._comparisons.get(signal["id"], [])
                 )
-        if direct_orderbook and (
-            self.odds_provider is not None
-            or source_kind in {"direct_novig_quotes", "novig_direct"}
+        if (
+            direct_orderbook
+            and (
+                self.odds_provider is not None
+                or source_kind in {"direct_novig_quotes", "novig_direct"}
+            )
+        ) or (
+            source_kind == "odds_engine_quotes"
+            and any(signal.get("depthAvailable") is True for signal in signals)
         ):
             signals = self._finalize_direct_signals(signals)
         with self._lock:
@@ -1103,6 +1109,15 @@ class SharpMoneyCollector:
                         "americanOdds": _american(decimal),
                         "probability": 1 / decimal,
                         "liquidity": liquidity,
+                        "deepLink": str(
+                            selection.get("bet_link")
+                            or selection.get("deep_link")
+                            or selection.get("deeplink")
+                            or market.get("bet_link")
+                            or market.get("deep_link")
+                            or event.get("deep_link")
+                            or ""
+                        ),
                         "line": (
                             selection.get("line")
                             if selection.get("line") is not None
@@ -1464,9 +1479,10 @@ class SharpMoneyCollector:
     def _build_oddsengine_quote_signals(self, snapshot: dict) -> list[dict]:
         """Infer sharp consensus from standard-plan exact REST prices.
 
-        This mode never claims wager volume or depth. Pressure combines the
-        movement in cross-book implied probability with the current difference
-        between recognized sharp books and the full market consensus.
+        OddsEngine's event response already contains every requested market, so
+        group the raw exact quotes directly.  That preserves player identity,
+        alternate lines, execution links, and any exchange top-price liquidity
+        without issuing a separate upstream request for every market family.
         """
         groups: dict[tuple, dict] = {}
         for event in snapshot.get("events") or []:
@@ -1561,10 +1577,9 @@ class SharpMoneyCollector:
                             elif name.casefold() in {"over", "under"}:
                                 selection_name = f"{selection_name} {line:g}"
                         available = outcome.get("liquidity")
-                        if available is None:
-                            available = outcome.get("bet_limit")
-                        if available is None:
-                            available = outcome.get("limit")
+                        market_limit = outcome.get("bet_limit")
+                        if market_limit is None:
+                            market_limit = outcome.get("limit")
                         group["isAlternative"] = bool(
                             group["isAlternative"]
                             or _is_alternative_market(market_key, outcome)
@@ -1578,6 +1593,7 @@ class SharpMoneyCollector:
                                 "decimalOdds": decimal,
                                 "probability": 1 / decimal,
                                 "availableLiquidity": available,
+                                "marketLimit": market_limit,
                                 "deepLink": str(outcome.get("link") or ""),
                                 "lastUpdated": str(
                                     market.get("last_update")
@@ -1620,14 +1636,26 @@ class SharpMoneyCollector:
                     else consensus_probability
                 )
                 side_key = f"rest:{event_id}:{market_id}:{side_id}"
-                known_liquidity = None
+                exchange_liquidity = [
+                    _number(row.get("availableLiquidity"))
+                    for row in quotes
+                    if row["providerKey"] in {"novig", "prophetx"}
+                    and row.get("availableLiquidity") is not None
+                ]
+                known_liquidity = (
+                    sum(exchange_liquidity) if exchange_liquidity else None
+                )
                 previous = self._previous.get(side_key)
                 probability_delta = (
                     consensus_probability - previous["probability"]
                     if previous
                     else 0.0
                 )
-                liquidity_delta = 0.0
+                liquidity_delta = (
+                    known_liquidity - previous.get("liquidity", 0.0)
+                    if known_liquidity is not None and previous
+                    else 0.0
+                )
                 sharp_edge = sharp_probability - consensus_probability
                 pressure = probability_delta + sharp_edge
                 line = quotes[0].get("line")
@@ -1690,15 +1718,14 @@ class SharpMoneyCollector:
                         "oppositeAvailableLiquidity": peer.get(
                             "availableLiquidity"
                         ),
-                        "marketLimit": quote.get("availableLiquidity"),
+                        "marketLimit": quote.get("marketLimit"),
                         "deepLink": quote.get("deepLink") or "",
                         "oppositeDeepLink": peer.get("deepLink") or "",
                         "logoUrl": quote.get("logoUrl") or "",
                         "isAvailable": True,
                         "matchingConfidence": "Exact",
                         "tooltip": (
-                            "OddsEngine exact REST quote; order-book depth is "
-                            "not available on this plan"
+                            "OddsEngine exact REST quote"
                         ),
                     }
                 )
@@ -1706,7 +1733,24 @@ class SharpMoneyCollector:
                 key=lambda row: _number(row.get("americanOdds"), -100000),
                 reverse=True,
             )
-            total_liquidity = None
+            known_outcome_liquidity = [
+                outcome["liquidity"]
+                for outcome in outcomes
+                if outcome.get("liquidity") is not None
+            ]
+            total_liquidity = (
+                sum(known_outcome_liquidity)
+                if known_outcome_liquidity
+                else None
+            )
+            depth_available = any(
+                row["providerKey"] in {"novig", "prophetx"}
+                and (
+                    row.get("availableLiquidity") is not None
+                    or row.get("oppositeAvailableLiquidity") is not None
+                )
+                for row in comparisons
+            )
             confidence = min(
                 95,
                 round(
@@ -1761,7 +1805,7 @@ class SharpMoneyCollector:
                     ),
                     "confidence": confidence,
                     "inferenceOnly": True,
-                    "depthAvailable": False,
+                    "depthAvailable": depth_available,
                     "transport": "OddsEngine REST sharp-consensus snapshot",
                     "oppositeSelection": copy.deepcopy(opposite),
                     "outcomes": [leader, opposite],
@@ -1910,6 +1954,7 @@ class SharpMoneyCollector:
                 "oppositeAvailableLiquidity": None,
                 "marketLimit": peer.get("limit"),
                 "deepLink": str(peer.get("bet_link") or ""),
+                "oppositeDeepLink": str(peer.get("opp_bet_link") or ""),
                 "logoUrl": ORDERBOOK_BOOK_LOGOS.get(key, ""),
                 "isAvailable": True,
                 "matchingConfidence": "Exact",
@@ -2079,6 +2124,11 @@ class SharpMoneyCollector:
             comparisons = signal.get("comparisonLines") or []
             net = _net_exchange_liquidity(comparisons)
             if net is None:
+                # Keep exact two-sided price markets even when direct depth is
+                # unavailable. They remain useful for props/alternates and are
+                # clearly labeled as price-only rather than fabricated flow.
+                if signal.get("depthAvailable") is False:
+                    rows.append(signal)
                 continue
             sources = net["sources"]
             provider_names = [
@@ -2118,7 +2168,7 @@ class SharpMoneyCollector:
         return sorted(
             rows,
             key=lambda item: (
-                item["crossedLiquidity"],
+                _number(item.get("crossedLiquidity"), -1),
                 abs(_number(item.get("edgePercent"))),
             ),
             reverse=True,
@@ -2153,6 +2203,10 @@ class SharpMoneyCollector:
                 current.get("oppositeAvailableLiquidity"),
                 current.get("availableLiquidity"),
             )
+            current["deepLink"], current["oppositeDeepLink"] = (
+                current.get("oppositeDeepLink") or "",
+                current.get("deepLink") or "",
+            )
             odds = current.get("americanOdds")
             current["displayOdds"] = (
                 f"+{round(_number(odds))}"
@@ -2170,7 +2224,7 @@ class SharpMoneyCollector:
         if not provider or not bool(getattr(provider, "configured", False)):
             return []
         candidates: list[dict] = []
-        for signal in signals[:20]:
+        for signal in signals[:SHARP_MONEY_SIGNAL_LIMIT]:
             candidates.append(copy.deepcopy(signal))
             opposite = self._opposite_quote_signal(signal)
             if opposite is not None:
@@ -2217,11 +2271,18 @@ class SharpMoneyCollector:
             opposite_liquidity = liquidity(opposite)
             if selected_liquidity <= 0 and opposite_liquidity <= 0:
                 continue
+            existing_novig = next(
+                (
+                    row
+                    for row in signal.get("comparisonLines") or []
+                    if _book_key(row.get("providerKey")) == "novig"
+                ),
+                {},
+            )
             rows = [
                 row
                 for row in signal.get("comparisonLines") or []
-                if _book_key(row.get("providerKey"))
-                not in {"novig", "prophetx"}
+                if _book_key(row.get("providerKey")) != "novig"
             ]
             rows.append(
                 {
@@ -2245,6 +2306,7 @@ class SharpMoneyCollector:
                 }
             )
             signal["comparisonLines"] = rows
+            signal["depthAvailable"] = True
             enriched.append(signal)
         return enriched
 
@@ -2371,9 +2433,19 @@ class SharpMoneyCollector:
                     "orderBookLevels": selected.get("levels") or [],
                     "oppositeOrderBookLevels": opposing.get("levels") or [],
                     "logoUrl": PROPHETX_LOGO_URL,
-                    "deepLink": PROPHETX_TRADE_FALLBACK_URL,
-                    "oppositeDeepLink": PROPHETX_TRADE_FALLBACK_URL,
-                    "linkScope": "provider",
+                    "deepLink": (
+                        selected.get("deepLink")
+                        or PROPHETX_TRADE_FALLBACK_URL
+                    ),
+                    "oppositeDeepLink": (
+                        opposing.get("deepLink")
+                        or PROPHETX_TRADE_FALLBACK_URL
+                    ),
+                    "linkScope": (
+                        "exact"
+                        if selected.get("deepLink")
+                        else "provider"
+                    ),
                     "isAvailable": True,
                     "matchingConfidence": "Exact",
                     "tooltip": "Direct ProphetX executable order book",

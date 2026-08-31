@@ -519,13 +519,13 @@
 
   function modelExclusionLabel(reason) {
     const labels = {
-      LOW_LIQUIDITY_EXTREME_QUOTE:'Low liquidity · not weighted',
-      MARKET_OUTLIER_AGAINST_REFERENCE:'Market outlier · not weighted',
-      EXCESSIVE_TWO_WAY_OVERROUND:'Invalid hold · not weighted',
-      INVALID_TWO_WAY_ODDS:'One-way line · not weighted',
-      LINE_MISMATCH:'Different line · not weighted',
+      LOW_LIQUIDITY_EXTREME_QUOTE:'Low-liquidity market outlier',
+      MARKET_OUTLIER_AGAINST_REFERENCE:'Market-price outlier',
+      EXCESSIVE_TWO_WAY_OVERROUND:'Invalid two-way hold',
+      INVALID_TWO_WAY_ODDS:'Incomplete two-way line',
+      LINE_MISMATCH:'Different market line',
     };
-    return labels[String(reason || '')] || 'Not weighted';
+    return labels[String(reason || '')] || 'Excluded from fair-odds calculation';
   }
 
   function linkedPriceMarkup(snapshot,key) {
@@ -617,7 +617,7 @@
         const centsAmerican = centsAmericanLabel(snapshot.display,snapshot.american);
         const liquidity = liquidityBookKeys.has(key) ? formatLiquidity(snapshot.liquidity) : '';
         const exclusion = snapshot.modelExcluded ? modelExclusionLabel(snapshot.modelExclusionReason) : '';
-        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}${snapshot.modelExcluded?' model-excluded':''}">${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternate?`<small>${esc(alternate)}</small>`:''}${exclusion?`<small class="dfs-model-excluded" title="${esc(exclusion)}">Not weighted</small>`:''}</div>`;
+        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}${snapshot.modelExcluded?' model-excluded':''}"${exclusion?` title="${esc(exclusion)}"`:''}>${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
       }).join('');
       return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };
@@ -921,7 +921,7 @@
         const liquidity = liquidityBookKeys.has(key) ? formatLiquidity(snapshot.liquidity) : '';
         const exclusion = snapshot.modelExcluded ? modelExclusionLabel(snapshot.modelExclusionReason) : '';
         const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate',centsAmerican?'has-cents-american':'',liquidity?'has-liquidity':'',snapshot.modelExcluded?'model-excluded':''].filter(Boolean).join(' ');
-        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}${exclusion?`<small class="dfs-model-excluded" title="${esc(exclusion)}">Not weighted</small>`:''}`}</td>`;
+        return `<td class="${classes}" data-book-cell="${key}"${exclusion?` title="${esc(exclusion)}"`:''}>${unavailable?'—':`${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;

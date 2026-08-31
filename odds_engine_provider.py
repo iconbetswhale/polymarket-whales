@@ -724,6 +724,8 @@ def _selection_outcome(
         line = offer.get("line")
     outcome = {
         "name": name,
+        "side": side,
+        "entity_name": entity,
         "price": price,
         "sid": str(selection.get("selection_id") or ""),
         "id": str(selection.get("selection_id") or ""),

@@ -808,8 +808,100 @@ def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_pr
 
     assert unmatched_payload["signalMode"] == "direct_order_book"
     assert unmatched_payload["depthProviders"] == ["NoVIG"]
-    assert unmatched_payload["signalCount"] == 1
-    assert unmatched_payload["signals"][0]["crossedLiquidity"] == 3000
+    assert unmatched_payload["signalCount"] == 2
+    direct_slate_signal = next(
+        row
+        for row in unmatched_payload["signals"]
+        if row.get("crossedLiquidity") == 3000
+    )
+    assert direct_slate_signal["provider"] == "NoVIG"
+    assert any(
+        row.get("depthAvailable") is False
+        for row in unmatched_payload["signals"]
+    )
+
+
+def test_oddsengine_quote_groups_keep_player_props_alternates_liquidity_and_links():
+    collector = SharpMoneyCollector(None, local_control=False)
+    snapshot = {
+        "observedAt": "2026-08-31T12:00:00+00:00",
+        "limit": 100,
+        "events": [
+            {
+                "id": "mlb-event",
+                "sport_key": "baseball_mlb",
+                "sport_title": "MLB",
+                "commence_time": "2026-08-31T23:10:00+00:00",
+                "home_team": "Boston Red Sox",
+                "away_team": "Seattle Mariners",
+                "bookmakers": [
+                    {
+                        "key": "fanduel",
+                        "title": "FanDuel",
+                        "markets": [
+                            {
+                                "key": "batter_total_bases",
+                                "outcomes": [
+                                    {"name": "Over", "side": "over", "description": "Cal Raleigh", "point": 0.5, "price": -135, "link": "https://fanduel.test/cal-over"},
+                                    {"name": "Under", "side": "under", "description": "Cal Raleigh", "point": 0.5, "price": 105, "link": "https://fanduel.test/cal-under"},
+                                ],
+                            },
+                            {
+                                "key": "alternate_totals",
+                                "outcomes": [
+                                    {"name": "Over", "side": "over", "point": 9.5, "price": -105, "is_alt": True},
+                                    {"name": "Under", "side": "under", "point": 9.5, "price": -115, "is_alt": True},
+                                ],
+                            },
+                        ],
+                    },
+                    {
+                        "key": "prophetx",
+                        "title": "ProphetX",
+                        "markets": [
+                            {
+                                "key": "batter_total_bases",
+                                "outcomes": [
+                                    {"name": "Over", "side": "over", "description": "Cal Raleigh", "point": 0.5, "price": -130, "liquidity": 900, "link": "https://prophetx.test/cal-over"},
+                                    {"name": "Under", "side": "under", "description": "Cal Raleigh", "point": 0.5, "price": 110, "liquidity": 125, "link": "https://prophetx.test/cal-under"},
+                                ],
+                            },
+                            {
+                                "key": "alternate_totals",
+                                "outcomes": [
+                                    {"name": "Over", "side": "over", "point": 9.5, "price": -102, "is_alt": True},
+                                    {"name": "Under", "side": "under", "point": 9.5, "price": -118, "is_alt": True},
+                                ],
+                            },
+                        ],
+                    },
+                ],
+            }
+        ],
+    }
+
+    signals = collector._build_oddsengine_quote_signals(snapshot)
+
+    player_prop = next(
+        row for row in signals if row["market"]["kind"] == "player_prop"
+    )
+    alternate = next(
+        row for row in signals if row["market"]["isAlternative"] is True
+    )
+    prophetx = next(
+        row
+        for row in player_prop["comparisonLines"]
+        if row["providerKey"] == "prophetx"
+    )
+    assert player_prop["market"]["playerName"] == "Cal Raleigh"
+    assert player_prop["market"]["sourceMarketType"] == "batter_total_bases"
+    assert player_prop["depthAvailable"] is True
+    assert prophetx["availableLiquidity"] == 900
+    assert prophetx["oppositeAvailableLiquidity"] == 125
+    assert prophetx["deepLink"] == "https://prophetx.test/cal-over"
+    assert prophetx["oppositeDeepLink"] == "https://prophetx.test/cal-under"
+    assert alternate["market"]["sourceMarketType"] == "alternate_totals"
+    assert alternate["market"]["kind"] == "game_total"
 
 
 def test_quote_consensus_preserves_player_props_and_alternate_lines() -> None:

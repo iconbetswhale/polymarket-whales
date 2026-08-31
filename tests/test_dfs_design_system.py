@@ -139,7 +139,7 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
 
     assert canonical > foundation
     assert "-quality-guardrails-v3" in BASE[canonical : canonical + 160]
-    assert "-quality-guardrails-v4" in BASE[script : script + 160]
+    assert "-quality-guardrails-v5" in BASE[script : script + 160]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
@@ -619,7 +619,7 @@ def test_comparison_odds_expose_liquidity_quality_state_and_deep_links() -> None
     assert 'target="_blank"' in SCRIPT
     assert 'rel="noopener noreferrer"' in SCRIPT
     assert ".dfs-book-liquidity" in CSS
-    assert ".dfs-model-excluded" in CSS
+    assert '>Not weighted</small>' not in SCRIPT
 
 
 def test_expanded_odds_fill_the_row_and_use_logo_only_headers() -> None:
