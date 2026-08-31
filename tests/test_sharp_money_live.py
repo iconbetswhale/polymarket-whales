@@ -170,7 +170,7 @@ class FakeDirectNoVIGSlate:
 
     def sharp_money_direct_snapshot(self, *, limit=40):
         self.calls += 1
-        assert limit == 40
+        assert limit == 100
         return {
             "observedAt": "2026-08-27T05:30:00+00:00",
             "snapshots": [
@@ -250,7 +250,7 @@ class FakeOddsEngineOrderBook:
 
     def sharp_money_snapshot(self, *, limit=40):
         self.calls += 1
-        assert limit == 40
+        assert limit == 100
         recommended = {
             "side": "HOME",
             "line": -1.5,
@@ -368,6 +368,20 @@ def test_standard_plan_prioritizes_oddsengine_quotes_over_prophetx_login() -> No
     assert collector.advanced_orderbook_enabled is False
 
 
+def test_advanced_plan_prioritizes_oddsengine_prophetx_order_book() -> None:
+    odds_engine = FakeOddsEngineOrderBook()
+    prophetx = FakeProphetX()
+    prophetx.provider_key = "prophetx"
+    registry = SimpleNamespace(providers=(prophetx, odds_engine))
+    settings = SimpleNamespace(sharp_money_advanced_orderbook_enabled=True)
+
+    collector = build_sharp_money_collector(registry, settings)
+
+    assert collector.prophetx is odds_engine
+    assert collector.fallback_source is prophetx
+    assert collector.advanced_orderbook_enabled is True
+
+
 def test_production_collector_does_not_use_the_odds_api_fallback() -> None:
     odds_engine = FakeOddsEngineOrderBook()
     the_odds_api = FakeComparisonProvider("the_odds_api")
@@ -410,6 +424,24 @@ def test_oddsengine_rate_limit_falls_back_to_direct_novig_slate() -> None:
     assert signal["crossedLiquidity"] == 3000
     assert signal["liquiditySources"] == {"novig": 3000}
     assert signal["transport"] == "Direct NoVIG net order book"
+
+
+def test_direct_novig_signal_labels_player_prop_market() -> None:
+    provider = FakeDirectNoVIGSlate()
+    snapshot = provider.sharp_money_direct_snapshot(limit=100)
+    market = snapshot["snapshots"][0]["market"]
+    market["type"] = "RUSHING_YARDS"
+    market["player"] = {"name": "Example Runner"}
+    market["outcomes"][0]["description"] = "Over"
+    market["outcomes"][1]["description"] = "Under"
+    collector = SharpMoneyCollector(None, local_control=False)
+
+    signals = collector._build_novig_direct_signals(snapshot)
+
+    assert len(signals) == 1
+    assert signals[0]["market"]["kind"] == "player_prop"
+    assert signals[0]["market"]["playerName"] == "Example Runner"
+    assert signals[0]["market"]["name"] == "Example Runner · Rushing Yards"
 
 
 def test_crossed_liquidity_is_not_opposing_book_balance() -> None:
@@ -778,6 +810,88 @@ def test_oddsengine_standard_plan_uses_exact_quote_consensus_without_advanced_pr
     assert unmatched_payload["depthProviders"] == ["NoVIG"]
     assert unmatched_payload["signalCount"] == 1
     assert unmatched_payload["signals"][0]["crossedLiquidity"] == 3000
+
+
+def test_quote_consensus_preserves_player_props_and_alternate_lines() -> None:
+    collector = SharpMoneyCollector(None, local_control=False)
+    snapshot = {
+        "observedAt": "2026-08-30T18:00:00+00:00",
+        "limit": 100,
+        "events": [
+            {
+                "id": "event-all-markets",
+                "sport_key": "basketball_nba",
+                "sport_title": "NBA",
+                "commence_time": "2026-08-31T00:00:00+00:00",
+                "home_team": "New York Knicks",
+                "away_team": "Boston Celtics",
+                "bookmakers": [
+                    {
+                        "key": "prophetx",
+                        "title": "ProphetX",
+                        "markets": [
+                            {
+                                "id": "alt-spread-2-5",
+                                "key": "alternate_spreads",
+                                "outcomes": [
+                                    {
+                                        "name": "New York Knicks",
+                                        "price": 115,
+                                        "point": -2.5,
+                                        "is_alt": True,
+                                        "link": "https://prophetx.test/alt-home",
+                                    },
+                                    {
+                                        "name": "Boston Celtics",
+                                        "price": -125,
+                                        "point": 2.5,
+                                        "is_alt": True,
+                                        "link": "https://prophetx.test/alt-away",
+                                    },
+                                ],
+                            },
+                            {
+                                "id": "player-points-brunson-28-5",
+                                "key": "player_points",
+                                "outcomes": [
+                                    {
+                                        "name": "Over",
+                                        "description": "Jalen Brunson",
+                                        "price": -110,
+                                        "point": 28.5,
+                                        "link": "https://prophetx.test/prop-over",
+                                    },
+                                    {
+                                        "name": "Under",
+                                        "description": "Jalen Brunson",
+                                        "price": -110,
+                                        "point": 28.5,
+                                        "link": "https://prophetx.test/prop-under",
+                                    },
+                                ],
+                            },
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    signals = collector._build_oddsengine_quote_signals(snapshot)
+
+    assert len(signals) == 2
+    alternate = next(row for row in signals if row["market"]["isAlternative"])
+    player_prop = next(
+        row for row in signals if row["market"]["kind"] == "player_prop"
+    )
+    assert alternate["market"]["kind"] == "spread"
+    assert alternate["market"]["name"] == "Alternate Spread"
+    assert player_prop["market"]["name"] == "Player Points"
+    assert player_prop["market"]["playerName"] == "Jalen Brunson"
+    assert player_prop["selection"].startswith("Jalen Brunson")
+    assert player_prop["comparisonLines"][0]["oppositeDeepLink"].endswith(
+        "/prop-under"
+    )
 
 
 def test_oddsengine_advanced_plan_error_reports_safe_http_status():

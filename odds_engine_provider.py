@@ -156,6 +156,12 @@ SUPPORTED_MARKET_KEYS = {
     "player_triple_double",
 }
 
+# Sharp Money consumes the complete priced catalog. OddsEngine returns all
+# offers for an event in one /odds response; ``*`` is an internal normalization
+# sentinel and is never sent upstream.
+SHARP_MONEY_SPORT_KEYS = tuple(SPORT_KEY_TO_LEAGUE)
+SHARP_MONEY_MARKET_KEYS = ("*",)
+
 MARKET_ALIASES = {
     "ml": "h2h",
     "money_line": "h2h",
@@ -504,6 +510,7 @@ def _canonical_market_key(
     selections: list[dict],
     *,
     category: dict | None = None,
+    allow_unlisted: bool = False,
 ) -> str | None:
     candidates = (
         _slug(offer.get("market_key")),
@@ -602,7 +609,14 @@ def _canonical_market_key(
             "period",
             "inning",
         }:
-            return None
+            if not allow_unlisted:
+                return None
+            market_key = None
+
+    if market_key is None and allow_unlisted:
+        market_key = next(
+            (candidate for candidate in candidates if candidate), None
+        )
 
     alternate_line = any(bool(selection.get("is_alt")) for selection in selections)
     alternate_line = alternate_line or any(
@@ -745,6 +759,7 @@ def normalize_odds_engine_event(
     allowed = {
         str(value).strip().lower() for value in requested_markets if str(value).strip()
     }
+    allow_all_markets = "*" in allowed
     observed_at = (received_at or datetime.now(timezone.utc)).isoformat()
     bookmakers: dict[str, dict] = {}
 
@@ -766,8 +781,13 @@ def normalize_odds_engine_event(
                     offer,
                     selections,
                     category=category,
+                    allow_unlisted=allow_all_markets,
                 )
-                if not market_key or (allowed and market_key not in allowed):
+                if not market_key or (
+                    allowed
+                    and not allow_all_markets
+                    and market_key not in allowed
+                ):
                     continue
                 book_key = _book_key(raw_book.get("book"))
                 if not book_key:
@@ -1381,7 +1401,7 @@ class OddsEngineProvider(ExecutionProvider):
                 self._futures_screen_cache = _TimedValue(time.monotonic(), payload)
             return dict(payload)
 
-    def sharp_money_snapshot(self, *, limit: int = 40) -> dict:
+    def sharp_money_snapshot(self, *, limit: int = 100) -> dict:
         """Return OddsEngine's Advanced whale/depth snapshot for ProphetX.
 
         The endpoint is a single materialized read and includes the full
@@ -1415,7 +1435,7 @@ class OddsEngineProvider(ExecutionProvider):
         self._store(self._odds_cache, cache_key, payload)
         return payload
 
-    def sharp_money_quote_snapshot(self, *, limit: int = 40) -> dict:
+    def sharp_money_quote_snapshot(self, *, limit: int = 100) -> dict:
         """Return the standard-plan exact-price slate used for Sharp Money.
 
         Standard OddsEngine keys do not include materialized order books. This
@@ -1425,13 +1445,17 @@ class OddsEngineProvider(ExecutionProvider):
         """
         if not self.api_key:
             return {}
-        events = self.ev_events(
-            sport_keys=(
-                "baseball_mlb",
-                "basketball_wnba",
-            ),
-            market_keys=("h2h", "spreads", "totals"),
-        )
+        # Keep this scan inside the same provider lock/cache used by the four
+        # opportunity tools. The cap respects the standard 60-request plan:
+        # ten league discovery calls leave up to fifty event-odds reads, and a
+        # provider rate-limit still returns the truthful partial snapshot.
+        with self._scan_lock:
+            events = self._load_events(
+                SHARP_MONEY_SPORT_KEYS,
+                SHARP_MONEY_MARKET_KEYS,
+                max_events_per_league=10,
+                max_total_events=50,
+            )
         return {
             "observedAt": datetime.now(timezone.utc).isoformat(),
             "events": events,

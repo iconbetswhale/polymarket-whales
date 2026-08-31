@@ -14,6 +14,8 @@ from low_hold import build_low_hold_board
 from middles import build_middles_board
 from odds_engine_provider import (
     OddsEngineProvider,
+    SHARP_MONEY_MARKET_KEYS,
+    SHARP_MONEY_SPORT_KEYS,
     normalize_odds_engine_event,
     oddsengine_filter_catalog_payload,
     oddsengine_provider_catalog,
@@ -398,6 +400,67 @@ def test_provider_filter_missing_key_and_safe_diagnostics() -> None:
     assert len(session.calls) == 2
 
 
+def test_sharp_money_wildcard_preserves_unlisted_provider_markets() -> None:
+    payload = {
+        "event_id": "nfl-player-prop",
+        "event_start": (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+        "home_team": "New York Jets",
+        "away_team": "Buffalo Bills",
+        "league": "NFL",
+        "sport": "Football",
+        "market_categories": [
+            {
+                "category": "Player Props",
+                "offers": [
+                    {
+                        "market_id": "passing-yards-player-1",
+                        "market_key": "player_passing_yards",
+                        "market": "Player Passing Yards",
+                        "books": [
+                            {
+                                "book": "ProphetX",
+                                "selections": [
+                                    {
+                                        "selection_id": "passing-over",
+                                        "entity_name": "Example Quarterback",
+                                        "side": "over",
+                                        "line": 255.5,
+                                        "odds_american": -110,
+                                    },
+                                    {
+                                        "selection_id": "passing-under",
+                                        "entity_name": "Example Quarterback",
+                                        "side": "under",
+                                        "line": 255.5,
+                                        "odds_american": -110,
+                                    },
+                                ],
+                            }
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    wildcard = normalize_odds_engine_event(
+        payload,
+        sport_key="americanfootball_nfl",
+        requested_markets=("*",),
+    )
+    mainline_only = normalize_odds_engine_event(
+        payload,
+        sport_key="americanfootball_nfl",
+        requested_markets=("h2h",),
+    )
+
+    assert wildcard is not None
+    assert wildcard["bookmakers"][0]["markets"][0]["key"] == (
+        "player_passing_yards"
+    )
+    assert mainline_only is None
+
+
 def test_normalizer_does_not_mix_team_or_period_totals_with_full_game_totals() -> None:
     observed_at = datetime.now(timezone.utc).isoformat()
 
@@ -713,6 +776,26 @@ def test_provider_builds_standard_sharp_money_quote_snapshot() -> None:
     assert snapshot["limit"] == 40
     assert snapshot["events"]
     assert all(event["bookmakers"] for event in snapshot["events"])
+    returned_markets = {
+        market["key"]
+        for event in snapshot["events"]
+        for book in event["bookmakers"]
+        for market in book["markets"]
+    }
+    assert {"alternate_spreads", "player_points"} <= returned_markets
+    assert set(SHARP_MONEY_SPORT_KEYS) == {
+        "americanfootball_ncaaf",
+        "americanfootball_nfl",
+        "baseball_mlb",
+        "basketball_nba",
+        "basketball_ncaab",
+        "basketball_ncaaw",
+        "basketball_wnba",
+        "icehockey_nhl",
+        "soccer_epl",
+        "soccer_usa_mls",
+    }
+    assert SHARP_MONEY_MARKET_KEYS == ("*",)
 
 
 def test_provider_records_advanced_entitlement_rejection() -> None:

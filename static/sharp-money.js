@@ -137,6 +137,10 @@
     "pinnacle", "circa", "circasports", "lowvig", "betonline",
   ]);
   const DEPTH_PROVIDER_ORDER = ["novig", "prophetx"];
+  const EXCHANGE_DESTINATIONS = Object.freeze({
+    novig: "https://novig.com/",
+    prophetx: "https://www.prophetx.co/lobby/",
+  });
   const TEAM_LOGO_KEYS = {
     mlb: {
       "Arizona Diamondbacks": "ari", "Atlanta Braves": "atl", "Baltimore Orioles": "bal",
@@ -240,6 +244,30 @@
     return quotes.map(item => ({ ...item, isBest: item.row === best }));
   }
 
+  function safeHttpsUrl(value) {
+    try {
+      const url = new URL(String(value || ""));
+      return url.protocol === "https:" ? url.href : "";
+    } catch (_) {
+      return "";
+    }
+  }
+
+  function exchangeAction(key, row) {
+    const label = key === "novig" ? "NoVIG" : "ProphetX";
+    const exactUrl = safeHttpsUrl(row?.deepLink);
+    const destination = exactUrl || EXCHANGE_DESTINATIONS[key];
+    const exactMarket = Boolean(
+      exactUrl
+      && row?.matchingConfidence === "Exact"
+      && row?.linkScope !== "provider"
+    );
+    const title = exactMarket
+      ? `Open the exact ${label} market`
+      : `Open ${label} to find this market and inspect liquidity`;
+    return `<a class="sharp-depth-bet${exactMarket ? " exact" : " provider"}" href="${escapeHtml(destination)}" target="_blank" rel="noopener noreferrer" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">BET <i class="ph ph-arrow-up-right"></i></a>`;
+  }
+
   function combinedCrossedLiquidity(signal) {
     if (signal?.crossedLiquidity != null) {
       const explicit = Number(signal.crossedLiquidity);
@@ -311,6 +339,7 @@
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
           <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${escapeHtml(secondary)}</small></span>
+          ${exchangeAction(key, row)}
         </div>`;
       }).join("")}
       </div>
@@ -401,7 +430,7 @@
           return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}">
             <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
             <span class="sharp-market-book sharp-market-book--${providerKey(row)}">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
-            <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
+            <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.oppositeDeepLink || row.deepLink || "#")}" ${row.oppositeDeepLink || row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
           </div>`;
         }).join("")}
       </div>`;
@@ -465,15 +494,17 @@
   }
 
   function matches(signal) {
-    if (signal.depthAvailable === false) return false;
     const haystack = `${signal.event} ${signal.selection} ${signal.league} ${signal.market?.name}`.toLowerCase();
     const crossedLiquidity = combinedCrossedLiquidity(signal);
     const detected = crossedLiquidity != null && crossedLiquidity > 0;
+    const marketFilterKind = signal.market?.isAlternative
+      ? "alternate"
+      : signal.market?.kind;
     return (!state.sport || signal.league === state.sport || signal.sport === state.sport)
       && (!state.search || haystack.includes(state.search))
       && Number(crossedLiquidity || 0) >= state.filters.minimumLiquidity
       && (!state.filters.flow || (state.filters.flow === "detected") === detected)
-      && (!state.filters.marketType || signal.market?.kind === state.filters.marketType)
+      && (!state.filters.marketType || marketFilterKind === state.filters.marketType)
       && (!sportsbookFilterActive() || selectedComparisonLines(signal).length > 0);
   }
 

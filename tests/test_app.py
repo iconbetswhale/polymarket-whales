@@ -1328,7 +1328,8 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert "sharp-sportsbook-filter-v1" in script
     assert "renderSharpSportsbookFilter" in script
     assert "function isCrossedRetailQuote" in script
-    assert "if (signal.depthAvailable === false) return false" in script
+    assert "if (signal.depthAvailable === false) return false" not in script
+    assert 'signal.market?.isAlternative\n      ? "alternate"' in script
     assert (
         'if (page !== "sharp-money") loadGlobalStatus();'
         in shell_script

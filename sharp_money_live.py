@@ -11,7 +11,6 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 
 from execution_providers import PROPHETX_LOGO_URL
-from the_odds_api_provider import normalize_the_odds_api_events
 
 LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +53,8 @@ NON_RETAIL_MARKET_BOOKS = SHARP_CONSENSUS_BOOKS | {
     "kalshi",
     "polymarket",
 }
+SHARP_MONEY_SIGNAL_LIMIT = 100
+PROPHETX_TRADE_FALLBACK_URL = "https://www.prophetx.co/lobby/"
 
 
 class OddsComparisonFallback:
@@ -167,11 +168,74 @@ def _markets_by_event(payload) -> dict[str, list[dict]]:
 
 def _market_kind(name: str) -> str:
     lowered = name.lower()
+    if lowered.startswith(("player_", "batter_", "pitcher_")) or any(
+        token in lowered
+        for token in (
+            "player ",
+            "pitcher ",
+            "batter ",
+            "passing yards",
+            "rushing yards",
+            "receiving yards",
+            "touchdowns",
+            "strikeouts",
+            "rebounds",
+            "assists",
+            "three pointers",
+            "home runs",
+            "total bases",
+        )
+    ):
+        return "player_prop"
+    if "team total" in lowered:
+        return "team_total"
     if "total" in lowered or "over/under" in lowered:
         return "game_total"
     if any(token in lowered for token in ("spread", "handicap", "run line")):
         return "spread"
-    return "moneyline"
+    if any(token in lowered for token in ("money", "winner", "match line")):
+        return "moneyline"
+    return "special"
+
+
+def _market_title(value: object) -> str:
+    raw = str(value or "Market").strip()
+    normalized = raw.lower().replace("-", "_").replace(" ", "_")
+    titles = {
+        "h2h": "Moneyline",
+        "money": "Moneyline",
+        "moneyline": "Moneyline",
+        "spreads": "Spread",
+        "spread": "Spread",
+        "totals": "Game Total",
+        "total": "Game Total",
+        "alternate_spreads": "Alternate Spread",
+        "alternate_totals": "Alternate Total",
+        "money_1h": "First Half Moneyline",
+        "moneyline_1h": "First Half Moneyline",
+        "spread_1h": "First Half Spread",
+        "total_1h": "First Half Total",
+        "team_total": "Team Total",
+    }
+    if normalized in titles:
+        return titles[normalized]
+    title = normalized.replace("_", " ").title()
+    return (
+        title.replace("Rbis", "RBIs")
+        .replace("Nfl", "NFL")
+        .replace("Nba", "NBA")
+        .replace("Mlb", "MLB")
+    )
+
+
+def _is_alternative_market(name: object, raw: dict | None = None) -> bool:
+    payload = raw or {}
+    if payload.get("is_alt") is True or payload.get("is_alternate") is True:
+        return True
+    if payload.get("isConsensus") is False:
+        return True
+    normalized = str(name or "").lower().replace("-", "_").replace(" ", "_")
+    return normalized.startswith(("alternate_", "alt_"))
 
 
 def _league(tournament: dict, event: dict) -> str:
@@ -732,34 +796,54 @@ class SharpMoneyCollector:
             signals = self._build_oddsengine_signals(snapshot)
         elif source_kind == "odds_engine_quotes":
             signals = self._build_oddsengine_quote_signals(snapshot)
-            direct_signals = self._enrich_quote_signals_with_novig(signals)
-            if direct_signals:
-                signals = direct_signals
-                source_kind = "direct_novig_quotes"
-            else:
-                direct_novig = self.novig_provider
-                if (
-                    direct_novig is not None
-                    and bool(getattr(direct_novig, "configured", False))
-                    and hasattr(direct_novig, "sharp_money_direct_snapshot")
-                ):
-                    try:
-                        direct_snapshot = (
-                            direct_novig.sharp_money_direct_snapshot(limit=40)
-                        )
-                        direct_signals = self._build_novig_direct_signals(
-                            direct_snapshot
-                        )
-                        if direct_signals:
-                            source = direct_novig
-                            snapshot = direct_snapshot
-                            signals = direct_signals
-                            source_kind = "novig_direct"
-                    except Exception:
-                        LOGGER.warning(
-                            "Direct NoVIG liquidity slate failed after an "
-                            "unmatched OddsEngine response"
-                        )
+            matched_signals = self._enrich_quote_signals_with_novig(signals)
+            direct_novig = self.novig_provider
+            slate_signals: list[dict] = []
+            direct_snapshot: dict = {}
+            if (
+                direct_novig is not None
+                and bool(getattr(direct_novig, "configured", False))
+                and hasattr(direct_novig, "sharp_money_direct_snapshot")
+            ):
+                try:
+                    direct_snapshot = direct_novig.sharp_money_direct_snapshot(
+                        limit=SHARP_MONEY_SIGNAL_LIMIT
+                    )
+                    slate_signals = self._build_novig_direct_signals(
+                        direct_snapshot
+                    )
+                except Exception:
+                    LOGGER.warning(
+                        "Direct NoVIG liquidity slate failed after the "
+                        "OddsEngine quote snapshot"
+                    )
+            if matched_signals or slate_signals:
+                # Exact OddsEngine-to-NoVIG matches carry sportsbook peers;
+                # the independent NBX slate supplies props and alternate
+                # markets that are absent from the first quote-match window.
+                # Deduplicate the obvious same event/market/selection rows.
+                combined: list[dict] = []
+                seen: set[tuple] = set()
+                for signal in (*matched_signals, *slate_signals):
+                    market = signal.get("market") or {}
+                    identity = (
+                        str(signal.get("league") or "").casefold(),
+                        str(signal.get("event") or "").casefold(),
+                        str(market.get("name") or "").casefold(),
+                        str(market.get("line") or ""),
+                        str(signal.get("selection") or "").casefold(),
+                    )
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    combined.append(signal)
+                signals = combined[:SHARP_MONEY_SIGNAL_LIMIT]
+                if matched_signals:
+                    source_kind = "direct_novig_quotes"
+                else:
+                    source = direct_novig
+                    snapshot = direct_snapshot
+                    source_kind = "novig_direct"
         elif source_kind == "novig_direct":
             signals = self._build_novig_direct_signals(snapshot)
         else:
@@ -825,7 +909,9 @@ class SharpMoneyCollector:
                     return (
                         provider,
                         "odds_engine_quotes",
-                        provider.sharp_money_quote_snapshot(limit=40),
+                        provider.sharp_money_quote_snapshot(
+                            limit=SHARP_MONEY_SIGNAL_LIMIT
+                        ),
                     )
                 if (
                     self.advanced_orderbook_enabled
@@ -835,7 +921,9 @@ class SharpMoneyCollector:
                         return (
                             provider,
                             "odds_engine_orderbook",
-                            provider.sharp_money_snapshot(limit=40),
+                            provider.sharp_money_snapshot(
+                                limit=SHARP_MONEY_SIGNAL_LIMIT
+                            ),
                         )
                     except Exception as exc:
                         status = getattr(
@@ -854,7 +942,9 @@ class SharpMoneyCollector:
                     return (
                         provider,
                         "odds_engine_quotes",
-                        provider.sharp_money_quote_snapshot(limit=40),
+                        provider.sharp_money_quote_snapshot(
+                            limit=SHARP_MONEY_SIGNAL_LIMIT
+                        ),
                     )
                 return provider, "prophetx_rest", provider.live_market_snapshot()
             except Exception as exc:
@@ -875,7 +965,9 @@ class SharpMoneyCollector:
                 return (
                     provider,
                     "odds_engine_quotes",
-                    provider.sharp_money_quote_snapshot(limit=40),
+                    provider.sharp_money_quote_snapshot(
+                        limit=SHARP_MONEY_SIGNAL_LIMIT
+                    ),
                 )
             except Exception as exc:
                 status = getattr(getattr(exc, "response", None), "status_code", None)
@@ -897,7 +989,9 @@ class SharpMoneyCollector:
             and hasattr(direct_novig, "sharp_money_direct_snapshot")
         ):
             try:
-                snapshot = direct_novig.sharp_money_direct_snapshot(limit=40)
+                snapshot = direct_novig.sharp_money_direct_snapshot(
+                    limit=SHARP_MONEY_SIGNAL_LIMIT
+                )
                 if snapshot.get("snapshots"):
                     return direct_novig, "novig_direct", snapshot
             except Exception as exc:
@@ -968,6 +1062,9 @@ class SharpMoneyCollector:
                     or market.get("market_type")
                     or market.get("type")
                     or "Moneyline"
+                )
+                source_market_type = str(
+                    market.get("market_type") or market.get("type") or market_name
                 )
                 selection_books = _selection_books(market.get("selections"))
                 if len(selection_books) < 2:
@@ -1098,8 +1195,14 @@ class SharpMoneyCollector:
                             "market": {
                                 "id": market_id,
                                 "name": market_name,
-                                "kind": _market_kind(market_name),
+                                "kind": _market_kind(
+                                    f"{source_market_type} {market_name}"
+                                ),
                                 "line": selected.get("line"),
+                                "isAlternative": _is_alternative_market(
+                                    f"{source_market_type} {market_name}", market
+                                ),
+                                "sourceMarketType": source_market_type,
                             },
                             "selection": selected["name"],
                             "selectionId": selected["selectionId"],
@@ -1129,7 +1232,7 @@ class SharpMoneyCollector:
                 item["totalLiquidity"],
             ),
             reverse=True,
-        )[:40]
+        )[:SHARP_MONEY_SIGNAL_LIMIT]
 
     def _build_novig_direct_signals(self, payload: dict) -> list[dict]:
         """Build directional Sharp Money rows from verified NBX depth alone."""
@@ -1168,11 +1271,24 @@ class SharpMoneyCollector:
             ).upper()
             market_type = str(market.get("type") or "Moneyline")
             market_kind = _market_kind(market_type)
-            market_name = {
-                "moneyline": "Moneyline",
-                "spread": "Spread",
-                "game_total": "Game Total",
-            }[market_kind]
+            player = market.get("player") if isinstance(market.get("player"), dict) else {}
+            competitor = (
+                market.get("competitor")
+                if isinstance(market.get("competitor"), dict)
+                else {}
+            )
+            player_name = str(
+                player.get("name")
+                or player.get("fullName")
+                or competitor.get("name")
+                or ""
+            ).strip()
+            if player_name and market_kind == "special":
+                market_kind = "player_prop"
+            is_alternative = _is_alternative_market(market_type, market)
+            market_name = _market_title(market_type)
+            if player_name and market_kind == "player_prop":
+                market_name = f"{player_name} · {market_name}"
             raw_outcomes = {
                 str(item.get("id") or ""): item
                 for item in market.get("outcomes") or []
@@ -1284,6 +1400,8 @@ class SharpMoneyCollector:
                     "orderBookLevels": selected["levels"],
                     "oppositeOrderBookLevels": opposite["levels"],
                     "deepLink": "https://novig.com/",
+                    "oppositeDeepLink": "https://novig.com/",
+                    "linkScope": "provider",
                     "logoUrl": ORDERBOOK_BOOK_LOGOS["novig"],
                     "isAvailable": True,
                     "matchingConfidence": "Exact",
@@ -1313,6 +1431,9 @@ class SharpMoneyCollector:
                         "name": market_name,
                         "kind": market_kind,
                         "line": selected.get("line"),
+                        "isAlternative": is_alternative,
+                        "sourceMarketType": market_type,
+                        "playerName": player_name or None,
                     },
                     "selection": selected["name"],
                     "selectionId": selected["selectionId"],
@@ -1338,21 +1459,7 @@ class SharpMoneyCollector:
                 }
             )
         self._previous = current
-        return rows[:40]
-
-    @staticmethod
-    def _quote_selection_name(market, side_id: str, line: float | None) -> str:
-        if side_id == "home":
-            name = market.home_names[0]
-        elif side_id == "away":
-            name = market.away_names[0]
-        elif side_id in {"over", "under"}:
-            return f"{side_id.title()} {line}" if line is not None else side_id.title()
-        else:
-            name = side_id.title()
-        if market.market_name == "spread" and line is not None:
-            return f"{name} {line:+g}"
-        return name
+        return rows[:SHARP_MONEY_SIGNAL_LIMIT]
 
     def _build_oddsengine_quote_signals(self, snapshot: dict) -> list[dict]:
         """Infer sharp consensus from standard-plan exact REST prices.
@@ -1361,63 +1468,134 @@ class SharpMoneyCollector:
         movement in cross-book implied probability with the current difference
         between recognized sharp books and the full market consensus.
         """
-        events = snapshot.get("events") or []
-        by_book, metadata = normalize_the_odds_api_events(events)
         groups: dict[tuple, dict] = {}
-        for raw_book_key, markets in by_book.items():
-            book_key = _book_key(raw_book_key)
-            for market in markets:
-                if market.is_alternative or market.american_odds is None:
+        for event in snapshot.get("events") or []:
+            if not isinstance(event, dict):
+                continue
+            event_id = str(event.get("id") or "").strip()
+            starts_at = str(event.get("commence_time") or "").strip()
+            home = str(event.get("home_team") or "").strip()
+            away = str(event.get("away_team") or "").strip()
+            if not all((event_id, starts_at, home, away)):
+                continue
+            sport_key = str(event.get("sport_key") or "").strip().lower()
+            league = str(event.get("sport_title") or sport_key).strip().upper()
+            sport_prefix = sport_key.split("_", 1)[0]
+            sport = {
+                "americanfootball": "Football",
+                "baseball": "Baseball",
+                "basketball": "Basketball",
+                "icehockey": "Hockey",
+                "soccer": "Soccer",
+            }.get(sport_prefix, sport_prefix.title() or league)
+
+            for bookmaker in event.get("bookmakers") or []:
+                if not isinstance(bookmaker, dict):
                     continue
-                group_line = (
-                    abs(float(market.line))
-                    if market.market_name == "spread" and market.line is not None
-                    else market.line
-                )
-                group_key = (
-                    market.event_id,
-                    market.market_name,
-                    group_line,
-                )
-                group = groups.setdefault(
-                    group_key,
-                    {
-                        "market": market,
-                        "sides": defaultdict(list),
-                    },
-                )
-                decimal = _decimal_from_american(market.american_odds)
-                if decimal is None:
+                raw_book_key = str(bookmaker.get("key") or "").strip()
+                book_key = _book_key(raw_book_key)
+                if not book_key:
                     continue
-                meta = metadata.get(market.selection_id)
-                group["sides"][market.side_id].append(
-                    {
-                        "providerKey": book_key,
-                        "providerName": (
-                            getattr(meta, "name", None)
-                            or ORDERBOOK_BOOK_NAMES.get(book_key)
-                            or str(raw_book_key).title()
-                        ),
-                        "logoUrl": (
-                            ORDERBOOK_BOOK_LOGOS.get(book_key)
-                            or getattr(meta, "logo_url", "")
-                        ),
-                        "americanOdds": market.american_odds,
-                        "decimalOdds": decimal,
-                        "probability": 1 / decimal,
-                        "availableLiquidity": getattr(meta, "bet_limit", None),
-                        "deepLink": getattr(meta, "direct_link", None) or "",
-                        "lastUpdated": market.last_updated,
-                        "line": market.line,
-                    }
-                )
+                provider_name = str(
+                    bookmaker.get("title")
+                    or ORDERBOOK_BOOK_NAMES.get(book_key)
+                    or raw_book_key
+                ).strip()
+                for market in bookmaker.get("markets") or []:
+                    if not isinstance(market, dict):
+                        continue
+                    market_key = str(market.get("key") or "").strip().lower()
+                    market_id = str(market.get("id") or market_key).strip()
+                    if not market_key or not market_id:
+                        continue
+                    market_kind = _market_kind(market_key)
+                    is_alternative = _is_alternative_market(market_key, market)
+                    group_key = (event_id, market_id, market_key)
+                    group = groups.setdefault(
+                        group_key,
+                        {
+                            "eventId": event_id,
+                            "startsAt": starts_at,
+                            "home": home,
+                            "away": away,
+                            "sport": sport,
+                            "league": league,
+                            "marketId": market_id,
+                            "marketKey": market_key,
+                            "marketKind": market_kind,
+                            "marketName": _market_title(market_key),
+                            "isAlternative": is_alternative,
+                            "sides": defaultdict(list),
+                        },
+                    )
+                    for position, outcome in enumerate(market.get("outcomes") or []):
+                        if not isinstance(outcome, dict):
+                            continue
+                        american = round(_number(outcome.get("price")))
+                        decimal = _decimal_from_american(american)
+                        if decimal is None:
+                            continue
+                        name = str(outcome.get("name") or "Selection").strip()
+                        entity = str(outcome.get("description") or "").strip()
+                        line_value = outcome.get("point")
+                        line = None
+                        if line_value is not None:
+                            parsed_line = _number(line_value, float("nan"))
+                            if math.isfinite(parsed_line):
+                                line = parsed_line
+                        side_id = "|".join(
+                            (
+                                entity.casefold(),
+                                name.casefold(),
+                                str(line if line is not None else ""),
+                            )
+                        )
+                        if side_id == "||":
+                            side_id = str(position)
+                        selection_name = name
+                        if entity:
+                            selection_name = f"{entity} {name}".strip()
+                        if line is not None:
+                            if market_kind == "spread":
+                                selection_name = f"{selection_name} {line:+g}"
+                            elif name.casefold() in {"over", "under"}:
+                                selection_name = f"{selection_name} {line:g}"
+                        available = outcome.get("liquidity")
+                        if available is None:
+                            available = outcome.get("bet_limit")
+                        if available is None:
+                            available = outcome.get("limit")
+                        group["isAlternative"] = bool(
+                            group["isAlternative"]
+                            or _is_alternative_market(market_key, outcome)
+                        )
+                        group["sides"][side_id].append(
+                            {
+                                "providerKey": book_key,
+                                "providerName": provider_name,
+                                "logoUrl": ORDERBOOK_BOOK_LOGOS.get(book_key, ""),
+                                "americanOdds": american,
+                                "decimalOdds": decimal,
+                                "probability": 1 / decimal,
+                                "availableLiquidity": available,
+                                "deepLink": str(outcome.get("link") or ""),
+                                "lastUpdated": str(
+                                    market.get("last_update")
+                                    or bookmaker.get("last_update")
+                                    or ""
+                                ),
+                                "line": line,
+                                "selectionName": selection_name,
+                                "entityName": entity,
+                            }
+                        )
 
         observed_at = str(
             snapshot.get("observedAt") or datetime.now(timezone.utc).isoformat()
         )
         current: dict[str, dict] = {}
         rows: list[dict] = []
-        for (event_id, market_kind, group_line), group in groups.items():
+        for (event_id, market_id, source_market_key), group in groups.items():
             sides = {
                 side_id: quotes
                 for side_id, quotes in group["sides"].items()
@@ -1425,7 +1603,7 @@ class SharpMoneyCollector:
             }
             if len(sides) != 2:
                 continue
-            market = group["market"]
+            market_kind = group["marketKind"]
             outcomes: list[dict] = []
             quote_sets: dict[str, list[dict]] = {}
             for side_id, quotes in sides.items():
@@ -1441,7 +1619,7 @@ class SharpMoneyCollector:
                     if sharp_probabilities
                     else consensus_probability
                 )
-                side_key = f"rest:{event_id}:{market_kind}:{group_line}:{side_id}"
+                side_key = f"rest:{event_id}:{market_id}:{side_id}"
                 known_liquidity = None
                 previous = self._previous.get(side_key)
                 probability_delta = (
@@ -1456,7 +1634,7 @@ class SharpMoneyCollector:
                 outcome = {
                     "key": side_key,
                     "selectionId": side_id,
-                    "name": self._quote_selection_name(market, side_id, line),
+                    "name": quotes[0]["selectionName"],
                     "decimalOdds": 1 / consensus_probability,
                     "americanOdds": _american(1 / consensus_probability),
                     "probability": consensus_probability,
@@ -1514,6 +1692,7 @@ class SharpMoneyCollector:
                         ),
                         "marketLimit": quote.get("availableLiquidity"),
                         "deepLink": quote.get("deepLink") or "",
+                        "oppositeDeepLink": peer.get("deepLink") or "",
                         "logoUrl": quote.get("logoUrl") or "",
                         "isAvailable": True,
                         "matchingConfidence": "Exact",
@@ -1540,33 +1719,29 @@ class SharpMoneyCollector:
                 leader_quotes,
                 key=lambda row: row["americanOdds"],
             )
-            market_name = {
-                "moneyline": "Moneyline",
-                "spread": "Spread",
-                "game_total": "Game Total",
-            }.get(market_kind, market_kind.replace("_", " ").title())
             rows.append(
                 {
                     "id": (
-                        f"oe:rest:{event_id}:{market_kind}:{group_line}:"
+                        f"oe:rest:{event_id}:{market_id}:"
                         f"{leader['selectionId']}"
                     ),
                     "provider": "OddsEngine",
                     "providerKey": "odds_engine",
                     "providerLogo": best_quote.get("logoUrl") or "",
-                    "sport": market.sport_id.title(),
-                    "league": market.league_id,
-                    "event": (
-                        f"{market.away_names[0]} vs. {market.home_names[0]}"
-                    ),
-                    "homeTeam": market.home_names[0],
-                    "awayTeam": market.away_names[0],
-                    "startsAt": market.start_at.isoformat(),
+                    "sport": group["sport"],
+                    "league": group["league"],
+                    "event": f"{group['away']} vs. {group['home']}",
+                    "homeTeam": group["home"],
+                    "awayTeam": group["away"],
+                    "startsAt": group["startsAt"],
                     "market": {
-                        "id": f"{event_id}:{market_kind}:{group_line}",
-                        "name": market_name,
+                        "id": market_id,
+                        "name": group["marketName"],
                         "kind": market_kind,
                         "line": leader.get("line"),
+                        "isAlternative": group["isAlternative"],
+                        "sourceMarketType": source_market_key,
+                        "playerName": best_quote.get("entityName") or None,
                     },
                     "selection": leader["name"],
                     "selectionId": leader["selectionId"],
@@ -1608,7 +1783,15 @@ class SharpMoneyCollector:
                 item["totalLiquidity"] or 0,
             ),
             reverse=True,
-        )[: max(1, min(int(snapshot.get("limit") or 40), 100))]
+        )[:
+            max(
+                1,
+                min(
+                    int(snapshot.get("limit") or SHARP_MONEY_SIGNAL_LIMIT),
+                    SHARP_MONEY_SIGNAL_LIMIT,
+                ),
+            )
+        ]
 
     @staticmethod
     def _oddsengine_outcome(
@@ -1694,6 +1877,9 @@ class SharpMoneyCollector:
                 ),
                 "marketLimit": raw_book.get("limit"),
                 "deepLink": str(raw_book.get("bet_link") or ""),
+                "oppositeDeepLink": str(
+                    opposite_book.get("bet_link") or ""
+                ),
                 "logoUrl": ORDERBOOK_BOOK_LOGOS.get(key, ""),
                 "isAvailable": True,
                 "matchingConfidence": "Exact",
@@ -1804,6 +1990,11 @@ class SharpMoneyCollector:
             if not event_name:
                 event_name = " vs. ".join(value for value in (away, home) if value)
             market_name = str(market.get("market") or "Market").strip()
+            source_market_type = str(
+                market.get("market_key")
+                or market.get("market_type")
+                or market_name
+            ).strip()
             whale_volume = _number(opportunity.get("whale_volume"))
             total_liquidity = selected["liquidity"] + opposing["liquidity"]
             confidence = min(
@@ -1829,8 +2020,14 @@ class SharpMoneyCollector:
                     "market": {
                         "id": market_id,
                         "name": market_name,
-                        "kind": _market_kind(market_name),
+                        "kind": _market_kind(
+                            f"{source_market_type} {market_name}"
+                        ),
                         "line": selected.get("line"),
+                        "isAlternative": _is_alternative_market(
+                            f"{source_market_type} {market_name}", market
+                        ),
+                        "sourceMarketType": source_market_type,
                     },
                     "selection": selected["name"],
                     "americanOdds": selected["americanOdds"],
@@ -1874,7 +2071,7 @@ class SharpMoneyCollector:
                 item["totalLiquidity"],
             ),
             reverse=True,
-        )[:40]
+        )[:SHARP_MONEY_SIGNAL_LIMIT]
 
     def _finalize_direct_signals(self, signals: list[dict]) -> list[dict]:
         rows = []
@@ -1925,7 +2122,7 @@ class SharpMoneyCollector:
                 abs(_number(item.get("edgePercent"))),
             ),
             reverse=True,
-        )[:40]
+        )[:SHARP_MONEY_SIGNAL_LIMIT]
 
     @staticmethod
     def _opposite_quote_signal(signal: dict) -> dict | None:
@@ -2040,6 +2237,7 @@ class SharpMoneyCollector:
                     "orderBookLevels": levels(selected),
                     "oppositeOrderBookLevels": levels(opposite),
                     "deepLink": getattr(selected, "deep_link", ""),
+                    "oppositeDeepLink": getattr(opposite, "deep_link", ""),
                     "logoUrl": getattr(selected, "logo_url", ""),
                     "isAvailable": selected_liquidity > 0,
                     "matchingConfidence": "Exact",
@@ -2062,7 +2260,11 @@ class SharpMoneyCollector:
             "moneyline": "Moneyline",
             "spread": "Spread",
             "game_total": "Total",
-        }[kind]
+            "team_total": "Team Total",
+            "player_prop": signal["market"].get("sourceMarketType")
+            or "Player Prop",
+            "special": signal["market"].get("sourceMarketType") or "Yes/No",
+        }.get(kind, signal["market"].get("name") or "Market")
         selected = outcome or {}
         return {
             "id": trade_id or signal["id"],
@@ -2169,6 +2371,9 @@ class SharpMoneyCollector:
                     "orderBookLevels": selected.get("levels") or [],
                     "oppositeOrderBookLevels": opposing.get("levels") or [],
                     "logoUrl": PROPHETX_LOGO_URL,
+                    "deepLink": PROPHETX_TRADE_FALLBACK_URL,
+                    "oppositeDeepLink": PROPHETX_TRADE_FALLBACK_URL,
+                    "linkScope": "provider",
                     "isAvailable": True,
                     "matchingConfidence": "Exact",
                     "tooltip": "Direct ProphetX executable order book",
@@ -2205,6 +2410,9 @@ class SharpMoneyCollector:
                             novig_opposing
                         ),
                         "deepLink": getattr(novig_selected, "deep_link", ""),
+                        "oppositeDeepLink": getattr(
+                            novig_opposing, "deep_link", ""
+                        ),
                         "logoUrl": getattr(novig_selected, "logo_url", ""),
                         "isAvailable": True,
                         "matchingConfidence": "Exact",
@@ -2244,20 +2452,15 @@ def build_sharp_money_collector(registry, settings) -> SharpMoneyCollector:
     advanced_orderbook_enabled = bool(
         getattr(settings, "sharp_money_advanced_orderbook_enabled", False)
     )
-    # Direct exchange credentials expose executable depth without depending on
-    # the OddsEngine Advanced entitlement. On the standard plan, OddsEngine's
-    # quote feed must run first: it supplies the market map used to match direct
-    # NoVIG depth and avoids blocking every cold page load on an unavailable
-    # ProphetX production login. Direct ProphetX remains the fallback and is the
-    # preferred source only when Advanced depth is explicitly enabled.
-    if odds_engine_configured and not advanced_orderbook_enabled:
+    # OddsEngine is the canonical ProphetX order-book integration when it is
+    # configured. Probe it first in both modes, then fall back to the manually
+    # integrated direct ProphetX client and direct NoVIG NBX depth. This avoids
+    # making an unauthorized legacy ProphetX login the primary production path.
+    if odds_engine_configured:
         primary_source = odds_engine
         fallback_source = direct_prophetx if direct_prophetx_configured else None
     elif direct_prophetx_configured:
         primary_source = direct_prophetx
-        fallback_source = odds_engine if odds_engine_configured else None
-    elif odds_engine_configured:
-        primary_source = odds_engine
         fallback_source = None
     else:
         # Preserve the provider object for local diagnostics and cached-read

@@ -598,6 +598,23 @@ def test_direct_sharp_money_snapshot_uses_verified_two_sided_depth() -> None:
     assert snapshot["stale"] is False
 
 
+def test_direct_sharp_money_snapshot_includes_player_props() -> None:
+    from novig_provider import NoVIGNBXProvider
+
+    market = sample_market(market_type="RUSHING_YARDS")
+    market["player"] = {"name": "Example Runner"}
+    market["outcomes"][0]["description"] = "Yes"
+    market["outcomes"][1]["description"] = "No"
+    provider = NoVIGNBXProvider("client-id", "client-secret")
+    provider.rest = FakeWorkerRest(market)
+
+    payload = provider.sharp_money_direct_snapshot(limit=10)
+
+    assert [row["market"]["type"] for row in payload["snapshots"]] == [
+        "RUSHING_YARDS"
+    ]
+
+
 def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
     from novig_provider import NoVIGNBXProvider
 
@@ -646,12 +663,12 @@ def test_direct_sharp_money_filters_catalog_before_applying_limit() -> None:
             raise AssertionError("direct snapshots must not paginate every event")
 
         def get_markets_by_events(self, event_ids):
-            assert list(event_ids) == ["event-1"]
-            return [deepcopy(current_market)]
+            assert list(event_ids) == ["event-1", "event-prop"]
+            return [deepcopy(current_market), deepcopy(prop_market)]
 
         def get_book(self, market_id):
-            assert market_id == "market-1"
-            return sample_book()
+            assert market_id in {"market-1", "market-player-prop"}
+            return sample_book(market_id=market_id)
 
     rest = SelectiveRest()
     provider = NoVIGNBXProvider("client-id", "client-secret")

@@ -47,16 +47,6 @@ NOVIG_CASH_QTY_PER_CONTRACT = 100.0
 NOVIG_LIVE_TAKER_FEE_COEFFICIENT = 0.03
 MAX_EVENT_PAGES = 50
 MAX_BATCH_EVENT_IDS = 50
-SHARP_MONEY_MARKET_TYPES = {
-    "MONEY",
-    "MONEYLINE",
-    "SPREAD",
-    "TOTAL",
-    "MONEY_1H",
-    "MONEYLINE_1H",
-    "SPREAD_1H",
-    "TOTAL_1H",
-}
 SHARP_MONEY_OPEN_EVENT_STATUSES = ("OPEN_INGAME", "OPEN_PREGAME")
 TERMINAL_EVENT_STATUSES = {
     "CANCELED",
@@ -1901,7 +1891,14 @@ def enrich_novig_markets(
 
 
 def _sharp_money_market_supported(market: dict) -> bool:
-    """Return whether a NoVIG market can form a truthful two-sided game row."""
+    """Return whether a NoVIG market can form a truthful two-sided row.
+
+    NoVIG publishes player props and specials as two-outcome market types such
+    as ``RUSHING_YARDS``. The old mainline whitelist discarded those verified
+    books before Sharp Money could rank them. ``_market_shape`` is already the
+    canonical normalizer for every supported NoVIG type, so use it as the
+    coverage gate instead of enumerating only game lines here.
+    """
     if not isinstance(market, dict):
         return False
     market_id = _safe_text(market.get("id"))
@@ -1910,7 +1907,18 @@ def _sharp_money_market_supported(market: dict) -> bool:
         return False
     if _safe_text(market.get("status")).upper() != "OPEN":
         return False
-    if _safe_text(market.get("type")).upper() not in SHARP_MONEY_MARKET_TYPES:
+    market_type = _safe_text(market.get("type")).upper()
+    event_payload = (
+        market.get("event") if isinstance(market.get("event"), dict) else {}
+    )
+    league = _safe_text(
+        market.get("league")
+        or event_payload.get("league")
+    )
+    market_name, _bet_type, _period, settlement = _market_shape(
+        market_type, league
+    )
+    if not market_type or not market_name or not settlement:
         return False
     outcomes = market.get("outcomes") or market.get("outcomeIds") or []
     if len(outcomes) != 2:
@@ -1961,6 +1969,8 @@ def _sharp_money_market_priority(market: dict) -> tuple[object, ...]:
         "SPREAD_1H": 4,
         "TOTAL_1H": 5,
     }.get(market_type, 9)
+    if market.get("isConsensus") is False:
+        type_rank += 1
     return status_rank, start_rank, type_rank, _safe_text(market.get("id"))
 
 

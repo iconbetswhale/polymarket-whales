@@ -33,6 +33,8 @@ def test_sharp_money_template_uses_canonical_v2_primitives():
     assert "il-detail-panel" in template
     assert "sharp-list-status" in template
     assert "sharp-more-menu" in template
+    assert '<option value="alternate">Alternate lines</option>' in template
+    assert '<option value="player_prop">Player props</option>' in template
 
 
 def test_sharp_money_canonical_layer_unifies_cards_and_centers_bet_size():
@@ -93,6 +95,11 @@ def test_sharp_money_reference_redesign_has_list_detail_contract():
     assert "Best sharp price" in script
     assert "depthSummary(signal)" in script
     assert "Sharp Money" in script
+    assert "exchangeAction(key, row)" in script
+    assert 'class="sharp-depth-bet' in script
+    assert "https://www.prophetx.co/lobby/" in script
+    assert "oppositeDeepLink || row.deepLink" in script
+    assert ".sharp-depth-bet" in stylesheet
 
 
 def test_sharp_money_reference_redesign_keeps_hover_states_inside_the_feed():
