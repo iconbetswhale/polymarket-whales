@@ -1371,6 +1371,7 @@ def test_sharp_money_frontend_separates_sportsbook_actions_from_depth_sources():
     assert "row.oppositeDeepLink" in script
     assert 'class="sharp-flow-bet-link"' in script
     assert 'return "Login needs reconnect"' in script
+    assert "const secondary = !row" in script
 
 
 def test_sharp_money_control_routes_to_collector(app_client, monkeypatch):

@@ -341,9 +341,11 @@
       <div class="sharp-card-depth-sources">
       ${quotes.map(({ key, row }) => {
         const label = key === "novig" ? "NoVIG" : "ProphetX";
-        const secondary = signal.depthAvailable === false
-          ? row ? `${odds(row.americanOdds)} exact quote` : depthProviderUnavailableLabel(key)
-          : row?.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} at ${odds(row.americanOdds)}`;
+        const secondary = !row
+          ? depthProviderUnavailableLabel(key)
+          : signal.depthAvailable === false
+            ? `${odds(row.americanOdds)} exact quote`
+            : row.availableLiquidity == null ? "Liquidity unavailable" : `${money(row.availableLiquidity)} at ${odds(row.americanOdds)}`;
         return `<div class="sharp-depth-chip${row ? "" : " unavailable"}">
           <span class="sharp-depth-chip-logo">${logo(row, key === "novig" ? "N" : "PX")}</span>
           <span class="sharp-depth-chip-copy"><strong>${label}</strong><small>${escapeHtml(secondary)}</small></span>
