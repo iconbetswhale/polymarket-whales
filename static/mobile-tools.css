@@ -1501,12 +1501,12 @@
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-page {
     min-height: calc(100dvh - 62px) !important;
-    padding: 8px 10px max(88px, calc(76px + env(safe-area-inset-bottom))) !important;
+    padding: 4px 10px max(88px, calc(76px + env(safe-area-inset-bottom))) !important;
   }
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-heading {
-    gap: 7px !important;
-    margin: 0 0 8px !important;
+    gap: 6px !important;
+    margin: 0 0 6px !important;
     padding: 0 !important;
   }
 
@@ -1518,16 +1518,6 @@
   body[data-design-system="v2"][data-page="dfs"] .dfs-heading h1 {
     font-size: clamp(24px, 7.3vw, 29px) !important;
     line-height: 1 !important;
-  }
-
-  body[data-design-system="v2"][data-page="dfs"] .dfs-heading .il-page-title > p:last-child {
-    max-width: 100% !important;
-    margin-top: 4px !important;
-    overflow: hidden;
-    font-size: 10px !important;
-    line-height: 1.25 !important;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
 
   .dfs-header {

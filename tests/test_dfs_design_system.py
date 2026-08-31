@@ -59,6 +59,14 @@ def test_dfs_reuses_canonical_primitives() -> None:
         assert hook in TEMPLATE
 
 
+def test_dfs_header_is_compact_and_has_no_marketing_subtitle() -> None:
+    assert "Find the strongest projection edge" not in TEMPLATE
+    assert "padding: 8px var(--il-gutter-desktop) var(--il-gutter-desktop)" in CSS
+    assert "min-height: 52px" in CSS
+    assert "padding: 64px 0 0 !important" not in CSS
+    assert "padding: 0 !important" in CSS
+
+
 def test_dfs_v2_uses_shared_tokens_and_real_assets() -> None:
     assert 'body[data-design-system="v2"][data-page="dfs"]' in CSS
     for token in (

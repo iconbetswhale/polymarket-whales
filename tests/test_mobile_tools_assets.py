@@ -149,6 +149,8 @@ def test_mobile_dfs_starts_directly_below_the_brand_bar_and_recovers_failed_feed
     assert 'body[data-design-system="v2"][data-page="dfs"] .app-shell' in styles
     assert "min-height: calc(100dvh - 62px) !important" in styles
     assert "padding: 0 !important" in styles
+    assert "Find the strongest projection edge" not in template
+    assert "padding: 4px 10px" in styles
     assert 'id="dfs-feed-notice"' in template
     assert 'id="dfs-error-retry"' in template
     assert "persistentSnapshotMaxAgeMs = 15*60*1000" in dfs_script

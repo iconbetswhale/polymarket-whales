@@ -25,7 +25,7 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-page {
   min-width: 0;
   height: 100dvh;
   flex-direction: column;
-  padding: var(--il-gutter-desktop);
+  padding: 8px var(--il-gutter-desktop) var(--il-gutter-desktop);
   overflow: hidden;
   color: var(--il-text-primary);
   background: var(--il-bg-app);
@@ -62,12 +62,12 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-preview-banner span {
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-heading {
   display: flex;
-  min-height: 68px;
+  min-height: 52px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: space-between;
   gap: var(--il-space-6);
-  margin: 0 0 var(--il-space-3);
+  margin: 0 0 8px;
   padding: 0 var(--il-space-1);
   border: 0;
 }
@@ -84,12 +84,6 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-heading h1 {
   color: var(--il-text-primary);
   font: var(--il-type-page-title);
   letter-spacing: -.02em;
-}
-
-body[data-design-system="v2"][data-page="dfs"] .dfs-heading .il-page-title > p:last-child {
-  margin: 6px 0 0;
-  color: var(--il-text-muted);
-  font: var(--il-type-metadata);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-heading-actions {
@@ -2169,15 +2163,15 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-note i {
 @media (max-width: 700px) {
   body[data-design-system="v2"][data-page="dfs"] .app-shell {
     width: 100% !important;
-    min-height: 100dvh;
+    min-height: calc(100dvh - 62px);
     margin-left: 0 !important;
-    padding: 64px 0 0 !important;
+    padding: 0 !important;
   }
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-page {
-    min-height: 100dvh;
+    min-height: calc(100dvh - 62px);
     height: auto;
-    padding: 10px;
+    padding: 4px 10px max(88px, calc(76px + env(safe-area-inset-bottom)));
     overflow: visible;
   }
 
@@ -2211,11 +2205,6 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-parlay-guide-note i {
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-heading h1 {
     font: 700 24px/1.1 var(--il-font-ui);
-  }
-
-  body[data-design-system="v2"][data-page="dfs"] .dfs-heading .il-page-title > p:last-child {
-    max-width: 330px;
-    font: 500 12px/1.35 var(--il-font-ui);
   }
 
   body[data-design-system="v2"][data-page="dfs"] .dfs-heading-actions {
