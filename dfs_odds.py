@@ -105,6 +105,23 @@ def _price(outcome: dict) -> int | None:
     return price if price != 0 else None
 
 
+def _nonnegative_number(value: object) -> float | None:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
+def _multiplier(outcome: dict) -> float | None:
+    try:
+        raw = str(outcome.get("multiplier") or "").strip().lower().rstrip("x")
+        parsed = float(raw)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
 def _parse_time(value: object) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value or "").replace("Z", "+00:00"))
@@ -238,6 +255,14 @@ def build_dfs_odds_board(
                         "line": line,
                         "over_odds": _price(sides.get("over", {})),
                         "under_odds": _price(sides.get("under", {})),
+                        "over_liquidity": _nonnegative_number(
+                            sides.get("over", {}).get("liquidity")
+                        ),
+                        "under_liquidity": _nonnegative_number(
+                            sides.get("under", {}).get("liquidity")
+                        ),
+                        "over_link": str(sides.get("over", {}).get("link") or ""),
+                        "under_link": str(sides.get("under", {}).get("link") or ""),
                         "quote_timestamp": str(
                             market.get("last_update")
                             or bookmaker.get("last_update")
@@ -249,29 +274,49 @@ def build_dfs_odds_board(
                         if ui_key:
                             option = group["dfs_options"][ui_key].setdefault(
                                 line,
-                                {"sides": set(), "is_alt": True},
+                                {
+                                    "sides": set(),
+                                    "is_alt": False,
+                                    "standard_multiplier": True,
+                                },
                             )
                             option["sides"].update(sides)
-                            option["is_alt"] = bool(option["is_alt"]) and all(
+                            option["is_alt"] = bool(option["is_alt"]) or any(
                                 bool(outcome.get("is_alt"))
+                                or bool(outcome.get("is_boosted"))
+                                or bool(outcome.get("is_promotional"))
+                                for outcome in sides.values()
+                            )
+                            option["standard_multiplier"] = bool(
+                                option["standard_multiplier"]
+                            ) and all(
+                                _multiplier(outcome) is None
+                                or abs(float(_multiplier(outcome)) - 1.0) < 1e-9
                                 for outcome in sides.values()
                             )
                     else:
                         group["quotes"][book_key].append(quote)
 
+    engine_weights = weights or ICONLABS_DFS_WEIGHTS
+    positive_weight_count = sum(
+        1 for weight in engine_weights.values() if float(weight) > 0
+    )
+    minimum_sources = 1 if positive_weight_count == 1 else 2
     engine = DfsProbabilityEngine(
-        weights or ICONLABS_DFS_WEIGHTS,
+        engine_weights,
         devig_method="power",
         max_quote_age_seconds=600,
         freshness_half_life_seconds=300,
-        minimum_sources=1,
+        minimum_sources=minimum_sources,
     )
     pair_capable_app_sports = {
         (ui_key, group["sport"])
         for group in groups.values()
         for ui_key, line_options in group["dfs_options"].items()
         if any(
-            {"over", "under"}.issubset(option.get("sides") or set())
+            not option.get("is_alt")
+            and option.get("standard_multiplier", True)
+            and {"over", "under"}.issubset(option.get("sides") or set())
             for option in line_options.values()
         )
     }
@@ -283,7 +328,12 @@ def build_dfs_odds_board(
         dfs_lines: dict[str, float] = {}
         dfs_sides: dict[str, set[str]] = {}
         for ui_key, line_options in dfs_options.items():
-            eligible_line_options = line_options
+            eligible_line_options = {
+                line: option
+                for line, option in line_options.items()
+                if not option.get("is_alt")
+                and option.get("standard_multiplier", True)
+            }
             if (ui_key, group["sport"]) in pair_capable_app_sports:
                 eligible_line_options = {
                     line: option
@@ -320,6 +370,7 @@ def build_dfs_odds_board(
             reliability_by_line: dict[str, float] = {}
             exact_sources_by_line: dict[str, int] = {}
             devig_sources_by_line: dict[str, dict[str, list[float]]] = {}
+            model_quality_by_line: dict[str, dict[str, str]] = {}
             for target_line in target_lines:
                 result = engine.calculate(
                     target_line=target_line,
@@ -343,6 +394,14 @@ def build_dfs_odds_board(
                     and contribution.get("exclusion_reason")
                     in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
                 }
+                model_quality_by_line[key] = {
+                    str(contribution["provider"]): str(
+                        contribution.get("exclusion_reason") or ""
+                    )
+                    for contribution in result.contributions
+                    if contribution.get("exclusion_reason")
+                    not in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
+                }
 
             primary_line = dfs_lines[display_book]
             side_dfs_lines = {
@@ -360,15 +419,21 @@ def build_dfs_odds_board(
                     continue
                 display_key = DISPLAY_PROVIDER_ALIASES.get(book_key, book_key)
                 display_odds = _display_price(book_key, price)
-                odds_by_book[display_key] = (
-                    display_odds
-                    if float(quote["line"]) == float(primary_line)
-                    else {
-                        "odds": display_odds,
-                        "americanOdds": price,
-                        "line": quote["line"],
-                    }
+                quote_line_key = _line_key(float(quote["line"]))
+                quality_reason = model_quality_by_line.get(quote_line_key, {}).get(
+                    MODEL_PROVIDER_ALIASES.get(book_key, book_key)
                 )
+                if float(quote["line"]) != float(primary_line):
+                    quality_reason = "LINE_MISMATCH"
+                odds_by_book[display_key] = {
+                    "odds": display_odds,
+                    "americanOdds": price,
+                    "line": quote["line"],
+                    "liquidity": quote.get(f"{side_key}_liquidity"),
+                    "deepLink": quote.get(f"{side_key}_link") or "",
+                    "modelExcluded": bool(quality_reason),
+                    "modelExclusionReason": quality_reason or "",
+                }
             primary_key = _line_key(primary_line)
             rows.append(
                 {
@@ -393,7 +458,11 @@ def build_dfs_odds_board(
                     "fairOddsByLine": fair_odds_by_line,
                     "reliabilityByLine": reliability_by_line,
                     "exactSourcesByLine": exact_sources_by_line,
+                    "minimumSourcesByLine": {
+                        _line_key(line): minimum_sources for line in target_lines
+                    },
                     "devigSourcesByLine": devig_sources_by_line,
+                    "modelQualityByLine": model_quality_by_line,
                     "reliability": reliability_by_line.get(primary_key, 0.0),
                     "oddsByBook": odds_by_book,
                     "sourceCount": exact_sources_by_line.get(primary_key, 0),

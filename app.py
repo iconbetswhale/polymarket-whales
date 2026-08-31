@@ -1541,15 +1541,15 @@ def create_app(start_background: bool = True) -> Flask:
                 sport_keys=requested_sports,
                 market_keys=market_keys,
             )
-            rows_by_book = {
-                book_key: build_dfs_odds_board(
-                    events,
-                    weights=normalized_weights,
-                    selected_dfs_book=book_key,
-                )
-                for book_key in DFS_OPTIMIZER_BOOK_KEYS
-            }
-            rows = rows_by_book[selected_book]
+            rows = build_dfs_odds_board(
+                events,
+                weights=normalized_weights,
+                selected_dfs_book=selected_book,
+            )
+            # Return only the requested app board. The client keeps previously
+            # visited boards in memory and fetches another app when selected,
+            # avoiding five full optimizer builds in every refresh response.
+            rows_by_book = {selected_book: rows}
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
             return dfs_degraded_response(

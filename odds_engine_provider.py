@@ -741,6 +741,19 @@ def _selection_outcome(
         outcome["liquidity"] = selection.get("liquidity")
     if selection.get("limit") is not None:
         outcome["bet_limit"] = selection.get("limit")
+    for multiplier_key in (
+        "multiplier",
+        "pick_multiplier",
+        "payout_multiplier",
+        "odds_multiplier",
+    ):
+        if selection.get(multiplier_key) is not None:
+            outcome["multiplier"] = selection.get(multiplier_key)
+            break
+    if selection.get("is_boosted") is not None:
+        outcome["is_boosted"] = bool(selection.get("is_boosted"))
+    if selection.get("is_promotional") is not None:
+        outcome["is_promotional"] = bool(selection.get("is_promotional"))
     return outcome
 
 

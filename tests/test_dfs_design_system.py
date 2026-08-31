@@ -128,7 +128,7 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
 
 
 def test_dfs_is_prewarmed_before_navigation_when_possible() -> None:
-    assert "dfs-prewarm-v5-instant-devig" in BASE
+    assert "dfs-quality-prewarm" in BASE
     assert "prewarmFantasyOptimizer" in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
 
@@ -138,8 +138,8 @@ def test_dfs_assets_load_after_the_v2_foundation() -> None:
     script = BASE.index("filename='dfs.js'")
 
     assert canonical > foundation
-    assert "-filters-v2" in BASE[canonical : canonical + 160]
-    assert "-live-only-v2-undefined-guard" in BASE[script : script + 160]
+    assert "-quality-guardrails-v3" in BASE[canonical : canonical + 160]
+    assert "-quality-guardrails-v4" in BASE[script : script + 160]
 
 
 def test_dfs_rows_use_the_same_alternating_purple_treatment_as_odds_screen() -> None:
@@ -231,11 +231,11 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "function weightedDevigConsensus(row,targetLine)" in SCRIPT
     assert "configuredWeight * freshness" in SCRIPT
     assert "if (consensus) return consensus.probability;" in SCRIPT
-    assert "exactSources < 2" not in SCRIPT
+    assert "sourceCount < minimumSources" in SCRIPT
     assert "reliability < 0.08" not in SCRIPT
     assert "updateDevigSummary();\n    render();" in SCRIPT
-    assert "schema:'instant-devig-v2'" in SCRIPT
-    assert 'schema:"instant-devig-v2"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "schema:'quality-guardrails-v3'" in SCRIPT
+    assert 'schema:"quality-guardrails-v3"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
     assert "IconLabs Algo Odds is selected." in TEMPLATE
     assert "internal book allocation stays private" in TEMPLATE
     assert 'class="ph ph-shield-check"' in TEMPLATE
@@ -325,8 +325,9 @@ def test_selected_app_only_shows_its_real_available_props() -> None:
     assert "function applyLivePayload(payload)" in SCRIPT
     assert "payload?.dataByBook" in SCRIPT
     assert "rowsByBook[selectedBookKeys[activeBook]]" in SCRIPT
-    assert "if (changed && !Array.isArray(selectedRows)) loadLiveRows();" in SCRIPT
-    assert "book:selectedBookKeys[activeBook]" not in SCRIPT
+    assert "...rowsByBook" in SCRIPT
+    assert "if (changed) loadLiveRows();" in SCRIPT
+    assert "book:selectedBookKeys[activeBook]" in SCRIPT
     assert "function parlayOddsTitle(book=activeBook)" in SCRIPT
     assert "PrizePicks 6 Pick Flex equivalent odds" in TEMPLATE
     for book in ("PrizePicks", "Underdog", "DK Pick6", "Betr", "Dabble"):
@@ -527,8 +528,8 @@ def test_dfs_date_filter_supports_presets_and_inclusive_custom_ranges() -> None:
     assert "return {start:today,end:shiftDateKey(today,6)};" in SCRIPT
     assert "eventDate >= dateRange.start && eventDate <= dateRange.end" in SCRIPT
     assert "matchesDateRange(r,dateRange)" in SCRIPT
-    assert "schema:'instant-devig-v2'" in SCRIPT
-    assert 'schema:"instant-devig-v2"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    assert "schema:'quality-guardrails-v3'" in SCRIPT
+    assert 'schema:"quality-guardrails-v3"' in (ROOT / "static" / "app.js").read_text(encoding="utf-8")
     assert "date === 'this_week'" not in SCRIPT
     assert "dateSelect.value='next_7_days'" in SCRIPT
     assert ".dfs-custom-date-range[hidden]" in CSS
@@ -594,11 +595,14 @@ def test_optional_comparison_books_are_searchable_removable_and_persistent() -> 
     assert 'id="dfs-add-book-open"' in TEMPLATE
     assert 'id="dfs-add-book-picker"' in TEMPLATE
     assert 'id="dfs-add-book-search"' in TEMPLATE
+    assert 'id="dfs-add-book-apply"' in TEMPLATE
     assert "optionalComparisonBookMap" in SCRIPT
     assert "function toggleOptionalComparisonBook(key)" in SCRIPT
     assert "function positionComparisonBookPicker()" in SCRIPT
     assert "position: fixed;" in CSS
-    assert "data-remove-comparison-book" in SCRIPT
+    assert "draftOptionalBookKeys" in SCRIPT
+    assert "function applyOptionalComparisonBooks()" in SCRIPT
+    assert "data-remove-comparison-book" not in SCRIPT
     assert "requiredComparisonBookKeys" in SCRIPT
     assert "defaults.every(key => order.includes(key))" in SCRIPT
     assert "order.every(key => allowedComparisonBookKeys.has(key))" in SCRIPT
@@ -606,6 +610,25 @@ def test_optional_comparison_books_are_searchable_removable_and_persistent() -> 
 
     static_headers = TEMPLATE.split('id="dfs-head-row"', 1)[1].split("</tr>", 1)[0]
     assert "data-remove-comparison-book" not in static_headers
+
+
+def test_comparison_odds_expose_liquidity_quality_state_and_deep_links() -> None:
+    assert "const liquidityBookKeys" in SCRIPT
+    assert "formatLiquidity(snapshot.liquidity)" in SCRIPT
+    assert "modelExclusionLabel" in SCRIPT
+    assert 'target="_blank"' in SCRIPT
+    assert 'rel="noopener noreferrer"' in SCRIPT
+    assert ".dfs-book-liquidity" in CSS
+    assert ".dfs-model-excluded" in CSS
+
+
+def test_expanded_odds_fill_the_row_and_use_logo_only_headers() -> None:
+    assert "dfs-detail-book-head\" role=\"columnheader\"" in SCRIPT
+    assert "<span>${esc(bookName(key))}</span>" not in SCRIPT
+    detail_start = CSS.index(".dfs-odds-detail {")
+    detail_block = CSS[detail_start : CSS.index("}", detail_start)]
+    assert "padding: 0;" in detail_block
+    assert "background: transparent;" in detail_block
 
 
 def test_optional_comparison_book_menu_uses_larger_title_case_labels() -> None:

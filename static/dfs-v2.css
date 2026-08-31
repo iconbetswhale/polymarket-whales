@@ -721,6 +721,33 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-empty {
   text-align: center;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .dfs-add-book-footer {
+  position: sticky;
+  bottom: -10px;
+  margin: 9px -10px -10px;
+  padding: 9px 10px 10px;
+  border-top: 1px solid var(--il-border-standard);
+  background: var(--il-surface-elevated);
+}
+
+body[data-design-system="v2"][data-page="dfs"] #dfs-add-book-apply {
+  display: inline-flex;
+  width: 100%;
+  min-height: 36px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--il-brand-hover);
+  border-radius: var(--il-radius-control);
+  color: #fff;
+  background: var(--il-brand);
+  font: 700 12px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="dfs"] #dfs-add-book-apply:hover {
+  background: var(--il-brand-hover);
+}
+
 body[data-design-system="v2"][data-page="dfs"] .dfs-custom-date-range {
   display: flex;
   min-height: 64px;
@@ -1354,28 +1381,6 @@ body[data-design-system="v2"][data-page="dfs"] .compare-book.is-optional .dfs-co
   left: 4px;
 }
 
-body[data-design-system="v2"][data-page="dfs"] .dfs-remove-comparison-book {
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  display: grid;
-  width: 18px;
-  height: 18px;
-  place-items: center;
-  padding: 0;
-  border: 1px solid var(--il-border-subtle);
-  border-radius: 50%;
-  color: var(--il-text-muted);
-  background: var(--il-surface-2);
-  font-size: 10px;
-}
-
-body[data-design-system="v2"][data-page="dfs"] .dfs-remove-comparison-book:hover {
-  border-color: var(--il-negative);
-  color: #fff;
-  background: var(--il-negative);
-}
-
 body[data-design-system="v2"][data-page="dfs"] .book-cell strong {
   display: inline-block;
   color: var(--il-text-primary);
@@ -1397,6 +1402,49 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell .cents-american {
   font-variant-numeric: tabular-nums;
 }
 
+body[data-design-system="v2"][data-page="dfs"] .dfs-price-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: inherit;
+  text-decoration: none;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-price-link i {
+  color: var(--il-text-muted);
+  font-size: 8px;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-price-link:hover strong,
+body[data-design-system="v2"][data-page="dfs"] .dfs-price-link:focus-visible strong {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell .dfs-book-liquidity {
+  display: block;
+  margin: 3px auto 0;
+  color: var(--il-text-muted);
+  font: 650 8px/1 var(--il-font-data);
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell .dfs-model-excluded {
+  display: block;
+  overflow: hidden;
+  max-width: 68px;
+  margin: 3px auto 0;
+  color: #d8a95b;
+  font: 650 6px/1 var(--il-font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell.model-excluded > strong,
+body[data-design-system="v2"][data-page="dfs"] .book-cell.model-excluded .dfs-price-link strong {
+  color: var(--il-text-secondary);
+}
+
 body[data-design-system="v2"][data-page="dfs"] .book-cell .alternate-line {
   display: block;
   width: max-content;
@@ -1416,6 +1464,13 @@ body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate {
 }
 
 body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate > strong {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .book-cell.has-alternate > .dfs-price-link {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1477,14 +1532,14 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-table tbody .dfs-odds-detail
   padding: 0;
   border-right: 0;
   border-bottom: 1px solid var(--il-border-interactive);
-  background: var(--il-bg-app) !important;
+  background: transparent !important;
   text-align: left;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-odds-detail {
-  padding: 8px 10px 10px;
-  border-top: 1px solid rgba(139, 92, 246, .36);
-  background: rgba(139, 92, 246, .07);
+  padding: 0;
+  border-top: 0;
+  background: transparent;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-odds-detail-grid {
@@ -1493,10 +1548,10 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-odds-detail-grid {
   min-width: 100%;
   grid-template-columns: 204px 72px 72px repeat(var(--dfs-detail-book-count, 16), 74px);
   overflow: hidden;
-  border: 1px solid var(--il-border-standard);
-  border-radius: var(--il-radius-panel);
+  border: 0;
+  border-radius: 0;
   background: var(--il-surface-1);
-  box-shadow: var(--il-shadow-popover);
+  box-shadow: none;
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-title,
@@ -1565,6 +1620,32 @@ body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price {
   border-right: 1px solid var(--il-border-hairline);
   border-bottom: 1px solid var(--il-border-hairline);
   background: var(--il-bg-app);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price .dfs-book-liquidity,
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price .dfs-model-excluded {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price .dfs-book-liquidity {
+  color: var(--il-text-muted);
+  font: 650 8px/1 var(--il-font-data);
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price .dfs-model-excluded {
+  overflow: hidden;
+  max-width: 68px;
+  color: #d8a95b;
+  font: 650 6px/1 var(--il-font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="dfs"] .dfs-detail-price.model-excluded strong {
+  color: var(--il-text-secondary);
 }
 
 body[data-design-system="v2"][data-page="dfs"] .dfs-detail-side {

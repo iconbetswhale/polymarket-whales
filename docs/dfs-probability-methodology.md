@@ -40,7 +40,12 @@ The response also returns weighted source dispersion, a reliability score based 
 ## Guardrails
 
 - Alternate sportsbook lines are excluded from the target probability rather than incorrectly treated as exact matches.
+- The standard IconLabs model requires at least two independent, fresh, exact-line two-way sources. A deliberately configured 100% single-book custom model may use that one selected source.
 - Only the freshest exact-line quote from each provider is used.
 - Stale, unmapped, invalid, one-sided, and zero-weight sources are excluded with explicit reasons.
+- NoVIG, ProphetX, Polymarket, and Kalshi quotes at extreme prices are checked against exact FanDuel/DraftKings two-way reference markets. Large probability disagreements are not weighted.
+- Exchange quotes below the executable-liquidity floor are not weighted when the displayed favorite is extreme. Reported liquidity and the exclusion reason remain visible in the optimizer for auditability.
+- Two-way quotes with an implausibly large combined overround are rejected before devigging.
+- DFS selections marked as alternate, boosted, promotional, or carrying a non-1x multiplier are excluded from the standard optimizer slate.
 - Missing evidence produces `UNAVAILABLE`; the engine never invents a hit rate.
 - DFS line discrepancies remain useful context, but they are not converted into probability until a separately validated alternate-line distribution model is available.

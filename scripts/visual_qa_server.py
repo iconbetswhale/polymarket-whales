@@ -329,6 +329,7 @@ def _qa_dfs_bookmaker(
     over_odds: int | None,
     under_odds: int | None,
     observed_at: str,
+    liquidity: float | None = None,
 ) -> dict:
     return {
         "key": book_key,
@@ -345,6 +346,21 @@ def _qa_dfs_bookmaker(
                         "point": line,
                         "description": player,
                         "is_alt": False,
+                        **(
+                            {"liquidity": liquidity}
+                            if liquidity is not None
+                            else {}
+                        ),
+                        **(
+                            {
+                                "link": (
+                                    "https://example.com/bet/"
+                                    f"{book_key}/{player.lower().replace(' ', '-')}/{side.lower()}"
+                                )
+                            }
+                            if price is not None
+                            else {}
+                        ),
                     }
                     for side, price in (
                         ("Over", over_odds),
@@ -373,18 +389,31 @@ def qa_dfs_events(now_utc: datetime | None = None) -> list[dict]:
         over_odds,
         under_odds,
     ) in enumerate(QA_DFS_PROP_SPECS):
-        bookmakers = [
-            _qa_dfs_bookmaker(
-                book_key,
-                market_key=market_key,
-                player=player,
-                line=line,
-                over_odds=over_odds + offset,
-                under_odds=under_odds - offset,
-                observed_at=observed_at,
+        bookmakers = []
+        for book_key, offset in QA_DFS_SPORTSBOOKS:
+            qa_over_odds = over_odds + offset
+            qa_under_odds = under_odds - offset
+            qa_liquidity = (
+                9.0
+                if index == 0 and book_key == "novig"
+                else 325.0 + index * 110
+                if book_key in {"novig", "prophetexchange", "kalshi", "polymarket"}
+                else None
             )
-            for book_key, offset in QA_DFS_SPORTSBOOKS
-        ]
+            if index == 0 and book_key == "novig":
+                qa_under_odds = -9900
+            bookmakers.append(
+                _qa_dfs_bookmaker(
+                    book_key,
+                    market_key=market_key,
+                    player=player,
+                    line=line,
+                    over_odds=qa_over_odds,
+                    under_odds=qa_under_odds,
+                    observed_at=observed_at,
+                    liquidity=qa_liquidity,
+                )
+            )
         bookmakers.extend(
             _qa_dfs_bookmaker(
                 book_key,
@@ -428,17 +457,15 @@ def qa_dfs_payload(
         if selected_book in app_module.DFS_OPTIMIZER_BOOK_KEYS
         else "prizepicks"
     )
-    rows_by_book = {
-        book_key: app_module.build_dfs_odds_board(
-            events,
-            weights=weights,
-            selected_dfs_book=book_key,
-            now=now,
-        )
-        for book_key in app_module.DFS_OPTIMIZER_BOOK_KEYS
-    }
+    rows = app_module.build_dfs_odds_board(
+        events,
+        weights=weights,
+        selected_dfs_book=active_book,
+        now=now,
+    )
+    rows_by_book = {active_book: rows}
     return {
-        "data": rows_by_book[active_book],
+        "data": rows,
         "dataByBook": rows_by_book,
         "total": len(rows_by_book[active_book]),
         "totalsByBook": {

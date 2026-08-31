@@ -9,6 +9,10 @@
   display: none;
 }
 
+.dfs-mobile-control-label {
+  display: none !important;
+}
+
 .mobile-trade-samples[hidden] {
   display: none !important;
 }
@@ -2165,6 +2169,26 @@
     white-space: nowrap;
   }
 
+  .dfs-mobile-comparison-side > a {
+    display: grid;
+    min-width: 0;
+    grid-template-columns: minmax(0, 1fr) 6px;
+    align-items: center;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .dfs-mobile-comparison-side > a > i {
+    color: #758094;
+    font-size: 6px;
+  }
+
+  .dfs-mobile-comparison-side > a:focus-visible {
+    border-radius: 3px;
+    outline: 2px solid #9b5cff;
+    outline-offset: 2px;
+  }
+
   .dfs-mobile-comparison-side em {
     grid-column: 1 / -1;
     overflow: hidden;
@@ -2174,6 +2198,14 @@
     text-align: right;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .dfs-mobile-comparison-side em.dfs-mobile-liquidity {
+    color: #8b95a7;
+  }
+
+  .dfs-mobile-comparison-side em.dfs-mobile-model-excluded {
+    color: #d8a95b;
   }
 
   /* Calculators */

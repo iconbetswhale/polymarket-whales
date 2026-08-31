@@ -58,7 +58,7 @@ function dfsPrewarmRequest() {
     && keys.every((key) => Number.isFinite(Number(stored[key])))
     && keys.reduce((total,key) => total+Number(stored[key]),0) === 100;
   const weights = Object.fromEntries(keys.map((key) => [key,valid ? Number(stored[key]) : DFS_PREWARM_DEFAULT_WEIGHTS[key]]));
-  const params = new URLSearchParams({weights:JSON.stringify(weights),schema:"instant-devig-v2"});
+  const params = new URLSearchParams({book:"prizepicks",weights:JSON.stringify(weights),schema:"quality-guardrails-v3"});
   return {cacheKey:pagePayloadCacheKey("dfs",params.toString()), url:`/api/dfs/lines?${params}`};
 }
 

@@ -6,8 +6,15 @@ from datetime import datetime, timezone
 from typing import Any, Iterable
 
 
-DFS_PROBABILITY_VERSION = "dfs-market-consensus-v1"
+DFS_PROBABILITY_VERSION = "dfs-market-consensus-v2-quality-guardrails"
 SUPPORTED_DEVIG_METHODS = {"multiplicative", "additive", "power", "shin"}
+EXCHANGE_EXECUTION_PROVIDERS = {"novig", "prophetx", "polymarket", "kalshi"}
+REFERENCE_PROVIDERS = {"fanduel", "draftkings"}
+EXTREME_FAVORITE_ODDS = -250.0
+LOW_LIQUIDITY_FAVORITE_ODDS = -175.0
+MIN_EXECUTABLE_LIQUIDITY = 25.0
+MAX_REFERENCE_PROBABILITY_GAP = 0.10
+MAX_TWO_WAY_OVERROUND = 1.30
 ICONLABS_DFS_WEIGHTS = {
     "fanduel": 30.0,
     "novig": 20.0,
@@ -182,6 +189,37 @@ class DfsProbabilityEngine:
             ):
                 freshest_by_provider[provider] = quote
 
+        # FanDuel and DraftKings are the reference check for exchange quotes.
+        # Only fresh, exact, genuinely two-way prices can establish that check.
+        reference_probabilities: list[tuple[float, float]] = []
+        for provider in REFERENCE_PROVIDERS:
+            quote = freshest_by_provider.get(provider)
+            if not quote:
+                continue
+            quote_line = _finite(quote.get("line"))
+            timestamp = _parse_timestamp(quote.get("quote_timestamp"))
+            if quote_line is None or not math.isclose(quote_line, line, abs_tol=1e-9):
+                continue
+            if timestamp is None or (now - timestamp).total_seconds() > self.max_quote_age_seconds:
+                continue
+            if quote.get("status") is not None and str(quote.get("status")).upper() != "AVAILABLE":
+                continue
+            if quote.get("mapping_confidence") is not None and str(quote.get("mapping_confidence")).upper() != "EXACT":
+                continue
+            fair_pair = devig_two_way(
+                quote.get("over_odds"), quote.get("under_odds"), self.devig_method
+            )
+            if fair_pair is not None:
+                reference_probabilities.append(fair_pair)
+        reference_pair = (
+            (
+                sum(pair[0] for pair in reference_probabilities) / len(reference_probabilities),
+                sum(pair[1] for pair in reference_probabilities) / len(reference_probabilities),
+            )
+            if reference_probabilities
+            else None
+        )
+
         for provider, quote in freshest_by_provider.items():
             quote_line = _finite(quote.get("line"))
             timestamp = _parse_timestamp(quote.get("quote_timestamp"))
@@ -189,6 +227,16 @@ class DfsProbabilityEngine:
             exclusion_reason: str | None = None
             fair_pair: tuple[float, float] | None = None
             age_seconds: float | None = None
+            reference_divergence: float | None = None
+            reported_liquidities = [
+                value
+                for value in (
+                    _finite(quote.get("over_liquidity")),
+                    _finite(quote.get("under_liquidity")),
+                )
+                if value is not None and value >= 0
+            ]
+            minimum_liquidity = min(reported_liquidities) if reported_liquidities else None
             if quote.get("status") is not None and str(quote.get("status")).upper() != "AVAILABLE":
                 exclusion_reason = str(quote.get("missing_reason") or "PROVIDER_UNAVAILABLE")
             elif quote.get("mapping_confidence") is not None and str(quote.get("mapping_confidence")).upper() != "EXACT":
@@ -207,7 +255,44 @@ class DfsProbabilityEngine:
                     )
                     if fair_pair is None:
                         exclusion_reason = "INVALID_TWO_WAY_ODDS"
-                    elif base_weight <= 0:
+                    else:
+                        over_implied = american_to_probability(quote.get("over_odds"))
+                        under_implied = american_to_probability(quote.get("under_odds"))
+                        overround = (
+                            over_implied + under_implied
+                            if over_implied is not None and under_implied is not None
+                            else None
+                        )
+                        if reference_pair is not None:
+                            reference_divergence = max(
+                                abs(fair_pair[0] - reference_pair[0]),
+                                abs(fair_pair[1] - reference_pair[1]),
+                            )
+                        favorite_price = min(
+                            value
+                            for value in (
+                                _finite(quote.get("over_odds")),
+                                _finite(quote.get("under_odds")),
+                            )
+                            if value is not None
+                        )
+                        if overround is not None and overround > MAX_TWO_WAY_OVERROUND:
+                            exclusion_reason = "EXCESSIVE_TWO_WAY_OVERROUND"
+                        elif (
+                            provider in EXCHANGE_EXECUTION_PROVIDERS
+                            and minimum_liquidity is not None
+                            and minimum_liquidity < MIN_EXECUTABLE_LIQUIDITY
+                            and favorite_price <= LOW_LIQUIDITY_FAVORITE_ODDS
+                        ):
+                            exclusion_reason = "LOW_LIQUIDITY_EXTREME_QUOTE"
+                        elif (
+                            provider in EXCHANGE_EXECUTION_PROVIDERS
+                            and favorite_price <= EXTREME_FAVORITE_ODDS
+                            and reference_divergence is not None
+                            and reference_divergence > MAX_REFERENCE_PROBABILITY_GAP
+                        ):
+                            exclusion_reason = "MARKET_OUTLIER_AGAINST_REFERENCE"
+                    if exclusion_reason is None and base_weight <= 0:
                         # Preserve a valid source probability even when its current
                         # weight is zero. The DFS UI can then apply a newly saved
                         # allocation immediately without waiting for another feed
@@ -225,6 +310,15 @@ class DfsProbabilityEngine:
                     "line": quote_line,
                     "over_odds": _finite(quote.get("over_odds")),
                     "under_odds": _finite(quote.get("under_odds")),
+                    "over_liquidity": _finite(quote.get("over_liquidity")),
+                    "under_liquidity": _finite(quote.get("under_liquidity")),
+                    "minimum_liquidity": minimum_liquidity,
+                    "reference_probability": (
+                        reference_pair[0 if normalized_side == "over" else 1]
+                        if reference_pair is not None
+                        else None
+                    ),
+                    "reference_divergence": reference_divergence,
                     "no_vig_probability": probability,
                     "base_weight": base_weight,
                     "freshness_factor": round(freshness_factor, 8),

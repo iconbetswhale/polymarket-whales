@@ -171,9 +171,11 @@
     ],
   };
   const dfsComparisonKeys = new Set([...Object.values(selectedBookKeys),'sleeper']);
+  const liquidityBookKeys = new Set(['novig','prophetx','polymarket','kalshi']);
   let activeBook = 'PrizePicks';
   let parlaySelections = loadParlaySelections();
   let compareOrder = loadCompareOrder();
+  let draftOptionalBookKeys = new Set(compareOrder.filter(key=>optionalComparisonBookMap.has(key)));
   let accountOrderSyncEnabled = false;
   let accountOrderSaveQueue = Promise.resolve();
   let savedWeights = loadWeights();
@@ -409,7 +411,8 @@
       effectiveWeightTotal += effectiveWeight;
       sourceCount += 1;
     });
-    if (!(effectiveWeightTotal > 0)) return null;
+    const minimumSources = Number(row.minimumSourcesByLine?.[lineKey] ?? 2);
+    if (!(effectiveWeightTotal > 0) || sourceCount < minimumSources) return null;
     return {
       probability: Math.round(weightedProbability / effectiveWeightTotal * 10000) / 100,
       sourceCount,
@@ -483,7 +486,7 @@
   }
 
   function marketSnapshot(row,key) {
-    if (!row) return {display:'—',american:null,line:null};
+    if (!row) return {display:'—',american:null,line:null,liquidity:null,deepLink:'',modelExcluded:false,modelExclusionReason:''};
     const oddsByKey = row.oddsByBook || Object.fromEntries(sourceOddsKeys.map((item,index)=>[item,row.odds?.[index] ?? '—']));
     const market = oddsByKey[key];
     const structured = market !== null && typeof market === 'object';
@@ -499,7 +502,36 @@
       display: display === null || display === undefined || display === '' ? '—' : String(display),
       american: Number.isFinite(american) ? american : null,
       line: structured && Number.isFinite(Number(market.line)) ? Number(market.line) : null,
+      liquidity: structured && Number.isFinite(Number(market.liquidity)) && Number(market.liquidity) >= 0 ? Number(market.liquidity) : null,
+      deepLink: structured && /^https?:\/\//i.test(String(market.deepLink || '')) ? String(market.deepLink) : '',
+      modelExcluded: Boolean(structured && market.modelExcluded),
+      modelExclusionReason: structured ? String(market.modelExclusionReason || '') : '',
     };
+  }
+
+  function formatLiquidity(value) {
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return '';
+    if (amount >= 1000000) return `$${(amount/1000000).toFixed(amount>=10000000?0:1).replace(/\.0$/,'')}M`;
+    if (amount >= 1000) return `$${(amount/1000).toFixed(amount>=10000?0:1).replace(/\.0$/,'')}K`;
+    return `$${amount.toFixed(amount>=100?0:2).replace(/\.00$/,'').replace(/(\.\d)0$/,'$1')}`;
+  }
+
+  function modelExclusionLabel(reason) {
+    const labels = {
+      LOW_LIQUIDITY_EXTREME_QUOTE:'Low liquidity · not weighted',
+      MARKET_OUTLIER_AGAINST_REFERENCE:'Market outlier · not weighted',
+      EXCESSIVE_TWO_WAY_OVERROUND:'Invalid hold · not weighted',
+      INVALID_TWO_WAY_ODDS:'One-way line · not weighted',
+      LINE_MISMATCH:'Different line · not weighted',
+    };
+    return labels[String(reason || '')] || 'Not weighted';
+  }
+
+  function linkedPriceMarkup(snapshot,key) {
+    const price = `<strong>${esc(snapshot.display)}</strong>`;
+    if (!snapshot.deepLink) return price;
+    return `<a class="dfs-price-link" href="${esc(snapshot.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(bookName(key))} bet at ${esc(snapshot.display)}">${price}<i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>`;
   }
 
   function centsAmericanLabel(display,americanOdds) {
@@ -510,7 +542,13 @@
 
   function sideSummary(row) {
     const snapshots = detailBookOrder().map(key=>marketSnapshot(row,key));
-    const americanOdds = snapshots.map(item=>item.american).filter(Number.isFinite);
+    const referenceLine = selectedDfsLine(row);
+    const eligibleSnapshots = snapshots.filter(item =>
+      !item.modelExcluded
+      && Number.isFinite(item.american)
+      && (item.line === null || referenceLine === null || Number(item.line) === Number(referenceLine))
+    );
+    const americanOdds = eligibleSnapshots.map(item=>item.american);
     const best = americanOdds.length ? Math.max(...americanOdds) : null;
     const probabilities = americanOdds.map(americanOddsToProbability).filter(Number.isFinite);
     const average = probabilities.length
@@ -530,7 +568,14 @@
     const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(referenceLine)
       ? `L ${snapshot.line}`
       : '';
-    return {display:snapshot.display,secondary:centsAmerican || alternate};
+    return {
+      display:snapshot.display,
+      secondary:centsAmerican || alternate,
+      liquidity:liquidityBookKeys.has(key)?formatLiquidity(snapshot.liquidity):'',
+      deepLink:snapshot.deepLink,
+      modelExcluded:snapshot.modelExcluded,
+      modelExclusionReason:snapshot.modelExclusionReason,
+    };
   }
 
   function mobileDetailPayload(row,activeLine) {
@@ -561,16 +606,18 @@
     const orderedBooks = detailBookOrder();
     const headerCells = orderedBooks.map(key=>{
       const logo = bookLogo(key);
-      return `<div class="dfs-detail-book-head">${logo?`<img src="${esc(logo)}" alt="">`:''}<span>${esc(bookName(key))}</span></div>`;
+      return `<div class="dfs-detail-book-head" role="columnheader" aria-label="${esc(bookName(key))}" title="${esc(bookName(key))}">${logo?`<img src="${esc(logo)}" alt="">`:''}</div>`;
     }).join('');
     const sideLane = (label,sideRow,summary) => {
       const line = selectedDfsLine(sideRow || row) ?? activeLine;
       const bookCells = orderedBooks.map((key,index)=>{
         const snapshot = summary.snapshots[index];
-        const isBest = snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
+        const isBest = !snapshot.modelExcluded && snapshot.american !== null && summary.best !== null && Math.abs(snapshot.american-summary.best)<0.01;
         const alternate = snapshot.line !== null && Number(snapshot.line)!==Number(line) ? `Line ${snapshot.line}` : '';
         const centsAmerican = centsAmericanLabel(snapshot.display,snapshot.american);
-        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}"><strong>${esc(snapshot.display)}</strong>${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${alternate?`<small>${esc(alternate)}</small>`:''}</div>`;
+        const liquidity = liquidityBookKeys.has(key) ? formatLiquidity(snapshot.liquidity) : '';
+        const exclusion = snapshot.modelExcluded ? modelExclusionLabel(snapshot.modelExclusionReason) : '';
+        return `<div class="dfs-detail-price${isBest?' best':''}${snapshot.display==='—'?' muted':''}${snapshot.modelExcluded?' model-excluded':''}">${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternate?`<small>${esc(alternate)}</small>`:''}${exclusion?`<small class="dfs-model-excluded" title="${esc(exclusion)}">Not weighted</small>`:''}</div>`;
       }).join('');
       return `<div class="dfs-detail-side"><b>${label} ${esc(line)}</b></div><div class="dfs-detail-metric best"><strong>${esc(summary.bestDisplay)}</strong></div><div class="dfs-detail-metric"><strong>${esc(summary.average)}</strong></div>${bookCells}`;
     };
@@ -701,7 +748,7 @@
     const logo = book.logoUrl
       ? `<img src="${esc(book.logoUrl)}" alt="${esc(book.name)}" title="${esc(book.name)}">`
       : '';
-    header.innerHTML = `${logo}<i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i><button class="dfs-remove-comparison-book" type="button" data-remove-comparison-book="${esc(book.key)}" aria-label="Remove ${esc(book.name)} comparison column" title="Remove ${esc(book.name)}"><i class="ph ph-x" aria-hidden="true"></i></button>`;
+    header.innerHTML = `${logo}<i class="ph ph-dots-six dfs-column-drag" aria-hidden="true"></i>`;
     return header;
   }
 
@@ -723,7 +770,7 @@
       !query || `${book.name} ${book.key}`.toLowerCase().includes(query)
     );
     comparisonBookList.replaceChildren(...matches.map(book => {
-      const added = compareOrder.includes(book.key);
+      const added = draftOptionalBookKeys.has(book.key);
       const button = document.createElement('button');
       button.type = 'button';
       button.className = 'dfs-add-book-option';
@@ -761,6 +808,7 @@
   }
 
   function setComparisonBookPickerOpen(open) {
+    if (open) draftOptionalBookKeys = new Set(compareOrder.filter(key=>optionalComparisonBookMap.has(key)));
     comparisonBookPicker.hidden = !open;
     comparisonBookOpen.setAttribute('aria-expanded',String(open));
     if (!open) return;
@@ -771,13 +819,20 @@
 
   function toggleOptionalComparisonBook(key) {
     if (!optionalComparisonBookMap.has(key)) return;
-    compareOrder = compareOrder.includes(key)
-      ? compareOrder.filter(item=>item!==key)
-      : [...compareOrder,key];
+    if (draftOptionalBookKeys.has(key)) draftOptionalBookKeys.delete(key);
+    else draftOptionalBookKeys.add(key);
+    renderComparisonBookPicker();
+  }
+
+  function applyOptionalComparisonBooks() {
+    compareOrder = compareOrder.filter(key=>requiredComparisonBookKeys.has(key) || draftOptionalBookKeys.has(key));
+    optionalComparisonBooks.forEach(book=>{
+      if (draftOptionalBookKeys.has(book.key) && !compareOrder.includes(book.key)) compareOrder.push(book.key);
+    });
     persistCompareOrder();
     reorderHeaders();
-    renderComparisonBookPicker();
     render();
+    setComparisonBookPickerOpen(false);
   }
 
   function selectedDfsLine(row) {
@@ -805,9 +860,12 @@
   function applyLivePayload(payload) {
     const payloadBoards = payload?.dataByBook;
     if (payloadBoards && typeof payloadBoards === 'object') {
-      rowsByBook = Object.fromEntries(
-        Object.entries(payloadBoards).filter(([,bookRows]) => Array.isArray(bookRows))
-      );
+      rowsByBook = {
+        ...rowsByBook,
+        ...Object.fromEntries(
+          Object.entries(payloadBoards).filter(([,bookRows]) => Array.isArray(bookRows))
+        ),
+      };
     }
     rows = rowsByBook[selectedBookKeys[activeBook]]
       ?? (Array.isArray(payload?.data) ? payload.data : []);
@@ -860,8 +918,10 @@
           : null;
         const snapshot = marketSnapshot(r,key);
         const centsAmerican = centsAmericanLabel(price,snapshot.american);
-        const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate',centsAmerican?'has-cents-american':''].filter(Boolean).join(' ');
-        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`<strong>${esc(price)}</strong>${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}`}</td>`;
+        const liquidity = liquidityBookKeys.has(key) ? formatLiquidity(snapshot.liquidity) : '';
+        const exclusion = snapshot.modelExcluded ? modelExclusionLabel(snapshot.modelExclusionReason) : '';
+        const classes = ['book-cell',unavailable?'muted':'',alternateLine===null?'':'has-alternate',centsAmerican?'has-cents-american':'',liquidity?'has-liquidity':'',snapshot.modelExcluded?'model-excluded':''].filter(Boolean).join(' ');
+        return `<td class="${classes}" data-book-cell="${key}">${unavailable?'—':`${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}${exclusion?`<small class="dfs-model-excluded" title="${esc(exclusion)}">Not weighted</small>`:''}`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
@@ -919,7 +979,7 @@
   async function loadLiveRows() {
     clearAutoRefresh();
     const button = document.querySelector('#dfs-refresh');
-    const params = new URLSearchParams({weights:JSON.stringify(savedWeights),schema:'instant-devig-v2'});
+    const params = new URLSearchParams({book:selectedBookKeys[activeBook],weights:JSON.stringify(savedWeights),schema:'quality-guardrails-v3'});
     const url = `/api/dfs/lines?${params}`;
     const cacheKey = pagePayloadCacheKey('dfs',params.toString());
     const signature = params.toString();
@@ -1096,7 +1156,7 @@
     updateTeams();
     reorderHeaders();
     render();
-    if (changed && !Array.isArray(selectedRows)) loadLiveRows();
+    if (changed) loadLiveRows();
   }
 
   document.querySelectorAll('[data-dfs-book]').forEach(btn => btn.addEventListener('click', () => {
@@ -1148,6 +1208,7 @@
     }
   });
   body.addEventListener('click', event => {
+    if (event.target.closest('a')) return;
     const row = event.target.closest('.dfs-prop-row');
     if (!row) return;
     expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
@@ -1169,14 +1230,10 @@
   comparisonBookList.addEventListener('click', event => {
     const option = event.target.closest('[data-comparison-book-key]');
     if (!option) return;
+    event.stopPropagation();
     toggleOptionalComparisonBook(option.dataset.comparisonBookKey);
   });
-  document.querySelector('#dfs-head-row').addEventListener('click', event => {
-    const remove = event.target.closest('[data-remove-comparison-book]');
-    if (!remove) return;
-    event.stopPropagation();
-    toggleOptionalComparisonBook(remove.dataset.removeComparisonBook);
-  });
+  document.querySelector('#dfs-add-book-apply').addEventListener('click',applyOptionalComparisonBooks);
   sportSelect.addEventListener('change', () => { updateStats(); updateTeams(); render(); });
   ['dfs-team','dfs-stat','dfs-side'].forEach(id => document.querySelector(`#${id}`).addEventListener('change', render));
   dateSelect.addEventListener('change', () => { syncCustomDateRange(); render(); });

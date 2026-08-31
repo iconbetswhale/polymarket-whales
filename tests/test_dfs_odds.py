@@ -5,7 +5,7 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from dfs_odds import DFS_OPTIMIZER_BOOK_KEYS, build_dfs_odds_board
+from dfs_odds import build_dfs_odds_board
 
 
 def _market(
@@ -18,6 +18,9 @@ def _market(
     under_price: int = -110,
     sides: tuple[str, ...] = ("over", "under"),
     is_alt: bool = False,
+    multiplier: float | str | None = None,
+    liquidity: float | None = None,
+    deep_link: str = "",
 ) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
@@ -39,6 +42,9 @@ def _market(
                         "point": line,
                         "description": player,
                         "is_alt": is_alt,
+                        **({"multiplier": multiplier} if multiplier is not None else {}),
+                        **({"liquidity": liquidity} if liquidity is not None else {}),
+                        **({"link": deep_link} if deep_link else {}),
                     }
                     for side in sides
                 ],
@@ -68,6 +74,7 @@ def _events() -> list[dict]:
 
 def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     events = _events()
+    events[0]["bookmakers"].append(_market("pinnacle"))
     rows = build_dfs_odds_board(events)
     expected_event_date = (
         datetime.fromisoformat(events[0]["commence_time"])
@@ -81,7 +88,8 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["dfsLines"] == {"prizepicks": 1.5} for row in rows)
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
-    assert {row["oddsByBook"]["fanduel"] for row in rows} == {"-110"}
+    assert {row["oddsByBook"]["fanduel"]["odds"] for row in rows} == {"-110"}
+    assert all(row["minimumSourcesByLine"]["1.5"] == 2 for row in rows)
     assert {row["awayTeam"] for row in rows} == {"New York Yankees"}
     assert {row["homeTeam"] for row in rows} == {"Boston Red Sox"}
     assert all(
@@ -116,11 +124,12 @@ def test_live_dfs_board_keeps_pairs_together_and_formats_exchange_cents() -> Non
     assert [row["side"] for row in rows] == ["Over", "Under"]
     assert all(row["sourceCount"] == 3 for row in rows)
     assert all(row["availableQuoteCount"] == 3 for row in rows)
-    assert {row["oddsByBook"]["polymarket"] for row in rows} == {"52.4\u00a2"}
+    assert {row["oddsByBook"]["polymarket"]["odds"] for row in rows} == {"52.4\u00a2"}
 
 
 def test_live_dfs_board_sorts_highest_hit_rate_first() -> None:
     events = _events()
+    events[0]["bookmakers"].append(_market("pinnacle"))
     sportsbook_outcomes = events[0]["bookmakers"][0]["markets"][0]["outcomes"]
     sportsbook_outcomes[0]["price"] = -150
     sportsbook_outcomes[1]["price"] = 120
@@ -286,6 +295,67 @@ def test_live_dfs_board_prefers_the_app_headline_line_over_alternates() -> None:
     assert all(row["line"] == 1.5 for row in rows)
 
 
+@pytest.mark.parametrize(
+    ("provider_key", "ui_key"),
+    (("underdog", "underdog"), ("pick6", "dk-pick6")),
+)
+def test_live_dfs_board_rejects_nonstandard_multiplier_props(
+    provider_key: str,
+    ui_key: str,
+) -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("fanduel"),
+        _market(provider_key, dfs=True, is_alt=True, multiplier="0.7x"),
+    ]
+
+    assert build_dfs_odds_board(events, selected_dfs_book=ui_key) == []
+
+
+def test_live_dfs_board_exposes_exchange_liquidity_links_and_quality_flags() -> None:
+    events = _events()
+    events[0]["bookmakers"].extend(
+        [
+            _market("draftkings"),
+            _market(
+                "novig",
+                over_price=-9900,
+                under_price=-110,
+                liquidity=9,
+                deep_link="https://example.test/novig-bet",
+            ),
+        ]
+    )
+
+    rows = build_dfs_odds_board(events)
+    novig = rows[0]["oddsByBook"]["novig"]
+
+    assert novig["liquidity"] == 9
+    assert novig["deepLink"] == "https://example.test/novig-bet"
+    assert novig["modelExcluded"] is True
+    assert novig["modelExclusionReason"] == "EXCESSIVE_TWO_WAY_OVERROUND"
+    assert "novig" not in rows[0]["devigSourcesByLine"]["1.5"]
+
+
+def test_live_dfs_board_does_not_model_mismatched_or_one_way_book_lines() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market("prizepicks", dfs=True, line=0.5),
+        _market("prophetexchange", line=0.5, over_price=-138, under_price=-104),
+        _market("fanduel", line=1.5, over_price=130, under_price=None, sides=("over",)),
+        _market("draftkings", line=1.5, over_price=168, under_price=None, sides=("over",)),
+    ]
+
+    rows = build_dfs_odds_board(events)
+    over = next(row for row in rows if row["side"] == "Over")
+
+    assert over["hitByLine"]["0.5"] is None
+    assert over["fairOddsByLine"]["0.5"] is None
+    assert over["sourceCount"] == 1
+    assert over["oddsByBook"]["fanduel"]["line"] == 1.5
+    assert over["oddsByBook"]["fanduel"]["modelExclusionReason"] == "LINE_MISMATCH"
+
+
 def test_live_dfs_board_rejects_unknown_selected_app() -> None:
     try:
         build_dfs_odds_board(_events(), selected_dfs_book="not-a-dfs-app")
@@ -315,15 +385,9 @@ def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     assert payload["selectedBook"] == "prizepicks"
     assert payload["total"] == 2
     assert payload["data"][0]["hitByLine"]["1.5"] == 50.0
-    assert set(payload["dataByBook"]) == set(DFS_OPTIMIZER_BOOK_KEYS)
+    assert set(payload["dataByBook"]) == {"prizepicks"}
     assert payload["dataByBook"]["prizepicks"] == payload["data"]
-    assert payload["totalsByBook"] == {
-        "prizepicks": 2,
-        "underdog": 0,
-        "dk-pick6": 0,
-        "betr": 0,
-        "dabble": 0,
-    }
+    assert payload["totalsByBook"] == {"prizepicks": 2}
 
 
 def test_live_dfs_get_is_cacheable_and_accepts_weight_query(
@@ -418,9 +482,7 @@ def test_live_dfs_endpoint_scopes_results_to_requested_app(
     assert payload["selectedBook"] == "underdog"
     assert {row["player"] for row in payload["data"]} == {"Juan Soto"}
     assert all(row["line"] == 2.5 for row in payload["data"])
-    assert {row["player"] for row in payload["dataByBook"]["prizepicks"]} == {
-        "Aaron Judge"
-    }
+    assert set(payload["dataByBook"]) == {"underdog"}
     for book_key, book_rows in payload["dataByBook"].items():
         assert all(book_key in row["dfsLines"] for row in book_rows)
 

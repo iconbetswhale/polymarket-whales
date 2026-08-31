@@ -22,14 +22,18 @@ def test_iconlabs_default_weights_are_ranked_and_total_one_hundred():
     assert sum(ICONLABS_DFS_WEIGHTS.values()) == 100
 
 
-def quote(provider, over, under, *, line=6.5, age=0):
-    return {
+def quote(provider, over, under, *, line=6.5, age=0, liquidity=None):
+    payload = {
         "provider": provider,
         "line": line,
         "over_odds": over,
         "under_odds": under,
         "quote_timestamp": (NOW - timedelta(seconds=age)).isoformat(),
     }
+    if liquidity is not None:
+        payload["over_liquidity"] = liquidity
+        payload["under_liquidity"] = liquidity
+    return payload
 
 
 def test_american_probability_round_trip():
@@ -129,3 +133,73 @@ def test_zero_weight_source_keeps_devig_probability_for_instant_reweighting():
         devig_two_way(-130, 110, "power")[0]
     )
     assert pinnacle["freshness_factor"] == pytest.approx(1)
+
+
+def test_fake_novig_minus_9900_quote_is_excluded_from_consensus():
+    engine = DfsProbabilityEngine(
+        {"fanduel": 50, "novig": 50},
+        minimum_sources=1,
+    )
+    result = engine.calculate(
+        target_line=6.5,
+        side="under",
+        quotes=[
+            quote("fanduel", -106, -114),
+            quote("novig", -110, -9900, liquidity=9),
+        ],
+        now=NOW,
+    )
+
+    novig = next(item for item in result.contributions if item["provider"] == "novig")
+    assert novig["included"] is False
+    assert novig["exclusion_reason"] == "EXCESSIVE_TWO_WAY_OVERROUND"
+    assert result.source_count == 1
+    assert result.fair_american_odds != -9900
+
+
+def test_low_liquidity_exchange_favorite_is_not_weighted():
+    engine = DfsProbabilityEngine(
+        {"fanduel": 50, "prophetx": 50},
+        minimum_sources=1,
+    )
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[
+            quote("fanduel", -110, -110),
+            quote("prophetx", -185, 155, liquidity=2),
+        ],
+        now=NOW,
+    )
+
+    prophetx = next(
+        item for item in result.contributions if item["provider"] == "prophetx"
+    )
+    assert prophetx["included"] is False
+    assert prophetx["exclusion_reason"] == "LOW_LIQUIDITY_EXTREME_QUOTE"
+    assert prophetx["minimum_liquidity"] == 2
+
+
+def test_liquid_extreme_exchange_outlier_is_checked_against_reference_books():
+    engine = DfsProbabilityEngine(
+        {"fanduel": 40, "draftkings": 40, "polymarket": 20},
+        minimum_sources=2,
+    )
+    result = engine.calculate(
+        target_line=6.5,
+        side="over",
+        quotes=[
+            quote("fanduel", -110, -110),
+            quote("draftkings", -105, -115),
+            quote("polymarket", -400, 260, liquidity=500),
+        ],
+        now=NOW,
+    )
+
+    polymarket = next(
+        item for item in result.contributions if item["provider"] == "polymarket"
+    )
+    assert polymarket["included"] is False
+    assert polymarket["exclusion_reason"] == "MARKET_OUTLIER_AGAINST_REFERENCE"
+    assert polymarket["reference_divergence"] > 0.10
+    assert result.source_count == 2

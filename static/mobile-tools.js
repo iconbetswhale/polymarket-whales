@@ -217,11 +217,39 @@
     sideLabel.textContent = label;
     const value = document.createElement("strong");
     value.textContent = snapshot?.display || "—";
-    side.append(sideLabel, value);
+    side.append(sideLabel);
+    if (snapshot?.deepLink) {
+      const link = document.createElement("a");
+      link.href = snapshot.deepLink;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.setAttribute("aria-label", `Open bet at ${snapshot?.display || "this price"}`);
+      link.append(value);
+      const outbound = document.createElement("i");
+      outbound.className = "ph ph-arrow-square-out";
+      outbound.setAttribute("aria-hidden", "true");
+      link.append(outbound);
+      side.append(link);
+    } else {
+      side.append(value);
+    }
     if (snapshot?.secondary) {
       const secondary = document.createElement("em");
       secondary.textContent = snapshot.secondary;
       side.append(secondary);
+    }
+    if (snapshot?.liquidity) {
+      const liquidity = document.createElement("em");
+      liquidity.className = "dfs-mobile-liquidity";
+      liquidity.textContent = snapshot.liquidity;
+      side.append(liquidity);
+    }
+    if (snapshot?.modelExcluded) {
+      const flag = document.createElement("em");
+      flag.className = "dfs-mobile-model-excluded";
+      flag.textContent = "Not weighted";
+      flag.title = snapshot.modelExclusionReason || "Excluded from the fair-odds model";
+      side.append(flag);
     }
     target.append(side);
   }
