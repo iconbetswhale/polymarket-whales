@@ -38,11 +38,28 @@ def test_arbitrage_visuals_use_iconlabs_tokens_and_phosphor_icons() -> None:
     assert "var(--il-bg-app" in CSS
     assert "var(--il-brand" in CSS
     assert "var(--il-positive" in CSS
-    assert "var(--il-surface-1" in CSS
+    assert "--arb-card: var(--arb-bg)" in CSS
+    assert "--arb-panel: var(--arb-bg)" in CSS
+    assert "--arb-panel-2: var(--arb-bg)" in CSS
+    assert 'body[data-design-system="v2"][data-page="arbitrage"] .arb-search.search-control' in CSS
     assert "ph ph-" in TEMPLATE
     assert "<svg" not in TEMPLATE
     assert "linear-gradient" not in CSS
     assert "radial-gradient" not in CSS
+
+
+def test_arbitrage_cards_and_toolbar_adapt_to_their_content() -> None:
+    assert "repeat(4, var(--il-control-height, 44px))" in CSS
+    assert "grid-template-columns: 112px" in CSS
+    assert "flex: 0 0 auto" in CSS
+    assert ".arb-opportunity:has(.arb-leg-summary:nth-child(3))" in CSS
+    assert ".arb-leg-summary > span:first-child" in CSS
+
+
+def test_market_context_is_not_rendered_in_card_or_detail_metadata() -> None:
+    assert "const context = row.marketContext" not in SCRIPT
+    assert '<small>${esc(context' not in SCRIPT
+    assert '${esc(row.marketLabel)}${row.marketContext ?' not in SCRIPT
 
 
 def test_primary_interactions_and_visible_states_are_implemented() -> None:

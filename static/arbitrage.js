@@ -178,7 +178,6 @@
   }
 
   function opportunityCard(row) {
-    const context = row.marketContext ? ` · ${row.marketContext}` : "";
     return `
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} arbitrage on ${row.eventTitle}`)}">
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
@@ -187,7 +186,7 @@
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(dateTime(row.commenceTime))} · ${row.bookCount} book${row.bookCount === 1 ? "" : "s"}</p>
         </div>
-        <div class="arb-market-cell"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>MARKET</span><strong>${esc(row.marketLabel)}</strong><small>${esc(context.replace(/^ · /, "")) || "Main line"}</small></div>
+        <div class="arb-market-cell"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>MARKET</span><strong>${esc(row.marketLabel)}</strong></div>
         <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
         <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
       </article>`;
@@ -267,7 +266,7 @@
       <header class="arb-detail-hero">
         <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>guaranteed return</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
         <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(row.league)} · ${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""} · ${esc(dateTime(row.commenceTime))}</p>
+        <p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p>
         <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>Copy stake plan</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
       <section class="arb-detail-section"><header><h3>Stake plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
