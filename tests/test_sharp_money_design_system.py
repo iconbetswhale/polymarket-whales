@@ -33,6 +33,8 @@ def test_sharp_money_template_uses_canonical_v2_primitives():
     assert "il-detail-panel" in template
     assert "sharp-list-status" in template
     assert "sharp-more-menu" in template
+    assert 'id="sharp-sport-filter"' in template
+    assert "data-sharp-sport" not in template
     assert '<option value="alternate">Alternate lines</option>' in template
     assert '<option value="player_prop">Player props</option>' in template
 
@@ -90,9 +92,11 @@ def test_sharp_money_reference_redesign_has_list_detail_contract():
     assert ".sharp-market-comparison" in stylesheet
     assert 'class="sharp-card-bet"' in script
     assert 'class="sharp-flow-book"' in script
-    assert 'class="sharp-card-team-logos"' in script
-    assert 'class="sharp-card-best-price"' in script
-    assert "Best sharp price" in script
+    assert 'class="sharp-card-teams"' in script
+    assert 'class="sharp-card-rec-selection"' in script
+    assert "desktop-overlay-open" in script
+    assert 'class="sharp-card-best-price"' not in script
+    assert "Best sharp price" not in script
     assert "depthSummary(signal)" in script
     assert "Sharp Money" in script
     assert "exchangeAction(key, row)" in script
@@ -102,14 +106,10 @@ def test_sharp_money_reference_redesign_has_list_detail_contract():
     assert ".sharp-depth-bet" in stylesheet
 
 
-def test_sharp_money_reference_redesign_keeps_hover_states_inside_the_feed():
+def test_sharp_money_reference_redesign_keeps_card_hover_state_inside_the_feed():
     stylesheet = (ROOT / "static" / "sharp-money-redesign.css").read_text(
         encoding="utf-8"
     )
 
-    assert ".sharp-quick-filters button:hover:not(.active)" in stylesheet
-    assert ".sharp-quick-filters button:focus-visible:not(.active)" in stylesheet
-    assert "background: var(--il-sidebar-tool-hover, rgba(139, 92, 246, .32));" in stylesheet
-    assert "inset 3px 0 0 rgba(208, 162, 255, .68)" in stylesheet
     assert ".sharp-signal-list .sharp-signal-card:hover" in stylesheet
     assert "transform: none !important;" in stylesheet

@@ -11,6 +11,7 @@
   })();
   const sharpBookKeys = new Set(sharpBookCatalog.map(book => book.key));
   const sharpBookFilterStorageKey = "iconlabs-sharp-sportsbook-filter-v1";
+  const compactDesktopDetail = window.matchMedia("(max-width: 1600px) and (min-width: 981px)");
   let initialSharpSportsbooks = new Set(sharpBookKeys);
   try {
     const saved = JSON.parse(localStorage.getItem(sharpBookFilterStorageKey) || "null");
@@ -98,7 +99,7 @@
       betmgm: "/static/assets/sportsbooks/betmgm.png",
       caesars: "/static/assets/sportsbooks/caesars.png",
       novig: "/static/assets/providers/novig.png",
-      prophetx: "/static/assets/providers/prophetx.ico",
+      prophetx: "/static/assets/sportsbooks/prophetx.png",
     };
     const url = localLogos[providerKey(row)] || row?.logoUrl || row?.providerLogo;
     return url
@@ -317,18 +318,22 @@
     return key ? `/static/assets/teams/${league}/${key}.png` : "";
   }
 
-  function teamLogos(signal) {
+  function eventTeamCards(signal) {
     const teams = eventTeams(signal);
-    const logos = [teams.away, teams.home].map(team => {
+    const cards = [teams.away, teams.home].map(team => {
       const url = teamLogoUrl(signal, team);
-      return url ? `<span class="sharp-card-team-logo" title="${escapeHtml(team)}"><img src="${escapeHtml(url)}" alt="${escapeHtml(team)} logo" loading="lazy"></span>` : "";
-    }).filter(Boolean);
-    return logos.length ? `<div class="sharp-card-team-logos" aria-label="Teams">${logos.join("")}</div>` : "";
+      return `<span class="sharp-card-team">
+        ${url ? `<span class="sharp-card-team-logo"><img src="${escapeHtml(url)}" alt="${escapeHtml(team)} logo" loading="lazy"></span>` : ""}
+        <strong>${escapeHtml(team || "Team")}</strong>
+      </span>`;
+    });
+    return `<div class="sharp-card-teams" aria-label="${escapeHtml(signal.event)}">
+      ${cards[0]}<span class="sharp-card-versus">vs</span>${cards[1]}
+    </div>`;
   }
 
   function depthSummary(signal) {
     const quotes = depthQuotes(signal);
-    const best = bestQuote(quotes.map(item => item.row).filter(Boolean));
     return `<div class="sharp-card-depth-summary" aria-label="NoVIG and ProphetX liquidity intelligence">
       <div class="sharp-card-depth-sources">
       ${quotes.map(({ key, row }) => {
@@ -343,7 +348,6 @@
         </div>`;
       }).join("")}
       </div>
-      <div class="sharp-card-best-price"><small>Best sharp price</small><strong>${escapeHtml(best ? odds(best.americanOdds) : "—")}</strong></div>
     </div>`;
   }
 
@@ -360,20 +364,15 @@
       <article class="sharp-signal-card${signal.id === state.selectedId ? " selected" : ""}" data-sharp-signal="${escapeHtml(signal.id)}" tabindex="0">
         <div class="sharp-signal-money sharp-liquidity-score">
           <strong title="Selected-side liquidity minus opposing-side liquidity across NoVIG and ProphetX">${escapeHtml(signalHeadline(signal))}</strong>
-          <small>${escapeHtml(signalHeadlineLabel(signal))}</small>
-          <span>${escapeHtml(signalCoverageLabel(signal))}</span>
         </div>
         <div class="sharp-card-body">
           <div class="sharp-card-event">
-            ${teamLogos(signal)}
-            <strong>${escapeHtml(signal.event)}</strong>
-            <em>${escapeHtml(signal.market?.name)}</em>
-            <time>${escapeHtml(timeLabel(signal.startsAt))}</time>
-            <b>${escapeHtml(sides.selected)}</b>
+            ${eventTeamCards(signal)}
+            <div class="sharp-card-market-meta"><em>${escapeHtml(signal.market?.name)}</em><time>${escapeHtml(timeLabel(signal.startsAt))}</time></div>
           </div>
           <div class="sharp-card-execution">
             <div class="sharp-card-action-row">
-              <span class="sharp-card-rec-bet"><b>${money(recBet, false)}</b><small>Rec Bet</small></span>
+              <span class="sharp-card-rec-bet"><span class="sharp-card-rec-stake"><b>${money(recBet, false)}</b><small>Rec Bet</small></span><strong class="sharp-card-rec-selection">${escapeHtml(sides.selected)}</strong></span>
               ${sportsbookAction(quote, signal.americanOdds)}
               ${quote ? `<a class="sharp-card-bet" href="${escapeHtml(quote.deepLink || "#")}" ${quote.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}>BET <i class="ph ph-arrow-up-right"></i></a>` : ""}
               <button class="sharp-card-add" type="button" aria-label="Add ${escapeHtml(sides.selected)}"><i class="ph ph-plus"></i></button>
@@ -556,7 +555,7 @@
     $("sharp-detail-toggle").setAttribute("aria-pressed", String(state.detailVisible));
     $("sharp-detail-toggle").querySelector("span").textContent = state.detailVisible ? "Hide market details" : "Show market details";
     document.querySelector(".sharp-workspace")?.classList.toggle("detail-hidden", !state.detailVisible);
-    const activeFilterCount = Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType)) + Number(sportsbookFilterActive());
+    const activeFilterCount = Number(Boolean(state.sport)) + Number(state.filters.minimumLiquidity > 0) + Number(Boolean(state.filters.flow)) + Number(Boolean(state.filters.marketType)) + Number(sportsbookFilterActive());
     $("sharp-filter-count").textContent = String(activeFilterCount);
     $("sharp-filter-open").classList.toggle("has-filters", activeFilterCount > 0);
     $("sharp-mode-badge").classList.toggle("live", running && !accessBlocked);
@@ -657,6 +656,7 @@
   function openFilters(open) {
     if (open) {
       state.filterDraftSportsbooks = new Set(state.filters.sportsbooks);
+      $("sharp-sport-filter").value = state.sport;
       const search = $("sharp-sportsbook-search");
       if (search) search.value = "";
       renderSharpSportsbookFilter();
@@ -671,6 +671,7 @@
       window.showToast?.("Select at least one sportsbook");
       return false;
     }
+    state.sport = $("sharp-sport-filter").value;
     state.filters.minimumLiquidity = Number($("sharp-liquidity-filter").value) || 0;
     state.filters.flow = $("sharp-flow-filter").value;
     state.filters.marketType = $("sharp-market-filter").value;
@@ -709,7 +710,9 @@
       state.detailVisible = true;
       render();
       $("sharp-detail-panel").classList.add("mobile-open");
+      $("sharp-detail-panel").classList.toggle("desktop-overlay-open", compactDesktopDetail.matches);
       document.body.classList.add("sharp-detail-open");
+      document.body.classList.toggle("sharp-desktop-detail-open", compactDesktopDetail.matches);
     });
     $("sharp-signal-list").addEventListener("keydown", event => {
       if (event.key !== "Enter" && event.key !== " ") return;
@@ -720,14 +723,9 @@
     });
     $("sharp-detail-panel").addEventListener("click", event => {
       if (!event.target.closest("#sharp-detail-close")) return;
-      $("sharp-detail-panel").classList.remove("mobile-open");
-      document.body.classList.remove("sharp-detail-open");
+      $("sharp-detail-panel").classList.remove("mobile-open", "desktop-overlay-open");
+      document.body.classList.remove("sharp-detail-open", "sharp-desktop-detail-open");
     });
-    document.querySelectorAll("[data-sharp-sport]").forEach(button => button.addEventListener("click", () => {
-      state.sport = button.dataset.sharpSport;
-      document.querySelectorAll("[data-sharp-sport]").forEach(item => item.classList.toggle("active", item === button));
-      render();
-    }));
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
     $("sharp-refresh")?.addEventListener("click", load);
     $("sharp-alerts")?.addEventListener("click", () => window.showToast?.("No new Sharp Money alerts"));
@@ -742,6 +740,7 @@
     $("sharp-filter-backdrop").addEventListener("click", () => openFilters(false));
     $("sharp-filter-apply").addEventListener("click", () => { if (readFilters()) openFilters(false); });
     $("sharp-filter-reset").addEventListener("click", () => {
+      $("sharp-sport-filter").value = "";
       $("sharp-liquidity-filter").value = "0";
       $("sharp-liquidity-value").textContent = "$0";
       $("sharp-flow-filter").value = "";
@@ -774,8 +773,12 @@
       if (event.key !== "Escape") return;
       closeMoreMenu();
       openFilters(false);
-      $("sharp-detail-panel").classList.remove("mobile-open");
-      document.body.classList.remove("sharp-detail-open");
+      $("sharp-detail-panel").classList.remove("mobile-open", "desktop-overlay-open");
+      document.body.classList.remove("sharp-detail-open", "sharp-desktop-detail-open");
+    });
+    compactDesktopDetail.addEventListener?.("change", () => {
+      $("sharp-detail-panel").classList.remove("desktop-overlay-open");
+      document.body.classList.remove("sharp-desktop-detail-open");
     });
   }
 

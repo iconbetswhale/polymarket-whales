@@ -1145,3 +1145,55 @@ No actionable P0, P1, or P2 findings remain.
 - P3: Best Parlay Type remains a two-line title at the existing 154 px width. This is an accepted consequence of preserving the current footprint rather than widening the card to the reference's much larger proportions.
 
 final result: passed
+
+---
+
+# Sharp Money Card Hierarchy — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\Desktop\Screenshot_2026-08-30_at_11.55.19_PM.webp` (1024 × 879 px).
+- Browser-rendered implementation: `C:\Users\15617\Documents\Polymarket\iconlabs-fantasy-optimizer-live\.codex-artifacts\sharp-money-final-collapsed-1024.jpg` (1024 × 883 px).
+- Focused implementation card: `C:\Users\15617\Documents\Polymarket\iconlabs-fantasy-optimizer-live\.codex-artifacts\sharp-money-final-first-card.jpg` (911 × 156 px).
+- Combined comparison input: `C:\Users\15617\Documents\Polymarket\iconlabs-fantasy-optimizer-live\.codex-artifacts\sharp-money-qa-comparison.png` (2048 × 1125 px).
+- Browser state: `http://127.0.0.1:5003/sharp-money`, 1024 × 883 CSS px, DPR 1, deterministic five-market Sharp Money payload, navigation collapsed for the normalized full-view comparison.
+- The source is a content-only crop while the implementation retains the shared IconLabs navigation rail. The focused source and implementation cards were normalized to 911 × 156 px so card hierarchy, spacing, typography, logos, and copy could be judged without the shell mismatch.
+
+## Findings and comparison history
+
+1. P1 — The first compact-desktop pass retained the 430px detail column, shrinking and clipping the redesigned cards at 1024–1440px.
+   - Fix: the feed becomes full-width through 1600px and the existing market detail opens as a dismissible overlay at those desktop widths.
+   - Post-fix evidence: the 1024px browser pass reports document width equal to viewport width, and the first card fits from x=276 to x=1003 with no internal scroll overflow.
+2. P2 — ProphetX initially truncated inside the compact two-source row.
+   - Fix: tightened only the compact source-chip padding and grid while preserving the 30px provider marks and separate BET actions.
+   - Post-fix evidence: NoVIG and ProphetX both report 66px client/scroll widths and render their full names at 1024px.
+3. P1 — The first overlay class was cleared by the existing mobile disclosure helper after a card click.
+   - Fix: added a dedicated compact-desktop overlay state that coexists with the existing mobile inline-detail behavior.
+   - Post-fix evidence: clicking a card produces a visible flex detail panel and body overlay state; the close button removes both and returns to the feed.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: the existing IconLabs UI/data font stack is preserved. Liquidity is now a single centered 30px data value; team names use a larger 14.5px semibold hierarchy; the selected bet is a strong 13px label beside the recommended stake.
+- Spacing and layout rhythm: the top sports row is removed, team marks sit above centered team names, the matchup block is lowered and centered, and market/time form one centered metadata row. No card or document overflow remains at the checked compact desktop width.
+- Colors and visual tokens: the accepted navy surfaces, restrained borders, green liquidity, purple market label, and purple exchange actions remain mapped to the existing Sharp Money design tokens.
+- Image quality and asset fidelity: real repository team marks remain `object-fit: contain`; ProphetX now uses the working transparent PNG asset rather than the faulty ICO. No placeholder, handmade SVG, CSS drawing, or glyph-based logo was introduced.
+- Copy and content: the liquidity box contains only the dollar amount; the selected wager no longer appears in the matchup box and instead sits beside Rec Bet; Best sharp price and its divider are absent; NoVIG and ProphetX fill the lower execution region.
+
+## Interaction and automated verification
+
+- Sports are available in the filter drawer as All sports, MLB, WNBA, and Tennis; choosing MLB reduced the fixture feed from five cards to three and set the active-filter count to one.
+- No sport quick-filter controls remain above the feed.
+- Card click/open and detail close were verified at 1024px.
+- Browser console warnings/errors: none.
+- Browser DOM checks: five cards, zero horizontal overflow, zero Best sharp price nodes, full NoVIG/ProphetX labels, and the ProphetX PNG source.
+- Focused Sharp Money design tests: 7 passed.
+- Sharp Money app regression tests: 9 passed, 86 deselected.
+- JavaScript syntax and `git diff --check`: passed; line-ending notices only.
+
+## Follow-up polish
+
+- No P3 items remain from this pass.
+
+final result: passed

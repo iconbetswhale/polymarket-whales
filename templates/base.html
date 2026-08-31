@@ -33,7 +33,7 @@
   {% if page == 'calculators' %}<link rel="stylesheet" href="{{ url_for('static', filename='calculators.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'middles' %}<link rel="stylesheet" href="{{ url_for('static', filename='middles.css', v=asset_version ~ '-production-v6') }}">{% endif %}
   {% if page == 'low-hold' %}<link rel="stylesheet" href="{{ url_for('static', filename='arbitrage.css', v=asset_version ~ '-canonical-v6') }}"><link rel="stylesheet" href="{{ url_for('static', filename='low-hold.css', v=asset_version ~ '-production-v6') }}">{% endif %}
-  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-reference-redesign-v3') }}"><link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-redesign.css', v=asset_version ~ '-reference-redesign-v8') }}">{% endif %}
+  {% if page == 'sharp-money' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-v2.css', v=asset_version ~ '-reference-redesign-v3') }}"><link rel="stylesheet" href="{{ url_for('static', filename='sharp-money-redesign.css', v=asset_version ~ '-reference-redesign-v11-card-hierarchy') }}">{% endif %}
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-scale-v2-hover-v2-caesars-icon-v2') }}">{% endif %}
   {% if page == 'futures' %}<link rel="stylesheet" href="{{ url_for('static', filename='futures.css', v=asset_version ~ '-odds-screen-alignment-v5') }}">{% endif %}
   {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-filters-v2-brand-apps-v1-custom-devig-v5-centered-detail-laptop-parlay-card-menu-v18-teams-v1') }}">{% endif %}
@@ -189,7 +189,7 @@
       </form>
     </div>
   </dialog>
-  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v3-net-liquidity-v1-direct') }}"></script>{% endif %}
+  {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v5-card-hierarchy') }}"></script>{% endif %}
   <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v8-stable-inline-mobile-trades-dfs-prewarm-v5-instant-devig') }}"></script>
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v12-mobile-history') }}"></script>{% endif %}
