@@ -123,7 +123,7 @@ def test_sharp_money_accepts_verified_direct_depth_and_filters_crossed_price_edg
 
     assert 'if (!quote) return "";' in script
     assert "const hasDirectDepth = signal.depthAvailable === true" in script
-    assert "return Boolean(retailQuote || hasDirectDepth)" in script
+    assert "&& Boolean(retailQuote || hasDirectDepth)" in script
     assert "function crossedPriceGapPercent(signal)" in script
     assert 'minimumCrossedEdgePercent: 0' in script
     assert 'max="3" step="0.5"' in template
