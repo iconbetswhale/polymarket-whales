@@ -199,3 +199,25 @@ def test_arbitrage_comparison_uses_shared_draggable_book_order() -> None:
     assert "IconLabsLineShopOrder?.sortRows" in SCRIPT
     assert "IconLabsLineShopOrder?.bindDrag" in SCRIPT
     assert "quotes.slice(0, 8)" not in SCRIPT
+
+
+def test_empty_live_board_shows_five_non_bettable_sample_opportunities() -> None:
+    assert "function placeholderArbitrageRows()" in SCRIPT
+    assert "function rowsForDisplay()" in SCRIPT
+    for sample_id in (
+        "sample-mlb-moneyline",
+        "sample-nfl-spread",
+        "sample-wnba-player-points",
+        "sample-nhl-three-way",
+        "sample-tennis-moneyline",
+    ):
+        assert sample_id in SCRIPT
+    assert 'isPlaceholder: true' in SCRIPT
+    assert 'state.rows.length ? state.rows : placeholderArbitrageRows()' in SCRIPT
+    assert "Layout preview only — these are not live odds and cannot be bet." in SCRIPT
+    assert "SAMPLE ONLY — PLACEHOLDER PRICES, NOT A BETTING OPPORTUNITY" in SCRIPT
+    assert 'deepLink: ""' in SCRIPT
+    assert "right.profitPercent - left.profitPercent" in SCRIPT
+    assert "|| visibleRows()[0]" in SCRIPT
+    assert ".arb-sample-notice" in CSS
+    assert ".arb-sample-badge" in CSS

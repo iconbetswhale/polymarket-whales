@@ -106,6 +106,152 @@
     return amount > 0 ? 1 + (amount / 100) : 1 + (100 / Math.abs(amount));
   }
 
+  function placeholderBook(key, fallbackName) {
+    const configured = eligibleBooks.find((book) => book.key === key);
+    return {
+      key,
+      name: configured?.name || fallbackName,
+      logoUrl: configured?.logoUrl || "",
+    };
+  }
+
+  function placeholderArbitrageRows() {
+    const placeholderSpecs = [
+      {
+        id: "sample-mlb-moneyline",
+        sportKey: "baseball_mlb",
+        league: "MLB",
+        eventTitle: "New York Yankees vs Boston Red Sox",
+        marketKey: "h2h",
+        marketLabel: "Moneyline",
+        startsInHours: 2,
+        legs: [
+          { selection: "New York Yankees", bookKey: "fanduel", bookName: "FanDuel", americanOdds: 108 },
+          { selection: "Boston Red Sox", bookKey: "draftkings", bookName: "DraftKings", americanOdds: 104 },
+        ],
+      },
+      {
+        id: "sample-nfl-spread",
+        sportKey: "americanfootball_nfl",
+        league: "NFL",
+        eventTitle: "Buffalo Bills vs Miami Dolphins",
+        marketKey: "spreads",
+        marketLabel: "Spread",
+        startsInHours: 4,
+        legs: [
+          { selection: "Buffalo Bills -2.5", bookKey: "caesars", bookName: "Caesars", americanOdds: 105 },
+          { selection: "Miami Dolphins +2.5", bookKey: "betmgm", bookName: "BetMGM", americanOdds: 103 },
+        ],
+      },
+      {
+        id: "sample-wnba-player-points",
+        sportKey: "basketball_wnba",
+        league: "WNBA",
+        eventTitle: "New York Liberty vs Las Vegas Aces",
+        marketKey: "player_points",
+        marketLabel: "A'ja Wilson Points",
+        startsInHours: 6,
+        legs: [
+          { selection: "Over 24.5", bookKey: "hardrockbet", bookName: "Hard Rock Bet", americanOdds: 110 },
+          { selection: "Under 24.5", bookKey: "fanatics", bookName: "Fanatics", americanOdds: 102 },
+        ],
+      },
+      {
+        id: "sample-nhl-three-way",
+        sportKey: "icehockey_nhl",
+        league: "NHL",
+        eventTitle: "New York Rangers vs Boston Bruins",
+        marketKey: "h2h_3_way",
+        marketLabel: "3-Way Moneyline",
+        startsInHours: 8,
+        legs: [
+          { selection: "New York Rangers", bookKey: "fanduel", bookName: "FanDuel", americanOdds: 155 },
+          { selection: "Draw", bookKey: "bet365", bookName: "bet365", americanOdds: 190 },
+          { selection: "Boston Bruins", bookKey: "caesars", bookName: "Caesars", americanOdds: 390 },
+        ],
+      },
+      {
+        id: "sample-tennis-moneyline",
+        sportKey: "tennis_atp",
+        league: "ATP",
+        eventTitle: "Carlos Alcaraz vs Jannik Sinner",
+        marketKey: "h2h",
+        marketLabel: "Match Winner",
+        startsInHours: 10,
+        legs: [
+          { selection: "Carlos Alcaraz", bookKey: "novig", bookName: "NoVIG", americanOdds: 106 },
+          { selection: "Jannik Sinner", bookKey: "prophetx", bookName: "ProphetX", americanOdds: 102 },
+        ],
+      },
+    ];
+    const comparisonBookKeys = ["fanduel", "draftkings", "caesars", "betmgm", "fanatics", "hardrockbet", "bet365", "novig", "prophetx"];
+    return placeholderSpecs.map((spec, index) => {
+      const inverseProbabilitySum = spec.legs.reduce((total, leg) => total + (1 / decimalOdds(leg.americanOdds)), 0);
+      const minPayout = state.stake / inverseProbabilitySum;
+      const guaranteedProfit = minPayout - state.stake;
+      const profitPercent = (guaranteedProfit / state.stake) * 100;
+      const outcomes = spec.legs.map((leg) => {
+        const book = placeholderBook(leg.bookKey, leg.bookName);
+        const stake = minPayout / decimalOdds(leg.americanOdds);
+        return {
+          selection: leg.selection,
+          bookKey: book.key,
+          bookName: book.name,
+          logoUrl: book.logoUrl,
+          americanOdds: leg.americanOdds,
+          stake,
+          payout: minPayout,
+          profit: guaranteedProfit,
+          capacityKnown: false,
+          executionCapacity: 0,
+          capacityType: "UNKNOWN",
+          deepLink: "",
+        };
+      });
+      const allQuotes = outcomes.map((leg, legIndex) => {
+        const alternateKey = comparisonBookKeys.find((key, bookIndex) => key !== leg.bookKey && (bookIndex + index + legIndex) % 3 === 0) || "draftkings";
+        const alternate = placeholderBook(alternateKey, alternateKey);
+        return {
+          selection: leg.selection,
+          quotes: [
+            { bookKey: leg.bookKey, bookName: leg.bookName, logoUrl: leg.logoUrl, americanOdds: leg.americanOdds, quoteAgeSeconds: 0 },
+            { bookKey: alternate.key, bookName: alternate.name, logoUrl: alternate.logoUrl, americanOdds: leg.americanOdds - 8, quoteAgeSeconds: 0 },
+          ],
+        };
+      });
+      return {
+        id: spec.id,
+        eventId: spec.id,
+        isPlaceholder: true,
+        sportKey: spec.sportKey,
+        league: spec.league,
+        eventTitle: spec.eventTitle,
+        commenceTime: new Date(Date.now() + spec.startsInHours * 60 * 60 * 1000).toISOString(),
+        marketKey: spec.marketKey,
+        marketLabel: spec.marketLabel,
+        marketContext: "Sample layout preview",
+        outcomeCount: outcomes.length,
+        bookCount: new Set(outcomes.map((leg) => leg.bookKey)).size,
+        totalStake: state.stake,
+        minPayout,
+        guaranteedProfit,
+        profitPercent,
+        theoreticalProfitPercent: profitPercent,
+        impliedProbabilityPercent: inverseProbabilitySum * 100,
+        inverseProbabilitySum,
+        executionStatus: "THEORETICAL",
+        isExecutable: false,
+        outcomes,
+        allQuotes,
+        warnings: ["Sample data for layout preview only. These are not live odds and cannot be bet."],
+      };
+    });
+  }
+
+  function rowsForDisplay() {
+    return state.rows.length ? state.rows : placeholderArbitrageRows();
+  }
+
   function percent(value, digits = 2) {
     return `${Number(value || 0).toFixed(digits)}%`;
   }
@@ -193,7 +339,7 @@
   }
 
   function visibleRows() {
-    const rows = state.rows.filter(rowMatches);
+    const rows = rowsForDisplay().filter(rowMatches);
     if (state.sort === "profit-amount-desc") return rows.sort((left, right) => right.guaranteedProfit - left.guaranteedProfit);
     if (state.sort === "time-asc") return rows.sort((left, right) => new Date(left.commenceTime) - new Date(right.commenceTime));
     return rows.sort((left, right) => right.profitPercent - left.profitPercent);
@@ -202,12 +348,12 @@
   function opportunityCard(row, index) {
     const start = queueDateParts(row.commenceTime);
     return `
-      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} ${row.executionStatus === "EXECUTABLE" ? "executable" : "theoretical"} arbitrage on ${row.eventTitle}`)}">
+      <article class="arb-opportunity ${row.isPlaceholder ? "sample" : ""} ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${row.isPlaceholder ? "Sample " : ""}${percent(row.profitPercent)} ${row.executionStatus === "EXECUTABLE" ? "executable" : "theoretical"} arbitrage on ${row.eventTitle}`)}">
         <span class="arb-queue-rank">${index + 1}</span>
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span></div>
         <div class="arb-event-cell">
           <h3 title="${esc(row.eventTitle)}"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i><span>${esc(row.eventTitle)}</span></h3>
-          <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${row.outcomeCount}-way</p>
+          <p>${row.isPlaceholder ? `<span class="arb-sample-badge">Sample</span>` : ""}${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${row.outcomeCount}-way</p>
         </div>
         <time class="arb-queue-date" datetime="${esc(row.commenceTime)}"><span>${esc(start.day)}</span><small>${esc(start.time)}</small></time>
       </article>`;
@@ -231,28 +377,34 @@
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-intersect-three" aria-hidden="true"></i><strong>No arbitrage matches these filters</strong><p>Try more sportsbooks, a lower minimum return, or a broader market selection. IconLabs never fabricates a missing opposing price.</p><button class="arb-secondary-button" type="button" data-arb-open-filters>Adjust filters</button></div>`;
       return;
     }
-    elements.feed.innerHTML = (state.degraded ? `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>Showing the last verified arbitrage snapshot while the provider reconnects. Recheck every leg before betting.</span></div>` : "") + rows.map(opportunityCard).join("");
+    const showingSamples = rows.some((row) => row.isPlaceholder);
+    elements.feed.innerHTML = (showingSamples
+      ? `<div class="arb-sample-notice"><i class="ph ph-eye" aria-hidden="true"></i><span><strong>Sample plays</strong> Layout preview only — these are not live odds and cannot be bet.</span></div>`
+      : state.degraded ? `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>Showing the last verified arbitrage snapshot while the provider reconnects. Recheck every leg before betting.</span></div>` : "") + rows.map(opportunityCard).join("");
   }
 
   function updateSummary() {
-    const top = state.rows[0];
-    const uniqueEvents = new Set(state.rows.map((row) => row.eventId)).size;
-    document.getElementById("arb-kpi-opportunities").textContent = state.rows.length.toLocaleString();
-    document.getElementById("arb-kpi-events").textContent = `${uniqueEvents} matched event${uniqueEvents === 1 ? "" : "s"}`;
+    const displayRows = rowsForDisplay();
+    const showingSamples = !state.rows.length;
+    const top = showingSamples ? [...displayRows].sort((left, right) => right.profitPercent - left.profitPercent)[0] : displayRows[0];
+    const uniqueEvents = new Set(displayRows.map((row) => row.eventId)).size;
+    document.getElementById("arb-kpi-opportunities").textContent = displayRows.length.toLocaleString();
+    document.getElementById("arb-kpi-events").textContent = showingSamples ? "Sample layout" : `${uniqueEvents} matched event${uniqueEvents === 1 ? "" : "s"}`;
     document.getElementById("arb-kpi-return").textContent = top ? percent(top.profitPercent) : "—";
     document.getElementById("arb-kpi-profit").textContent = top ? money(top.guaranteedProfit) : "—";
     document.getElementById("arb-kpi-stake").textContent = `On a ${money(state.stake, 0)} stake`;
     document.getElementById("arb-kpi-books").textContent = String(state.diagnostics.selectedBookCount ?? state.selectedBooks.size);
-    document.getElementById("arb-mode-count").textContent = String(state.rows.length);
+    document.getElementById("arb-mode-count").textContent = String(displayRows.length);
     const visibleCount = visibleRows().length;
-    elements.resultCopy.textContent = visibleCount ? `Showing 1–${visibleCount} of ${visibleCount} opportunities · executable only when every gate passes` : "No opportunities shown";
+    elements.resultCopy.textContent = visibleCount ? (showingSamples ? `Showing ${visibleCount} sample plays · layout preview only` : `Showing 1–${visibleCount} of ${visibleCount} opportunities · executable only when every gate passes`) : "No opportunities shown";
   }
 
   function populateQuickFilters() {
     const currentSport = state.sport;
     const currentMarket = state.market;
-    const sports = [...new Map(state.rows.map((row) => [row.sportKey, sportLabel(row)])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
-    const markets = [...new Map(state.rows.map((row) => [row.marketKey, row.marketLabel])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
+    const displayRows = rowsForDisplay();
+    const sports = [...new Map(displayRows.map((row) => [row.sportKey, sportLabel(row)])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
+    const markets = [...new Map(displayRows.map((row) => [row.marketKey, row.marketLabel])).entries()].sort((left, right) => left[1].localeCompare(right[1]));
     elements.sport.innerHTML = `<option value="">All sports</option>${sports.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("")}`;
     elements.market.innerHTML = `<option value="">All markets</option>${markets.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("")}`;
     elements.sport.value = sports.some(([key]) => key === currentSport) ? currentSport : "";
@@ -299,8 +451,9 @@
           <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))} · ${esc(executionLabel)}</p>
         </div>
         <dl class="arb-detail-facts"><div><dt>Market</dt><dd>${esc(row.marketLabel)}</dd></div><div><dt>Start time</dt><dd>${esc(dateTime(row.commenceTime))}</dd></div></dl>
-        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>${executable ? "Copy stake plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
+        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>${row.isPlaceholder ? "Copy sample plan" : executable ? "Copy stake plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
+      ${row.isPlaceholder ? `<div class="arb-sample-detail-banner"><i class="ph ph-eye" aria-hidden="true"></i><span><strong>Sample opportunity</strong> This preview uses placeholder prices and disabled bet actions.</span></div>` : ""}
       ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical arbitrage match, not an executable claim. Verify every price, accepted stake, limit, settlement rule, and account-eligibility gate before placing either leg.</span></div>`}
       <section class="arb-detail-section arb-stake-plan-section"><header><h3>${executable ? "Stake Plan" : "Verification Plan"}</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
       <section class="arb-detail-section arb-guaranteed-section"><header><h3>${executable ? "Guaranteed Outcome" : "Mathematical Payout"}</h3><span>${executable ? "after fee buffer &amp; cent rounding" : "only if every listed leg is accepted"}</span></header><div class="arb-guaranteed-layout"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>${executable ? "Locked profit" : "Modeled profit"}</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></div></section>
@@ -320,7 +473,7 @@
   }
 
   function selectRow(id, openOnMobile = false) {
-    const row = state.rows.find((item) => item.id === id);
+    const row = rowsForDisplay().find((item) => item.id === id);
     if (!row) return;
     state.selectedId = id;
     renderFeed();
@@ -331,7 +484,8 @@
     updateSummary();
     populateQuickFilters();
     renderFeed();
-    const selected = state.rows.find((row) => row.id === state.selectedId) || state.rows[0];
+    const displayRows = rowsForDisplay();
+    const selected = displayRows.find((row) => row.id === state.selectedId) || visibleRows()[0];
     if (selected) {
       state.selectedId = selected.id;
       renderDetail(selected, false);
@@ -481,11 +635,11 @@
   }
 
   function copyPlan() {
-    const row = state.rows.find((item) => item.id === state.selectedId);
+    const row = rowsForDisplay().find((item) => item.id === state.selectedId);
     if (!row) return;
     const executable = row.executionStatus === "EXECUTABLE";
     const text = [
-      executable ? "EXECUTABLE — RECHECK EVERY PRICE AND ACCEPTED STAKE BEFORE SUBMISSION" : "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING",
+      row.isPlaceholder ? "SAMPLE ONLY — PLACEHOLDER PRICES, NOT A BETTING OPPORTUNITY" : executable ? "EXECUTABLE — RECHECK EVERY PRICE AND ACCEPTED STAKE BEFORE SUBMISSION" : "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING",
       `${row.eventTitle} · ${row.marketLabel}${row.marketContext ? ` · ${row.marketContext}` : ""}`,
       ...row.outcomes.map((leg) => `${leg.bookName}: ${leg.selection} ${odds(leg.americanOdds)} — stake ${money(leg.stake)}`),
       `Total ${money(row.totalStake)} · Minimum payout ${money(row.minPayout)} · Modeled profit ${money(row.guaranteedProfit)} (${percent(row.profitPercent)}) · ${row.executionStatus || "THEORETICAL"}`,
@@ -517,7 +671,7 @@
     });
     window.IconLabsLineShopOrder?.bindDrag(elements.detailContent, ".arb-quote-row[data-line-shop-book]");
     window.addEventListener("iconlabs:line-shop-order", () => {
-      renderDetail(state.rows.find((row) => row.id === state.selectedId), false);
+      renderDetail(rowsForDisplay().find((row) => row.id === state.selectedId), false);
     });
     elements.mobileScrim.addEventListener("click", closeMobileDetail);
 
