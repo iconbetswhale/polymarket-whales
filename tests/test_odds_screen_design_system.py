@@ -79,7 +79,6 @@ def test_odds_screen_template_uses_approved_terminal_structure():
         "Games",
         "Props",
         "PRO",
-        "NFL PRE",
         "WNBA",
         "MLB",
         "NCAAF",
@@ -87,16 +86,24 @@ def test_odds_screen_template_uses_approved_terminal_structure():
         "NBA",
         "NHL",
         "NCAAB",
+        "NCAAW",
+        "MLS",
+        "EPL",
         "Moneyline",
         "Spread",
         "Total",
     ):
         assert label in template
-    for league_asset in ("nfl.png", "wnba.png", "mlb.png", "ncaa.png", "nba.png", "nhl.png"):
+    for league_asset in ("nfl.png", "wnba.png", "mlb.png", "ncaa.png", "nba.png", "nhl.png", "mls.png", "epl.png"):
         assert league_asset in template
+    assert "NFL PRE" not in template
+    assert "Tennis|ATP" not in template
+    assert "Tennis|WTA" not in template
     assert 'id="odds-league-trigger"' not in template
     assert 'id="odds-feed-toggle"' not in template
-    assert 'id="odds-props-trigger"' not in template
+    assert 'id="odds-props-trigger"' in template
+    assert 'id="odds-props-list"' in template
+    assert 'id="odds-screen-config"' in template
     assert "data-odds-favorite" not in template
     assert "Alt Spreads" not in template
     assert "Alt Totals" not in template
@@ -159,10 +166,11 @@ def test_odds_screen_client_starts_only_the_live_feed():
     assert "previewPayload" not in script
     assert "oddsState.timer = window.setInterval(loadOddsScreen, 60000)" in script
     assert 'params.set("active", "1")' in script
-    assert 'params.set("sport", oddsState.sport)' not in script
-    assert 'params.set("league", oddsState.league)' not in script
-    assert 'params.set("market", oddsState.kind)' not in script
-    assert "function loadOrRenderOddsScreen() {\n  renderOddsScreen();\n  if (!oddsState.rows.length && oddsState.feedActive) loadOddsScreen();\n}" in script
+    assert 'params.set("sport", oddsState.sport)' in script
+    assert 'params.set("league", oddsState.league)' in script
+    assert 'params.set("market", oddsState.kind)' in script
+    assert 'params.set("per_page", "500")' in script
+    assert "oddsState.loadedSignature" in script
     assert "persistOddsProviderOrder()" in script
     assert 'oddsState.providerOrder = [...previewKeys, "best"]' not in script
     assert "ODDS_DEFAULT_PROVIDER_KEYS" in script
@@ -172,7 +180,11 @@ def test_odds_screen_is_prewarmed_and_shares_account_backed_book_order():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert "function prewarmOddsScreen()" in script
-    assert "prewarmOddsScreen();" in script
+    assert "function bindIntentPrewarm()" in script
+    assert "once('a[href=\"/odds-screen\"]', prewarmOddsScreen)" in script
+    assert 'sport:"Baseball"' in script
+    assert 'league:"MLB"' in script
+    assert 'market:"moneyline"' in script
     assert "window.IconLabsLineShopOrder" in script
     assert "lineShopLocalOrderDirty" in script
     assert 'LINE_SHOP_ORDER_STORAGE_KEY = "iconlabsLineShopBookOrderV1"' in script

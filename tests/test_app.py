@@ -1428,10 +1428,8 @@ def test_sharp_money_frontend_uses_explicit_control_gate():
     assert "function isCrossedRetailQuote" in script
     assert "if (signal.depthAvailable === false) return false" not in script
     assert 'signal.market?.isAlternative\n      ? "alternate"' in script
-    assert (
-        'if (page !== "sharp-money") loadGlobalStatus();'
-        in shell_script
-    )
+    assert 'loadGlobalStatus();' in shell_script
+    assert 'if (page !== "sharp-money") loadGlobalStatus();' not in shell_script
 
 
 def test_prediction_traders_only_renders_executable_sharp_prices():

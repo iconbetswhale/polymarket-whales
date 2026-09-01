@@ -72,6 +72,69 @@ def test_live_scan_uses_only_odds_engine_for_aggregated_odds(
     assert len(odds_engine_calls) == 1
 
 
+def test_live_scanners_reuse_one_fresh_shared_odds_snapshot(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    odds_engine = _provider(application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+    starts_at = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat()
+    observed_at = datetime.now(timezone.utc).isoformat()
+
+    def events(*, sport_keys, market_keys):
+        calls.append((tuple(sport_keys), tuple(market_keys)))
+        return [
+            {
+                "id": "shared-mlb-event",
+                "sport_key": "baseball_mlb",
+                "sport_title": "MLB",
+                "commence_time": starts_at,
+                "home_team": "Boston Red Sox",
+                "away_team": "New York Yankees",
+                "bookmakers": [
+                    {
+                        "key": "fanduel",
+                        "title": "FanDuel",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": observed_at,
+                                "outcomes": [
+                                    {"name": "Boston Red Sox", "price": 105},
+                                    {"name": "New York Yankees", "price": -110},
+                                ],
+                            }
+                        ],
+                    },
+                    {
+                        "key": "draftkings",
+                        "title": "DraftKings",
+                        "markets": [
+                            {
+                                "key": "h2h",
+                                "last_update": observed_at,
+                                "outcomes": [
+                                    {"name": "Boston Red Sox", "price": 102},
+                                    {"name": "New York Yankees", "price": -108},
+                                ],
+                            }
+                        ],
+                    },
+                ],
+            }
+        ]
+
+    monkeypatch.setattr(odds_engine, "ev_events", events)
+
+    first = app_client.get("/api/arbitrage?active=1")
+    second = app_client.get("/api/low-hold?active=1")
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert len(calls) == 1
+
+
 def test_live_calculators_stay_available_when_oddsengine_is_unavailable(
     app_client, monkeypatch
 ) -> None:
@@ -249,7 +312,7 @@ def test_odds_screen_uses_all_book_events_without_a_second_event_scan(app_client
     assert len(calls) == 1
     assert calls[0] == {
         "sport_keys": ("baseball_mlb",),
-        "market_keys": ("h2h",),
+        "market_keys": ("*",),
     }
     assert {
         option["providerName"]

@@ -514,7 +514,7 @@
       const y = max === min ? 50 : 88 - ((value - min) / (max - min)) * 68;
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(" ");
-    return `<svg class="sharp-flow-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="ProphetX price history"><polyline points="${points}"></polyline></svg>`;
+    return `<svg class="sharp-flow-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-label="Sharp exchange price history"><polyline points="${points}"></polyline></svg>`;
   }
 
   function detail(signal) {
@@ -557,7 +557,9 @@
       ? "alternate"
       : signal.market?.kind;
     const retailQuote = primaryQuote(signal);
-    return Boolean(retailQuote)
+    const hasDirectDepth = signal.depthAvailable === true
+      && depthQuotes(signal).some(({row}) => row && Number(row.availableLiquidity) > 0);
+    return Boolean(retailQuote || hasDirectDepth)
       && (!state.sport || signal.league === state.sport || signal.sport === state.sport)
       && (!state.search || haystack.includes(state.search))
       && crossedPriceGapPercent(signal) >= state.filters.minimumCrossedEdgePercent

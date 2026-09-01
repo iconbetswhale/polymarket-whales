@@ -117,12 +117,13 @@ def test_sharp_money_reference_redesign_keeps_card_hover_state_inside_the_feed()
     assert "transform: none !important;" in stylesheet
 
 
-def test_sharp_money_requires_a_retail_quote_and_filters_crossed_price_edge():
+def test_sharp_money_accepts_verified_direct_depth_and_filters_crossed_price_edge():
     template = (ROOT / "templates" / "sharp_money.html").read_text(encoding="utf-8")
     script = (ROOT / "static" / "sharp-money.js").read_text(encoding="utf-8")
 
     assert 'if (!quote) return "";' in script
-    assert "return Boolean(retailQuote)" in script
+    assert "const hasDirectDepth = signal.depthAvailable === true" in script
+    assert "return Boolean(retailQuote || hasDirectDepth)" in script
     assert "function crossedPriceGapPercent(signal)" in script
     assert 'minimumCrossedEdgePercent: 0' in script
     assert 'max="3" step="0.5"' in template

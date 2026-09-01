@@ -204,15 +204,16 @@
   }
 
   function opportunityCard(row) {
+    const executable = row.executionStatus === "EXECUTABLE";
     return `
-      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} theoretical arbitrage on ${row.eventTitle}`)}">
+      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} ${executable ? "executable" : "theoretical"} arbitrage on ${row.eventTitle}`)}">
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
         <div class="arb-event-cell">
           <span class="arb-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(dateTime(row.commenceTime))} · ${row.bookCount} book${row.bookCount === 1 ? "" : "s"}</p>
         </div>
-        <div class="arb-market-cell"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>MARKET</span><strong>${esc(row.marketLabel)}</strong></div>
+        <div class="arb-market-cell"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>${executable ? "EXECUTABLE" : "VERIFY FIRST"}</span><strong>${esc(row.marketLabel)}</strong></div>
         <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
         <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
       </article>`;

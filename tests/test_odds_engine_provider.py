@@ -244,6 +244,17 @@ def _fixture_session() -> FakeSession:
     )
 
 
+def test_odds_screen_accepts_supported_player_prop_market_keys() -> None:
+    assert OddsEngineProvider._screen_market_keys("moneyline") == ("h2h",)
+    assert OddsEngineProvider._screen_market_keys("batter_hits") == (
+        "batter_hits",
+    )
+    assert OddsEngineProvider._screen_market_keys("player_points") == (
+        "player_points",
+    )
+    assert OddsEngineProvider._screen_market_keys("not_a_real_market") == ()
+
+
 def test_provider_normalizes_documented_event_odds_and_caches_requests() -> None:
     session = _fixture_session()
     provider = OddsEngineProvider("server-side-test-key", session=session)

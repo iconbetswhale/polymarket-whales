@@ -12,11 +12,17 @@
       <div class="odds-navigation-top">
         <nav class="odds-view-tabs" aria-label="Event type">
           <button class="active" data-odds-view="games" type="button" aria-pressed="true">Games</button>
-          <button data-odds-view="props" type="button" aria-pressed="false">Props <small class="odds-pro-badge">PRO</small></button>
+          <div class="odds-menu-shell odds-props-shell">
+            <button id="odds-props-trigger" data-odds-view="props" type="button" aria-pressed="false" aria-expanded="false" aria-controls="odds-props-menu">Props <small class="odds-pro-badge">PRO</small></button>
+            <section class="odds-popover odds-props-menu" id="odds-props-menu" hidden>
+              <strong>Player props</strong>
+              <small>Choose an exact prop market for the selected league.</small>
+              <div id="odds-props-list"></div>
+            </section>
+          </div>
         </nav>
 
         <nav class="odds-sport-tabs" aria-label="Sport and league">
-          <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NFL PRE" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nfl.png') }}" alt="">NFL PRE</button>
           <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="WNBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/wnba.png') }}" alt="">WNBA</button>
           <button data-odds-sport-filter data-odds-sport="Baseball" data-odds-league="MLB" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/mlb.png') }}" alt="">MLB</button>
           <button data-odds-sport-filter data-odds-sport="Football" data-odds-league="NCAAF" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAF</button>
@@ -24,6 +30,9 @@
           <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NBA" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nba.png') }}" alt="">NBA</button>
           <button data-odds-sport-filter data-odds-sport="Hockey" data-odds-league="NHL" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/nhl.png') }}" alt="">NHL</button>
           <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NCAAB" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAB</button>
+          <button data-odds-sport-filter data-odds-sport="Basketball" data-odds-league="NCAAW" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/ncaa.png') }}" alt="">NCAAW</button>
+          <button data-odds-sport-filter data-odds-sport="Soccer" data-odds-league="MLS" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/mls.png') }}" alt="">MLS</button>
+          <button data-odds-sport-filter data-odds-sport="Soccer" data-odds-league="EPL" type="button" aria-pressed="false"><img src="{{ url_for('static', filename='assets/leagues/epl.png') }}" alt="">EPL</button>
         </nav>
 
       <div class="odds-toolbar-right">
@@ -72,7 +81,7 @@
   <section class="mobile-odds-board" aria-label="Mobile sportsbook screen">
     <div class="mobile-odds-titlebar"><div class="mobile-odds-title"><span class="mobile-odds-brand-mark"><i class="ph ph-chart-line-up"></i></span><strong>Odds</strong></div><span class="mobile-odds-status" id="mobile-odds-status"><i></i><span>Paused</span></span></div>
     <div class="mobile-odds-controls">
-      <label class="mobile-odds-league"><span class="sr-only">League</span><select id="mobile-odds-league"><option value="">All</option><option value="Baseball|MLB">MLB</option><option value="Basketball|WNBA">WNBA</option><option value="Basketball|NBA">NBA</option><option value="Football|NFL">NFL</option><option value="Hockey|NHL">NHL</option><option value="Tennis|ATP">ATP</option><option value="Tennis|WTA">WTA</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+      <label class="mobile-odds-league"><span class="sr-only">League</span><select id="mobile-odds-league"><option value="">All</option><option value="Baseball|MLB">MLB</option><option value="Basketball|WNBA">WNBA</option><option value="Basketball|NBA">NBA</option><option value="Basketball|NCAAB">NCAAB</option><option value="Basketball|NCAAW">NCAAW</option><option value="Football|NFL">NFL</option><option value="Football|NCAAF">NCAAF</option><option value="Hockey|NHL">NHL</option><option value="Soccer|MLS">MLS</option><option value="Soccer|EPL">EPL</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
       <label class="mobile-odds-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mobile-odds-search" type="search" placeholder="Search teams..."></label>
       <button class="mobile-odds-refresh" id="mobile-odds-refresh" type="button" aria-label="Refresh odds"><i class="ph ph-arrows-clockwise"></i></button>
     </div>
@@ -104,5 +113,6 @@
   <div class="mobile-odds-sheet-content" id="mobile-odds-sheet-content"></div>
 </section>
 <script id="odds-provider-catalog" type="application/json">{{ odds_screen_provider_catalog | tojson }}</script>
+<script id="odds-screen-config" type="application/json">{{ odds_screen_config | tojson }}</script>
 {% endblock %}
 

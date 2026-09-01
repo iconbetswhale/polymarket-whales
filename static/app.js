@@ -223,7 +223,13 @@ function prewarmFantasyOptimizer() {
 
 function prewarmOddsScreen() {
   if (page === "odds-screen") return Promise.resolve();
-  const params = new URLSearchParams({active:"1"});
+  const params = new URLSearchParams({
+    active:"1",
+    sport:"Baseball",
+    league:"MLB",
+    market:"moneyline",
+    per_page:"500",
+  });
   const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
   if (readPagePayloadCache(cacheKey,10*60*1000)) return Promise.resolve();
   if (oddsScreenPrewarmPromise) return oddsScreenPrewarmPromise;
@@ -6340,13 +6346,21 @@ const ODDS_EMBEDDED_PROVIDER_CATALOG = (() => {
     return [];
   }
 })();
+const ODDS_SCREEN_CONFIG = (() => {
+  try {
+    const payload = JSON.parse(document.getElementById("odds-screen-config")?.textContent || "{}");
+    return payload && typeof payload === "object" ? payload : {};
+  } catch (_) {
+    return {};
+  }
+})();
 const ODDS_BASE_PROVIDER_CATALOG = {
   ...ODDS_DEFAULT_PROVIDER_CATALOG,
   ...Object.fromEntries(ODDS_EMBEDDED_PROVIDER_CATALOG.map(provider => [provider.key, provider])),
 };
 const ODDS_DEFAULT_PROVIDER_KEYS = Object.keys(ODDS_DEFAULT_PROVIDER_CATALOG);
 const ODDS_PROVIDER_KEYS = Object.keys(ODDS_BASE_PROVIDER_CATALOG);
-const REQUIRED_LINE_SHOP_PROVIDER_KEYS = new Set(["polymarket", "4cx", "oddsapi__novig"]);
+const REQUIRED_LINE_SHOP_PROVIDER_KEYS = new Set(["polymarket", "4cx", "novig", "oddsapi__novig"]);
 // v2 clears the legacy Polymarket-only selection once. The old provider list
 // predates OddsEngine's dynamic sportsbook keys and hid valid live columns.
 const ODDS_PROVIDER_ORDER_KEY = "iconbets_odds_provider_order_v2";
@@ -6382,7 +6396,7 @@ try {
 const initialOddsProviders = savedOddsProviderSelection
   ? initialOddsProviderOrder.filter(key => savedOddsProviderSelection.includes(key) || REQUIRED_LINE_SHOP_PROVIDER_KEYS.has(key))
   : initialOddsProviderOrder.filter(key => ODDS_DEFAULT_PROVIDER_KEYS.includes(key));
-const oddsState = { rows: [], sport: "", league: "", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
+const oddsState = { rows: [], sport: "Baseball", league: "MLB", kind: "moneyline", search: "", catalog: {...ODDS_BASE_PROVIDER_CATALOG}, providerOrder: initialOddsProviderOrder, providers: initialOddsProviders, draggedProvider: "", loading: false, reloadPending: false, loadedSignature: "", timer: null, feedActive: false, mobileEventKey: "", mobileMarketKind: "main" };
 
 function oddsPlaceholderRows() {
   const providers = [
@@ -7035,6 +7049,16 @@ function oddsMarketKind(row) {
 function oddsPlayerPropMarkets(rows = oddsState.rows) {
   const known = new Set(["moneyline", "spread", "alternate_spread", "game_total", "alternate_total", "team_total", "yes_no", "first_half_moneyline", "first_half_spread", "first_half_total", "first_period_moneyline", "first_period_total"]);
   const detected = new Map();
+  const leagueSportKey = {
+    MLB: "baseball_mlb",
+    NBA: "basketball_nba",
+    WNBA: "basketball_wnba",
+  }[String(oddsState.league || "").toUpperCase()] || "";
+  (ODDS_SCREEN_CONFIG.marketGroups?.props || []).forEach(market => {
+    const sports = Array.isArray(market?.sports) ? market.sports : [];
+    if (leagueSportKey && sports.length && !sports.includes(leagueSportKey)) return;
+    if (market?.key) detected.set(String(market.key), String(market.name || market.key));
+  });
   rows.forEach(row => {
     const raw = `${row.sports_market_type || ""} ${row.market_title || ""}`.toLowerCase();
     const kind = oddsMarketKind(row);
@@ -7071,20 +7095,27 @@ function toggleOddsMenu(trigger, menu) {
 }
 
 async function loadOddsScreen() {
-  if (!oddsState.feedActive || oddsState.loading || document.hidden) return;
+  if (!oddsState.feedActive || document.hidden) return;
+  if (oddsState.loading) {
+    oddsState.reloadPending = true;
+    return;
+  }
   oddsState.loading = true;
   const started = performance.now();
+  const params = new URLSearchParams();
+  params.set("active", "1");
+  if (oddsState.sport) params.set("sport", oddsState.sport);
+  if (oddsState.league) params.set("league", oddsState.league);
+  if (oddsState.kind) params.set("market", oddsState.kind);
+  params.set("per_page", "500");
+  const requestSignature = params.toString();
   try {
-    const params = new URLSearchParams();
-    // Fetch one full slate and filter it in the browser. Using the selected
-    // sport/league/market as request parameters created a separate expensive
-    // upstream rebuild and CDN cache key every time a tab was changed.
-    params.set("active", "1");
     const cacheKey = pagePayloadCacheKey("odds-screen", params.toString());
-    if (!oddsState.rows.length) {
+    if (!oddsState.rows.length && oddsState.loadedSignature !== requestSignature) {
       const cachedPayload = readPagePayloadCache(cacheKey, 10 * 60 * 1000);
       if (cachedPayload) {
         oddsState.rows = cachedPayload.data || [];
+        oddsState.loadedSignature = requestSignature;
         syncOddsProviderCatalog(cachedPayload.providers || []);
         document.getElementById("odds-latency").textContent = "Updating live";
         renderOddsScreen();
@@ -7092,7 +7123,20 @@ async function loadOddsScreen() {
     }
     const payload = await fetchJson(`/api/odds-screen${params.size ? `?${params}` : ""}`);
     writePagePayloadCache(cacheKey, payload);
+    if (requestSignature !== (() => {
+      const current = new URLSearchParams();
+      current.set("active", "1");
+      if (oddsState.sport) current.set("sport", oddsState.sport);
+      if (oddsState.league) current.set("league", oddsState.league);
+      if (oddsState.kind) current.set("market", oddsState.kind);
+      current.set("per_page", "500");
+      return current.toString();
+    })()) {
+      oddsState.reloadPending = true;
+      return;
+    }
     oddsState.rows = payload.data || [];
+    oddsState.loadedSignature = requestSignature;
     syncOddsProviderCatalog(payload.providers || []);
     const transport = payload.transport?.mode === "rest_snapshot" ? "snapshot" : "stream";
     document.getElementById("odds-latency").textContent = `${Math.round(performance.now() - started)}ms ${transport}`;
@@ -7100,7 +7144,13 @@ async function loadOddsScreen() {
   } catch (error) {
     document.getElementById("odds-latency").textContent = "Feed degraded";
     if (!oddsState.rows.length) document.getElementById("odds-grid").innerHTML = `<tr class="odds-state-row"><td colspan="${4 + oddsState.providers.length}"><div class="odds-loading">${escapeHtml(error.message)}</div></td></tr>`;
-  } finally { oddsState.loading = false; }
+  } finally {
+    oddsState.loading = false;
+    if (oddsState.reloadPending) {
+      oddsState.reloadPending = false;
+      window.setTimeout(loadOddsScreen, 0);
+    }
+  }
 }
 
 function setOddsFeedActive(active) {
@@ -7271,7 +7321,15 @@ function syncOddsNavigation(view = oddsState.kind.startsWith("player_") ? "props
 
 function loadOrRenderOddsScreen() {
   renderOddsScreen();
-  if (!oddsState.rows.length && oddsState.feedActive) loadOddsScreen();
+  const params = new URLSearchParams();
+  params.set("active", "1");
+  if (oddsState.sport) params.set("sport", oddsState.sport);
+  if (oddsState.league) params.set("league", oddsState.league);
+  if (oddsState.kind) params.set("market", oddsState.kind);
+  params.set("per_page", "500");
+  if (oddsState.feedActive && oddsState.loadedSignature !== params.toString()) {
+    loadOddsScreen();
+  }
 }
 
 function bindOddsScreen() {
@@ -7478,8 +7536,8 @@ function refreshCurrentPage() {
   if (page === "edge-map") loadEdgeMap();
   if (page === "intelligence") loadIntelligence().catch(()=>{});
   if (page === "shadow-test") loadShadowTest();
-  if (page !== "sharp-money") loadGlobalStatus();
-  if (page !== "sharp-money") loadGlobalRiskState();
+  loadGlobalStatus();
+  loadGlobalRiskState();
 }
 
 async function loadGlobalRiskState() {
@@ -7510,9 +7568,6 @@ async function loadGlobalRiskState() {
 }
 
 function prewarmInstantPages() {
-  prewarmFantasyOptimizer();
-  prewarmOddsScreen();
-
   if (page !== "trades" && !readPagePayloadCache(latestPagePayloadCacheKey("trades"))) {
     fetchJson("/api/trades-to-play?fast=1")
       .then((payload) => writePagePayloadCache(latestPagePayloadCacheKey("trades"), payload))
@@ -7531,19 +7586,34 @@ function prewarmInstantPages() {
   }
 }
 
+function bindIntentPrewarm() {
+  const once = (selector, callback) => {
+    document.querySelectorAll(selector).forEach(link => {
+      let started = false;
+      const run = () => {
+        if (started) return;
+        started = true;
+        callback();
+      };
+      link.addEventListener("pointerenter", run, {once:true, passive:true});
+      link.addEventListener("focus", run, {once:true});
+    });
+  };
+  once('a[href="/odds-screen"]', prewarmOddsScreen);
+  once('a[href="/dfs"]', prewarmFantasyOptimizer);
+}
+
 function initialize() {
   bindNavigation();
   bindAccount();
+  bindIntentPrewarm();
   window.IconLabsLineShopOrder?.sync();
-  // Sharp Money is an isolated static sandbox until a real liquidity feed exists.
-  if (page !== "sharp-money") {
-    const loadGlobalChrome = () => {
-      loadGlobalStatus();
-      loadGlobalRiskState();
-    };
-    if (page === "trades" || page === "tracker") runWhenIdle(loadGlobalChrome);
-    else loadGlobalChrome();
-  }
+  const loadGlobalChrome = () => {
+    loadGlobalStatus();
+    loadGlobalRiskState();
+  };
+  if (page === "trades" || page === "tracker") runWhenIdle(loadGlobalChrome);
+  else loadGlobalChrome();
   if (page === "overview") loadOverview();
   if (page === "trades") bindTrades();
   if (page === "live-positions") bindPositions();
@@ -7554,9 +7624,7 @@ function initialize() {
   if (page === "intelligence") bindIntelligence();
   if (page === "shadow-test") loadShadowTest();
   if (page === "odds-screen") bindOddsScreen();
-  if (page === "sharp-money") {
-    runWhenIdle(prewarmOddsScreen);
-  } else if (page !== "trades" && page !== "tracker") {
+  if (page !== "sharp-money" && page !== "trades" && page !== "tracker") {
     runWhenIdle(prewarmInstantPages);
   }
   window.setInterval(refreshCurrentPage, AUTO_REFRESH_MS);

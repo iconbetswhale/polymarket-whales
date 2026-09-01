@@ -1818,10 +1818,12 @@ class OddsEngineProvider(ExecutionProvider):
     @staticmethod
     def _screen_market_keys(market_kind: str) -> tuple[str, ...]:
         normalized = str(market_kind or "").strip()
-        if normalized and normalized not in MARKET_KEY_BY_KIND:
-            return ()
         requested = MARKET_KEY_BY_KIND.get(normalized)
-        return (requested,) if requested else ("h2h", "spreads", "totals")
+        if requested:
+            return (requested,)
+        if normalized in SUPPORTED_MARKET_KEYS:
+            return (normalized,)
+        return () if normalized else ("h2h", "spreads", "totals")
 
     def _load_events(
         self,

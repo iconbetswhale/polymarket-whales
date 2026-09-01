@@ -298,15 +298,16 @@
     const context = row.marketContext ? String(row.marketContext) : "Main line";
     const netCopy = signedMoney(row.outsideNet);
     const windowCopy = row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} pt window` : `${row.outcomeCount}-way exact`;
+    const executable = row.executionStatus === "EXECUTABLE";
     return `
-      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-lh-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.holdPercent)} hold on ${row.eventTitle}`)}">
+      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-lh-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.holdPercent)} ${executable ? "executable" : "theoretical"} hold on ${row.eventTitle}`)}">
         <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><small>Hold</small><strong>${percent(row.holdPercent)}</strong><span>${netCopy}</span></div>
         <div class="arb-event-cell">
           ${matchupLogoMarkup(row)}
           <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
           <p>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</p>
         </div>
-        <div class="arb-market-cell"><strong>${esc(row.marketLabel)}</strong><small>${esc(context)}</small><span>${esc(windowCopy)}</span></div>
+        <div class="arb-market-cell"><strong>${esc(row.marketLabel)}</strong><small>${esc(context)}</small><span>${esc(windowCopy)}</span><em class="lh-execution-status ${executable ? "executable" : "theoretical"}">${executable ? "EXECUTABLE" : "VERIFY FIRST"}</em></div>
         <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
         <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
       </article>`;
@@ -340,11 +341,12 @@
   function updateSummary() {
     const rows = visibleRows();
     const best = [...state.rows].sort((left, right) => left.holdPercent - right.holdPercent)[0];
+    const executableCount = state.rows.filter(row => row.executionStatus === "EXECUTABLE").length;
     document.getElementById("lh-kpi-hold").textContent = best ? percent(best.holdPercent) : "—";
     document.getElementById("lh-kpi-retained").textContent = best ? percent(best.retainedPercent, 1) : "—";
     document.getElementById("lh-kpi-opportunities").textContent = String(state.rows.length);
     document.getElementById("lh-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${Math.min(rows.length, state.visibleLimit)} of ${rows.length} shown`;
+    elements.resultCopy.textContent = `${Math.min(rows.length, state.visibleLimit)} of ${rows.length} shown · ${executableCount} executable`;
   }
 
   function populateQuickFilters() {
@@ -375,12 +377,13 @@
       return;
     }
     const lockedIndex = Number.isInteger(row.lockedOutcomeIndex) ? row.lockedOutcomeIndex : 0;
+    const executable = row.executionStatus === "EXECUTABLE";
     const plan = (row.outcomes || []).map((leg, index) => `
       <article class="arb-plan-leg">
         ${bookLogo(leg)}
         <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)} · ${leg.capacityKnown ? `${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}` : "capacity unverified"}</small></div>
         <div class="arb-plan-stake"><span>${row.stakeMode === "first-leg" ? (index === lockedIndex ? "Bet 1" : "Hedge") : "Stake"}</span><b>${money(leg.stake)}</b>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<small class="lh-lock-status"><i class="ph ph-lock-key"></i>Locked</small>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : ""}</div>
-        ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
+        ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">${executable ? "BET" : "CHECK"}<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">${executable ? "BET" : "CHECK"}</span>`}
       </article>`).join("");
     const outsideCards = (row.outcomes || []).slice(0, 2).map((leg) => scenarioCard(`${leg.selection} hits`, leg.profit, `${leg.bookName} wins`));
     if (row.middleScenario) {
@@ -400,9 +403,10 @@
       <header class="arb-detail-hero">
         <div class="arb-detail-hero-top"><div class="arb-detail-return lh-detail-hold ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>hold</span></div><button class="arb-icon-button arb-detail-close" type="button" data-lh-close-detail aria-label="Close bet plan"><i class="ph ph-x"></i></button></div>
         <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(row.league)} · ${esc(row.marketLabel)}${context} · ${esc(dateTime(row.commenceTime))}</p>
+        <p>${esc(row.league)} · ${esc(row.marketLabel)}${context} · ${esc(dateTime(row.commenceTime))} · ${executable ? "all execution gates verified" : "theoretical — verify limits, settlement, and eligibility"}</p>
       </header>
-      <section class="arb-detail-section"><header><h3>Bet plan</h3><span>${row.stakeMode === "first-leg" ? "Bet 1 locked" : `${row.outcomeCount} legs`}</span></header><div class="arb-plan-list">${plan}</div></section>
+      ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical low-hold pair, not an executable claim. One or more capacity, settlement, or account-eligibility gates are unverified.</span></div>`}
+      <section class="arb-detail-section"><header><h3>${executable ? "Bet plan" : "Verification plan"}</h3><span>${row.stakeMode === "first-leg" ? "Bet 1 locked" : `${row.outcomeCount} legs`}</span></header><div class="arb-plan-list">${plan}</div></section>
       <section class="arb-detail-section lh-result-section"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>Copy bet plan</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div></section>
       <details class="lh-detail-disclosure"><summary><span>Odds comparison</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body">${comparisons}</div></details>
       <details class="lh-detail-disclosure"><summary><span>Calculation details</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body"><div class="lh-scenario-grid">${outsideCards.join("")}</div><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg.</span></div>` : ""}</div></details>`;

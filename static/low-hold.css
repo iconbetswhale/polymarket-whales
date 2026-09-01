@@ -1,5 +1,21 @@
 /* IconLabs Low Hold — dense opposing-price and middle execution workspace. */
 
+.lh-execution-status {
+  width: max-content;
+  padding: 3px 6px;
+  border: 1px solid var(--il-warning-border, rgba(245, 178, 66, .42));
+  border-radius: 999px;
+  color: var(--il-warning, #f5b242);
+  font: 700 8px/1 var(--il-font-ui);
+  font-style: normal;
+  letter-spacing: .06em;
+}
+
+.lh-execution-status.executable {
+  border-color: var(--il-positive-border, rgba(32, 214, 162, .42));
+  color: var(--il-positive, #20d6a2);
+}
+
 body[data-page="low-hold"] {
   --arb-card: var(--il-surface-play-card-purple, #0d1421);
   --arb-card-hover: var(--il-surface-play-card-purple-hover, #101a2b);

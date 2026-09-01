@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+import gzip
 import json
 import logging
 import math
@@ -881,11 +883,157 @@ def create_app(start_background: bool = True) -> Flask:
         """Return the configured OddsEngine feed."""
         return next(iter(odds_feed_providers()), None)
 
-    def load_odds_events(*, sport_keys, market_keys):
-        """Load real sportsbook odds from the configured OddsEngine feed."""
+    def odds_event_snapshot_raw_key(sport_keys, market_keys) -> str:
+        sports = tuple(sorted({str(key).strip().lower() for key in sport_keys if str(key).strip()}))
+        markets = tuple(sorted({str(key).strip().lower() for key in market_keys if str(key).strip()}))
+        return "scope:" + stable_hash(sports, markets)[:40]
+
+    def scoped_odds_events(events, *, sport_keys, market_keys) -> list[dict]:
+        """Return the requested slice of a normalized shared OddsEngine snapshot."""
+
+        requested_sports = {
+            str(key).strip().lower() for key in sport_keys if str(key).strip()
+        }
+        requested_markets = {
+            str(key).strip().lower() for key in market_keys if str(key).strip()
+        }
+        if not requested_sports or not requested_markets:
+            return []
+        include_all_markets = "*" in requested_markets
+        scoped: list[dict] = []
+        for event in events or []:
+            if not isinstance(event, dict):
+                continue
+            if str(event.get("sport_key") or "").strip().lower() not in requested_sports:
+                continue
+            if include_all_markets:
+                scoped.append(event)
+                continue
+            bookmakers = []
+            for book in event.get("bookmakers") or []:
+                if not isinstance(book, dict):
+                    continue
+                markets = [
+                    market
+                    for market in book.get("markets") or []
+                    if isinstance(market, dict)
+                    and str(market.get("key") or "").strip().lower()
+                    in requested_markets
+                ]
+                if markets:
+                    bookmakers.append({**book, "markets": markets})
+            if bookmakers:
+                scoped.append({**event, "bookmakers": bookmakers})
+        return scoped
+
+    def shared_odds_events(*, sport_keys, market_keys) -> list[dict]:
+        requested_sports = {
+            str(key).strip().lower() for key in sport_keys if str(key).strip()
+        }
+        requested_markets = {
+            str(key).strip().lower() for key in market_keys if str(key).strip()
+        }
+        exact_key = odds_event_snapshot_raw_key(requested_sports, requested_markets)
+        snapshot_keys = [exact_key]
+        broad_scope_key = odds_event_snapshot_raw_key(requested_sports, ("*",))
+        if broad_scope_key not in snapshot_keys:
+            snapshot_keys.append(broad_scope_key)
+        snapshot_keys.append("global")
+        snapshots = tuple(
+            latest_verified_odds_payload(
+                "odds-events", raw_key=raw_key, max_age_seconds=75
+            )
+            for raw_key in snapshot_keys
+        )
+        for snapshot in snapshots:
+            payload = snapshot.get("payload") if snapshot else None
+            if not isinstance(payload, dict):
+                continue
+            snapshot_events = payload.get("data") or []
+            if payload.get("dataEncoding") == "gzip+base64":
+                try:
+                    compressed = base64.b64decode(
+                        str(payload.get("dataCompressed") or ""),
+                        validate=True,
+                    )
+                    snapshot_events = json.loads(gzip.decompress(compressed))
+                except (OSError, ValueError, TypeError, json.JSONDecodeError):
+                    LOGGER.warning("Shared OddsEngine snapshot could not be decoded")
+                    continue
+            covered_sports = {
+                str(key).strip().lower()
+                for key in payload.get("sportKeys") or []
+                if str(key).strip()
+            }
+            covered_markets = {
+                str(key).strip().lower()
+                for key in payload.get("marketKeys") or []
+                if str(key).strip()
+            }
+            covers_markets = (
+                "*" in covered_markets
+                or (
+                    "*" not in requested_markets
+                    and requested_markets.issubset(covered_markets)
+                )
+            )
+            if not requested_sports.issubset(covered_sports) or not covers_markets:
+                continue
+            rows = scoped_odds_events(
+                snapshot_events,
+                sport_keys=requested_sports,
+                market_keys=requested_markets,
+            )
+            if rows:
+                return rows
+        return []
+
+    def save_shared_odds_events(events, *, sport_keys, market_keys) -> None:
+        if not events:
+            return
+        sports = tuple(
+            sorted({str(key).strip().lower() for key in sport_keys if str(key).strip()})
+        )
+        markets = tuple(
+            sorted({str(key).strip().lower() for key in market_keys if str(key).strip()})
+        )
+        serialized_events = json.dumps(
+            events,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("utf-8")
+        payload = {
+            "dataEncoding": "gzip+base64",
+            "dataCompressed": base64.b64encode(
+                gzip.compress(serialized_events, compresslevel=1, mtime=0)
+            ).decode("ascii"),
+            "sportKeys": list(sports),
+            "marketKeys": list(markets),
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+        }
+        exact_key = odds_event_snapshot_raw_key(sports, markets)
+        is_global = set(sports) == set(ALL_ODDS_SPORT_KEYS) and set(markets) == set(
+            ALL_OPPORTUNITY_MARKETS
+        )
+        save_verified_odds_payload(
+            "odds-events",
+            payload,
+            raw_key="global" if is_global else exact_key,
+            ttl_seconds=180,
+        )
+
+    def load_odds_events(*, sport_keys, market_keys, allow_provider_fetch=True):
+        """Load a fresh shared snapshot before spending OddsEngine requests."""
         providers = odds_feed_providers()
         if not providers:
             return None, []
+        cached_events = shared_odds_events(
+            sport_keys=sport_keys, market_keys=market_keys
+        )
+        if cached_events:
+            return providers[0], cached_events
+        if not allow_provider_fetch:
+            return providers[0], []
         last_error = None
         first_empty_provider = None
         for provider in providers:
@@ -895,6 +1043,11 @@ def create_app(start_background: bool = True) -> Flask:
                     market_keys=market_keys,
                 )
                 if events:
+                    save_shared_odds_events(
+                        events,
+                        sport_keys=sport_keys,
+                        market_keys=market_keys,
+                    )
                     return provider, events
                 if first_empty_provider is None:
                     first_empty_provider = provider
@@ -1597,6 +1750,7 @@ def create_app(start_background: bool = True) -> Flask:
             # The browser receives providers only after a quote has actually
             # been observed. A configured vendor catalog is not live coverage.
             odds_screen_provider_catalog=[],
+            odds_screen_config=live_tool_filter_catalog_payload(),
         )
 
     @app.route("/futures")
@@ -2095,7 +2249,14 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/api/status")
     def api_status():
-        return jsonify(tracker.get_snapshot()["status"])
+        # Global chrome only needs the already materialized tracker status.
+        # Rebuilding the complete tracker snapshot here kept every tool in a
+        # "Connecting" state during serverless cold starts.
+        response = jsonify(tracker.get_cached_snapshot()["status"])
+        response.headers["Cache-Control"] = (
+            "public, max-age=2, s-maxage=5, stale-while-revalidate=30"
+        )
+        return response
 
     @app.route("/api/risk-state")
     def api_public_risk_state():
@@ -2949,18 +3110,31 @@ def create_app(start_background: bool = True) -> Flask:
                 return None, []
             for candidate in odds_feed_providers():
                 try:
-                    loader = getattr(candidate, "odds_screen_events", None)
-                    # Preserve instance-level provider injection used by local
-                    # fixtures and emergency adapters without giving up the
-                    # broader production screen method.
-                    if "ev_events" in getattr(candidate, "__dict__", {}):
-                        loader = candidate.ev_events
-                    if not callable(loader):
-                        loader = candidate.ev_events
-                    events = loader(
+                    # OddsEngine returns every offer in the same event call.
+                    # Keep one compressed all-market league snapshot so market
+                    # tab changes and the optimizers reuse those calls instead
+                    # of refetching the full slate for each market family.
+                    events = shared_odds_events(
                         sport_keys=sport_keys,
-                        market_keys=market_keys,
+                        market_keys=("*",),
                     )
+                    if not events:
+                        loader = getattr(candidate, "odds_screen_events", None)
+                        # Preserve instance-level provider injection used by
+                        # local fixtures and emergency adapters.
+                        if "ev_events" in getattr(candidate, "__dict__", {}):
+                            loader = candidate.ev_events
+                        if not callable(loader):
+                            loader = candidate.ev_events
+                        events = loader(
+                            sport_keys=sport_keys,
+                            market_keys=("*",),
+                        )
+                        save_shared_odds_events(
+                            events,
+                            sport_keys=sport_keys,
+                            market_keys=("*",),
+                        )
                     rows = build_all_book_odds_screen_rows(
                         events,
                         now=now,
@@ -3067,6 +3241,15 @@ def create_app(start_background: bool = True) -> Flask:
         for row in sportsbook_rows:
             merge_odds_row(row)
 
+        def is_upcoming_prematch(row: dict) -> bool:
+            starts_at = _parse_datetime(
+                row.get("event_date_et")
+                or row.get("resolution_time")
+                or row.get("event_start_time")
+                or row.get("commence_time")
+            )
+            return starts_at is None or starts_at > now
+
         def matches_requested_filters(row: dict) -> bool:
             if row.get("all_book_event"):
                 row_sport = str(row.get("canonical_sport_id") or "").upper()
@@ -3128,10 +3311,18 @@ def create_app(start_background: bool = True) -> Flask:
             (
                 row
                 for row in unique.values()
-                if matches_requested_filters(row)
+                if matches_requested_filters(row) and is_upcoming_prematch(row)
             ),
             key=lambda row: (str(row.get("schedule_date_et") or "~"), str(row.get("resolution_time") or "~")),
         )
+        unpaginated_total = len(rows)
+        page = max(1, request.args.get("page", 1, type=int) or 1)
+        per_page = max(
+            1,
+            min(request.args.get("per_page", 250, type=int) or 250, 1000),
+        )
+        page_start = (page - 1) * per_page
+        rows = rows[page_start : page_start + per_page]
         token_ids = [str(row.get("clob_token_id") or "") for row in rows if row.get("clob_token_id")]
         try:
             live_books = tracker.client.get_order_books(token_ids) if token_ids else {}
@@ -3176,6 +3367,15 @@ def create_app(start_background: bool = True) -> Flask:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
                 if not provider_key:
                     continue
+                provider_key = {
+                    "oddsengine__kalshi": "kalshi",
+                    "oddsengine__novig": "novig",
+                    "novig_nbx": "novig",
+                    "oddsapi__novig": "novig",
+                    "oddsengine__polymarket": "polymarket",
+                    "oddsengine__prophetexchange": "prophetx",
+                }.get(provider_key, provider_key)
+                option["providerKey"] = provider_key
                 if (
                     option.get("bestExecutablePrice") is None
                     and option.get("americanOdds") is not None
@@ -3183,7 +3383,30 @@ def create_app(start_background: bool = True) -> Flask:
                     option["bestExecutablePrice"] = american_to_probability(
                         int(option["americanOdds"])
                     )
-                by_provider[provider_key] = option
+                existing = by_provider.get(provider_key)
+                if existing is None:
+                    by_provider[provider_key] = option
+                    continue
+                option_rank = (
+                    int(bool(option.get("isAvailable"))),
+                    int(option.get("matchingConfidence") == "Exact"),
+                    int(not bool(option.get("isStale"))),
+                    int(option.get("availableLiquidity") is not None),
+                    int(bool(option.get("capacityKnown"))),
+                    int(bool(option.get("lastUpdated"))),
+                    int(bool(option.get("deepLink"))),
+                )
+                existing_rank = (
+                    int(bool(existing.get("isAvailable"))),
+                    int(existing.get("matchingConfidence") == "Exact"),
+                    int(not bool(existing.get("isStale"))),
+                    int(existing.get("availableLiquidity") is not None),
+                    int(bool(existing.get("capacityKnown"))),
+                    int(bool(existing.get("lastUpdated"))),
+                    int(bool(existing.get("deepLink"))),
+                )
+                if option_rank > existing_rank:
+                    by_provider[provider_key] = option
             combined = list(by_provider.values())
             executable = [
                 option
@@ -3357,7 +3580,13 @@ def create_app(start_background: bool = True) -> Flask:
         )
         response_payload = {
             "data": rows,
-            "pagination": {"total": len(rows), "page": 1, "per_page": len(rows)},
+            "pagination": {
+                "total": unpaginated_total,
+                "page": page,
+                "per_page": per_page,
+                "returned": len(rows),
+                "hasMore": page_start + len(rows) < unpaginated_total,
+            },
             "status": feed_health["status"],
             "degraded": sportsbook_provider is None,
             "stale": False,
@@ -7122,6 +7351,11 @@ def create_app(start_background: bool = True) -> Flask:
                 sport_keys=ALL_ODDS_SPORT_KEYS,
                 market_keys=ALL_OPPORTUNITY_MARKETS,
             )
+            save_shared_odds_events(
+                events,
+                sport_keys=ALL_ODDS_SPORT_KEYS,
+                market_keys=ALL_OPPORTUNITY_MARKETS,
+            )
             normalized_quotes = normalize_odds_api_events(events)
             persistence = tracker.database.record_normalized_market_quotes(
                 normalized_quotes,
@@ -7231,6 +7465,10 @@ def create_app(start_background: bool = True) -> Flask:
                 odds_provider, events = load_odds_events(
                     sport_keys=("baseball_mlb", "basketball_wnba"),
                     market_keys=MAIN_MARKETS,
+                    # The independent odds-ingest cron owns provider refreshes.
+                    # LabTracker consumes that durable snapshot so two jobs firing
+                    # on the same minute cannot spend the same request budget.
+                    allow_provider_fetch=False,
                 )
                 rows = build_ev_board(
                     events,
