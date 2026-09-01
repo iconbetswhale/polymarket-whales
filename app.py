@@ -1213,7 +1213,13 @@ def create_app(start_background: bool = True) -> Flask:
         return health
 
     def positive_ev_live_cache_key() -> str:
-        return request.query_string.decode("utf-8", errors="ignore")
+        return json.dumps(
+            [
+                (key, request.args.getlist(key))
+                for key in sorted(request.args.keys())
+            ],
+            separators=(",", ":"),
+        )
 
     def positive_ev_degraded_response(error_code: str):
         """Keep the public board usable while an upstream feed reconnects."""
@@ -4668,12 +4674,95 @@ def create_app(start_background: bool = True) -> Flask:
             ).split(",")
             if item.strip()
         )
+        snapshot_key = positive_ev_live_cache_key()
+        if not public_live_feed:
+            shared_board = latest_verified_odds_payload(
+                "positive-ev",
+                raw_key=snapshot_key,
+                max_age_seconds=900,
+            )
+            if shared_board:
+                shared_payload = dict(shared_board["payload"])
+                shared_rows = [
+                    row
+                    for row in shared_payload.get("data") or []
+                    if isinstance(row, dict)
+                ]
+                visible_rows = visible_positive_ev_rows(
+                    shared_rows, g.iconbets_user_id
+                )
+                shared_payload.update(
+                    {
+                        "data": visible_rows,
+                        "total": len(visible_rows),
+                        "tracking": tracker.database.record_ev_board(
+                            g.iconbets_user_id, shared_rows
+                        ),
+                        "personalizedFromSharedSnapshot": True,
+                        "lastVerifiedAt": shared_board["sourceUpdatedAt"],
+                        "snapshotAgeSeconds": shared_board["ageSeconds"],
+                    }
+                )
+                if shared_board["ageSeconds"] > 120:
+                    shared_payload.update(
+                        {
+                            "degraded": True,
+                            "stale": True,
+                            "message": (
+                                "Recent verified odds shown while the public live "
+                                "feed refreshes its shared snapshot."
+                            ),
+                        }
+                    )
+                response = jsonify(shared_payload)
+                response.headers["Cache-Control"] = "private, no-store"
+                return response
+
         scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
                 market_keys=market_keys,
+                allow_provider_fetch=public_live_feed,
             )
+            if not public_live_feed and not events:
+                diagnostics = odds_provider.diagnostics(authenticate=False)
+                response = jsonify(
+                    {
+                        "data": [],
+                        "total": 0,
+                        "diagnostics": {
+                            "qualified": 0,
+                            "watchOnly": 0,
+                            "rejected": 0,
+                            "rejectionReasons": {},
+                        },
+                        "configured": True,
+                        "dataSource": diagnostics.get(
+                            "provider", odds_provider.provider_key
+                        ),
+                        "marketGroup": market_group,
+                        "marketKeys": list(market_keys),
+                        "sourceWeights": source_weights,
+                        "devigMethod": devig_method,
+                        "minimumFairSources": effective_min_sources,
+                        "executionBooks": list(execution_books),
+                        "requiredBooks": list(required_books),
+                        "quota": diagnostics.get("quota", {}),
+                        "refreshSeconds": 5,
+                        "degraded": True,
+                        "stale": False,
+                        "warming": True,
+                        "upstreamStatus": "SHARED_SNAPSHOT_MISS",
+                        "message": (
+                            "The shared Positive EV snapshot is warming. The "
+                            "private endpoint will not start a provider-wide scan."
+                        ),
+                    }
+                )
+                response.headers["Cache-Control"] = "private, no-store"
+                response.headers["Retry-After"] = "5"
+                return response
             # Quote history is additive infrastructure.  A persistence issue
             # must never take the existing EV+ board offline.
             quote_tracking = {"quotes_received": 0, "material_snapshots": 0, "checkpoints": 0}

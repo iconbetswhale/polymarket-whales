@@ -845,7 +845,7 @@ def test_positive_ev_live_scan_uses_odds_engine(
         },
     )
 
-    response = app_client.get("/api/positive-ev")
+    response = app_client.get("/api/positive-ev/live")
 
     assert response.status_code == 200
     payload = response.get_json()
@@ -877,7 +877,7 @@ def test_positive_ev_live_scan_uses_odds_engine(
     assert rejected_custom_response.get_json()["error"] == "INSUFFICIENT_DEVIG_SOURCES"
 
     custom_response = app_client.get(
-        "/api/positive-ev",
+        "/api/positive-ev/live",
         query_string={
             "weights": json.dumps(
                 {"pinnacle": 60, "circa": 25, "bookmakereu": 15}
@@ -901,7 +901,7 @@ def test_positive_ev_live_scan_uses_odds_engine(
     assert custom_payload["requiredBooks"] == ["pinnacle", "circa"]
 
     custom_markets = app_client.get(
-        "/api/positive-ev",
+        "/api/positive-ev/live",
         query_string={
             "group": "custom",
             "markets": "h2h,batter_total_bases,alternate_totals",
@@ -914,7 +914,7 @@ def test_positive_ev_live_scan_uses_odds_engine(
     )
 
     expanded_props = app_client.get(
-        "/api/positive-ev",
+        "/api/positive-ev/live",
         query_string={
             "group": "custom",
             "markets": (
@@ -1008,6 +1008,58 @@ def test_positive_ev_public_live_feed_reuses_last_good_snapshot_during_provider_
     assert payload["message"] == (
         "Recent verified odds shown while the live feed reconnects."
     )
+
+
+def test_positive_ev_private_feed_personalizes_shared_snapshot_without_provider_scan(
+    app_client, temp_settings, monkeypatch
+):
+    object.__setattr__(temp_settings, "positive_ev_enabled", True)
+    object.__setattr__(temp_settings, "oddsengine_api_key", "all-lines-key")
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "all-lines-key"
+    calls = 0
+
+    def ev_events(*, sport_keys, market_keys):
+        nonlocal calls
+        calls += 1
+        return []
+
+    monkeypatch.setattr(provider, "ev_events", ev_events)
+    monkeypatch.setattr(
+        provider,
+        "diagnostics",
+        lambda authenticate=False: {
+            "provider": "odds_engine",
+            "quota": {},
+        },
+    )
+
+    live = app_client.get("/api/positive-ev/live?min_ev=2&bankroll=9000")
+    assert live.status_code == 200
+    assert calls == 1
+
+    app_client.set_cookie("iconbets_user", "shared-snapshot-user")
+    private = app_client.get("/api/positive-ev?bankroll=9000&min_ev=2")
+    private_payload = private.get_json()
+
+    assert private.status_code == 200
+    assert calls == 1
+    assert private_payload["personalizedFromSharedSnapshot"] is True
+    assert private_payload["data"] == []
+    assert private_payload["snapshotAgeSeconds"] >= 0
+    assert private.headers["Cache-Control"] == "private, no-store"
+
+    miss = app_client.get("/api/positive-ev?min_ev=3")
+    miss_payload = miss.get_json()
+
+    assert miss.status_code == 200
+    assert calls == 1
+    assert miss_payload["warming"] is True
+    assert miss_payload["upstreamStatus"] == "SHARED_SNAPSHOT_MISS"
+    assert miss.headers["Retry-After"] == "5"
 
 
 def test_app_starts_with_no_enabled_wallets(tmp_path):

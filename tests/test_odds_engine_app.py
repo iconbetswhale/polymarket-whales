@@ -34,7 +34,7 @@ def test_live_calculator_routes_use_the_configured_all_book_feed(app_client, mon
         assert payload["dataSource"] == "odds_engine"
 
     object.__setattr__(application.config["SETTINGS"], "positive_ev_enabled", True)
-    response = app_client.get("/api/positive-ev")
+    response = app_client.get("/api/positive-ev/live")
     assert response.status_code == 200
     payload = response.get_json()
     assert payload["configured"] is True
