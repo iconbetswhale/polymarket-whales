@@ -72,6 +72,34 @@ def test_live_scan_uses_only_odds_engine_for_aggregated_odds(
     assert len(odds_engine_calls) == 1
 
 
+def test_live_calculators_stay_available_when_oddsengine_is_unavailable(
+    app_client, monkeypatch
+) -> None:
+    odds_engine = _provider(app_client.application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+
+    def unavailable(**_kwargs):
+        raise ValueError("upstream unavailable")
+
+    monkeypatch.setattr(odds_engine, "ev_events", unavailable)
+
+    for endpoint in (
+        "/api/arbitrage?active=1",
+        "/api/middles?active=1",
+        "/api/low-hold?active=1",
+    ):
+        response = app_client.get(endpoint)
+        payload = response.get_json()
+
+        assert response.status_code == 200
+        assert payload["configured"] is True
+        assert payload["dataSource"] == "odds_engine"
+        assert payload["degraded"] is True
+        assert payload["stale"] is False
+        assert payload["data"] == []
+        assert payload["upstreamStatus"] == "PROVIDER_ERROR"
+
+
 def test_odds_engine_health_is_protected(app_client) -> None:
     response = app_client.get("/api/provider-health/odds-engine")
 

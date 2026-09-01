@@ -987,6 +987,8 @@ def create_app(start_background: bool = True) -> Flask:
             return payload
         return {
             **(empty_payload or {"data": [], "total": 0}),
+            "configured": bool(odds_feed_providers()),
+            "dataSource": "odds_engine" if odds_feed_providers() else None,
             "degraded": True,
             "stale": False,
             "message": "Live odds are reconnecting. The board will retry automatically.",
@@ -3679,7 +3681,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=error_code,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
+            return jsonify(payload)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Arbitrage refresh failed: %s", type(exc).__name__)
             payload = degraded_odds_payload("arbitrage", "PROVIDER_ERROR")
@@ -3689,7 +3691,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=type(exc).__name__,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
+            return jsonify(payload)
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response_payload = {
@@ -3881,7 +3883,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=error_code,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
+            return jsonify(payload)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Middles refresh failed: %s", type(exc).__name__)
             payload = degraded_odds_payload("middles", "PROVIDER_ERROR")
@@ -3891,7 +3893,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=type(exc).__name__,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
+            return jsonify(payload)
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response_payload = {
@@ -4147,7 +4149,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=error_code,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
+            return jsonify(payload)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Low Hold refresh failed: %s", type(exc).__name__)
             payload = degraded_odds_payload("low-hold", "PROVIDER_ERROR")
@@ -4157,7 +4159,7 @@ def create_app(start_background: bool = True) -> Flask:
                 latency_ms=(time.perf_counter() - scan_started) * 1000,
                 error=type(exc).__name__,
             )
-            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
+            return jsonify(payload)
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
         response_payload = {

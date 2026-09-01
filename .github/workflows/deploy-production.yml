@@ -136,6 +136,42 @@ jobs:
               )
           PY
 
+      - name: Verify production optimizer APIs remain available
+        run: |
+          python - <<'PY'
+          import json
+          import urllib.request
+
+          base = "https://iconbets-polymarket-wallet-tracker.vercel.app"
+          paths = (
+              "/api/arbitrage?active=1",
+              "/api/middles?active=1",
+              "/api/low-hold?active=1",
+              "/api/positive-ev/live?active=1",
+          )
+          for path in paths:
+              request = urllib.request.Request(
+                  base + path,
+                  headers={"Accept": "application/json"},
+              )
+              with urllib.request.urlopen(request, timeout=120) as response:
+                  data = json.load(response)
+                  status = response.status
+              print(
+                  "Optimizer API: "
+                  f"path={path.split('?', 1)[0]} "
+                  f"status={status} "
+                  f"rows={len(data.get('data') or [])} "
+                  f"degraded={bool(data.get('degraded'))} "
+                  f"stale={bool(data.get('stale'))} "
+                  f"upstream={data.get('upstreamStatus') or 'ok'}"
+              )
+              if status != 200:
+                  raise SystemExit(f"{path} returned HTTP {status}")
+              if data.get("degraded") and not data.get("message"):
+                  raise SystemExit(f"{path} omitted its degraded-state message")
+          PY
+
       - name: Reconcile Model Tracker and verify Discord delivery
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}

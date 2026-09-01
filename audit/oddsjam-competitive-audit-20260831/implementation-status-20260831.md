@@ -143,6 +143,14 @@ memory. Shadow Lab now filters at the database to configured research wallets
 and projects only the scalar fields used by its analysis, leaving full position
 snapshots out of the request heap.
 
+The final public API sweep found Arbitrage, Middles, and Low Hold returning HTTP
+502 when the shared 60-request OddsEngine quota was already exhausted. Those
+boards now remain HTTP 200 and expose an explicit `degraded`, `stale`,
+`upstreamStatus`, and retry message, using the latest query-matched verified
+snapshot when one exists. The production workflow now gates all three boards
+plus the public Positive EV feed so a provider failure cannot turn a tool page
+into an unavailable API.
+
 ## Production release gates
 
 1. Deploy migrations and application together, then verify the cron writes to
