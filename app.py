@@ -2251,8 +2251,26 @@ def create_app(start_background: bool = True) -> Flask:
     def api_status():
         # Global chrome only needs the already materialized tracker status.
         # Rebuilding the complete tracker snapshot here kept every tool in a
-        # "Connecting" state during serverless cold starts.
-        response = jsonify(tracker.get_cached_snapshot()["status"])
+        # "Connecting" state during serverless cold starts. The cached status
+        # also contains full wallet diagnostics, so project the tiny public
+        # contract instead of sending them on every global-status refresh.
+        cached_status = tracker.get_cached_snapshot()["status"]
+        response = jsonify(
+            {
+                key: cached_status.get(key)
+                for key in (
+                    "api_status",
+                    "app_status",
+                    "last_successful_refresh",
+                    "last_refresh_attempt",
+                    "enabled_wallet_count",
+                    "valid_wallet_count",
+                    "invalid_wallet_count",
+                    "position_count",
+                    "recent_trade_count",
+                )
+            }
+        )
         response.headers["Cache-Control"] = (
             "public, max-age=2, s-maxage=5, stale-while-revalidate=30"
         )

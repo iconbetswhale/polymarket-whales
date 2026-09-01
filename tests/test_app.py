@@ -1068,6 +1068,17 @@ def test_status_endpoints(app_client):
     assert app_client.get("/api/provider-health/prophetx").status_code == 200
 
 
+def test_public_status_is_a_small_global_chrome_contract(app_client):
+    response = app_client.get("/api/status")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["api_status"] in {"idle", "ok", "degraded", "error"}
+    assert "wallets" not in payload
+    assert "wallet_loader" not in payload
+    assert len(response.data) < 2048
+
+
 def test_versioned_static_assets_skip_auth_and_are_immutable(
     app_client, monkeypatch
 ):
