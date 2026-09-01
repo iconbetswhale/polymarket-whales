@@ -23,6 +23,7 @@
     maxAge: 90,
     commission: 0,
     distinctBooks: true,
+    alerts: false,
     stake: 1000,
   };
   let saved = {};
@@ -43,6 +44,7 @@
     maxAge: numberBetween(saved.maxAge, 15, 1800, defaults.maxAge),
     commission: numberBetween(saved.commission, 0, 25, defaults.commission),
     distinctBooks: saved.distinctBooks === undefined ? defaults.distinctBooks : Boolean(saved.distinctBooks),
+    alerts: Boolean(saved.alerts),
     stake: numberBetween(saved.stake, 1, 10_000_000, defaults.stake),
     lastUpdated: null,
     tracked: new Set(),
@@ -58,11 +60,13 @@
     search: document.getElementById("mid-search"),
     stake: document.getElementById("mid-stake"),
     scan: document.getElementById("mid-scan-toggle"),
+    alerts: document.getElementById("mid-alerts"),
     refresh: document.getElementById("mid-refresh"),
     sport: document.getElementById("mid-sport"),
     market: document.getElementById("mid-market"),
     filterDialog: document.getElementById("mid-filter-dialog"),
     bookGrid: document.getElementById("mid-book-grid"),
+    resultCopy: document.getElementById("mid-result-copy"),
     backdrop: document.getElementById("mid-mobile-backdrop"),
     mobileClose: document.getElementById("mid-mobile-close"),
   };
@@ -98,6 +102,26 @@
     return `${Number(value || 0).toFixed(digits)}%`;
   }
 
+  function stakeInputValue(value) {
+    return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(Number(value || 0));
+  }
+
+  function stakeInputNumber(value, fallback) {
+    return numberBetween(String(value ?? "").replaceAll(",", "").trim(), 1, 10_000_000, fallback);
+  }
+
+  function sportIcon(row) {
+    const sport = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
+    if (sport.includes("baseball") || sport.includes("mlb")) return "ph-baseball";
+    if (sport.includes("basketball") || sport.includes("nba") || sport.includes("wnba")) return "ph-basketball";
+    if (sport.includes("soccer") || sport.includes("epl") || sport.includes("mls")) return "ph-soccer-ball";
+    if (sport.includes("football") || sport.includes("nfl") || sport.includes("ncaaf")) return "ph-football";
+    if (sport.includes("hockey") || sport.includes("nhl")) return "ph-hockey";
+    if (sport.includes("tennis")) return "ph-tennis-ball";
+    if (sport.includes("golf") || sport.includes("pga")) return "ph-golf";
+    return "ph-trophy";
+  }
+
   function dateTime(value) {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Time unavailable";
@@ -126,7 +150,7 @@
     localStorage.setItem(storageKey, JSON.stringify({
       books: [...state.selectedBooks], markets: state.markets, minWidth: state.minWidth,
       maxCost: state.maxCost, maxAge: state.maxAge, commission: state.commission,
-      distinctBooks: state.distinctBooks, stake: state.stake,
+      distinctBooks: state.distinctBooks, alerts: state.alerts, stake: state.stake,
     }));
   }
 
@@ -160,23 +184,25 @@
     const probabilityNote = modeled
       ? `P ${percent(row.estimatedMiddleProbability)} · EV ${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)}`
       : `BE ${percent(row.breakEvenMiddleProbability)} · probability unavailable`;
-    const legs = (row.legs || []).map((leg, index) => `
+    const legs = (row.legs || []).map((leg) => `
       <div class="mid-card-leg">
+        <span title="${esc(leg.selection)}">${esc(leg.selection)}</span>
+        <b>${money(leg.stake, 0)}</b>
         ${logoMarkup(leg)}
-        <span class="mid-card-leg-copy"><small>LEG ${index + 1}</small><strong>${esc(leg.selection)}</strong><span>${esc(leg.bookName)}</span></span>
-        <span class="mid-card-price"><b>${odds(leg.americanOdds)}</b><small>${money(leg.stake, 0)} stake</small></span>
+        <span class="mid-odds-pill">${odds(leg.americanOdds)}</span>
       </div>`).join("");
     return `
       <button class="mid-opportunity-card${selected}" type="button" data-mid-id="${esc(row.id)}" aria-pressed="${selected ? "true" : "false"}">
-        <div class="mid-card-score ${costClass}"><span>Cost</span><strong>${percent(row.costPercent)}</strong><small>${probabilityNote}</small></div>
-        <div class="mid-card-event"><strong>${esc(row.eventTitle)}</strong><span>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</span><small>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</small></div>
-        ${legs}
-        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span>${row.executionStatus === "EXECUTABLE" ? "Verified outside outcome" : "Modeled outside outcome"}</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)} · middle ${signedMoney(row.middleProfit)}</small><i class="ph ph-caret-right" aria-hidden="true"></i></div>
-        ${tracked ? '<i class="ph ph-bookmark-simple-fill mid-card-tracked" aria-label="Tracked"></i>' : ""}
+        <div class="mid-card-score ${costClass}"><strong>${percent(row.costPercent)}</strong><span>${signedMoney(row.middleProfit)}</span><small>${probabilityNote}</small></div>
+        <div class="mid-card-event"><span class="mid-card-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)} · ${esc(timeUntil(row.commenceTime))}</span><h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3><p>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</p></div>
+        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span><i class="ph ph-shield-check" aria-hidden="true"></i>${row.executionStatus === "EXECUTABLE" ? "Verified outside outcome" : "Modeled outside outcome"}</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)}</small></div>
+        <div class="mid-card-legs">${legs}</div>
+        <div class="mid-card-open">${tracked ? '<i class="ph ph-bookmark-simple-fill mid-card-tracked" aria-label="Tracked"></i>' : ""}<i class="ph ph-caret-right" aria-hidden="true"></i></div>
       </button>`;
   }
 
   function renderFeed() {
+    if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} shown · ranked by lowest break-even`;
     if (state.loading && !state.rows.length) {
       elements.feed.innerHTML = Array.from({ length: 5 }, () => '<div class="mid-skeleton"></div>').join("");
       return;
@@ -208,7 +234,7 @@
     const market = state.market;
     const sports = [...new Map(state.rows.map((row) => [row.sportKey, row.league])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
     const markets = [...new Map(state.rows.map((row) => [row.marketKey, row.marketLabel])).entries()].sort((a, b) => a[1].localeCompare(b[1]));
-    elements.sport.innerHTML = '<option value="">All leagues</option>' + sports.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("");
+    elements.sport.innerHTML = '<option value="">All sports</option>' + sports.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("");
     elements.market.innerHTML = '<option value="">All markets</option>' + markets.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("");
     elements.sport.value = sport;
     elements.market.value = market;
@@ -257,7 +283,7 @@
       <section class="mid-detail-section"><header><h3>Available odds</h3><small>${row.bookCount} books</small></header><div class="mid-quote-groups">${comparisons}</div></section>
       ${warnings}
       <footer class="mid-detail-actions"><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button></footer>`;
-    if (openOnMobile && window.matchMedia("(max-width: 900px)").matches) {
+    if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {
       document.body.classList.add("mid-detail-open");
       elements.backdrop.hidden = false;
     }
@@ -325,6 +351,7 @@
       writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
       state.lastUpdated = new Date(payload.lastVerifiedAt || payload.generatedAt || Date.now());
+      if (state.alerts && state.rows.length) notify(`${state.rows.length} middle opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
       const paused = Boolean(payload.paused);
       const degraded = Boolean(payload.degraded);
       elements.status.className = `mid-feed-status ${paused ? "paused" : degraded ? "error" : "ready"}`;
@@ -354,10 +381,10 @@
 
   function syncScanButton() {
     elements.scan.setAttribute("aria-pressed", String(state.paused));
-    elements.scan.title = state.paused ? "Start scanner" : "Pause scanner";
+    elements.scan.setAttribute("aria-label", state.paused ? "Start automatic refresh" : "Pause automatic refresh");
     elements.scan.innerHTML = state.paused
-      ? '<i class="ph ph-play" aria-hidden="true"></i><span class="sr-only">Start scanner</span>'
-      : '<i class="ph ph-pause" aria-hidden="true"></i><span class="sr-only">Pause scanner</span>';
+      ? '<i class="ph ph-play" aria-hidden="true"></i>'
+      : '<i class="ph ph-pause" aria-hidden="true"></i>';
   }
 
   function togglePause() {
@@ -369,6 +396,13 @@
       elements.status.innerHTML = '<i class="ph ph-pause-circle" aria-hidden="true"></i><span>Scanner paused</span>';
       updateSummary();
     } else loadBoard();
+  }
+
+  function toggleAlerts() {
+    state.alerts = !state.alerts;
+    elements.alerts.setAttribute("aria-pressed", String(state.alerts));
+    saveSettings();
+    notify(state.alerts ? "Middle opportunity alerts enabled" : "Middle opportunity alerts muted");
   }
 
   function renderBookGrid(query = "") {
@@ -465,13 +499,13 @@
   }
 
   function commitStake({ normalize = false } = {}) {
-    const value = numberBetween(elements.stake.value, 1, 10_000_000, state.stake);
+    const value = stakeInputNumber(elements.stake.value, state.stake);
     if (value === state.stake) {
-      if (normalize) elements.stake.value = state.stake;
+      if (normalize) elements.stake.value = stakeInputValue(state.stake);
       return;
     }
     state.stake = value;
-    if (normalize) elements.stake.value = state.stake;
+    if (normalize) elements.stake.value = stakeInputValue(state.stake);
     saveSettings();
     loadBoard();
   }
@@ -482,6 +516,7 @@
     elements.market.addEventListener("change", () => { state.market = elements.market.value; renderFeed(); });
     elements.feed.addEventListener("click", (event) => { const card = event.target.closest("[data-mid-id]"); if (card) selectRow(card.dataset.midId, true); });
     elements.scan.addEventListener("click", togglePause);
+    elements.alerts.addEventListener("click", toggleAlerts);
     elements.refresh.addEventListener("click", () => loadBoard());
     elements.stake.addEventListener("input", () => {
       window.clearTimeout(state.stakeTimer);
@@ -531,8 +566,9 @@
     });
   }
 
-  elements.stake.value = state.stake;
+  elements.stake.value = stakeInputValue(state.stake);
   syncScanButton();
+  elements.alerts.setAttribute("aria-pressed", String(state.alerts));
   syncDialog();
   updateFilterCount();
   bind();

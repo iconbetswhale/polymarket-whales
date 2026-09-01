@@ -4,6 +4,7 @@
 
   <header class="mid-header il-page-header">
     <div class="mid-title-block">
+      <p class="mid-eyebrow">MIDDLE WINDOWS</p>
       <div class="mid-title-row">
         <h1 class="il-page-title">Middles</h1>
         <nav class="mid-mode-tabs" aria-label="Middle timing">
@@ -12,33 +13,33 @@
         </nav>
         <button class="mid-learn-button" id="mid-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
+      <p>Balance the outside risk across opposing lines, then measure the payoff when the result lands in the middle.</p>
     </div>
 
     <div class="mid-toolbar il-finance-controls" aria-label="Middle controls">
       <label class="mid-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-search" type="search" placeholder="Search events, players, or books" autocomplete="off"><kbd>/</kbd></label>
-      <label class="mid-stake-control"><span>Total stake</span><span class="mid-money-input"><b>$</b><input id="mid-stake" type="number" min="1" max="10000000" step="25" value="1000" inputmode="decimal"></span></label>
-      <button class="mid-icon-button" id="mid-scan-toggle" type="button" aria-pressed="false" title="Pause scanner"><i class="ph ph-pause" aria-hidden="true"></i><span class="sr-only">Pause scanner</span></button>
-      <button class="mid-icon-button mid-filter-button" id="mid-filter-open" type="button" title="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span id="mid-filter-count">0</span><span class="sr-only">Customize feed</span></button>
-      <button class="mid-icon-button" id="mid-refresh" type="button" title="Refresh now"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span class="sr-only">Refresh now</span></button>
+      <label class="mid-stake-control"><span>Total stake</span><span class="mid-money-input"><b>$</b><input id="mid-stake" type="text" value="1,000" inputmode="decimal" aria-label="Total stake amount"></span></label>
+      <button class="mid-icon-button" id="mid-scan-toggle" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
+      <button class="mid-icon-button mid-filter-button" id="mid-filter-open" type="button" aria-label="Open middle filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span id="mid-filter-count" hidden>0</span></button>
+      <button class="mid-icon-button" id="mid-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
+      <button class="mid-icon-button" id="mid-refresh" type="button" aria-label="Refresh middle opportunities"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i></button>
     </div>
   </header>
 
-  <section class="mid-summary" aria-label="Middle scan summary">
-    <div class="mid-summary-metrics">
-      <article><span>Opportunities</span><strong id="mid-summary-count">—</strong></article>
-      <article><span>Best cost</span><strong id="mid-summary-cost">—</strong></article>
-      <article><span>Widest window</span><strong id="mid-summary-width">—</strong></article>
-    </div>
-    <div class="mid-scan-status" role="status" aria-live="polite"><i aria-hidden="true"></i><span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></span></div>
+  <section class="mid-summary mid-summary-metrics il-kpi-strip" aria-label="Middle scan summary">
+    <article><span class="mid-kpi-icon"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="mid-summary-count">—</strong><small>Qualified middle windows</small></div></article>
+    <article><span class="mid-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best cost</span><strong id="mid-summary-cost">—</strong><small>Lowest break-even price</small></div></article>
+    <article><span class="mid-kpi-icon"><i class="ph ph-arrows-out-line-vertical" aria-hidden="true"></i></span><div><span>Widest window</span><strong id="mid-summary-width">—</strong><small>Largest executable gap</small></div></article>
+    <article class="mid-scan-status" role="status" aria-live="polite"><span class="mid-kpi-icon"><i class="ph ph-broadcast" aria-hidden="true"></i></span><div><span>Scan status</span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></div></article>
   </section>
 
   <div class="mid-workspace">
     <section class="mid-feed-panel" aria-labelledby="mid-feed-title">
       <header class="mid-feed-heading">
-        <h2 id="mid-feed-title">Opportunities</h2>
+        <div><h2 id="mid-feed-title">Best opportunities</h2><span id="mid-result-copy">Ranked by lowest break-even</span></div>
         <div class="mid-quick-filters" aria-label="Quick filters">
-          <select id="mid-sport"><option value="">All leagues</option></select>
-          <select id="mid-market"><option value="">All markets</option></select>
+          <label><span class="sr-only">Sport</span><select id="mid-sport"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Market</span><select id="mid-market"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
         </div>
       </header>
       <div class="mid-feed-status" id="mid-feed-status" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating middle windows…</span></div>
@@ -46,7 +47,7 @@
     </section>
 
     <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
-      <div class="mid-detail-empty"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><strong>Select an opportunity</strong></div>
+      <div class="mid-detail-empty"><span><i class="ph ph-cursor-click" aria-hidden="true"></i></span><h2>Execution plan</h2><p>Select an opportunity to see the exact stake on both sides, every payout scenario, and the best available prices.</p></div>
     </aside>
   </div>
 

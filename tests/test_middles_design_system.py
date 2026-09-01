@@ -78,6 +78,33 @@ def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "BOTH WIN" not in SCRIPT
 
 
+def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None:
+    for required in (
+        'class="mid-eyebrow">MIDDLE WINDOWS',
+        'class="mid-summary mid-summary-metrics il-kpi-strip"',
+        'id="mid-result-copy"',
+        'id="mid-stake" type="text" value="1,000"',
+        'aria-label="Total stake amount"',
+        'ph ph-faders-horizontal',
+    ):
+        assert required in TEMPLATE
+    for required in (
+        'padding: 14px 18px 16px',
+        'grid-template-columns: minmax(420px, 1fr) minmax(550px, 720px)',
+        'repeat(4, var(--il-control-height, 44px))',
+        'grid-template-columns: repeat(4, minmax(0, 1fr))',
+        'grid-template-columns: minmax(600px, 1fr) minmax(390px, 440px)',
+        'grid-template-columns: 112px minmax(170px, 1fr) minmax(104px, .52fr) minmax(310px, 1.3fr) 50px',
+        'min-height: 112px',
+    ):
+        assert required in CSS
+    assert "function stakeInputValue" in SCRIPT
+    assert "function stakeInputNumber" in SCRIPT
+    assert "function sportIcon" in SCRIPT
+    assert "function toggleAlerts" in SCRIPT
+    assert 'window.matchMedia("(max-width: 1080px)")' in SCRIPT
+
+
 def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:
     assert 'decoding="async"' in SCRIPT
     assert "mid-book-logo-fallback" in SCRIPT
