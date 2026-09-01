@@ -85,15 +85,21 @@ def test_locked_first_leg_is_the_recommended_sizing_workflow() -> None:
     assert "stake: 100" in SCRIPT
 
 
-def test_low_hold_polish_keeps_primary_plan_visible_and_details_collapsed() -> None:
+def test_low_hold_polish_matches_the_live_arbitrage_queue_and_detail_format() -> None:
     assert 'id="lh-kpi-opportunities"' in TEMPLATE
+    assert 'id="lh-kpi-books"' in TEMPLATE
     assert TEMPLATE.count("arb-kpi-strip") == 1
-    assert "lh-leg-copy" in SCRIPT
-    assert "lh-leg-numbers" in SCRIPT
-    assert '<details class="lh-detail-disclosure">' in SCRIPT
-    assert "Odds comparison" in SCRIPT
-    assert "Calculation details" in SCRIPT
-    assert "lh-result-section" in SCRIPT
+    assert 'class="arb-queue-rank"' in SCRIPT
+    assert 'class="arb-queue-date"' in SCRIPT
+    assert 'class="arb-detail-main"' in SCRIPT
+    assert 'class="arb-detail-facts"' in SCRIPT
+    assert 'class="arb-plan-head"' in SCRIPT
+    assert 'class="arb-guaranteed-layout"' in SCRIPT
+    assert 'class="arb-quote-head"' in SCRIPT
+    assert '<details class="arb-detail-section arb-calculation">' in SCRIPT
+    assert "Odds Comparison" in SCRIPT
+    assert "Calculation Details" in SCRIPT
+    assert "Balanced Outcome" in SCRIPT
     assert 'executable ? "Copy bet plan" : "Copy verification checklist"' in SCRIPT
     assert "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING" in SCRIPT
     assert 'executable ? "Bet plan copied." : "Verification checklist copied."' in SCRIPT
@@ -101,13 +107,27 @@ def test_low_hold_polish_keeps_primary_plan_visible_and_details_collapsed() -> N
     assert "Chance to win both legs" not in TEMPLATE
 
 
-def test_low_hold_rows_render_real_team_matchups_without_changing_the_payload() -> None:
-    assert "teamLogoCodes" in SCRIPT
-    assert "function matchupLogoMarkup" in SCRIPT
-    assert 'class="lh-team-matchup"' in SCRIPT
-    assert 'class="lh-matchup-vs">VS<' in SCRIPT
-    assert "/static/assets/teams/${league}/" in SCRIPT
-    assert ".lh-team-logo-frame" in CSS
-    assert "justify-content: center" in CSS
-    assert "background: transparent" in CSS
-    assert "text-align: center" in CSS
+def test_low_hold_inherits_arbitrage_sizing_and_formatting() -> None:
+    assert "MARKET INEFFICIENCIES" in TEMPLATE
+    assert TEMPLATE.count("arb-kpi-icon") == 4
+    assert "--arb-card: var(--arb-bg)" in CSS
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr))" in CSS
+    assert "padding: 14px 18px 16px" in CSS
+    assert ".lh-page .arb-toolbar" not in CSS
+    assert ".lh-page .arb-opportunity" not in CSS
+    assert ".lh-page .arb-workspace" not in CSS
+    assert ".lh-page .arb-detail-hero" not in CSS
+    assert TEMPLATE.index('id="lh-detail"') < TEMPLATE.index('id="lh-feed"')
+    assert TEMPLATE.count('class="arb-board-actions"') == 1
+    assert TEMPLATE.count('class="arb-board-footer"') == 1
+
+
+def test_low_hold_rows_use_the_live_arbitrage_compact_queue_contract() -> None:
+    assert "function queueDateParts" in SCRIPT
+    assert "function sportIcon" in SCRIPT
+    assert 'grid-template-columns: repeat(4, minmax(0, 1fr))' in CSS
+    assert 'class="arb-event-cell"' in SCRIPT
+    assert 'class="arb-return-cell lh-hold-cell' in SCRIPT
+    assert "arb-leg-summary" not in SCRIPT
+    assert "arb-market-cell" not in SCRIPT
+    assert "arb-legs-cell" not in SCRIPT

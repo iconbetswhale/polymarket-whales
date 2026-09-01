@@ -7,24 +7,6 @@
   try { config = JSON.parse(configNode?.textContent || "{}"); } catch (_error) { config = { books: [] }; }
 
   const popularBooks = new Set(["fanduel", "draftkings", "betmgm", "caesars", "fanatics", "bet365", "pinnacle", "novig", "hardrockbet", "betonline", "kalshi", "polymarket"]);
-  const teamLogoCodes = Object.freeze({
-    mlb: Object.freeze({
-      arizonadiamondbacks: "ari", atlantabraves: "atl", baltimoreorioles: "bal", bostonredsox: "bos",
-      chicagocubs: "chc", chicagowhitesox: "chw", cincinnatireds: "cin", clevelandguardians: "cle",
-      coloradorockies: "col", detroittigers: "det", houstonastros: "hou", kansascityroyals: "kc",
-      losangelesangels: "laa", losangelesdodgers: "lad", miamimarlins: "mia", milwaukeebrewers: "mil",
-      minnesotatwins: "min", newyorkmets: "nym", newyorkyankees: "nyy", athletics: "oak",
-      oaklandathletics: "oak", philadelphiaphillies: "phi", pittsburghpirates: "pit", sandiegopadres: "sd",
-      sanfranciscogiants: "sf", seattlemariners: "sea", stlouiscardinals: "stl", tampabayrays: "tb",
-      texasrangers: "tex", torontobluejays: "tor", washingtonnationals: "wsh",
-    }),
-    wnba: Object.freeze({
-      atlantadream: "atl", chicagosky: "chi", connecticutsun: "connecticut", dallaswings: "dal",
-      goldenstatevalkyries: "gs", indianafever: "ind", lasvegasaces: "lv", losangelessparks: "la",
-      minnesotalynx: "min", newyorkliberty: "ny", phoenixmercury: "phx", seattlestorm: "sea",
-      washingtonmystics: "wsh",
-    }),
-  });
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const configuredMarketKeys = Object.values(config.marketGroups || {}).flat()
     .map((market) => typeof market === "string" ? market : market?.key)
@@ -153,6 +135,12 @@
     return amount > 0 ? `+${Math.round(amount)}` : `${Math.round(amount)}`;
   }
 
+  function decimalOdds(value) {
+    const amount = Number(value || 0);
+    if (!amount) return 1;
+    return amount > 0 ? 1 + (amount / 100) : 1 + (100 / Math.abs(amount));
+  }
+
   function percent(value, digits = 2) {
     const amount = Number(value || 0);
     return `${amount.toFixed(digits)}%`;
@@ -174,6 +162,27 @@
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return "Time unavailable";
     return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  }
+
+  function queueDateParts(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return { day: "Upcoming", time: "" };
+    return {
+      day: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      time: date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+    };
+  }
+
+  function sportIcon(row) {
+    const sport = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
+    if (sport.includes("baseball") || sport.includes("mlb")) return "ph-baseball";
+    if (sport.includes("basketball") || sport.includes("nba") || sport.includes("wnba")) return "ph-basketball";
+    if (sport.includes("soccer") || sport.includes("epl") || sport.includes("mls")) return "ph-soccer-ball";
+    if (sport.includes("football") || sport.includes("nfl") || sport.includes("ncaaf")) return "ph-football";
+    if (sport.includes("hockey") || sport.includes("nhl")) return "ph-hockey";
+    if (sport.includes("tennis")) return "ph-tennis-ball";
+    if (sport.includes("golf") || sport.includes("pga")) return "ph-golf";
+    return "ph-trophy";
   }
 
   function timeUntil(value) {
@@ -230,32 +239,6 @@
     return logo ? `<img src="${esc(logo)}" alt="" loading="lazy">` : `<span class="arb-book-fallback"><i class="ph ph-buildings"></i></span>`;
   }
 
-  function canonicalTeam(value) {
-    return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-  }
-
-  function matchupLogoMarkup(row) {
-    const label = String(row?.eventTitle || "").trim();
-    const sides = label.match(/^(.*?)\s+vs\.?\s+(.*)$/i);
-    if (!sides) return "";
-
-    const leagueHint = `${row?.sportKey || ""} ${row?.league || ""}`.toLowerCase();
-    const catalogOrder = /wnba/.test(leagueHint) ? ["wnba"] : /mlb|baseball/.test(leagueHint) ? ["mlb"] : ["mlb", "wnba"];
-    const firstKey = canonicalTeam(sides[1]);
-    const secondKey = canonicalTeam(sides[2]);
-    const league = catalogOrder.find((key) => teamLogoCodes[key][firstKey] && teamLogoCodes[key][secondKey]);
-    if (!league) return "";
-
-    const firstLogo = `/static/assets/teams/${league}/${teamLogoCodes[league][firstKey]}.png`;
-    const secondLogo = `/static/assets/teams/${league}/${teamLogoCodes[league][secondKey]}.png`;
-    return `
-      <div class="lh-team-matchup" aria-hidden="true">
-        <span class="lh-team-logo-frame"><img src="${esc(firstLogo)}" alt="" decoding="async"></span>
-        <span class="lh-matchup-vs">VS</span>
-        <span class="lh-team-logo-frame"><img src="${esc(secondLogo)}" alt="" decoding="async"></span>
-      </div>`;
-  }
-
   function rowMatches(row) {
     const query = state.search.trim().toLowerCase();
     if (state.mode !== "all" && row.pairKind !== state.mode) return false;
@@ -285,31 +268,18 @@
     return rows.sort((left, right) => left.holdPercent - right.holdPercent || right.retainedPercent - left.retainedPercent);
   }
 
-  function outcomeSummary(leg, index) {
-    return `
-      <div class="arb-leg-summary">
-        ${bookLogo(leg)}
-        <span class="lh-leg-copy"><small>LEG ${index + 1} · ${esc(leg.bookName)}</small><strong title="${esc(leg.selection)}">${esc(leg.selection)}</strong></span>
-        <span class="lh-leg-numbers"><b>${odds(leg.americanOdds)}</b><small>${money(leg.stake, 0)} stake</small></span>
-      </div>`;
-  }
-
-  function opportunityCard(row) {
-    const context = row.marketContext ? String(row.marketContext) : "Main line";
-    const netCopy = signedMoney(row.outsideNet);
-    const windowCopy = row.pairKind === "middle" ? `${Number(row.lineDistance).toFixed(1)} pt window` : `${row.outcomeCount}-way exact`;
+  function opportunityCard(row, index) {
+    const start = queueDateParts(row.commenceTime);
     const executable = row.executionStatus === "EXECUTABLE";
     return `
       <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-lh-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.holdPercent)} ${executable ? "executable" : "theoretical"} hold on ${row.eventTitle}`)}">
-        <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><small>Hold</small><strong>${percent(row.holdPercent)}</strong><span>${netCopy}</span></div>
+        <span class="arb-queue-rank">${index + 1}</span>
+        <div class="arb-return-cell lh-hold-cell ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>${signedMoney(row.outsideNet)}</span></div>
         <div class="arb-event-cell">
-          ${matchupLogoMarkup(row)}
-          <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
-          <p>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</p>
+          <h3 title="${esc(row.eventTitle)}"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i><span>${esc(row.eventTitle)}</span></h3>
+          <p>${esc(row.league)} · ${esc(row.marketLabel)} · ${row.pairKind === "middle" ? "middle" : `${row.outcomeCount}-way`}</p>
         </div>
-        <div class="arb-market-cell"><strong>${esc(row.marketLabel)}</strong><small>${esc(context)}</small><span>${esc(windowCopy)}</span><em class="lh-execution-status ${executable ? "executable" : "theoretical"}">${executable ? "EXECUTABLE" : "VERIFY FIRST"}</em></div>
-        <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
-        <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
+        <time class="arb-queue-date" datetime="${esc(row.commenceTime)}"><span>${esc(start.day)}</span><small>${esc(start.time)}</small></time>
       </article>`;
   }
 
@@ -345,8 +315,12 @@
     document.getElementById("lh-kpi-hold").textContent = best ? percent(best.holdPercent) : "—";
     document.getElementById("lh-kpi-retained").textContent = best ? percent(best.retainedPercent, 1) : "—";
     document.getElementById("lh-kpi-opportunities").textContent = String(state.rows.length);
+    document.getElementById("lh-kpi-books").textContent = String(state.selectedBooks.size);
     document.getElementById("lh-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${Math.min(rows.length, state.visibleLimit)} of ${rows.length} shown · ${executableCount} executable`;
+    const visibleCount = Math.min(rows.length, state.visibleLimit);
+    elements.resultCopy.textContent = visibleCount
+      ? `Showing 1–${visibleCount} of ${rows.length} opportunities · ${executableCount} executable`
+      : "No opportunities shown";
   }
 
   function populateQuickFilters() {
@@ -360,9 +334,11 @@
     elements.market.value = markets.some(([key]) => key === currentMarket) ? currentMarket : "";
   }
 
-  function quoteRow(quote, bestKey) {
+  function quoteRow(quote, bestKey, targetPayout) {
     const age = quote.quoteAgeSeconds == null ? "Age n/a" : `${Math.round(quote.quoteAgeSeconds)}s`;
-    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b></div>`;
+    const projectedStake = Number(targetPayout || 0) / decimalOdds(quote.americanOdds);
+    const projectedPayout = projectedStake * decimalOdds(quote.americanOdds);
+    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b><strong>${money(projectedStake)}</strong><strong>${money(projectedPayout)}</strong></div>`;
   }
 
   function scenarioCard(label, profit, detail, middle = false) {
@@ -380,11 +356,15 @@
     const executable = row.executionStatus === "EXECUTABLE";
     const plan = (row.outcomes || []).map((leg, index) => `
       <article class="arb-plan-leg">
-        ${bookLogo(leg)}
-        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)} · ${leg.capacityKnown ? `${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}` : "capacity unverified"}</small></div>
-        <div class="arb-plan-stake"><span>${row.stakeMode === "first-leg" ? (index === lockedIndex ? "Bet 1" : "Hedge") : "Stake"}</span><b>${money(leg.stake)}</b>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<small class="lh-lock-status"><i class="ph ph-lock-key"></i>Locked</small>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : ""}</div>
+        <div class="arb-plan-outcome"><strong>${esc(leg.selection)}</strong><small>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<span class="lh-lock-status"><i class="ph ph-lock-key"></i>Bet 1 · Locked</span>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : esc(row.marketLabel)}</small></div>
+        <div class="arb-plan-book">${bookLogo(leg)}<span><strong>${esc(leg.bookName)}</strong>${leg.capacityKnown ? `<small>${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}</small>` : ""}</span></div>
+        <b class="arb-plan-odds">${odds(leg.americanOdds)}</b>
+        <div class="arb-plan-stake"><b>${money(leg.stake)}</b></div>
+        <b class="arb-plan-payout">${money(leg.payout)}</b>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">${executable ? "BET" : "CHECK"}<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">${executable ? "BET" : "CHECK"}</span>`}
       </article>`).join("");
+    const payoutMax = Math.max(...row.outcomes.map((leg) => Number(leg.payout || 0)), 1);
+    const payouts = row.outcomes.map((leg) => `<div class="arb-payout-row"><span title="${esc(leg.selection)}">${esc(leg.selection)}</span><progress max="${payoutMax}" value="${Number(leg.payout)}"></progress><b class="${Number(leg.profit) >= 0 ? "positive" : "lh-negative"}">${signedMoney(leg.profit)}</b></div>`).join("");
     const outsideCards = (row.outcomes || []).slice(0, 2).map((leg) => scenarioCard(`${leg.selection} hits`, leg.profit, `${leg.bookName} wins`));
     if (row.middleScenario) {
       outsideCards.splice(1, 0, scenarioCard(row.middleScenario.label, row.middleProfit, `Result ${row.middleScenario.result} · ${percent(row.middleReturnPercent)} return`, true));
@@ -392,24 +372,29 @@
     const comparisons = (row.allQuotes || []).map((group) => {
       const selected = row.outcomes.find((leg) => leg.selection === group.selection);
       const quotes = window.IconLabsLineShopOrder?.sortRows(group.quotes || []) || group.quotes || [];
-      return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4>${quotes.map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
+      return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4><div class="arb-quote-head"><span>Book</span><span>Age</span><span>Odds</span><span>Stake</span><span>Payout</span></div>${quotes.map((quote) => quoteRow(quote, selected?.bookKey, row.minPayout)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
     const netLabel = Number(row.outsideNet) >= 0
       ? row.executionStatus === "EXECUTABLE" ? "Verified outside profit" : "Modeled outside profit"
       : "Worst-case cost";
-    const context = row.marketContext ? ` · ${esc(row.marketContext)}` : "";
+    const context = row.marketContext ? esc(row.marketContext) : esc(row.marketLabel);
+    const executionLabel = executable ? "Executable — all gates verified" : "Theoretical — verify limits, rules, and eligibility";
     elements.detailContent.innerHTML = `
       <header class="arb-detail-hero">
-        <div class="arb-detail-hero-top"><div class="arb-detail-return lh-detail-hold ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>hold</span></div><button class="arb-icon-button arb-detail-close" type="button" data-lh-close-detail aria-label="Close bet plan"><i class="ph ph-x"></i></button></div>
-        <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(row.league)} · ${esc(row.marketLabel)}${context} · ${esc(dateTime(row.commenceTime))} · ${executable ? "all execution gates verified" : "theoretical — verify limits, settlement, and eligibility"}</p>
+        <div class="arb-detail-main">
+          <div class="arb-detail-hero-top"><div class="arb-detail-return lh-detail-hold ${holdTone(row)}"><strong>${percent(row.holdPercent)}</strong><span>hold</span></div><button class="arb-icon-button arb-detail-close" type="button" data-lh-close-detail aria-label="Close bet plan"><i class="ph ph-x"></i></button></div>
+          <h2>${esc(row.eventTitle)}</h2>
+          <p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(executionLabel)}</p>
+        </div>
+        <dl class="arb-detail-facts"><div><dt>Market</dt><dd>${context}</dd></div><div><dt>Start time</dt><dd>${esc(dateTime(row.commenceTime))}</dd></div></dl>
+        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>${executable ? "Copy bet plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
       ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical low-hold pair, not an executable claim. One or more capacity, settlement, or account-eligibility gates are unverified.</span></div>`}
-      <section class="arb-detail-section"><header><h3>${executable ? "Bet plan" : "Verification plan"}</h3><span>${row.stakeMode === "first-leg" ? "Bet 1 locked" : `${row.outcomeCount} legs`}</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section lh-result-section"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>${executable ? "Copy bet plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div></section>
-      <details class="lh-detail-disclosure"><summary><span>Odds comparison</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body">${comparisons}</div></details>
-      <details class="lh-detail-disclosure"><summary><span>Calculation details</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body"><div class="lh-scenario-grid">${outsideCards.join("")}</div><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg.</span></div>` : ""}</div></details>`;
+      <section class="arb-detail-section arb-stake-plan-section"><header><h3>${executable ? "Bet Plan" : "Verification Plan"}</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
+      <section class="arb-detail-section arb-guaranteed-section"><header><h3>Balanced Outcome</h3><span>after fees &amp; cent rounding</span></header><div class="arb-guaranteed-layout"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-payout-list">${payouts}</div></div></section>
+      <section class="arb-detail-section arb-odds-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header><div class="arb-comparison-grid">${comparisons}</div></section>
+      <details class="arb-detail-section arb-calculation"><summary><h3>Calculation Details</h3><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="lh-scenario-grid">${outsideCards.join("")}</div><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg.</span></div>` : ""}</details>`;
     elements.detailPlaceholder.hidden = true;
     elements.detailContent.hidden = false;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {

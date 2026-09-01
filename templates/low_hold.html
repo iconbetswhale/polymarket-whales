@@ -4,15 +4,17 @@
 
   <header class="arb-header il-page-header">
     <div class="arb-title-block">
+      <p class="arb-eyebrow">MARKET INEFFICIENCIES</p>
       <div class="arb-title-row">
         <h1 class="il-page-title">Low Hold</h1>
         <nav class="arb-mode-tabs lh-mode-tabs" aria-label="Opportunity type">
           <button class="active" type="button" data-lh-mode="all" aria-pressed="true">All <span id="lh-mode-count">0</span></button>
-          <button type="button" data-lh-mode="exact" aria-pressed="false">Exact lines</button>
+          <button type="button" data-lh-mode="exact" aria-pressed="false">Exact</button>
           <button type="button" data-lh-mode="middle" aria-pressed="false">Middles</button>
         </nav>
         <button class="arb-learn-button" id="lh-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
+      <p>Minimize the price paid across opposing outcomes, then size every hedge to preserve as much capital as possible.</p>
     </div>
 
     <div class="arb-toolbar il-finance-controls" aria-label="Low Hold controls">
@@ -26,35 +28,37 @@
   </header>
 
   <section class="arb-kpi-strip il-kpi-strip" aria-label="Low Hold summary">
-    <article><span>Best hold</span><strong id="lh-kpi-hold">—</strong></article>
-    <article><span>Capital retained</span><strong id="lh-kpi-retained">—</strong></article>
-    <article><span>Opportunities</span><strong id="lh-kpi-opportunities">—</strong></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best hold</span><strong id="lh-kpi-hold">—</strong><small>Lowest opposing price cost</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span><div><span>Capital left</span><strong id="lh-kpi-retained">—</strong><small>After balanced stake rounding</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-arrows-left-right" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="lh-kpi-opportunities">—</strong><small>Exact lines and middles</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="lh-kpi-books">—</strong><small>Selected execution venues</small></div></article>
   </section>
 
   <div class="arb-workspace">
+    <aside class="arb-detail" id="lh-detail" aria-label="Selected Low Hold plan">
+      <div class="arb-detail-placeholder" id="lh-detail-placeholder">
+        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
+        <h2>Execution plan</h2>
+        <p>Select an opportunity to see the balanced stake on every outcome, modeled payout, and every available price.</p>
+      </div>
+      <div class="arb-detail-content" id="lh-detail-content" hidden></div>
+    </aside>
+
     <section class="arb-board" aria-labelledby="lh-board-title">
       <header class="arb-board-header">
-        <div><h2 id="lh-board-title">Opportunities</h2><span id="lh-result-copy">Loading</span></div>
+        <div class="sr-only"><h2 id="lh-board-title">Best Low Hold opportunities</h2></div>
         <div class="arb-board-actions">
           <label><span class="sr-only">Sport</span><select id="lh-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="lh-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-          <label><span class="sr-only">Time to start</span><select id="lh-time-filter"><option value="24">Next 24 hours</option><option value="48" selected>Next 48 hours</option><option value="168">Next 7 days</option><option value="all">All upcoming</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Sort opportunities</span><select id="lh-sort"><option value="hold-asc">Lowest hold</option><option value="retained-desc">Most retained</option><option value="middle-desc">Best middle payoff</option><option value="time-asc">Starting soon</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
         </div>
+        <select id="lh-time-filter" hidden aria-label="Time to start"><option value="48" selected>Next 48 hours</option></select>
       </header>
       <div class="arb-feed" id="lh-feed" aria-live="polite">
         <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing Low Hold scanner</strong><p>Pairing opposing prices and balancing every stake to the cent.</p></div>
       </div>
+      <footer class="arb-board-footer"><span id="lh-result-copy">Ranked by lowest modeled hold</span></footer>
     </section>
-
-    <aside class="arb-detail" id="lh-detail" aria-label="Selected Low Hold plan">
-      <div class="arb-detail-placeholder" id="lh-detail-placeholder">
-        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
-        <h2>Bet plan</h2>
-        <p>Select an opportunity.</p>
-      </div>
-      <div class="arb-detail-content" id="lh-detail-content" hidden></div>
-    </aside>
   </div>
 </section>
 
