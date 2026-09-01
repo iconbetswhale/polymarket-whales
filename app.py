@@ -4852,6 +4852,8 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
+        quota = diagnostics.get("quota", {})
+        quota_exhausted = str(quota.get("remaining")) == "0" and not rows
         response_payload = {
                 "data": (rows if public_live_feed else visible_rows),
                 "total": len(rows if public_live_feed else visible_rows),
@@ -4869,20 +4871,32 @@ def create_app(start_background: bool = True) -> Flask:
                 "minimumFairSources": effective_min_sources,
                 "executionBooks": list(execution_books),
                 "requiredBooks": list(required_books),
-                "quota": diagnostics.get("quota", {}),
+                "quota": quota,
                 "refreshSeconds": 60,
-                "degraded": False,
+                "degraded": quota_exhausted,
                 "stale": False,
             }
+        if quota_exhausted:
+            response_payload.update(
+                {
+                    "message": (
+                        "OddsEngine quota is exhausted. The board will retry "
+                        "after the provider resets the allowance."
+                    ),
+                    "upstreamStatus": "RATE_LIMITED",
+                    "refreshSeconds": 5,
+                }
+            )
         response_payload["generatedAt"] = datetime.now(timezone.utc).isoformat()
         response_payload["feedHealth"] = record_odds_feed_health(
             odds_provider,
-            status="ok",
+            status="degraded" if quota_exhausted else "ok",
             latency_ms=(time.perf_counter() - scan_started) * 1000,
             quote_count=sum(len(row.get("quotes") or []) for row in rows),
             executable_quote_count=sum(
                 1 for row in rows if row.get("executionStatus") == "executable"
             ),
+            error="RATE_LIMITED" if quota_exhausted else None,
         )
         if public_live_feed:
             with positive_ev_live_snapshots_lock:

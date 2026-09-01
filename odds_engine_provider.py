@@ -1906,8 +1906,10 @@ class OddsEngineProvider(ExecutionProvider):
             # made a ten-event Positive EV scan take several minutes even
             # though the same normalization/calculation work is inexpensive.
             remaining = self._quota_remaining()
+            if remaining == 0:
+                break
             available = len(pending) - cursor
-            quota_slots = available if remaining is None else max(1, remaining)
+            quota_slots = available if remaining is None else remaining
             batch_size = min(
                 self.max_parallel_requests,
                 available,

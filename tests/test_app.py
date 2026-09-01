@@ -1062,6 +1062,38 @@ def test_positive_ev_private_feed_personalizes_shared_snapshot_without_provider_
     assert miss.headers["Retry-After"] == "5"
 
 
+def test_positive_ev_live_feed_reports_exhausted_quota_without_hiding_state(
+    app_client, temp_settings, monkeypatch
+):
+    object.__setattr__(temp_settings, "positive_ev_enabled", True)
+    object.__setattr__(temp_settings, "oddsengine_api_key", "all-lines-key")
+    registry = app_client.application.extensions["execution_providers"]
+    provider = next(
+        item for item in registry.providers if item.provider_key == "odds_engine"
+    )
+    provider.api_key = "all-lines-key"
+    monkeypatch.setattr(provider, "ev_events", lambda **_kwargs: [])
+    monkeypatch.setattr(
+        provider,
+        "diagnostics",
+        lambda authenticate=False: {
+            "provider": "odds_engine",
+            "quota": {"limit": "60", "remaining": "0", "reset": "30"},
+        },
+    )
+
+    response = app_client.get("/api/positive-ev/live?min_ev=4")
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["data"] == []
+    assert payload["degraded"] is True
+    assert payload["stale"] is False
+    assert payload["upstreamStatus"] == "RATE_LIMITED"
+    assert payload["refreshSeconds"] == 5
+    assert "quota is exhausted" in payload["message"]
+
+
 def test_app_starts_with_no_enabled_wallets(tmp_path):
     wallets_file = tmp_path / "wallets.json"
     wallets_file.write_text(

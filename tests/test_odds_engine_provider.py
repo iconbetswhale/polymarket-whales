@@ -606,6 +606,33 @@ def test_provider_returns_partial_snapshot_when_rate_limit_is_reached() -> None:
     }
 
 
+def test_provider_stops_before_event_requests_when_schedule_exhausts_quota() -> None:
+    fixture = _fixture_session()
+    event = fixture.routes["/events"]._payload["data"][0]
+    session = FakeSession(
+        {
+            "/events": FakeResponse(
+                {"data": [event]},
+                headers={
+                    "X-RateLimit-Limit": "60",
+                    "X-RateLimit-Remaining": "0",
+                    "X-RateLimit-Reset": "30",
+                },
+            ),
+        }
+    )
+    provider = OddsEngineProvider("key", session=session)
+
+    events = provider.ev_events(
+        sport_keys=("baseball_mlb",), market_keys=("h2h",)
+    )
+
+    assert events == []
+    assert len(session.calls) == 1
+    assert session.calls[0]["url"].endswith("/v1/events")
+    assert provider.diagnostics()["quota"]["remaining"] == "0"
+
+
 def test_provider_fetches_independent_event_odds_concurrently(monkeypatch) -> None:
     fixture = _fixture_session()
     source_event = fixture.routes["/events"]._payload["data"][0]
