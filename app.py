@@ -1113,6 +1113,22 @@ def create_app(start_background: bool = True) -> Flask:
             LOGGER.warning("%s shared snapshot lookup failed: %s", tool, type(exc).__name__)
             return None
 
+    public_tracker_status_fields = (
+        "api_status",
+        "app_status",
+        "last_successful_refresh",
+        "last_refresh_attempt",
+        "enabled_wallet_count",
+        "valid_wallet_count",
+        "invalid_wallet_count",
+        "position_count",
+        "recent_trade_count",
+    )
+
+    def public_tracker_status(status: dict | None = None) -> dict:
+        source = status if isinstance(status, dict) else {}
+        return {key: source.get(key) for key in public_tracker_status_fields}
+
     def degraded_odds_payload(
         tool: str,
         error_code: str,
@@ -2254,23 +2270,17 @@ def create_app(start_background: bool = True) -> Flask:
         # "Connecting" state during serverless cold starts. The cached status
         # also contains full wallet diagnostics, so project the tiny public
         # contract instead of sending them on every global-status refresh.
-        cached_status = tracker.get_cached_snapshot()["status"]
-        response = jsonify(
-            {
-                key: cached_status.get(key)
-                for key in (
-                    "api_status",
-                    "app_status",
-                    "last_successful_refresh",
-                    "last_refresh_attempt",
-                    "enabled_wallet_count",
-                    "valid_wallet_count",
-                    "invalid_wallet_count",
-                    "position_count",
-                    "recent_trade_count",
-                )
-            }
+        durable_status = latest_verified_odds_payload(
+            "tracker-status",
+            raw_key="global",
+            max_age_seconds=180,
         )
+        payload = (
+            public_tracker_status(durable_status.get("payload"))
+            if durable_status
+            else public_tracker_status(tracker.get_cached_snapshot()["status"])
+        )
+        response = jsonify(payload)
         response.headers["Cache-Control"] = (
             "public, max-age=2, s-maxage=5, stale-while-revalidate=30"
         )
@@ -7427,6 +7437,16 @@ def create_app(start_background: bool = True) -> Flask:
         if state.get("paused") and not force:
             return jsonify({"data": {**state, "status": "paused"}})
         tracker.refresh()
+        public_status = public_tracker_status(
+            tracker.get_cached_snapshot().get("status")
+        )
+        public_status["generatedAt"] = datetime.now(timezone.utc).isoformat()
+        save_verified_odds_payload(
+            "tracker-status",
+            public_status,
+            raw_key="global",
+            ttl_seconds=300,
+        )
         now = datetime.now(timezone.utc)
         for pin in tracker.database.get_all_active_whiteboard_pins():
             frozen = pin.get("snapshot") or {}

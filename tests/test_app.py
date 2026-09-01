@@ -1216,7 +1216,20 @@ def test_vercel_cron_can_run_model_tracker_with_bearer_secret(
     settings = app_client.application.config["SETTINGS"]
     object.__setattr__(settings, "tracker_job_secret", "test-cron-secret")
     refreshes = []
-    monkeypatch.setattr(service, "refresh", lambda: refreshes.append(True))
+
+    def refresh():
+        refreshes.append(True)
+        with service._lock:
+            service._cache["status"].update(
+                {
+                    "api_status": "ok",
+                    "app_status": "ok",
+                    "last_successful_refresh": datetime.now(timezone.utc).isoformat(),
+                    "enabled_wallet_count": 28,
+                }
+            )
+
+    monkeypatch.setattr(service, "refresh", refresh)
 
     unauthorized = app_client.get("/api/admin/model-tracker/reconcile")
     authorized = app_client.get(
@@ -1227,6 +1240,11 @@ def test_vercel_cron_can_run_model_tracker_with_bearer_secret(
     assert unauthorized.status_code == 401
     assert authorized.status_code == 200
     assert refreshes == [True]
+    with service._lock:
+        service._cache["status"] = service._empty_status()
+    public_status = app_client.get("/api/status").get_json()
+    assert public_status["api_status"] == "ok"
+    assert public_status["enabled_wallet_count"] == 28
 
 
 def test_trades_javascript_keeps_placeholder_fixtures_out_of_production_bundle():
