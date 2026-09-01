@@ -100,6 +100,12 @@
     return amount > 0 ? `+${Math.round(amount)}` : `${Math.round(amount)}`;
   }
 
+  function decimalOdds(value) {
+    const amount = Number(value || 0);
+    if (!amount) return 1;
+    return amount > 0 ? 1 + (amount / 100) : 1 + (100 / Math.abs(amount));
+  }
+
   function percent(value, digits = 2) {
     return `${Number(value || 0).toFixed(digits)}%`;
   }
@@ -134,13 +140,13 @@
     return date.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
-  function timeUntil(value) {
-    const milliseconds = new Date(value).getTime() - Date.now();
-    if (!Number.isFinite(milliseconds)) return "Upcoming";
-    const hours = Math.max(0, Math.round(milliseconds / 3_600_000));
-    if (hours < 1) return "Starts soon";
-    if (hours < 24) return `In ${hours}h`;
-    return `In ${Math.round(hours / 24)}d`;
+  function queueDateParts(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return { day: "Upcoming", time: "" };
+    return {
+      day: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      time: date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+    };
   }
 
   function notify(message, tone = "success") {
@@ -193,29 +199,17 @@
     return rows.sort((left, right) => right.profitPercent - left.profitPercent);
   }
 
-  function outcomeSummary(leg) {
+  function opportunityCard(row, index) {
+    const start = queueDateParts(row.commenceTime);
     return `
-      <div class="arb-leg-summary">
-        <span title="${esc(leg.selection)}">${esc(leg.selection)}</span>
-        <b>${money(leg.stake, 0)}</b>
-        ${bookLogo(leg)}
-        <span class="arb-odds-pill">${odds(leg.americanOdds)}</span>
-      </div>`;
-  }
-
-  function opportunityCard(row) {
-    const executable = row.executionStatus === "EXECUTABLE";
-    return `
-      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} ${executable ? "executable" : "theoretical"} arbitrage on ${row.eventTitle}`)}">
-        <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
+      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} ${row.executionStatus === "EXECUTABLE" ? "executable" : "theoretical"} arbitrage on ${row.eventTitle}`)}">
+        <span class="arb-queue-rank">${index + 1}</span>
+        <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span></div>
         <div class="arb-event-cell">
-          <span class="arb-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
-          <h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3>
-          <p>${esc(dateTime(row.commenceTime))} · ${row.bookCount} book${row.bookCount === 1 ? "" : "s"}</p>
+          <h3 title="${esc(row.eventTitle)}"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i><span>${esc(row.eventTitle)}</span></h3>
+          <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${row.outcomeCount}-way</p>
         </div>
-        <div class="arb-market-cell"><span><i class="ph ph-chart-line-up" aria-hidden="true"></i>${executable ? "EXECUTABLE" : "VERIFY FIRST"}</span><strong>${esc(row.marketLabel)}</strong></div>
-        <div class="arb-legs-cell">${(row.outcomes || []).map(outcomeSummary).join("")}</div>
-        <div class="arb-open-cell"><i class="ph ph-caret-right" aria-hidden="true"></i></div>
+        <time class="arb-queue-date" datetime="${esc(row.commenceTime)}"><span>${esc(start.day)}</span><small>${esc(start.time)}</small></time>
       </article>`;
   }
 
@@ -250,7 +244,8 @@
     document.getElementById("arb-kpi-stake").textContent = `On a ${money(state.stake, 0)} stake`;
     document.getElementById("arb-kpi-books").textContent = String(state.diagnostics.selectedBookCount ?? state.selectedBooks.size);
     document.getElementById("arb-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${visibleRows().length} shown · executable only when every gate passes`;
+    const visibleCount = visibleRows().length;
+    elements.resultCopy.textContent = visibleCount ? `Showing 1–${visibleCount} of ${visibleCount} opportunities · executable only when every gate passes` : "No opportunities shown";
   }
 
   function populateQuickFilters() {
@@ -264,9 +259,11 @@
     elements.market.value = markets.some(([key]) => key === currentMarket) ? currentMarket : "";
   }
 
-  function quoteRow(quote, bestKey) {
+  function quoteRow(quote, bestKey, targetPayout) {
     const age = quote.quoteAgeSeconds == null ? "Age n/a" : `${Math.round(quote.quoteAgeSeconds)}s`;
-    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b></div>`;
+    const projectedStake = Number(targetPayout || 0) / decimalOdds(quote.americanOdds);
+    const projectedPayout = projectedStake * decimalOdds(quote.americanOdds);
+    return `<div class="arb-quote-row ${quote.bookKey === bestKey ? "best" : ""}" draggable="true" data-line-shop-book="${esc(quote.bookKey)}">${bookLogo(quote)}<span title="${esc(quote.bookName)}">${esc(quote.bookName)}</span><small>${esc(age)}</small><b>${odds(quote.americanOdds)}</b><strong>${money(projectedStake)}</strong><strong>${money(projectedPayout)}</strong></div>`;
   }
 
   function renderDetail(row, openOnMobile = false) {
@@ -277,9 +274,11 @@
     }
     const plan = (row.outcomes || []).map((leg) => `
       <article class="arb-plan-leg">
-        ${bookLogo(leg)}
-        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)} · ${leg.capacityKnown ? `${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}` : "capacity unverified"}</small></div>
-        <div class="arb-plan-stake"><span>Stake</span><b>${money(leg.stake)}</b></div>
+        <div class="arb-plan-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
+        <div class="arb-plan-book">${bookLogo(leg)}<span><strong>${esc(leg.bookName)}</strong>${leg.capacityKnown ? `<small>${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}</small>` : ""}</span></div>
+        <b class="arb-plan-odds">${odds(leg.americanOdds)}</b>
+        <div class="arb-plan-stake"><b>${money(leg.stake)}</b></div>
+        <b class="arb-plan-payout">${money(leg.payout)}</b>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
       </article>`).join("");
     const payoutMax = Math.max(...row.outcomes.map((leg) => leg.payout), 1);
@@ -287,22 +286,25 @@
     const comparisons = (row.allQuotes || []).map((group) => {
       const selected = row.outcomes.find((leg) => leg.selection === group.selection);
       const quotes = window.IconLabsLineShopOrder?.sortRows(group.quotes || []) || group.quotes || [];
-      return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4>${quotes.map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
+      return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4><div class="arb-quote-head"><span>Book</span><span>Age</span><span>Odds</span><span>Stake</span><span>Payout</span></div>${quotes.map((quote) => quoteRow(quote, selected?.bookKey, row.minPayout)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
     const executable = row.executionStatus === "EXECUTABLE";
     const executionLabel = executable ? "Executable — all gates verified" : "Theoretical — verify limits, rules, and eligibility";
     elements.detailContent.innerHTML = `
       <header class="arb-detail-hero">
-        <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>${executable ? "executable return" : "theoretical return"}</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
-        <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))} · ${esc(executionLabel)}</p>
+        <div class="arb-detail-main">
+          <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>${executable ? "executable return" : "theoretical return"}</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
+          <h2>${esc(row.eventTitle)}</h2>
+          <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))} · ${esc(executionLabel)}</p>
+        </div>
+        <dl class="arb-detail-facts"><div><dt>Market</dt><dd>${esc(row.marketLabel)}</dd></div><div><dt>Start time</dt><dd>${esc(dateTime(row.commenceTime))}</dd></div></dl>
         <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>Copy stake plan</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      <section class="arb-detail-section"><header><h3>Stake Plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section"><header><h3>Mathematical payout</h3><span>only if every listed leg is accepted</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>Modeled profit</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></section>
-      <section class="arb-detail-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header>${comparisons}</section>
-      <details class="arb-detail-section arb-calculation"><summary><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></details>`;
+      <section class="arb-detail-section arb-stake-plan-section"><header><h3>Stake Plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
+      <section class="arb-detail-section arb-guaranteed-section"><header><h3>${executable ? "Guaranteed Outcome" : "Mathematical Payout"}</h3><span>${executable ? "after fee buffer &amp; cent rounding" : "only if every listed leg is accepted"}</span></header><div class="arb-guaranteed-layout"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>${executable ? "Locked profit" : "Modeled profit"}</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></div></section>
+      <section class="arb-detail-section arb-odds-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header><div class="arb-comparison-grid">${comparisons}</div></section>
+      <details class="arb-detail-section arb-calculation"><summary><h3>Calculation</h3><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></details>`;
     elements.detailPlaceholder.hidden = true;
     elements.detailContent.hidden = false;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {

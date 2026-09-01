@@ -34,9 +34,18 @@
   </section>
 
   <div class="arb-workspace">
+    <aside class="arb-detail" id="arb-detail" aria-label="Selected arbitrage plan">
+      <div class="arb-detail-placeholder" id="arb-detail-placeholder">
+        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
+        <h2>Execution plan</h2>
+        <p>Select an opportunity to see the modeled stake on every outcome, mathematical payout, and every available price.</p>
+      </div>
+      <div class="arb-detail-content" id="arb-detail-content" hidden></div>
+    </aside>
+
     <section class="arb-board" aria-labelledby="arb-board-title">
       <header class="arb-board-header">
-        <div><h2 id="arb-board-title">Best opportunities</h2><span id="arb-result-copy">Ranked by modeled return</span></div>
+        <div class="sr-only"><h2 id="arb-board-title">Best opportunities</h2></div>
         <div class="arb-board-actions">
           <label><span class="sr-only">Sport</span><select id="arb-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="arb-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
@@ -46,16 +55,8 @@
       <div class="arb-feed" id="arb-feed" aria-live="polite">
         <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing arbitrage scanner</strong><p>Matching complete markets and equalizing payouts.</p></div>
       </div>
+      <footer class="arb-board-footer"><span id="arb-result-copy">Ranked by modeled return</span></footer>
     </section>
-
-    <aside class="arb-detail" id="arb-detail" aria-label="Selected arbitrage plan">
-      <div class="arb-detail-placeholder" id="arb-detail-placeholder">
-        <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
-        <h2>Execution plan</h2>
-        <p>Select an opportunity to see the modeled stake on every outcome, mathematical payout, and every available price.</p>
-      </div>
-      <div class="arb-detail-content" id="arb-detail-content" hidden></div>
-    </aside>
   </div>
 </section>
 
