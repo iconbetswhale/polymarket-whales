@@ -132,8 +132,8 @@ Live provider evidence from that release showed:
 
 The deployment workflow now performs a protected OddsEngine authentication,
 quota, registry, transport, and Advanced-access diagnostic on every production
-release. Advanced rejection is surfaced as a release warning; invalid base
-authentication still fails the release smoke test.
+release. Advanced rejection and quota exhaustion are surfaced as release
+warnings; an explicit unauthorized response still fails the release smoke test.
 
 ## Production release gates
 

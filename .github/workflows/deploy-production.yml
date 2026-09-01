@@ -117,8 +117,18 @@ jobs:
           )
           if data.get("credentials_exposed"):
               raise SystemExit("OddsEngine diagnostic reported secret exposure")
-          if not data.get("configured") or data.get("status") != "authenticated":
+          if not data.get("configured") or data.get("status") == "unauthorized":
               raise SystemExit("OddsEngine production authentication failed")
+          if data.get("status") != "authenticated":
+              print(
+                  "::warning::OddsEngine could not run a fresh base "
+                  "authentication request; inspect quota and provider health."
+              )
+          if str(quota.get("remaining")) == "0":
+              print(
+                  "::warning::OddsEngine production quota was exhausted when "
+                  "the deployment smoke ran."
+              )
           if data.get("advancedAccess") is not True:
               print(
                   "::warning::OddsEngine authenticated, but its Advanced "
