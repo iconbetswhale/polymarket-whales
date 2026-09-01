@@ -81,8 +81,10 @@ jobs:
               f"connected={bool(data.get('connected'))} "
               f"book_snapshot={bool(data.get('book_snapshot_received'))} "
               f"update={bool(data.get('update_received'))} "
+              f"rest_bootstrap={bool(data.get('rest_bootstrap_required'))} "
               f"types={','.join(data.get('message_types') or []) or 'none'} "
               f"http={data.get('http_status') or 'none'} "
+              f"warning={data.get('warning_code') or 'none'} "
               f"error={data.get('error_code') or 'none'}"
           )
           if not data.get("success"):

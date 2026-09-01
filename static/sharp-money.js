@@ -225,8 +225,9 @@
 
   function selectedComparisonLines(signal) {
     const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
-    if (!sportsbookFilterActive()) return rows;
-    return rows.filter(row => state.filters.sportsbooks.has(providerCatalogKey(row)));
+    const usable = rows.filter(isUsableQuote);
+    if (!sportsbookFilterActive()) return usable;
+    return usable.filter(row => state.filters.sportsbooks.has(providerCatalogKey(row)));
   }
 
   function isMarketIntelligenceProvider(row) {
@@ -236,13 +237,27 @@
   function bestQuote(rows) {
     return (rows || []).reduce((best, row) => {
       const price = Number(row?.americanOdds);
-      return Number.isFinite(price) && (!best || price > Number(best.americanOdds)) ? row : best;
+      return isUsableAmericanOdds(price) && (!best || price > Number(best.americanOdds)) ? row : best;
     }, null);
+  }
+
+  const MAX_ACTIONABLE_ABS_AMERICAN_ODDS = 10000;
+
+  function isUsableAmericanOdds(value) {
+    const price = Number(value);
+    return Number.isFinite(price)
+      && Math.abs(price) >= 100
+      && Math.abs(price) <= MAX_ACTIONABLE_ABS_AMERICAN_ODDS;
+  }
+
+  function isUsableQuote(row) {
+    if (!isUsableAmericanOdds(row?.americanOdds)) return false;
+    return row?.oppositeAmericanOdds == null || isUsableAmericanOdds(row.oppositeAmericanOdds);
   }
 
   function decimalOdds(value) {
     const price = Number(value);
-    if (!Number.isFinite(price) || (price > -100 && price < 100)) return null;
+    if (!isUsableAmericanOdds(price)) return null;
     return price > 0 ? 1 + price / 100 : 1 + 100 / Math.abs(price);
   }
 
@@ -277,7 +292,7 @@
 
   function depthQuotes(signal) {
     const rows = Array.isArray(signal.comparisonLines) ? signal.comparisonLines : [];
-    const byProvider = new Map(rows.map(row => [providerKey(row), row]));
+    const byProvider = new Map(rows.filter(isUsableQuote).map(row => [providerKey(row), row]));
     const quotes = DEPTH_PROVIDER_ORDER.map(key => ({ key, row: byProvider.get(key) || null }));
     const best = bestQuote(quotes.map(item => item.row).filter(Boolean));
     return quotes.map(item => ({ ...item, isBest: item.row === best }));
@@ -504,7 +519,7 @@
   }
 
   function historyChart(signal) {
-    const history = signal.history || [];
+    const history = (signal.history || []).filter(row => isUsableAmericanOdds(row.americanOdds));
     if (history.length < 2) return `<div class="sharp-chart-warmup"><i class="ph ph-chart-line-up"></i><strong>Building price history</strong><span>Two or more live snapshots are required.</span></div>`;
     const values = history.map(row => Number(row.americanOdds) || 0);
     const min = Math.min(...values);
@@ -557,9 +572,12 @@
       ? "alternate"
       : signal.market?.kind;
     const retailQuote = primaryQuote(signal);
+    const rawDirectDepth = signal.depthAvailable === true
+      && (signal.comparisonLines || []).some(row => DEPTH_PROVIDER_ORDER.includes(providerKey(row)));
     const hasDirectDepth = signal.depthAvailable === true
       && depthQuotes(signal).some(({row}) => row && Number(row.availableLiquidity) > 0);
-    return Boolean(retailQuote || hasDirectDepth)
+    return (!rawDirectDepth || hasDirectDepth)
+      && Boolean(retailQuote || hasDirectDepth)
       && (!state.sport || signal.league === state.sport || signal.sport === state.sport)
       && (!state.search || haystack.includes(state.search))
       && crossedPriceGapPercent(signal) >= state.filters.minimumCrossedEdgePercent

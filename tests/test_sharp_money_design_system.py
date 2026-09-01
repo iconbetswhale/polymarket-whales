@@ -132,6 +132,10 @@ def test_sharp_money_accepts_verified_direct_depth_and_filters_crossed_price_edg
     assert "Live source active · ${payload.lastError}" in script
     assert "Live cards retained · refresh temporarily unavailable" in script
     assert '"Live feed unavailable"' in script
+    assert "MAX_ACTIONABLE_ABS_AMERICAN_ODDS = 10000" in script
+    assert "rows.filter(isUsableQuote)" in script
+    assert "(!rawDirectDepth || hasDirectDepth)" in script
+    assert "signal.history || []).filter(row => isUsableAmericanOdds" in script
 
 
 def test_sharp_money_line_shop_uses_shared_draggable_account_order():

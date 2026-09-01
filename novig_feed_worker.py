@@ -332,6 +332,8 @@ def websocket_smoke_test(
         "book_snapshot_received": False,
         "update_received": False,
         "message_types": [],
+        "rest_bootstrap_required": False,
+        "warning_code": None,
         "error_code": None,
         "http_status": None,
         "credentials_exposed": False,
@@ -389,8 +391,21 @@ def websocket_smoke_test(
             if result["book_snapshot_received"] and result["update_received"]:
                 break
         result["success"] = bool(
-            result["connected"] and result["book_snapshot_received"]
+            result["connected"]
+            and result["market_subscription_sent"]
+            and (
+                result["book_snapshot_received"]
+                or result["update_received"]
+            )
         )
+        if result["success"] and not result["book_snapshot_received"]:
+            # The long-running worker always REST-bootstraps books before it
+            # consumes WebSocket deltas. NoVIG currently sends live PLACE/CANCEL
+            # traffic without an initial `book` frame for some open markets, so
+            # an authenticated market update is a valid transport smoke while
+            # still surfacing the required bootstrap path explicitly.
+            result["rest_bootstrap_required"] = True
+            result["warning_code"] = "NOVIG_WEBSOCKET_SNAPSHOT_NOT_OBSERVED"
         if not result["success"]:
             result["error_code"] = "NOVIG_WEBSOCKET_SNAPSHOT_NOT_OBSERVED"
     except NoVIGError as exc:

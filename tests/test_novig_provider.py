@@ -443,7 +443,7 @@ def test_websocket_reconnect_rebootstraps_and_resubscribes() -> None:
     assert all(socket.closed for socket in connected_sockets)
 
 
-def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> None:
+def test_websocket_smoke_accepts_initial_book_without_random_live_tick() -> None:
     session = QueueSession(
         responses=[FakeResponse([sample_market()["event"]])]
     )
@@ -471,6 +471,27 @@ def test_websocket_smoke_requires_initial_book_but_not_a_random_live_tick() -> N
         {"event": "subscribe", "data": "tape"},
         {"event": "subscribe", "data": "lifecycle"},
     ]
+
+
+def test_websocket_smoke_accepts_market_updates_with_explicit_rest_bootstrap_warning() -> None:
+    session = QueueSession()
+    auth = NoVIGAuthClient("client-id", "client-secret", session=session)
+    rest = NoVIGRestClient(auth, session=session)
+    socket = FakeSocket([{"type": "PLACE", "data": {"marketId": "market-1"}}])
+
+    result = websocket_smoke_test(
+        auth,
+        rest,
+        market_id="market-1",
+        socket_factory=lambda *_args, **_kwargs: socket,
+    )
+
+    assert result["success"] is True
+    assert result["book_snapshot_received"] is False
+    assert result["update_received"] is True
+    assert result["rest_bootstrap_required"] is True
+    assert result["warning_code"] == "NOVIG_WEBSOCKET_SNAPSHOT_NOT_OBSERVED"
+    assert result["error_code"] is None
 
 
 def test_websocket_smoke_reports_only_sanitized_provider_http_status() -> None:
