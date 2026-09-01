@@ -95,7 +95,7 @@ from lab_tracker import (
 from trade_scoring import filter_trades_to_play
 from three_sharp_strategy import SHARPS as THREE_SHARP_WALLETS
 from three_sharp_strategy import STRATEGY_ID as THREE_SHARP_STRATEGY_ID
-from shadow_monitor import build_shadow_lab
+from shadow_monitor import build_shadow_lab, load_shadow_config
 from specialist_strategy import SHARPS as SPECIALIST_WALLETS
 from ev_optimizer import (
     ALTERNATE_MARKETS,
@@ -7404,7 +7404,18 @@ def create_app(start_background: bool = True) -> Flask:
             ),
             reverse=True,
         )
-        shadow_lab = build_shadow_lab(tracker.database.get_all_tracked_positions())
+        shadow_config = load_shadow_config()
+        shadow_wallets = sorted(
+            {
+                str(sleeve.get("address") or "").strip().lower()
+                for sleeve in shadow_config.get("sleeves") or []
+                if sleeve.get("address")
+            }
+        )
+        shadow_lab = build_shadow_lab(
+            tracker.database.get_shadow_lab_positions(shadow_wallets),
+            shadow_config,
+        )
         database_health = tracker.database.health()
         return jsonify(
             {

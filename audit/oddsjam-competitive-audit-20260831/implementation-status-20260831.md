@@ -100,9 +100,10 @@ cross-instance disagreement. The target remains p50 under 500 ms, p95 under
 - Python modules compile.
 - Changed JavaScript files pass `node --check`.
 - `git diff --check` passes.
-- Final full repository suite passed: 1,100 tests in 316.42 seconds after the
+- Final full repository suite passed: 1,103 tests in 318.64 seconds after the
   Advanced REST, ProphetX/NoVIG depth, line-history integration, and serialized
-  PostgreSQL cold-start migration updates.
+  PostgreSQL cold-start migration updates. The Shadow Lab production-memory
+  regression tests are included in this count.
 - In-app browser QA covered Fantasy desktop/mobile, Positive EV, Odds Screen,
   Arbitrage, Middles, Low Hold, and Sharp Money.
 - Fantasy `Build best slip` was exercised and returned the correct insufficient-
@@ -134,6 +135,13 @@ The deployment workflow now performs a protected OddsEngine authentication,
 quota, registry, transport, and Advanced-access diagnostic on every production
 release. Advanced rejection and quota exhaustion are surfaced as release
 warnings; an explicit unauthorized response still fails the release smoke test.
+
+The second smoke run confirmed the migration-lock fix: Model Tracker and
+LabTracker reconciliation both completed. It also exposed `/api/shadow-test`
+loading every full historical position snapshot and exceeding Vercel function
+memory. Shadow Lab now filters at the database to configured research wallets
+and projects only the scalar fields used by its analysis, leaving full position
+snapshots out of the request heap.
 
 ## Production release gates
 

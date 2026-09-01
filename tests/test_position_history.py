@@ -328,6 +328,45 @@ def test_position_history_uses_durable_store_when_configured(tmp_path, monkeypat
     assert health["position_history_backend"] == "postgresql"
 
 
+def test_shadow_lab_position_query_filters_wallets_and_projects_snapshots(tmp_path):
+    database = TrackerDatabase(tmp_path / "tracker.db")
+    now = datetime.now(timezone.utc).isoformat()
+    for address, title in (("0xABC", "Included"), ("0xDEF", "Excluded")):
+        database.save_open_position(
+            {
+                "wallet_address": address,
+                "position_key": f"{title.lower()}::yes",
+                "status": "open",
+                "first_detected_at": now,
+                "last_seen_at": now,
+                "last_changed_at": now,
+                "canonical_league_id": "mlb",
+                "sports_market_type": "moneyline",
+                "market_title": title,
+                "position_size_usd": 1000,
+                "average_entry_price": 0.5,
+            }
+        )
+
+    rows = database.get_shadow_lab_positions(["0xabc"])
+
+    assert len(rows) == 1
+    assert rows[0]["wallet_address"].lower() == "0xabc"
+    assert rows[0]["snapshot"] == {
+        "canonical_league_id": "mlb",
+        "canonical_category_id": None,
+        "league": None,
+        "category": None,
+        "sports_market_type": "moneyline",
+        "market_slug": None,
+        "market_title": "Included",
+        "position_size_usd": 1000,
+        "average_entry_price": 0.5,
+        "realized_pnl": None,
+        "clv_pct": None,
+    }
+
+
 def test_discord_notifications_skip_initial_scan_but_send_later_changes(tmp_path):
     settings = _settings(tmp_path)
     database = TrackerDatabase(settings.database_path)

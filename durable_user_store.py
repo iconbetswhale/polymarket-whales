@@ -912,6 +912,81 @@ class PostgresUserStore:
             ).fetchall()
         return [self._tracked_position_row(row) for row in rows]
 
+    def get_shadow_lab_positions(
+        self, wallet_addresses: list[str]
+    ) -> list[dict[str, Any]]:
+        """Project Shadow Lab inputs in SQL instead of loading full snapshots."""
+
+        normalized = sorted(
+            {
+                str(address or "").strip().lower()
+                for address in wallet_addresses
+                if str(address or "").strip()
+            }
+        )
+        if not normalized:
+            return []
+        with self.connection() as conn:
+            rows = conn.execute(
+                """
+                WITH positions AS (
+                    SELECT wallet_address, position_key, status,
+                           first_detected_at, last_seen_at, closed_at,
+                           snapshot_json::jsonb AS snapshot
+                    FROM tracked_positions
+                    WHERE wallet_address = ANY(%s)
+                )
+                SELECT wallet_address, position_key, status, first_detected_at,
+                       last_seen_at, closed_at,
+                       snapshot ->> 'canonical_league_id' AS canonical_league_id,
+                       snapshot ->> 'canonical_category_id' AS canonical_category_id,
+                       snapshot ->> 'league' AS league,
+                       snapshot ->> 'category' AS category,
+                       snapshot ->> 'sports_market_type' AS sports_market_type,
+                       snapshot ->> 'market_slug' AS market_slug,
+                       snapshot ->> 'market_title' AS market_title,
+                       COALESCE(
+                           snapshot ->> 'position_size_usd',
+                           snapshot ->> 'reported_initial_value',
+                           snapshot ->> 'initialValue'
+                       ) AS position_size_usd,
+                       COALESCE(
+                           snapshot ->> 'average_entry_price',
+                           snapshot ->> 'avg_price',
+                           snapshot ->> 'avgPrice'
+                       ) AS average_entry_price,
+                       COALESCE(
+                           snapshot ->> 'realized_pnl',
+                           snapshot ->> 'realizedPnl'
+                       ) AS realized_pnl,
+                       snapshot ->> 'clv_pct' AS clv_pct
+                FROM positions
+                ORDER BY COALESCE(closed_at, last_seen_at) ASC
+                """,
+                (normalized,),
+            ).fetchall()
+        snapshot_keys = {
+            "canonical_league_id",
+            "canonical_category_id",
+            "league",
+            "category",
+            "sports_market_type",
+            "market_slug",
+            "market_title",
+            "position_size_usd",
+            "average_entry_price",
+            "realized_pnl",
+            "clv_pct",
+        }
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["snapshot"] = {
+                key: item.pop(key) for key in snapshot_keys if key in item
+            }
+            result.append(item)
+        return result
+
     def save_open_positions(self, snapshots: list[dict[str, Any]]) -> None:
         if not snapshots:
             return

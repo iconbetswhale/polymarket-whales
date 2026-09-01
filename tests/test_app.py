@@ -2521,6 +2521,30 @@ def test_shadow_status_reports_active_tracking_and_storage_backend(app_client):
     }
 
 
+def test_shadow_status_loads_only_configured_wallet_projection(
+    app_client, monkeypatch
+):
+    from shadow_monitor import load_shadow_config
+
+    database = app_client.application.extensions["tracker_service"].database
+    captured = []
+
+    def projected_positions(wallet_addresses):
+        captured.extend(wallet_addresses)
+        return []
+
+    monkeypatch.setattr(database, "get_shadow_lab_positions", projected_positions)
+
+    response = app_client.get("/api/shadow-test")
+
+    configured = {
+        str(sleeve["address"]).lower()
+        for sleeve in load_shadow_config()["sleeves"]
+    }
+    assert response.status_code == 200
+    assert set(captured) == configured
+
+
 @pytest.mark.parametrize(
     ("query", "entry", "expected_total"),
     [

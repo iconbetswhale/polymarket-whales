@@ -916,6 +916,76 @@ class TrackerDatabase:
             result.append(item)
         return result
 
+    def get_shadow_lab_positions(self, wallet_addresses: list[str]) -> list[dict]:
+        """Return only the scalar fields needed by the Shadow Lab analysis."""
+
+        normalized = sorted(
+            {
+                str(address or "").strip().lower()
+                for address in wallet_addresses
+                if str(address or "").strip()
+            }
+        )
+        if not normalized:
+            return []
+        if self.user_store:
+            return self.user_store.get_shadow_lab_positions(normalized)
+        placeholders = ", ".join("?" for _address in normalized)
+        with self.connection() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT wallet_address, position_key, status, first_detected_at,
+                       last_seen_at, closed_at,
+                       json_extract(snapshot_json, '$.canonical_league_id') AS canonical_league_id,
+                       json_extract(snapshot_json, '$.canonical_category_id') AS canonical_category_id,
+                       json_extract(snapshot_json, '$.league') AS league,
+                       json_extract(snapshot_json, '$.category') AS category,
+                       json_extract(snapshot_json, '$.sports_market_type') AS sports_market_type,
+                       json_extract(snapshot_json, '$.market_slug') AS market_slug,
+                       json_extract(snapshot_json, '$.market_title') AS market_title,
+                       COALESCE(
+                           json_extract(snapshot_json, '$.position_size_usd'),
+                           json_extract(snapshot_json, '$.reported_initial_value'),
+                           json_extract(snapshot_json, '$.initialValue')
+                       ) AS position_size_usd,
+                       COALESCE(
+                           json_extract(snapshot_json, '$.average_entry_price'),
+                           json_extract(snapshot_json, '$.avg_price'),
+                           json_extract(snapshot_json, '$.avgPrice')
+                       ) AS average_entry_price,
+                       COALESCE(
+                           json_extract(snapshot_json, '$.realized_pnl'),
+                           json_extract(snapshot_json, '$.realizedPnl')
+                       ) AS realized_pnl,
+                       json_extract(snapshot_json, '$.clv_pct') AS clv_pct
+                FROM tracked_positions
+                WHERE LOWER(wallet_address) IN ({placeholders})
+                ORDER BY COALESCE(closed_at, last_seen_at) ASC
+                """,
+                normalized,
+            ).fetchall()
+        snapshot_keys = {
+            "canonical_league_id",
+            "canonical_category_id",
+            "league",
+            "category",
+            "sports_market_type",
+            "market_slug",
+            "market_title",
+            "position_size_usd",
+            "average_entry_price",
+            "realized_pnl",
+            "clv_pct",
+        }
+        result = []
+        for row in rows:
+            item = dict(row)
+            item["snapshot"] = {
+                key: item.pop(key) for key in snapshot_keys if key in item
+            }
+            result.append(item)
+        return result
+
     def save_open_positions(self, snapshots: list[dict]) -> None:
         if not snapshots:
             return

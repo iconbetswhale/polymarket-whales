@@ -124,6 +124,37 @@ def test_postgres_open_positions_use_cursor_batch():
     assert values[0][1] == "market::yes"
 
 
+def test_postgres_shadow_lab_query_filters_and_projects_snapshots():
+    connection = ReturningConnection(
+        [
+            {
+                "wallet_address": "0xabc",
+                "position_key": "market::yes",
+                "status": "closed",
+                "first_detected_at": "2026-08-21T00:00:00+00:00",
+                "last_seen_at": "2026-08-21T01:00:00+00:00",
+                "closed_at": "2026-08-21T01:00:00+00:00",
+                "canonical_league_id": "mlb",
+                "market_title": "Example",
+                "position_size_usd": "1200",
+                "average_entry_price": "0.55",
+                "realized_pnl": "90",
+                "clv_pct": "0.02",
+            }
+        ]
+    )
+    store = _store_with_connection(connection)
+
+    rows = store.get_shadow_lab_positions(["0xABC", "0xabc", ""])
+
+    query, values = connection.queries[0]
+    assert "snapshot_json::jsonb" in query
+    assert "wallet_address = ANY(%s)" in query
+    assert values == (["0xabc"],)
+    assert rows[0]["snapshot"]["market_title"] == "Example"
+    assert "market_title" not in rows[0]
+
+
 def test_postgres_tracker_bankroll_update_preserves_trade_bankroll():
     connection = ReturningConnection(
         {
