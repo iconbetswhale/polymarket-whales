@@ -130,6 +130,8 @@ def test_sharp_money_accepts_verified_direct_depth_and_filters_crossed_price_edg
     assert "Awaiting line" not in script
     assert "row || {providerKey:key}" in script
     assert "Live source active · ${payload.lastError}" in script
+    assert "Live cards retained · refresh temporarily unavailable" in script
+    assert '"Live feed unavailable"' in script
 
 
 def test_sharp_money_line_shop_uses_shared_draggable_account_order():

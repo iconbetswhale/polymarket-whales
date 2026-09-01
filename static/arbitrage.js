@@ -272,6 +272,7 @@
       elements.detailContent.hidden = true;
       return;
     }
+    const executable = row.executionStatus === "EXECUTABLE";
     const plan = (row.outcomes || []).map((leg) => `
       <article class="arb-plan-leg">
         <div class="arb-plan-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
@@ -279,7 +280,7 @@
         <b class="arb-plan-odds">${odds(leg.americanOdds)}</b>
         <div class="arb-plan-stake"><b>${money(leg.stake)}</b></div>
         <b class="arb-plan-payout">${money(leg.payout)}</b>
-        ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
+        ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">${executable ? "BET" : "CHECK"}<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">${executable ? "BET" : "CHECK"}</span>`}
       </article>`).join("");
     const payoutMax = Math.max(...row.outcomes.map((leg) => leg.payout), 1);
     const payouts = row.outcomes.map((leg) => `<div class="arb-payout-row"><span title="${esc(leg.selection)}">${esc(leg.selection)}</span><progress max="${payoutMax}" value="${Number(leg.payout)}"></progress><b>+${money(leg.profit)}</b></div>`).join("");
@@ -289,7 +290,6 @@
       return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4><div class="arb-quote-head"><span>Book</span><span>Age</span><span>Odds</span><span>Stake</span><span>Payout</span></div>${quotes.map((quote) => quoteRow(quote, selected?.bookKey, row.minPayout)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
-    const executable = row.executionStatus === "EXECUTABLE";
     const executionLabel = executable ? "Executable — all gates verified" : "Theoretical — verify limits, rules, and eligibility";
     elements.detailContent.innerHTML = `
       <header class="arb-detail-hero">
@@ -299,9 +299,10 @@
           <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))} · ${esc(executionLabel)}</p>
         </div>
         <dl class="arb-detail-facts"><div><dt>Market</dt><dd>${esc(row.marketLabel)}</dd></div><div><dt>Start time</dt><dd>${esc(dateTime(row.commenceTime))}</dd></div></dl>
-        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>Copy stake plan</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
+        <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>${executable ? "Copy stake plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      <section class="arb-detail-section arb-stake-plan-section"><header><h3>Stake Plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
+      ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical arbitrage match, not an executable claim. Verify every price, accepted stake, limit, settlement rule, and account-eligibility gate before placing either leg.</span></div>`}
+      <section class="arb-detail-section arb-stake-plan-section"><header><h3>${executable ? "Stake Plan" : "Verification Plan"}</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
       <section class="arb-detail-section arb-guaranteed-section"><header><h3>${executable ? "Guaranteed Outcome" : "Mathematical Payout"}</h3><span>${executable ? "after fee buffer &amp; cent rounding" : "only if every listed leg is accepted"}</span></header><div class="arb-guaranteed-layout"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>${executable ? "Locked profit" : "Modeled profit"}</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></div></section>
       <section class="arb-detail-section arb-odds-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header><div class="arb-comparison-grid">${comparisons}</div></section>
       <details class="arb-detail-section arb-calculation"><summary><h3>Calculation</h3><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></details>`;
@@ -482,12 +483,14 @@
   function copyPlan() {
     const row = state.rows.find((item) => item.id === state.selectedId);
     if (!row) return;
+    const executable = row.executionStatus === "EXECUTABLE";
     const text = [
+      executable ? "EXECUTABLE — RECHECK EVERY PRICE AND ACCEPTED STAKE BEFORE SUBMISSION" : "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING",
       `${row.eventTitle} · ${row.marketLabel}${row.marketContext ? ` · ${row.marketContext}` : ""}`,
       ...row.outcomes.map((leg) => `${leg.bookName}: ${leg.selection} ${odds(leg.americanOdds)} — stake ${money(leg.stake)}`),
       `Total ${money(row.totalStake)} · Minimum payout ${money(row.minPayout)} · Modeled profit ${money(row.guaranteedProfit)} (${percent(row.profitPercent)}) · ${row.executionStatus || "THEORETICAL"}`,
     ].join("\n");
-    navigator.clipboard?.writeText(text).then(() => notify("Stake plan copied.")).catch(() => notify("Copy failed. Select and copy the plan manually.", "error"));
+    navigator.clipboard?.writeText(text).then(() => notify(executable ? "Stake plan copied." : "Verification checklist copied.")).catch(() => notify("Copy failed. Select and copy the plan manually.", "error"));
   }
 
   function bind() {

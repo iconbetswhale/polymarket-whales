@@ -673,7 +673,9 @@
       state.signals = Array.isArray(state.payload.signals) ? state.payload.signals : [];
       render();
     } catch {
-      $("sharp-last-updated").textContent = "Local collector unavailable";
+      $("sharp-last-updated").textContent = state.visible.length
+        ? "Live cards retained · refresh temporarily unavailable"
+        : "Live feed unavailable";
     }
   }
 

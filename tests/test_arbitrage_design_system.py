@@ -186,6 +186,12 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         "showModal()",
     ):
         assert required in SCRIPT
+    assert '${executable ? "BET" : "CHECK"}' in SCRIPT
+    assert 'executable ? "Copy stake plan" : "Copy verification checklist"' in SCRIPT
+    assert 'executable ? "Stake Plan" : "Verification Plan"' in SCRIPT
+    assert "not an executable claim" in SCRIPT
+    assert "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING" in SCRIPT
+    assert 'executable ? "Stake plan copied." : "Verification checklist copied."' in SCRIPT
 
 
 def test_arbitrage_comparison_uses_shared_draggable_book_order() -> None:
