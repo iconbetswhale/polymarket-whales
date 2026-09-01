@@ -25,6 +25,7 @@
     distinctBooks: true,
     alerts: false,
     stake: 1000,
+    sort: "cost-asc",
   };
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch (_) { saved = {}; }
@@ -46,6 +47,7 @@
     distinctBooks: saved.distinctBooks === undefined ? defaults.distinctBooks : Boolean(saved.distinctBooks),
     alerts: Boolean(saved.alerts),
     stake: numberBetween(saved.stake, 1, 10_000_000, defaults.stake),
+    sort: ["cost-asc", "width-desc", "profit-desc", "time-asc"].includes(saved.sort) ? saved.sort : defaults.sort,
     lastUpdated: null,
     tracked: new Set(),
     refreshTimer: null,
@@ -64,6 +66,7 @@
     refresh: document.getElementById("mid-refresh"),
     sport: document.getElementById("mid-sport"),
     market: document.getElementById("mid-market"),
+    sort: document.getElementById("mid-sort"),
     filterDialog: document.getElementById("mid-filter-dialog"),
     bookGrid: document.getElementById("mid-book-grid"),
     resultCopy: document.getElementById("mid-result-copy"),
@@ -137,6 +140,15 @@
     return `In ${Math.round(hours / 24)}d`;
   }
 
+  function queueDateParts(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return { day: "Upcoming", time: "" };
+    return {
+      day: date.toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+      time: date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }),
+    };
+  }
+
   function notify(message, tone = "success") {
     const toast = document.getElementById("app-toast");
     if (!toast) return;
@@ -150,7 +162,7 @@
     localStorage.setItem(storageKey, JSON.stringify({
       books: [...state.selectedBooks], markets: state.markets, minWidth: state.minWidth,
       maxCost: state.maxCost, maxAge: state.maxAge, commission: state.commission,
-      distinctBooks: state.distinctBooks, alerts: state.alerts, stake: state.stake,
+      distinctBooks: state.distinctBooks, alerts: state.alerts, stake: state.stake, sort: state.sort,
     }));
   }
 
@@ -171,38 +183,30 @@
   }
 
   function visibleRows() {
-    return state.rows.filter(rowMatches);
+    const rows = state.rows.filter(rowMatches);
+    if (state.sort === "width-desc") return rows.sort((left, right) => Number(right.middleWidth) - Number(left.middleWidth));
+    if (state.sort === "profit-desc") return rows.sort((left, right) => Number(right.middleProfit) - Number(left.middleProfit));
+    if (state.sort === "time-asc") return rows.sort((left, right) => new Date(left.commenceTime) - new Date(right.commenceTime));
+    return rows.sort((left, right) => Number(left.breakEvenMiddleProbability) - Number(right.breakEvenMiddleProbability));
   }
 
-  function opportunityCard(row) {
-    const selected = row.id === state.selectedId ? " selected" : "";
-    const guaranteed = row.guaranteedOutsideProfit;
-    const costClass = guaranteed ? "positive" : "warning";
-    const worstOutside = Math.min(...(row.legs || []).map((leg) => Number(leg.outsideProfit || 0)));
-    const tracked = state.tracked.has(row.id);
-    const modeled = row.probabilityModel?.status === "AVAILABLE";
-    const probabilityNote = modeled
-      ? `P ${percent(row.estimatedMiddleProbability)} · EV ${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)}`
-      : `BE ${percent(row.breakEvenMiddleProbability)} · probability unavailable`;
-    const legs = (row.legs || []).map((leg) => `
-      <div class="mid-card-leg">
-        <span title="${esc(leg.selection)}">${esc(leg.selection)}</span>
-        <b>${money(leg.stake, 0)}</b>
-        ${logoMarkup(leg)}
-        <span class="mid-odds-pill">${odds(leg.americanOdds)}</span>
-      </div>`).join("");
+  function opportunityCard(row, index) {
+    const start = queueDateParts(row.commenceTime);
     return `
-      <button class="mid-opportunity-card${selected}" type="button" data-mid-id="${esc(row.id)}" aria-pressed="${selected ? "true" : "false"}">
-        <div class="mid-card-score ${costClass}"><strong>${percent(row.costPercent)}</strong><span>${signedMoney(row.middleProfit)}</span><small>${probabilityNote}</small></div>
-        <div class="mid-card-event"><span class="mid-card-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)} · ${esc(timeUntil(row.commenceTime))}</span><h3 title="${esc(row.eventTitle)}">${esc(row.eventTitle)}</h3><p>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</p></div>
-        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span><i class="ph ph-shield-check" aria-hidden="true"></i>${row.executionStatus === "EXECUTABLE" ? "Verified outside outcome" : "Modeled outside outcome"}</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)}</small></div>
-        <div class="mid-card-legs">${legs}</div>
-        <div class="mid-card-open">${tracked ? '<i class="ph ph-bookmark-simple-fill mid-card-tracked" aria-label="Tracked"></i>' : ""}<i class="ph ph-caret-right" aria-hidden="true"></i></div>
-      </button>`;
+      <article class="mid-opportunity-card ${row.id === state.selectedId ? "selected" : ""}" data-mid-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.breakEvenMiddleProbability)} break-even middle on ${row.eventTitle}`)}">
+        <span class="mid-queue-rank">${index + 1}</span>
+        <div class="mid-card-score"><strong>${percent(row.breakEvenMiddleProbability)}</strong><span>${Number(row.middleWidth || 0).toFixed(1)} pts</span></div>
+        <div class="mid-card-event">
+          <h3 title="${esc(row.eventTitle)}"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i><span>${esc(row.eventTitle)}</span></h3>
+          <p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(row.window?.label || "middle window")}</p>
+        </div>
+        <time class="mid-queue-date" datetime="${esc(row.commenceTime)}"><span>${esc(start.day)}</span><small>${esc(start.time)}</small></time>
+      </article>`;
   }
 
   function renderFeed() {
-    if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} shown · ranked by lowest break-even`;
+    const sortLabels = { "cost-asc": "lowest break-even", "width-desc": "widest window", "profit-desc": "highest middle profit", "time-asc": "start time" };
+    if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} shown · ranked by ${sortLabels[state.sort] || sortLabels["cost-asc"]}`;
     if (state.loading && !state.rows.length) {
       elements.feed.innerHTML = Array.from({ length: 5 }, () => '<div class="mid-skeleton"></div>').join("");
       return;
@@ -238,6 +242,7 @@
     elements.market.innerHTML = '<option value="">All markets</option>' + markets.map(([key, label]) => `<option value="${esc(key)}">${esc(label)}</option>`).join("");
     elements.sport.value = sport;
     elements.market.value = market;
+    elements.sort.value = state.sort;
   }
 
   function quoteRow(quote, bestKey) {
@@ -255,13 +260,14 @@
     if (!row) return;
     const tracked = state.tracked.has(row.id);
     const legs = row.legs || [];
-    const legCards = legs.map((leg, index) => `
+    const legCards = legs.map((leg) => `
       <article class="mid-plan-leg">
-        <header><span>LEG ${index + 1}</span></header>
-        <div class="mid-plan-book">${logoMarkup(leg)}<span><strong>${esc(leg.bookName)}</strong><small>${leg.quoteAgeSeconds == null ? "Timestamp unavailable" : `${Math.round(leg.quoteAgeSeconds)}s old`}</small></span><b>${odds(leg.americanOdds)}</b></div>
-        <strong class="mid-plan-selection">${esc(leg.selection)}</strong>
-        <div class="mid-plan-stake"><span>Place</span><strong>${money(leg.stake)}</strong><small>outside return ${money(leg.outsidePayout)}</small></div>
-        ${leg.deepLink ? `<a class="mid-book-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener">Open ${esc(leg.bookName)}<i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ""}
+        <div class="mid-plan-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
+        <div class="mid-plan-book">${logoMarkup(leg)}<span><strong>${esc(leg.bookName)}</strong><small>${leg.quoteAgeSeconds == null ? "Age unavailable" : `${Math.round(leg.quoteAgeSeconds)}s old`}</small></span></div>
+        <b class="mid-plan-odds">${odds(leg.americanOdds)}</b>
+        <div class="mid-plan-stake"><strong>${money(leg.stake)}</strong></div>
+        <b class="mid-plan-payout">${money(leg.outsidePayout)}</b>
+        ${leg.deepLink ? `<a class="mid-book-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener">BET<i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>` : '<span class="mid-book-link disabled">BET</span>'}
       </article>`).join("");
     const outsideOne = legs[0] ? scenarioRow(`${legs[0].selection} wins`, "Result lands above / outside the middle", legs[0].outsideProfit) : "";
     const middle = scenarioRow("Both bets win", row.window?.label || "Inside the middle window", row.middleProfit, true);
@@ -276,13 +282,15 @@
       ? `<div><span>Market-implied middle</span><strong>${percent(row.estimatedMiddleProbability)}</strong><small>${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)} estimated EV · ${row.probabilityModel.method === "DEVIGGED_MARKET_LADDER_CDF" ? "de-vigged line ladder" : esc(row.probabilityModel.method || "model")}</small></div>`
       : `<div><span>Middle probability</span><strong>Unavailable</strong><small>${esc(row.probabilityModel?.reason || "No paired line ladder")}</small></div>`;
     elements.detail.innerHTML = `
-      <header class="mid-detail-header"><div><span>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</span><h2>${esc(row.eventTitle)}</h2><p>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</p></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></header>
-      <section class="mid-detail-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div>${probabilitySummary}</section>
-      <section class="mid-detail-section"><header><h3>Equalized stakes</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-grid">${legCards}</div></section>
-      <section class="mid-detail-section"><header><h3>Payout scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-scenario-list">${outsideOne}${middle}${outsideTwo}</div></section>
+      <header class="mid-detail-header">
+        <div class="mid-detail-main"><div class="mid-detail-hero-top"><div class="mid-detail-return"><strong>${percent(row.breakEvenMiddleProbability)}</strong><span>break-even middle</span></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></div><h2>${esc(row.eventTitle)}</h2><p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p></div>
+        <dl class="mid-detail-facts"><div><dt>Middle window</dt><dd>${esc(row.window?.label || `${row.middleWidth} pts`)}</dd></div><div><dt>Worst case</dt><dd class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</dd></div></dl>
+        <div class="mid-detail-actions"><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button></div>
+      </header>
+      <section class="mid-detail-section mid-stake-plan-section"><header><h3>Equalized stakes</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="mid-plan-grid">${legCards}</div></section>
+      <section class="mid-detail-section mid-payout-section"><header><h3>Payout scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-guaranteed-layout"><div class="mid-detail-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div>${probabilitySummary}</div><div class="mid-scenario-list">${outsideOne}${middle}${outsideTwo}</div></div></section>
       <section class="mid-detail-section"><header><h3>Available odds</h3><small>${row.bookCount} books</small></header><div class="mid-quote-groups">${comparisons}</div></section>
-      ${warnings}
-      <footer class="mid-detail-actions"><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button></footer>`;
+      ${warnings}`;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {
       document.body.classList.add("mid-detail-open");
       elements.backdrop.hidden = false;
@@ -514,7 +522,15 @@
     elements.search.addEventListener("input", () => { state.search = elements.search.value; renderFeed(); });
     elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; renderFeed(); });
     elements.market.addEventListener("change", () => { state.market = elements.market.value; renderFeed(); });
+    elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; saveSettings(); renderFeed(); });
     elements.feed.addEventListener("click", (event) => { const card = event.target.closest("[data-mid-id]"); if (card) selectRow(card.dataset.midId, true); });
+    elements.feed.addEventListener("keydown", (event) => {
+      if (!["Enter", " "].includes(event.key)) return;
+      const card = event.target.closest("[data-mid-id]");
+      if (!card) return;
+      event.preventDefault();
+      selectRow(card.dataset.midId, true);
+    });
     elements.scan.addEventListener("click", togglePause);
     elements.alerts.addEventListener("click", toggleAlerts);
     elements.refresh.addEventListener("click", () => loadBoard());

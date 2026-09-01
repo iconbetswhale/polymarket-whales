@@ -34,21 +34,23 @@
   </section>
 
   <div class="mid-workspace">
+    <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
+      <div class="mid-detail-empty"><span><i class="ph ph-cursor-click" aria-hidden="true"></i></span><h2>Execution plan</h2><p>Select an opportunity to see the exact stake on both sides, every payout scenario, and the best available prices.</p></div>
+    </aside>
+
     <section class="mid-feed-panel" aria-labelledby="mid-feed-title">
       <header class="mid-feed-heading">
-        <div><h2 id="mid-feed-title">Best opportunities</h2><span id="mid-result-copy">Ranked by lowest break-even</span></div>
+        <div class="sr-only"><h2 id="mid-feed-title">Best opportunities</h2></div>
         <div class="mid-quick-filters" aria-label="Quick filters">
           <label><span class="sr-only">Sport</span><select id="mid-sport"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="mid-market"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Sort</span><select id="mid-sort"><option value="cost-asc">Lowest break-even</option><option value="width-desc">Widest window</option><option value="profit-desc">Highest middle profit</option><option value="time-asc">Start time</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
         </div>
       </header>
       <div class="mid-feed-status" id="mid-feed-status" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating middle windows…</span></div>
       <div class="mid-feed" id="mid-feed" aria-live="polite"></div>
+      <footer class="mid-feed-footer"><span id="mid-result-copy">Ranked by lowest break-even</span></footer>
     </section>
-
-    <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
-      <div class="mid-detail-empty"><span><i class="ph ph-cursor-click" aria-hidden="true"></i></span><h2>Execution plan</h2><p>Select an opportunity to see the exact stake on both sides, every payout scenario, and the best available prices.</p></div>
-    </aside>
   </div>
 
   <button class="mid-mobile-close" id="mid-mobile-close" type="button" aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button>

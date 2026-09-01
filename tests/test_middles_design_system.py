@@ -69,8 +69,11 @@ def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "mid-summary-metrics" in TEMPLATE
     assert "mid-scan-status" in TEMPLATE
     assert TEMPLATE.count("mid-summary-count") == 1
-    assert "mid-card-outcome" in SCRIPT
-    assert "Modeled outside outcome" in SCRIPT
+    assert TEMPLATE.index('id="mid-detail"') < TEMPLATE.index('id="mid-feed"')
+    assert 'class="mid-feed-footer"' in TEMPLATE
+    assert 'id="mid-sort"' in TEMPLATE
+    assert "mid-queue-rank" in SCRIPT
+    assert "queueDateParts" in SCRIPT
     assert "Equalized stakes" in SCRIPT
     assert '<h3>Payout scenarios</h3>' in SCRIPT
     assert "qualified windows" not in TEMPLATE
@@ -93,16 +96,21 @@ def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None
         'grid-template-columns: minmax(420px, 1fr) minmax(550px, 720px)',
         'repeat(4, var(--il-control-height, 44px))',
         'grid-template-columns: repeat(4, minmax(0, 1fr))',
-        'grid-template-columns: minmax(600px, 1fr) minmax(390px, 440px)',
-        'grid-template-columns: 112px minmax(170px, 1fr) minmax(104px, .52fr) minmax(310px, 1.3fr) 50px',
-        'min-height: 112px',
+        'grid-template-columns: minmax(620px, 1.7fr) minmax(340px, .76fr)',
+        '.mid-detail { grid-column: 1; grid-row: 1; }',
+        'grid-template-rows: auto minmax(0, 1fr) auto',
+        'grid-template-columns: 28px 74px minmax(130px, 1fr) 76px',
+        'min-height: 76px',
+        'grid-template-columns: minmax(520px, 1fr) 350px',
     ):
         assert required in CSS
     assert "function stakeInputValue" in SCRIPT
     assert "function stakeInputNumber" in SCRIPT
     assert "function sportIcon" in SCRIPT
     assert "function toggleAlerts" in SCRIPT
+    assert '"cost-asc", "width-desc", "profit-desc", "time-asc"' in SCRIPT
     assert 'window.matchMedia("(max-width: 1080px)")' in SCRIPT
+    assert "live-arbitrage-v5" in BASE
 
 
 def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:
