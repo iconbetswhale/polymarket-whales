@@ -55,9 +55,20 @@ jobs:
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
             'https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/novig/websocket?mode=market')"
           market_id="$(NOVIG_MARKET_RESULT="$market_response" python - <<'PY'
-          import json, os, re
+          import json, os, re, sys
           data = json.loads(os.environ["NOVIG_MARKET_RESULT"])
           market_id = str(data.get("market_id") or "")
+          if data.get("error_code") == "NOVIG_NO_OPEN_MARKETS":
+              if data.get("credentials_exposed") or data.get("token_exposed"):
+                  raise SystemExit("NoVIG market response reported secret exposure")
+              print(
+                  "::warning::NoVIG has no open market available for a "
+                  "market-subscription smoke; continuing the remaining "
+                  "production checks.",
+                  file=sys.stderr,
+              )
+              print("__NO_OPEN_MARKETS__")
+              raise SystemExit(0)
           if not data.get("success") or not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", market_id):
               raise SystemExit(
                   "NoVIG market selection failed: "
@@ -69,6 +80,7 @@ jobs:
           print(market_id)
           PY
           )"
+          if [ "$market_id" != "__NO_OPEN_MARKETS__" ]; then
           response="$(curl --silent --show-error --max-time 25 \
             --request POST \
             --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
@@ -92,6 +104,7 @@ jobs:
           if data.get("credentials_exposed") or data.get("token_exposed"):
               raise SystemExit("NoVIG smoke response reported secret exposure")
           PY
+          fi
 
       - name: Verify OddsEngine authentication and Advanced access
         env:
