@@ -100,12 +100,40 @@ cross-instance disagreement. The target remains p50 under 500 ms, p95 under
 - Python modules compile.
 - Changed JavaScript files pass `node --check`.
 - `git diff --check` passes.
-- Final full repository suite passed: 1,099 tests in 313.93 seconds after the
-  Advanced REST, ProphetX/NoVIG depth, and line-history integration updates.
+- Final full repository suite passed: 1,100 tests in 316.42 seconds after the
+  Advanced REST, ProphetX/NoVIG depth, line-history integration, and serialized
+  PostgreSQL cold-start migration updates.
 - In-app browser QA covered Fantasy desktop/mobile, Positive EV, Odds Screen,
   Arbitrage, Middles, Low Hold, and Sharp Money.
 - Fantasy `Build best slip` was exercised and returned the correct insufficient-
   qualified-legs state with no browser console errors.
+
+## First production smoke result
+
+Commit `4237e47` deployed successfully to the production Vercel project. The
+Linux test suite, deployment, and NoVIG WebSocket smoke passed. The first
+post-deployment Model Tracker reconciliation exposed concurrent serverless cold
+starts deadlocking while applying the new PostgreSQL schema migration. The
+bootstrap now obtains a transaction-scoped PostgreSQL advisory lock and
+rechecks the schema under that lock before executing DDL.
+
+Live provider evidence from that release showed:
+
+- the configured OddsEngine key reported a 60-request limit with no quota
+  remaining during the scan;
+- the Advanced `/orderbook/top` capability probe was rejected, so
+  `advancedAccess` was `false` rather than the promised custom entitlement;
+- the book registry returned 47 books and included Pinnacle and NoVIG, but did
+  not include ProphetX in that observed response;
+- the Sharp Money direct-exchange fallback produced 50 read-only signals with
+  both NoVIG and ProphetX depth after the OddsEngine Advanced rejection; and
+- the Odds Screen correctly reported a degraded REST snapshot with only the
+  books present in its live result instead of claiming unobserved coverage.
+
+The deployment workflow now performs a protected OddsEngine authentication,
+quota, registry, transport, and Advanced-access diagnostic on every production
+release. Advanced rejection is surfaced as a release warning; invalid base
+authentication still fails the release smoke test.
 
 ## Production release gates
 

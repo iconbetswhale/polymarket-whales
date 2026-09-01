@@ -91,6 +91,41 @@ jobs:
               raise SystemExit("NoVIG smoke response reported secret exposure")
           PY
 
+      - name: Verify OddsEngine authentication and Advanced access
+        env:
+          TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}
+        run: |
+          response="$(curl --silent --show-error --fail-with-body --max-time 30 \
+            --request POST \
+            --header "Authorization: Bearer $TRACKER_JOB_SECRET" \
+            https://iconbets-polymarket-wallet-tracker.vercel.app/api/provider-health/odds-engine)"
+          ODDSENGINE_RESULT="$response" python - <<'PY'
+          import json, os
+
+          data = json.loads(os.environ["ODDSENGINE_RESULT"])
+          quota = data.get("quota") or {}
+          print(
+              "OddsEngine: "
+              f"configured={bool(data.get('configured'))} "
+              f"status={data.get('status') or 'unknown'} "
+              f"rate_limit={quota.get('limit') or 'unknown'} "
+              f"remaining={quota.get('remaining') or 'unknown'} "
+              f"advanced={data.get('advancedAccess')} "
+              f"books={int(data.get('bookRegistryCount') or 0)} "
+              f"transport={data.get('snapshotTransport') or 'unknown'} "
+              f"websocket={bool(data.get('websocketConnected'))}"
+          )
+          if data.get("credentials_exposed"):
+              raise SystemExit("OddsEngine diagnostic reported secret exposure")
+          if not data.get("configured") or data.get("status") != "authenticated":
+              raise SystemExit("OddsEngine production authentication failed")
+          if data.get("advancedAccess") is not True:
+              print(
+                  "::warning::OddsEngine authenticated, but its Advanced "
+                  "endpoint probe was rejected or could not be verified."
+              )
+          PY
+
       - name: Reconcile Model Tracker and verify Discord delivery
         env:
           TRACKER_JOB_SECRET: ${{ secrets.TRACKER_JOB_SECRET }}

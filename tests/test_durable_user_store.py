@@ -3,7 +3,10 @@ from __future__ import annotations
 import threading
 from contextlib import contextmanager
 
-from durable_user_store import PostgresUserStore
+from durable_user_store import (
+    POSTGRES_SCHEMA_MIGRATION_LOCK_ID,
+    PostgresUserStore,
+)
 
 
 class FakeCursor:
@@ -231,10 +234,11 @@ def test_current_schema_skips_full_postgres_bootstrap_on_cold_start():
     assert bootstrap_calls == []
     assert store._psycopg.connect_calls == 1
     schema_query = connection.queries[0][0]
-    assert "FROM schema_migrations" in schema_query
     assert "information_schema.columns" in schema_query
     assert "dfs_compare_book_order_json" in schema_query
     assert "line_shop_preferences" in schema_query
+    assert "odds_tool_snapshots" in schema_query
+    assert "odds_provider_health" in schema_query
 
 
 def test_missing_schema_marker_runs_full_postgres_bootstrap():
@@ -258,3 +262,24 @@ def test_missing_schema_marker_runs_full_postgres_bootstrap():
 
     assert store._initialized is True
     assert bootstrap_calls == [True]
+
+
+def test_postgres_bootstrap_serializes_cold_start_migrations() -> None:
+    connection = ReturningConnection({"ready": 1})
+    store = object.__new__(PostgresUserStore)
+
+    @contextmanager
+    def raw_connection():
+        yield connection
+
+    store._raw_connection = raw_connection
+
+    store.initialize()
+
+    lock_query, lock_values = connection.queries[0]
+    assert "pg_advisory_xact_lock" in lock_query
+    assert lock_values == (POSTGRES_SCHEMA_MIGRATION_LOCK_ID,)
+    assert "information_schema.tables" in connection.queries[1][0]
+    # The schema became current before this instance acquired the lock, so the
+    # full DDL bootstrap must not run again.
+    assert len(connection.queries) == 2

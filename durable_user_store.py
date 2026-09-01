@@ -38,6 +38,12 @@ from market_quotes import NormalizedMarketQuote
 from odds_tool_foundation import ODDS_TOOL_MIGRATION_VERSION, migration_sql as odds_tool_migration_sql
 
 
+# One transaction-scoped PostgreSQL advisory lock serializes DDL across
+# concurrent serverless cold starts. The value is application-specific and is
+# deliberately stable across deployments.
+POSTGRES_SCHEMA_MIGRATION_LOCK_ID = 741_927_411_314
+
+
 class PostgresUserStore:
     """Durable storage for tracker and user state in serverless deployments."""
 
@@ -72,35 +78,44 @@ class PostgresUserStore:
     def _schema_is_current(self) -> bool:
         """Avoid replaying the full DDL bootstrap on every serverless cold start."""
 
-        try:
-            with self._raw_connection() as conn:
-                row = conn.execute(
-                    """
-                    SELECT 1 AS ready
-                    FROM schema_migrations
-                    WHERE version = %s
-                      AND EXISTS (
-                          SELECT 1
-                          FROM information_schema.columns
-                          WHERE table_schema = current_schema()
-                            AND table_name = 'user_settings'
-                            AND column_name = 'dfs_compare_book_order_json'
-                      )
-                      AND EXISTS (
-                          SELECT 1
-                          FROM information_schema.tables
-                          WHERE table_schema = current_schema()
-                            AND table_name = 'line_shop_preferences'
-                      )
-                    LIMIT 1
-                    """,
-                    (ODDS_TOOL_MIGRATION_VERSION,),
-                ).fetchone()
-            return row is not None
-        except Exception as exc:
-            if getattr(exc, "sqlstate", None) == "42P01":
-                return False
-            raise
+        with self._raw_connection() as conn:
+            return self._schema_is_current_on(conn)
+
+    @staticmethod
+    def _schema_is_current_on(conn: Any) -> bool:
+        """Check required objects without referencing a possibly missing table."""
+
+        row = conn.execute(
+            """
+            SELECT 1 AS ready
+            WHERE EXISTS (
+                SELECT 1
+                FROM information_schema.columns
+                WHERE table_schema = current_schema()
+                  AND table_name = 'user_settings'
+                  AND column_name = 'dfs_compare_book_order_json'
+            )
+              AND EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name = 'line_shop_preferences'
+            )
+              AND EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name = 'odds_tool_snapshots'
+            )
+              AND EXISTS (
+                SELECT 1
+                FROM information_schema.tables
+                WHERE table_schema = current_schema()
+                  AND table_name = 'odds_provider_health'
+            )
+            """
+        ).fetchone()
+        return row is not None
 
     @contextmanager
     def _raw_connection(self) -> Iterator[Any]:
@@ -570,6 +585,15 @@ class PostgresUserStore:
             """,
         )
         with self._raw_connection() as conn:
+            conn.execute(
+                "SELECT pg_advisory_xact_lock(%s)",
+                (POSTGRES_SCHEMA_MIGRATION_LOCK_ID,),
+            )
+            # Another cold start may have completed the migration while this
+            # request waited for the advisory lock. Recheck under the lock so
+            # only one transaction runs the DDL bootstrap.
+            if self._schema_is_current_on(conn):
+                return
             for statement in statements:
                 conn.execute(statement)
             conn.execute(
