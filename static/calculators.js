@@ -78,7 +78,7 @@
       title: "Arbitrage Calculator",
       kicker: "HEDGE & RISK",
       icon: "ph-intersect-three",
-      description: "Split a stake across every outcome to equalize payout and identify a guaranteed return.",
+      description: "Split a stake across every outcome to equalize payout and identify a mathematical return.",
       defaults: { stake: 1000, odds: [110, 110] },
       example: { stake: 1000, odds: [138, 245, 330] },
       fields(values) {
@@ -88,8 +88,8 @@
         const output = math.arbitrage(values);
         const tone = output.isArbitrage ? "positive" : "negative";
         return result({
-          heading: "Guaranteed return",
-          label: output.isArbitrage ? "Guaranteed profit" : "Guaranteed loss",
+          heading: "Modeled return",
+          label: output.isArbitrage ? "Modeled profit" : "Modeled loss",
           value: money(output.guaranteedProfit),
           detail: `${percent(output.roi)} return after cent-level stake balancing`,
           tone,
@@ -107,7 +107,7 @@
             copy: output.isArbitrage ? "Every outcome is sized to return nearly the same payout." : "The implied probabilities meet or exceed 100%, so equalizing payouts locks in a loss.",
           },
           formula: "stakeᵢ = total stake × (1 ÷ decimal oddsᵢ) ÷ Σ(1 ÷ decimal odds)",
-          caveat: "A return is only guaranteed when every leg is accepted at the displayed price and stake.",
+          caveat: "This becomes executable only when every leg, price, stake capacity, account, and settlement rule is verified.",
         });
       },
     },
@@ -227,7 +227,7 @@
           metrics: output.fairProbabilities.slice(0, 4).map((value, index) => metric(`Fair side ${index + 1}`, percent(value), american(output.fairOdds[index]))),
           verdict: { tone, icon: output.hold <= 0.05 ? "ph-check-circle" : "ph-warning", title: output.hold <= 0.05 ? "Competitive market" : "High-hold market", copy: "Lower hold generally means less price friction for the bettor." },
           formula: "hold = Σ implied probabilities − 100%",
-          caveat: "Hold is a pricing measure, not the sportsbook's guaranteed realized profit.",
+          caveat: "Hold is a pricing measure, not the sportsbook's realized profit.",
         });
       },
     },

@@ -80,6 +80,7 @@ def _fixture_session() -> FakeSession:
     ) -> dict:
         return {
             "selection_id": selection_id,
+            "series_id": f"series-{selection_id}",
             "entity_name": entity_name,
             "side": side,
             "odds_american": odds,
@@ -772,10 +773,159 @@ def test_provider_reads_and_caches_advanced_prophetx_orderbook() -> None:
     assert session.calls[0]["url"].endswith("/v1/orderbook/top")
     assert session.calls[0]["params"] == {
         "sort": "whale",
-        "selected_books": "prophetx",
+        "selected_books": "novig,prophetx",
         "limit": 40,
     }
     assert provider.diagnostics()["supportsOrderBook"] is True
+
+
+def test_provider_exposes_documented_advanced_rest_capabilities() -> None:
+    line_history = {
+        "data": {
+            "event_id": "evt-provider-1",
+            "series": [
+                {
+                    "book": "pinnacle",
+                    "selection_key": "pin-home",
+                    "points": [
+                        {
+                            "ts": "2026-08-31T12:00:00Z",
+                            "line": -2.5,
+                            "price_american": -110,
+                            "change_kind": "change",
+                        }
+                    ],
+                }
+            ],
+        }
+    }
+    order_book = {
+        "league": "nba",
+        "markets": [
+            {
+                "market": "Moneyline",
+                "side_a": {
+                    "books": {
+                        "prophetx": {
+                            "limit": 5000,
+                            "order_book": [
+                                {"odds": 2.05, "liquidity": 1200}
+                            ],
+                        }
+                    }
+                },
+            }
+        ],
+    }
+    session = FakeSession(
+        {
+            "/linehistory": FakeResponse(line_history),
+            "/orderbook": FakeResponse(order_book),
+            "/arbitrage": FakeResponse({"data": [{"roi": 0.02}]}),
+            "/discrepancies": FakeResponse({"data": [{"delta": 1.5}]}),
+        }
+    )
+    provider = OddsEngineProvider("custom-trial-key", session=session)
+
+    assert provider.line_history_snapshot(
+        event_id="evt-provider-1", series="series-pin-home"
+    ) == line_history
+    assert provider.advanced_order_book_snapshot(
+        event_id="evt-provider-1",
+        books=("novig", "prophetx"),
+        market_type="player",
+        limit=200,
+    ) == order_book
+    assert provider.arbitrage_snapshot(league="nba", include_alt=True)["data"]
+    assert provider.discrepancies_snapshot(league="nba", view="prop")["data"]
+
+    assert session.calls[0]["params"] == {
+        "event_id": "evt-provider-1",
+        "granularity": "raw",
+        "limit": 2000,
+        "series": "series-pin-home",
+    }
+    assert session.calls[1]["params"] == {
+        "include_peers": "true",
+        "limit": 200,
+        "offset": 0,
+        "event_id": "evt-provider-1",
+        "market_type": "player",
+        "books": "novig,prophetx",
+    }
+    diagnostics = provider.diagnostics()
+    assert diagnostics["advancedAccess"] is True
+    assert diagnostics["supportsLineHistory"] is True
+    assert diagnostics["websocketEndpoint"] == "wss://api.oddsengine.dev/ws"
+    assert diagnostics["websocketConnected"] is False
+
+
+def test_provider_refreshes_dynamic_book_registry_and_keeps_new_book_quotes() -> None:
+    event_start = (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat()
+    session = FakeSession(
+        {
+            "/books": FakeResponse(
+                {
+                    "data": [
+                        {
+                            "book_id": "futurebook",
+                            "display_name": "Future Book",
+                            "kind": "retail",
+                            "deep_link": "web",
+                        }
+                    ]
+                }
+            )
+        }
+    )
+    provider = OddsEngineProvider("custom-trial-key", session=session)
+    registry = provider.refresh_book_registry()
+    event = normalize_odds_engine_event(
+        {
+            "event_id": "future-book-event",
+            "event_start": event_start,
+            "home_team": "Home",
+            "away_team": "Away",
+            "league": "NBA",
+            "market_categories": [
+                {
+                    "offers": [
+                        {
+                            "market": "Moneyline",
+                            "market_key": "moneyline",
+                            "books": [
+                                {
+                                    "book": "futurebook",
+                                    "selections": [
+                                        {
+                                            "selection_id": "future-home",
+                                            "series_id": "future-home-series",
+                                            "entity_name": "Home",
+                                            "side": "home",
+                                            "odds_american": 105,
+                                            "last_fetched": "2026-08-31T12:00:00Z",
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ]
+                }
+            ],
+        },
+        sport_key="basketball_nba",
+        requested_markets=("h2h",),
+        book_registry=provider._book_registry,
+    )
+
+    assert registry[0]["key"] == "futurebook"
+    assert event is not None
+    assert event["bookmakers"][0]["key"] == "futurebook"
+    assert event["bookmakers"][0]["title"] == "Future Book"
+    assert any(
+        item["key"] == "oddsengine__futurebook"
+        for item in provider.provider_catalog([])
+    )
 
 
 def test_provider_builds_standard_sharp_money_quote_snapshot() -> None:

@@ -183,6 +183,8 @@ class NormalizedMarketQuote:
         missing_ids = [key for key, value in provider_ids.items() if not str(value or "").strip()]
         if missing_ids:
             raise ValueError(f"Normalized quote is missing required identity fields: {', '.join(missing_ids)}")
+        if not str(quote_timestamp or "").strip():
+            raise ValueError("A provider quote timestamp is required")
         if american_odds is None:
             if decimal_odds is not None:
                 american_odds = decimal_to_american(decimal_odds)
@@ -191,6 +193,8 @@ class NormalizedMarketQuote:
             else:
                 raise ValueError("A real price is required to create a normalized quote")
         american = int(round(float(american_odds)))
+        if american == 0 or not -5_000 <= american <= 5_000:
+            raise ValueError("American odds are outside the supported integrity range")
         decimal = float(decimal_odds or american_to_decimal(american))
         probability = float(implied_probability or (1.0 / decimal))
         start = _utc(start_time)

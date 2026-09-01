@@ -28,7 +28,7 @@
 
   <section class="arb-kpi-strip il-kpi-strip" aria-label="Arbitrage summary">
     <article><span class="arb-kpi-icon"><i class="ph ph-intersect-three" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="arb-kpi-opportunities">—</strong><small id="arb-kpi-events">Awaiting scan</small></div></article>
-    <article><span class="arb-kpi-icon"><i class="ph ph-trend-up" aria-hidden="true"></i></span><div><span>Best return</span><strong id="arb-kpi-return">—</strong><small>Guaranteed if all legs fill</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-trend-up" aria-hidden="true"></i></span><div><span>Best return</span><strong id="arb-kpi-return">—</strong><small>Modeled if every leg fills</small></div></article>
     <article><span class="arb-kpi-icon"><i class="ph ph-currency-dollar" aria-hidden="true"></i></span><div><span>Top profit</span><strong id="arb-kpi-profit">—</strong><small id="arb-kpi-stake">On a $1,000 stake</small></div></article>
     <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="arb-kpi-books">—</strong><small>Selected execution venues</small></div></article>
   </section>
@@ -36,7 +36,7 @@
   <div class="arb-workspace">
     <section class="arb-board" aria-labelledby="arb-board-title">
       <header class="arb-board-header">
-        <div><h2 id="arb-board-title">Best opportunities</h2><span id="arb-result-copy">Ranked by guaranteed return</span></div>
+        <div><h2 id="arb-board-title">Best opportunities</h2><span id="arb-result-copy">Ranked by modeled return</span></div>
         <div class="arb-board-actions">
           <label><span class="sr-only">Sport</span><select id="arb-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="arb-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
@@ -52,7 +52,7 @@
       <div class="arb-detail-placeholder" id="arb-detail-placeholder">
         <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
         <h2>Execution plan</h2>
-        <p>Select an opportunity to see the exact stake on every outcome, guaranteed payout, and every available price.</p>
+        <p>Select an opportunity to see the modeled stake on every outcome, mathematical payout, and every available price.</p>
       </div>
       <div class="arb-detail-content" id="arb-detail-content" hidden></div>
     </aside>
@@ -82,7 +82,7 @@
           <div class="arb-book-grid" id="arb-book-grid"></div>
         </section>
         <section class="arb-filter-panel" data-arb-filter-panel="profit">
-          <h3>Profit &amp; stake</h3><p>Set the total cash deployed across all outcomes and the minimum guaranteed return.</p>
+          <h3>Profit &amp; stake</h3><p>Set the total cash deployed across all outcomes and the minimum modeled return.</p>
           <div class="arb-field-grid">
             <label>Total stake<span class="arb-field-money"><b>$</b><input id="arb-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
             <label>Minimum return<span class="arb-field-suffix"><input id="arb-min-profit" type="number" min="0" max="50" step="0.1" value="0.1"><b>%</b></span></label>
@@ -105,17 +105,17 @@
         <section class="arb-filter-panel" data-arb-filter-panel="execution">
           <h3>Execution safety</h3><p>Conservative settings reduce false positives from fees, stale prices, and same-book constraints.</p>
           <div class="arb-field-grid">
-            <label>Max quote age<span class="arb-field-suffix"><input id="arb-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Max quote age<span class="arb-field-suffix"><input id="arb-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
             <label>Exchange fee buffer<span class="arb-field-suffix"><input id="arb-commission" type="number" min="0" max="2500" step="10" value="0"><b>bps</b></span></label>
           </div>
           <label class="arb-toggle-row"><span><strong>Require a different book for every leg</strong><small>Useful when a sportsbook will not accept opposing bets in the same market.</small></span><input id="arb-distinct-books" type="checkbox"></label>
-          <div class="arb-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>Arbitrage is only guaranteed when every displayed price accepts the full stake before any line moves.</p></div>
+          <div class="arb-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>A mathematical arbitrage is executable only when every price, stake capacity, account, and settlement rule is verified before the line moves.</p></div>
         </section>
         <section class="arb-filter-panel" data-arb-filter-panel="sorting">
           <h3>Sorting</h3><p>Choose the first opportunities shown in the feed.</p>
           <div class="arb-radio-list">
-            <label><input type="radio" name="arb-dialog-sort" value="profit-desc" checked><span><strong>Highest guaranteed return</strong><small>Best percentage first</small></span></label>
-            <label><input type="radio" name="arb-dialog-sort" value="profit-amount-desc"><span><strong>Highest guaranteed profit</strong><small>Best dollar profit first</small></span></label>
+            <label><input type="radio" name="arb-dialog-sort" value="profit-desc" checked><span><strong>Highest modeled return</strong><small>Best percentage first</small></span></label>
+            <label><input type="radio" name="arb-dialog-sort" value="profit-amount-desc"><span><strong>Highest modeled profit</strong><small>Best dollar profit first</small></span></label>
             <label><input type="radio" name="arb-dialog-sort" value="time-asc"><span><strong>Starting soon</strong><small>Earliest events first</small></span></label>
           </div>
         </section>

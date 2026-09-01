@@ -119,7 +119,8 @@ def test_incomplete_market_cannot_create_a_false_arbitrage() -> None:
     )
 
     board = build_arbitrage_board(
-        [event], selected_books=("fanduel", "draftkings"), now=NOW
+        [event], selected_books=("fanduel", "draftkings"),
+        require_distinct_books=False, now=NOW
     )
 
     assert board["data"] == []
@@ -133,7 +134,8 @@ def test_distinct_book_mode_never_assigns_two_legs_to_one_book() -> None:
     )
 
     unrestricted = build_arbitrage_board(
-        [event], selected_books=("fanduel", "draftkings"), now=NOW
+        [event], selected_books=("fanduel", "draftkings"),
+        require_distinct_books=False, now=NOW
     )["data"][0]
     distinct = build_arbitrage_board(
         [event],
@@ -169,6 +171,32 @@ def test_exchange_commission_buffer_can_remove_a_nominal_edge() -> None:
     assert len(raw["data"]) == 1
     assert buffered["data"] == []
     assert buffered["diagnostics"]["rejectionReasons"]["not_arbitrage"] == 1
+
+
+def test_missing_timestamp_and_cross_leg_skew_fail_closed() -> None:
+    missing = _book("fanduel", [_outcome("Away", 150), _outcome("Home", 150)])
+    missing.pop("last_update")
+    missing["markets"][0].pop("last_update")
+    board = build_arbitrage_board(
+        [_event(missing, _book("draftkings", [_outcome("Away", 110), _outcome("Home", 110)]))],
+        selected_books=("fanduel", "draftkings"),
+        now=NOW,
+    )
+    assert board["data"] == []
+    assert board["diagnostics"]["rejectionReasons"]["missing_quote_timestamp"] == 1
+
+    old = _book("draftkings", [_outcome("Away", 110), _outcome("Home", 110)])
+    old_stamp = (NOW - timedelta(seconds=11)).isoformat()
+    old["last_update"] = old_stamp
+    old["markets"][0]["last_update"] = old_stamp
+    skewed = build_arbitrage_board(
+        [_event(_book("fanduel", [_outcome("Away", 150), _outcome("Home", 150)]), old)],
+        selected_books=("fanduel", "draftkings"),
+        max_cross_leg_skew_seconds=10,
+        now=NOW,
+    )
+    assert skewed["data"] == []
+    assert skewed["diagnostics"]["rejectionReasons"]["cross_leg_quote_skew"] >= 1
 
 
 def test_stale_quotes_are_rejected_before_price_selection() -> None:

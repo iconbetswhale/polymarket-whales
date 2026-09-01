@@ -35,6 +35,7 @@ from line_shop_persistence import persistence_records
 from market_quote_foundation import MARKET_QUOTE_MIGRATION_VERSION, migration_sql as market_quote_migration_sql
 from market_quote_persistence import list_history as list_quote_history, record_quotes
 from market_quotes import NormalizedMarketQuote
+from odds_tool_foundation import ODDS_TOOL_MIGRATION_VERSION, migration_sql as odds_tool_migration_sql
 
 
 class PostgresUserStore:
@@ -93,7 +94,7 @@ class PostgresUserStore:
                       )
                     LIMIT 1
                     """,
-                    (MARKET_QUOTE_MIGRATION_VERSION,),
+                    (ODDS_TOOL_MIGRATION_VERSION,),
                 ).fetchone()
             return row is not None
         except Exception as exc:
@@ -831,6 +832,13 @@ class PostgresUserStore:
             conn.execute(
                 "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
                 (MARKET_QUOTE_MIGRATION_VERSION, now),
+            )
+            for statement in odds_tool_migration_sql("postgres").split(";"):
+                if statement.strip():
+                    conn.execute(statement)
+            conn.execute(
+                "INSERT INTO schema_migrations(version, applied_at) VALUES (%s, %s) ON CONFLICT(version) DO NOTHING",
+                (ODDS_TOOL_MIGRATION_VERSION, now),
             )
 
     @staticmethod
@@ -3333,6 +3341,133 @@ class PostgresUserStore:
     def get_normalized_market_quote_history(self, **filters) -> list[dict]:
         with self.connection() as conn:
             return list_quote_history(conn, dialect="postgres", **filters)
+
+    def save_odds_tool_snapshot(
+        self,
+        snapshot_key: str,
+        tool: str,
+        payload: dict,
+        *,
+        ttl_seconds: int = 900,
+        source_updated_at: str | None = None,
+        status: str = "ok",
+    ) -> dict:
+        stored_at = datetime.now(timezone.utc)
+        source_at = source_updated_at or stored_at.isoformat()
+        expires_at = (stored_at + timedelta(seconds=max(1, int(ttl_seconds)))).isoformat()
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO odds_tool_snapshots(
+                    snapshot_key, tool, payload_json, source_updated_at,
+                    stored_at, expires_at, status
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(snapshot_key) DO UPDATE SET
+                    tool=excluded.tool,
+                    payload_json=excluded.payload_json,
+                    source_updated_at=excluded.source_updated_at,
+                    stored_at=excluded.stored_at,
+                    expires_at=excluded.expires_at,
+                    status=excluded.status
+                """,
+                (
+                    snapshot_key,
+                    tool,
+                    json.dumps(payload, sort_keys=True, separators=(",", ":")),
+                    source_at,
+                    stored_at.isoformat(),
+                    expires_at,
+                    status,
+                ),
+            )
+        return {
+            "snapshotKey": snapshot_key,
+            "tool": tool,
+            "sourceUpdatedAt": source_at,
+            "storedAt": stored_at.isoformat(),
+            "expiresAt": expires_at,
+            "status": status,
+        }
+
+    def get_odds_tool_snapshot(
+        self, snapshot_key: str, *, max_age_seconds: int | None = None
+    ) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM odds_tool_snapshots WHERE snapshot_key = %s",
+                (snapshot_key,),
+            ).fetchone()
+        if row is None:
+            return None
+        result = dict(row)
+        now = datetime.now(timezone.utc)
+        stored_at = datetime.fromisoformat(str(result["stored_at"]).replace("Z", "+00:00"))
+        expires_at = datetime.fromisoformat(str(result["expires_at"]).replace("Z", "+00:00"))
+        age_seconds = max(0.0, (now - stored_at.astimezone(timezone.utc)).total_seconds())
+        if max_age_seconds is not None and age_seconds > max(0, int(max_age_seconds)):
+            return None
+        return {
+            "snapshotKey": result["snapshot_key"],
+            "tool": result["tool"],
+            "payload": json.loads(result["payload_json"]),
+            "sourceUpdatedAt": result["source_updated_at"],
+            "storedAt": result["stored_at"],
+            "expiresAt": result["expires_at"],
+            "status": result["status"],
+            "ageSeconds": round(age_seconds, 3),
+            "expired": now >= expires_at.astimezone(timezone.utc),
+        }
+
+    def record_odds_provider_health(self, provider_key: str, payload: dict) -> None:
+        observed_at = str(payload.get("observedAt") or datetime.now(timezone.utc).isoformat())
+        with self.connection() as conn:
+            conn.execute(
+                """
+                INSERT INTO odds_provider_health(
+                    provider_key, status, transport, observed_at, last_success_at,
+                    last_error_at, latency_ms, quote_count, executable_quote_count,
+                    stale_quote_count, missing_timestamp_count, details_json
+                ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT(provider_key) DO UPDATE SET
+                    status=excluded.status,
+                    transport=excluded.transport,
+                    observed_at=excluded.observed_at,
+                    last_success_at=COALESCE(excluded.last_success_at, odds_provider_health.last_success_at),
+                    last_error_at=COALESCE(excluded.last_error_at, odds_provider_health.last_error_at),
+                    latency_ms=excluded.latency_ms,
+                    quote_count=excluded.quote_count,
+                    executable_quote_count=excluded.executable_quote_count,
+                    stale_quote_count=excluded.stale_quote_count,
+                    missing_timestamp_count=excluded.missing_timestamp_count,
+                    details_json=excluded.details_json
+                """,
+                (
+                    provider_key,
+                    str(payload.get("status") or "unknown"),
+                    str(payload.get("transport") or "unknown"),
+                    observed_at,
+                    payload.get("lastSuccessAt"),
+                    payload.get("lastErrorAt"),
+                    payload.get("latencyMs"),
+                    int(payload.get("quoteCount") or 0),
+                    int(payload.get("executableQuoteCount") or 0),
+                    int(payload.get("staleQuoteCount") or 0),
+                    int(payload.get("missingTimestampCount") or 0),
+                    json.dumps(payload.get("details") or {}, sort_keys=True),
+                ),
+            )
+
+    def get_odds_provider_health(self) -> list[dict]:
+        with self.connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM odds_provider_health ORDER BY provider_key"
+            ).fetchall()
+        result = []
+        for raw in rows:
+            row = dict(raw)
+            row["details"] = json.loads(row.pop("details_json") or "{}")
+            result.append(row)
+        return result
 
     def get_ev_optimizer_history(self, user_id: str, limit: int = 100) -> dict:
         with self.connection() as conn:

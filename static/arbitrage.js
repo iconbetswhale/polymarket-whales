@@ -11,13 +11,13 @@
   const configuredMarketKeys = Object.values(config.marketGroups || {}).flat()
     .map((market) => typeof market === "string" ? market : market?.key)
     .filter(Boolean);
-  const storageKey = "iconlabsArbitrageSettingsV2";
+  const storageKey = "iconlabsArbitrageSettingsV3";
   const defaults = {
     stake: 1000,
     minProfit: 0.1,
-    maxAge: 180,
+    maxAge: 90,
     commissionBps: 0,
-    distinctBooks: false,
+    distinctBooks: true,
     books: defaultBookKeys,
     markets: configuredMarketKeys.length ? configuredMarketKeys : ["h2h", "spreads", "totals"],
     sort: "profit-desc",
@@ -29,6 +29,7 @@
     rows: [],
     diagnostics: {},
     error: "",
+    degraded: false,
     selectedId: null,
     loading: false,
     paused: false,
@@ -41,7 +42,7 @@
     minProfit: numberBetween(stored.minProfit, 0, 50, defaults.minProfit),
     maxAge: numberBetween(stored.maxAge, 15, 1800, defaults.maxAge),
     commissionBps: numberBetween(stored.commissionBps, 0, 2500, defaults.commissionBps),
-    distinctBooks: Boolean(stored.distinctBooks),
+    distinctBooks: stored.distinctBooks === undefined ? defaults.distinctBooks : Boolean(stored.distinctBooks),
     selectedBooks: new Set(Array.isArray(stored.books) && stored.books.length ? stored.books.filter((key) => eligibleBooks.some((book) => book.key === key)) : defaults.books),
     selectedMarkets: new Set(Array.isArray(stored.markets) && stored.markets.length ? stored.markets : defaults.markets),
     sort: ["profit-desc", "profit-amount-desc", "time-asc"].includes(stored.sort) ? stored.sort : defaults.sort,
@@ -204,7 +205,7 @@
 
   function opportunityCard(row) {
     return `
-      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} arbitrage on ${row.eventTitle}`)}">
+      <article class="arb-opportunity ${row.id === state.selectedId ? "active" : ""}" data-arb-id="${esc(row.id)}" role="button" tabindex="0" aria-label="${esc(`${percent(row.profitPercent)} theoretical arbitrage on ${row.eventTitle}`)}">
         <div class="arb-return-cell"><strong>${percent(row.profitPercent)}</strong><span>+${money(row.guaranteedProfit)}</span><small>${row.outcomeCount}-way arb</small></div>
         <div class="arb-event-cell">
           <span class="arb-event-meta"><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(sportLabel(row))} · ${esc(timeUntil(row.commenceTime))}</span>
@@ -235,7 +236,7 @@
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-intersect-three" aria-hidden="true"></i><strong>No arbitrage matches these filters</strong><p>Try more sportsbooks, a lower minimum return, or a broader market selection. IconLabs never fabricates a missing opposing price.</p><button class="arb-secondary-button" type="button" data-arb-open-filters>Adjust filters</button></div>`;
       return;
     }
-    elements.feed.innerHTML = rows.map(opportunityCard).join("");
+    elements.feed.innerHTML = (state.degraded ? `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>Showing the last verified arbitrage snapshot while the provider reconnects. Recheck every leg before betting.</span></div>` : "") + rows.map(opportunityCard).join("");
   }
 
   function updateSummary() {
@@ -248,7 +249,7 @@
     document.getElementById("arb-kpi-stake").textContent = `On a ${money(state.stake, 0)} stake`;
     document.getElementById("arb-kpi-books").textContent = String(state.diagnostics.selectedBookCount ?? state.selectedBooks.size);
     document.getElementById("arb-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${visibleRows().length} shown · ranked by guaranteed return`;
+    elements.resultCopy.textContent = `${visibleRows().length} shown · executable only when every gate passes`;
   }
 
   function populateQuickFilters() {
@@ -276,7 +277,7 @@
     const plan = (row.outcomes || []).map((leg) => `
       <article class="arb-plan-leg">
         ${bookLogo(leg)}
-        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)}</small></div>
+        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)} · ${leg.capacityKnown ? `${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}` : "capacity unverified"}</small></div>
         <div class="arb-plan-stake"><span>Stake</span><b>${money(leg.stake)}</b></div>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
       </article>`).join("");
@@ -288,15 +289,17 @@
       return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4>${quotes.map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
+    const executable = row.executionStatus === "EXECUTABLE";
+    const executionLabel = executable ? "Executable — all gates verified" : "Theoretical — verify limits, rules, and eligibility";
     elements.detailContent.innerHTML = `
       <header class="arb-detail-hero">
-        <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>guaranteed return</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
+        <div class="arb-detail-hero-top"><div class="arb-detail-return"><strong>${percent(row.profitPercent)}</strong><span>${executable ? "executable return" : "theoretical return"}</span></div><button class="arb-icon-button arb-detail-close" type="button" data-arb-close-detail aria-label="Close execution plan"><i class="ph ph-x"></i></button></div>
         <h2>${esc(row.eventTitle)}</h2>
-        <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p>
+        <p>${esc(sportLabel(row))} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))} · ${esc(executionLabel)}</p>
         <div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-arb-copy-plan><i class="ph ph-copy"></i>Copy stake plan</button><button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
       <section class="arb-detail-section"><header><h3>Stake Plan</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section"><header><h3>Guaranteed Outcome</h3><span>after fee buffer &amp; cent rounding</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>Locked profit</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></section>
+      <section class="arb-detail-section"><header><h3>Mathematical payout</h3><span>only if every listed leg is accepted</span></header><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>Modeled profit</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></section>
       <section class="arb-detail-section"><header><h3>Odds Comparison</h3><span>best price highlighted</span></header>${comparisons}</section>
       <details class="arb-detail-section arb-calculation"><summary><h3>Calculation</h3><span>${esc(row.calculationVersion)}</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="arb-math-note"><i class="ph ph-function"></i><p>The inverse-probability total is <strong>${Number(row.impliedProbabilityPercent).toFixed(2)}%</strong>. Because it is below 100%, equalized stakes return more than the total amount deployed whichever outcome wins.<code>(1 ÷ ${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.theoreticalProfitPercent, 3)}</code></p></div>${warnings}<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Place every leg quickly and verify the displayed odds and accepted stake before submitting any wager.</span></div></details>`;
     elements.detailPlaceholder.hidden = true;
@@ -372,10 +375,12 @@
       state.rows = Array.isArray(payload.data) ? payload.data : [];
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
+      state.degraded = Boolean(payload.degraded || payload.stale);
       if (state.alerts && state.rows.length) notify(`${state.rows.length} arbitrage opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
       scheduleRefresh(Number(payload.refreshSeconds || 60));
     } catch (error) {
       if (!state.rows.length) state.diagnostics = {};
+      state.degraded = state.rows.length > 0;
       state.error = state.rows.length ? "" : error.message;
       notify(state.rows.length ? "Recent arbitrage scan shown; live refresh delayed." : error.message, "error");
     } finally {
@@ -477,7 +482,7 @@
     const text = [
       `${row.eventTitle} · ${row.marketLabel}${row.marketContext ? ` · ${row.marketContext}` : ""}`,
       ...row.outcomes.map((leg) => `${leg.bookName}: ${leg.selection} ${odds(leg.americanOdds)} — stake ${money(leg.stake)}`),
-      `Total ${money(row.totalStake)} · Minimum payout ${money(row.minPayout)} · Guaranteed profit ${money(row.guaranteedProfit)} (${percent(row.profitPercent)})`,
+      `Total ${money(row.totalStake)} · Minimum payout ${money(row.minPayout)} · Modeled profit ${money(row.guaranteedProfit)} (${percent(row.profitPercent)}) · ${row.executionStatus || "THEORETICAL"}`,
     ].join("\n");
     navigator.clipboard?.writeText(text).then(() => notify("Stake plan copied.")).catch(() => notify("Copy failed. Select and copy the plan manually.", "error"));
   }

@@ -38,6 +38,12 @@ DFS_OPTIMIZER_BOOK_KEYS = (
     "dabble",
 )
 
+# Two sharp, independent exact-line sources can qualify; otherwise require
+# three sources before a probability becomes an executable Fantasy signal.
+DFS_SHARP_MODEL_SOURCES = frozenset(
+    {"pinnacle", "circa", "bookmakereu", "novig", "prophetx"}
+)
+
 MODEL_PROVIDER_ALIASES = {
     "prophetexchange": "prophetx",
 }
@@ -298,15 +304,14 @@ def build_dfs_odds_board(
                         group["quotes"][book_key].append(quote)
 
     engine_weights = weights or ICONLABS_DFS_WEIGHTS
-    # One fresh, exact-line, genuinely two-way market is enough to establish a
-    # fair probability. Exact-line matching and paired Over/Under validation
-    # still prevent alternate or one-way markets from entering the model.
-    minimum_sources = 1
+    # A single source is useful for line shopping, but it is not independent
+    # evidence for an executable fair-probability recommendation.
+    minimum_sources = 2
     engine = DfsProbabilityEngine(
         engine_weights,
         devig_method="power",
-        max_quote_age_seconds=600,
-        freshness_half_life_seconds=300,
+        max_quote_age_seconds=90,
+        freshness_half_life_seconds=90,
         minimum_sources=minimum_sources,
     )
     pair_capable_app_sports = {
@@ -371,6 +376,8 @@ def build_dfs_odds_board(
             exact_sources_by_line: dict[str, int] = {}
             devig_sources_by_line: dict[str, dict[str, list[float]]] = {}
             model_quality_by_line: dict[str, dict[str, str]] = {}
+            model_status_by_line: dict[str, str] = {}
+            model_evidence_by_line: dict[str, dict] = {}
             for target_line in target_lines:
                 result = engine.calculate(
                     target_line=target_line,
@@ -401,6 +408,34 @@ def build_dfs_odds_board(
                     for contribution in result.contributions
                     if contribution.get("exclusion_reason")
                     not in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
+                }
+                included_sources = {
+                    str(contribution.get("provider") or "")
+                    for contribution in result.contributions
+                    if contribution.get("no_vig_probability") is not None
+                    and contribution.get("exclusion_reason")
+                    in {None, "PROVIDER_WEIGHT_NOT_CONFIGURED"}
+                }
+                two_sharp_sources = (
+                    result.source_count >= 2
+                    and included_sources
+                    and included_sources.issubset(DFS_SHARP_MODEL_SOURCES)
+                )
+                qualified = result.source_count >= 3 or two_sharp_sources
+                model_status_by_line[key] = (
+                    result.status if qualified else "WATCH_ONLY"
+                )
+                model_evidence_by_line[key] = {
+                    "qualified": qualified,
+                    "sourceCount": result.source_count,
+                    "sourceKeys": sorted(included_sources),
+                    "rule": (
+                        "THREE_INDEPENDENT_SOURCES"
+                        if result.source_count >= 3
+                        else "TWO_SHARP_SOURCES"
+                        if two_sharp_sources
+                        else "INSUFFICIENT_INDEPENDENT_EVIDENCE"
+                    ),
                 }
 
             primary_line = dfs_lines[display_book]
@@ -441,6 +476,7 @@ def build_dfs_odds_board(
                         f"{group['event_id']}::{group['player']}::"
                         f"{group['stat']}::{side.lower()}"
                     ),
+                    "eventId": group["event_id"],
                     "player": group["player"],
                     "match": group["match"],
                     "awayTeam": group["away_team"],
@@ -463,6 +499,16 @@ def build_dfs_odds_board(
                     },
                     "devigSourcesByLine": devig_sources_by_line,
                     "modelQualityByLine": model_quality_by_line,
+                    "modelStatusByLine": model_status_by_line,
+                    "modelEvidenceByLine": model_evidence_by_line,
+                    "modelStatus": model_status_by_line.get(
+                        primary_key, "UNAVAILABLE"
+                    ),
+                    "executionEligible": bool(
+                        model_evidence_by_line.get(primary_key, {}).get(
+                            "qualified"
+                        )
+                    ),
                     "reliability": reliability_by_line.get(primary_key, 0.0),
                     "oddsByBook": odds_by_book,
                     "sourceCount": exact_sources_by_line.get(primary_key, 0),

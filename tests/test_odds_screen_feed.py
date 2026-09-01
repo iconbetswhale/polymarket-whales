@@ -117,3 +117,39 @@ def test_all_book_rows_keep_different_players_and_lines_separate() -> None:
         ("Player A", 21.5),
         ("Player B", 20.5),
     }
+
+
+def test_missing_timestamps_are_non_executable_and_extreme_odds_are_quarantined() -> None:
+    event = {
+        "id": "integrity-screen",
+        "sport_key": "basketball_nba",
+        "sport_title": "NBA",
+        "commence_time": "2026-08-28T23:30:00Z",
+        "home_team": "New York Knicks",
+        "away_team": "Boston Celtics",
+        "bookmakers": [
+            {
+                "key": "fanduel",
+                "title": "FanDuel",
+                "markets": [
+                    {
+                        "key": "h2h",
+                        "outcomes": [
+                            {"name": "New York Knicks", "price": -110},
+                            {"name": "Boston Celtics", "price": 99900},
+                        ],
+                    }
+                ],
+            }
+        ],
+    }
+
+    rows = build_all_book_odds_screen_rows(
+        [event], now=datetime(2026, 8, 28, 15, 0, tzinfo=timezone.utc)
+    )
+
+    assert len(rows) == 1
+    option = rows[0]["executionOptions"][0]
+    assert option["isAvailable"] is False
+    assert option["isStale"] is True
+    assert option["quoteStatus"] == "MISSING_TIMESTAMP"

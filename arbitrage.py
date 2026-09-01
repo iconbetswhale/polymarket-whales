@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from typing import Iterable
 
 from ev_optimizer import american_to_decimal
+from opportunity_execution import evaluate_execution_gates, quote_execution_metadata
 from sports_game_odds import (
     SPORTS_GAME_ODDS_BOOKMAKERS,
     SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
@@ -25,9 +26,9 @@ from sports_game_odds import (
 )
 
 
-ARBITRAGE_CALCULATION_VERSION = "iconlabs-arbitrage-v1-equal-payout"
-MIN_AMERICAN_ODDS = -100_000
-MAX_AMERICAN_ODDS = 100_000
+ARBITRAGE_CALCULATION_VERSION = "iconlabs-arbitrage-v2-execution-gates"
+MIN_AMERICAN_ODDS = -5_000
+MAX_AMERICAN_ODDS = 5_000
 
 MARKET_LABELS = {
     "h2h": "Moneyline",
@@ -245,9 +246,10 @@ def build_arbitrage_board(
     allowed_markets: Iterable[str] = (),
     total_stake: float = 1_000.0,
     min_profit_percent: float = 0.1,
-    max_quote_age_seconds: int = 180,
+    max_quote_age_seconds: int = 90,
+    max_cross_leg_skew_seconds: int = 3,
     commission_bps: float = 0.0,
-    require_distinct_books: bool = False,
+    require_distinct_books: bool = True,
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked, fee-aware board of complete arbitrage opportunities."""
@@ -338,7 +340,10 @@ def build_arbitrage_board(
                 if frozenset(payload["outcomes"].keys()) != signature:
                     continue
                 age = payload["age"]
-                if age is not None and age > max_quote_age_seconds:
+                if age is None:
+                    rejected["missing_quote_timestamp"] += 1
+                    continue
+                if age > max_quote_age_seconds:
                     rejected["stale_quote"] += 1
                     continue
                 book = payload["book"]
@@ -377,6 +382,12 @@ def build_arbitrage_board(
                                 or ""
                             ),
                             "point": outcome.get("point"),
+                            **quote_execution_metadata(
+                                book_key=book_key,
+                                book=book,
+                                market=market,
+                                outcome=outcome,
+                            ),
                         }
                     )
 
@@ -387,6 +398,11 @@ def build_arbitrage_board(
             )
             if assignment is None:
                 rejected["no_valid_book_assignment"] += 1
+                continue
+            quote_ages = [float(quote["quoteAgeSeconds"]) for quote in assignment]
+            quote_skew = max(quote_ages) - min(quote_ages)
+            if quote_skew > max(0, int(max_cross_leg_skew_seconds)):
+                rejected["cross_leg_quote_skew"] += 1
                 continue
 
             effective_decimals = [quote["effectiveDecimalOdds"] for quote in assignment]
@@ -411,6 +427,18 @@ def build_arbitrage_board(
             actual_profit_percent = (guaranteed_profit / actual_total) * 100.0
             if guaranteed_profit <= 0 or actual_profit_percent + 1e-9 < min_profit_percent:
                 rejected["rounding_removed_profit"] += 1
+                continue
+
+            execution = evaluate_execution_gates(
+                assignment,
+                stakes,
+                require_distinct_books=require_distinct_books,
+                quote_skew_seconds=quote_skew,
+                max_quote_skew_seconds=max(0, int(max_cross_leg_skew_seconds)),
+            )
+            if execution["hardFailure"]:
+                for reason in execution["failureReasons"]:
+                    rejected[f"execution_{str(reason).lower()}"] += 1
                 continue
 
             raw_inverse_sum = sum(1.0 / quote["decimalOdds"] for quote in assignment)
@@ -454,14 +482,13 @@ def build_arbitrage_board(
             ).hexdigest()[:18]
             books_used = list(dict.fromkeys(row["bookKey"] for row in outcome_rows))
             warnings = []
-            if any(row["quoteAgeSeconds"] is None for row in outcome_rows):
-                warnings.append("One or more books did not provide a quote timestamp.")
             if commission_bps > 0 and any(
                 row["bookKey"] in SPORTS_GAME_ODDS_EXCHANGE_BOOKS for row in outcome_rows
             ):
                 warnings.append(
                     f"A {commission_bps / 100:.2f}% commission buffer is included on exchange winnings."
                 )
+            warnings.extend(execution["warnings"])
             opportunities.append(
                 {
                     "id": f"arb::{digest}",
@@ -490,6 +517,16 @@ def build_arbitrage_board(
                     "minPayout": round(min_payout, 2),
                     "commissionBps": float(commission_bps),
                     "requireDistinctBooks": bool(require_distinct_books),
+                    "crossLegQuoteSkewSeconds": round(quote_skew, 1),
+                    "maxCrossLegQuoteSkewSeconds": max(
+                        0, int(max_cross_leg_skew_seconds)
+                    ),
+                    "executionStatus": execution["status"],
+                    "isExecutable": execution["isExecutable"],
+                    "executionGates": execution["gates"],
+                    "maximumExecutableTotalStake": execution[
+                        "maximumExecutableTotalStake"
+                    ],
                     "warnings": warnings,
                     "calculatedAt": now.isoformat(),
                     "calculationVersion": ARBITRAGE_CALCULATION_VERSION,

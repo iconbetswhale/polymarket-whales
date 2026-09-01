@@ -70,6 +70,145 @@ final result: passed
 
 ---
 
+# Fantasy Optimizer Market-Quality and Execution — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\Desktop\Screenshot_2026-08-30_at_10.59.24_PM.webp` (expanded sportsbook grid) and the three related user screenshots for the fake NoVIG quote, DK Pick6 multiplier, and one-way alternate-line example.
+- Browser-rendered implementation: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046fb-1f09-74b1-8608-6181588c2555\dfs-expanded-full-qa.png` at 1536 × 700 CSS px, DPR 1.
+- Responsive implementation: local Fantasy Optimizer at 390 × 844 CSS px, PrizePicks and Underdog states checked, card detail expanded.
+- The source and implementation were opened together in one visual comparison input. Geometry was judged from the expanded table region because the source is a focused crop.
+
+## Findings and fixes
+
+1. P1 model integrity: a −9900 exchange quote could remain eligible and overwhelm normal FanDuel/DraftKings prices.
+   - Fixed with overround rejection, low-liquidity extreme-quote rejection, exact-line FanDuel/DraftKings reference divergence checks, and a two-source minimum for the default model.
+2. P1 market mapping: alternate and one-way sportsbook lines could appear close to a DFS strike and be mistaken for fair-price evidence.
+   - Fixed by keeping them visible for comparison while explicitly marking them `Not weighted`; alternate line numbers never enter the target strike model.
+3. P1 DFS availability: alternate/boosted Underdog and DK Pick6 selections could enter the standard slate.
+   - Fixed by rejecting upstream alternate, boosted, promotional, and explicit non-1x multiplier selections.
+4. P2 execution context: exchange liquidity and exact bet destinations were not visible or actionable.
+   - Fixed with small gray liquidity labels and outbound exact-selection links on desktop and mobile.
+5. P2 expanded-grid density: the odds table had an inset purple background and redundant sportsbook names.
+   - Fixed with an edge-to-edge grid, logo-only headers, no inset gap, and no per-column remove buttons.
+6. P2 comparison-book workflow: each selection applied immediately and closed the picker.
+   - Fixed with a persistent draft selection state and one explicit `Apply changes` action for adding or removing multiple books.
+
+## Interaction and verification
+
+- Underdog switching changed the selected tab, app logo, requested board, and rendered rows on desktop and mobile.
+- The comparison-book picker remained open after toggling, added nothing before Apply, added the selected header after Apply, and removed it through the same toggle/apply flow.
+- Expanded desktop state exposed 16 executable sportsbook links, 8 exchange-liquidity values across both sides, zero sportsbook-name text nodes beneath logos, and visible `Not weighted` flags on the fake NoVIG pair.
+- Expanded mobile state exposed both Over and Under prices, exchange liquidity, and executable links without breaking the compact card layout.
+- Browser console errors: none.
+- Full regression suite: 1058 passed. Final focused optimizer/provider suite after polish: 125 passed. JavaScript syntax, Python compilation, and `git diff --check`: passed.
+
+## Remaining defects
+
+- P0: none
+- P1: none
+- P2: none
+- P3: none
+
+final result: passed
+
+---
+
+# Fantasy Optimizer Mobile Control Clarity — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\.codex\codex-remote-attachments\01a046fb-1f09-74b1-8608-6181588c2555\B2DE6839-D94C-4B55-8B0E-1A6F4C1F7DBE\1-Photo-1.jpg` (589 × 1280 physical pixels, iPhone Safari chrome included).
+- Updated mobile implementation: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046fb-1f09-74b1-8608-6181588c2555\mobile-dfs-labeled-controls-after.png` (390 × 844 CSS px, DPR 1).
+- Updated slip menu: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046fb-1f09-74b1-8608-6181588c2555\mobile-dfs-slip-menu-after.png` (390 × 844 CSS px, DPR 1).
+- State: local visual-QA Fantasy Optimizer route, PrizePicks selected, filters collapsed, realistic Over and Under plays loaded.
+- Comparison input: the source and final implementation were opened together at original detail. Browser chrome was excluded from app-layout judgment.
+
+## Findings and comparison history
+
+1. Source P2: the four compact controls depended on icon recognition alone.
+   - Fix: added concise visible labels (`Slip type`, `Apps`, `DVIG`, `Best type`) while keeping the two-group row compact, and gave both DFS selectors matching accent borders and carets.
+2. First implementation P1: the slip menu inherited the 79 px trigger width, forcing every profile into a narrow wrapped column.
+   - Fix: the phone picker now opens at 240 px (bounded by the viewport) while the trigger remains compact. Options render on one line and stay scrollable.
+3. Source P2: every collapsed hit percentage rendered green on mobile, even when the web table classified it as below the required probability.
+   - Fix: mobile cards now inherit the desktop `positive-edge`, `near-threshold`, `negative-edge`, and fallback bands. Verified green at 58.7% and red at 51.0%; the yellow near-threshold rule uses the same web warning token.
+4. Source P3: the fantasy-app image floated inside the card badge with visible inner padding.
+   - Fix: the existing PrizePicks asset now fills the badge content box edge-to-edge inside its one-pixel border.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Typography and labels: passed. All compact controls are labeled without increasing the overall control deck beyond four pixels.
+- Spacing and density: passed. Six play cards begin within the 844 px phone viewport while navigation remains reachable.
+- Colors and state: passed. Edge semantics match the web optimizer's green/yellow/red bands.
+- Assets: passed. Existing app logos and Phosphor icons are reused; no substitute or handmade asset was introduced.
+- Accessibility: passed. Native button, tab, combobox, listbox, and option semantics remain intact; visible labels supplement the existing accessible names.
+
+## Interaction and verification
+
+- Slip-type trigger opened the profile list; selecting `5 Pick Flex · -119` closed it and updated the first play to `-119`.
+- DFS app selector changed PrizePicks to Underdog; the active app, card logo, and line price updated to Underdog `-115`.
+- Focused automated tests: 95 passed.
+- JavaScript syntax checks: passed for `dfs.js` and `mobile-tools.js`.
+- Visual browser error states: none.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Mobile Fantasy Optimizer Recovery — Design QA
+
+## Evidence and normalization
+
+- Source states: `1-Photo-1.jpg`, `2-Photo-2.jpg`, and `5-Photo-5.jpg` from the user-supplied `4DB36102-0658-4B3E-BA0A-B179253970A9` reference set.
+- Browser-rendered states: `mobile-dfs-main-after.png`, `mobile-dfs-dvig-after.png`, and `mobile-ev-odds-after.png` in the current Codex visualizations folder.
+- Browser state: local visual-QA routes at 390 × 844 CSS px, DPR 1, with realistic Fantasy Optimizer and Positive EV fixture data.
+- The source iPhone screenshots include Safari chrome; comparison was normalized to the application-owned viewport below the browser chrome.
+
+## Comparison history
+
+1. The source Fantasy Optimizer reserved the mobile header height twice, leaving an empty band above the page title and no visible plays.
+   - Fix: removed the duplicate mobile shell padding, compacted the title/actions/filter bar, and made the loading state participate in normal flow.
+   - Post-fix evidence: page content begins directly under the 62 px IconLabs header and six play summaries are visible in the first 844 px viewport.
+2. The source DVIG sheet used one full-width row per book, forcing excessive scrolling and separating labels from their inputs.
+   - Fix: converted the mobile allocation list to compact two-column book cards with logo, label, numeric weight, and full-row slider.
+   - Post-fix evidence: all eight weighted books and the footer actions fit in the viewport while the input controls remain editable.
+3. EV price arrows offset the perceived price center inside each side cell.
+   - Fix: centered the price element independently and absolutely positioned movement arrows at the outer edge.
+   - Post-fix evidence: the first ten rendered odds have a measured 0 px center delta from their containing cells.
+
+## Required fidelity surfaces
+
+- Typography and hierarchy: passed. Existing IconLabs fonts, purple/green status hierarchy, and compact player-name prominence are preserved.
+- Spacing and layout rhythm: passed. The duplicate top gap is removed, control density is improved, and play cards remain comfortably separated.
+- Colors and visual tokens: passed. Existing dark surfaces, purple selection borders, green live states, and muted secondary copy are unchanged.
+- Asset fidelity: passed. Existing fantasy-app and sportsbook image assets are reused without substitutes.
+- Copy and content: passed. Recovery messaging is concise and explains whether the board is reconnecting or showing a recent verified snapshot.
+- Accessibility and interaction: passed. DVIG has a composed accessible name, its numeric input changed allocation state successfully, and cancel closed without saving.
+
+## Verification
+
+- Browser console warnings/errors: none.
+- Focused automated tests: 93 passed.
+- EV odds center measurement: 0 px delta across ten rendered side cells.
+- Responsive viewport: 390 × 844 CSS px.
+
+## Defects
+
+- P0: none
+- P1: none
+- P2: none
+- P3: none
+
+final result: passed
+
+---
+
 # Shared IconLabs Sidebar — Navigation Fixes QA
 
 ## Evidence and normalization
@@ -1170,7 +1309,6 @@ final result: passed
 3. P1 — The first overlay class was cleared by the existing mobile disclosure helper after a card click.
    - Fix: added a dedicated compact-desktop overlay state that coexists with the existing mobile inline-detail behavior.
    - Post-fix evidence: clicking a card produces a visible flex detail panel and body overlay state; the close button removes both and returns to the feed.
-
 No actionable P0, P1, or P2 findings remain.
 
 ## Required fidelity surfaces
@@ -1195,5 +1333,46 @@ No actionable P0, P1, or P2 findings remain.
 ## Follow-up polish
 
 - No P3 items remain from this pass.
+
+final result: passed
+
+---
+
+# Fantasy Optimizer Compact Header — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\15617\.codex\codex-remote-attachments\01a046fb-1f09-74b1-8608-6181588c2555\B2DE6839-D94C-4B55-8B0E-1A6F4C1F7DBE\1-Photo-1.jpg` (589 × 1280 physical pixels, iPhone Safari chrome included).
+- Mobile implementation: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046fb-1f09-74b1-8608-6181588c2555\mobile-dfs-compact-header-after.png` (390 × 844 px, 390 × 844 CSS px, DPR 1).
+- Desktop regression: `C:\Users\15617\.codex\visualizations\2026\08\28\01a046fb-1f09-74b1-8608-6181588c2555\desktop-dfs-compact-header-after.png` (1440 × 900 px, 1440 × 900 CSS px, DPR 1).
+- State: Fantasy Optimizer loaded with realistic plays, PrizePicks selected, filter panel closed.
+- Density normalization: the source browser chrome was excluded from layout judgment; the app-owned content was compared by relative CSS geometry below the IconLabs bar.
+
+## Findings and comparison history
+
+1. Source P2: a large empty band separated the IconLabs bar from `DFS · LINE SHOPPING`, and the marketing subtitle consumed another two lines above the controls.
+   - Fix: removed the subtitle from the shared template, removed the canonical mobile 64 px shell spacer, reduced the page top padding to 4 px on phones, and tightened the desktop heading to a 52 px minimum height.
+   - Post-fix evidence: the mobile IconLabs bar ends at CSS y=62 and the eyebrow starts at y=66, leaving a measured 4 px gap. The subtitle is absent in both rendered breakpoints.
+
+No actionable P0, P1, or P2 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. Existing IconLabs type family, eyebrow tracking, and title hierarchy remain unchanged.
+- Spacing and layout rhythm: passed. The mobile top gap is 4 px, controls follow immediately after the title, and the desktop workspace starts at the top of its content rail.
+- Colors and visual tokens: passed. Existing dark surfaces, purple selection states, green Live state, and borders are unchanged.
+- Image quality and asset fidelity: passed. Existing IconLabs, fantasy-app, and sportsbook assets are unchanged.
+- Copy and content: passed. The requested subtitle is absent from the shared mobile/desktop template; all functional labels remain.
+
+## Interaction and verification
+
+- Mobile filter disclosure opened and closed successfully.
+- Browser console warnings/errors: none.
+- Focused automated tests: 94 passed.
+- Focused region comparison was not needed because the change is limited to plainly legible header copy and vertical spacing; the full mobile view shows both clearly.
+
+## Follow-up polish
+
+- None.
 
 final result: passed

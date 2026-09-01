@@ -11,7 +11,7 @@
       ? (markets || []).filter((market) => (typeof market === "string" ? market : market?.key) !== "h2h")
       : (markets || [])
   ).map((market) => typeof market === "string" ? market : market?.key).filter(Boolean);
-  const storageKey = "iconlabsMiddlesSettingsV2";
+  const storageKey = "iconlabsMiddlesSettingsV3";
   const trackedKey = "iconlabsTrackedMiddlesV1";
   const defaults = {
     books: defaultBookKeys,
@@ -20,9 +20,9 @@
       : ["spreads", "alternate_spreads", "totals", "alternate_totals", "player_points", "pitcher_strikeouts"],
     minWidth: 0.5,
     maxCost: 12,
-    maxAge: 180,
+    maxAge: 90,
     commission: 0,
-    distinctBooks: false,
+    distinctBooks: true,
     stake: 1000,
   };
   let saved = {};
@@ -42,7 +42,7 @@
     maxCost: numberBetween(saved.maxCost, 0, 100, defaults.maxCost),
     maxAge: numberBetween(saved.maxAge, 15, 1800, defaults.maxAge),
     commission: numberBetween(saved.commission, 0, 25, defaults.commission),
-    distinctBooks: Boolean(saved.distinctBooks),
+    distinctBooks: saved.distinctBooks === undefined ? defaults.distinctBooks : Boolean(saved.distinctBooks),
     stake: numberBetween(saved.stake, 1, 10_000_000, defaults.stake),
     lastUpdated: null,
     tracked: new Set(),
@@ -156,6 +156,10 @@
     const costClass = guaranteed ? "positive" : "warning";
     const worstOutside = Math.min(...(row.legs || []).map((leg) => Number(leg.outsideProfit || 0)));
     const tracked = state.tracked.has(row.id);
+    const modeled = row.probabilityModel?.status === "AVAILABLE";
+    const probabilityNote = modeled
+      ? `P ${percent(row.estimatedMiddleProbability)} · EV ${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)}`
+      : `BE ${percent(row.breakEvenMiddleProbability)} · probability unavailable`;
     const legs = (row.legs || []).map((leg, index) => `
       <div class="mid-card-leg">
         ${logoMarkup(leg)}
@@ -164,10 +168,10 @@
       </div>`).join("");
     return `
       <button class="mid-opportunity-card${selected}" type="button" data-mid-id="${esc(row.id)}" aria-pressed="${selected ? "true" : "false"}">
-        <div class="mid-card-score ${costClass}"><span>Cost</span><strong>${percent(row.costPercent)}</strong><small>BE ${percent(row.breakEvenMiddleProbability)}</small></div>
+        <div class="mid-card-score ${costClass}"><span>Cost</span><strong>${percent(row.costPercent)}</strong><small>${probabilityNote}</small></div>
         <div class="mid-card-event"><strong>${esc(row.eventTitle)}</strong><span>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</span><small>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</small></div>
         ${legs}
-        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span>Guaranteed outcome</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)} · middle ${signedMoney(row.middleProfit)}</small><i class="ph ph-caret-right" aria-hidden="true"></i></div>
+        <div class="mid-card-outcome ${guaranteed ? "positive" : ""}"><span>${row.executionStatus === "EXECUTABLE" ? "Verified outside outcome" : "Modeled outside outcome"}</span><strong>${signedMoney(worstOutside)}</strong><small>${esc(row.window?.label || `${row.middleWidth} pts`)} · middle ${signedMoney(row.middleProfit)}</small><i class="ph ph-caret-right" aria-hidden="true"></i></div>
         ${tracked ? '<i class="ph ph-bookmark-simple-fill mid-card-tracked" aria-label="Tracked"></i>' : ""}
       </button>`;
   }
@@ -242,9 +246,12 @@
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="mid-detail-warning"><i class="ph ph-warning" aria-hidden="true"></i><span>${esc(warning)}</span></div>`).join("");
     const worstOutside = Math.min(...legs.map((leg) => Number(leg.outsideProfit || 0)));
+    const probabilitySummary = row.probabilityModel?.status === "AVAILABLE"
+      ? `<div><span>Market-implied middle</span><strong>${percent(row.estimatedMiddleProbability)}</strong><small>${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)} estimated EV · ${row.probabilityModel.method === "DEVIGGED_MARKET_LADDER_CDF" ? "de-vigged line ladder" : esc(row.probabilityModel.method || "model")}</small></div>`
+      : `<div><span>Middle probability</span><strong>Unavailable</strong><small>${esc(row.probabilityModel?.reason || "No paired line ladder")}</small></div>`;
     elements.detail.innerHTML = `
       <header class="mid-detail-header"><div><span>${esc(row.league)} · ${esc(dateTime(row.commenceTime))}</span><h2>${esc(row.eventTitle)}</h2><p>${esc(row.marketLabel)}${row.marketContext ? ` · ${esc(row.marketContext)}` : ""}</p></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></header>
-      <section class="mid-detail-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div></section>
+      <section class="mid-detail-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div>${probabilitySummary}</section>
       <section class="mid-detail-section"><header><h3>Equalized stakes</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-grid">${legCards}</div></section>
       <section class="mid-detail-section"><header><h3>Payout scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-scenario-list">${outsideOne}${middle}${outsideTwo}</div></section>
       <section class="mid-detail-section"><header><h3>Available odds</h3><small>${row.bookCount} books</small></header><div class="mid-quote-groups">${comparisons}</div></section>
@@ -317,11 +324,14 @@
       if (!response.ok) throw new Error(payload.message || payload.error || "Middle scan failed");
       writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
-      state.lastUpdated = new Date();
+      state.lastUpdated = new Date(payload.lastVerifiedAt || payload.generatedAt || Date.now());
       const paused = Boolean(payload.paused);
-      elements.status.className = `mid-feed-status ${paused ? "paused" : "ready"}`;
+      const degraded = Boolean(payload.degraded);
+      elements.status.className = `mid-feed-status ${paused ? "paused" : degraded ? "error" : "ready"}`;
       elements.status.innerHTML = paused
         ? '<i class="ph ph-pause-circle" aria-hidden="true"></i><span>Scanner paused · press play to request current prices</span>'
+        : degraded
+          ? `<i class="ph ph-warning-circle" aria-hidden="true"></i><span>${esc(payload.message || "Recent verified middles shown; live refresh delayed")}</span>`
         : `<i class="ph ph-check-circle" aria-hidden="true"></i><span>${state.rows.length} qualified windows · ${payload.diagnostics?.eventsScanned ?? 0} events scanned</span>`;
       renderAll();
       scheduleRefresh(Number(payload.refreshSeconds || 0));

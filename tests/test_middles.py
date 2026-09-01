@@ -89,6 +89,32 @@ def test_spread_middle_reports_the_exact_margin_window() -> None:
     assert "Away margin" in row["window"]["label"]
 
 
+def test_total_middle_estimates_probability_only_from_paired_market_ladder() -> None:
+    outcomes = [
+        _outcome("Over", -160, 42.5),
+        _outcome("Under", 130, 42.5),
+        _outcome("Over", 130, 47.5),
+        _outcome("Under", -160, 47.5),
+    ]
+    event = _event(
+        _book("draftkings", outcomes),
+        _book("fanduel", outcomes),
+    )
+
+    row = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        max_cost_percent=30.0,
+        now=NOW,
+    )["data"][0]
+
+    assert row["probabilityModel"]["status"] == "AVAILABLE"
+    assert row["probabilityModel"]["method"] == "DEVIGGED_MARKET_LADDER_CDF"
+    assert row["estimatedMiddleProbability"] is not None
+    assert row["estimatedEvPercent"] is not None
+
+
 def test_non_overlapping_lines_are_not_false_middles() -> None:
     event = _event(
         _book("draftkings", [_outcome("Over", -110, 47.5)]),
@@ -135,7 +161,8 @@ def test_distinct_book_mode_rejects_same_book_pair() -> None:
     )
 
     unrestricted = build_middles_board(
-        [event], selected_books=("draftkings",), now=NOW
+        [event], selected_books=("draftkings",),
+        require_distinct_books=False, now=NOW
     )
     distinct = build_middles_board(
         [event], selected_books=("draftkings",), require_distinct_books=True, now=NOW

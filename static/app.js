@@ -6329,17 +6329,9 @@ function bindIntelligence() {
   loadIntelligence().catch(()=>{});
 }
 
-const ODDS_DEFAULT_PROVIDER_CATALOG = {
-  polymarket: {key:"polymarket", name:"Polymarket", logoUrl:POLYMARKET_LOGO_URL, source:"exchange"},
-  kalshi: {key:"kalshi", name:"Kalshi", logoUrl:"/static/assets/providers/kalshi.png", source:"exchange"},
-  "4cx": {key:"4cx", name:"4CX", logoUrl:"/static/assets/providers/4cx.png", source:"exchange"},
-  "oddsapi__novig": {key:"oddsapi__novig", name:"NoVIG", logoUrl:"https://cdn.prod.website-files.com/642ae772b9f3360398a9d449/6436d7c4d343f31dbf62d683_favicon.png", source:"exchange"},
-  "oddsapi__draftkings": {key:"oddsapi__draftkings", name:"DraftKings", logoUrl:"/static/assets/sportsbooks/draftkings.png", source:"sportsbook"},
-  "oddsapi__fanduel": {key:"oddsapi__fanduel", name:"FanDuel", logoUrl:"/static/assets/sportsbooks/fanduel.png", source:"sportsbook"},
-  "oddsapi__betmgm": {key:"oddsapi__betmgm", name:"BetMGM", logoUrl:"/static/assets/sportsbooks/betmgm.png", source:"sportsbook"},
-  "oddsapi__caesars": {key:"oddsapi__caesars", name:"Caesars", logoUrl:"/static/assets/sportsbooks/caesars-sportsbook.png", source:"sportsbook"},
-  "oddsapi__pinnacle": {key:"oddsapi__pinnacle", name:"Pinnacle", logoUrl:"/static/assets/providers/pinnacle.png", source:"sportsbook"},
-};
+// Providers are added only from the live response. A static vendor catalog is
+// intentionally not rendered as sportsbook coverage.
+const ODDS_DEFAULT_PROVIDER_CATALOG = {};
 const ODDS_EMBEDDED_PROVIDER_CATALOG = (() => {
   try {
     const entries = JSON.parse(document.getElementById("odds-provider-catalog")?.textContent || "[]");
@@ -6486,7 +6478,7 @@ function syncOddsProviderCatalog(entries = []) {
       .map(option => String(option.providerKey || "").toLowerCase())
       .filter(Boolean)),
   );
-  if (savedOddsProviderSelection === null && availableProviderKeys.size) {
+  if (availableProviderKeys.size) {
     oddsState.providers = oddsState.providers.filter(key => availableProviderKeys.has(key));
   }
   entries.forEach(entry => {
@@ -6494,12 +6486,18 @@ function syncOddsProviderCatalog(entries = []) {
     if (!key || !/^[a-z0-9_]+$/.test(key)) return;
     oddsState.catalog[key] = {key, name: entry.name || key, logoUrl: entry.logoUrl || "", source: entry.source || "sportsbook"};
     if (!oddsState.providerOrder.includes(key)) oddsState.providerOrder.splice(Math.max(oddsState.providerOrder.indexOf("best"), 0), 0, key);
-    if (savedOddsProviderSelection === null && availableProviderKeys.has(key) && !oddsState.providers.includes(key)) oddsState.providers.push(key);
+    if (availableProviderKeys.has(key)
+      && (savedOddsProviderSelection === null || savedOddsProviderSelection.includes(key))
+      && !oddsState.providers.includes(key)) oddsState.providers.push(key);
   });
   if (!oddsState.providerOrder.includes("best")) oddsState.providerOrder.push("best");
+  if (!oddsState.providers.length && availableProviderKeys.size) {
+    oddsState.providers = oddsState.providerOrder.filter(key => availableProviderKeys.has(key));
+  }
 
   const header = document.querySelector(".odds-grid-head tr");
   const list = document.querySelector(".odds-book-list");
+  if (list && entries.length) list.querySelector(":scope > p")?.remove();
   Object.values(oddsState.catalog).forEach(provider => {
     if (header && !header.querySelector(`[data-odds-column="${provider.key}"]`)) {
       const column = document.createElement("th");
@@ -6508,8 +6506,9 @@ function syncOddsProviderCatalog(entries = []) {
       column.dataset.oddsColumn = provider.key;
       column.dataset.bookColumn = provider.key;
       column.draggable = true;
+      column.tabIndex = 0;
       column.title = `Drag to reorder ${provider.name}`;
-      column.setAttribute("aria-label", `${provider.name} column. Drag to reorder.`);
+      column.setAttribute("aria-label", `${provider.name} column. Drag to reorder, or press Alt plus left or right arrow.`);
       column.innerHTML = `${providerLogoMarkup(provider, provider.name)}<small>${escapeHtml(provider.name.toUpperCase())}</small>`;
       header.appendChild(column);
       bindOddsColumnDrag(column);
@@ -6552,19 +6551,23 @@ const ODDS_LIQUIDITY_PROVIDER_KEYS = new Set([
   "polymarket", "kalshi", "4cx", "novig", "oddsapi__novig", "prophetx", "oddsapi__prophetx",
 ]);
 
-function oddsProviderSecondaryMeta(provider, amount) {
+function oddsProviderSecondaryMeta(provider, option) {
   const providerKey = String(provider || "").toLowerCase();
-  const availableAmount = number(amount);
+  const isPinnacle = providerKey === "pinnacle" || providerKey.endsWith("__pinnacle");
+  const availableAmount = isPinnacle
+    ? number(option?.marketLimit)
+    : ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)
+      ? number(option?.topPriceLiquidity ?? option?.availableLiquidity)
+      : null;
   if (availableAmount === null) return "";
   const formattedAmount = `$${Math.round(availableAmount).toLocaleString()}`;
-  if (providerKey === "pinnacle" || providerKey.endsWith("__pinnacle")) return `${formattedAmount} Limit`;
-  if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount;
+  if (isPinnacle) return `${formattedAmount} Limit`;
+  if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return `${formattedAmount} Liquidity`;
   return "";
 }
 
 function oddsPriceCell(option, provider, bestProviderKey = "") {
   if (!option || option.matchingConfidence !== "Exact") return `<span class="odds-price empty" data-provider="${provider}" role="img" title="No exact market match" aria-label="No exact market match"><strong>—</strong></span>`;
-  const liquidity = number(option.availableLiquidity);
   const price = number(option.contractPrice);
   const american = number(option.americanOdds);
   const marketStatus = String(option.marketStatus || "OPEN").toUpperCase();
@@ -6576,7 +6579,7 @@ function oddsPriceCell(option, provider, bestProviderKey = "") {
   const stateClass = [isBest ? "best-price" : "", stale ? "stale" : "", suspended ? "suspended" : ""].filter(Boolean).join(" ");
   const age = number(option.quoteAgeSeconds);
   const title = suspended ? `Market ${marketStatus.toLowerCase()}` : stale ? `Stale quote${age === null ? "" : ` · ${Math.round(age)} seconds old`}` : `${option.providerName || provider} executable quote`;
-  const secondaryMeta = oddsProviderSecondaryMeta(provider, liquidity);
+  const secondaryMeta = oddsProviderSecondaryMeta(provider, option);
   const meta = secondaryMeta ? `<small>${escapeHtml(secondaryMeta)}</small>` : "";
   const content = `<strong>${escapeHtml(headline)}</strong>${meta}`;
   if (suspended || !option.deepLink) return `<span class="odds-price ${stateClass}" data-provider="${provider}" title="${escapeHtml(title)}" aria-label="${escapeHtml(title)}">${content}</span>`;
@@ -7225,6 +7228,22 @@ function bindOddsColumnDrag(header) {
     stopOddsDragAutoScroll();
     oddsState.draggedProvider = "";
     document.querySelectorAll("[data-odds-column]").forEach(item => item.classList.remove("dragging", "drop-before", "drop-after"));
+  });
+  header.addEventListener("keydown", event => {
+    if (!event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    const source = header.dataset.oddsColumn;
+    const order = oddsState.providerOrder.filter(key => key !== "best");
+    const sourceIndex = order.indexOf(source);
+    const targetIndex = sourceIndex + (event.key === "ArrowLeft" ? -1 : 1);
+    if (sourceIndex < 0 || targetIndex < 0 || targetIndex >= order.length) return;
+    event.preventDefault();
+    [order[sourceIndex], order[targetIndex]] = [order[targetIndex], order[sourceIndex]];
+    oddsState.providerOrder = [...order, "best"];
+    oddsState.providers = order.filter(key => oddsState.providers.includes(key));
+    persistOddsProviderOrder();
+    window.IconLabsLineShopOrder?.save(order);
+    renderOddsScreen();
+    requestAnimationFrame(() => document.querySelector(`[data-odds-column="${CSS.escape(source)}"]`)?.focus());
   });
 }
 

@@ -79,6 +79,84 @@ def test_odds_engine_health_is_protected(app_client) -> None:
     assert response.get_json() == {"status": "UNAUTHORIZED"}
 
 
+def test_odds_engine_advanced_read_only_endpoints_use_configured_key(
+    app_client, monkeypatch
+) -> None:
+    odds_engine = _provider(app_client.application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+
+    def registry(*, force=False):
+        assert force is False
+        return [
+            {
+                "key": "prophetx",
+                "name": "ProphetX",
+                "type": "exchange",
+                "kind": "exchange",
+                "deepLink": "web",
+            }
+        ]
+
+    def orderbook(**kwargs):
+        calls.append(kwargs)
+        return {
+            "league": "nba",
+            "markets": [
+                {
+                    "market": "Moneyline",
+                    "side_a": {
+                        "books": {
+                            "prophetx": {
+                                "limit": 4000,
+                                "order_book": [
+                                    {"odds": 2.05, "liquidity": 1200}
+                                ],
+                            }
+                        }
+                    },
+                }
+            ],
+        }
+
+    monkeypatch.setattr(odds_engine, "refresh_book_registry", registry)
+    monkeypatch.setattr(
+        odds_engine, "advanced_order_book_snapshot", orderbook
+    )
+
+    books_response = app_client.get("/api/providers/odds-engine/books")
+    orderbook_response = app_client.get(
+        "/api/providers/odds-engine/orderbook",
+        query_string={
+            "event_id": "provider-event-1",
+            "books": "novig,prophetx",
+            "market_type": "player",
+            "limit": 75,
+        },
+    )
+
+    assert books_response.status_code == 200
+    assert books_response.get_json()["data"][0]["key"] == "prophetx"
+    assert orderbook_response.status_code == 200
+    payload = orderbook_response.get_json()
+    assert payload["transport"] == "rest_snapshot"
+    assert payload["websocketConnected"] is False
+    assert payload["data"]["markets"][0]["side_a"]["books"][
+        "prophetx"
+    ]["limit"] == 4000
+    assert calls == [
+        {
+            "league": "",
+            "event_id": "provider-event-1",
+            "market_type": "player",
+            "books": ("novig", "prophetx"),
+            "include_peers": True,
+            "limit": 75,
+            "offset": 0,
+        }
+    ]
+
+
 def test_odds_screen_uses_all_book_events_without_a_second_event_scan(app_client, monkeypatch) -> None:
     application = app_client.application
     odds_engine = _provider(application, "odds_engine")
@@ -135,12 +213,11 @@ def test_odds_screen_uses_all_book_events_without_a_second_event_scan(app_client
     assert "s-maxage=60" in response.headers["Cache-Control"]
     assert not response.headers.getlist("Set-Cookie")
     assert payload["refreshSeconds"] == 60
-    assert payload["transport"] == {
-        "mode": "rest_snapshot",
-        "provider": "odds_engine",
-        "websocketConnected": False,
-        "websocketRequiresAdvanced": True,
-    }
+    assert payload["transport"]["mode"] == "rest_snapshot"
+    assert payload["transport"]["provider"] == "odds_engine"
+    assert payload["transport"]["websocketConnected"] is False
+    assert payload["transport"]["websocketRequiresAdvanced"] is True
+    assert payload["transport"]["subsecondCapable"] is False
     assert len(calls) == 1
     assert calls[0] == {
         "sport_keys": ("baseball_mlb",),
@@ -151,6 +228,42 @@ def test_odds_screen_uses_all_book_events_without_a_second_event_scan(app_client
         for row in payload["data"]
         for option in row["executionOptions"]
     } == {"FanDuel"}
+    assert payload["coverage"]["marketKeys"] == ["h2h"]
+    assert payload["coverage"]["bookMarketMatrix"] == [
+        {
+            "providerKey": "oddsengine__fanduel",
+            "marketKey": "h2h",
+            "quoteCount": 2,
+            "executableQuoteCount": 2,
+        }
+    ]
+    assert payload["coverage"]["catalogClaimsExcluded"] is True
+
+
+def test_odds_screen_unfiltered_scan_requests_every_observed_market(
+    app_client, monkeypatch
+) -> None:
+    application = app_client.application
+    odds_engine = _provider(application, "odds_engine")
+    odds_engine.api_key = "configured-in-test"
+    calls = []
+    monkeypatch.setattr(
+        application.extensions["polymarket_schedule_feed"],
+        "today_and_tomorrow",
+        lambda _now: [],
+    )
+
+    def events(*, sport_keys, market_keys):
+        calls.append((tuple(sport_keys), tuple(market_keys)))
+        return []
+
+    monkeypatch.setattr(odds_engine, "ev_events", events)
+
+    response = app_client.get("/api/odds-screen?active=1")
+
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert calls[0][1] == ("*",)
 
 
 def test_odds_screen_league_and_prop_filters_keep_direct_all_book_rows(

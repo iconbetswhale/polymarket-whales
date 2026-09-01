@@ -63,11 +63,22 @@ def normalize_odds_api_events(
             for market in book.get("markets") or ():
                 market_key = str(market.get("key") or "")
                 market_type, family, period, alternate = _market_shape(market_key)
-                updated = market.get("last_update") or book.get("last_update") or received
+                updated = (
+                    market.get("last_update")
+                    or book.get("last_update")
+                    or event.get("last_update")
+                )
+                if not updated:
+                    continue
                 for outcome in market.get("outcomes") or ():
                     price = _number(outcome.get("price"))
                     selection = str(outcome.get("name") or "")
-                    if not selection or price is None or price == 0:
+                    if (
+                        not selection
+                        or price is None
+                        or price == 0
+                        or not -5_000 <= price <= 5_000
+                    ):
                         continue
                     line = _number(outcome.get("point"))
                     description = str(outcome.get("description") or "")

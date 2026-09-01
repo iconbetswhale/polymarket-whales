@@ -122,20 +122,22 @@ def test_first_leg_mode_can_lock_the_second_outcome() -> None:
     assert row["outcomes"][0]["stake"] == pytest.approx(79.72)
 
 
-def test_negative_hold_is_reported_as_a_guaranteed_profit() -> None:
+def test_negative_hold_is_routed_to_arbitrage_instead_of_duplicated() -> None:
     event = _event(
         _book("draftkings", [_outcome("Away", 110), _outcome("Home", -120)]),
         _book("fanduel", [_outcome("Away", -120), _outcome("Home", 110)]),
     )
 
-    row = build_low_hold_board(
+    board = build_low_hold_board(
         [event], selected_books=("draftkings", "fanduel"), now=NOW
-    )["data"][0]
+    )
 
-    assert row["holdPercent"] < 0
-    assert row["outsideNet"] == pytest.approx(50.0)
-    assert row["guaranteedProfit"] == pytest.approx(50.0)
-    assert row["holdCost"] == 0
+    assert board["data"] == []
+    assert (
+        board["diagnostics"]["rejectionReasons"]
+        ["routed_to_arbitrage_or_above_maximum_hold"]
+        == 1
+    )
 
 
 def test_true_total_middle_models_both_legs_winning() -> None:
@@ -185,8 +187,8 @@ def test_half_point_middle_models_win_and_push() -> None:
 
 def test_exchange_commission_increases_the_effective_hold() -> None:
     event = _event(
-        _book("novig", [_outcome("Away", 105), _outcome("Home", -120)]),
-        _book("draftkings", [_outcome("Away", -120), _outcome("Home", 105)]),
+        _book("novig", [_outcome("Away", 100), _outcome("Home", -120)]),
+        _book("draftkings", [_outcome("Away", -120), _outcome("Home", 100)]),
     )
 
     raw = build_low_hold_board(

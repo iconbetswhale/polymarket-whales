@@ -15,12 +15,14 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+from statistics import median
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from typing import Iterable
 
 from arbitrage import MARKET_LABELS, effective_decimal_odds, equalized_stakes
 from ev_optimizer import american_to_decimal
+from opportunity_execution import evaluate_execution_gates, quote_execution_metadata
 from sports_game_odds import (
     SPORTS_GAME_ODDS_BOOKMAKERS,
     SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
@@ -30,9 +32,9 @@ from sports_game_odds import (
 )
 
 
-MIDDLES_CALCULATION_VERSION = "iconlabs-middles-v1-equal-outside-payout"
-MIN_AMERICAN_ODDS = -100_000
-MAX_AMERICAN_ODDS = 100_000
+MIDDLES_CALCULATION_VERSION = "iconlabs-middles-v3-probability-execution-gates"
+MIN_AMERICAN_ODDS = -5_000
+MAX_AMERICAN_ODDS = 5_000
 SPREAD_MARKETS = {"spreads", "alternate_spreads"}
 GAME_TOTAL_MARKETS = {"totals", "alternate_totals"}
 
@@ -213,6 +215,62 @@ def _candidate_key(event_id: str, market_key: str, family: tuple, first: dict, s
     return event_id, market_key, family, tuple(selections)
 
 
+def _market_ladder_middle_probability(
+    market_key: str,
+    first: dict,
+    second: dict,
+    family_quotes: list[dict],
+) -> dict:
+    """Estimate a total/prop middle only from paired market-ladder prices.
+
+    A same-book Over/Under pair at a line is de-vigged into a CDF point. The
+    difference between median CDF values at the two boundaries estimates the
+    window probability. Spreads remain unavailable until an equivalent
+    settlement-aligned ladder is present; no sport-level distribution is
+    fabricated.
+    """
+    if not _is_total_market(market_key):
+        return {"status": "UNAVAILABLE", "reason": "SPREAD_LADDER_MODEL_NOT_AVAILABLE"}
+    by_book_line: dict[tuple[str, float], dict[str, dict]] = defaultdict(dict)
+    for quote in family_quotes:
+        name = str(quote.get("name") or "").strip().lower()
+        point = _point(quote.get("point"))
+        if name not in {"over", "under"} or point is None:
+            continue
+        by_book_line[(str(quote.get("bookKey") or ""), point)][name] = quote
+
+    under_probabilities: dict[float, list[float]] = defaultdict(list)
+    for (_book_key, point), sides in by_book_line.items():
+        if not {"over", "under"}.issubset(sides):
+            continue
+        over_probability = 1.0 / float(sides["over"]["decimalOdds"])
+        under_probability = 1.0 / float(sides["under"]["decimalOdds"])
+        total = over_probability + under_probability
+        if total > 0:
+            under_probabilities[point].append(under_probability / total)
+
+    low = min(float(first["point"]), float(second["point"]))
+    high = max(float(first["point"]), float(second["point"]))
+    low_values = under_probabilities.get(low) or []
+    high_values = under_probabilities.get(high) or []
+    if not low_values or not high_values:
+        return {"status": "UNAVAILABLE", "reason": "INSUFFICIENT_PAIRED_LADDER_QUOTES"}
+    low_cdf = median(low_values)
+    high_cdf = median(high_values)
+    probability = max(0.0, min(1.0, high_cdf - low_cdf))
+    return {
+        "status": "AVAILABLE",
+        "method": "DEVIGGED_MARKET_LADDER_CDF",
+        "probability": probability,
+        "lowBoundary": low,
+        "highBoundary": high,
+        "lowSourceCount": len(low_values),
+        "highSourceCount": len(high_values),
+        "lowUnderProbability": low_cdf,
+        "highUnderProbability": high_cdf,
+    }
+
+
 def _pair_payload(
     event: dict,
     market_key: str,
@@ -247,6 +305,20 @@ def _pair_payload(
         if worst_profit < 0
         else 0.0
     )
+    probability_model = _market_ladder_middle_probability(
+        market_key, first, second, family_quotes
+    )
+    estimated_probability = probability_model.get("probability")
+    estimated_ev_percent = None
+    edge_vs_break_even = None
+    if estimated_probability is not None:
+        estimated_profit = (
+            float(estimated_probability) * middle_profit
+            + (1.0 - float(estimated_probability))
+            * (sum(outside_profits) / 2.0)
+        )
+        estimated_ev_percent = (estimated_profit / actual_total) * 100.0
+        edge_vs_break_even = float(estimated_probability) - break_even
 
     kind = "total" if _is_total_market(market_key) else "spread"
     window = _window_payload(kind, first, second)
@@ -328,6 +400,22 @@ def _pair_payload(
         "middleProfit": round(middle_profit, 2),
         "middleProfitPercent": round(middle_profit_percent, 2),
         "breakEvenMiddleProbability": round(break_even * 100.0, 2),
+        "estimatedMiddleProbability": (
+            round(float(estimated_probability) * 100.0, 2)
+            if estimated_probability is not None
+            else None
+        ),
+        "estimatedEvPercent": (
+            round(estimated_ev_percent, 2)
+            if estimated_ev_percent is not None
+            else None
+        ),
+        "edgeVsBreakEvenProbabilityPoints": (
+            round(edge_vs_break_even * 100.0, 2)
+            if edge_vs_break_even is not None
+            else None
+        ),
+        "probabilityModel": probability_model,
         "guaranteedOutsideProfit": worst_profit >= 0,
         "pushScenarios": _push_scenarios(kind, first, second, stakes),
         "commissionBps": float(commission_bps),
@@ -346,9 +434,10 @@ def build_middles_board(
     total_stake: float = 1_000.0,
     min_middle_width: float = 0.5,
     max_cost_percent: float = 12.0,
-    max_quote_age_seconds: int = 180,
+    max_quote_age_seconds: int = 90,
+    max_cross_leg_skew_seconds: int = 3,
     commission_bps: float = 0.0,
-    require_distinct_books: bool = False,
+    require_distinct_books: bool = True,
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked board of executable two-leg middle opportunities."""
@@ -396,7 +485,10 @@ def build_middles_board(
                 age = _quote_age_seconds(
                     market.get("last_update") or book.get("last_update"), now
                 )
-                if age is not None and age > max_quote_age_seconds:
+                if age is None:
+                    rejected["missing_quote_timestamp"] += 1
+                    continue
+                if age > max_quote_age_seconds:
                     rejected["stale_quote"] += 1
                     continue
                 for outcome in market.get("outcomes") or []:
@@ -442,6 +534,12 @@ def build_middles_board(
                         "deepLink": str(
                             outcome.get("link") or market.get("link") or book.get("link") or ""
                         ),
+                        **quote_execution_metadata(
+                            book_key=book_key,
+                            book=book,
+                            market=market,
+                            outcome=outcome,
+                        ),
                     }
                     families[family].append(quote)
 
@@ -471,6 +569,13 @@ def build_middles_board(
                 if require_distinct_books and first["bookKey"] == second["bookKey"]:
                     rejected["same_book"] += 1
                     continue
+                quote_skew = abs(
+                    float(first["quoteAgeSeconds"])
+                    - float(second["quoteAgeSeconds"])
+                )
+                if quote_skew > max(0, int(max_cross_leg_skew_seconds)):
+                    rejected["cross_leg_quote_skew"] += 1
+                    continue
                 found_pair = True
                 if market_key in SPREAD_MARKETS:
                     # Orient the pair so window math is consistently relative
@@ -498,6 +603,30 @@ def build_middles_board(
                 if payload is None:
                     rejected["invalid_stake"] += 1
                     continue
+                payload["crossLegQuoteSkewSeconds"] = round(quote_skew, 1)
+                payload["maxCrossLegQuoteSkewSeconds"] = max(
+                    0, int(max_cross_leg_skew_seconds)
+                )
+                execution = evaluate_execution_gates(
+                    payload["legs"],
+                    [float(leg["stake"]) for leg in payload["legs"]],
+                    require_distinct_books=require_distinct_books,
+                    quote_skew_seconds=quote_skew,
+                    max_quote_skew_seconds=max(
+                        0, int(max_cross_leg_skew_seconds)
+                    ),
+                )
+                if execution["hardFailure"]:
+                    for reason in execution["failureReasons"]:
+                        rejected[f"execution_{str(reason).lower()}"] += 1
+                    continue
+                payload["executionStatus"] = execution["status"]
+                payload["isExecutable"] = execution["isExecutable"]
+                payload["executionGates"] = execution["gates"]
+                payload["maximumExecutableTotalStake"] = execution[
+                    "maximumExecutableTotalStake"
+                ]
+                payload["warnings"].extend(execution["warnings"])
                 if payload["costPercent"] > max_cost_percent + 1e-9:
                     rejected["above_maximum_cost"] += 1
                     continue

@@ -40,12 +40,12 @@
     books: catalog.filter(book => book.defaultExecution).map(book => book.key),
     minEv: 1,
     kelly: .25,
-    minSources: 2,
+    minSources: 3,
     requiredBooks: [],
     devigMethod: "power",
     weights: Object.fromEntries(devigCatalog.map(book => [book.key, Number(book.weight || 0)])),
     catalogVersion,
-    settingsVersion: 3
+    settingsVersion: 4
   };
   const bookNames = Object.fromEntries(catalog.map(book => [book.key, book.name]));
   const bookLogos = Object.fromEntries(catalog.map(book => [book.key, book.logoUrl || ""]));
@@ -62,6 +62,7 @@
     }
     settings = {...settings, ...migrated};
     if (!validDevigMethods.has(settings.devigMethod)) settings.devigMethod = defaults.devigMethod;
+    settings.minSources = Math.max(3, Math.min(5, Number(settings.minSources || defaults.minSources)));
     settings.requiredBooks = Array.isArray(requiredBooks) ? [...new Set(requiredBooks.filter(key => validRequiredBookKeys.has(key)))] : [...defaults.requiredBooks];
     const legacyMarkets = saved.group && marketGroups[saved.group] ? marketGroups[saved.group] : defaults.markets;
     const savedMarkets = Array.isArray(markets) ? markets.filter(key => validMarketKeys.has(key)) : legacyMarkets;
@@ -84,6 +85,7 @@
   } catch {}
   let rows = [], selectedId = "", paused = false, timer = null, feedView = "active", retryCount = 0;
   let lineHistoryRequestId = 0;
+  let lineHistoryMetricMode = "auto";
   let bankrollConfig = {amount:10000, unitPercentage:.01, settingsVersion:null, dirty:false, savePending:false};
   let trackerRowId = "", trackerSelectedTags = [], trackerOptions = null;
   let trackerConfirmation = {duplicate:false, conflict:false};
@@ -364,7 +366,17 @@
       ? `<span class="ev-book-mark il-provider-logo"><img class="ev-book-logo" src="${esc(source)}" alt="${esc(label)} logo"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`
       : `<span class="ev-book-mark il-provider-logo fallback" aria-label="${esc(label)}"><span class="ev-book-fallback" aria-hidden="true">${esc(label.slice(0, 1))}</span></span>`;
   };
-  const statusLabel = row => row.portfolioStatus !== "qualified" ? "Suppressed" : row.executionStatus === "executable" ? "Executable" : "Verify liquidity";
+  const statusLabel = row => {
+    if (row.portfolioStatus !== "qualified") return "Suppressed";
+    return ({
+      executable:"Executable", liquidity_unknown:"Verify liquidity", limit_unknown:"Verify limit",
+      eligibility_unknown:"Verify eligibility", account_ineligible:"Account ineligible",
+      settlement_unverified:"Verify settlement", unavailable:"Unavailable",
+    })[row.executionStatus] || "Watch only";
+  };
+  const executionAction = (row, quote, state) => state === "executable" && quote.deepLink
+    ? `<a class="ev-best-button il-executable-quote executable" href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a>`
+    : `<span class="ev-best-button il-executable-quote watch" role="status" aria-label="${esc(statusLabel(row))}. Execution disabled.">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<small>${esc(statusLabel(row))}</small></span></span>`;
   const stableSeed = value => [...String(value || "")].reduce((total, character) => total + character.charCodeAt(0), 0);
 
   function trackerSelectOptions(select, values, selectedValue = "", emptyLabel = null) {
@@ -542,10 +554,7 @@
   }
 
   function liveHistoryBookKeys(row) {
-    const isPlayerProp = /^(player_|batter_|pitcher_)/.test(String(row.marketKey || ""));
-    const sharpBooks = isPlayerProp
-      ? ["pinnacle", "fanduel"]
-      : ["pinnacle", "circa", "bookmakereu"];
+    const sharpBooks = ["pinnacle", "circa", "bookmakereu"];
     return [...new Set([row.bestQuote?.bookKey, ...sharpBooks].filter(Boolean))];
   }
 
@@ -598,6 +607,7 @@
   }
 
   function liveHistorySeries(rawSeries, mode) {
+    // Keep only timestamped provider observations: no synthetic points.
     const normalized = (rawSeries || []).map((series, index) => ({
       ...series,
       key: `live-${String(series.bookKey || index).replace(/[^a-z0-9_-]/gi, "-")}`,
@@ -620,10 +630,21 @@
     });
   }
 
-  const liveHistoryMetric = rawSeries => (rawSeries || []).some(series =>
-    (series.points || []).some(point => finiteOrNull(point.line) != null)
-  ) ? "line" : "americanOdds";
-  const liveHistoryValue = (point, metric) => metric === "line" ? point.line : point.americanOdds;
+  const liveHistoryMetric = (rawSeries, preferred = "auto") => {
+    const points = (rawSeries || []).flatMap(series => series.points || []);
+    const hasLine = points.some(point => finiteOrNull(point.line) != null);
+    const hasLimit = points.some(point => finiteOrNull(point.marketLimit) != null);
+    if (preferred === "line" && hasLine) return "line";
+    if (preferred === "marketLimit" && hasLimit) return "marketLimit";
+    if (preferred === "americanOdds") return "americanOdds";
+    const distinctLines = new Set(points.map(point => finiteOrNull(point.line)).filter(value => value != null));
+    return hasLine && distinctLines.size > 1 ? "line" : "americanOdds";
+  };
+  const liveHistoryValue = (point, metric) => metric === "line"
+    ? point.line
+    : metric === "marketLimit"
+      ? point.marketLimit
+      : point.americanOdds;
   const liveHistoryHasMovement = rawSeries => new Set(
     (rawSeries || []).flatMap(series => (series.points || []).map(point => point.timestamp))
   ).size > 1;
@@ -633,7 +654,11 @@
     const formatted = Number.isInteger(number) ? String(number) : number.toFixed(2).replace(/0+$/, "").replace(/\.$/, "");
     return formatted;
   };
-  const historyValueLabel = (value, metric) => metric === "line" ? lineValue(value) : odds(value);
+  const historyValueLabel = (value, metric) => metric === "line"
+    ? lineValue(value)
+    : metric === "marketLimit"
+      ? compactDollars(value)
+      : odds(value);
   const compactDollars = value => {
     const number = Number(value || 0);
     if (number >= 1000) return `$${(number / 1000).toFixed(number >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`;
@@ -643,9 +668,9 @@
     ? points.slice(1).reduce((path, point, index) => `${path} H${point[0].toFixed(1)} V${point[1].toFixed(1)}`, `M${points[0][0].toFixed(1)} ${points[0][1].toFixed(1)}`)
     : "";
 
-  function liveHistorySvg(rawSeries, mode) {
+  function liveHistorySvg(rawSeries, mode, preferredMetric = "auto") {
     const series = liveHistorySeries(rawSeries, mode);
-    const metric = liveHistoryMetric(series);
+    const metric = liveHistoryMetric(series, preferredMetric);
     const points = series.flatMap(item => item.points).filter(point => Number.isFinite(liveHistoryValue(point, metric)));
     if (!points.length) return "";
     const axisTime = timestamp => new Intl.DateTimeFormat("en-US", {hour:"numeric", minute:"2-digit"}).format(new Date(timestamp));
@@ -657,7 +682,11 @@
     const maxTime = Math.max(...points.map(point => point.timestamp));
     const values = points.map(point => liveHistoryValue(point, metric));
     const rawMin = Math.min(...values), rawMax = Math.max(...values);
-    const valuePadding = metric === "line" ? Math.max(.5, (rawMax - rawMin) * .15) : Math.max(6, (rawMax - rawMin) * .12);
+    const valuePadding = metric === "line"
+      ? Math.max(.5, (rawMax - rawMin) * .15)
+      : metric === "marketLimit"
+        ? Math.max(100, (rawMax - rawMin) * .12)
+        : Math.max(6, (rawMax - rawMin) * .12);
     const minValue = rawMin - valuePadding;
     const maxValue = rawMax + valuePadding;
     const timeSpan = Math.max(1, maxTime - minTime);
@@ -682,18 +711,19 @@
     const maxLimit = limitPoints.length ? Math.max(100, ...limitPoints.map(point => point.marketLimit)) * 1.1 : 0;
     const limitY = value => top + ((maxLimit - value) / maxLimit) * (height - top - bottom);
     const plottedLimits = limitPoints.map(point => [x(point.timestamp), limitY(point.marketLimit), point]);
-    const limitPath = plottedLimits.length > 1
+    const limitPath = metric !== "marketLimit" && plottedLimits.length > 1
       ? `<g data-series="live-pinnacle-limit"><path class="ev-trend-limit" stroke-dasharray="8 6" d="${chartStepPath(plottedLimits)}"></path>${plottedLimits.map(point => `<circle class="ev-trend-limit-point" cx="${point[0].toFixed(1)}" cy="${point[1].toFixed(1)}" r="3"><title>Pinnacle limit ${compactDollars(point[2].marketLimit)} at ${esc(new Date(point[2].timestamp).toLocaleString())}</title></circle>`).join("")}</g>`
       : "";
-    const limitAxis = plottedLimits.length > 1
+    const limitAxis = metric !== "marketLimit" && plottedLimits.length > 1
       ? `<text x="${width-2}" y="${top+4}" text-anchor="end" class="ev-trend-limit-label">${compactDollars(maxLimit)}</text><text x="${width-2}" y="${height-bottom+4}" text-anchor="end" class="ev-trend-limit-label">$0</text>`
       : "";
-    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook ${metric === "line" ? "line" : "price"} history">${grid}${limitAxis}${paths}${limitPath}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
+    const metricLabel = metric === "line" ? "line" : metric === "marketLimit" ? "limit" : "price";
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Real timestamped sportsbook ${metricLabel} history">${grid}${limitAxis}${paths}${limitPath}<text x="${left}" y="${height-10}" class="ev-trend-axis">${esc(axisTime(minTime))}</text><text x="${width-right}" y="${height-10}" text-anchor="end" class="ev-trend-axis ev-current-axis">${esc(axisTime(maxTime))}</text></svg>`;
   }
 
-  function liveHistoryLegend(rawSeries, mode) {
+  function liveHistoryLegend(rawSeries, mode, preferredMetric = "auto") {
     const series = liveHistorySeries(rawSeries, mode);
-    const metric = liveHistoryMetric(series);
+    const metric = liveHistoryMetric(series, preferredMetric);
     const books = series.map(item => {
       const latest = item.points[item.points.length - 1];
       const value = liveHistoryValue(latest, metric);
@@ -707,13 +737,13 @@
     const limitPointCount = (pinnacle?.points || []).filter(point => Number.isFinite(point.marketLimit)).length;
     const limit = latestLimit
       ? `<button type="button" class="ev-trend-legend-toggle is-limit ${limitPointCount < 2 ? "is-snapshot" : ""}" ${limitPointCount > 1 ? 'data-series-toggle="live-pinnacle-limit" aria-pressed="true"' : 'disabled aria-disabled="true"'}><span>Pinnacle limit</span><b>${compactDollars(latestLimit.marketLimit)}</b></button>`
-      : "";
+      : `<button type="button" class="ev-trend-legend-toggle is-limit is-snapshot" disabled aria-disabled="true"><span>Pinnacle limit</span><b>Unavailable</b></button>`;
     return books + limit;
   }
 
-  function updateTrendMetrics(rawSeries) {
+  function updateTrendMetrics(rawSeries, preferredMetric = "auto") {
     const series = liveHistorySeries(rawSeries, "history");
-    const metric = liveHistoryMetric(series);
+    const metric = liveHistoryMetric(series, preferredMetric);
     const primary = series.find(item => item.isSelected) || series.find(item => item.bookKey === "pinnacle") || series[0];
     if (!primary?.points?.length) return;
     const open = primary.points[0];
@@ -736,16 +766,23 @@
       container.innerHTML = `<div class="ev-chart-live-state il-state il-state-empty"><i class="ph ph-chart-line-up"></i><strong>Collecting real bookmaker history</strong><span>The current live quote is recorded now; the chart appears as timestamped book prices accumulate.</span></div>`;
       return;
     }
-    const trendSvg = liveHistorySvg(series, "trend");
-    const historySvg = liveHistorySvg(series, "history");
+    const metric = liveHistoryMetric(series, lineHistoryMetricMode);
+    const trendSvg = liveHistorySvg(series, "trend", metric);
+    const historySvg = liveHistorySvg(series, "history", metric);
     const singleSnapshot = !liveHistoryHasMovement(series);
-    const metric = liveHistoryMetric(series);
+    const availableKinds = new Set(payload.valueKindsAvailable || []);
+    const metricControls = [
+      ["line", "Line", availableKinds.has("line")],
+      ["americanOdds", "Price", availableKinds.has("american_odds")],
+      ["marketLimit", "Limit", availableKinds.has("market_limit")],
+    ].map(([key, label, available]) => `<button type="button" data-history-metric="${key}" aria-pressed="${metric === key}" class="${metric === key ? "active" : ""}" ${available ? "" : 'disabled aria-disabled="true"'}>${label}</button>`).join("");
+    const metricCopy = metric === "line" ? "Live line movement" : metric === "marketLimit" ? "Reported Pinnacle limit history" : "Live price movement";
     container.setAttribute("aria-busy", "false");
-    container.innerHTML = `<div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Live line chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
-      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${metric === "line" ? "Live line movement" : "Live price movement"} from the compared and sharp books</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend")}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next line, price, limit, or checkpoint update." : "Real timestamped lines, prices, and reported Pinnacle limits; refreshed with the live +EV feed."}</p></div>
-      <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>${historySvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "history")}</div><p class="ev-trend-live-note"><i class="ph ph-database"></i>${observationCount} stored bookmaker observation${observationCount === 1 ? "" : "s"}; no synthetic points.</p></div>`;
-    updateTrendMetrics(series);
-    bindTrendControls(viewState);
+    container.innerHTML = `<div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Live line chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div><div class="ev-chart-tabs ev-chart-metric-tabs" role="group" aria-label="Chart metric">${metricControls}</div></div>
+      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${metricCopy} from the selected book, Pinnacle, Circa, and Bookmaker</span></div>${trendSvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "trend", metric)}</div><p class="ev-trend-live-note"><i class="ph ph-broadcast"></i>${singleSnapshot ? "First real snapshots recorded. Movement appears after the next line, price, limit, or checkpoint update." : "Real provider timestamps. A missing Pinnacle limit is labeled unavailable, never inferred."}</p></div>
+      <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} History</strong><span>${esc(row.eventTitle)}</span></div>${historySvg}<div class="ev-trend-legend">${liveHistoryLegend(series, "history", metric)}</div><p class="ev-trend-live-note"><i class="ph ph-database"></i>${observationCount} stored bookmaker observation${observationCount === 1 ? "" : "s"}; first seen is not represented as a sportsbook opening line.</p></div>`;
+    updateTrendMetrics(series, metric);
+    bindTrendControls(viewState, row, payload);
     if (Number.isFinite(viewState.scrollTop)) requestAnimationFrame(() => { detail.scrollTop = viewState.scrollTop; });
   }
 
@@ -761,6 +798,9 @@
       books: books.join(","),
       limit: "1000",
     });
+    if (identity.providerEventId) params.set("provider_event_id", identity.providerEventId);
+    if (identity.providerSelectionId) params.set("provider_selection_id", identity.providerSelectionId);
+    if (identity.providerSeriesId) params.set("provider_series_id", identity.providerSeriesId);
     if (identity.marketType && identity.marketFamily && identity.period && identity.selection && typeof identity.isAlternate === "boolean") {
       params.set("market_type", identity.marketType);
       params.set("market_family", identity.marketFamily);
@@ -783,7 +823,7 @@
     }
   }
 
-  function bindTrendControls(viewState = {}) {
+  function bindTrendControls(viewState = {}, row = null, payload = null) {
     const activateChartTab = button => {
       const mode = button.dataset.chartTab;
       detail.querySelectorAll("[data-chart-tab]").forEach(tab => {
@@ -816,6 +856,11 @@
       button.classList.toggle("off", !visible);
       const view = button.closest("[data-chart-view]");
       view?.querySelectorAll(`[data-series="${button.dataset.seriesToggle}"]`).forEach(series => series.classList.toggle("series-hidden", !visible));
+    }));
+    detail.querySelectorAll("[data-history-metric]:not(:disabled)").forEach(button => button.addEventListener("click", () => {
+      lineHistoryMetricMode = button.dataset.historyMetric || "auto";
+      const activeTab = detail.querySelector('[data-chart-tab][aria-selected="true"]')?.dataset.chartTab || "trend";
+      if (row && payload) renderLiveLineHistory(row, payload, {scrollTop: detail.scrollTop, chartMode: activeTab});
     }));
     const preferredTab = detail.querySelector(`[data-chart-tab="${CSS.escape(viewState.chartMode || "trend")}"]`);
     if (preferredTab) activateChartTab(preferredTab);
@@ -1201,7 +1246,7 @@
         <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong>${scoreAction}</div>
         <div class="ev-event"><span class="ev-event-meta"><time>${esc(time(row.commenceTime))}</time><span><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</span></span><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong><small>${esc(row.marketLabel)}</small></div>
         <div class="ev-pick">${leagueWatermark(row)}<small>Best Bet</small><strong>${esc(detailSelection(row))}</strong></div>
-        <div class="ev-execution"><div class="ev-selection">${esc(detailSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div><a class="ev-best-button il-executable-quote ${state}" href="${esc(quote.deepLink||"#")}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName||quote.bookKey)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}">${img(quote.logoUrl,quote.bookKey)}<span>${odds(quote.topPriceAmericanOdds??quote.americanOdds)}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></span></a></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(detailSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div>${executionAction(row, quote, state)}</div>
       </article>`;
     }).join("");
     feed.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => {
@@ -1289,7 +1334,7 @@
         <span class="il-metric positive"><small>EV</small><b data-trend-metric="ev">${evPercent(row.evPercent)}</b></span>
         <span class="il-metric"><small>FV</small><b data-trend-metric="fv">${odds(row.fairAmerican)}</b></span>
         <span class="il-metric"><small>1H</small><b data-trend-metric="1h">--</b></span>
-        <span class="il-metric"><small>OPEN</small><b data-trend-metric="open">--</b></span>
+        <span class="il-metric"><small>FIRST SEEN</small><b data-trend-metric="open">--</b></span>
       </div>${marketTrendVisual(row)}</section>
       <button class="ev-full-market-button" type="button" aria-expanded="false"><span>View full market depth</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
       <div class="ev-full-market-depth" hidden>${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
@@ -1359,6 +1404,7 @@
     settings.requiredBooks=[...document.querySelectorAll("[data-required-book]:checked")].map(i=>i.dataset.requiredBook);
     settings.devigMethod=document.querySelector('input[name="devig-method"]:checked')?.value || defaults.devigMethod;
     [["ev-min-ev","minEv"],["ev-kelly","kelly"],["ev-min-sources","minSources"]].forEach(([id,key]) => settings[key]=Number($(id).value || defaults[key]));
+    settings.minSources = Math.max(3, Math.min(5, settings.minSources));
     settings.weights=Object.fromEntries([...document.querySelectorAll("[data-weight]")].map(i=>[i.dataset.weight,Number(i.value||0)]));
     settings.catalogVersion = catalogVersion;
     localStorage.setItem("iconlabs-ev-settings",JSON.stringify(settings));updateToolbarFilterCount();dialog.close();load(true);

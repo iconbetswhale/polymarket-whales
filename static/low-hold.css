@@ -620,3 +620,15 @@ body[data-page="low-hold"] .arb-kpi-strip {
   .lh-page .arb-profit-proof div { border-right: 0; border-bottom: 1px solid var(--il-border-subtle); }
   .lh-page .arb-detail-actions { grid-template-columns: 1fr; }
 }
+.lh-show-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: min(360px, calc(100% - 24px));
+  margin: 14px auto 22px;
+}
+
+.lh-show-more small {
+  color: rgba(255, 255, 255, .56);
+}

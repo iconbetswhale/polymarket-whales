@@ -68,7 +68,7 @@
           <div class="mid-field-grid">
             <label>Minimum window<span><input id="mid-min-width" type="number" min="0.01" max="1000" step="0.5" value="0.5"><b>pts</b></span></label>
             <label>Maximum cost<span><input id="mid-max-cost" type="number" min="0" max="100" step="0.25" value="12"><b>%</b></span></label>
-            <label>Maximum quote age<span><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Maximum quote age<span><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
             <label>Exchange commission<span><input id="mid-commission" type="number" min="0" max="25" step="0.25" value="0"><b>%</b></span></label>
           </div>
           <fieldset class="mid-market-choices" id="mid-market-choices">
@@ -96,7 +96,7 @@
         <article><i class="ph ph-number-circle-two" aria-hidden="true"></i><div><strong>Equalize outside payouts</strong><p>Stake is split in inverse proportion to effective decimal odds, then rounded to cents. That maximizes the smaller payout when the result lands outside the middle.</p></div></article>
         <article><i class="ph ph-number-circle-three" aria-hidden="true"></i><div><strong>Price the lottery ticket honestly</strong><p>Cost is the worst outside loss divided by total stake. Break-even is cost divided by the difference between middle profit and worst outside profit. No unverified hit probability is assumed.</p></div></article>
         <div class="mid-formula"><span>Break-even middle probability</span><strong>outside risk ÷ (middle profit + outside risk)</strong></div>
-        <p class="mid-risk-note"><i class="ph ph-warning" aria-hidden="true"></i>Odds can move, limits can differ, and a middle is not guaranteed unless the worst-case profit shown is non-negative. Confirm both tickets before placing either leg.</p>
+        <p class="mid-risk-note"><i class="ph ph-warning" aria-hidden="true"></i>A non-negative modeled worst case is still not executable until both prices, capacities, accounts, and settlement rules are verified. Confirm both tickets before placing either leg.</p>
       </div>
     </div>
   </dialog>

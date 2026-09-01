@@ -29,7 +29,7 @@
   const configuredMarketKeys = Object.values(config.marketGroups || {}).flat()
     .map((market) => typeof market === "string" ? market : market?.key)
     .filter(Boolean);
-  const storageKey = "iconlabsLowHoldSettingsV3";
+  const storageKey = "iconlabsLowHoldSettingsV4";
   const savedKey = "iconlabsLowHoldSavedFiltersV3";
   let stored = {};
   try { stored = JSON.parse(localStorage.getItem(storageKey) || "{}"); } catch (_error) { stored = {}; }
@@ -42,9 +42,9 @@
     stakeMode: "first-leg",
     lockedLegIndex: 0,
     maxHold: 5,
-    minOdds: -100000,
-    maxOdds: 100000,
-    maxAge: 180,
+    minOdds: -5000,
+    maxOdds: 5000,
+    maxAge: 90,
     commissionBps: 0,
     minDistance: 0.5,
     distinctBooks: true,
@@ -61,21 +61,24 @@
     diagnostics: {},
     loading: false,
     error: "",
+    degraded: false,
     paused: false,
     liveActive: true,
     selectedId: null,
     search: "",
     sport: "",
     market: "",
+    maxHours: 48,
     mode: "all",
     bookGroup: "all",
     alerts: false,
+    visibleLimit: 100,
     stake: numberBetween(stored.stake, 1, 10_000_000, defaults.stake),
     stakeMode: ["first-leg", "total"].includes(stored.stakeMode) ? stored.stakeMode : defaults.stakeMode,
     lockedLegIndex: numberBetween(stored.lockedLegIndex, 0, 12, defaults.lockedLegIndex),
     maxHold: numberBetween(stored.maxHold, 0, 25, defaults.maxHold),
-    minOdds: numberBetween(stored.minOdds, -100000, 100000, defaults.minOdds),
-    maxOdds: numberBetween(stored.maxOdds, -100000, 100000, defaults.maxOdds),
+    minOdds: numberBetween(stored.minOdds, -5000, 5000, defaults.minOdds),
+    maxOdds: numberBetween(stored.maxOdds, -5000, 5000, defaults.maxOdds),
     maxAge: numberBetween(stored.maxAge, 15, 1800, defaults.maxAge),
     commissionBps: numberBetween(stored.commissionBps, 0, 2500, defaults.commissionBps),
     minDistance: numberBetween(stored.minDistance, 0.5, 20, defaults.minDistance),
@@ -102,6 +105,7 @@
     dialogStakeLabel: document.getElementById("lh-dialog-stake-label"),
     sport: document.getElementById("lh-sport-filter"),
     market: document.getElementById("lh-market-filter"),
+    time: document.getElementById("lh-time-filter"),
     sort: document.getElementById("lh-sort"),
     refresh: document.getElementById("lh-refresh"),
     pause: document.getElementById("lh-pause"),
@@ -257,6 +261,10 @@
     if (state.mode !== "all" && row.pairKind !== state.mode) return false;
     if (state.sport && row.sportKey !== state.sport) return false;
     if (state.market && row.marketKey !== state.market) return false;
+    if (state.maxHours !== null) {
+      const hoursUntilStart = (new Date(row.commenceTime).getTime() - Date.now()) / 3_600_000;
+      if (!Number.isFinite(hoursUntilStart) || hoursUntilStart < 0 || hoursUntilStart > state.maxHours) return false;
+    }
     if (!query) return true;
     const blob = [
       row.eventTitle,
@@ -322,7 +330,11 @@
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-percent" aria-hidden="true"></i><strong>No Low Hold pairs match these filters</strong><p>Try more sportsbooks, a higher maximum hold, a wider odds range, or both pair types.</p><button class="arb-secondary-button" type="button" data-lh-open-filters>Adjust filters</button></div>`;
       return;
     }
-    elements.feed.innerHTML = rows.map(opportunityCard).join("");
+    const rendered = rows.slice(0, state.visibleLimit);
+    const remaining = rows.length - rendered.length;
+    elements.feed.innerHTML = (state.degraded ? `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>Showing the last verified Low Hold snapshot while the provider reconnects. Recheck every price and accepted stake.</span></div>` : "") + rendered.map(opportunityCard).join("") + (remaining > 0
+      ? `<button class="arb-secondary-button lh-show-more" type="button" data-lh-show-more>Show 100 more <small>${remaining.toLocaleString()} remaining</small></button>`
+      : "");
   }
 
   function updateSummary() {
@@ -332,7 +344,7 @@
     document.getElementById("lh-kpi-retained").textContent = best ? percent(best.retainedPercent, 1) : "—";
     document.getElementById("lh-kpi-opportunities").textContent = String(state.rows.length);
     document.getElementById("lh-mode-count").textContent = String(state.rows.length);
-    elements.resultCopy.textContent = `${rows.length} shown`;
+    elements.resultCopy.textContent = `${Math.min(rows.length, state.visibleLimit)} of ${rows.length} shown`;
   }
 
   function populateQuickFilters() {
@@ -366,7 +378,7 @@
     const plan = (row.outcomes || []).map((leg, index) => `
       <article class="arb-plan-leg">
         ${bookLogo(leg)}
-        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)}</small></div>
+        <div><strong>${esc(leg.selection)}</strong><small>${esc(leg.bookName)} · ${odds(leg.americanOdds)} · pays ${money(leg.payout)} · ${leg.capacityKnown ? `${money(leg.executionCapacity)} ${leg.capacityType === "TOP_PRICE_LIQUIDITY" ? "liquidity" : "limit"}` : "capacity unverified"}</small></div>
         <div class="arb-plan-stake"><span>${row.stakeMode === "first-leg" ? (index === lockedIndex ? "Bet 1" : "Hedge") : "Stake"}</span><b>${money(leg.stake)}</b>${row.stakeMode === "first-leg" ? (index === lockedIndex ? `<small class="lh-lock-status"><i class="ph ph-lock-key"></i>Locked</small>` : `<button class="lh-lock-leg" type="button" data-lh-lock-leg="${index}">Use as Bet 1</button>`) : ""}</div>
         ${leg.deepLink ? `<a class="arb-bet-link" href="${esc(leg.deepLink)}" target="_blank" rel="noopener noreferrer">BET<i class="ph ph-arrow-up-right"></i></a>` : `<span class="arb-bet-link disabled">BET</span>`}
       </article>`).join("");
@@ -380,7 +392,9 @@
       return `<section class="arb-comparison-group" data-line-shop-group><h4>${esc(group.selection)}</h4>${quotes.map((quote) => quoteRow(quote, selected?.bookKey)).join("")}</section>`;
     }).join("");
     const warnings = (row.warnings || []).map((warning) => `<div class="arb-detail-warning"><i class="ph ph-warning"></i><span>${esc(warning)}</span></div>`).join("");
-    const netLabel = Number(row.outsideNet) >= 0 ? "Guaranteed profit" : "Worst-case cost";
+    const netLabel = Number(row.outsideNet) >= 0
+      ? row.executionStatus === "EXECUTABLE" ? "Verified outside profit" : "Modeled outside profit"
+      : "Worst-case cost";
     const context = row.marketContext ? ` · ${esc(row.marketContext)}` : "";
     elements.detailContent.innerHTML = `
       <header class="arb-detail-hero">
@@ -472,10 +486,12 @@
       state.rows = Array.isArray(payload.data) ? payload.data : [];
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
+      state.degraded = Boolean(payload.degraded || payload.stale);
       if (state.alerts && state.rows.length) notify(`${state.rows.length} Low Hold opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
       scheduleRefresh(Number(payload.refreshSeconds || 60));
     } catch (error) {
       if (!state.rows.length) state.diagnostics = {};
+      state.degraded = state.rows.length > 0;
       state.error = state.rows.length ? "" : error.message;
       notify(state.rows.length ? "Recent Low Hold scan shown; live refresh delayed." : error.message, "error");
     } finally {
@@ -593,8 +609,8 @@
     state.stakeMode = document.querySelector('input[name="lh-stake-mode"]:checked')?.value || defaults.stakeMode;
     state.stake = numberBetween(elements.dialogStake.value, 1, 10_000_000, defaults.stake);
     state.maxHold = numberBetween(elements.maxHold.value, 0, 25, defaults.maxHold);
-    state.minOdds = numberBetween(elements.minOdds.value, -100000, 100000, defaults.minOdds);
-    state.maxOdds = numberBetween(elements.maxOdds.value, -100000, 100000, defaults.maxOdds);
+    state.minOdds = numberBetween(elements.minOdds.value, -5000, 5000, defaults.minOdds);
+    state.maxOdds = numberBetween(elements.maxOdds.value, -5000, 5000, defaults.maxOdds);
     state.minDistance = numberBetween(elements.minDistance.value, 0.5, 20, defaults.minDistance);
     state.maxAge = numberBetween(elements.maxAge.value, 15, 1800, defaults.maxAge);
     state.commissionBps = numberBetween(elements.commission.value, 0, 2500, defaults.commissionBps);
@@ -657,8 +673,8 @@
     state.stakeMode = ["first-leg", "total"].includes(filter.stakeMode) ? filter.stakeMode : defaults.stakeMode;
     state.lockedLegIndex = numberBetween(filter.lockedLegIndex, 0, 12, defaults.lockedLegIndex);
     state.maxHold = numberBetween(filter.maxHold, 0, 25, defaults.maxHold);
-    state.minOdds = numberBetween(filter.minOdds, -100000, 100000, defaults.minOdds);
-    state.maxOdds = numberBetween(filter.maxOdds, -100000, 100000, defaults.maxOdds);
+    state.minOdds = numberBetween(filter.minOdds, -5000, 5000, defaults.minOdds);
+    state.maxOdds = numberBetween(filter.maxOdds, -5000, 5000, defaults.maxOdds);
     state.minDistance = numberBetween(filter.minDistance, 0.5, 20, defaults.minDistance);
     state.maxAge = numberBetween(filter.maxAge, 15, 1800, defaults.maxAge);
     state.commissionBps = numberBetween(filter.commissionBps, 0, 2500, defaults.commissionBps);
@@ -721,6 +737,11 @@
   }));
 
   elements.feed.addEventListener("click", (event) => {
+    if (event.target.closest("[data-lh-show-more]")) {
+      state.visibleLimit += 100;
+      renderAll();
+      return;
+    }
     const card = event.target.closest("[data-lh-id]");
     if (card) selectRow(card.dataset.lhId, true);
     if (event.target.closest("[data-lh-retry]")) loadBoard();
@@ -756,7 +777,7 @@
     if (remove) deleteSaved(Number(remove.dataset.lhDeleteFilter));
   });
 
-  elements.search.addEventListener("input", () => { state.search = elements.search.value; renderAll(); });
+  elements.search.addEventListener("input", () => { state.search = elements.search.value; state.visibleLimit = 100; renderAll(); });
   elements.search.addEventListener("keydown", (event) => { if (event.key === "Escape") { elements.search.value = ""; state.search = ""; renderAll(); } });
   elements.stake.addEventListener("input", () => {
     window.clearTimeout(state.stakeTimer);
@@ -773,9 +794,10 @@
     saveSettings();
     loadBoard({ quiet: true });
   });
-  elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; renderAll(); });
-  elements.market.addEventListener("change", () => { state.market = elements.market.value; renderAll(); });
-  elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; saveSettings(); renderAll(); });
+  elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; state.visibleLimit = 100; renderAll(); });
+  elements.market.addEventListener("change", () => { state.market = elements.market.value; state.visibleLimit = 100; renderAll(); });
+  elements.time.addEventListener("change", () => { state.maxHours = elements.time.value === "all" ? null : Number(elements.time.value); state.visibleLimit = 100; renderAll(); });
+  elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; state.visibleLimit = 100; saveSettings(); renderAll(); });
   elements.refresh.addEventListener("click", () => { if (!state.liveActive) startScanner(); else loadBoard(); });
   elements.pause.addEventListener("click", togglePause);
   elements.alerts.addEventListener("click", () => { state.alerts = !state.alerts; elements.alerts.setAttribute("aria-pressed", state.alerts ? "true" : "false"); notify(state.alerts ? "Low Hold alerts enabled." : "Low Hold alerts disabled."); });

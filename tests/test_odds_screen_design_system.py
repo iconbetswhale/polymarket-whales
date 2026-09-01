@@ -184,15 +184,16 @@ def test_odds_screen_is_prewarmed_and_shares_account_backed_book_order():
 def test_odds_screen_uses_the_supplied_caesars_sportsbook_logo():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
     preview = (ROOT / "odds_screen_preview.py").read_text(encoding="utf-8")
+    feed = (ROOT / "odds_screen_feed.py").read_text(encoding="utf-8")
     logo = ROOT / "static" / "assets" / "sportsbooks" / "caesars-sportsbook.png"
 
-    assert "/static/assets/sportsbooks/caesars-sportsbook.png" in script
+    assert "SPORTS_GAME_ODDS_LOGOS.get(raw_book_key" in feed
     assert "/static/assets/sportsbooks/caesars-sportsbook.png" in preview
     assert logo.is_file()
     assert logo.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
     assert "ODDS_LIQUIDITY_PROVIDER_KEYS" in script
     assert 'return `${formattedAmount} Limit`' in script
-    assert "if (ODDS_LIQUIDITY_PROVIDER_KEYS.has(providerKey)) return formattedAmount" in script
+    assert 'return `${formattedAmount} Liquidity`' in script
     assert "primary.canonical_league_id || primary.league || primary.category" not in script
     assert "Liq $" not in script
     assert "odds-column-highlight" not in script

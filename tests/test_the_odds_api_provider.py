@@ -840,10 +840,11 @@ def test_odds_screen_api_exposes_odds_engine_sportsbook_catalog(
         and item["source"] == "odds_engine"
         for item in payload["providers"]
     )
-    assert any(
-        item["key"] == "oddsengine__prizepicks"
+    assert all(
+        item["key"] != "oddsengine__prizepicks"
         for item in payload["providers"]
     )
+    assert payload["coverage"]["catalogClaimsExcluded"] is True
     assert any(
         option["providerKey"] == "oddsengine__fanduel"
         for item in payload["data"]

@@ -89,7 +89,7 @@ def test_live_dfs_board_uses_exact_line_probability_engine() -> None:
     assert all(row["hitByLine"]["1.5"] == 50.0 for row in rows)
     assert all(row["fairOddsByLine"]["1.5"] == -100.0 for row in rows)
     assert {row["oddsByBook"]["fanduel"]["odds"] for row in rows} == {"-110"}
-    assert all(row["minimumSourcesByLine"]["1.5"] == 1 for row in rows)
+    assert all(row["minimumSourcesByLine"]["1.5"] == 2 for row in rows)
     assert {row["awayTeam"] for row in rows} == {"New York Yankees"}
     assert {row["homeTeam"] for row in rows} == {"Boston Red Sox"}
     assert all(
@@ -150,8 +150,12 @@ def test_live_dfs_board_applies_the_selected_custom_book_weights() -> None:
         _market("pinnacle", over_price=150, under_price=-200)
     )
 
-    fanduel_rows = build_dfs_odds_board(events, weights={"fanduel": 100})
-    pinnacle_rows = build_dfs_odds_board(events, weights={"pinnacle": 100})
+    fanduel_rows = build_dfs_odds_board(
+        events, weights={"fanduel": 99, "pinnacle": 1}
+    )
+    pinnacle_rows = build_dfs_odds_board(
+        events, weights={"fanduel": 1, "pinnacle": 99}
+    )
     fanduel_over = next(row for row in fanduel_rows if row["side"] == "Over")
     pinnacle_over = next(row for row in pinnacle_rows if row["side"] == "Over")
 
@@ -349,10 +353,11 @@ def test_live_dfs_board_models_one_exact_two_way_source_but_not_mismatched_lines
     rows = build_dfs_odds_board(events)
     over = next(row for row in rows if row["side"] == "Over")
 
-    assert over["hitByLine"]["0.5"] is not None
-    assert over["fairOddsByLine"]["0.5"] is not None
-    assert over["minimumSourcesByLine"]["0.5"] == 1
+    assert over["hitByLine"]["0.5"] is None
+    assert over["fairOddsByLine"]["0.5"] is None
+    assert over["minimumSourcesByLine"]["0.5"] == 2
     assert over["sourceCount"] == 1
+    assert over["modelStatus"] == "WATCH_ONLY"
     assert over["oddsByBook"]["fanduel"]["line"] == 1.5
     assert over["oddsByBook"]["fanduel"]["modelExclusionReason"] == "LINE_MISMATCH"
 
@@ -385,7 +390,8 @@ def test_live_dfs_endpoint_prefers_odds_engine(app_client, monkeypatch) -> None:
     assert payload["dataSource"] == "odds_engine"
     assert payload["selectedBook"] == "prizepicks"
     assert payload["total"] == 2
-    assert payload["data"][0]["hitByLine"]["1.5"] == 50.0
+    assert payload["data"][0]["hitByLine"]["1.5"] is None
+    assert payload["data"][0]["modelStatus"] == "WATCH_ONLY"
     assert set(payload["dataByBook"]) == {"prizepicks"}
     assert payload["dataByBook"]["prizepicks"] == payload["data"]
     assert payload["totalsByBook"] == {"prizepicks": 2}

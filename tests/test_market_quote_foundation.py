@@ -45,7 +45,7 @@ def test_odds_api_adapter_separates_market_limit_from_liquidity():
         "id": "game-1", "sport_key": "baseball_mlb", "sport_title": "MLB",
         "commence_time": "2099-08-12T23:10:00Z", "away_team": "Mets",
         "home_team": "Phillies", "bookmakers": [{"key": "novig", "markets": [{
-            "key": "h2h", "outcomes": [
+            "key": "h2h", "last_update": "2099-08-12T20:00:00Z", "outcomes": [
                 {"name": "Mets", "price": 138, "bet_limit": 500, "liquidity": 75},
                 {"name": "Phillies", "price": -150},
             ]

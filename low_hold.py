@@ -30,6 +30,7 @@ from arbitrage import (
     equalized_stakes,
 )
 from ev_optimizer import american_to_decimal
+from opportunity_execution import evaluate_execution_gates, quote_execution_metadata
 from sports_game_odds import (
     SPORTS_GAME_ODDS_BOOKMAKERS,
     SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
@@ -38,7 +39,7 @@ from sports_game_odds import (
 )
 
 
-LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v2-locked-leg"
+LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v3-execution-gates"
 MIDDLE_MARKETS = {"totals", "alternate_totals"}
 
 
@@ -107,6 +108,12 @@ def _quote(
         "selection": _selection_label(market_key, outcome),
         "selectionName": str(outcome.get("name") or "").strip(),
         "description": str(outcome.get("description") or "").strip(),
+        **quote_execution_metadata(
+            book_key=book_key,
+            book=book,
+            market=market,
+            outcome=outcome,
+        ),
     }
 
 
@@ -231,6 +238,10 @@ def _build_row(
     effective_decimals = [row["effectiveDecimalOdds"] for row in assignment]
     inverse_sum = sum(1.0 / value for value in effective_decimals)
     hold_percent = (inverse_sum - 1.0) * 100.0
+    # Negative exact-line hold is arbitrage and belongs only on the Arbitrage
+    # board. This keeps the two scanners mutually exclusive.
+    if pair_kind == "exact" and hold_percent < -1e-9:
+        return None
     if hold_percent > max_hold_percent + 1e-9:
         return None
 
@@ -299,8 +310,6 @@ def _build_row(
     ).hexdigest()[:18]
     books_used = list(dict.fromkeys(row["bookKey"] for row in outcomes))
     warnings = []
-    if any(row["quoteAgeSeconds"] is None for row in outcomes):
-        warnings.append("One or more books did not provide a quote timestamp.")
     if commission_bps > 0 and any(
         row["bookKey"] in SPORTS_GAME_ODDS_EXCHANGE_BOOKS for row in outcomes
     ):
@@ -369,9 +378,10 @@ def build_low_hold_board(
     allowed_markets: Iterable[str] = (),
     total_stake: float = 1_000.0,
     max_hold_percent: float = 5.0,
-    min_american_odds: int = -100_000,
-    max_american_odds: int = 100_000,
-    max_quote_age_seconds: int = 180,
+    min_american_odds: int = -5_000,
+    max_american_odds: int = 5_000,
+    max_quote_age_seconds: int = 90,
+    max_cross_leg_skew_seconds: int = 3,
     commission_bps: float = 0.0,
     require_distinct_books: bool = True,
     include_exact: bool = True,
@@ -433,7 +443,10 @@ def build_low_hold_board(
                 age = _quote_age_seconds(
                     market.get("last_update") or book.get("last_update"), now
                 )
-                if age is not None and age > max_quote_age_seconds:
+                if age is None:
+                    rejected["missing_quote_timestamp"] += 1
+                    continue
+                if age > max_quote_age_seconds:
                     rejected["stale_quote"] += 1
                     continue
 
@@ -524,6 +537,12 @@ def build_low_hold_board(
                 if assignment is None:
                     rejected["no_valid_book_assignment"] += 1
                     continue
+                quote_skew = max(
+                    float(item["quoteAgeSeconds"]) for item in assignment
+                ) - min(float(item["quoteAgeSeconds"]) for item in assignment)
+                if quote_skew > max(0, int(max_cross_leg_skew_seconds)):
+                    rejected["cross_leg_quote_skew"] += 1
+                    continue
                 for index, selection in enumerate(ordered):
                     assignment[index]["selection"] = _selection_label(
                         market_key, labels[selection]
@@ -544,9 +563,33 @@ def build_low_hold_board(
                     locked_outcome_index=locked_outcome_index,
                 )
                 if row is None:
-                    rejected["above_maximum_hold"] += 1
+                    rejected["routed_to_arbitrage_or_above_maximum_hold"] += 1
                 else:
-                    opportunities.append(row)
+                    row["crossLegQuoteSkewSeconds"] = round(quote_skew, 1)
+                    row["maxCrossLegQuoteSkewSeconds"] = max(
+                        0, int(max_cross_leg_skew_seconds)
+                    )
+                    execution = evaluate_execution_gates(
+                        row["outcomes"],
+                        [float(outcome["stake"]) for outcome in row["outcomes"]],
+                        require_distinct_books=require_distinct_books,
+                        quote_skew_seconds=quote_skew,
+                        max_quote_skew_seconds=max(
+                            0, int(max_cross_leg_skew_seconds)
+                        ),
+                    )
+                    if execution["hardFailure"]:
+                        for reason in execution["failureReasons"]:
+                            rejected[f"execution_{str(reason).lower()}"] += 1
+                    else:
+                        row["executionStatus"] = execution["status"]
+                        row["isExecutable"] = execution["isExecutable"]
+                        row["executionGates"] = execution["gates"]
+                        row["maximumExecutableTotalStake"] = execution[
+                            "maximumExecutableTotalStake"
+                        ]
+                        row["warnings"].extend(execution["warnings"])
+                        opportunities.append(row)
 
         if include_middles:
             for (market_key, description), directions in middle_groups.items():
@@ -563,6 +606,13 @@ def build_low_hold_board(
                         )
                         if assignment is None:
                             rejected["no_valid_book_assignment"] += 1
+                            continue
+                        quote_skew = abs(
+                            float(assignment[0]["quoteAgeSeconds"])
+                            - float(assignment[1]["quoteAgeSeconds"])
+                        )
+                        if quote_skew > max(0, int(max_cross_leg_skew_seconds)):
+                            rejected["cross_leg_quote_skew"] += 1
                             continue
                         context_parts = []
                         if description:
@@ -587,7 +637,34 @@ def build_low_hold_board(
                         if row is None:
                             rejected["above_maximum_hold"] += 1
                         else:
-                            opportunities.append(row)
+                            row["crossLegQuoteSkewSeconds"] = round(quote_skew, 1)
+                            row["maxCrossLegQuoteSkewSeconds"] = max(
+                                0, int(max_cross_leg_skew_seconds)
+                            )
+                            execution = evaluate_execution_gates(
+                                row["outcomes"],
+                                [
+                                    float(outcome["stake"])
+                                    for outcome in row["outcomes"]
+                                ],
+                                require_distinct_books=require_distinct_books,
+                                quote_skew_seconds=quote_skew,
+                                max_quote_skew_seconds=max(
+                                    0, int(max_cross_leg_skew_seconds)
+                                ),
+                            )
+                            if execution["hardFailure"]:
+                                for reason in execution["failureReasons"]:
+                                    rejected[f"execution_{str(reason).lower()}"] += 1
+                            else:
+                                row["executionStatus"] = execution["status"]
+                                row["isExecutable"] = execution["isExecutable"]
+                                row["executionGates"] = execution["gates"]
+                                row["maximumExecutableTotalStake"] = execution[
+                                    "maximumExecutableTotalStake"
+                                ]
+                                row["warnings"].extend(execution["warnings"])
+                                opportunities.append(row)
 
     opportunities.sort(
         key=lambda row: (

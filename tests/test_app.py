@@ -621,6 +621,90 @@ def test_positive_ev_line_history_follows_selection_across_line_moves(
     ]
 
 
+def test_positive_ev_line_history_merges_oddsengine_history_with_local_limits(
+    app_client, monkeypatch
+):
+    database = app_client.application.extensions["tracker_service"].database
+    monkeypatch.setattr(
+        database,
+        "get_normalized_market_quote_history",
+        lambda **_filters: [
+            {
+                "provider": "pinnacle",
+                "quote_timestamp": "2026-08-31T12:05:00Z",
+                "american_odds": -112,
+                "line": 11.5,
+                "market_limit": 3500,
+            }
+        ],
+    )
+
+    class AdvancedOddsEngine:
+        provider_key = "odds_engine"
+        api_key = "configured"
+
+        @staticmethod
+        def ev_events(**_kwargs):
+            return []
+
+        @staticmethod
+        def line_history_snapshot(**kwargs):
+            assert kwargs == {
+                "event_id": "provider-event-1",
+                "series": "provider-series-1",
+                "selection": "",
+                "granularity": "raw",
+                "limit": 1000,
+            }
+            return {
+                "data": {
+                    "series": [
+                        {
+                            "book": "pinnacle",
+                            "points": [
+                                {
+                                    "ts": "2026-08-31T12:00:00Z",
+                                    "line": 13.5,
+                                    "price_american": -108,
+                                },
+                                {
+                                    "ts": "2026-08-31T12:05:00Z",
+                                    "line": 11.5,
+                                    "price_american": -112,
+                                },
+                            ],
+                        }
+                    ]
+                }
+            }
+
+    registry = app_client.application.extensions["execution_providers"]
+    registry.providers = (*registry.providers, AdvancedOddsEngine())
+    response = app_client.get(
+        "/api/positive-ev/line-history",
+        query_string={
+            "event_id": "evt_history_test",
+            "market_id": "mkt_history_test",
+            "selection_id": "sel_history_test",
+            "provider_event_id": "provider-event-1",
+            "provider_selection_id": "provider-selection-1",
+            "provider_series_id": "provider-series-1",
+            "books": "pinnacle",
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["source"] == (
+        "oddsengine_linehistory+normalized_market_quote_history"
+    )
+    assert payload["oddsEngineHistory"]["status"] == "ok"
+    assert payload["oddsEngineHistory"]["includesHistoricalLimits"] is False
+    points = payload["series"][0]["points"]
+    assert [point["line"] for point in points] == [13.5, 11.5]
+    assert points[1]["marketLimit"] == 3500.0
+
+
 def test_positive_ev_line_history_requires_indexed_canonical_identity(app_client):
     response = app_client.get(
         "/api/positive-ev/line-history",
@@ -646,8 +730,8 @@ def test_live_tool_pages_embed_complete_oddsengine_filter_catalog(app_client):
 
     odds_body = app_client.get("/odds-screen").get_data(as_text=True)
     assert 'id="odds-provider-catalog"' in odds_body
-    assert '"key": "oddsengine__pinnacle"' in odds_body
-    assert '"key": "oddsengine__pick6"' in odds_body
+    assert '"key": "oddsengine__pinnacle"' not in odds_body
+    assert '"key": "oddsengine__pick6"' not in odds_body
     assert 'class="ev-book-option"' in positive_ev_javascript
     assert 'class="ev-book-name"' in positive_ev_javascript
     positive_ev_premium_css = Path("static/app-premium.css").read_text(
@@ -776,11 +860,11 @@ def test_positive_ev_live_scan_uses_odds_engine(
     }
     assert sum(payload["sourceWeights"].values()) == 100.0
     assert payload["devigMethod"] == "power"
-    assert payload["minimumFairSources"] == 2
+    assert payload["minimumFairSources"] == 3
     assert "prizepicks" not in payload["executionBooks"]
     assert "pinnacle" in payload["executionBooks"]
 
-    custom_response = app_client.get(
+    rejected_custom_response = app_client.get(
         "/api/positive-ev",
         query_string={
             "weights": json.dumps({"pinnacle": 100}),
@@ -789,16 +873,30 @@ def test_positive_ev_live_scan_uses_odds_engine(
             "required_books": "pinnacle,circa",
         },
     )
+    assert rejected_custom_response.status_code == 400
+    assert rejected_custom_response.get_json()["error"] == "INSUFFICIENT_DEVIG_SOURCES"
+
+    custom_response = app_client.get(
+        "/api/positive-ev",
+        query_string={
+            "weights": json.dumps(
+                {"pinnacle": 60, "circa": 25, "bookmakereu": 15}
+            ),
+            "min_sources": 1,
+            "devig_method": "shin",
+            "required_books": "pinnacle,circa",
+        },
+    )
     assert custom_response.status_code == 200
     custom_payload = custom_response.get_json()
     assert custom_payload["sourceWeights"] == {
-        "pinnacle": 100.0,
-        "circa": 0.0,
-        "bookmakereu": 0.0,
+        "pinnacle": 60.0,
+        "circa": 25.0,
+        "bookmakereu": 15.0,
         "fanduel": 0.0,
         "betfairexchange": 0.0,
     }
-    assert custom_payload["minimumFairSources"] == 1
+    assert custom_payload["minimumFairSources"] == 3
     assert custom_payload["devigMethod"] == "shin"
     assert custom_payload["requiredBooks"] == ["pinnacle", "circa"]
 

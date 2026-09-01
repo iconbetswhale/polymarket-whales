@@ -752,6 +752,45 @@ class SharpMoneyCollector:
             payload["signals"] = copy.deepcopy(self._signals)
             return payload
 
+    def state_snapshot(self) -> dict:
+        """Serialize movement state so serverless instances agree."""
+        with self._lock:
+            return {
+                "schemaVersion": "sharp-money-collector-state-v1",
+                "previous": copy.deepcopy(self._previous),
+                "history": {
+                    key: list(values) for key, values in self._history.items()
+                },
+                "signals": copy.deepcopy(self._signals),
+                "comparisons": copy.deepcopy(self._comparisons),
+                "lastSnapshotAt": self._last_snapshot_at,
+                "lastComparisonAt": self._last_comparison_at,
+                "lastError": self._last_error,
+                "signalMode": self._signal_mode,
+                "cycles": self._cycles,
+            }
+
+    def restore_state(self, snapshot: dict) -> bool:
+        """Hydrate a cold process from a verified durable collector state."""
+        if not isinstance(snapshot, dict) or snapshot.get("schemaVersion") != "sharp-money-collector-state-v1":
+            return False
+        with self._lock:
+            if self._cycles > 0 or self._signals:
+                return False
+            self._previous = copy.deepcopy(snapshot.get("previous") or {})
+            restored_history = defaultdict(lambda: deque(maxlen=90))
+            for key, values in (snapshot.get("history") or {}).items():
+                restored_history[str(key)].extend(list(values or [])[-90:])
+            self._history = restored_history
+            self._signals = copy.deepcopy(snapshot.get("signals") or [])
+            self._comparisons = copy.deepcopy(snapshot.get("comparisons") or {})
+            self._last_snapshot_at = snapshot.get("lastSnapshotAt")
+            self._last_comparison_at = snapshot.get("lastComparisonAt")
+            self._last_error = snapshot.get("lastError")
+            self._signal_mode = str(snapshot.get("signalMode") or "order_book")
+            self._cycles = max(0, int(snapshot.get("cycles") or 0))
+        return True
+
     def _refresh_automatic_if_stale(self) -> None:
         now = time.monotonic()
         if (

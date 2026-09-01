@@ -36,6 +36,14 @@ from the_odds_api_provider import normalize_the_odds_api_events
 
 LOGGER = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "https://api.oddsengine.dev/v1"
+DEFAULT_WEBSOCKET_URL = "wss://api.oddsengine.dev/ws"
+
+ODDSENGINE_BOOK_KIND = {
+    "retail": "sportsbook",
+    "exchange": "exchange",
+    "dfs": "dfs",
+    "prediction": "prediction",
+}
 
 SPORT_KEY_TO_LEAGUE = {
     "americanfootball_ncaaf": "ncaaf",
@@ -502,7 +510,17 @@ def _sport_key_league(sport_key: str) -> str:
 def _book_key(value: object) -> str | None:
     normalized = _slug(value).replace("_", "")
     normalized = BOOK_ALIASES.get(normalized, normalized)
-    return normalized if normalized in ODDSENGINE_BOOKMAKERS else None
+    # OddsEngine's /v1/books registry is authoritative and can grow without a
+    # matching IconLabs deployment. Preserve unfamiliar provider ids instead
+    # of silently deleting otherwise valid quotes from the odds screen.
+    return normalized or None
+
+
+def _book_metadata(book_key: str, registry: dict[str, dict] | None = None) -> dict:
+    metadata = (registry or {}).get(book_key) or ODDSENGINE_BOOKMAKERS.get(book_key)
+    if metadata:
+        return metadata
+    return {"name": _display_name(book_key), "type": "sportsbook"}
 
 
 def _canonical_market_key(
@@ -729,6 +747,7 @@ def _selection_outcome(
         "price": price,
         "sid": str(selection.get("selection_id") or ""),
         "id": str(selection.get("selection_id") or ""),
+        "series_id": str(selection.get("series_id") or ""),
         "link": str(selection.get("bet_link") or ""),
         "is_alt": bool(selection.get("is_alt")),
     }
@@ -765,6 +784,7 @@ def normalize_odds_engine_event(
     sport_key: str,
     requested_markets: Iterable[str],
     received_at: datetime | None = None,
+    book_registry: dict[str, dict] | None = None,
 ) -> dict | None:
     """Convert one documented OddsEngine odds response to IconLabs' feed shape."""
     event_id = str(payload.get("event_id") or "").strip()
@@ -807,9 +827,8 @@ def normalize_odds_engine_event(
                 book_key = _book_key(raw_book.get("book"))
                 if not book_key:
                     continue
-                is_dfs_book = (
-                    ODDSENGINE_BOOKMAKERS[book_key]["type"] == "dfs"
-                )
+                metadata = _book_metadata(book_key, book_registry)
+                is_dfs_book = metadata.get("type") == "dfs"
                 outcomes = [
                     outcome
                     for selection in selections
@@ -840,7 +859,7 @@ def normalize_odds_engine_event(
                     book_key,
                     {
                         "key": book_key,
-                        "title": ODDSENGINE_BOOKMAKERS[book_key]["name"],
+                        "title": metadata["name"],
                         "last_update": last_update,
                         "markets": [],
                     },
@@ -908,6 +927,11 @@ class OddsEngineProvider(ExecutionProvider):
         self._last_success_at: str | None = None
         self._last_error_at: str | None = None
         self._advanced_access: bool | None = None
+        self.websocket_url = DEFAULT_WEBSOCKET_URL
+        self._book_registry: dict[str, dict] = {
+            key: dict(value) for key, value in ODDSENGINE_BOOKMAKERS.items()
+        }
+        self._book_registry_loaded_at: float | None = None
         self._lock = threading.RLock()
         self._scan_lock = threading.Lock()
         self.failure_reasons: dict[str, str] = {}
@@ -1230,6 +1254,48 @@ class OddsEngineProvider(ExecutionProvider):
             ),
         )
 
+    def odds_screen_events(
+        self,
+        *,
+        sport_keys: Iterable[str],
+        market_keys: Iterable[str],
+    ) -> list[dict]:
+        """Load the broad screen slate without the opportunity-scan cap.
+
+        The standard OddsEngine REST plan still imposes a finite request
+        budget, so this method expands to the documented 50-event screen cap
+        while preserving the shared provider lock/cache and partial-snapshot
+        behavior used elsewhere.
+        """
+        if not self.api_key:
+            return []
+        requested_sports = tuple(
+            dict.fromkeys(
+                str(key).strip().lower()
+                for key in sport_keys
+                if str(key).strip()
+            )
+        )
+        requested_markets = tuple(
+            dict.fromkeys(
+                str(key).strip().lower()
+                for key in market_keys
+                if str(key).strip()
+            )
+        )
+        if not requested_sports or not requested_markets:
+            return []
+        with self._scan_lock:
+            events = self._load_events(
+                requested_sports,
+                requested_markets,
+                max_events_per_league=50,
+                max_total_events=50,
+            )
+        with self._lock:
+            self._last_screen_events = _TimedValue(time.monotonic(), events)
+        return events
+
     def futures_screen_snapshot(self, *, force: bool = False) -> dict:
         """Discover and return every currently priced OddsEngine future."""
 
@@ -1434,9 +1500,10 @@ class OddsEngineProvider(ExecutionProvider):
                 "/orderbook/top",
                 params={
                     "sort": "whale",
-                    # Keep ProphetX in OddsEngine's best-odds selection while
-                    # retaining the full exchange depth carried on both sides.
-                    "selected_books": "prophetx",
+                    # The custom OddsEngine entitlement carries full NoVIG and
+                    # ProphetX depth. Let whale mode choose the best executable
+                    # exchange quote across both instead of forcing ProphetX.
+                    "selected_books": "novig,prophetx",
                     "limit": max(1, min(int(limit), 100)),
                 },
             )
@@ -1479,8 +1546,209 @@ class OddsEngineProvider(ExecutionProvider):
             "transport": "rest_snapshot",
         }
 
+    def refresh_book_registry(self, *, force: bool = False) -> list[dict]:
+        """Load OddsEngine's authoritative sportsbook registry.
+
+        The documented endpoint does not consume rate-limit allowance. The
+        local catalog remains a fallback so a registry outage cannot make live
+        odds disappear.
+        """
+
+        if not self.api_key:
+            return []
+        with self._lock:
+            if (
+                not force
+                and self._book_registry_loaded_at is not None
+                and time.monotonic() - self._book_registry_loaded_at < 3600
+            ):
+                return [
+                    {"key": key, **dict(value)}
+                    for key, value in self._book_registry.items()
+                ]
+        payload = self._request_json("/books", params={"shape": "objects"})
+        rows: list[dict] = []
+        for item in payload.get("data") or []:
+            if isinstance(item, str):
+                item = {"book_id": item}
+            if not isinstance(item, dict):
+                continue
+            book_key = _book_key(item.get("book_id") or item.get("book"))
+            if not book_key:
+                continue
+            kind = str(item.get("kind") or "retail").strip().lower()
+            metadata = {
+                "key": book_key,
+                "name": str(item.get("display_name") or _display_name(book_key)),
+                "type": ODDSENGINE_BOOK_KIND.get(kind, kind or "sportsbook"),
+                "kind": kind,
+                "deepLink": str(item.get("deep_link") or "none"),
+            }
+            rows.append(metadata)
+        with self._lock:
+            for metadata in rows:
+                self._book_registry[metadata["key"]] = dict(metadata)
+            self._book_registry_loaded_at = time.monotonic()
+        return rows
+
+    def advanced_order_book_snapshot(
+        self,
+        *,
+        league: str = "",
+        event_id: str = "",
+        market_type: str = "",
+        books: Iterable[str] = (),
+        include_peers: bool = True,
+        limit: int = 0,
+        offset: int = 0,
+    ) -> dict:
+        """Return the documented Advanced full-depth order-book snapshot."""
+
+        normalized_league = str(league or "").strip().lower()
+        normalized_event = str(event_id or "").strip()
+        if not normalized_league and not normalized_event:
+            raise ValueError("league or event_id is required")
+        params: dict[str, object] = {
+            "include_peers": str(bool(include_peers)).lower(),
+            "limit": max(0, min(int(limit), 500)),
+            "offset": max(0, int(offset)),
+        }
+        if normalized_league:
+            params["league"] = normalized_league
+        if normalized_event:
+            params["event_id"] = normalized_event
+        normalized_market_type = str(market_type or "").strip().lower()
+        if normalized_market_type:
+            if normalized_market_type not in {"game", "player"}:
+                raise ValueError("market_type must be game or player")
+            params["market_type"] = normalized_market_type
+        normalized_books = tuple(
+            dict.fromkeys(
+                str(book).strip().lower()
+                for book in books
+                if str(book).strip()
+            )
+        )
+        if normalized_books:
+            params["books"] = ",".join(normalized_books)
+        return self._advanced_request_json("/orderbook", params=params)
+
+    def line_history_snapshot(
+        self,
+        *,
+        event_id: str,
+        book: str = "",
+        market: str = "",
+        selection: str = "",
+        series: str = "",
+        granularity: str = "raw",
+        since: str = "",
+        until: str = "",
+        limit: int = 2000,
+    ) -> dict:
+        """Return OddsEngine's event-bounded Advanced line history."""
+
+        normalized_event = str(event_id or "").strip()
+        if not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", normalized_event):
+            raise ValueError("invalid OddsEngine event_id")
+        normalized_granularity = str(granularity or "raw").strip().lower()
+        if normalized_granularity not in {"raw", "5m"}:
+            raise ValueError("granularity must be raw or 5m")
+        params: dict[str, object] = {
+            "event_id": normalized_event,
+            "granularity": normalized_granularity,
+            "limit": max(1, min(int(limit), 2000)),
+        }
+        optional = {
+            "book": book,
+            "market": market,
+            "selection": selection,
+            "series": series,
+            "since": since,
+            "until": until,
+        }
+        for key, value in optional.items():
+            normalized = str(value or "").strip()
+            if normalized:
+                params[key] = normalized
+        return self._advanced_request_json("/linehistory", params=params)
+
+    def arbitrage_snapshot(self, **filters: object) -> dict:
+        """Return OddsEngine's documented Advanced arbitrage materialization."""
+
+        allowed = {
+            "books",
+            "league",
+            "event_id",
+            "min_roi",
+            "min_arb_pct",
+            "market",
+            "market_type",
+            "include_live",
+            "start_grace_seconds",
+            "include_alt",
+            "limit",
+            "offset",
+            "sort",
+        }
+        params = {
+            key: value
+            for key, value in filters.items()
+            if key in allowed and value not in (None, "")
+        }
+        return self._advanced_request_json("/arbitrage", params=params)
+
+    def discrepancies_snapshot(self, **filters: object) -> dict:
+        """Return OddsEngine's documented Advanced discrepancy materialization."""
+
+        allowed = {
+            "books",
+            "league",
+            "event_id",
+            "market",
+            "market_type",
+            "view",
+            "include_live",
+            "include_alt",
+            "limit",
+            "offset",
+            "sort",
+        }
+        params = {
+            key: value
+            for key, value in filters.items()
+            if key in allowed and value not in (None, "")
+        }
+        return self._advanced_request_json("/discrepancies", params=params)
+
+    def _advanced_request_json(
+        self, path: str, *, params: dict | None = None
+    ) -> dict:
+        try:
+            payload = self._request_json(path, params=params)
+        except requests.HTTPError as exc:
+            if getattr(exc.response, "status_code", None) == 403:
+                with self._lock:
+                    self._advanced_access = False
+            raise
+        with self._lock:
+            self._advanced_access = True
+        return payload
+
     def provider_catalog(self, trades: list[dict]) -> list[dict]:
         catalog = {item["key"]: item for item in oddsengine_provider_catalog()}
+        with self._lock:
+            dynamic_registry = dict(self._book_registry)
+        for book_key, metadata in dynamic_registry.items():
+            provider_key = _oddsengine_provider_key(book_key)
+            catalog[provider_key] = {
+                "key": provider_key,
+                "name": str(metadata.get("name") or _display_name(book_key)),
+                "logoUrl": ODDSENGINE_LOGOS.get(book_key, ""),
+                "source": self.provider_key,
+                "region": "",
+                "kind": str(metadata.get("kind") or metadata.get("type") or ""),
+            }
         for trade in trades:
             for option in trade.get("executionOptions") or []:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
@@ -1682,6 +1950,7 @@ class OddsEngineProvider(ExecutionProvider):
                     odds or {},
                     sport_key=sport_key,
                     requested_markets=requested_markets,
+                    book_registry=self._book_registry,
                 )
                 if converted:
                     normalized.append(converted)
@@ -1740,6 +2009,23 @@ class OddsEngineProvider(ExecutionProvider):
 
     def diagnostics(self, *, authenticate: bool = False) -> dict:
         status = self.health_status(authenticate=authenticate).value
+        if authenticate and status == ProviderHealthStatus.AUTHENTICATED.value:
+            try:
+                self.refresh_book_registry(force=True)
+            except (requests.RequestException, ValueError, TypeError, KeyError):
+                LOGGER.warning("OddsEngine book-registry capability probe failed")
+            try:
+                self._advanced_request_json(
+                    "/orderbook/top",
+                    params={"sort": "liquidity", "min_liquidity": 0, "limit": 1},
+                )
+            except requests.HTTPError:
+                # A 403 is recorded by _advanced_request_json. Other endpoint
+                # failures must not turn valid base credentials into an auth
+                # failure or expose an upstream response body.
+                pass
+            except (requests.RequestException, ValueError, TypeError, KeyError):
+                LOGGER.warning("OddsEngine Advanced capability probe failed")
         with self._lock:
             return {
                 "provider": self.provider_key,
@@ -1752,8 +2038,14 @@ class OddsEngineProvider(ExecutionProvider):
                 "metrics": {"requests": self._requests},
                 "supportsOrderBook": self._advanced_access is not False,
                 "supportsWebSocket": self._advanced_access is not False,
+                "supportsLineHistory": self._advanced_access is not False,
+                "supportsArbitrage": self._advanced_access is not False,
+                "supportsDiscrepancies": self._advanced_access is not False,
                 "advancedAccess": self._advanced_access,
                 "snapshotTransport": "rest",
+                "websocketEndpoint": self.websocket_url,
+                "websocketConnected": False,
+                "bookRegistryCount": len(self._book_registry),
                 "lastSuccessAt": self._last_success_at,
                 "lastErrorAt": self._last_error_at,
                 "credentials_exposed": False,

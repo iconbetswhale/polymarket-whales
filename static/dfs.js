@@ -68,6 +68,14 @@
   const comparisonBookEmpty = document.querySelector('#dfs-add-book-empty');
   const iconAlgoTooltipTrigger = document.querySelector('.dfs-algo-tooltip');
   const iconAlgoTooltipPopover = document.querySelector('#dfs-iconalgo-tooltip');
+  const slipList = document.querySelector('#dfs-slip-list');
+  const slipCount = document.querySelector('#dfs-slip-count');
+  const slipStake = document.querySelector('#dfs-slip-stake');
+  const slipPayoutConfirmed = document.querySelector('#dfs-slip-payout-confirmed');
+  const slipSettlementConfirmed = document.querySelector('#dfs-slip-settlement-confirmed');
+  const slipEvaluate = document.querySelector('#dfs-slip-evaluate');
+  const slipOptimize = document.querySelector('#dfs-slip-optimize');
+  const slipResult = document.querySelector('#dfs-slip-result');
   const defaultWeights = {fanduel:30, novig:20, prophetx:15, draftkings:10, pinnacle:10, circa:7, kalshi:5, polymarket:3};
   const zeroWeights = Object.fromEntries(Object.keys(defaultWeights).map(key => [key,0]));
   const detailBookDefaults = ['fanduel','novig','prophetx','draftkings','pinnacle','circa','caesars','hard-rock','fliff','betonline','bovada','kalshi','polymarket','sleeper','parlay-play','propbuilder'];
@@ -186,6 +194,7 @@
   let savedPresets = loadPresets();
   let activePreset = weightsMatch(savedWeights,defaultWeights) ? 'iconlabs' : presetForWeights(savedWeights);
   let expandedRowId = '';
+  const slipSelections = new Map();
   let draggedDetailBookKey = '';
   const esc = value => String(value).replace(/[&<>"']/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
   const easternDateFormatter = new Intl.DateTimeFormat('en-US', {timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'});
@@ -851,9 +860,129 @@
     return Number.isFinite(Number(value)) ? Number(value) : null;
   }
 
+  function modelEvidence(row,targetLine) {
+    if (!Number.isFinite(Number(targetLine))) return {qualified:false,sourceCount:0,rule:'NO_EXACT_LINE'};
+    const lineKey = String(Number(targetLine));
+    const evidence = row.modelEvidenceByLine?.[lineKey];
+    if (evidence && typeof evidence === 'object') return evidence;
+    const sourceCount = fairSourceCount(row,targetLine);
+    return {qualified:sourceCount>=3,sourceCount,rule:sourceCount>=3?'THREE_INDEPENDENT_SOURCES':'INSUFFICIENT_INDEPENDENT_EVIDENCE'};
+  }
+
+  function profilePickCount(profile=selectedParlayProfile()) {
+    const match = String(profile?.id || profile?.label || '').match(/\d+/);
+    return match ? Number(match[0]) : 0;
+  }
+
+  function profilePayoutByHits(profile=selectedParlayProfile()) {
+    const pickCount = profilePickCount(profile);
+    const multipliers = [...String(profile?.payout || '').matchAll(/([0-9]+(?:\.[0-9]+)?)x/gi)].map(match=>Number(match[1]));
+    if (!pickCount || !multipliers.length) return {};
+    const flexible = /flex|hedge/i.test(String(profile?.id || profile?.label || ''));
+    if (!flexible) return {[pickCount]:multipliers[0]};
+    return Object.fromEntries(multipliers.map((multiplier,index)=>[pickCount-index,multiplier]).filter(([hits])=>hits>=0));
+  }
+
+  function slipLeg(row) {
+    const line = selectedDfsLine(row);
+    const probabilityPercent = fairProbability(row,line);
+    const probability = Number.isFinite(Number(probabilityPercent)) ? Number(probabilityPercent)/100 : null;
+    const evidence = modelEvidence(row,line);
+    return {
+      id:String(row.id || ''), eventId:String(row.eventId || String(row.id || '').split('::')[0] || ''),
+      player:String(row.player || ''), team:'', sport:String(row.sport || ''), stat:String(row.stat || ''),
+      side:String(row.side || ''), line, probability, sourceCount:Number(evidence.sourceCount || fairSourceCount(row,line) || 0),
+      modelStatus:evidence.qualified && Number.isFinite(Number(probability)) ? 'AVAILABLE' : 'WATCH_ONLY',
+      settlementRuleKey:row.settlementRuleKey || null,
+    };
+  }
+
+  function renderSlip() {
+    const profile = selectedParlayProfile();
+    const targetCount = profilePickCount(profile);
+    const legs = [...slipSelections.values()];
+    slipCount.textContent = `${legs.length}/${targetCount || '—'} picks`;
+    slipEvaluate.disabled = legs.length !== targetCount || targetCount < 2;
+    slipList.innerHTML = legs.length
+      ? legs.map(leg=>`<article><span><strong>${esc(leg.player)}</strong><small>${esc(`${leg.side} ${leg.line} ${leg.stat}`)} · ${Number(leg.probability*100).toFixed(1)}%</small></span><button type="button" data-dfs-slip-remove="${esc(leg.id)}" aria-label="Remove ${esc(leg.player)}"><i class="ph ph-x" aria-hidden="true"></i></button></article>`).join('')
+      : '<p>Select qualified rows or let IconLabs build a slip from the current board.</p>';
+    body.querySelectorAll('[data-dfs-slip-add]').forEach(button=>{
+      const selected = slipSelections.has(button.dataset.dfsSlipAdd);
+      button.classList.toggle('selected',selected);
+      button.setAttribute('aria-pressed',String(selected));
+      button.innerHTML = selected ? '<i class="ph ph-check" aria-hidden="true"></i><span>Added</span>' : '<i class="ph ph-plus" aria-hidden="true"></i><span>Add</span>';
+    });
+  }
+
+  function blockingReasonLabel(reason) {
+    return ({
+      PAYOUT_NOT_CONFIRMED:'Confirm the live payout table.', SETTLEMENT_NOT_CONFIRMED:'Confirm the app settlement rules.',
+      CORRELATION_REQUIRED:'Same-event/team correlation is required.', DUPLICATE_PLAYER:'Duplicate-player legs are not allowed.',
+      VOID_PUSH_PAYOUT_TABLE_MISSING:'The reduced-pick payout after a push/void is missing.',
+      INSUFFICIENT_MODEL_EVIDENCE:'Every leg needs three independent sources or two sharp sources.',
+      SETTLEMENT_RULE_MISMATCH:'The selected legs use incompatible settlement rules.',
+    })[reason] || String(reason || '').replaceAll('_',' ').toLowerCase();
+  }
+
+  function renderSlipResult(result) {
+    if (!result) {
+      slipResult.innerHTML = '<p>EV remains blocked until the exact payout and settlement rules are confirmed.</p>';
+      return;
+    }
+    const blocked = Array.isArray(result.blockingReasons) && result.blockingReasons.length;
+    slipResult.innerHTML = `<div class="dfs-slip-metrics"><span><small>Expected value</small><strong class="${Number(result.expectedValuePercent)>=0?'positive':'negative'}">${Number(result.expectedValuePercent)>=0?'+':''}${Number(result.expectedValuePercent).toFixed(2)}%</strong></span><span><small>Expected profit</small><strong>${Number(result.expectedProfit)>=0?'+':''}$${Number(result.expectedProfit).toFixed(2)}</strong></span><span><small>All hit</small><strong>${Number(result.allHitProbability).toFixed(2)}%</strong></span></div>${blocked?`<ul>${result.blockingReasons.map(reason=>`<li>${esc(blockingReasonLabel(reason))}</li>`).join('')}</ul>`:'<p class="dfs-slip-ready"><i class="ph ph-shield-check" aria-hidden="true"></i> Payout, settlement, correlation, and evidence gates passed.</p>'}`;
+  }
+
+  function slipRequestPayload(legs) {
+    return {
+      legs,
+      stake:Number(slipStake.value || 100),
+      payoutByHits:profilePayoutByHits(),
+      payoutConfirmed:slipPayoutConfirmed.checked,
+      settlementConfirmed:slipSettlementConfirmed.checked,
+      correlations:{},
+    };
+  }
+
+  async function evaluateSlip() {
+    const legs = [...slipSelections.values()];
+    slipEvaluate.disabled = true;
+    slipResult.innerHTML = '<p><i class="ph ph-spinner-gap" aria-hidden="true"></i> Calculating the full payout distribution…</p>';
+    try {
+      const response = await fetch('/api/dfs/slips/evaluate',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(slipRequestPayload(legs))});
+      const payload = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(payload.error || 'Unable to evaluate this slip.');
+      renderSlipResult(payload);
+    } catch (error) {
+      slipResult.innerHTML = `<p class="negative">${esc(error.message)}</p>`;
+    } finally { renderSlip(); }
+  }
+
+  async function optimizeSlip() {
+    const profile = selectedParlayProfile();
+    const pickCount = profilePickCount(profile);
+    const candidates = rows.map(slipLeg).filter(leg=>leg.modelStatus==='AVAILABLE' && Number.isFinite(Number(leg.probability)));
+    slipOptimize.disabled = true;
+    slipResult.innerHTML = '<p><i class="ph ph-spinner-gap" aria-hidden="true"></i> Searching qualified combinations…</p>';
+    try {
+      const payload = {...slipRequestPayload([]),candidates,pickCount};
+      delete payload.legs;
+      const response = await fetch('/api/dfs/slips/optimize',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(payload)});
+      const result = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(result.error || 'Unable to build a qualified slip.');
+      const best = result.data?.[0];
+      if (!best) throw new Error('Not enough qualified, unique-player legs for this payout type.');
+      slipSelections.clear();
+      best.legs.forEach(leg=>slipSelections.set(leg.id,leg));
+      renderSlipResult(best);
+    } catch (error) {
+      slipResult.innerHTML = `<p class="negative">${esc(error.message)}</p>`;
+    } finally { slipOptimize.disabled = false; renderSlip(); }
+  }
+
   function displayedHitRate(row) {
     const activeLine = selectedDfsLine(row);
-    return fairProbability(row,activeLine);
+    return modelEvidence(row,activeLine).qualified ? fairProbability(row,activeLine) : null;
   }
 
   function compareByHitRate(a,b) {
@@ -907,7 +1036,9 @@
       .sort(compareByHitRate);
     body.innerHTML = visible.map(r => {
       const activeLine = selectedDfsLine(r);
-      const fairHitRate = fairProbability(r,activeLine);
+      const rawFairHitRate = fairProbability(r,activeLine);
+      const evidence = modelEvidence(r,activeLine);
+      const fairHitRate = evidence.qualified ? rawFairHitRate : null;
       const requiredProbability = americanOddsToProbability(activeParlay?.odds);
       const probabilityEdgePoints = requiredProbability === null || fairHitRate === null ? null : fairHitRate - requiredProbability*100;
       const hitRateBand = probabilityEdgePoints === null
@@ -943,15 +1074,21 @@
         return `<td class="${classes}" data-book-cell="${key}"${exclusion?` title="${esc(exclusion)}"`:''}>${unavailable?'—':`<span class="dfs-book-cell-stack">${linkedPriceMarkup(snapshot,key)}${centsAmerican?`<small class="cents-american">${esc(centsAmerican)}</small>`:''}${liquidity?`<small class="dfs-book-liquidity">${esc(liquidity)}</small>`:''}${alternateLine===null?'':`<small class="alternate-line">${esc(alternateLine)}</small>`}</span>`}</td>`;
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
-      const hitDisplay = fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
       const exactSources = fairSourceCount(r,activeLine);
-      const hitTitle = fairHitRate === null ? 'No fresh exact-line source matches the current Devig allocation' : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${activeParlay?.label || ''} ${activeParlayOdds} · ${edgeLabel}`;
+      const watchOnly = fairHitRate === null && rawFairHitRate !== null;
+      const hitDisplay = watchOnly ? 'WATCH' : fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
+      const hitTitle = watchOnly
+        ? `Watch only: ${exactSources} exact source${exactSources===1?' is':'s are'} below the three-independent or two-sharp evidence gate`
+        : fairHitRate === null
+          ? 'No fresh exact-line source consensus matches the current Devig allocation'
+          : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${activeParlay?.label || ''} ${activeParlayOdds} · ${edgeLabel}`;
       const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
       const selectedAppOdds = activeParlayOdds;
       const selectedOddsTitle = parlayOddsTitle();
       const expanded = expandedRowId === String(r.id || '');
       const mobileDetail = mobileDetailPayload(r,activeLine);
-      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" data-mobile-detail="${esc(mobileDetail)}" tabindex="0" role="button" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><td class="player-col"><div class="dfs-player"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
+      const selectedForSlip = slipSelections.has(String(r.id || ''));
+      const primaryRow = `<tr class="dfs-prop-row${expanded?' expanded':''}" data-row-id="${esc(r.id)}" data-mobile-detail="${esc(mobileDetail)}"><td class="player-col"><div class="dfs-player"><button class="dfs-row-expand" type="button" data-dfs-expand="${esc(r.id)}" aria-expanded="${expanded}" title="Show Over and Under odds for ${esc(r.player)}"><span><strong>${esc(r.player)}</strong><small>${esc(r.match)}</small><em>${esc(r.sport)} · ${esc(r.time)}</em></span><i class="ph ph-caret-down dfs-row-expand-icon" aria-hidden="true"></i></button><button class="dfs-slip-add${selectedForSlip?' selected':''}" type="button" data-dfs-slip-add="${esc(r.id)}" aria-pressed="${selectedForSlip}" ${evidence.qualified?'':`disabled title="Watch-only rows cannot be added to an optimized slip"`}><i class="ph ${selectedForSlip?'ph-check':'ph-plus'}" aria-hidden="true"></i><span>${selectedForSlip?'Added':'Add'}</span></button></div></td><td><b class="dfs-side ${r.side.toLowerCase()}">${r.side}</b></td><td><span class="dfs-stat"><strong class="dfs-stat-number">${esc(activeLine)}</strong><span class="dfs-stat-label">${esc(r.stat)}</span></span></td><td class="selected-line" title="${esc(selectedOddsTitle)}"><strong>${esc(selectedAppOdds)}</strong></td><td><span class="hit-rate ${hitRateBand}" title="${esc(hitTitle)}"><strong>${hitDisplay}</strong></span></td><td class="algo-odds-cell" title="${esc(oddsSource)}"><strong>${fairOdds}</strong></td>${cells}</tr>`;
       return primaryRow + (expanded ? renderOddsDetail(r,activeLine) : '');
     }).join('');
     const activeKey = selectedBookKeys[activeBook];
@@ -963,6 +1100,7 @@
       feedNotice.hidden = !feedDegraded || rows.length === 0;
       if (feedNoticeText) feedNoticeText.textContent = feedNoticeCopy;
     }
+    renderSlip();
   }
 
   function clearAutoRefresh() {
@@ -1128,10 +1266,25 @@
 
   function enableDrag(container, itemSelector, onDrop) {
     let dragged = null;
+    container.querySelectorAll(itemSelector).forEach(item=>{
+      item.tabIndex=0;
+      item.setAttribute('aria-label',`${item.getAttribute('aria-label') || item.title || 'Comparison column'}. Press Alt plus left or right arrow to reorder.`);
+    });
     container.addEventListener('dragstart', event => { dragged=event.target.closest(itemSelector); if(!dragged)return; dragged.classList.add('dragging'); event.dataTransfer.effectAllowed='move'; });
     container.addEventListener('dragend', () => { if(dragged)dragged.classList.remove('dragging'); dragged=null; });
     container.addEventListener('dragover', event => { const target=event.target.closest(itemSelector); if(!dragged || !target || target===dragged)return; event.preventDefault(); const box=target.getBoundingClientRect(); container.insertBefore(dragged, event.clientX < box.left + box.width/2 ? target : target.nextSibling); });
     container.addEventListener('drop', event => { if(!dragged)return; event.preventDefault(); onDrop(); });
+    container.addEventListener('keydown', event => {
+      if(!event.altKey || !['ArrowLeft','ArrowRight'].includes(event.key))return;
+      const item=event.target.closest(itemSelector); if(!item)return;
+      const items=[...container.querySelectorAll(itemSelector)];
+      const index=items.indexOf(item); const targetIndex=index+(event.key==='ArrowLeft'?-1:1);
+      if(index<0 || targetIndex<0 || targetIndex>=items.length)return;
+      event.preventDefault();
+      if(targetIndex<index)container.insertBefore(item,items[targetIndex]);
+      else container.insertBefore(item,items[targetIndex].nextSibling);
+      onDrop(); item.focus();
+    });
   }
 
   function devigTotal() { return Object.values(draftWeights).reduce((sum,value) => sum + Number(value || 0),0); }
@@ -1215,7 +1368,11 @@
       item.setAttribute('aria-selected',String(item===button));
     });
     activeBook = button.dataset.dfsBook;
-    if (changed) expandedRowId = '';
+    if (changed) {
+      expandedRowId = '';
+      slipSelections.clear();
+      renderSlipResult(null);
+    }
     syncParlayPicker();
     const lineHead = document.querySelector('#dfs-line-head');
     const logo = button.querySelector('img').cloneNode();
@@ -1254,6 +1411,8 @@
     const profiles = parlayTypes[activeBook] || [];
     if (!profiles.some(profile => profile.id === option.dataset.parlayId)) return;
     parlaySelections[activeBook] = option.dataset.parlayId;
+    slipSelections.clear();
+    renderSlipResult(null);
     localStorage.setItem('dfsParlaySelectionsV1',JSON.stringify(parlaySelections));
     syncParlayPicker();
     setParlayPickerOpen(false);
@@ -1291,9 +1450,28 @@
   });
   body.addEventListener('click', event => {
     if (event.target.closest('a')) return;
-    const row = event.target.closest('.dfs-prop-row');
-    if (!row) return;
-    expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
+    const addButton = event.target.closest('[data-dfs-slip-add]');
+    if (addButton) {
+      const row = rows.find(item=>String(item.id || '')===addButton.dataset.dfsSlipAdd);
+      if (!row) return;
+      const leg = slipLeg(row);
+      if (leg.modelStatus !== 'AVAILABLE' || !Number.isFinite(Number(leg.probability))) return;
+      if (slipSelections.has(leg.id)) slipSelections.delete(leg.id);
+      else {
+        const targetCount = profilePickCount();
+        if (slipSelections.size >= targetCount) {
+          slipResult.innerHTML = `<p class="negative">This ${esc(selectedParlayProfile()?.label || 'slip')} accepts ${targetCount} picks. Remove one before adding another.</p>`;
+          return;
+        }
+        slipSelections.set(leg.id,leg);
+      }
+      renderSlipResult(null);
+      render();
+      return;
+    }
+    const expandButton = event.target.closest('[data-dfs-expand]');
+    if (!expandButton) return;
+    expandedRowId = expandedRowId === expandButton.dataset.dfsExpand ? '' : expandButton.dataset.dfsExpand;
     render();
   });
   body.addEventListener('dragstart', event => {
@@ -1327,15 +1505,16 @@
     draggedDetailBookKey = '';
     body.querySelectorAll('[data-line-shop-book].dragging').forEach(item=>item.classList.remove('dragging'));
   });
-  body.addEventListener('keydown', event => {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    const row = event.target.closest('.dfs-prop-row');
-    if (!row) return;
-    event.preventDefault();
-    expandedRowId = expandedRowId === row.dataset.rowId ? '' : row.dataset.rowId;
+  slipList.addEventListener('click', event => {
+    const remove = event.target.closest('[data-dfs-slip-remove]');
+    if (!remove) return;
+    slipSelections.delete(remove.dataset.dfsSlipRemove);
+    renderSlipResult(null);
     render();
-    body.querySelector(`[data-row-id="${CSS.escape(expandedRowId || row.dataset.rowId)}"]`)?.focus();
   });
+  slipEvaluate.addEventListener('click',evaluateSlip);
+  slipOptimize.addEventListener('click',optimizeSlip);
+  [slipStake,slipPayoutConfirmed,slipSettlementConfirmed].forEach(control=>control.addEventListener('change',()=>renderSlipResult(null)));
   enableDrag(document.querySelector('#dfs-head-row'), '.compare-book', () => { compareOrder=[...document.querySelectorAll('.compare-book')].map(cell=>cell.dataset.bookKey); persistCompareOrder(); reorderHeaders(); render(); });
   comparisonBookOpen.addEventListener('click', () => setComparisonBookPickerOpen(comparisonBookPicker.hidden));
   document.querySelector('#dfs-add-book-close').addEventListener('click', () => setComparisonBookPickerOpen(false));
@@ -1381,6 +1560,8 @@
     warmedBoardsSignature='';
     rowsByBook={};
     rows=[];
+    slipSelections.clear();
+    renderSlipResult(null);
     hasLoadedRows=false;
     loadingBookKey=selectedBookKeys[activeBook];
     activePreset=weightsMatch(savedWeights,defaultWeights)?'iconlabs':presetForWeights(savedWeights);

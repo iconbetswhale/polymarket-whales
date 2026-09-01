@@ -9,6 +9,7 @@ import secrets
 import threading
 import hashlib
 import hmac
+import time
 from concurrent.futures import ThreadPoolExecutor
 from decimal import Decimal, InvalidOperation
 from datetime import datetime, timedelta, timezone
@@ -118,6 +119,7 @@ from dfs_odds import (
     DISPLAY_PROVIDER_ALIASES,
     build_dfs_odds_board,
 )
+from dfs_slip_optimizer import evaluate_dfs_slip, optimize_dfs_slips
 from market_quote_adapters import normalize_odds_api_events
 from sports_game_odds import (
     POSITIVE_EV_DEVIG_BOOKS,
@@ -914,12 +916,151 @@ def create_app(start_background: bool = True) -> Flask:
     dfs_live_snapshots: dict[str, dict] = {}
     dfs_live_snapshots_lock = threading.RLock()
 
+    def odds_tool_snapshot_key(tool: str, raw_key: str | None = None) -> str:
+        source = raw_key if raw_key is not None else request.query_string.decode(
+            "utf-8", errors="ignore"
+        )
+        return f"{tool}:{stable_hash(tool, source)[:40]}"
+
+    def save_verified_odds_payload(
+        tool: str,
+        payload: dict,
+        *,
+        raw_key: str | None = None,
+        ttl_seconds: int = 900,
+    ) -> dict | None:
+        try:
+            return tracker.database.save_odds_tool_snapshot(
+                odds_tool_snapshot_key(tool, raw_key),
+                tool,
+                payload,
+                ttl_seconds=ttl_seconds,
+                source_updated_at=str(
+                    payload.get("generatedAt")
+                    or payload.get("calculatedAt")
+                    or datetime.now(timezone.utc).isoformat()
+                ),
+            )
+        except Exception as exc:  # pragma: no cover - live persistence isolation
+            LOGGER.warning("%s shared snapshot persistence failed: %s", tool, type(exc).__name__)
+            return None
+
+    def latest_verified_odds_payload(
+        tool: str,
+        *,
+        raw_key: str | None = None,
+        max_age_seconds: int = 900,
+    ) -> dict | None:
+        try:
+            return tracker.database.get_odds_tool_snapshot(
+                odds_tool_snapshot_key(tool, raw_key),
+                max_age_seconds=max_age_seconds,
+            )
+        except Exception as exc:  # pragma: no cover - live persistence isolation
+            LOGGER.warning("%s shared snapshot lookup failed: %s", tool, type(exc).__name__)
+            return None
+
+    def degraded_odds_payload(
+        tool: str,
+        error_code: str,
+        *,
+        raw_key: str | None = None,
+        empty_payload: dict | None = None,
+        max_age_seconds: int = 900,
+    ) -> dict:
+        cached = latest_verified_odds_payload(
+            tool, raw_key=raw_key, max_age_seconds=max_age_seconds
+        )
+        if cached:
+            payload = dict(cached["payload"])
+            payload.update(
+                {
+                    "degraded": True,
+                    "stale": True,
+                    "lastVerifiedAt": cached["sourceUpdatedAt"],
+                    "snapshotAgeSeconds": cached["ageSeconds"],
+                    "message": "Recent verified odds shown while the live feed reconnects.",
+                    "upstreamStatus": error_code,
+                    "refreshSeconds": 5,
+                }
+            )
+            return payload
+        return {
+            **(empty_payload or {"data": [], "total": 0}),
+            "degraded": True,
+            "stale": False,
+            "message": "Live odds are reconnecting. The board will retry automatically.",
+            "refreshSeconds": 5,
+            "upstreamStatus": error_code,
+        }
+
+    def record_odds_feed_health(
+        provider,
+        *,
+        status: str,
+        latency_ms: float | None = None,
+        quote_count: int = 0,
+        executable_quote_count: int = 0,
+        stale_quote_count: int = 0,
+        missing_timestamp_count: int = 0,
+        error: str | None = None,
+        details: dict | None = None,
+    ) -> dict:
+        diagnostics = (
+            provider.diagnostics(authenticate=False)
+            if provider is not None and callable(getattr(provider, "diagnostics", None))
+            else {}
+        )
+        observed_at = datetime.now(timezone.utc).isoformat()
+        provider_key = str(
+            diagnostics.get("provider")
+            or getattr(provider, "provider_key", None)
+            or "odds_feed"
+        )
+        health = {
+            "providerKey": provider_key,
+            "status": status,
+            "transport": str(diagnostics.get("snapshotTransport") or "rest"),
+            "observedAt": observed_at,
+            "lastSuccessAt": (
+                diagnostics.get("lastSuccessAt") or observed_at
+                if status == "ok"
+                else diagnostics.get("lastSuccessAt")
+            ),
+            "lastErrorAt": observed_at if error else diagnostics.get("lastErrorAt"),
+            "latencyMs": None if latency_ms is None else round(latency_ms, 1),
+            "quoteCount": int(quote_count),
+            "executableQuoteCount": int(executable_quote_count),
+            "staleQuoteCount": int(stale_quote_count),
+            "missingTimestampCount": int(missing_timestamp_count),
+            "details": {**(details or {}), "error": error},
+        }
+        try:
+            tracker.database.record_odds_provider_health(provider_key, health)
+        except Exception as exc:  # pragma: no cover - live persistence isolation
+            LOGGER.warning("Odds provider health persistence failed: %s", type(exc).__name__)
+        return health
+
     def positive_ev_live_cache_key() -> str:
         return request.query_string.decode("utf-8", errors="ignore")
 
     def positive_ev_degraded_response(error_code: str):
         """Keep the public board usable while an upstream feed reconnects."""
         cache_key = positive_ev_live_cache_key()
+        shared = degraded_odds_payload(
+            "positive-ev",
+            error_code,
+            raw_key=cache_key,
+            empty_payload={
+                "data": [],
+                "total": 0,
+                "configured": bool(odds_feed_providers()),
+            },
+        )
+        if shared.get("lastVerifiedAt"):
+            response = jsonify(shared)
+            response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+            return response
         with positive_ev_live_snapshots_lock:
             cached = positive_ev_live_snapshots.get(cache_key)
             if cached:
@@ -954,6 +1095,25 @@ def create_app(start_background: bool = True) -> Flask:
 
     def dfs_degraded_response(cache_key: str, error_code: str):
         """Return the latest verified DFS board while OddsEngine reconnects."""
+        shared = degraded_odds_payload(
+            "fantasy",
+            error_code,
+            raw_key=cache_key,
+            empty_payload={
+                "data": [],
+                "dataByBook": {},
+                "total": 0,
+                "totalsByBook": {},
+                "configured": bool(odds_feed_providers()),
+            },
+        )
+        if shared.get("lastVerifiedAt"):
+            shared["message"] = (
+                "Recent verified props shown while the live feed reconnects."
+            )
+            response = jsonify(shared)
+            response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+            return response
         with dfs_live_snapshots_lock:
             cached = dfs_live_snapshots.get(cache_key)
             if cached:
@@ -999,6 +1159,7 @@ def create_app(start_background: bool = True) -> Flask:
         "api_low_hold",
         "api_middles",
         "api_odds_screen",
+        "api_odds_coverage",
         "api_positive_ev_live",
         "api_sharp_money_live",
         "api_sharp_money_sandbox",
@@ -1431,7 +1592,9 @@ def create_app(start_background: bool = True) -> Flask:
             "odds_screen.html",
             title="IconBets Live Odds Screen",
             page="odds-screen",
-            odds_screen_provider_catalog=oddsengine_provider_catalog(),
+            # The browser receives providers only after a quote has actually
+            # been observed. A configured vendor catalog is not live coverage.
+            odds_screen_provider_catalog=[],
         )
 
     @app.route("/futures")
@@ -1468,9 +1631,9 @@ def create_app(start_background: bool = True) -> Flask:
             engine = DfsProbabilityEngine(
                 weights,
                 devig_method=method,
-                max_quote_age_seconds=payload.get("max_quote_age_seconds", 600),
-                freshness_half_life_seconds=payload.get("freshness_half_life_seconds", 300),
-                minimum_sources=payload.get("minimum_sources", 1),
+                max_quote_age_seconds=payload.get("max_quote_age_seconds", 90),
+                freshness_half_life_seconds=payload.get("freshness_half_life_seconds", 90),
+                minimum_sources=max(2, int(payload.get("minimum_sources", 2))),
             )
             result = engine.calculate(
                 target_line=payload.get("target_line"),
@@ -1481,6 +1644,59 @@ def create_app(start_background: bool = True) -> Flask:
         except (TypeError, ValueError) as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify(result.to_dict())
+
+    @app.post("/api/dfs/slips/evaluate")
+    def api_dfs_slip_evaluate():
+        payload = request.get_json(silent=True) or {}
+        legs = payload.get("legs")
+        payout_by_hits = payload.get("payoutByHits")
+        if not isinstance(legs, list):
+            return jsonify({"error": "legs must be a list"}), 400
+        if not isinstance(payout_by_hits, dict):
+            return jsonify({"error": "payoutByHits must be an object"}), 400
+        try:
+            result = evaluate_dfs_slip(
+                legs,
+                payout_by_hits=payout_by_hits,
+                payout_by_active_count=payload.get("payoutByActiveCount"),
+                stake=payload.get("stake", 100.0),
+                correlations=payload.get("correlations"),
+                payout_confirmed=payload.get("payoutConfirmed") is True,
+                settlement_confirmed=payload.get("settlementConfirmed") is True,
+            )
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
+
+    @app.post("/api/dfs/slips/optimize")
+    def api_dfs_slip_optimize():
+        payload = request.get_json(silent=True) or {}
+        candidates = payload.get("candidates")
+        payout_by_hits = payload.get("payoutByHits")
+        if not isinstance(candidates, list):
+            return jsonify({"error": "candidates must be a list"}), 400
+        if len(candidates) > 500:
+            return jsonify({"error": "candidates cannot exceed 500 rows"}), 400
+        if not isinstance(payout_by_hits, dict):
+            return jsonify({"error": "payoutByHits must be an object"}), 400
+        try:
+            result = optimize_dfs_slips(
+                candidates,
+                pick_count=payload.get("pickCount"),
+                payout_by_hits=payout_by_hits,
+                stake=payload.get("stake", 100.0),
+                correlations=payload.get("correlations"),
+                payout_confirmed=payload.get("payoutConfirmed") is True,
+                settlement_confirmed=payload.get("settlementConfirmed") is True,
+                result_limit=payload.get("limit", 10),
+            )
+        except (TypeError, ValueError) as exc:
+            return jsonify({"error": str(exc)}), 400
+        response = jsonify(result)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @app.route("/api/dfs/lines", methods=["GET", "POST"])
     def api_dfs_lines():
@@ -1553,6 +1769,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
             response.headers["Cache-Control"] = "private, no-store"
             return response
+        scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=requested_sports,
@@ -1580,12 +1797,24 @@ def create_app(start_background: bool = True) -> Flask:
                 rows_by_book = {selected_book: rows}
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error="RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+            )
             return dfs_degraded_response(
                 snapshot_key,
                 "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
             )
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("DFS odds refresh failed: %s", type(exc).__name__)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=type(exc).__name__,
+            )
             return dfs_degraded_response(snapshot_key, "PROVIDER_ERROR")
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
@@ -1605,7 +1834,39 @@ def create_app(start_background: bool = True) -> Flask:
             "refreshSeconds": 60,
             "degraded": False,
             "stale": False,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "executionSummary": {
+                "qualified": sum(
+                    row.get("modelStatus") == "AVAILABLE"
+                    for book_rows in rows_by_book.values()
+                    for row in book_rows
+                ),
+                "watchOnly": sum(
+                    row.get("modelStatus") != "AVAILABLE"
+                    for book_rows in rows_by_book.values()
+                    for row in book_rows
+                ),
+            },
         }
+        response_payload["feedHealth"] = record_odds_feed_health(
+            odds_provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=sum(
+                int(row.get("availableQuoteCount") or 0)
+                for book_rows in rows_by_book.values()
+                for row in book_rows
+            ),
+            executable_quote_count=sum(
+                1
+                for book_rows in rows_by_book.values()
+                for row in book_rows
+                if row.get("modelStatus") == "AVAILABLE"
+            ),
+        )
+        save_verified_odds_payload(
+            "fantasy", response_payload, raw_key=snapshot_key
+        )
         with dfs_live_snapshots_lock:
             if snapshot_key not in dfs_live_snapshots and len(dfs_live_snapshots) >= 64:
                 dfs_live_snapshots.pop(next(iter(dfs_live_snapshots)), None)
@@ -2037,6 +2298,120 @@ def create_app(start_background: bool = True) -> Flask:
             )
         )
 
+    @app.get("/api/providers/odds-engine/books")
+    def api_odds_engine_books():
+        """Return OddsEngine's live book registry without exposing credentials."""
+
+        provider = positive_ev_provider()
+        if provider is None:
+            return jsonify(
+                {"provider": "odds_engine", "configured": False, "data": []}
+            ), 503
+        try:
+            rows = provider.refresh_book_registry()
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            return jsonify(
+                {
+                    "provider": "odds_engine",
+                    "configured": True,
+                    "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
+                }
+            ), status if status in {401, 403, 429} else 502
+        except (requests.RequestException, ValueError, TypeError):
+            return jsonify(
+                {
+                    "provider": "odds_engine",
+                    "configured": True,
+                    "error": "PROVIDER_ERROR",
+                }
+            ), 502
+        response = jsonify(
+            {
+                "provider": "odds_engine",
+                "configured": True,
+                "data": rows,
+                "count": len(rows),
+                "synthetic": False,
+            }
+        )
+        response.headers["Cache-Control"] = (
+            "public, max-age=300, s-maxage=3600, stale-while-revalidate=86400"
+        )
+        return response
+
+    @app.get("/api/providers/odds-engine/orderbook")
+    def api_odds_engine_orderbook():
+        """Expose the key's Advanced full-depth read-only order book."""
+
+        provider = positive_ev_provider()
+        if provider is None:
+            return jsonify(
+                {
+                    "provider": "odds_engine",
+                    "configured": False,
+                    "error": "NOT_CONFIGURED",
+                }
+            ), 503
+        league = request.args.get("league", "").strip().lower()
+        event_id = request.args.get("event_id", "").strip()
+        if not league and not event_id:
+            return jsonify({"error": "league or event_id is required"}), 400
+        if len(league) > 32 or len(event_id) > 128:
+            return jsonify({"error": "Invalid order-book scope"}), 400
+        books = tuple(
+            dict.fromkeys(
+                item.strip().lower()
+                for item in request.args.get(
+                    "books", "novig,prophetx"
+                ).split(",")
+                if item.strip()
+            )
+        )
+        try:
+            payload = provider.advanced_order_book_snapshot(
+                league=league,
+                event_id=event_id,
+                market_type=request.args.get("market_type", "").strip(),
+                books=books,
+                include_peers=request.args.get(
+                    "include_peers", "true"
+                ).strip().lower()
+                not in {"0", "false", "no", "off"},
+                limit=request.args.get("limit", 200, type=int) or 200,
+                offset=request.args.get("offset", 0, type=int) or 0,
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except requests.HTTPError as exc:
+            status = getattr(exc.response, "status_code", 502)
+            error = {
+                401: "UNAUTHORIZED",
+                403: "ADVANCED_ACCESS_REQUIRED",
+                429: "RATE_LIMITED",
+            }.get(status, "PROVIDER_ERROR")
+            return jsonify(
+                {"provider": "odds_engine", "error": error}
+            ), status if status in {401, 403, 429} else 502
+        except (requests.RequestException, TypeError):
+            return jsonify(
+                {"provider": "odds_engine", "error": "PROVIDER_ERROR"}
+            ), 502
+        response = jsonify(
+            {
+                "provider": "odds_engine",
+                "transport": "rest_snapshot",
+                "websocketConnected": False,
+                "booksRequested": list(books),
+                "data": payload,
+                "synthetic": False,
+            }
+        )
+        response.headers["Cache-Control"] = (
+            "public, max-age=1, s-maxage=5, stale-while-revalidate=15"
+        )
+        return response
+
     @app.route("/api/admin/discord-notifications/test", methods=["POST"])
     def api_discord_notification_test():
         if not has_job_authorization():
@@ -2311,16 +2686,85 @@ def create_app(start_background: bool = True) -> Flask:
         # Prefer OddsEngine's Advanced materialized order book, then fall back
         # to exact standard-plan price consensus. Both refresh on demand at a
         # bounded cadence; direct ProphetX retains its local Play gate.
-        payload = app.extensions["sharp_money_collector"].payload(
+        scan_started = time.perf_counter()
+        collector = app.extensions["sharp_money_collector"]
+        if collector.status().get("cycles", 0) == 0:
+            stored_state = latest_verified_odds_payload(
+                "sharp-money-state", raw_key="global", max_age_seconds=1800
+            )
+            if stored_state:
+                collector.restore_state(stored_state.get("payload") or {})
+        payload = collector.payload(
             refresh_if_stale=True
         )
         signals = payload.get("signals") or []
+        for signal in signals:
+            has_verified_depth = signal.get("depthAvailable") is True and bool(
+                signal.get("liquiditySources")
+                or signal.get("crossedLiquidity")
+                or signal.get("liquidity")
+            )
+            signal["signalClass"] = (
+                "SHARP_MONEY"
+                if has_verified_depth
+                else "MARKET_MOVEMENT"
+                if payload.get("signalMode") == "quote_consensus"
+                else "PRICE_ONLY"
+            )
+            signal["executionEligible"] = bool(has_verified_depth)
+        if payload.get("lastError") and not signals:
+            cached = latest_verified_odds_payload(
+                "sharp-money", raw_key="global", max_age_seconds=900
+            )
+            if cached:
+                recovered = dict(cached["payload"])
+                recovered.update(
+                    {
+                        "degraded": True,
+                        "stale": True,
+                        "lastVerifiedAt": cached["sourceUpdatedAt"],
+                        "snapshotAgeSeconds": cached["ageSeconds"],
+                        "lastError": payload.get("lastError"),
+                        "message": (
+                            "Recent verified Sharp Money state shown while the "
+                            "live source reconnects."
+                        ),
+                        "refreshSeconds": 5,
+                    }
+                )
+                response = jsonify(recovered)
+                response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+                return response
         # Avoid opening the durable store on empty polls.
         payload["labTracker"] = (
             app.extensions["lab_tracker_service"].observe_sharp_money(signals)
             if signals
             else {"observed": 0, "qualified": 0}
         )
+        payload["generatedAt"] = datetime.now(timezone.utc).isoformat()
+        payload["degraded"] = bool(payload.get("lastError"))
+        payload["stale"] = False
+        payload["feedHealth"] = record_odds_feed_health(
+            app.extensions.get("odds_engine_provider"),
+            status="degraded" if payload.get("lastError") else "ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=len(signals),
+            executable_quote_count=sum(
+                signal.get("executionEligible") is True for signal in signals
+            ),
+            error=str(payload.get("lastError") or "") or None,
+            details={"signalMode": payload.get("signalMode")},
+        )
+        if signals and not payload.get("lastError"):
+            save_verified_odds_payload(
+                "sharp-money", payload, raw_key="global"
+            )
+            save_verified_odds_payload(
+                "sharp-money-state",
+                collector.state_snapshot(),
+                raw_key="global",
+                ttl_seconds=1800,
+            )
         response = jsonify(payload)
         response.headers["Cache-Control"] = (
             "no-store"
@@ -2344,9 +2788,50 @@ def create_app(start_background: bool = True) -> Flask:
         payload["message"] = message
         return jsonify(payload), 200 if accepted else 409
 
+    @app.route("/api/odds/coverage")
+    def api_odds_coverage():
+        snapshot = latest_verified_odds_payload(
+            "odds-coverage", raw_key="global", max_age_seconds=3600
+        )
+        coverage = dict(snapshot["payload"]) if snapshot else {
+            "observedBookCount": 0,
+            "executableBookCount": 0,
+            "rowCount": 0,
+            "quoteCount": 0,
+            "executableQuoteCount": 0,
+            "marketCount": 0,
+            "books": [],
+            "catalogClaimsExcluded": True,
+        }
+        health = tracker.database.get_odds_provider_health()
+        payload = {
+            "coverage": coverage,
+            "providerHealth": health,
+            "lastVerifiedAt": snapshot.get("sourceUpdatedAt") if snapshot else None,
+            "snapshotAgeSeconds": snapshot.get("ageSeconds") if snapshot else None,
+            "latency": {
+                "subsecondVerified": False,
+                "transport": "rest_snapshot",
+                "measurementWindowDays": 0,
+                "claimStatus": "NOT_VERIFIED",
+            },
+            "releaseGates": {
+                "catalogOnlyClaims": False,
+                "missingTimestampExecutableQuotes": sum(
+                    int(row.get("missing_timestamp_count") or 0) for row in health
+                ),
+                "sevenDayComparativeLatencyTestComplete": False,
+                "thirtyDayTelemetryComplete": False,
+            },
+        }
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "public, max-age=5, s-maxage=15"
+        return response
+
     @app.route("/api/odds-screen")
     def api_odds_screen():
         """Live read-only odds universe, independent of recommendation eligibility."""
+        scan_started = time.perf_counter()
         if request.args.get("active", "").strip().lower() not in {
             "1",
             "true",
@@ -2451,13 +2936,26 @@ def create_app(start_background: bool = True) -> Flask:
             elif requested_market in ALL_OPPORTUNITY_MARKETS:
                 market_keys = (requested_market,)
             else:
-                market_keys = ALL_OPPORTUNITY_MARKETS
+                # The comparison screen is an inventory surface, not an
+                # opportunity engine.  OddsEngine returns every market family
+                # in each event snapshot, so preserve the complete observed
+                # payload here (including new props/periods) and keep the
+                # settlement-safe allowlist inside EV/arb/middle/low-hold.
+                market_keys = ("*",)
 
             if not sport_keys or not market_keys:
                 return None, []
             for candidate in odds_feed_providers():
                 try:
-                    events = candidate.ev_events(
+                    loader = getattr(candidate, "odds_screen_events", None)
+                    # Preserve instance-level provider injection used by local
+                    # fixtures and emergency adapters without giving up the
+                    # broader production screen method.
+                    if "ev_events" in getattr(candidate, "__dict__", {}):
+                        loader = candidate.ev_events
+                    if not callable(loader):
+                        loader = candidate.ev_events
+                    events = loader(
                         sport_keys=sport_keys,
                         market_keys=market_keys,
                     )
@@ -2491,6 +2989,28 @@ def create_app(start_background: bool = True) -> Flask:
             sportsbook_future = executor.submit(load_sportsbook_rows)
             schedule_rows = schedule_future.result()
             sportsbook_provider, sportsbook_rows = sportsbook_future.result()
+        if sportsbook_provider is None and odds_feed_providers():
+            cached = latest_verified_odds_payload(
+                "odds-screen", max_age_seconds=900
+            )
+            if cached:
+                payload = dict(cached["payload"])
+                payload.update(
+                    {
+                        "degraded": True,
+                        "stale": True,
+                        "lastVerifiedAt": cached["sourceUpdatedAt"],
+                        "snapshotAgeSeconds": cached["ageSeconds"],
+                        "message": (
+                            "Recent verified all-book odds shown while the "
+                            "sportsbook feed reconnects."
+                        ),
+                        "refreshSeconds": 5,
+                    }
+                )
+                response = jsonify(payload)
+                response.headers["Cache-Control"] = "public, max-age=0, s-maxage=5"
+                return response
         def merge_odds_row(row: dict) -> None:
             identity = odds_identity(row)
             existing = unique.get(identity)
@@ -2680,12 +3200,8 @@ def create_app(start_background: bool = True) -> Flask:
                     option["isBestPrice"] = option is best
             row["executionOptions"] = combined
         provider_catalog: dict[str, dict] = {}
-        if sportsbook_provider is not None:
-            catalog_builder = getattr(sportsbook_provider, "provider_catalog", None)
-            if callable(catalog_builder):
-                provider_catalog.update(
-                    {item["key"]: item for item in catalog_builder(rows)}
-                )
+        # Coverage is evidence-based: only providers attached to a returned
+        # quote appear. A configured catalog entry is not a live book.
         for row in rows:
             for option in row.get("executionOptions") or []:
                 provider_key = str(option.get("providerKey") or "").strip().lower()
@@ -2733,6 +3249,7 @@ def create_app(start_background: bool = True) -> Flask:
             "providerEventId",
             "topPrice",
             "topPriceLiquidity",
+            "marketLimit",
             "depthVwapPrice",
             "depthExecutableAmount",
             "depthLevelsUsed",
@@ -2747,42 +3264,167 @@ def create_app(start_background: bool = True) -> Flask:
                 }
                 for option in row.get("executionOptions") or []
             ]
-        response = jsonify(
+        all_options = [
+            option
+            for row in rows
+            for option in row.get("executionOptions") or []
+        ]
+        executable_options = [
+            option
+            for option in all_options
+            if option.get("isAvailable")
+            and option.get("matchingConfidence") == "Exact"
+            and not option.get("isStale")
+            and option.get("lastUpdated")
+            and option.get("bestExecutablePrice") is not None
+        ]
+        provider_market_counts: dict[tuple[str, str], dict[str, int]] = {}
+        observed_market_keys: set[str] = set()
+        for row in rows:
+            market_key = str(
+                row.get("odds_market_key")
+                or row.get("sports_market_type")
+                or "unknown"
+            ).strip().lower()
+            if market_key:
+                observed_market_keys.add(market_key)
+            for option in row.get("executionOptions") or []:
+                provider_key = str(option.get("providerKey") or "").strip().lower()
+                if not provider_key or not market_key:
+                    continue
+                cell = provider_market_counts.setdefault(
+                    (provider_key, market_key),
+                    {"quoteCount": 0, "executableQuoteCount": 0},
+                )
+                cell["quoteCount"] += 1
+                if option in executable_options:
+                    cell["executableQuoteCount"] += 1
+        coverage_by_provider = []
+        for provider_key, provider_row in sorted(provider_catalog.items()):
+            provider_options = [
+                option
+                for option in all_options
+                if str(option.get("providerKey") or "").strip().lower()
+                == provider_key
+            ]
+            coverage_by_provider.append(
+                {
+                    "providerKey": provider_key,
+                    "name": provider_row["name"],
+                    "quoteCount": len(provider_options),
+                    "executableQuoteCount": sum(
+                        option in executable_options for option in provider_options
+                    ),
+                    "staleQuoteCount": sum(
+                        bool(option.get("isStale")) for option in provider_options
+                    ),
+                    "missingTimestampCount": sum(
+                        not bool(option.get("lastUpdated"))
+                        for option in provider_options
+                    ),
+                    "marketKeys": sorted(
+                        market_key
+                        for (key, market_key), counts in provider_market_counts.items()
+                        if key == provider_key and counts["quoteCount"] > 0
+                    ),
+                }
+            )
+        coverage_matrix = [
             {
-                "data": rows,
-                "pagination": {"total": len(rows), "page": 1, "per_page": len(rows)},
-                "status": snapshot["status"],
-                "source": (
-                    "polymarket_novig_and_"
-                    f"{getattr(sportsbook_provider, 'provider_key', 'schedule')}_read_only_feeds"
-                ),
-                "providers": sorted(
-                    provider_catalog.values(),
-                    key=lambda item: (
-                        item["source"] != "exchange",
-                        item["name"].casefold(),
-                    ),
-                ),
-                "filters": {
-                    "sport": requested_sport,
-                    "league": requested_league,
-                    "market": requested_market,
-                },
-                "generatedAt": datetime.now(timezone.utc).isoformat(),
-                "refreshSeconds": 60,
-                "transport": {
-                    "mode": "rest_snapshot",
-                    "provider": getattr(
-                        sportsbook_provider, "provider_key", "schedule"
-                    ),
-                    "websocketConnected": False,
-                    "websocketRequiresAdvanced": (
-                        getattr(sportsbook_provider, "provider_key", "")
-                        == "odds_engine"
-                    ),
-                },
+                "providerKey": provider_key,
+                "marketKey": market_key,
+                **counts,
             }
+            for (provider_key, market_key), counts in sorted(
+                provider_market_counts.items()
+            )
+        ]
+        feed_health = record_odds_feed_health(
+            sportsbook_provider,
+            status="ok" if sportsbook_provider is not None else "degraded",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=len(all_options),
+            executable_quote_count=len(executable_options),
+            stale_quote_count=sum(
+                bool(option.get("isStale")) for option in all_options
+            ),
+            missing_timestamp_count=sum(
+                not bool(option.get("lastUpdated")) for option in all_options
+            ),
+            error=None if sportsbook_provider is not None else "SPORTSBOOK_FEED_UNAVAILABLE",
         )
+        response_payload = {
+            "data": rows,
+            "pagination": {"total": len(rows), "page": 1, "per_page": len(rows)},
+            "status": feed_health["status"],
+            "degraded": sportsbook_provider is None,
+            "stale": False,
+            "source": (
+                "polymarket_novig_and_"
+                f"{getattr(sportsbook_provider, 'provider_key', 'schedule')}_read_only_feeds"
+            ),
+            "providers": sorted(
+                provider_catalog.values(),
+                key=lambda item: (
+                    item["source"] != "exchange",
+                    item["name"].casefold(),
+                ),
+            ),
+            "coverage": {
+                "observedBookCount": len(provider_catalog),
+                "executableBookCount": len(
+                    {
+                        option.get("providerKey") for option in executable_options
+                    }
+                ),
+                "rowCount": len(rows),
+                "quoteCount": len(all_options),
+                "executableQuoteCount": len(executable_options),
+                "marketCount": len(
+                    {
+                        str(row.get("odds_market_key") or row.get("sports_market_type") or "")
+                        for row in rows
+                        if row.get("odds_market_key") or row.get("sports_market_type")
+                    }
+                ),
+                "books": coverage_by_provider,
+                "marketKeys": sorted(observed_market_keys),
+                "bookMarketMatrix": coverage_matrix,
+                "catalogClaimsExcluded": True,
+            },
+            "filters": {
+                "sport": requested_sport,
+                "league": requested_league,
+                "market": requested_market,
+            },
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "refreshSeconds": 60,
+            "feedHealth": feed_health,
+            "transport": {
+                "mode": "rest_snapshot",
+                "provider": getattr(
+                    sportsbook_provider, "provider_key", "schedule"
+                ),
+                "websocketConnected": False,
+                "subsecondCapable": False,
+                "websocketRequiresAdvanced": (
+                    getattr(sportsbook_provider, "provider_key", "")
+                    == "odds_engine"
+                ),
+                "limitation": (
+                    "OddsEngine Advanced push access is required for sub-second sportsbook updates."
+                ),
+            },
+        }
+        if sportsbook_provider is not None and sportsbook_rows:
+            save_verified_odds_payload("odds-screen", response_payload)
+            save_verified_odds_payload(
+                "odds-coverage",
+                response_payload["coverage"],
+                raw_key="global",
+                ttl_seconds=3600,
+            )
+        response = jsonify(response_payload)
         edge_ttl = 60 if sportsbook_provider is not None else 15
         response.headers["Cache-Control"] = (
             f"public, max-age=10, s-maxage={edge_ttl}, "
@@ -2963,10 +3605,11 @@ def create_app(start_background: bool = True) -> Flask:
 
         total_stake = arb_number("stake", 1_000.0, 1.0, 10_000_000.0)
         min_profit = arb_number("min_profit", 0.1, 0.0, 50.0)
-        max_quote_age = int(arb_number("max_quote_age", 180, 15, 1800))
+        max_quote_age = int(arb_number("max_quote_age", 90, 15, 1800))
+        max_quote_skew = int(arb_number("max_quote_skew", 3, 0, 60))
         commission_bps = arb_number("commission_bps", 0.0, 0.0, 2500.0)
         require_distinct_books = request.args.get(
-            "distinct_books", ""
+            "distinct_books", "1"
         ).strip().lower() in {"1", "true", "yes", "on"}
 
         configured = bool(odds_feed_providers())
@@ -3009,6 +3652,7 @@ def create_app(start_background: bool = True) -> Flask:
                 if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
         )
+        scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -3021,35 +3665,61 @@ def create_app(start_background: bool = True) -> Flask:
                 total_stake=total_stake,
                 min_profit_percent=min_profit,
                 max_quote_age_seconds=max_quote_age,
+                max_cross_leg_skew_seconds=max_quote_skew,
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
-            return (
-                jsonify(
-                    {
-                        "data": [],
-                        "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
-                    }
-                ),
-                429 if status == 429 else 502,
+            error_code = "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+            payload = degraded_odds_payload("arbitrage", error_code)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=error_code,
             )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Arbitrage refresh failed: %s", type(exc).__name__)
-            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+            payload = degraded_odds_payload("arbitrage", "PROVIDER_ERROR")
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=type(exc).__name__,
+            )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
-        response = jsonify(
-            {
-                "data": board["data"],
-                "total": len(board["data"]),
-                "diagnostics": board["diagnostics"],
-                "configured": True,
-                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
-            }
+        response_payload = {
+            "data": board["data"],
+            "total": len(board["data"]),
+            "diagnostics": board["diagnostics"],
+            "configured": True,
+            "dataSource": diagnostics.get("provider", odds_provider.provider_key),
+            "refreshSeconds": 60,
+            "degraded": False,
+            "stale": False,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "executionSummary": {
+                "executable": sum(bool(row.get("isExecutable")) for row in board["data"]),
+                "theoretical": sum(not bool(row.get("isExecutable")) for row in board["data"]),
+            },
+        }
+        response_payload["feedHealth"] = record_odds_feed_health(
+            odds_provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=sum(len(row.get("outcomes") or []) for row in board["data"]),
+            executable_quote_count=sum(
+                len(row.get("outcomes") or [])
+                for row in board["data"]
+                if row.get("isExecutable")
+            ),
         )
+        save_verified_odds_payload("arbitrage", response_payload)
+        response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
             "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
@@ -3139,10 +3809,11 @@ def create_app(start_background: bool = True) -> Flask:
         total_stake = middle_number("stake", 1_000.0, 1.0, 10_000_000.0)
         min_width = middle_number("min_width", 0.5, 0.01, 1000.0)
         max_cost = middle_number("max_cost", 12.0, 0.0, 100.0)
-        max_quote_age = int(middle_number("max_quote_age", 180, 15, 1800))
+        max_quote_age = int(middle_number("max_quote_age", 90, 15, 1800))
+        max_quote_skew = int(middle_number("max_quote_skew", 3, 0, 60))
         commission_bps = middle_number("commission_bps", 0.0, 0.0, 2500.0)
         require_distinct_books = request.args.get(
-            "distinct_books", ""
+            "distinct_books", "1"
         ).strip().lower() in {"1", "true", "yes", "on"}
 
         configured = bool(odds_feed_providers())
@@ -3182,6 +3853,7 @@ def create_app(start_background: bool = True) -> Flask:
                 if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
         )
+        scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -3195,29 +3867,61 @@ def create_app(start_background: bool = True) -> Flask:
                 min_middle_width=min_width,
                 max_cost_percent=max_cost,
                 max_quote_age_seconds=max_quote_age,
+                max_cross_leg_skew_seconds=max_quote_skew,
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
             )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
-            return jsonify(
-                {"data": [], "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"}
-            ), 429 if status == 429 else 502
+            error_code = "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+            payload = degraded_odds_payload("middles", error_code)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=error_code,
+            )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Middles refresh failed: %s", type(exc).__name__)
-            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+            payload = degraded_odds_payload("middles", "PROVIDER_ERROR")
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=type(exc).__name__,
+            )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
-        response = jsonify(
-            {
-                "data": board["data"],
-                "total": len(board["data"]),
-                "diagnostics": board["diagnostics"],
-                "configured": True,
-                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
-            }
+        response_payload = {
+            "data": board["data"],
+            "total": len(board["data"]),
+            "diagnostics": board["diagnostics"],
+            "configured": True,
+            "dataSource": diagnostics.get("provider", odds_provider.provider_key),
+            "refreshSeconds": 60,
+            "degraded": False,
+            "stale": False,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "executionSummary": {
+                "executable": sum(bool(row.get("isExecutable")) for row in board["data"]),
+                "theoretical": sum(not bool(row.get("isExecutable")) for row in board["data"]),
+            },
+        }
+        response_payload["feedHealth"] = record_odds_feed_health(
+            odds_provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=sum(len(row.get("legs") or []) for row in board["data"]),
+            executable_quote_count=sum(
+                len(row.get("legs") or [])
+                for row in board["data"]
+                if row.get("isExecutable")
+            ),
         )
+        save_verified_odds_payload("middles", response_payload)
+        response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
             "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
@@ -3349,9 +4053,10 @@ def create_app(start_background: bool = True) -> Flask:
             low_hold_number("locked_leg", 0, 0, 12)
         )
         max_hold = low_hold_number("max_hold", 5.0, 0.0, 25.0)
-        min_odds = int(low_hold_number("min_odds", -100_000, -100_000, 100_000))
-        max_odds = int(low_hold_number("max_odds", 100_000, -100_000, 100_000))
-        max_quote_age = int(low_hold_number("max_quote_age", 180, 15, 1800))
+        min_odds = int(low_hold_number("min_odds", -5_000, -5_000, 5_000))
+        max_odds = int(low_hold_number("max_odds", 5_000, -5_000, 5_000))
+        max_quote_age = int(low_hold_number("max_quote_age", 90, 15, 1800))
+        max_quote_skew = int(low_hold_number("max_quote_skew", 3, 0, 60))
         commission_bps = low_hold_number("commission_bps", 0.0, 0.0, 2500.0)
         min_distance = low_hold_number("min_distance", 0.5, 0.5, 20.0)
         require_distinct_books = low_hold_bool("distinct_books", True)
@@ -3394,6 +4099,7 @@ def create_app(start_background: bool = True) -> Flask:
             "min_american_odds": min_odds,
             "max_american_odds": max_odds,
             "max_quote_age_seconds": max_quote_age,
+            "max_cross_leg_skew_seconds": max_quote_skew,
             "commission_bps": commission_bps,
             "require_distinct_books": require_distinct_books,
             "include_exact": include_exact,
@@ -3424,6 +4130,7 @@ def create_app(start_background: bool = True) -> Flask:
                 if item.strip() in ODDSENGINE_SPORT_KEY_TO_LEAGUE
             )
         )
+        scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -3432,30 +4139,55 @@ def create_app(start_background: bool = True) -> Flask:
             board = build_low_hold_board(events, **board_kwargs)
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
-            return (
-                jsonify(
-                    {
-                        "data": [],
-                        "error": "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR",
-                    }
-                ),
-                429 if status == 429 else 502,
+            error_code = "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+            payload = degraded_odds_payload("low-hold", error_code)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=error_code,
             )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else (429 if status == 429 else 502)
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Low Hold refresh failed: %s", type(exc).__name__)
-            return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
+            payload = degraded_odds_payload("low-hold", "PROVIDER_ERROR")
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=type(exc).__name__,
+            )
+            return jsonify(payload), 200 if payload.get("lastVerifiedAt") else 502
 
         diagnostics = odds_provider.diagnostics(authenticate=False)
-        response = jsonify(
-            {
-                "data": board["data"],
-                "total": len(board["data"]),
-                "diagnostics": board["diagnostics"],
-                "configured": True,
-                "dataSource": diagnostics.get("provider", odds_provider.provider_key),
-                "refreshSeconds": 60,
-            }
+        response_payload = {
+            "data": board["data"],
+            "total": len(board["data"]),
+            "diagnostics": board["diagnostics"],
+            "configured": True,
+            "dataSource": diagnostics.get("provider", odds_provider.provider_key),
+            "refreshSeconds": 60,
+            "degraded": False,
+            "stale": False,
+            "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "executionSummary": {
+                "executable": sum(bool(row.get("isExecutable")) for row in board["data"]),
+                "theoretical": sum(not bool(row.get("isExecutable")) for row in board["data"]),
+            },
+        }
+        response_payload["feedHealth"] = record_odds_feed_health(
+            odds_provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=sum(len(row.get("outcomes") or []) for row in board["data"]),
+            executable_quote_count=sum(
+                len(row.get("outcomes") or [])
+                for row in board["data"]
+                if row.get("isExecutable")
+            ),
         )
+        save_verified_odds_payload("low-hold", response_payload)
+        response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
             "public, max-age=10, s-maxage=60, stale-while-revalidate=120"
         )
@@ -3656,8 +4388,20 @@ def create_app(start_background: bool = True) -> Flask:
         active_source_count = sum(
             1 for weight in source_weights.values() if weight > 0.0
         )
-        requested_min_sources = int(number_arg("min_sources", 2, 1, 5))
-        effective_min_sources = min(requested_min_sources, active_source_count)
+        requested_min_sources = int(number_arg("min_sources", 3, 3, 5))
+        if active_source_count < 3:
+            return jsonify(
+                {
+                    "error": "INSUFFICIENT_DEVIG_SOURCES",
+                    "message": (
+                        "At least three independently weighted sources are required "
+                        "for an executable Positive EV recommendation."
+                    ),
+                    "activeSourceCount": active_source_count,
+                    "minimumSourceCount": 3,
+                }
+            ), 400
+        effective_min_sources = requested_min_sources
         execution_books = tuple(
             item.strip().lower()
             for item in request.args.get(
@@ -3665,6 +4409,7 @@ def create_app(start_background: bool = True) -> Flask:
             ).split(",")
             if item.strip()
         )
+        scan_started = time.perf_counter()
         try:
             odds_provider, events = load_odds_events(
                 sport_keys=sport_keys,
@@ -3692,10 +4437,13 @@ def create_app(start_background: bool = True) -> Flask:
                 kelly_fraction=number_arg("kelly", 0.25, 0.0, 1.0),
                 min_source_books=effective_min_sources,
                 max_quote_age_seconds=int(
-                    number_arg("max_quote_age", 180, 30, 1800)
+                    number_arg("max_quote_age", 90, 30, 1800)
                 ),
                 max_source_age_seconds=int(
-                    number_arg("max_source_age", 600, 60, 3600)
+                    number_arg("max_source_age", 120, 60, 3600)
+                ),
+                max_cross_book_skew_seconds=int(
+                    number_arg("max_quote_skew", 3, 0, 120)
                 ),
                 max_source_dispersion=(
                     number_arg("max_dispersion", 12.0, 2.0, 25.0) / 100.0
@@ -3705,6 +4453,12 @@ def create_app(start_background: bool = True) -> Flask:
                 ),
                 max_event_exposure_pct=(
                     number_arg("max_event_pct", 5.0, 0.5, 20.0) / 100.0
+                ),
+                max_book_exposure_pct=(
+                    number_arg("max_book_pct", 10.0, 0.5, 50.0) / 100.0
+                ),
+                max_subject_exposure_pct=(
+                    number_arg("max_subject_pct", 3.0, 0.25, 20.0) / 100.0
                 ),
             )
             rows = board["data"]
@@ -3720,9 +4474,16 @@ def create_app(start_background: bool = True) -> Flask:
             )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
+            error_code = "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=error_code,
+            )
             if public_live_feed:
                 return positive_ev_degraded_response(
-                    "RATE_LIMITED" if status == 429 else "PROVIDER_ERROR"
+                    error_code
                 )
             return jsonify(
                 {
@@ -3732,6 +4493,12 @@ def create_app(start_background: bool = True) -> Flask:
             ), 429 if status == 429 else 502
         except (requests.RequestException, ValueError, TypeError) as exc:
             LOGGER.warning("Positive EV refresh failed: %s", type(exc).__name__)
+            record_odds_feed_health(
+                None,
+                status="degraded",
+                latency_ms=(time.perf_counter() - scan_started) * 1000,
+                error=type(exc).__name__,
+            )
             if public_live_feed:
                 return positive_ev_degraded_response("PROVIDER_ERROR")
             return jsonify({"data": [], "error": "PROVIDER_ERROR"}), 502
@@ -3759,6 +4526,16 @@ def create_app(start_background: bool = True) -> Flask:
                 "degraded": False,
                 "stale": False,
             }
+        response_payload["generatedAt"] = datetime.now(timezone.utc).isoformat()
+        response_payload["feedHealth"] = record_odds_feed_health(
+            odds_provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - scan_started) * 1000,
+            quote_count=sum(len(row.get("quotes") or []) for row in rows),
+            executable_quote_count=sum(
+                1 for row in rows if row.get("executionStatus") == "executable"
+            ),
+        )
         if public_live_feed:
             with positive_ev_live_snapshots_lock:
                 cache_key = positive_ev_live_cache_key()
@@ -3773,6 +4550,11 @@ def create_app(start_background: bool = True) -> Flask:
                     "payload": response_payload,
                     "storedAt": datetime.now(timezone.utc).isoformat(),
                 }
+            save_verified_odds_payload(
+                "positive-ev",
+                response_payload,
+                raw_key=positive_ev_live_cache_key(),
+            )
         response = jsonify(response_payload)
         response.headers["Cache-Control"] = (
             "public, max-age=10, s-maxage=60, stale-while-revalidate=180"
@@ -3841,6 +4623,11 @@ def create_app(start_background: bool = True) -> Flask:
         selection = request.args.get("selection", "").strip()
         side = request.args.get("side", "").strip()
         alternate = request.args.get("is_alternate", "").strip().lower()
+        provider_event_id = request.args.get("provider_event_id", "").strip()
+        provider_selection_id = request.args.get(
+            "provider_selection_id", ""
+        ).strip()
+        provider_series_id = request.args.get("provider_series_id", "").strip()
         valid_identity = (
             event_id.startswith("evt_")
             and market_id.startswith("mkt_")
@@ -3869,6 +4656,19 @@ def create_app(start_background: bool = True) -> Flask:
             ), 400
         if has_scope and any(len(value) > 160 for value in (*scope_values, side)):
             return jsonify({"error": "Line-history market scope is too long."}), 400
+        if provider_event_id and not re.fullmatch(
+            r"[A-Za-z0-9_-]{1,128}", provider_event_id
+        ):
+            return jsonify({"error": "Invalid OddsEngine event identity."}), 400
+        if any(
+            value
+            and (
+                len(value) > 256
+                or not re.fullmatch(r"[A-Za-z0-9_.:-]+", value)
+            )
+            for value in (provider_selection_id, provider_series_id)
+        ):
+            return jsonify({"error": "Invalid OddsEngine selection identity."}), 400
         requested_books = {
             item.strip().lower()
             for item in request.args.get("books", "").split(",")
@@ -3906,7 +4706,7 @@ def create_app(start_background: bool = True) -> Flask:
             provider = str(row.get("provider") or "").strip().lower()
             if not provider or (requested_books and provider not in requested_books):
                 continue
-            timestamp = row.get("received_timestamp") or row.get("quote_timestamp")
+            timestamp = row.get("quote_timestamp") or row.get("received_timestamp")
             american_odds = _optional_float(row.get("american_odds"))
             if not timestamp or american_odds is None:
                 continue
@@ -3923,6 +4723,81 @@ def create_app(start_background: bool = True) -> Flask:
             if points and points[-1] == point:
                 continue
             points.append(point)
+        upstream_history_status = "not_requested"
+        upstream_history_error = None
+        oddsengine_history = None
+        provider = positive_ev_provider()
+        if (
+            provider is not None
+            and provider_event_id
+            and (provider_series_id or provider_selection_id)
+            and callable(getattr(provider, "line_history_snapshot", None))
+        ):
+            try:
+                oddsengine_history = provider.line_history_snapshot(
+                    event_id=provider_event_id,
+                    series=provider_series_id,
+                    selection=("" if provider_series_id else provider_selection_id),
+                    granularity="raw",
+                    limit=limit,
+                )
+                upstream_history_status = "ok"
+            except requests.HTTPError as exc:
+                upstream_history_error = getattr(exc.response, "status_code", 502)
+                upstream_history_status = (
+                    "advanced_access_required"
+                    if upstream_history_error == 403
+                    else "unavailable"
+                )
+            except (requests.RequestException, ValueError, TypeError) as exc:
+                upstream_history_error = type(exc).__name__
+                upstream_history_status = "unavailable"
+
+        for upstream_series in (
+            ((oddsengine_history or {}).get("data") or {}).get("series") or []
+        ):
+            if not isinstance(upstream_series, dict):
+                continue
+            provider_key = str(upstream_series.get("book") or "").strip().lower()
+            if not provider_key or (
+                requested_books and provider_key not in requested_books
+            ):
+                continue
+            points = by_provider.setdefault(provider_key, [])
+            by_timestamp = {
+                str(point.get("timestamp") or ""): point
+                for point in points
+                if point.get("timestamp")
+            }
+            for upstream_point in upstream_series.get("points") or []:
+                if not isinstance(upstream_point, dict):
+                    continue
+                timestamp = str(upstream_point.get("ts") or "").strip()
+                american_odds = _optional_float(
+                    upstream_point.get("price_american")
+                )
+                if not timestamp or american_odds is None:
+                    continue
+                existing = by_timestamp.get(timestamp)
+                if existing is not None:
+                    # Locally captured observations may carry Pinnacle limits
+                    # and exchange liquidity that OddsEngine linehistory does
+                    # not currently include. Never erase those fields.
+                    if existing.get("line") is None:
+                        existing["line"] = _optional_float(
+                            upstream_point.get("line")
+                        )
+                    continue
+                point = {
+                    "timestamp": timestamp,
+                    "americanOdds": int(round(american_odds)),
+                    "line": _optional_float(upstream_point.get("line")),
+                    "marketLimit": None,
+                    "availableLiquidity": None,
+                }
+                points.append(point)
+                by_timestamp[timestamp] = point
+            points.sort(key=lambda point: str(point.get("timestamp") or ""))
         series = []
         for provider, points in by_provider.items():
             metadata = ODDSENGINE_BOOKMAKERS.get(provider, {})
@@ -3942,6 +4817,22 @@ def create_app(start_background: bool = True) -> Flask:
                 }
             )
         series.sort(key=lambda item: item["bookName"].casefold())
+        available_value_kinds = ["american_odds"]
+        if any(
+            point.get("line") is not None
+            for item in series
+            for point in item["points"]
+        ):
+            available_value_kinds.insert(0, "line")
+        if any(
+            point.get("marketLimit") is not None
+            for item in series
+            for point in item["points"]
+        ):
+            available_value_kinds.append("market_limit")
+        ingest_snapshot = latest_verified_odds_payload(
+            "odds-ingest", raw_key="global", max_age_seconds=300
+        )
         response = jsonify(
             {
                 "eventId": event_id,
@@ -3949,6 +4840,12 @@ def create_app(start_background: bool = True) -> Flask:
                 "selectionId": selection_id,
                 "series": series,
                 "observationCount": sum(len(item["points"]) for item in series),
+                "requestedBooks": sorted(requested_books),
+                "observedBooks": [item["bookKey"] for item in series],
+                "missingBooks": sorted(
+                    requested_books.difference(item["bookKey"] for item in series)
+                ),
+                "valueKindsAvailable": available_value_kinds,
                 "valueKind": (
                     "line"
                     if any(
@@ -3958,7 +4855,44 @@ def create_app(start_background: bool = True) -> Flask:
                     )
                     else "american_odds"
                 ),
-                "source": "normalized_market_quote_history",
+                "source": (
+                    "oddsengine_linehistory+normalized_market_quote_history"
+                    if upstream_history_status == "ok"
+                    else "normalized_market_quote_history"
+                ),
+                "openingSemantics": "first_observed",
+                "openingLabel": "First seen",
+                "pinnacleLimitAvailable": any(
+                    item["bookKey"] == "pinnacle"
+                    and any(
+                        point.get("marketLimit") is not None
+                        for point in item["points"]
+                    )
+                    for item in series
+                ),
+                "collector": {
+                    "independentOfPageTraffic": True,
+                    "status": (
+                        "ok" if ingest_snapshot is not None else "awaiting_scheduled_ingest"
+                    ),
+                    "lastCollectedAt": (
+                        ingest_snapshot.get("sourceUpdatedAt")
+                        if ingest_snapshot
+                        else None
+                    ),
+                },
+                "oddsEngineHistory": {
+                    "requested": bool(
+                        provider_event_id
+                        and (provider_series_id or provider_selection_id)
+                    ),
+                    "status": upstream_history_status,
+                    "error": upstream_history_error,
+                    "providerEventId": provider_event_id or None,
+                    "providerSeriesId": provider_series_id or None,
+                    "providerSelectionId": provider_selection_id or None,
+                    "includesHistoricalLimits": False,
+                },
                 "synthetic": False,
             }
         )
@@ -6171,6 +7105,61 @@ def create_app(start_background: bool = True) -> Flask:
             return jsonify({"error": "Administrator access required."}), 403
         paused = bool((request.get_json(silent=True) or {}).get("paused"))
         return jsonify({"data": tracker.set_tracking_paused(paused)})
+
+    @app.route("/api/admin/odds/reconcile", methods=["GET", "POST"])
+    def api_admin_odds_reconcile():
+        """Continuously collect normalized line history outside page traffic."""
+        if not has_job_authorization():
+            return jsonify({"error": "Odds ingest job authorization required."}), 401
+        provider = positive_ev_provider()
+        if provider is None:
+            return jsonify({"error": "No odds feed is configured."}), 503
+        started = time.perf_counter()
+        try:
+            events = provider.ev_events(
+                sport_keys=ALL_ODDS_SPORT_KEYS,
+                market_keys=ALL_OPPORTUNITY_MARKETS,
+            )
+            normalized_quotes = normalize_odds_api_events(events)
+            persistence = tracker.database.record_normalized_market_quotes(
+                normalized_quotes,
+                checkpoint_seconds=60,
+            )
+        except (requests.RequestException, ValueError, TypeError) as exc:
+            health = record_odds_feed_health(
+                provider,
+                status="degraded",
+                latency_ms=(time.perf_counter() - started) * 1000,
+                error=type(exc).__name__,
+            )
+            return jsonify({"error": "PROVIDER_ERROR", "feedHealth": health}), 502
+        generated_at = datetime.now(timezone.utc).isoformat()
+        payload = {
+            "status": "ok",
+            "generatedAt": generated_at,
+            "eventsScanned": len(events),
+            "quoteCount": len(normalized_quotes),
+            "persistence": persistence,
+            "marketKeys": list(ALL_OPPORTUNITY_MARKETS),
+            "sportKeys": list(ALL_ODDS_SPORT_KEYS),
+            "collector": "scheduled_independent_line_history",
+        }
+        payload["feedHealth"] = record_odds_feed_health(
+            provider,
+            status="ok",
+            latency_ms=(time.perf_counter() - started) * 1000,
+            quote_count=len(normalized_quotes),
+            executable_quote_count=sum(
+                quote.quote_timestamp is not None for quote in normalized_quotes
+            ),
+            details={"eventsScanned": len(events)},
+        )
+        save_verified_odds_payload(
+            "odds-ingest", payload, raw_key="global", ttl_seconds=180
+        )
+        response = jsonify(payload)
+        response.headers["Cache-Control"] = "private, no-store"
+        return response
 
     @app.route("/api/admin/model-tracker/reconcile", methods=["GET", "POST"])
     def api_model_tracker_reconcile():

@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from statistics import median
 from typing import Iterable
 
+from opportunity_execution import quote_execution_metadata
+
 from market_quotes import (
     canonical_event_id,
     canonical_market_id,
@@ -442,6 +444,8 @@ def _line_history_identity(
     )
     return {
         "providerEventId": event_id,
+        "providerSelectionId": str(outcome.get("sid") or outcome.get("id") or ""),
+        "providerSeriesId": str(outcome.get("series_id") or ""),
         "eventId": canonical_event,
         "marketId": canonical_market,
         "selectionId": canonical_selection_id(
@@ -468,8 +472,12 @@ def _apply_portfolio_limits(
     *,
     bankroll: float,
     max_event_exposure_pct: float,
+    max_book_exposure_pct: float,
+    max_subject_exposure_pct: float,
 ) -> None:
     event_used: dict[str, float] = defaultdict(float)
+    book_used: dict[str, float] = defaultdict(float)
+    subject_used: dict[str, float] = defaultdict(float)
     market_winner: dict[tuple[str, str, str], str] = {}
     for row in sorted(candidates, key=lambda item: item["evPercent"], reverse=True):
         exact_market = json.dumps(row.get("marketGroup"), sort_keys=True, default=str)
@@ -482,12 +490,42 @@ def _apply_portfolio_limits(
             continue
         market_winner[conflict_key] = row["selection"]
         event_cap = bankroll * max_event_exposure_pct
-        room = max(0.0, event_cap - event_used[row["eventId"]])
-        constrained = min(float(row["recommendedStake"]), room)
-        if constrained + 0.01 < float(row["recommendedStake"]):
-            row["warnings"].append("Stake reduced by the per-event exposure cap.")
+        event_room = max(0.0, event_cap - event_used[row["eventId"]])
+        book_key = str(row.get("bestQuote", {}).get("bookKey") or "")
+        book_cap = bankroll * max_book_exposure_pct
+        book_room = max(0.0, book_cap - book_used[book_key]) if book_key else math.inf
+        group = row.get("marketGroup") or ()
+        subject = ""
+        if str(row.get("marketKey") or "").startswith(("batter_", "pitcher_", "player_")):
+            subject = str(group[1] if len(group) > 1 else row.get("selection") or "").casefold()
+        subject_cap = bankroll * max_subject_exposure_pct
+        subject_room = max(0.0, subject_cap - subject_used[subject]) if subject else math.inf
+        requested_stake = float(row["recommendedStake"])
+        constrained = min(requested_stake, event_room, book_room, subject_room)
+        if constrained + 0.01 < requested_stake:
+            limiting = []
+            if constrained >= event_room - 0.01:
+                limiting.append("event")
+            if constrained >= book_room - 0.01:
+                limiting.append("book")
+            if constrained >= subject_room - 0.01:
+                limiting.append("player/subject")
+            row["warnings"].append(
+                f"Stake reduced by the {'/'.join(limiting) or 'portfolio'} exposure cap."
+            )
         row["recommendedStake"] = round(constrained, 2)
         event_used[row["eventId"]] += constrained
+        if book_key:
+            book_used[book_key] += constrained
+        if subject:
+            subject_used[subject] += constrained
+        row["portfolioConstraints"] = {
+            "eventExposureCap": round(event_cap, 2),
+            "bookExposureCap": round(book_cap, 2),
+            "subjectExposureCap": round(subject_cap, 2),
+            "executionBook": book_key or None,
+            "subject": subject or None,
+        }
         if constrained <= 0:
             row["portfolioStatus"] = "event_cap_reached"
 
@@ -503,11 +541,14 @@ def build_ev_board(
     bankroll: float = 10000.0,
     kelly_fraction: float = 0.25,
     min_source_books: int = 3,
-    max_quote_age_seconds: int = 180,
-    max_source_age_seconds: int = 600,
+    max_quote_age_seconds: int = 90,
+    max_source_age_seconds: int = 120,
+    max_cross_book_skew_seconds: int = 3,
     max_source_dispersion: float = 0.12,
     max_stake_pct: float = 0.02,
     max_event_exposure_pct: float = 0.05,
+    max_book_exposure_pct: float = 0.10,
+    max_subject_exposure_pct: float = 0.03,
     fee_bps: dict[str, float] | None = None,
 ) -> dict:
     devig_method = str(devig_method or "power").strip().lower()
@@ -565,8 +606,14 @@ def build_ev_board(
                     if not 0.85 <= hold <= 1.25:
                         rejected["abnormal_market_hold"] += 1
                         continue
-                    updated = market.get("last_update") or book.get("last_update")
+                    updated = (
+                        market.get("last_update")
+                        or book.get("last_update")
+                        or event.get("last_update")
+                    )
                     age = _quote_age_seconds(updated, now)
+                    if age is None:
+                        rejected["missing_quote_timestamp"] += 1
                     books_by_group[(market_key, group)][book_key] = {
                         "book": book,
                         "market": market,
@@ -592,7 +639,7 @@ def build_ev_board(
                     selection = _selection_key(outcome)
                     labels[selection] = outcome
                     source_weight = weights.get(book_key, 0.0)
-                    if source_weight > 0 and (age is None or age <= max_source_age_seconds):
+                    if source_weight > 0 and age is not None and age <= max_source_age_seconds:
                         fair_by_selection[selection].append(
                             (fair_probability, source_weight, book_key)
                         )
@@ -636,7 +683,10 @@ def build_ev_board(
                             "depthLevelsUsed": outcome.get("depth_levels_used"),
                             "point": outcome.get("point"),
                             "lastUpdated": str(
-                                market.get("last_update") or book.get("last_update") or ""
+                                market.get("last_update")
+                                or book.get("last_update")
+                                or event.get("last_update")
+                                or ""
                             ),
                             "quoteAgeSeconds": round(age, 1) if age is not None else None,
                             "deepLink": str(
@@ -644,6 +694,12 @@ def build_ev_board(
                             ),
                             "liquidity": top_price_liquidity,
                             "marketHold": round(payload["hold"], 6),
+                            **quote_execution_metadata(
+                                book_key=book_key,
+                                book=book,
+                                market=market,
+                                outcome=outcome,
+                            ),
                         }
                     )
 
@@ -652,8 +708,8 @@ def build_ev_board(
                     quote
                     for quote in quotes_by_selection.get(selection, [])
                     if (
-                        quote["quoteAgeSeconds"] is None
-                        or quote["quoteAgeSeconds"] <= max_quote_age_seconds
+                        quote["quoteAgeSeconds"] is not None
+                        and quote["quoteAgeSeconds"] <= max_quote_age_seconds
                     )
                 ]
                 available_books = {
@@ -673,7 +729,30 @@ def build_ev_board(
 
                 evaluated_quotes: list[tuple[dict, dict]] = []
                 for quote in quotes:
-                    leave_one_out = [row for row in source_rows if row[2] != quote["bookKey"]]
+                    quotes_by_book = {
+                        item["bookKey"]: item
+                        for item in quotes_by_selection.get(selection, [])
+                    }
+                    leave_one_out = [
+                        row
+                        for row in source_rows
+                        if row[2] != quote["bookKey"]
+                        and abs(
+                            float(book_map[row[2]]["age"])
+                            - float(quote["quoteAgeSeconds"])
+                        )
+                        <= max(0, int(max_cross_book_skew_seconds))
+                        and (
+                            not quote.get("settlementRuleKey")
+                            or not quotes_by_book.get(row[2], {}).get(
+                                "settlementRuleKey"
+                            )
+                            or quote.get("settlementRuleKey")
+                            == quotes_by_book.get(row[2], {}).get(
+                                "settlementRuleKey"
+                            )
+                        )
+                    ]
                     configured_weight = sum(
                         weights.get(book, 0.0)
                         for book in book_map
@@ -692,15 +771,21 @@ def build_ev_board(
                     )
                     ev = consensus["fairProbability"] * effective_decimal - 1.0
                     execution_status = "executable"
-                    execution_capacity = (
-                        quote["topPriceLiquidity"]
-                        if quote["topPriceLiquidity"] is not None
-                        else quote["marketLimit"]
-                    )
-                    if quote["bookKey"] in EXCHANGE_BOOKS and execution_capacity is None:
-                        execution_status = "liquidity_unknown"
+                    execution_capacity = quote.get("executionCapacity")
+                    if quote.get("accountEligible") is False:
+                        execution_status = "account_ineligible"
+                    elif quote.get("accountEligible") is not True:
+                        execution_status = "eligibility_unknown"
+                    elif execution_capacity is None:
+                        execution_status = (
+                            "liquidity_unknown"
+                            if quote["bookKey"] in EXCHANGE_BOOKS
+                            else "limit_unknown"
+                        )
                     elif execution_capacity is not None and execution_capacity <= 0:
                         execution_status = "unavailable"
+                    elif market_key.startswith(("batter_", "pitcher_", "player_")) and not quote.get("settlementRuleKey"):
+                        execution_status = "settlement_unverified"
                     enriched = {
                         **quote,
                         "feeBps": float(fees.get(quote["bookKey"], 0.0)),
@@ -758,13 +843,23 @@ def build_ev_board(
                     recommended_stake = min(recommended_stake, execution_capacity)
                 if best["executionStatus"] == "liquidity_unknown":
                     warnings.append("Verify exchange depth before placing this stake.")
-                if best["quoteAgeSeconds"] is None:
-                    warnings.append("The provider did not supply a quote timestamp.")
+                elif best["executionStatus"] == "limit_unknown":
+                    warnings.append("The sportsbook did not report a verified market limit.")
+                elif best["executionStatus"] == "eligibility_unknown":
+                    warnings.append("Account, state, and region eligibility are not verified.")
+                elif best["executionStatus"] == "settlement_unverified":
+                    warnings.append("Verify the sportsbook's prop settlement rules against the source markets.")
                 if fair_probability < 0.40:
                     longshot_cap = bankroll * min(max_stake_pct, 0.0125)
                     if recommended_stake > longshot_cap:
                         warnings.append("Longshot variance cap reduced the Kelly stake.")
                     recommended_stake = min(recommended_stake, longshot_cap)
+                modeled_stake = recommended_stake
+                if best["executionStatus"] != "executable":
+                    warnings.append(
+                        "Recommended stake is disabled until every execution gate is verified."
+                    )
+                    recommended_stake = 0.0
 
                 outcome = labels[selection]
                 selected_quotes_by_book = {
@@ -810,8 +905,8 @@ def build_ev_board(
                         quote
                         for quote in quotes_by_selection.get(market_selection, [])
                         if (
-                            quote["quoteAgeSeconds"] is None
-                            or quote["quoteAgeSeconds"] <= max_quote_age_seconds
+                            quote["quoteAgeSeconds"] is not None
+                            and quote["quoteAgeSeconds"] <= max_quote_age_seconds
                         )
                     ]
                     side_quotes.sort(
@@ -869,6 +964,9 @@ def build_ev_board(
                         "executionStatus": best["executionStatus"],
                         "portfolioStatus": "qualified",
                         "theoreticalStake": round(theoretical_stake, 2),
+                        "modeledStakeBeforeExecutionGates": round(
+                            max(0.0, modeled_stake), 2
+                        ),
                         "recommendedStake": round(max(0.0, recommended_stake), 2),
                         "kellyFraction": round(full_kelly * kelly_fraction, 6),
                         "fullKellyFraction": round(full_kelly, 6),
@@ -877,6 +975,9 @@ def build_ev_board(
                         "calculationVersion": "ev-optimizer-v3-top-of-book",
                         "devigMethod": devig_method,
                         "requiredBooks": sorted(required_targets),
+                        "maxCrossBookSkewSeconds": max(
+                            0, int(max_cross_book_skew_seconds)
+                        ),
                     }
                 )
 
@@ -884,6 +985,8 @@ def build_ev_board(
         candidates,
         bankroll=bankroll,
         max_event_exposure_pct=max_event_exposure_pct,
+        max_book_exposure_pct=max_book_exposure_pct,
+        max_subject_exposure_pct=max_subject_exposure_pct,
     )
     candidates.sort(
         key=lambda row: (
@@ -914,6 +1017,9 @@ def build_ev_board(
             "calculationVersion": "ev-optimizer-v3-top-of-book",
             "devigMethod": devig_method,
             "requiredBooks": sorted(required_targets),
+            "maxCrossBookSkewSeconds": max(
+                0, int(max_cross_book_skew_seconds)
+            ),
         },
     }
 

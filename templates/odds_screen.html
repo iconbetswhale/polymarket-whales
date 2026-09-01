@@ -5,7 +5,7 @@
   <header class="odds-screen-header">
     <div class="odds-title-block">
       <h1>Odds Screen</h1>
-      <p>Compare odds across sportsbooks in real time</p>
+      <p>Compare fresh, observed sportsbook quotes · transport status shown explicitly</p>
     </div>
 
     <div class="odds-navigation-shell" aria-label="Odds screen controls">
@@ -38,15 +38,11 @@
           <button class="odds-icon-button" id="odds-books-trigger" type="button" aria-label="Filter sportsbooks" aria-expanded="false" aria-controls="odds-books-menu"><i class="ph ph-funnel"></i></button>
           <section class="odds-books-menu" id="odds-books-menu" hidden>
             <div class="odds-books-summary">
-              <strong id="odds-books-count">3 selected</strong>
+              <strong id="odds-books-count">0 selected</strong>
               <span class="odds-books-bulk-actions"><button type="button" id="odds-books-none">Deselect all</button><button type="button" id="odds-books-all">Select all</button></span>
             </div>
             <label class="odds-books-search"><i class="ph ph-magnifying-glass"></i><input id="odds-books-search" type="search" placeholder="Search providers"></label>
-            <div class="odds-book-list">
-              <label><input type="checkbox" value="polymarket" checked><img src="https://polymarket.com/icons/favicon-32x32.png" alt="">Polymarket</label>
-              <label><input type="checkbox" value="kalshi" checked><img src="{{ url_for('static', filename='assets/providers/kalshi.png') }}" alt="">Kalshi</label>
-              <label><input type="checkbox" value="4cx" checked><img src="{{ url_for('static', filename='assets/providers/4cx.png') }}" alt="">4CX</label>
-            </div>
+            <div class="odds-book-list"><p>Observed providers will appear after the first verified snapshot.</p></div>
             <button class="odds-books-apply" id="odds-books-apply" type="button">Apply filters</button>
             <small>Provider order and selection are saved on this device.</small>
           </section>

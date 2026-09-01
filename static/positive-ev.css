@@ -550,11 +550,12 @@ body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-met
 body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-metric.positive b { color: var(--il-positive); }
 body[data-design-system="v2"][data-page="positive-ev"] .ev-trend-metrics .il-metric small { font-size: 12px; text-transform: uppercase; }
 .ev-trend-chart { min-height: 0; padding: var(--il-space-2) var(--il-space-3) var(--il-space-3); background: var(--il-bg-pure-black); }
-.ev-trend-chart-head { display: flex; justify-content: flex-end; }
+.ev-trend-chart-head { display: flex; flex-wrap: wrap; gap: 6px; justify-content: space-between; }
 .ev-chart-tabs { padding: 2px; display: inline-flex; gap: 2px; border: 1px solid var(--il-border-subtle); border-radius: var(--il-radius-control); background: var(--il-surface-2); }
 .ev-chart-tabs button { min-height: 30px; padding: 0 9px; border: 0; border-radius: 5px; background: transparent; color: var(--il-text-muted); font: 650 12px/1 var(--il-font-ui); }
 .ev-chart-tabs button:hover { background: var(--il-surface-hover); color: var(--il-text-primary); }
 .ev-chart-tabs button.active { background: var(--il-surface-selected); color: var(--il-text-primary); box-shadow: inset 0 0 0 1px var(--il-brand-outline-strong); }
+.ev-chart-tabs button:disabled { cursor: not-allowed; opacity: .42; }
 .ev-chart-view[hidden] { display: none; }
 .ev-trend-chart-title,
 .ev-history-heading { margin: var(--il-space-2) 0 var(--il-space-1); text-align: center; }

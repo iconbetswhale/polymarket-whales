@@ -38,6 +38,7 @@
         <div class="arb-board-actions">
           <label><span class="sr-only">Sport</span><select id="lh-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Market</span><select id="lh-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <label><span class="sr-only">Time to start</span><select id="lh-time-filter"><option value="24">Next 24 hours</option><option value="48" selected>Next 48 hours</option><option value="168">Next 7 days</option><option value="all">All upcoming</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
           <label><span class="sr-only">Sort opportunities</span><select id="lh-sort"><option value="hold-asc">Lowest hold</option><option value="retained-desc">Most retained</option><option value="middle-desc">Best middle payoff</option><option value="time-asc">Starting soon</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
         </div>
       </header>
@@ -94,8 +95,8 @@
         <section class="arb-filter-panel" data-lh-filter-panel="odds">
           <h3>Min/Max odds</h3><p>Remove prices outside the American-odds range you are willing to place.</p>
           <div class="arb-field-grid">
-            <label>Minimum odds<span class="arb-field-suffix"><input id="lh-min-odds" type="number" min="-100000" max="100000" step="5" value="-100000"><b>US</b></span></label>
-            <label>Maximum odds<span class="arb-field-suffix"><input id="lh-max-odds" type="number" min="-100000" max="100000" step="5" value="100000"><b>US</b></span></label>
+            <label>Minimum odds<span class="arb-field-suffix"><input id="lh-min-odds" type="number" min="-5000" max="5000" step="5" value="-5000"><b>US</b></span></label>
+            <label>Maximum odds<span class="arb-field-suffix"><input id="lh-max-odds" type="number" min="-5000" max="5000" step="5" value="5000"><b>US</b></span></label>
           </div>
           <div class="arb-formula-card"><i class="ph ph-info" aria-hidden="true"></i><div><strong>Both legs must qualify</strong><p>The range is applied before IconLabs chooses the best opposing pair.</p></div></div>
         </section>
@@ -149,7 +150,7 @@
         <section class="arb-filter-panel" data-lh-filter-panel="settings">
           <h3>Settings</h3><p>Control quote freshness and reserve exchange commissions before a pair qualifies.</p>
           <div class="arb-field-grid">
-            <label>Max quote age<span class="arb-field-suffix"><input id="lh-max-age" type="number" min="15" max="1800" step="15" value="180"><b>sec</b></span></label>
+            <label>Max quote age<span class="arb-field-suffix"><input id="lh-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
             <label>Exchange fee buffer<span class="arb-field-suffix"><input id="lh-commission" type="number" min="0" max="2500" step="10" value="0"><b>bps</b></span></label>
           </div>
         </section>

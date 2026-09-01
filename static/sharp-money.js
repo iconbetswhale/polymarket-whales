@@ -482,7 +482,7 @@
         ${rows.map(row => {
           const leftBest = Number(row.americanOdds) === bestLeft;
           const rightBest = bestRight != null && Number(row.oppositeAmericanOdds) === bestRight;
-          return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}" draggable="true" data-line-shop-book="${escapeHtml(providerCatalogKey(row))}" title="Drag ${escapeHtml(row.providerName || providerCatalogKey(row))} to reorder line shopping">
+          return `<div class="sharp-market-table-row${isMarketIntelligenceProvider(row) ? " intelligence" : " sportsbook"}" draggable="true" tabindex="0" role="group" data-line-shop-book="${escapeHtml(providerCatalogKey(row))}" aria-label="${escapeHtml(row.providerName || providerCatalogKey(row))} line. Press Alt plus left or right arrow to reorder." title="Drag to reorder, or press Alt + Left/Right">
             <a class="sharp-market-price${leftBest ? " best" : ""}" href="${escapeHtml(row.deepLink || "#")}" ${row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.americanOdds))}</strong><small>${row.availableLiquidity == null ? "" : `Liq ${money(row.availableLiquidity)}`}</small></a>
             <span class="sharp-market-book sharp-market-book--${providerKey(row)}">${logo(row, String(row.providerName || "?").slice(0, 2))}</span>
             <a class="sharp-market-price${rightBest ? " best" : ""}" href="${escapeHtml(row.oppositeDeepLink || row.deepLink || "#")}" ${row.oppositeDeepLink || row.deepLink ? 'target="_blank" rel="noopener noreferrer"' : 'aria-disabled="true"'}><strong>${escapeHtml(odds(row.oppositeAmericanOdds))}</strong><small>${row.oppositeAvailableLiquidity == null ? "" : `Liq ${money(row.oppositeAvailableLiquidity)}`}</small></a>
@@ -817,6 +817,22 @@
     $("sharp-detail-panel").addEventListener("dragend", () => {
       draggedLineShopBook = "";
       $("sharp-detail-panel").querySelectorAll("[data-line-shop-book].dragging").forEach(row=>row.classList.remove("dragging"));
+    });
+    $("sharp-detail-panel").addEventListener("keydown", event => {
+      if (!event.altKey || !["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      const row = event.target.closest("[data-line-shop-book]");
+      if (!row) return;
+      const order = [...$("sharp-detail-panel").querySelectorAll("[data-line-shop-book]")]
+        .map(item => item.dataset.lineShopBook);
+      const index = order.indexOf(row.dataset.lineShopBook);
+      const targetIndex = index + (event.key === "ArrowLeft" ? -1 : 1);
+      if (index < 0 || targetIndex < 0 || targetIndex >= order.length) return;
+      event.preventDefault();
+      [order[index], order[targetIndex]] = [order[targetIndex], order[index]];
+      const focusedKey = row.dataset.lineShopBook;
+      window.IconLabsLineShopOrder?.save(order);
+      render();
+      requestAnimationFrame(() => $("sharp-detail-panel").querySelector(`[data-line-shop-book="${CSS.escape(focusedKey)}"]`)?.focus());
     });
     $("sharp-filter-open").addEventListener("click", () => openFilters(true));
     $("sharp-refresh")?.addEventListener("click", load);

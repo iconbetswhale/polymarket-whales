@@ -18,6 +18,7 @@ def _event():
         "sport_key": "baseball_mlb",
         "sport_title": "MLB",
         "commence_time": "2099-07-29T23:10:00Z",
+        "last_update": "2099-07-29T20:00:00Z",
         "away_team": "New York Mets",
         "home_team": "Philadelphia Phillies",
         "bookmakers": [
@@ -141,6 +142,9 @@ def test_build_ev_candidates_is_sorted_and_uses_best_execution():
     assert mets["lineHistoryIdentity"]["selectionId"].startswith("sel_")
     assert mets["lineHistoryIdentity"]["marketId"].startswith("mkt_")
     assert mets["lineHistoryIdentity"]["eventId"].startswith("evt_")
+    assert mets["lineHistoryIdentity"]["providerEventId"] == "game-1"
+    assert "providerSelectionId" in mets["lineHistoryIdentity"]
+    assert "providerSeriesId" in mets["lineHistoryIdentity"]
     assert mets["lineHistoryIdentity"]["marketType"] == "moneyline"
     assert mets["lineHistoryIdentity"]["marketFamily"] == "main"
     assert mets["lineHistoryIdentity"]["period"] == "full_game"

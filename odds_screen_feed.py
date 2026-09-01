@@ -9,6 +9,7 @@ importantly, preserves every bookmaker quote returned in the original batch.
 from __future__ import annotations
 
 import hashlib
+import math
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Iterable
@@ -56,10 +57,13 @@ def _parse_time(value: object) -> datetime | None:
 
 def _american(value: object) -> int | None:
     try:
-        parsed = int(round(float(value)))
+        numeric = float(value)
     except (TypeError, ValueError):
         return None
-    return parsed if parsed else None
+    if not math.isfinite(numeric):
+        return None
+    parsed = int(round(numeric))
+    return parsed if parsed and -5_000 <= parsed <= 5_000 else None
 
 
 def _nonnegative(value: object) -> float | None:
@@ -248,6 +252,11 @@ def build_all_book_odds_screen_rows(
                         if outcome.get("bet_limit") is not None
                         else outcome.get("limit")
                     )
+                    has_timestamp = updated_at is not None
+                    is_stale = bool(
+                        not has_timestamp
+                        or quote_age > max(1, int(max_quote_age_seconds))
+                    )
                     row["executionOptions"].append(
                         {
                             "providerName": book_name,
@@ -256,7 +265,7 @@ def build_all_book_odds_screen_rows(
                             ),
                             "displayOdds": f"{american:+d}",
                             "deepLink": deep_link or None,
-                            "isAvailable": True,
+                            "isAvailable": not is_stale,
                             "matchingConfidence": "Exact",
                             "logoUrl": logo_url,
                             "americanOdds": american,
@@ -265,15 +274,19 @@ def build_all_book_odds_screen_rows(
                             "availableLiquidity": (
                                 liquidity if liquidity is not None else market_limit
                             ),
+                            "marketLimit": market_limit,
                             "isBestPrice": False,
                             "lastUpdated": updated_text or None,
                             "quoteAgeSeconds": round(quote_age, 1) if quote_age is not None else None,
-                            "isStale": bool(
-                                quote_age is not None
-                                and quote_age > max(1, int(max_quote_age_seconds))
-                            ),
+                            "isStale": is_stale,
                             "marketStatus": "OPEN",
-                            "quoteStatus": "OPEN",
+                            "quoteStatus": (
+                                "OPEN"
+                                if has_timestamp and not is_stale
+                                else "STALE"
+                                if has_timestamp
+                                else "MISSING_TIMESTAMP"
+                            ),
                             "marketId": row["market_id"],
                             "selectionId": selection_id,
                             "providerEventId": event_id,

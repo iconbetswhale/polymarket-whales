@@ -13,13 +13,14 @@ MOBILE_TOOLS = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8"
 DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-8")
 
 
-def test_positive_ev_defaults_to_two_independent_fair_sources() -> None:
-    assert "minSources: 2" in SCRIPT
-    assert "settingsVersion: 3" in SCRIPT
+def test_positive_ev_defaults_to_three_independent_fair_sources() -> None:
+    assert "minSources: 3" in SCRIPT
+    assert "settingsVersion: 4" in SCRIPT
     assert "delete migrated.minSources" in SCRIPT
     assert "delete migrated.sports" in SCRIPT
     assert 'id="ev-min-sources"' in TEMPLATE
-    assert 'value="2"' in TEMPLATE
+    assert 'min="3"' in TEMPLATE
+    assert 'value="3"' in TEMPLATE
 
 
 def _function(name: str) -> str:
@@ -173,7 +174,9 @@ def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     assert feed.index('class="ev-event') < feed.index('class="ev-pick')
     assert feed.index('class="ev-pick') < feed.index('class="ev-execution')
     assert feed.index('class="ev-selection"') < feed.index('class="ev-bet-metrics"')
-    assert feed.index('class="ev-bet-metrics"') < feed.index('class="ev-best-button')
+    assert feed.index('class="ev-bet-metrics"') < feed.index('${executionAction(row, quote, state)}')
+    assert 'const executionAction = ' in SCRIPT
+    assert 'class="ev-best-button' in SCRIPT
     assert '<div class="ev-selection">' in feed
     assert '<input class="ev-selection"' not in feed
     assert "leagueWatermark(row)" in feed
@@ -196,8 +199,8 @@ def test_live_line_chart_restores_compared_and_sharp_book_history() -> None:
     normalizer = _function("liveHistorySeries")
 
     assert '["pinnacle", "circa", "bookmakereu"]' in books
-    assert '["pinnacle", "fanduel"]' in books
     assert "row.bestQuote?.bookKey" in books
+    assert "new Set([row.bestQuote?.bookKey, ...sharpBooks]" in books
     assert 'hardrockbet: "#8b5cff"' in SCRIPT
     assert 'line: finiteOrNull(point.line)' in normalizer
     assert 'marketLimit: finiteOrNull(point.marketLimit)' in normalizer

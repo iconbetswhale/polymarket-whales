@@ -65,7 +65,10 @@ def test_market_context_is_not_rendered_in_card_or_detail_metadata() -> None:
 
 def test_requested_detail_labels_and_calculation_dropdown_are_rendered() -> None:
     assert "Stake Plan" in SCRIPT
-    assert "Guaranteed Outcome" in SCRIPT
+    assert "Mathematical payout" in SCRIPT
+    assert "only if every listed leg is accepted" in SCRIPT
+    assert "Guaranteed" not in TEMPLATE
+    assert "guaranteed" not in TEMPLATE
     assert "Odds Comparison" in SCRIPT
     assert '<details class="arb-detail-section arb-calculation">' in SCRIPT
     assert "sportLabel(row)" in SCRIPT

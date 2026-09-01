@@ -70,7 +70,7 @@ def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "mid-scan-status" in TEMPLATE
     assert TEMPLATE.count("mid-summary-count") == 1
     assert "mid-card-outcome" in SCRIPT
-    assert "Guaranteed outcome" in SCRIPT
+    assert "Modeled outside outcome" in SCRIPT
     assert "Equalized stakes" in SCRIPT
     assert '<h3>Payout scenarios</h3>' in SCRIPT
     assert "qualified windows" not in TEMPLATE

@@ -232,7 +232,8 @@ def test_devig_custom_weights_replace_iconlabs_odds_and_hit_rate() -> None:
     assert "return {...defaultWeights};" in SCRIPT
     assert "validKeys && total === 100" in SCRIPT
     assert "total === 0 || total === 100" not in SCRIPT
-    assert "const fairHitRate = fairProbability(r,activeLine);" in SCRIPT
+    assert "const rawFairHitRate = fairProbability(r,activeLine);" in SCRIPT
+    assert "const fairHitRate = evidence.qualified ? rawFairHitRate : null;" in SCRIPT
     assert "fairAmericanOdds(fairHitRate)" in SCRIPT
     assert "Your Odds using custom Devig Settings" in SCRIPT
     assert "Your Odds from custom Devig weights" in SCRIPT
