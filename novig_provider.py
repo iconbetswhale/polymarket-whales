@@ -1570,7 +1570,12 @@ class NoVIGNBXProvider(ExecutionProvider):
             markets = [
                 row for row in markets if _sharp_money_market_supported(row)
             ]
-            markets.sort(key=_sharp_money_market_priority)
+            priority_now = _utc_now()
+            markets.sort(
+                key=lambda row: _sharp_money_market_priority(
+                    row, now=priority_now
+                )
+            )
             markets = markets[:bounded]
             selected_market_ids = {
                 _safe_text(row.get("id"))
@@ -1936,7 +1941,9 @@ def _sharp_money_market_supported(market: dict) -> bool:
     return len([part for part in description.split(" vs ") if part.strip()]) == 2
 
 
-def _sharp_money_market_priority(market: dict) -> tuple[object, ...]:
+def _sharp_money_market_priority(
+    market: dict, *, now: datetime | None = None
+) -> tuple[object, ...]:
     """Prefer live and near-term main game markets deterministically."""
     event = market.get("event") if isinstance(market.get("event"), dict) else {}
     game = event.get("game") if isinstance(event.get("game"), dict) else {}
@@ -1951,7 +1958,7 @@ def _sharp_money_market_priority(market: dict) -> tuple[object, ...]:
     if start is None:
         start_rank = float("inf")
     else:
-        delta = (start - _utc_now()).total_seconds()
+        delta = (start - (now or _utc_now())).total_seconds()
         # A provider can briefly leave a started pregame event open. Keep it
         # close to current games, but push genuinely stale records behind all
         # upcoming events.
