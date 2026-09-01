@@ -306,6 +306,58 @@ def test_provider_normalizes_documented_event_odds_and_caches_requests() -> None
     assert all(outcome["link"].startswith("https://book.test/") for outcome in moneyline["outcomes"])
 
 
+def test_normalizer_preserves_provider_player_identity_for_prop_reconciliation() -> None:
+    observed_at = datetime.now(timezone.utc).isoformat()
+    payload = {
+        "event_id": "nba-player-identity",
+        "event_start": (datetime.now(timezone.utc) + timedelta(hours=4)).isoformat(),
+        "home_team": "Boston Celtics",
+        "away_team": "New York Knicks",
+        "league": "NBA",
+        "sport": "Basketball",
+        "market_categories": [
+            {
+                "offers": [
+                    {
+                        "market_key": "player_points",
+                        "entity_id": "nba-1628369",
+                        "entity_name_std": "jayson_tatum",
+                        "books": [
+                            {
+                                "book": "Pinnacle",
+                                "selections": [
+                                    {
+                                        "selection_id": f"pin-{side}",
+                                        "entity_name": "Jayson Tatum",
+                                        "side": side,
+                                        "line": 29.5,
+                                        "odds_american": -110,
+                                        "last_fetched": observed_at,
+                                    }
+                                    for side in ("over", "under")
+                                ],
+                            }
+                        ],
+                    }
+                ]
+            }
+        ],
+    }
+
+    normalized = normalize_odds_engine_event(
+        payload,
+        sport_key="basketball_nba",
+        requested_markets=("player_points",),
+    )
+
+    assert normalized is not None
+    outcomes = normalized["bookmakers"][0]["markets"][0]["outcomes"]
+    assert {outcome["entity_id"] for outcome in outcomes} == {"nba-1628369"}
+    assert {outcome["entity_name_std"] for outcome in outcomes} == {
+        "jayson_tatum"
+    }
+
+
 @pytest.mark.parametrize(
     ("raw_book", "expected_key"),
     (

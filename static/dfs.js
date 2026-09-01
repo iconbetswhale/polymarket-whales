@@ -543,6 +543,7 @@
       EXCESSIVE_TWO_WAY_OVERROUND:'Invalid two-way hold',
       INVALID_TWO_WAY_ODDS:'Incomplete two-way line',
       LINE_MISMATCH:'Different market line',
+      MARKET_MAPPING_UNCERTAIN:'Player or market mapping is not exact',
     };
     return labels[String(reason || '')] || 'Excluded from fair-odds calculation';
   }
@@ -1075,9 +1076,13 @@
       }).join('');
       const oddsSource = weightsMatch(savedWeights,defaultWeights) ? 'IconLabs Algo Odds' : 'Your Odds from custom Devig weights';
       const exactSources = fairSourceCount(r,activeLine);
+      const mappingExact = String(r.mappingConfidence || 'EXACT').toUpperCase() === 'EXACT';
+      const mappingReasons = Array.isArray(r.mappingReasonCodes) ? r.mappingReasonCodes.join(', ') : '';
       const watchOnly = fairHitRate === null && rawFairHitRate !== null;
-      const hitDisplay = watchOnly ? 'WATCH' : fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
-      const hitTitle = watchOnly
+      const hitDisplay = !mappingExact ? 'MAP' : watchOnly ? 'WATCH' : fairHitRate === null ? '—' : `${fairHitRate.toFixed(1)}%`;
+      const hitTitle = !mappingExact
+        ? `Watch only: player, market, period, or settlement mapping is not exact${mappingReasons ? ` (${mappingReasons})` : ''}`
+        : watchOnly
         ? `Watch only: ${exactSources} exact source${exactSources===1?' is':'s are'} below the three-independent or two-sharp evidence gate`
         : fairHitRate === null
           ? 'No fresh exact-line source consensus matches the current Devig allocation'

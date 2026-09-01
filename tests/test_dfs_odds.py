@@ -21,6 +21,8 @@ def _market(
     multiplier: float | str | None = None,
     liquidity: float | None = None,
     deep_link: str = "",
+    market_key: str = "batter_hits",
+    market_metadata: dict | None = None,
 ) -> dict:
     observed = datetime.now(timezone.utc).isoformat()
     return {
@@ -29,8 +31,9 @@ def _market(
         "last_update": observed,
         "markets": [
             {
-                "key": "batter_hits",
+                "key": market_key,
                 "last_update": observed,
+                **(market_metadata or {}),
                 "outcomes": [
                     {
                         "name": side.title(),
@@ -360,6 +363,138 @@ def test_live_dfs_board_models_one_exact_two_way_source_but_not_mismatched_lines
     assert over["modelStatus"] == "WATCH_ONLY"
     assert over["oddsByBook"]["fanduel"]["line"] == 1.5
     assert over["oddsByBook"]["fanduel"]["modelExclusionReason"] == "LINE_MISMATCH"
+
+
+def test_live_dfs_board_reconciles_unique_player_and_market_aliases() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market(
+            "prizepicks",
+            dfs=True,
+            player="J. Tatum",
+            line=2.5,
+            market_key="player_three_pointers_made",
+        ),
+        _market(
+            "fanduel",
+            player="Jayson Tatum",
+            line=2.5,
+            market_key="player_threes",
+        ),
+        _market(
+            "pinnacle",
+            player="Jayson Tatum",
+            line=2.5,
+            market_key="player_3_pointers",
+        ),
+        _market(
+            "circa",
+            player="Jayson Tatum",
+            line=2.5,
+            market_key="player_threes",
+        ),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="prizepicks")
+
+    assert {row["player"] for row in rows} == {"Jayson Tatum"}
+    assert all(row["mappingConfidence"] == "EXACT" for row in rows)
+    assert all(row["executionEligible"] is True for row in rows)
+    assert all(row["sourceCount"] == 3 for row in rows)
+    assert all(
+        row["rawPlayerNames"] == ["J. Tatum", "Jayson Tatum"] for row in rows
+    )
+    assert all(
+        row["rawMarketKeys"]
+        == ["player_3_pointers", "player_three_pointers_made", "player_threes"]
+        for row in rows
+    )
+    assert all(row["stat"] == "3-Pointers Made" for row in rows)
+
+
+def test_live_dfs_board_blocks_ambiguous_initial_last_player_aliases() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market(
+            "prizepicks",
+            dfs=True,
+            player="J. Smith",
+            market_key="player_points",
+        ),
+        _market("fanduel", player="John Smith", market_key="player_points"),
+        _market("pinnacle", player="James Smith", market_key="player_points"),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="prizepicks")
+
+    assert rows
+    assert all(row["mappingConfidence"] == "AMBIGUOUS" for row in rows)
+    assert all("AMBIGUOUS_INITIAL_LAST_ALIAS" in row["mappingReasonCodes"] for row in rows)
+    assert all(row["executionEligible"] is False for row in rows)
+    assert all(row["modelStatus"] == "WATCH_ONLY" for row in rows)
+    assert all(
+        row["modelEvidenceByLine"]["1.5"]["rule"]
+        == "MARKET_MAPPING_UNCERTAIN"
+        for row in rows
+    )
+
+
+def test_live_dfs_board_never_merges_first_quarter_with_full_game_props() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market(
+            "prizepicks",
+            dfs=True,
+            player="Jayson Tatum",
+            market_key="player_points_q1",
+        ),
+        _market(
+            "fanduel",
+            player="Jayson Tatum",
+            market_key="player_points",
+        ),
+        _market(
+            "pinnacle",
+            player="Jayson Tatum",
+            market_key="player_points_1q",
+        ),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="prizepicks")
+
+    assert rows
+    assert all(row["period"] == "first_quarter" for row in rows)
+    assert all(row["stat"] == "1Q Points" for row in rows)
+    assert all(row["sourceCount"] == 1 for row in rows)
+    assert all("pinnacle" in row["oddsByBook"] for row in rows)
+    assert all("fanduel" not in row["oddsByBook"] for row in rows)
+
+
+def test_live_dfs_board_never_merges_incompatible_settlement_rules() -> None:
+    events = _events()
+    events[0]["bookmakers"] = [
+        _market(
+            "prizepicks",
+            dfs=True,
+            player="Jayson Tatum",
+            market_key="player_points",
+            market_metadata={"includes_overtime": True},
+        ),
+        _market(
+            "fanduel",
+            player="Jayson Tatum",
+            market_key="player_points",
+            market_metadata={"includes_overtime": False},
+        ),
+    ]
+
+    rows = build_dfs_odds_board(events, selected_dfs_book="prizepicks")
+
+    assert rows
+    assert all(row["sourceCount"] == 0 for row in rows)
+    assert all(row["availableQuoteCount"] == 0 for row in rows)
+    assert all(row["oddsByBook"] == {} for row in rows)
+    assert all("overtime_included" in row["settlementRuleKey"] for row in rows)
 
 
 def test_live_dfs_board_rejects_unknown_selected_app() -> None:

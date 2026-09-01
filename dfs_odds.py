@@ -10,6 +10,7 @@ from dfs_probability_engine import (
     ICONLABS_DFS_WEIGHTS,
     american_to_probability,
 )
+from dfs_prop_mapping import canonical_prop_market, resolve_prop_records
 from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS
 
 
@@ -183,20 +184,13 @@ def _nearest_quote(quotes: list[dict], target_line: float) -> dict | None:
     )
 
 
-def build_dfs_odds_board(
-    events: Iterable[dict],
-    *,
-    weights: dict[str, float] | None = None,
-    now: datetime | None = None,
-    limit: int = 250,
-    selected_dfs_book: str | None = None,
-) -> list[dict]:
-    """Build live DFS rows from normalized all-book prop markets."""
-    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
-    selected_book = str(selected_dfs_book or "").strip().lower() or None
-    if selected_book is not None and selected_book not in DFS_BOOK_KEYS:
-        raise ValueError("selected_dfs_book must be a supported DFS book")
-    groups: dict[tuple[str, str, str], dict] = {}
+def _stat_title(stat_key: str, period: str) -> str:
+    title = STAT_TITLES.get(stat_key, stat_key.replace("_", " ").title())
+    return f"1Q {title}" if period == "first_quarter" else title
+
+
+def _prop_market_records(events: Iterable[dict], current: datetime) -> list[dict]:
+    records: list[dict] = []
     for event in events:
         event_id = str(event.get("id") or "").strip()
         start = _parse_time(event.get("commence_time"))
@@ -206,6 +200,7 @@ def build_dfs_odds_board(
         home_team = str(event.get("home_team") or "").strip()
         matchup = f"{away_team or 'Away'} vs {home_team or 'Home'}"
         sport = str(event.get("sport_title") or "").upper()
+        sport_key = str(event.get("sport_key") or "").strip().lower()
         for bookmaker in event.get("bookmakers") or []:
             book_key = str(bookmaker.get("key") or "").strip().lower()
             metadata = SPORTS_GAME_ODDS_BOOKMAKERS.get(
@@ -215,7 +210,8 @@ def build_dfs_odds_board(
                 continue
             for market in bookmaker.get("markets") or []:
                 market_key = str(market.get("key") or "").strip().lower()
-                if market_key not in STAT_TITLES:
+                canonical_stat_key, _period = canonical_prop_market(market_key)
+                if canonical_stat_key not in STAT_TITLES:
                     continue
                 outcomes = [
                     outcome
@@ -232,76 +228,140 @@ def build_dfs_odds_board(
                 )
                 if not player:
                     continue
-                by_line: dict[float, dict[str, dict]] = defaultdict(dict)
-                for outcome in outcomes:
-                    side = str(outcome.get("name") or "").strip().lower()
-                    line = _point(outcome)
-                    if side not in {"over", "under"} or line is None:
-                        continue
-                    by_line[line][side] = outcome
-                group = groups.setdefault(
-                    (event_id, market_key, player.casefold()),
+                records.append(
                     {
                         "event_id": event_id,
-                        "player": player,
-                        "match": matchup,
-                        "away_team": away_team,
-                        "home_team": home_team,
+                        "sport_key": sport_key,
                         "sport": sport,
                         "start": start,
-                        "stat": STAT_TITLES[market_key],
-                        "quotes": defaultdict(list),
-                        "dfs_options": defaultdict(dict),
-                    },
-                )
-                for line, sides in by_line.items():
-                    quote = {
-                        "provider": MODEL_PROVIDER_ALIASES.get(book_key, book_key),
+                        "away_team": away_team,
+                        "home_team": home_team,
+                        "match": matchup,
                         "book_key": book_key,
-                        "line": line,
-                        "over_odds": _price(sides.get("over", {})),
-                        "under_odds": _price(sides.get("under", {})),
-                        "over_liquidity": _nonnegative_number(
-                            sides.get("over", {}).get("liquidity")
-                        ),
-                        "under_liquidity": _nonnegative_number(
-                            sides.get("under", {}).get("liquidity")
-                        ),
-                        "over_link": str(sides.get("over", {}).get("link") or ""),
-                        "under_link": str(sides.get("under", {}).get("link") or ""),
-                        "quote_timestamp": str(
-                            market.get("last_update")
-                            or bookmaker.get("last_update")
-                            or current.isoformat()
-                        ),
+                        "bookmaker": bookmaker,
+                        "metadata": metadata,
+                        "market_key": market_key,
+                        "market": market,
+                        "outcomes": outcomes,
+                        "player": player,
                     }
-                    if metadata["type"] == "dfs":
-                        ui_key = DFS_BOOK_KEY_BY_PROVIDER.get(book_key)
-                        if ui_key:
-                            option = group["dfs_options"][ui_key].setdefault(
-                                line,
-                                {
-                                    "sides": set(),
-                                    "is_alt": False,
-                                    "standard_multiplier": True,
-                                },
-                            )
-                            option["sides"].update(sides)
-                            option["is_alt"] = bool(option["is_alt"]) or any(
-                                bool(outcome.get("is_alt"))
-                                or bool(outcome.get("is_boosted"))
-                                or bool(outcome.get("is_promotional"))
-                                for outcome in sides.values()
-                            )
-                            option["standard_multiplier"] = bool(
-                                option["standard_multiplier"]
-                            ) and all(
-                                _multiplier(outcome) is None
-                                or abs(float(_multiplier(outcome)) - 1.0) < 1e-9
-                                for outcome in sides.values()
-                            )
-                    else:
-                        group["quotes"][book_key].append(quote)
+                )
+    return resolve_prop_records(records)
+
+
+def build_dfs_odds_board(
+    events: Iterable[dict],
+    *,
+    weights: dict[str, float] | None = None,
+    now: datetime | None = None,
+    limit: int = 250,
+    selected_dfs_book: str | None = None,
+) -> list[dict]:
+    """Build live DFS rows from normalized all-book prop markets."""
+    current = (now or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    selected_book = str(selected_dfs_book or "").strip().lower() or None
+    if selected_book is not None and selected_book not in DFS_BOOK_KEYS:
+        raise ValueError("selected_dfs_book must be a supported DFS book")
+    groups: dict[tuple[str, str, str, str, str], dict] = {}
+    for record in _prop_market_records(events, current):
+        event_id = record["event_id"]
+        book_key = record["book_key"]
+        bookmaker = record["bookmaker"]
+        metadata = record["metadata"]
+        market = record["market"]
+        outcomes = record["outcomes"]
+        by_line: dict[float, dict[str, dict]] = defaultdict(dict)
+        for outcome in outcomes:
+            side = str(outcome.get("name") or "").strip().lower()
+            line = _point(outcome)
+            if side not in {"over", "under"} or line is None:
+                continue
+            by_line[line][side] = outcome
+        group = groups.setdefault(
+            record["group_key"],
+            {
+                "event_id": event_id,
+                "canonical_prop_id": record["canonical_prop_id"],
+                "canonical_player_key": record["canonical_player_key"],
+                "player": record["canonical_player_name"],
+                "match": record["match"],
+                "away_team": record["away_team"],
+                "home_team": record["home_team"],
+                "sport": record["sport"],
+                "start": record["start"],
+                "canonical_stat_key": record["canonical_stat_key"],
+                "period": record["period"],
+                "stat": _stat_title(
+                    record["canonical_stat_key"], record["period"]
+                ),
+                "settlement_rule_key": record["settlement_rule_key"],
+                "mapping_confidence": record["mapping_confidence"],
+                "mapping_reason_codes": set(),
+                "mapping_by_provider": {},
+                "raw_player_names": set(),
+                "raw_market_keys": set(),
+                "quotes": defaultdict(list),
+                "dfs_options": defaultdict(dict),
+            },
+        )
+        if record["mapping_confidence"] != "EXACT":
+            group["mapping_confidence"] = "AMBIGUOUS"
+        group["mapping_reason_codes"].update(record["mapping_reason_codes"])
+        group["mapping_by_provider"][book_key] = record["mapping_confidence"]
+        group["raw_player_names"].add(record["player"])
+        group["raw_market_keys"].add(record["market_key"])
+        for line, sides in by_line.items():
+            quote = {
+                "provider": MODEL_PROVIDER_ALIASES.get(book_key, book_key),
+                "book_key": book_key,
+                "line": line,
+                "over_odds": _price(sides.get("over", {})),
+                "under_odds": _price(sides.get("under", {})),
+                "over_liquidity": _nonnegative_number(
+                    sides.get("over", {}).get("liquidity")
+                ),
+                "under_liquidity": _nonnegative_number(
+                    sides.get("under", {}).get("liquidity")
+                ),
+                "over_link": str(sides.get("over", {}).get("link") or ""),
+                "under_link": str(sides.get("under", {}).get("link") or ""),
+                "quote_timestamp": str(
+                    market.get("last_update")
+                    or bookmaker.get("last_update")
+                    or current.isoformat()
+                ),
+                "mapping_confidence": record["mapping_confidence"],
+                "mapping_reason_codes": record["mapping_reason_codes"],
+                "settlement_rule_key": record["settlement_rule_key"],
+                "canonical_prop_id": record["canonical_prop_id"],
+            }
+            if metadata["type"] == "dfs":
+                ui_key = DFS_BOOK_KEY_BY_PROVIDER.get(book_key)
+                if ui_key:
+                    option = group["dfs_options"][ui_key].setdefault(
+                        line,
+                        {
+                            "sides": set(),
+                            "is_alt": False,
+                            "standard_multiplier": True,
+                        },
+                    )
+                    option["sides"].update(sides)
+                    option["is_alt"] = bool(option["is_alt"]) or any(
+                        bool(outcome.get("is_alt"))
+                        or bool(outcome.get("is_boosted"))
+                        or bool(outcome.get("is_promotional"))
+                        for outcome in sides.values()
+                    )
+                    option["standard_multiplier"] = bool(
+                        option["standard_multiplier"]
+                    ) and all(
+                        _multiplier(outcome) is None
+                        or abs(float(_multiplier(outcome)) - 1.0) < 1e-9
+                        for outcome in sides.values()
+                    )
+            else:
+                group["quotes"][book_key].append(quote)
 
     engine_weights = weights or ICONLABS_DFS_WEIGHTS
     # A single source is useful for line shopping, but it is not independent
@@ -327,6 +387,7 @@ def build_dfs_odds_board(
     }
     rows: list[dict] = []
     for group in groups.values():
+        mapping_exact = group["mapping_confidence"] == "EXACT"
         dfs_options = group["dfs_options"]
         if not dfs_options or (selected_book and selected_book not in dfs_options):
             continue
@@ -421,7 +482,9 @@ def build_dfs_odds_board(
                     and included_sources
                     and included_sources.issubset(DFS_SHARP_MODEL_SOURCES)
                 )
-                qualified = result.source_count >= 3 or two_sharp_sources
+                qualified = mapping_exact and (
+                    result.source_count >= 3 or two_sharp_sources
+                )
                 model_status_by_line[key] = (
                     result.status if qualified else "WATCH_ONLY"
                 )
@@ -429,8 +492,12 @@ def build_dfs_odds_board(
                     "qualified": qualified,
                     "sourceCount": result.source_count,
                     "sourceKeys": sorted(included_sources),
+                    "mappingConfidence": group["mapping_confidence"],
+                    "settlementRuleKey": group["settlement_rule_key"],
                     "rule": (
-                        "THREE_INDEPENDENT_SOURCES"
+                        "MARKET_MAPPING_UNCERTAIN"
+                        if not mapping_exact
+                        else "THREE_INDEPENDENT_SOURCES"
                         if result.source_count >= 3
                         else "TWO_SHARP_SOURCES"
                         if two_sharp_sources
@@ -468,16 +535,18 @@ def build_dfs_odds_board(
                     "deepLink": quote.get(f"{side_key}_link") or "",
                     "modelExcluded": bool(quality_reason),
                     "modelExclusionReason": quality_reason or "",
+                    "mappingConfidence": quote.get("mapping_confidence"),
+                    "mappingReasonCodes": quote.get("mapping_reason_codes") or [],
                 }
             primary_key = _line_key(primary_line)
             rows.append(
                 {
-                    "id": (
-                        f"{group['event_id']}::{group['player']}::"
-                        f"{group['stat']}::{side.lower()}"
-                    ),
+                    "id": f"{group['canonical_prop_id']}::{side.lower()}",
                     "eventId": group["event_id"],
+                    "canonicalPropId": group["canonical_prop_id"],
+                    "canonicalPlayerKey": group["canonical_player_key"],
                     "player": group["player"],
+                    "rawPlayerNames": sorted(group["raw_player_names"]),
                     "match": group["match"],
                     "awayTeam": group["away_team"],
                     "homeTeam": group["home_team"],
@@ -487,6 +556,17 @@ def build_dfs_odds_board(
                     "time": _time_label(group["start"], current),
                     "side": side,
                     "stat": group["stat"],
+                    "canonicalStatKey": group["canonical_stat_key"],
+                    "rawMarketKeys": sorted(group["raw_market_keys"]),
+                    "period": group["period"],
+                    "settlementRuleKey": group["settlement_rule_key"],
+                    "mappingConfidence": group["mapping_confidence"],
+                    "mappingReasonCodes": sorted(
+                        group["mapping_reason_codes"]
+                    ),
+                    "mappingByProvider": dict(
+                        sorted(group["mapping_by_provider"].items())
+                    ),
                     "line": primary_line,
                     "dfsLines": side_dfs_lines,
                     "hit": hit_by_line.get(primary_key),

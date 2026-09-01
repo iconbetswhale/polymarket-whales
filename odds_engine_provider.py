@@ -751,6 +751,18 @@ def _selection_outcome(
         "link": str(selection.get("bet_link") or ""),
         "is_alt": bool(selection.get("is_alt")),
     }
+    for identity_key in (
+        "player_id",
+        "athlete_id",
+        "participant_id",
+        "entity_id",
+        "entity_name_std",
+    ):
+        identity_value = selection.get(identity_key)
+        if identity_value is None or str(identity_value).strip() == "":
+            identity_value = offer.get(identity_key)
+        if identity_value is not None and str(identity_value).strip() != "":
+            outcome[identity_key] = identity_value
     if market_key != "h2h" and line is not None:
         try:
             outcome["point"] = float(line)
