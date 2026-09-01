@@ -37,7 +37,7 @@ def test_middles_visuals_use_iconlabs_tokens_and_real_icon_assets() -> None:
     assert "var(--il-bg-workspace" in CSS
     assert "var(--il-brand" in CSS
     assert "var(--il-positive" in CSS
-    assert "var(--il-surface-play-card-purple" in CSS
+    assert "--mid-card: var(--mid-bg)" in CSS
     assert "ph ph-" in TEMPLATE
     assert "<svg" not in TEMPLATE
     assert "linear-gradient" not in CSS
@@ -79,6 +79,7 @@ def test_middles_polish_keeps_the_requested_information_hierarchy() -> None:
     assert "qualified windows" not in TEMPLATE
     assert "RANKED BY LOWEST BREAK-EVEN" not in TEMPLATE
     assert "BOTH WIN" not in SCRIPT
+    assert '<dt>Best case</dt><dd class="positive">${signedMoney(row.middleProfit)}</dd>' in SCRIPT
 
 
 def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None:
@@ -110,7 +111,19 @@ def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None
     assert "function toggleAlerts" in SCRIPT
     assert '"cost-asc", "width-desc", "profit-desc", "time-asc"' in SCRIPT
     assert 'window.matchMedia("(max-width: 1080px)")' in SCRIPT
-    assert "live-arbitrage-v5" in BASE
+    assert "live-arbitrage-v6" in BASE
+
+
+def test_middles_kpis_actions_and_surfaces_use_the_requested_layout() -> None:
+    for required in (
+        'body[data-page="middles"] .mid-summary article,',
+        'justify-content: flex-start',
+        'grid-template-columns: repeat(3, minmax(0, 1fr))',
+        '.mid-detail-actions .mid-button',
+        'width: 100%',
+        'background: var(--mid-bg)',
+    ):
+        assert required in CSS
 
 
 def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:
