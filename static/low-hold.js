@@ -407,7 +407,7 @@
       </header>
       ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical low-hold pair, not an executable claim. One or more capacity, settlement, or account-eligibility gates are unverified.</span></div>`}
       <section class="arb-detail-section"><header><h3>${executable ? "Bet plan" : "Verification plan"}</h3><span>${row.stakeMode === "first-leg" ? "Bet 1 locked" : `${row.outcomeCount} legs`}</span></header><div class="arb-plan-list">${plan}</div></section>
-      <section class="arb-detail-section lh-result-section"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>Copy bet plan</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div></section>
+      <section class="arb-detail-section lh-result-section"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Capital retained</span><strong>${percent(row.retainedPercent, 1)}</strong></div><div><span>${esc(netLabel)}</span><strong class="${Number(row.outsideNet) >= 0 ? "positive" : ""}">${signedMoney(row.outsideNet)}</strong></div></div><div class="arb-detail-actions"><button class="arb-primary-button" type="button" data-lh-copy-plan><i class="ph ph-copy"></i>${executable ? "Copy bet plan" : "Copy verification checklist"}</button><button class="arb-secondary-button" type="button" data-lh-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div></section>
       <details class="lh-detail-disclosure"><summary><span>Odds comparison</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body">${comparisons}</div></details>
       <details class="lh-detail-disclosure"><summary><span>Calculation details</span><i class="ph ph-caret-down"></i></summary><div class="lh-detail-disclosure-body"><div class="lh-scenario-grid">${outsideCards.join("")}</div><div class="arb-math-note"><i class="ph ph-function"></i><p>The opposing implied probabilities total <strong>${Number(row.impliedProbabilityPercent).toFixed(3)}%</strong>, producing a <strong>${percent(row.holdPercent, 3)}</strong> hold before cent-level payout balancing.<code>(${Number(row.inverseProbabilitySum).toFixed(6)} − 1) × 100 = ${percent(row.holdPercent, 3)}</code></p></div>${row.stakeMode === "first-leg" ? `<div class="lh-sizing-note"><i class="ph ph-lock-key"></i><span><strong>${money(row.lockedStake)}</strong> stays fixed on Bet 1; every hedge is rounded to the closest equal payout.</span></div>` : ""}${warnings}${state.lineWarning ? `<div class="arb-detail-warning"><i class="ph ph-clock-countdown"></i><span>Confirm both displayed prices and accepted stakes before submitting either leg.</span></div>` : ""}</div></details>`;
     elements.detailPlaceholder.hidden = true;
@@ -704,13 +704,15 @@
   function copyPlan() {
     const row = state.rows.find((item) => item.id === state.selectedId);
     if (!row) return;
+    const executable = row.executionStatus === "EXECUTABLE";
     const lines = [
+      executable ? "EXECUTABLE — RECHECK PRICES BEFORE SUBMISSION" : "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING",
       `${row.eventTitle} · ${row.marketLabel}${row.marketContext ? ` · ${row.marketContext}` : ""}`,
       `Hold ${percent(row.holdPercent, 3)} · ${row.stakeMode === "first-leg" ? `Bet 1 ${money(row.lockedStake)} · ` : ""}Total ${money(row.totalStake)} · Outside ${signedMoney(row.outsideNet)}`,
       ...(row.outcomes || []).map((leg, index) => `${row.stakeMode === "first-leg" ? (index === row.lockedOutcomeIndex ? "Bet 1" : "Hedge") : "Stake"} · ${leg.selection}: ${money(leg.stake)} at ${odds(leg.americanOdds)} on ${leg.bookName}`),
     ];
     if (row.middleScenario) lines.push(`${row.middleScenario.label} at ${row.middleScenario.result}: ${signedMoney(row.middleProfit)}`);
-    navigator.clipboard?.writeText(lines.join("\n")).then(() => notify("Bet plan copied.")).catch(() => notify("Copy is unavailable in this browser.", "error"));
+    navigator.clipboard?.writeText(lines.join("\n")).then(() => notify(executable ? "Bet plan copied." : "Verification checklist copied.")).catch(() => notify("Copy is unavailable in this browser.", "error"));
   }
 
   function openFilter(tab = "sportsbooks") {

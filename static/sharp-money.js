@@ -642,7 +642,9 @@
         : "Add ODDSENGINE_API_KEY or direct ProphetX credentials, then restart.";
     $("sharp-feed-state").innerHTML = `<i></i> ${accessBlocked ? "Action required" : running ? "Collecting" : "Paused"}`;
     $("sharp-result-label").textContent = accessBlocked ? "Feed unavailable" : running ? `${state.visible.length} monitored market${state.visible.length === 1 ? "" : "s"}` : "Collector paused";
-    $("sharp-last-updated").textContent = payload.lastError || ageLabel(payload.lastSnapshotAt);
+    $("sharp-last-updated").textContent = payload.lastError
+      ? state.visible.length ? `Live source active · ${payload.lastError}` : payload.lastError
+      : ageLabel(payload.lastSnapshotAt);
     const liquidity = state.visible.reduce((sum, row) => sum + Number(combinedCrossedLiquidity(row) || 0), 0);
     const flows = state.visible.filter(row => Number(combinedCrossedLiquidity(row) || 0) > 0).length;
     $("sharp-summary-signals").textContent = String(state.visible.length);

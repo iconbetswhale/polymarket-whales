@@ -94,6 +94,9 @@ def test_low_hold_polish_keeps_primary_plan_visible_and_details_collapsed() -> N
     assert "Odds comparison" in SCRIPT
     assert "Calculation details" in SCRIPT
     assert "lh-result-section" in SCRIPT
+    assert 'executable ? "Copy bet plan" : "Copy verification checklist"' in SCRIPT
+    assert "THEORETICAL — VERIFY PRICES, LIMITS, SETTLEMENT, AND ELIGIBILITY BEFORE BETTING" in SCRIPT
+    assert 'executable ? "Bet plan copied." : "Verification checklist copied."' in SCRIPT
     assert "Lower is more efficient" not in TEMPLATE
     assert "Chance to win both legs" not in TEMPLATE
 
