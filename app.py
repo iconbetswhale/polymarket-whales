@@ -4260,6 +4260,22 @@ def create_app(start_background: bool = True) -> Flask:
                 400,
             )
 
+        required_book = request.args.get("required_book", "").strip().lower()
+        if required_book and required_book not in raw_books:
+            return (
+                jsonify(
+                    {
+                        "error": "REQUIRED_LOW_HOLD_BOOK_NOT_SELECTED",
+                        "message": (
+                            "The required sportsbook must also be selected in "
+                            "the Low Hold filters."
+                        ),
+                        "requiredBook": required_book,
+                    }
+                ),
+                400,
+            )
+
         supported_markets = set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)
         supported_markets.update(
             market
@@ -4358,6 +4374,7 @@ def create_app(start_background: bool = True) -> Flask:
 
         board_kwargs = {
             "selected_books": raw_books,
+            "required_book": required_book,
             "allowed_markets": requested_markets,
             "total_stake": total_stake,
             "max_hold_percent": max_hold,

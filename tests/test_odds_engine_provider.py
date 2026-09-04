@@ -201,6 +201,7 @@ def _fixture_session() -> FakeSession:
                     },
                     {
                         "entity_name": "Aaron Judge",
+                        "team": "New York Yankees",
                         "market_id": "player-points",
                         "market_key": "player_points",
                         "market": "Player Points",
@@ -302,6 +303,9 @@ def test_provider_normalizes_documented_event_odds_and_caches_requests() -> None
     player_points = books["bet365"]["markets"][0]
     assert {outcome["description"] for outcome in player_points["outcomes"]} == {
         "Aaron Judge"
+    }
+    assert {outcome["team"] for outcome in player_points["outcomes"]} == {
+        "New York Yankees"
     }
     assert all(outcome["link"].startswith("https://book.test/") for outcome in moneyline["outcomes"])
 

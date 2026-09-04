@@ -175,6 +175,7 @@ def _event() -> dict:
         "players": {
             "BRYCE_HARPER_1_MLB": {
                 "name": "Bryce Harper",
+                "teamID": "PHILADELPHIA_PHILLIES_MLB",
             }
         },
         "links": {
@@ -441,6 +442,9 @@ def test_normalizer_preserves_every_returned_book_and_exact_prop_pair() -> None:
     assert {outcome["name"] for outcome in hits["outcomes"]} == {"Over", "Under"}
     assert {outcome["description"] for outcome in hits["outcomes"]} == {
         "Bryce Harper"
+    }
+    assert {outcome["team"] for outcome in hits["outcomes"]} == {
+        "Philadelphia Phillies"
     }
     assert {outcome["point"] for outcome in hits["outcomes"]} == {1.5}
 

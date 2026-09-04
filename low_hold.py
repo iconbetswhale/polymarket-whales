@@ -39,7 +39,7 @@ from sports_game_odds import (
 )
 
 
-LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v3-execution-gates"
+LOW_HOLD_CALCULATION_VERSION = "iconlabs-low-hold-v5-required-book"
 MIDDLE_MARKETS = {"totals", "alternate_totals"}
 
 
@@ -82,6 +82,17 @@ def _quote(
     effective_decimal = effective_decimal_odds(
         american, commission_bps=applied_commission
     )
+    player_team = ""
+    for key in ("team", "team_name", "teamName", "player_team", "playerTeam"):
+        value = outcome.get(key)
+        if isinstance(value, dict):
+            names = value.get("names") or {}
+            value = (
+                names.get("long") if isinstance(names, dict) else None
+            ) or value.get("name") or value.get("teamID") or value.get("id")
+        player_team = " ".join(str(value or "").split())
+        if player_team:
+            break
     return {
         "bookKey": book_key,
         "bookName": str(
@@ -108,6 +119,7 @@ def _quote(
         "selection": _selection_label(market_key, outcome),
         "selectionName": str(outcome.get("name") or "").strip(),
         "description": str(outcome.get("description") or "").strip(),
+        "playerTeam": player_team,
         **quote_execution_metadata(
             book_key=book_key,
             book=book,
@@ -118,7 +130,11 @@ def _quote(
 
 
 def _pair_assignment(
-    left: list[dict], right: list[dict], *, require_distinct_books: bool
+    left: list[dict],
+    right: list[dict],
+    *,
+    require_distinct_books: bool,
+    required_book: str = "",
 ) -> list[dict] | None:
     """Choose the two quotes with the smallest combined implied probability."""
 
@@ -128,6 +144,11 @@ def _pair_assignment(
     for first in left:
         for second in right:
             if require_distinct_books and first["bookKey"] == second["bookKey"]:
+                continue
+            if required_book and required_book not in {
+                first["bookKey"],
+                second["bookKey"],
+            }:
                 continue
             implied = (
                 1.0 / first["effectiveDecimalOdds"]
@@ -140,6 +161,49 @@ def _pair_assignment(
             rank = (implied, freshness)
             if best is None or rank < best[0]:
                 best = (rank, [first, second])
+    return best[1] if best else None
+
+
+def _best_assignment_with_required_book(
+    quote_groups: list[list[dict]],
+    *,
+    require_distinct_books: bool,
+    required_book: str = "",
+) -> list[dict] | None:
+    """Return the lowest-hold assignment that includes the requested book."""
+
+    if not required_book:
+        return _best_assignment(
+            quote_groups,
+            require_distinct_books=require_distinct_books,
+        )
+
+    best: tuple[tuple[float, float], list[dict]] | None = None
+    for group_index, quotes in enumerate(quote_groups):
+        for required_quote in quotes:
+            if required_quote.get("bookKey") != required_book:
+                continue
+            constrained_groups = [list(group) for group in quote_groups]
+            constrained_groups[group_index] = [required_quote]
+            assignment = _best_assignment(
+                constrained_groups,
+                require_distinct_books=require_distinct_books,
+            )
+            if assignment is None or not any(
+                quote.get("bookKey") == required_book for quote in assignment
+            ):
+                continue
+            implied = sum(
+                1.0 / float(quote["effectiveDecimalOdds"])
+                for quote in assignment
+            )
+            freshness = max(
+                float(quote.get("quoteAgeSeconds") or 0)
+                for quote in assignment
+            )
+            rank = (implied, freshness)
+            if best is None or rank < best[0]:
+                best = (rank, assignment)
     return best[1] if best else None
 
 
@@ -238,9 +302,9 @@ def _build_row(
     effective_decimals = [row["effectiveDecimalOdds"] for row in assignment]
     inverse_sum = sum(1.0 / value for value in effective_decimals)
     hold_percent = (inverse_sum - 1.0) * 100.0
-    # Negative exact-line hold is arbitrage and belongs only on the Arbitrage
-    # board. This keeps the two scanners mutually exclusive.
-    if pair_kind == "exact" and hold_percent < -1e-9:
+    # Any negative hold guarantees a positive outside return, including when
+    # the lines also create a middle. Those opportunities belong off this board.
+    if hold_percent < 0:
         return None
     if hold_percent > max_hold_percent + 1e-9:
         return None
@@ -327,6 +391,8 @@ def _build_row(
         "sportKey": str(event.get("sport_key") or ""),
         "league": str(event.get("sport_title") or event.get("sport_key") or ""),
         "eventTitle": _event_title(event),
+        "awayTeam": " ".join(str(event.get("away_team") or "").split()),
+        "homeTeam": " ".join(str(event.get("home_team") or "").split()),
         "commenceTime": str(event.get("commence_time") or ""),
         "marketKey": market_key,
         "marketLabel": MARKET_LABELS.get(
@@ -389,6 +455,7 @@ def build_low_hold_board(
     min_middle_distance: float = 0.5,
     stake_mode: str = "total",
     locked_outcome_index: int = 0,
+    required_book: str = "",
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked feed of exact-line low holds and total/prop middles."""
@@ -403,6 +470,7 @@ def build_low_hold_board(
     requested_markets = {
         str(value).strip().lower() for value in allowed_markets if str(value).strip()
     }
+    required_book_key = str(required_book or "").strip().lower()
     low_odds = min(min_american_odds, max_american_odds)
     high_odds = max(min_american_odds, max_american_odds)
     rejected: Counter[str] = Counter()
@@ -531,8 +599,10 @@ def build_low_hold_board(
                     signature, key=lambda value: tuple(str(part) for part in value)
                 )
                 quote_groups = [quotes_by_selection.get(selection, []) for selection in ordered]
-                assignment = _best_assignment(
-                    quote_groups, require_distinct_books=require_distinct_books
+                assignment = _best_assignment_with_required_book(
+                    quote_groups,
+                    require_distinct_books=require_distinct_books,
+                    required_book=required_book_key,
                 )
                 if assignment is None:
                     rejected["no_valid_book_assignment"] += 1
@@ -603,6 +673,7 @@ def build_low_hold_board(
                             over_quotes,
                             under_quotes,
                             require_distinct_books=require_distinct_books,
+                            required_book=required_book_key,
                         )
                         if assignment is None:
                             rejected["no_valid_book_assignment"] += 1
@@ -635,7 +706,7 @@ def build_low_hold_board(
                             line_distance=distance,
                         )
                         if row is None:
-                            rejected["above_maximum_hold"] += 1
+                            rejected["routed_to_arbitrage_or_above_maximum_hold"] += 1
                         else:
                             row["crossLegQuoteSkewSeconds"] = round(quote_skew, 1)
                             row["maxCrossLegQuoteSkewSeconds"] = max(
@@ -684,6 +755,7 @@ def build_low_hold_board(
             "rejected": sum(rejected.values()),
             "rejectionReasons": dict(sorted(rejected.items())),
             "selectedBookCount": len(requested_books),
+            "requiredBook": required_book_key or None,
             "calculationVersion": LOW_HOLD_CALCULATION_VERSION,
         },
     }

@@ -7,10 +7,9 @@
       <p class="arb-eyebrow">MARKET INEFFICIENCIES</p>
       <div class="arb-title-row">
         <h1 class="il-page-title">Low Hold</h1>
-        <nav class="arb-mode-tabs lh-mode-tabs" aria-label="Opportunity type">
-          <button class="active" type="button" data-lh-mode="all" aria-pressed="true">All <span id="lh-mode-count">0</span></button>
-          <button type="button" data-lh-mode="exact" aria-pressed="false">Exact</button>
-          <button type="button" data-lh-mode="middle" aria-pressed="false">Middles</button>
+        <nav class="arb-mode-tabs lh-mode-tabs" aria-label="Opportunity visibility">
+          <button class="active" type="button" data-lh-view="live" aria-pressed="true">Live <span id="lh-live-count">0</span></button>
+          <button type="button" data-lh-view="hidden" aria-pressed="false">Hidden <span id="lh-hidden-count">0</span></button>
         </nav>
         <button class="arb-learn-button" id="lh-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
@@ -19,7 +18,7 @@
 
     <div class="arb-toolbar il-finance-controls" aria-label="Low Hold controls">
       <label class="arb-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="lh-search" type="search" placeholder="Search events, markets, or books" autocomplete="off"><kbd>/</kbd></label>
-      <label class="arb-stake-control lh-stake-control"><span><select id="lh-stake-mode" aria-label="Stake sizing mode"><option value="first-leg">Bet 1 stake</option><option value="total">Total stake</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span><span class="arb-money-input"><b>$</b><input id="lh-stake" type="number" min="1" max="10000000" step="10" value="100" inputmode="decimal" aria-label="Stake amount"></span></label>
+      <div class="arb-stake-control lh-stake-control"><span><select id="lh-stake-mode" aria-label="Bet sizing mode"><option value="first-leg">Baseline Amount</option><option value="total">Total Bet</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span><span class="arb-money-input"><b>$</b><input id="lh-stake" type="number" min="1" max="10000000" step="10" value="100" inputmode="decimal" autocomplete="off" aria-label="Baseline Amount"></span></div>
       <button class="arb-icon-button" id="lh-pause" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
       <button class="arb-icon-button" id="lh-filter-open" type="button" aria-label="Open Low Hold filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span class="arb-filter-count" id="lh-filter-count" hidden>0</span></button>
       <button class="arb-icon-button" id="lh-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
@@ -29,7 +28,7 @@
 
   <section class="arb-kpi-strip il-kpi-strip" aria-label="Low Hold summary">
     <article><span class="arb-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best hold</span><strong id="lh-kpi-hold">—</strong><small>Lowest opposing price cost</small></div></article>
-    <article><span class="arb-kpi-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span><div><span>Capital left</span><strong id="lh-kpi-retained">—</strong><small>After balanced stake rounding</small></div></article>
+    <article><span class="arb-kpi-icon"><i class="ph ph-shield-check" aria-hidden="true"></i></span><div><span>Capital left</span><strong id="lh-kpi-retained">—</strong><small>After balancing bets</small></div></article>
     <article><span class="arb-kpi-icon"><i class="ph ph-arrows-left-right" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="lh-kpi-opportunities">—</strong><small>Exact lines and middles</small></div></article>
     <article><span class="arb-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="lh-kpi-books">—</strong><small>Selected execution venues</small></div></article>
   </section>
@@ -39,7 +38,7 @@
       <div class="arb-detail-placeholder" id="lh-detail-placeholder">
         <span><i class="ph ph-cursor-click" aria-hidden="true"></i></span>
         <h2>Execution plan</h2>
-        <p>Select an opportunity to see the balanced stake on every outcome, modeled payout, and every available price.</p>
+        <p>Select an opportunity to see the balanced bet on every outcome, modeled payout, and every available price.</p>
       </div>
       <div class="arb-detail-content" id="lh-detail-content" hidden></div>
     </aside>
@@ -48,14 +47,25 @@
       <header class="arb-board-header">
         <div class="sr-only"><h2 id="lh-board-title">Best Low Hold opportunities</h2></div>
         <div class="arb-board-actions">
-          <label><span class="sr-only">Sport</span><select id="lh-sport-filter"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-          <label><span class="sr-only">Market</span><select id="lh-market-filter"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-          <label><span class="sr-only">Sort opportunities</span><select id="lh-sort"><option value="hold-asc">Lowest hold</option><option value="retained-desc">Most retained</option><option value="middle-desc">Best middle payoff</option><option value="time-asc">Starting soon</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <div class="lh-quick-select" data-lh-quick-select="required-book">
+            <button class="lh-quick-select-trigger" id="lh-required-book-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="lh-required-book-menu"><span class="lh-quick-select-value" id="lh-required-book-value"><i class="ph ph-buildings" aria-hidden="true"></i><span>Any selected book</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="lh-quick-select-menu" id="lh-required-book-menu" role="listbox" aria-label="Required sportsbook" hidden></div>
+          </div>
+          <div class="lh-quick-select" data-lh-quick-select="sport">
+            <select id="lh-sport-filter" hidden aria-label="Sport"><option value="">All sports</option></select>
+            <button class="lh-quick-select-trigger" id="lh-sport-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="lh-sport-menu"><span class="lh-quick-select-value" id="lh-sport-value"><i class="ph ph-trophy" aria-hidden="true"></i><span>All sports</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="lh-quick-select-menu" id="lh-sport-menu" role="listbox" aria-label="Sport" hidden></div>
+          </div>
+          <div class="lh-quick-select" data-lh-quick-select="sort">
+            <select id="lh-sort" hidden aria-label="Sort opportunities"><option value="hold-asc">Lowest hold</option><option value="time-asc">Starting soon</option></select>
+            <button class="lh-quick-select-trigger" id="lh-sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="lh-sort-menu"><span class="lh-quick-select-value" id="lh-sort-value"><i class="ph ph-sort-ascending" aria-hidden="true"></i><span>Lowest hold</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="lh-quick-select-menu" id="lh-sort-menu" role="listbox" aria-label="Sort opportunities" hidden></div>
+          </div>
         </div>
         <select id="lh-time-filter" hidden aria-label="Time to start"><option value="48" selected>Next 48 hours</option></select>
       </header>
       <div class="arb-feed" id="lh-feed" aria-live="polite">
-        <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing Low Hold scanner</strong><p>Pairing opposing prices and balancing every stake to the cent.</p></div>
+        <div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Preparing Low Hold scanner</strong><p>Pairing opposing prices and balancing every bet to the cent.</p></div>
       </div>
       <footer class="arb-board-footer"><span id="lh-result-copy">Ranked by lowest modeled hold</span></footer>
     </section>
@@ -76,7 +86,7 @@
         <button class="active" type="button" data-lh-filter-tab="saved"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span>Saved filters</span><b id="lh-saved-count">0</b></button>
         <button type="button" data-lh-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="lh-book-filter-count">All</b></button>
         <button type="button" data-lh-filter-tab="odds"><i class="ph ph-arrows-out-line-horizontal" aria-hidden="true"></i><span>Min/Max odds</span></button>
-        <button type="button" data-lh-filter-tab="hold"><i class="ph ph-percent" aria-hidden="true"></i><span>Hold &amp; stake</span></button>
+        <button type="button" data-lh-filter-tab="hold"><i class="ph ph-percent" aria-hidden="true"></i><span>Hold &amp; bet size</span></button>
         <button type="button" data-lh-filter-tab="markets"><i class="ph ph-chart-line" aria-hidden="true"></i><span>Market</span></button>
         <button type="button" data-lh-filter-tab="distance"><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i><span>Minimum distance</span></button>
         <button type="button" data-lh-filter-tab="warnings"><i class="ph ph-warning" aria-hidden="true"></i><span>Bet warnings</span></button>
@@ -106,20 +116,20 @@
         </section>
 
         <section class="arb-filter-panel" data-lh-filter-panel="hold">
-          <h3>Hold &amp; stake</h3><p>Lock your intended first bet for the fastest hedge plan, or allocate a fixed bankroll across every leg.</p>
-          <div class="lh-stake-mode-grid" role="radiogroup" aria-label="Stake sizing mode">
-            <label><input type="radio" name="lh-stake-mode" value="first-leg" checked><span><i class="ph ph-lock-key" aria-hidden="true"></i><strong>Lock Bet 1</strong><small>Recommended · calculate the exact hedge</small></span></label>
+          <h3>Hold &amp; bet size</h3><p>Lock your intended first bet for the fastest hedge plan, or allocate a fixed bankroll across every leg.</p>
+          <div class="lh-stake-mode-grid" role="radiogroup" aria-label="Bet sizing mode">
+            <label><input type="radio" name="lh-stake-mode" value="first-leg" checked><span><i class="ph ph-lock-key" aria-hidden="true"></i><strong>Lock baseline</strong><small>Recommended · calculate the exact hedge</small></span></label>
             <label><input type="radio" name="lh-stake-mode" value="total"><span><i class="ph ph-wallet" aria-hidden="true"></i><strong>Total bankroll</strong><small>Divide one total across all legs</small></span></label>
           </div>
           <div class="arb-field-grid">
-            <label><span id="lh-dialog-stake-label">Bet 1 stake</span><span class="arb-field-money"><b>$</b><input id="lh-dialog-stake" type="number" min="1" max="10000000" step="10" value="100"></span></label>
+            <label><span id="lh-dialog-stake-label">Baseline Amount</span><span class="arb-field-money"><b>$</b><input id="lh-dialog-stake" type="number" min="1" max="10000000" step="10" value="100"></span></label>
             <label>Maximum hold<span class="arb-field-suffix"><input id="lh-max-hold" type="number" min="0" max="25" step="0.1" value="5"><b>%</b></span></label>
           </div>
           <div class="arb-choice-grid lh-kind-choices">
             <label><input id="lh-include-exact" type="checkbox" checked><span><i class="ph ph-equals" aria-hidden="true"></i><strong>Exact lines</strong><small>Minimum-loss opposing bets</small></span></label>
             <label><input id="lh-include-middles" type="checkbox" checked><span><i class="ph ph-arrows-in-line-vertical" aria-hidden="true"></i><strong>Middles</strong><small>Two lines with a win window</small></span></label>
           </div>
-          <div class="arb-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-return sizing</strong><p>Lock Bet 1 keeps that amount unchanged and rounds each hedge to the closest equal payout. Total bankroll mode divides the full amount proportionally.</p></div></div>
+          <div class="arb-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-return sizing</strong><p>The baseline amount stays unchanged while each hedge rounds to the closest equal payout. Total bankroll mode divides the full amount proportionally.</p></div></div>
         </section>
 
         <section class="arb-filter-panel" data-lh-filter-panel="markets">
@@ -163,8 +173,6 @@
           <h3>Sorting</h3><p>Choose the first opportunities shown in the feed.</p>
           <div class="arb-radio-list">
             <label><input type="radio" name="lh-dialog-sort" value="hold-asc" checked><span><strong>Lowest hold</strong><small>Best implied price efficiency first</small></span></label>
-            <label><input type="radio" name="lh-dialog-sort" value="retained-desc"><span><strong>Most capital retained</strong><small>Best rounded outside result first</small></span></label>
-            <label><input type="radio" name="lh-dialog-sort" value="middle-desc"><span><strong>Best middle payoff</strong><small>Highest win-window profit first</small></span></label>
             <label><input type="radio" name="lh-dialog-sort" value="time-asc"><span><strong>Starting soon</strong><small>Earliest events first</small></span></label>
           </div>
         </section>
@@ -178,9 +186,9 @@
   <article>
     <header><h2 id="lh-learn-title">How IconLabs calculates Low Hold</h2><button class="arb-icon-button" id="lh-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x"></i></button></header>
     <div class="arb-learn-grid">
-      <section><span>01</span><div><h3>Convert each price</h3><p>American odds become decimal odds and implied probabilities. Exchange fees reduce net winnings, never returned stake.</p></div></section>
+      <section><span>01</span><div><h3>Convert each price</h3><p>American odds become decimal odds and implied probabilities. Exchange fees reduce net winnings, never the returned bet amount.</p></div></section>
       <section><span>02</span><div><h3>Measure the hold</h3><p>Add the implied probabilities of every opposing leg and subtract 100%.</p><code>hold % = (Σ(1 ÷ decimal odds) − 1) × 100</code></div></section>
-      <section><span>03</span><div><h3>Equalize outside outcomes</h3><p>By default, keep Bet 1 fixed and solve each hedge from its target payout. Total bankroll mode remains available.</p><code>hedgeᵢ = (Bet 1 × odds₁) ÷ oddsᵢ</code></div></section>
+      <section><span>03</span><div><h3>Equalize outside outcomes</h3><p>By default, keep the baseline amount fixed and solve each hedge from its target payout. Total bankroll mode remains available.</p><code>hedgeᵢ = (baseline × odds₁) ÷ oddsᵢ</code></div></section>
       <section><span>04</span><div><h3>Model the middle</h3><p>For compatible Over/Under lines, IconLabs enumerates attainable integer results between the lines and shows whether both bets win or one wins while the other pushes.</p></div></section>
     </div>
     <div class="arb-learn-proof"><i class="ph ph-shield-check" aria-hidden="true"></i><div><strong>Transparent and independently implemented</strong><p>The formulas are standard sportsbook hold and hedge math. IconLabs does not claim access to another product's proprietary ranking, source weights, or market-matching code.</p></div></div>

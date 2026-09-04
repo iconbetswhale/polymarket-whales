@@ -14,8 +14,18 @@ from low_hold import (
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
 
 
-def _outcome(name: str, price: int, *, point=None, description: str = "") -> dict:
-    return {"name": name, "price": price, "point": point, "description": description}
+def _outcome(
+    name: str,
+    price: int,
+    *,
+    point=None,
+    description: str = "",
+    team: str = "",
+) -> dict:
+    outcome = {"name": name, "price": price, "point": point, "description": description}
+    if team:
+        outcome["team"] = team
+    return outcome
 
 
 def _book(key: str, outcomes: list[dict], *, market: str = "h2h", age=0) -> dict:
@@ -62,6 +72,8 @@ def test_standard_low_hold_formula_matches_implied_probability_sum() -> None:
     assert row["holdCost"] == pytest.approx(-row["outsideNet"])
     assert sum(leg["stake"] for leg in row["outcomes"]) == pytest.approx(1000)
     assert row["calculationVersion"] == LOW_HOLD_CALCULATION_VERSION
+    assert row["awayTeam"] == "Away"
+    assert row["homeTeam"] == "Home"
 
 
 def test_locked_first_leg_matches_the_public_low_hold_hedge_example() -> None:
@@ -140,10 +152,36 @@ def test_negative_hold_is_routed_to_arbitrage_instead_of_duplicated() -> None:
     )
 
 
+def test_required_book_is_always_present_in_the_selected_equation() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Away", 100), _outcome("Home", -120)]),
+        _book("fanduel", [_outcome("Away", -120), _outcome("Home", 100)]),
+        _book("caesars", [_outcome("Away", -110), _outcome("Home", -110)]),
+    )
+
+    unrestricted = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel", "caesars"),
+        include_middles=False,
+        now=NOW,
+    )["data"][0]
+    required = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel", "caesars"),
+        required_book="caesars",
+        include_middles=False,
+        now=NOW,
+    )["data"][0]
+
+    assert "caesars" not in unrestricted["booksUsed"]
+    assert "caesars" in required["booksUsed"]
+    assert required["holdPercent"] == pytest.approx(2.381, abs=0.001)
+
+
 def test_true_total_middle_models_both_legs_winning() -> None:
     event = _event(
-        _book("draftkings", [_outcome("Over", 104, point=39.5), _outcome("Under", -120, point=39.5)], market="alternate_totals"),
-        _book("fanduel", [_outcome("Over", -118, point=40.5), _outcome("Under", 101, point=40.5)], market="alternate_totals"),
+        _book("draftkings", [_outcome("Over", -105, point=39.5), _outcome("Under", -115, point=39.5)], market="alternate_totals"),
+        _book("fanduel", [_outcome("Over", -115, point=40.5), _outcome("Under", -105, point=40.5)], market="alternate_totals"),
     )
 
     rows = build_low_hold_board(
@@ -164,10 +202,65 @@ def test_true_total_middle_models_both_legs_winning() -> None:
     assert row["middleProfit"] > 190
 
 
+def test_negative_middle_hold_is_routed_off_the_low_hold_board() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", 104, point=39.5), _outcome("Under", -120, point=39.5)], market="alternate_totals"),
+        _book("fanduel", [_outcome("Over", -118, point=40.5), _outcome("Under", 101, point=40.5)], market="alternate_totals"),
+    )
+
+    board = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        include_exact=False,
+        include_middles=True,
+        total_stake=200,
+        now=NOW,
+    )
+
+    assert board["data"] == []
+    assert board["diagnostics"]["rejectionReasons"]["routed_to_arbitrage_or_above_maximum_hold"] >= 1
+
+
+def test_player_prop_outcomes_preserve_the_players_team_for_logo_rendering() -> None:
+    player = "Julio Rodríguez"
+    team = "Seattle Mariners"
+    event = _event(
+        _book(
+            "draftkings",
+            [
+                _outcome("Over", 100, point=0.5, description=player, team=team),
+                _outcome("Under", -120, point=0.5, description=player, team=team),
+            ],
+            market="batter_hits",
+        ),
+        _book(
+            "fanduel",
+            [
+                _outcome("Over", -120, point=0.5, description=player, team=team),
+                _outcome("Under", 100, point=0.5, description=player, team=team),
+            ],
+            market="batter_hits",
+        ),
+    )
+    event["away_team"] = team
+    event["home_team"] = "Texas Rangers"
+
+    row = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("batter_hits",),
+        include_middles=False,
+        now=NOW,
+    )["data"][0]
+
+    assert {outcome["playerTeam"] for outcome in row["outcomes"]} == {team}
+
+
 def test_half_point_middle_models_win_and_push() -> None:
     event = _event(
         _book("draftkings", [_outcome("Over", 3300, point=6.5), _outcome("Under", -5000, point=6.5)], market="alternate_totals"),
-        _book("fanduel", [_outcome("Over", -400, point=7), _outcome("Under", -206, point=7)], market="alternate_totals"),
+        _book("fanduel", [_outcome("Over", -400, point=7), _outcome("Under", -5000, point=7)], market="alternate_totals"),
     )
 
     row = build_low_hold_board(
@@ -182,7 +275,7 @@ def test_half_point_middle_models_win_and_push() -> None:
 
     assert row["middleScenario"]["result"] == 7
     assert row["middleScenario"]["label"] == "One wins, one pushes"
-    assert row["middleProfit"] > 30
+    assert row["middleProfit"] > 25
 
 
 def test_exchange_commission_increases_the_effective_hold() -> None:
@@ -239,6 +332,15 @@ def test_low_hold_api_rejects_an_unknown_stake_mode(app_client) -> None:
 
     assert response.status_code == 400
     assert response.get_json()["error"] == "INVALID_LOW_HOLD_STAKE_MODE"
+
+
+def test_low_hold_api_rejects_required_book_outside_selected_filters(app_client) -> None:
+    response = app_client.get(
+        "/api/low-hold?books=draftkings&required_book=fanduel"
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "REQUIRED_LOW_HOLD_BOOK_NOT_SELECTED"
 
 
 def test_live_api_is_paused_before_paid_provider_request(app_client) -> None:

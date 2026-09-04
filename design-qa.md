@@ -1376,3 +1376,413 @@ No actionable P0, P1, or P2 findings remain.
 - None.
 
 final result: passed
+
+---
+
+# Low Hold Odds Comparison and Market Label — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-09-01 203147.png` (1142 × 372 px).
+- Local desktop implementation: `design-audits/low-hold-odds-polish/low-hold-odds-reference-viewport.png` at a 1864 × 1272 CSS viewport, DPR 1.
+- Local mobile implementation: `design-audits/low-hold-odds-polish/low-hold-mobile-long-market.png` at a 390 × 844 CSS viewport, DPR 1.
+- Normalized source crop: `design-audits/low-hold-odds-polish/source-odds-comparison-normalized.png` (1077 × 372 px).
+- Normalized implementation crop: `design-audits/low-hold-odds-polish/local-odds-comparison-final.png` (1077 × 372 px).
+- Combined focused comparison: `design-audits/low-hold-odds-polish/comparison-odds-source-local.png`.
+- Long-label evidence: `design-audits/low-hold-odds-polish/local-long-market-uppercase-final.png`.
+- State: a Low Hold opportunity selected, Odds Comparison visible, selected sportsbook rows highlighted, and a long `PITCHER STRIKEOUTS` market rendered in the detail hero.
+- The source is a focused component crop, so no source-backed full-page composition comparison was possible. The full local desktop and mobile captures were used only for regression and overflow checks; the normalized Odds Comparison crop is the authoritative visual comparison.
+
+## Findings and comparison history
+
+1. P2 color mismatch: the selected sportsbook row used a green outline and glow while the requested action color is the purple behind the primary copy button.
+   - Fix: added a Low Hold-only selected-quote surface using `--arb-purple`, a purple inset outline, purple glow, and matching subtle purple fill.
+   - Post-fix evidence: the combined comparison shows the requested purple selected rows while preserving the source table sizing, typography, and book ordering.
+2. P2 content/responsiveness: the Market fact preferred `marketContext`, which could reduce the value to a numeric line, and inherited single-line ellipsis behavior.
+   - Fix: added one uppercase market-name formatter, rendered the full market label everywhere Low Hold presents a market, gave the Market fact its own class and title, and changed the fact layout to a full-width stacked column with normal wrapping.
+   - Post-fix evidence: `MONEYLINE` and `PITCHER STRIKEOUTS` render in full at desktop and mobile sizes; measured scroll width equals client width and the document has no horizontal overflow.
+
+Each side of Odds Comparison is sorted by effective decimal price from best to worst. Exact-price ties place the selected purple quote first, then preserve the source order.
+
+No actionable P0, P1, P2, or P3 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. Existing IconLabs family, weights, line heights, numeric alignment, and hierarchy are unchanged; the Market value is intentionally uppercase and the three Balanced Outcome values are intentionally 16px.
+- Spacing and layout rhythm: passed. Odds Comparison dimensions and density remain unchanged. The Market/Start Time facts stack within the existing hero height without clipping.
+- Colors and visual tokens: passed. The selected quote now uses the same IconLabs purple token family as the primary copy action; positive odds and payouts remain green.
+- Image quality and asset fidelity: passed. Existing sportsbook logos and icons are unchanged and remain sharp.
+- Copy and content: passed. The full market label is shown instead of a context-only value, and market labels are consistently uppercase in the feed, filter, detail, plan, and copied checklist.
+
+## Interaction and verification
+
+- Selected Moneyline and Pitcher Strikeouts opportunities successfully updated the detail view.
+- Each outcome table sorts the best effective price first; exact-price ties place the selected quote first.
+- Desktop viewport: 1864 × 1272, DPR 1; no body or detail horizontal overflow.
+- Mobile viewport: 390 × 844, DPR 1; the long Market value is fully visible and body horizontal overflow is absent.
+- Browser console warnings/errors: none.
+- Focused Low Hold, Arbitrage, and Middles regression: 66 passed.
+- JavaScript syntax and `git diff --check`: passed.
+
+## September 3 follow-up
+
+- Added the away-team logo before its name and the home-team logo after its name in the expanded matchup heading, using the existing local IconLabs team assets.
+- Removed the quick `All markets` selector above the opportunity list while preserving the complete Market panel in advanced filters.
+- Replaced visible Low Hold `Stake` wording with `Bet` or `Bet amount` across controls, tables, status copy, and the copied plan.
+- Rejected every negative-hold exact or middle row on the server and filtered stale negative cached rows in the browser as a second guardrail.
+- Reassigned green to holds from 0% through 2.00%; larger accepted holds remain amber.
+- Local deterministic verification: 6 displayed opportunities, 0 negative holds, 2 green holds at or below 2%, 2 loaded team logos in the Dodgers–Padres example, no quick Market selector, no visible `Stake` wording, and no horizontal overflow.
+- Focused Low Hold, Arbitrage, and Middles regression: 70 passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Required Book and Expanded Details — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-09-03 213517.png` (555 × 78 px).
+- Final local desktop capture: `design-audits/low-hold-required-book-full.png` (1864 × 1272 CSS px, DPR 1).
+- Combined focused comparison: `design-audits/low-hold-required-book-comparison.png` (1126 × 142 px), with the source and implementation quick controls shown together in the same open-menu state.
+- State: `Any selected book`, `All sports`, and `Lowest hold` visible; the Sport listbox open; a realistic Low Hold opportunity selected.
+- The supplied source is a narrow component crop. The normalized comparison therefore treats select height, border completeness, radius, spacing, and open-menu behavior as authoritative while the full desktop capture is used for surrounding-layout regression.
+
+## Findings and comparison history
+
+1. P1 behavior/surface mismatch: the native open select visually covered the bottom edge of the trigger, making the border appear cut off.
+   - Fix: replaced all three board quick controls with keyboard-accessible custom listboxes. Each trigger retains a measured 1px border on all four sides, and each menu begins 5px below its trigger with its own complete border and elevation.
+   - Post-fix evidence: the combined comparison shows an uninterrupted trigger border in the open state; desktop and mobile DOM geometry report no clipping.
+2. P1 functional requirement: the new sportsbook choice had to constrain the equation, not merely filter the displayed copy.
+   - Fix: added a single-select Required sportsbook control before Sport, populated it only from sportsbooks selected in the advanced filters, included the real local book logo, and constrained both exact-line and middle assignment search on the server.
+   - Post-fix evidence: selecting Caesars reduced the deterministic board to three opportunities; all three selected equations included Caesars. The `Any selected book` option restores unconstrained assignment.
+3. P2 detail clarity: Verification Plan and Calculation Details did not consistently identify teams visually, Bet headings were optically right-aligned, scenario text was too small, and an open calculation disclosure closed on rerender.
+   - Fix: placed existing local team assets to the left of matching outcome names and scenario labels, centered Bet headings and values on the same grid axis, increased scenario label/value/detail type to 13px/16px/12px, and persisted the disclosure's manual open state across opportunity changes and refresh renders.
+   - Post-fix evidence: both Boston and New York logos loaded at native 500px source width, appeared left of their Verification Plan names, and reappeared in the scenario cards; measured Bet header/value center deltas were 0px on both sides. Calculation Details remained open after switching rows and closed only after a manual summary click.
+
+No actionable P0, P1, P2, or P3 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. Existing IconLabs families and weights remain intact. Scenario label, money, and outcome-detail sizes measure exactly 13px, 16px, and 12px.
+- Spacing and layout rhythm: passed. At desktop width the controls resolve to 197px, 121px, and 152px, keeping `Any selected book` fully visible while shifting Sport and Sort right. Trigger height and radius match the inherited Arbitrage geometry.
+- Colors and visual tokens: passed. Controls use the existing navy surfaces, subtle border token, and purple selected/focus treatment; no new palette was introduced.
+- Image quality and asset fidelity: passed. Sportsbook and team marks use existing repository assets with `object-fit: contain`; no placeholder, inline SVG, CSS drawing, or generated substitute was added.
+- Copy and content: passed. `Any selected book` accurately describes the unconstrained option, every specific option uses the configured book name, and Bet language is centered over the corresponding numeric values.
+- Responsiveness and accessibility: passed. At 390 × 844 the required-book control spans the full 315px row, Sport and Sort measure 154px each, the menu stays within the viewport, body horizontal overflow is 0px, and each listbox exposes `aria-expanded`, `role=option`, keyboard arrows, Escape, and visible focus states.
+
+## Interaction and automated verification
+
+- Required-book selection, Any selected book reset, Sport menu, Sort menu structure, outside-click dismissal, Escape dismissal, and row selection were verified in the in-app browser.
+- Calculation Details persistence was verified across a selected-row rerender and manual close.
+- Browser console warnings/errors: none.
+- Focused Low Hold, Arbitrage, Middles, and execution-gate regression: 77 passed.
+- JavaScript syntax, Python compilation, and `git diff --check`: passed; line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Expanded Detail and Bankroll Control — Design QA
+
+## September 3 follow-up
+
+- Removed the internal scroll behavior from the expanded desktop detail; with Calculation Details open, the detail pane reports `overflow: visible` and its scroll height equals its client height.
+- Removed the three redundant execution-gate warning statements beneath Calculation Details. The sizing note and final price-confirmation reminder remain.
+- Added light contrast tiles, white borders, and subtle purple/dark elevation to team and sportsbook logos so their marks remain legible on the dark surfaces.
+- Centered displayed odds under `ODDS` in Verification Plan and both Odds Comparison tables. Measured header/value center deltas are 0px.
+- Changed `Worst-case cost` to `Worst Case Cost` and display its magnitude without a negative sign.
+- Rebuilt the top bankroll control hit areas so the sizing dropdown no longer overlaps the amount input. Renamed `Bet 1 amount` to `Baseline Amount` in the control, outcome plan, sizing note, dialog, and copied output.
+- Desktop verification at 1864 × 1272: toolbar overflow 0px, amount editing successful, mode switching successful, and expanded detail internal scrolling absent.
+- Mobile verification at 390 × 844: document and toolbar horizontal overflow 0px, dropdown and amount hit areas do not overlap, and both controls remain editable.
+- Focused Low Hold, Arbitrage, Middles, and execution-gate regression: 80 passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Team Logo Clarity — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-09-03 223548.png` at 513 × 73 px.
+- Browser-rendered desktop evidence: `design-audits/low-hold-team-logos-full.png`, `design-audits/low-hold-team-logos-wnba.png`, and `design-audits/low-hold-player-prop-team-logo.png`, each captured at a 1864 × 1272 CSS viewport, DPR 1.
+- Focused implementation crop: `design-audits/low-hold-team-logos-implementation.png` at 521 × 73 px.
+- Combined focused comparison: `design-audits/low-hold-team-logos-comparison.png` at 521 × 154 px. The 513px source crop was normalized to the implementation's 521px width; both logo rows remain 73px high.
+- State: Dodgers–Padres matchup for the source comparison, plus Aces–Liberty and Julio Rodríguez Hits states for WNBA and player-prop verification.
+
+## Findings and comparison history
+
+1. P1 scope mismatch: the earlier contrast treatment changed both team and sportsbook logos, while the request concerned team marks only.
+   - Fix: removed every Low Hold sportsbook-logo override and restored the inherited transparent, borderless sportsbook treatment.
+   - Post-fix evidence: computed sportsbook logo background is transparent with no border, padding, or shadow in Verification Plan and Odds Comparison.
+2. P1 image clipping: applying a circular border and padding directly to each image could mask logo artwork at the circle edge.
+   - Fix: moved the white circular halo to a separate 30px frame and rendered the authentic team image as an unclipped child with `overflow: visible`. Standard team slots are 2px larger than the prior 28px treatment; Calculation Details marks increased from 24px to 26px.
+   - Post-fix evidence: the combined Dodgers–Padres comparison shows both marks fully visible with no circular crop, while retaining the same title hierarchy and spacing.
+3. P2 WNBA readability: the Aces and Liberty marks contain more internal detail than the MLB monograms and remained optically small at the shared size.
+   - Fix: retained the existing 500 × 500 team assets, increased WNBA title and plan frames to 34px, and applied a proportional 1.18 scale with a small contrast/saturation lift. The image remains square and unclipped.
+   - Post-fix evidence: both WNBA rendered images measure 35.4 × 35.4px over 34px visible frames, with the full marks visible and no distortion.
+4. P1 player-prop identity: player selections did not preserve the player's team through the odds normalization and Low Hold calculation path.
+   - Fix: preserved team metadata from OddsEngine and SportsGameOdds player records, carried it into each Low Hold leg, and resolved that team before rendering Verification Plan logos.
+   - Post-fix evidence: both Julio Rodríguez Hits legs display the Seattle Mariners logo to the left of the player selection. Provider tests also cover Aaron Judge/Yankees and Bryce Harper/Phillies mappings.
+
+No actionable P0, P1, P2, or P3 findings remain.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. Matchup and Verification Plan type, weights, wrapping, and hierarchy are unchanged.
+- Spacing and layout rhythm: passed. Standard team slots grew exactly 2px; WNBA-only enlargement fits inside the existing hero and plan-row heights. Desktop horizontal overflow is 0px.
+- Colors and visual tokens: passed. The existing light halo and purple rim remain team-only; inherited sportsbook styling is restored.
+- Image quality and asset fidelity: passed. All marks use the repository's authentic 500 × 500 team assets. No generated, placeholder, inline SVG, or CSS-drawn logos were introduced; no rendered image is broken.
+- Copy and content: passed. Team and player names are unchanged, and the player-prop logo now identifies the correct team without adding redundant text.
+
+## Interaction and automated verification
+
+- Switched among MLB, WNBA, alternate-total, and player-prop opportunities; every detail state updated with the correct team assets.
+- Verification Plan mappings confirmed Boston/`bos.png`, Yankees/`nyy.png`, Julio Rodríguez/`sea.png`, Aces/`lv.png`, and Liberty/`ny.png`.
+- Browser developer log: no warnings or errors.
+- JavaScript syntax, Python compilation, and `git diff --check`: passed; line-ending notices only.
+- Focused Low Hold, Arbitrage, Middles, execution-gate, SportsGameOdds, and OddsEngine regression: 122 passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Team Logo Safety-Ring Follow-up — Design QA
+
+## September 3 follow-up
+
+- Constrained every team mark inside its light circular frame instead of letting the art reach the edge. Padres and Rangers title marks now render at 22 × 22px inside 30 × 30px frames, providing a measured 4px white margin on all four sides.
+- Reduced standard Verification Plan team-logo frames from 30px to 28px. Player-prop team marks render at 20 × 20px inside those frames, retaining the same measured 4px margin.
+- Reduced WNBA Verification Plan frames from 34px to 32px and moderated their optical scale. The title and plan variants retain at least 2.4px of light background on every side while remaining easier to distinguish than the standard-size marks.
+- Confirmed sportsbook logos remain transparent, borderless, unpadded, and shadow-free.
+- Desktop horizontal overflow remains 0px at 1864 × 1272.
+- Browser-rendered evidence: `design-audits/low-hold-padres-logo-safety-ring-final.png` and `design-audits/low-hold-rangers-verification-logo-final.png`.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Quick Filter Follow-up — Design QA
+
+## September 3 follow-up
+
+- Increased required-book dropdown option text from 12px to 14px and sportsbook marks from 19px to 21px. The fallback buildings icon also increased from 16px to 18px.
+- Matched that sizing in the All Sports menu: option text is 14px, league marks are 21 × 21px, and the All Sports trophy is 18px. Browser evidence: `design-audits/low-hold-sport-menu-sizing-final.png`.
+- Widened only the required-book menu to 225px; `Any selected book` now renders at its full 132px content width without truncation.
+- Replaced generic trophy icons on individual sport options with the existing league assets. Verified MLB and WNBA menu options and the selected MLB trigger state.
+- Removed the redundant `Most retained` sort because balanced capital retention is a monotonic inverse of hold, apart from cent-rounding ties. Removed `Best middle payoff` as requested. The menu now contains only `Lowest hold` and `Starting soon`.
+- Browser evidence: `design-audits/low-hold-quick-filters-final-v10.png` at 1864 × 1272. Horizontal overflow is 0px and browser developer logs are clean.
+- Focused Low Hold and adjacent-tool regression: 123 passed. JavaScript syntax, Python compilation, and `git diff --check` passed; line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Play-Card League Logos — Design QA
+
+## September 3 follow-up
+
+- Replaced the generic sport glyph beside every play-card matchup with the corresponding repository league asset.
+- Verified five MLB cards use `assets/leagues/mlb.png` and the WNBA card uses `assets/leagues/wnba.png`; each renders at 18 × 18px.
+- Matchup wrapping remains intact, metadata aligns beneath the new logo, horizontal overflow is 0px, and browser developer logs are clean.
+- Browser evidence: `design-audits/low-hold-play-card-league-logos-final.png` at 1864 × 1272.
+- Focused Low Hold and adjacent-tool regression: 123 passed; `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Play-Card League Watermarks — Design QA
+
+## September 3 follow-up
+
+- Replaced the inline 18px league marks with low-opacity league watermarks aligned against the card's far-right edge behind the date and time.
+- Watermark image boxes fill the card's available vertical area at 10% opacity. The wide MLB source receives league-specific optical scaling so its visible badge—not its transparent source padding—fills the card height; the WNBA silhouette retains natural full-height scaling.
+- Content is isolated above the watermark, and the date/time layer uses z-index 2 plus a dark text shadow for readability.
+- Verified no inline matchup icon remains, card overflow is clipped cleanly, page horizontal overflow is 0px, and browser developer logs are empty.
+- Browser evidence: `design-audits/low-hold-play-card-league-watermarks-scaled-final.png` at 1864 × 1272.
+- Focused Low Hold and adjacent-tool regression: 123 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Watermark Scale and Opacity Follow-up — Design QA
+
+## September 3 follow-up
+
+- Increased all play-card league watermarks from 10% to 20% opacity.
+- Reduced the MLB optical scale from 280% to 250%; its rendered source box decreased from roughly 202px to 180px while remaining aligned to the far-right edge.
+- Increased the WNBA watermark from 100% to 150%, top-aligned it, and allowed the lower portion to crop at the card boundary. The rendered source box grew from 74px to 111px while preserving the head and upper silhouette.
+- Date/time content remains above the watermark at z-index 2, horizontal overflow remains 0px, and browser developer logs are empty.
+- Browser evidence: `design-audits/low-hold-watermarks-20-percent-final.png` at 1864 × 1272.
+- Focused Low Hold and adjacent-tool regression: 123 passed; `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Inline League Logo Restoration — Design QA
+
+## September 4 follow-up
+
+- Removed the league watermark markup and all associated positioning, opacity, clipping, stacking, and date text-shadow styles.
+- Restored league logos directly to the left of each play-card matchup and increased them from the earlier 18 × 18px treatment to 20 × 20px.
+- Adjusted the metadata indent to 26px so the league/market line remains aligned beneath the matchup text.
+- Verified all six cards use the expected MLB or WNBA asset, no watermark nodes remain, date styling is restored, horizontal overflow is 0px, and browser developer logs are empty.
+- Browser evidence: `design-audits/low-hold-inline-league-logos-20px-final.png` at 1864 × 1272.
+- Focused Low Hold and adjacent-tool regression: 123 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Play-Card Spacing Follow-up — Design QA
+
+## September 4 follow-up
+
+- Increased inline play-card league logos from 20 × 20px to 24 × 24px and adjusted their top offset to remain aligned with the matchup text.
+- Shifted the Hold percentage and cost 4px left by changing the Low Hold return-cell padding from 8px per side to 4px left and 12px right; the grid columns themselves are unchanged.
+- Maintained a measured 4px gap between the rank column and Hold content with no overlap. Metadata uses a 30px indent beneath the matchup.
+- Browser evidence: `design-audits/low-hold-card-logos-24px-hold-shift-final.png` at 1864 × 1272. Horizontal overflow is 0px and browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 123 passed; `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Play-Card Logo Size Follow-up — Design QA
+
+## September 4 follow-up
+
+- Increased inline play-card league logos from 24 × 24px to 28 × 28px and adjusted their top offset to remain centered beside the matchup.
+- Increased the metadata indent from 30px to 34px so the league/market line remains aligned beneath the matchup text.
+- Preserved the existing 4px left and 12px right Hold-cell padding, keeping the Hold percentage and cost in their shifted-left position.
+- Browser evidence: `design-audits/low-hold-card-logos-28px-final.jpg` at 1864 × 1272. Horizontal overflow is 0px, no watermark nodes are present, and browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 123 passed; JavaScript syntax passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Live Action Labels Follow-up — Design QA
+
+## September 4 follow-up
+
+- Replaced the theoretical-state `Copy verification checklist` label with the production-facing `Copy bet plan` label.
+- Replaced each deep-link `CHECK` label with `BET` while retaining the existing external-link arrow.
+- Updated the successful copy confirmation to `Bet plan copied.`; execution-status warnings and eligibility checks remain unchanged.
+- Browser evidence: `design-audits/low-hold-live-action-labels-final.jpg` at 1864 × 1272. The rendered labels are correct, horizontal overflow is 0px, and browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 123 passed; JavaScript syntax passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Live and Hidden Opportunities — Design QA
+
+## September 4 follow-up
+
+- Replaced the All / Exact / Middles header control with Live / Hidden views and independent counts. Exact and Middles remain available in the Filters dialog.
+- Replaced `Copy bet plan` with `Hide opportunity`; hiding removes the selected row from Live and stores a stable event/market/selection snapshot in local browser storage.
+- Hidden opportunities remain available after refresh, can be inspected under Hidden, and expose `Restore opportunity`. Stored records expire 24 hours after scheduled start as a safe approximation of event completion.
+- Added a five-second `Undo` action to the hide confirmation. Undo restores the opportunity and returns the user to Live.
+- Browser verification covered hide, refresh persistence, Hidden inspection, Restore, Undo, empty Hidden state, and final cleanup back to Live 6 / Hidden 0.
+- Browser evidence: `design-audits/low-hold-live-hidden-opportunities-final.jpg` at 1864 × 1272. Horizontal overflow is 0px and browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 124 passed; JavaScript syntax passed.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Detail Action Sizing Follow-up — Design QA
+
+## September 4 follow-up
+
+- Capitalized both words in `Hide Opportunity` and `Restore Opportunity`.
+- Set the primary action and `Recalculate` to matching 184px desktop widths with 16px inline padding and no wrapping.
+- Verified Live and Hidden states both render their two actions at 184 × 38px on a single line.
+- Browser evidence: `design-audits/low-hold-equal-single-line-actions-final.jpg` at 1864 × 1272. Browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 124 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Low Hold Contained Detail Actions — Design QA
+
+## September 4 follow-up
+
+- Removed the forced 184px minimum that pushed the action stack beyond its allocated detail-header column.
+- Rebalanced the desktop detail-header grid to provide a dedicated 172px action column at full width and 168px between 1081–1280px.
+- Reduced action-button inline padding to 10px while retaining equal widths, capitalization, and single-line labels.
+- Verified both `Hide Opportunity` and `Restore Opportunity` end 18px inside the detail-card edge at 1864px, match `Recalculate` at 172 × 38px, and do not wrap or create page overflow.
+- Browser evidence: `design-audits/low-hold-contained-detail-actions-final.jpg` at 1864 × 1272. Browser developer logs are empty.
+- Focused Low Hold and adjacent-tool regression: 124 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- None.
+
+final result: passed

@@ -388,6 +388,61 @@ def _player_names(event: dict) -> dict[str, str]:
     return result
 
 
+def _normalized_team_key(value: object) -> str:
+    return "".join(
+        character
+        for character in str(value or "").casefold()
+        if character.isalnum()
+    )
+
+
+def _player_teams(event: dict, home_name: str, away_name: str) -> dict[str, str]:
+    team_aliases: dict[str, str] = {}
+    for side, canonical in (("home", home_name), ("away", away_name)):
+        team = (event.get("teams") or {}).get(side) or {}
+        names = (team.get("names") or {}) if isinstance(team, dict) else {}
+        candidates = (
+            side,
+            canonical,
+            team.get("teamID") if isinstance(team, dict) else "",
+            team.get("id") if isinstance(team, dict) else "",
+            team.get("name") if isinstance(team, dict) else "",
+            names.get("long") if isinstance(names, dict) else "",
+        )
+        for candidate in candidates:
+            key = _normalized_team_key(candidate)
+            if key:
+                team_aliases[key] = canonical
+
+    raw_players = event.get("players") or {}
+    if isinstance(raw_players, dict):
+        rows = raw_players.items()
+    elif isinstance(raw_players, (list, tuple)):
+        rows = ((None, player) for player in raw_players)
+    else:
+        rows = ()
+    result: dict[str, str] = {}
+    for fallback_id, player in rows:
+        if not isinstance(player, dict):
+            continue
+        player_id = str(
+            player.get("playerID") or player.get("id") or fallback_id or ""
+        ).strip()
+        raw_team = (
+            player.get("teamID")
+            or player.get("team_id")
+            or player.get("teamName")
+            or player.get("team_name")
+            or player.get("team")
+        )
+        if isinstance(raw_team, dict):
+            raw_team = _team_name(raw_team)
+        canonical = team_aliases.get(_normalized_team_key(raw_team), "")
+        if player_id and canonical:
+            result[player_id] = canonical
+    return result
+
+
 def _number(value: object) -> float | None:
     try:
         result = float(str(value).replace(",", "").strip())
@@ -454,6 +509,7 @@ def _outcome(
     home_name: str,
     away_name: str,
     player_names: dict[str, str],
+    player_teams: dict[str, str],
     event_link: object,
     bookmaker_link: object,
 ) -> dict | None:
@@ -504,6 +560,10 @@ def _outcome(
             snapshot.get("deeplink") or bookmaker_link or event_link or ""
         ).strip(),
     }
+    if market_key.startswith(("player_", "batter_", "pitcher_")):
+        player_team = player_teams.get(entity_id, "")
+        if player_team:
+            result["team"] = player_team
     for source, target in (
         ("betLimit", "bet_limit"),
         ("maxBet", "bet_limit"),
@@ -563,6 +623,7 @@ def normalize_sports_game_odds_ev_events(
         if not all((event_id, sport_key, commence_time, home_name, away_name)):
             continue
         players = _player_names(event)
+        player_teams = _player_teams(event, home_name, away_name)
         event_links = (event.get("links") or {}).get("bookmakers") or {}
         grouped: dict[tuple[str, str, tuple], dict[tuple, dict]] = defaultdict(dict)
 
@@ -597,6 +658,7 @@ def normalize_sports_game_odds_ev_events(
                         home_name=home_name,
                         away_name=away_name,
                         player_names=players,
+                        player_teams=player_teams,
                         event_link=event_links.get(bookmaker_key),
                         bookmaker_link=bookmaker_quote.get("deeplink"),
                     )

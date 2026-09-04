@@ -751,6 +751,29 @@ def _selection_outcome(
         "link": str(selection.get("bet_link") or ""),
         "is_alt": bool(selection.get("is_alt")),
     }
+    raw_team = ""
+    for team_key in ("team", "team_name", "teamName", "player_team", "playerTeam"):
+        team_value = selection.get(team_key)
+        if team_value is None or str(team_value).strip() == "":
+            team_value = offer.get(team_key)
+        if isinstance(team_value, dict):
+            names = team_value.get("names") or {}
+            team_value = (
+                names.get("long") if isinstance(names, dict) else None
+            ) or team_value.get("name") or team_value.get("teamID") or team_value.get(
+                "id"
+            )
+        raw_team = " ".join(str(team_value or "").split())
+        if raw_team:
+            break
+    if raw_team and market_key.startswith(("player_", "batter_", "pitcher_")):
+        team_slug = _slug(raw_team)
+        home_team = str(event.get("home_team") or "").strip()
+        away_team = str(event.get("away_team") or "").strip()
+        if team_slug == "home" or (home_team and _slug(home_team) in team_slug):
+            outcome["team"] = home_team
+        elif team_slug == "away" or (away_team and _slug(away_team) in team_slug):
+            outcome["team"] = away_team
     for identity_key in (
         "player_id",
         "athlete_id",

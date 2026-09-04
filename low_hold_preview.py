@@ -7,13 +7,22 @@ from datetime import datetime, timedelta, timezone
 from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS
 
 
-def _outcome(name: str, price: int, point=None, description: str = "") -> dict:
-    return {
+def _outcome(
+    name: str,
+    price: int,
+    point=None,
+    description: str = "",
+    team: str = "",
+) -> dict:
+    outcome = {
         "name": name,
         "price": price,
         "point": point,
         "description": description,
     }
+    if team:
+        outcome["team"] = team
+    return outcome
 
 
 def _market(key: str, outcomes: list[dict], stamp: str) -> dict:
@@ -95,9 +104,9 @@ def temporary_low_hold_events(now: datetime | None = None) -> list[dict]:
             "away_team": "Seattle Mariners",
             "home_team": "Texas Rangers",
             "bookmakers": [
-                _book("betonline", [_market("batter_hits", [_outcome("Over", 125, 0.5, "Julio Rodríguez"), _outcome("Under", -155, 0.5, "Julio Rodríguez"), _outcome("Over", -145, 1.5, "Julio Rodríguez"), _outcome("Under", -118, 1.5, "Julio Rodríguez")], stamp)], stamp),
-                _book("fanatics", [_market("batter_hits", [_outcome("Over", 120, 0.5, "Julio Rodríguez"), _outcome("Under", -150, 0.5, "Julio Rodríguez"), _outcome("Over", -140, 1.5, "Julio Rodríguez"), _outcome("Under", -115, 1.5, "Julio Rodríguez")], stamp)], stamp),
-                _book("novig", [_market("batter_hits", [_outcome("Over", 122, 0.5, "Julio Rodríguez"), _outcome("Under", -152, 0.5, "Julio Rodríguez"), _outcome("Over", -142, 1.5, "Julio Rodríguez"), _outcome("Under", -116, 1.5, "Julio Rodríguez")], stamp)], stamp),
+                _book("betonline", [_market("batter_hits", [_outcome("Over", 125, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -155, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Over", -145, 1.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -118, 1.5, "Julio Rodríguez", "Seattle Mariners")], stamp)], stamp),
+                _book("fanatics", [_market("batter_hits", [_outcome("Over", 120, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -150, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Over", -140, 1.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -115, 1.5, "Julio Rodríguez", "Seattle Mariners")], stamp)], stamp),
+                _book("novig", [_market("batter_hits", [_outcome("Over", 122, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -152, 0.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Over", -142, 1.5, "Julio Rodríguez", "Seattle Mariners"), _outcome("Under", -116, 1.5, "Julio Rodríguez", "Seattle Mariners")], stamp)], stamp),
             ],
         },
         {
@@ -108,8 +117,8 @@ def temporary_low_hold_events(now: datetime | None = None) -> list[dict]:
             "away_team": "Philadelphia Phillies",
             "home_team": "Atlanta Braves",
             "bookmakers": [
-                _book("bet365", [_market("pitcher_strikeouts", [_outcome("Over", 112, 5.5, "Zack Wheeler"), _outcome("Under", -138, 5.5, "Zack Wheeler"), _outcome("Over", -126, 6.0, "Zack Wheeler"), _outcome("Under", -108, 6.0, "Zack Wheeler")], stamp)], stamp),
-                _book("pinnacle", [_market("pitcher_strikeouts", [_outcome("Over", 108, 5.5, "Zack Wheeler"), _outcome("Under", -134, 5.5, "Zack Wheeler"), _outcome("Over", -122, 6.0, "Zack Wheeler"), _outcome("Under", -105, 6.0, "Zack Wheeler")], stamp)], stamp),
+                _book("bet365", [_market("pitcher_strikeouts", [_outcome("Over", 112, 5.5, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Under", -138, 5.5, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Over", -126, 6.0, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Under", -108, 6.0, "Zack Wheeler", "Philadelphia Phillies")], stamp)], stamp),
+                _book("pinnacle", [_market("pitcher_strikeouts", [_outcome("Over", 108, 5.5, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Under", -134, 5.5, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Over", -122, 6.0, "Zack Wheeler", "Philadelphia Phillies"), _outcome("Under", -105, 6.0, "Zack Wheeler", "Philadelphia Phillies")], stamp)], stamp),
             ],
         },
         {
