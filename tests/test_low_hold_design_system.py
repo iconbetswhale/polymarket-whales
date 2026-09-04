@@ -29,9 +29,6 @@ def test_low_hold_page_exposes_the_complete_master_detail_workflow() -> None:
         'id="lh-detail"',
         'id="lh-book-grid"',
         'id="lh-max-hold"',
-        'id="lh-min-odds"',
-        'id="lh-max-odds"',
-        'id="lh-min-distance"',
         'id="lh-learn-dialog"',
         'id="lh-save-filter"',
         'id="lh-required-book-trigger"',
@@ -143,11 +140,52 @@ def test_sport_quick_filter_uses_league_logos_and_only_distinct_sort_choices() -
     assert '[data-lh-quick-select="sport"] .lh-quick-select-menu button' in CSS
     assert '[data-lh-quick-select="sport"] .lh-quick-select-menu img' in CSS
     assert '[data-lh-quick-select="sport"] .lh-quick-select-menu button > i:first-child' in CSS
-    assert TEMPLATE.count('name="lh-dialog-sort"') == 2
+    assert 'name="lh-dialog-sort"' not in TEMPLATE
     assert "Most retained" not in TEMPLATE
     assert "Best middle payoff" not in TEMPLATE
     assert '"retained-desc"' not in SCRIPT
     assert '"middle-desc"' not in SCRIPT
+
+
+def test_low_hold_filter_popout_uses_the_streamlined_filter_contract() -> None:
+    for removed in ("Min/Max odds", "Maximum distance", ">Settings</span>", ">Sorting</span>"):
+        assert removed not in TEMPLATE
+    assert 'id="lh-max-distance"' not in TEMPLATE
+    assert 'params.set("max_distance"' not in SCRIPT
+    assert 'id="lh-min-distance"' not in TEMPLATE
+    assert 'params.set("min_distance"' not in SCRIPT
+    assert "#lh-market-choices strong { font-size: 13px; }" in CSS
+    assert "#lh-market-choices small" not in TEMPLATE
+    assert "ph ph-baseball" in TEMPLATE
+    assert "ph ph-basketball" in TEMPLATE
+    assert '.arb-book-option > span:last-child { font-size: 12px; }' in CSS
+    assert '[data-lh-filter-panel="warnings"] h3 { font-size: 16px; }' in CSS
+
+
+def test_low_hold_filter_titles_and_hold_panel_typography_are_consistent() -> None:
+    for title in ("Low Hold Filters", "Saved Filters", "Hold &amp; Bet Size", "Bet Warnings"):
+        assert title in TEMPLATE
+    for old_title in ("Low Hold filters", "Saved filters", "Hold &amp; bet size", "Bet warnings"):
+        assert old_title not in TEMPLATE
+    assert '[data-lh-filter-panel="hold"] h3 { font-size: 16px; }' in CSS
+    assert '.arb-filter-nav button > span { font-size: 13px; }' in CSS
+    assert '[data-lh-filter-panel="sportsbooks"] h3 { font-size: 16px; }' in CSS
+    assert "Choose from every independently executable OddsEngine sportsbook" not in TEMPLATE
+    assert '[data-lh-filter-panel="hold"] > p { font-size: 12px; }' in CSS
+    assert '.lh-stake-mode-grid strong { font-size: 14px; }' in CSS
+    assert '.lh-stake-mode-grid small { font-size: 12px; }' in CSS
+    assert '.arb-field-grid > label { font-size: 12px; }' in CSS
+    assert 'id="lh-include-exact"' not in TEMPLATE
+    assert 'id="lh-include-middles"' not in TEMPLATE
+    assert "includeExact" not in SCRIPT
+    assert "includeMiddles" not in SCRIPT
+    assert 'params.set("include_exact"' not in SCRIPT
+    assert 'params.set("include_middles"' not in SCRIPT
+    assert '.arb-formula-card strong { font-size: 12px; }' in CSS
+    assert '.arb-formula-card p { font-size: 11px; }' in CSS
+    assert 'overflow: hidden;' in CSS
+    assert 'outline: 0;' in CSS
+    assert 'box-shadow: inset 0 0 0 1px #b889ff;' in CSS
 
 
 def test_low_hold_uses_bet_language_and_positive_hold_guardrails() -> None:
@@ -190,7 +228,7 @@ def test_low_hold_detail_typography_and_expansion_state_follow_the_requested_con
 
 def test_locked_first_leg_is_the_recommended_sizing_workflow() -> None:
     assert '<option value="first-leg">Baseline Amount</option>' in TEMPLATE
-    assert '<strong>Lock baseline</strong>' in TEMPLATE
+    assert '<strong>Lock Baseline</strong>' in TEMPLATE
     assert "Recommended · calculate the exact hedge" in TEMPLATE
     assert 'stakeMode: "first-leg"' in SCRIPT
     assert "stake: 100" in SCRIPT

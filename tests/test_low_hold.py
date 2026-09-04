@@ -202,6 +202,25 @@ def test_true_total_middle_models_both_legs_winning() -> None:
     assert row["middleProfit"] > 190
 
 
+def test_middle_requires_at_least_a_half_point_line_gap() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", -105, point=39.5), _outcome("Under", -115, point=39.5)], market="alternate_totals"),
+        _book("fanduel", [_outcome("Over", -115, point=39.5), _outcome("Under", -105, point=39.5)], market="alternate_totals"),
+    )
+
+    board = build_low_hold_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        include_exact=False,
+        include_middles=True,
+        total_stake=200,
+        now=NOW,
+    )
+
+    assert board["data"] == []
+
+
 def test_negative_middle_hold_is_routed_off_the_low_hold_board() -> None:
     event = _event(
         _book("draftkings", [_outcome("Over", 104, point=39.5), _outcome("Under", -120, point=39.5)], market="alternate_totals"),

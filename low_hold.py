@@ -452,7 +452,6 @@ def build_low_hold_board(
     require_distinct_books: bool = True,
     include_exact: bool = True,
     include_middles: bool = True,
-    min_middle_distance: float = 0.5,
     stake_mode: str = "total",
     locked_outcome_index: int = 0,
     required_book: str = "",
@@ -666,7 +665,7 @@ def build_low_hold_board(
                 for low_point, over_quotes in directions["over"].items():
                     for high_point, under_quotes in directions["under"].items():
                         distance = high_point - low_point
-                        if distance + 1e-9 < min_middle_distance:
+                        if distance + 1e-9 < 0.5:
                             continue
                         market_count += 1
                         assignment = _pair_assignment(

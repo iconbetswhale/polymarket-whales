@@ -26,14 +26,7 @@
     stakeMode: "first-leg",
     lockedLegIndex: 0,
     maxHold: 5,
-    minOdds: -5000,
-    maxOdds: 5000,
-    maxAge: 90,
-    commissionBps: 0,
-    minDistance: 0.5,
     distinctBooks: true,
-    includeExact: true,
-    includeMiddles: true,
     lineWarning: true,
     books: eligibleBooks.filter((book) => book.defaultExecution).map((book) => book.key),
     markets: defaultMarkets,
@@ -70,14 +63,7 @@
     stakeMode: ["first-leg", "total"].includes(stored.stakeMode) ? stored.stakeMode : defaults.stakeMode,
     lockedLegIndex: numberBetween(stored.lockedLegIndex, 0, 12, defaults.lockedLegIndex),
     maxHold: numberBetween(stored.maxHold, 0, 25, defaults.maxHold),
-    minOdds: numberBetween(stored.minOdds, -5000, 5000, defaults.minOdds),
-    maxOdds: numberBetween(stored.maxOdds, -5000, 5000, defaults.maxOdds),
-    maxAge: numberBetween(stored.maxAge, 15, 1800, defaults.maxAge),
-    commissionBps: numberBetween(stored.commissionBps, 0, 2500, defaults.commissionBps),
-    minDistance: numberBetween(stored.minDistance, 0.5, 20, defaults.minDistance),
     distinctBooks: stored.distinctBooks === undefined ? defaults.distinctBooks : Boolean(stored.distinctBooks),
-    includeExact: stored.includeExact === undefined ? defaults.includeExact : Boolean(stored.includeExact),
-    includeMiddles: stored.includeMiddles === undefined ? defaults.includeMiddles : Boolean(stored.includeMiddles),
     lineWarning: stored.lineWarning === undefined ? defaults.lineWarning : Boolean(stored.lineWarning),
     selectedBooks: new Set(initialBookKeys),
     selectedMarkets: new Set(Array.isArray(stored.markets) && stored.markets.length ? stored.markets : defaults.markets),
@@ -117,14 +103,7 @@
     bookGrid: document.getElementById("lh-book-grid"),
     bookSearch: document.getElementById("lh-book-search"),
     maxHold: document.getElementById("lh-max-hold"),
-    minOdds: document.getElementById("lh-min-odds"),
-    maxOdds: document.getElementById("lh-max-odds"),
-    minDistance: document.getElementById("lh-min-distance"),
-    maxAge: document.getElementById("lh-max-age"),
-    commission: document.getElementById("lh-commission"),
     distinct: document.getElementById("lh-distinct-books"),
-    includeExact: document.getElementById("lh-include-exact"),
-    includeMiddles: document.getElementById("lh-include-middles"),
     lineWarning: document.getElementById("lh-line-warning"),
     resultCopy: document.getElementById("lh-result-copy"),
     mobileScrim: document.getElementById("lh-mobile-scrim"),
@@ -345,14 +324,7 @@
       stakeMode: state.stakeMode,
       lockedLegIndex: state.lockedLegIndex,
       maxHold: state.maxHold,
-      minOdds: state.minOdds,
-      maxOdds: state.maxOdds,
-      maxAge: state.maxAge,
-      commissionBps: state.commissionBps,
-      minDistance: state.minDistance,
       distinctBooks: state.distinctBooks,
-      includeExact: state.includeExact,
-      includeMiddles: state.includeMiddles,
       lineWarning: state.lineWarning,
       books: [...state.selectedBooks],
       markets: [...state.selectedMarkets],
@@ -746,14 +718,7 @@
     params.set("stake_mode", state.stakeMode);
     params.set("locked_leg", String(state.lockedLegIndex));
     params.set("max_hold", String(state.maxHold));
-    params.set("min_odds", String(state.minOdds));
-    params.set("max_odds", String(state.maxOdds));
-    params.set("min_distance", String(state.minDistance));
-    params.set("max_quote_age", String(state.maxAge));
-    params.set("commission_bps", String(state.commissionBps));
     params.set("distinct_books", state.distinctBooks ? "1" : "0");
-    params.set("include_exact", state.includeExact ? "1" : "0");
-    params.set("include_middles", state.includeMiddles ? "1" : "0");
     params.set("books", [...state.selectedBooks].join(","));
     if (state.requiredBook) params.set("required_book", state.requiredBook);
     params.set("markets", [...state.selectedMarkets].join(","));
@@ -867,17 +832,9 @@
     elements.dialogStake.value = state.stake;
     syncStakeModeUI();
     elements.maxHold.value = state.maxHold;
-    elements.minOdds.value = state.minOdds;
-    elements.maxOdds.value = state.maxOdds;
-    elements.minDistance.value = state.minDistance;
-    elements.maxAge.value = state.maxAge;
-    elements.commission.value = state.commissionBps;
     elements.distinct.checked = state.distinctBooks;
-    elements.includeExact.checked = state.includeExact;
-    elements.includeMiddles.checked = state.includeMiddles;
     elements.lineWarning.checked = state.lineWarning;
     document.querySelectorAll("#lh-market-choices input").forEach((input) => { input.checked = state.selectedMarkets.has(input.value); });
-    document.querySelectorAll('input[name="lh-dialog-sort"]').forEach((input) => { input.checked = input.value === state.sort; });
     renderBookGrid(elements.bookSearch.value);
     renderSavedFilters();
   }
@@ -886,13 +843,10 @@
     let count = 0;
     if (state.selectedBooks.size !== defaults.books.length) count += 1;
     if (state.maxHold !== defaults.maxHold) count += 1;
-    if (state.minOdds !== defaults.minOdds || state.maxOdds !== defaults.maxOdds) count += 1;
     if (state.stake !== defaults.stake) count += 1;
     if (state.stakeMode !== defaults.stakeMode || state.lockedLegIndex !== defaults.lockedLegIndex) count += 1;
     if (state.selectedMarkets.size !== defaults.markets.length) count += 1;
-    if (state.minDistance !== defaults.minDistance) count += 1;
-    if (state.maxAge !== defaults.maxAge || state.commissionBps !== defaults.commissionBps) count += 1;
-    if (!state.distinctBooks || !state.includeExact || !state.includeMiddles) count += 1;
+    if (!state.distinctBooks) count += 1;
     return count;
   }
 
@@ -910,24 +864,15 @@
     state.stakeMode = document.querySelector('input[name="lh-stake-mode"]:checked')?.value || defaults.stakeMode;
     state.stake = numberBetween(elements.dialogStake.value, 1, 10_000_000, defaults.stake);
     state.maxHold = numberBetween(elements.maxHold.value, 0, 25, defaults.maxHold);
-    state.minOdds = numberBetween(elements.minOdds.value, -5000, 5000, defaults.minOdds);
-    state.maxOdds = numberBetween(elements.maxOdds.value, -5000, 5000, defaults.maxOdds);
-    state.minDistance = numberBetween(elements.minDistance.value, 0.5, 20, defaults.minDistance);
-    state.maxAge = numberBetween(elements.maxAge.value, 15, 1800, defaults.maxAge);
-    state.commissionBps = numberBetween(elements.commission.value, 0, 2500, defaults.commissionBps);
     state.distinctBooks = elements.distinct.checked;
-    state.includeExact = elements.includeExact.checked;
-    state.includeMiddles = elements.includeMiddles.checked;
     state.lineWarning = elements.lineWarning.checked;
     state.selectedMarkets = new Set([...document.querySelectorAll("#lh-market-choices input:checked")].map((input) => input.value));
-    state.sort = document.querySelector('input[name="lh-dialog-sort"]:checked')?.value || defaults.sort;
     if (!state.selectedBooks.size) { notify("Select at least one sportsbook or exchange.", "error"); return; }
     if (state.requiredBook && !state.selectedBooks.has(state.requiredBook)) {
       state.requiredBook = "";
       notify("Required book reset to Any selected book because it is no longer selected.");
     }
     if (!state.selectedMarkets.size) { notify("Select at least one market.", "error"); return; }
-    if (!state.includeExact && !state.includeMiddles) { notify("Select exact lines, middles, or both.", "error"); return; }
     elements.stake.value = state.stake;
     syncStakeModeUI();
     elements.sort.value = state.sort;
@@ -942,14 +887,7 @@
     state.stakeMode = defaults.stakeMode;
     state.lockedLegIndex = defaults.lockedLegIndex;
     state.maxHold = defaults.maxHold;
-    state.minOdds = defaults.minOdds;
-    state.maxOdds = defaults.maxOdds;
-    state.minDistance = defaults.minDistance;
-    state.maxAge = defaults.maxAge;
-    state.commissionBps = defaults.commissionBps;
     state.distinctBooks = defaults.distinctBooks;
-    state.includeExact = defaults.includeExact;
-    state.includeMiddles = defaults.includeMiddles;
     state.lineWarning = defaults.lineWarning;
     state.selectedBooks = new Set(defaults.books);
     state.selectedMarkets = new Set(defaults.markets);
@@ -979,14 +917,7 @@
     state.stakeMode = ["first-leg", "total"].includes(filter.stakeMode) ? filter.stakeMode : defaults.stakeMode;
     state.lockedLegIndex = numberBetween(filter.lockedLegIndex, 0, 12, defaults.lockedLegIndex);
     state.maxHold = numberBetween(filter.maxHold, 0, 25, defaults.maxHold);
-    state.minOdds = numberBetween(filter.minOdds, -5000, 5000, defaults.minOdds);
-    state.maxOdds = numberBetween(filter.maxOdds, -5000, 5000, defaults.maxOdds);
-    state.minDistance = numberBetween(filter.minDistance, 0.5, 20, defaults.minDistance);
-    state.maxAge = numberBetween(filter.maxAge, 15, 1800, defaults.maxAge);
-    state.commissionBps = numberBetween(filter.commissionBps, 0, 2500, defaults.commissionBps);
     state.distinctBooks = Boolean(filter.distinctBooks);
-    state.includeExact = filter.includeExact !== false;
-    state.includeMiddles = filter.includeMiddles !== false;
     state.lineWarning = filter.lineWarning !== false;
     state.selectedBooks = new Set((filter.books || []).filter((key) => eligibleBooks.some((book) => book.key === key)));
     state.selectedMarkets = new Set(filter.markets || defaults.markets);

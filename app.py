@@ -4339,7 +4339,6 @@ def create_app(start_background: bool = True) -> Flask:
         max_quote_age = int(low_hold_number("max_quote_age", 90, 15, 1800))
         max_quote_skew = int(low_hold_number("max_quote_skew", 3, 0, 60))
         commission_bps = low_hold_number("commission_bps", 0.0, 0.0, 2500.0)
-        min_distance = low_hold_number("min_distance", 0.5, 0.5, 20.0)
         require_distinct_books = low_hold_bool("distinct_books", True)
         include_exact = low_hold_bool("include_exact", True)
         include_middles = low_hold_bool("include_middles", True)
@@ -4386,7 +4385,6 @@ def create_app(start_background: bool = True) -> Flask:
             "require_distinct_books": require_distinct_books,
             "include_exact": include_exact,
             "include_middles": include_middles,
-            "min_middle_distance": min_distance,
             "stake_mode": stake_mode,
             "locked_outcome_index": locked_outcome_index,
         }
