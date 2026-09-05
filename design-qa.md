@@ -68,6 +68,116 @@ The result preserves IconLabs typography, navy surfaces, purple selection, exist
 
 final result: passed
 
+# Middles Available Odds and Payout Markers — Design QA
+
+## September 4 follow-up
+
+- Reformatted Available Odds to match the live Middles section: two equal desktop columns, compact group headers, dense quote rows, right-aligned prices, book age metadata, and aligned external-link icons. The neutral page background remains intentional per the user's standing direction to remove purple surfaces.
+- Capitalized the Equalized Stakes, Payout Scenarios, and Available Odds section names.
+- Refined the payout range into five labeled positions: lowest endpoint, first bet boundary, centered middle value, second bet boundary, and highest endpoint. Small endpoint points and dotted-boundary points align directly beneath their values.
+- Added 10 clearly labeled local Demo opportunities and richer quote fixtures strictly in the ignored QA server; production data behavior is unchanged.
+- Compared Available Odds against the supplied live Middles screenshot and the payout graphic against the selected Option 1 source plus the user's explicit marker brief. Typography, spacing/layout, colors/tokens, icon fidelity, and copy/content passed desktop review.
+- Browser verification covered selecting another opportunity, Track Pair toggle, Copy Plan confirmation, desktop at 1864 x 1272, and mobile at 760 x 900. Available Odds stacks to one column on mobile with no page, detail-card, or payout-scale overflow; browser developer logs are empty.
+- Evidence: `tmp/middles-final-markers-odds-full.png`, `tmp/middles-final-payout-comparison.png`, `tmp/middles-final-available-odds-comparison.png`, and `tmp/middles-available-odds-mobile.png`.
+- Focused Middles regression: 21 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
+
+## Follow-up polish
+
+- Increased endpoint visibility with small white record markers after the first comparison pass.
+- Scoped the Available Odds row grid to four columns on mobile so external-link icons remain aligned instead of wrapping below each quote.
+
+final result: passed
+
+---
+
+# Middles Payout Range Map (Option 1) — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\.codex\generated_images\01a05861-fbe3-7f62-b930-fb58012212f2\exec-6538b7ae-1dff-4c4b-b959-3a80b31e4f98.png` at 1920 × 810 px.
+- Browser-rendered full view: `tmp/middles-range-option1-full.png` at a 1796 × 1186 CSS viewport, DPR 1.
+- Focused implementation: `tmp/middles-range-option1-section.png` at 1020 × 386 px; measured section size was 1019.05 × 384.66 CSS px.
+- Combined side-by-side comparison: `tmp/middles-range-option1-comparison.png` at 2064 × 476 px. Source and implementation were proportionally normalized into matching 1020 × 430 px slots on the same neutral canvas.
+- Mobile evidence: `tmp/middles-range-option1-mobile.png` at a 760 × 900 CSS viewport, DPR 1.
+- State: Seattle Mariners vs Boston Red Sox, Over 11.5 / Under 12.5, $1,000 total stake, 12 middle, −$73.82 outside result, +$852.40 middle result, and 5.08% market-implied middle probability.
+
+## Findings and comparison history
+
+- [P2] The first implementation capture used a neutral top rule for the full result track and rendered the summary-band worst case in red. The source uses semantic red outer rules, a green middle rule, and amber for the summary-band worst case. The CSS was updated to color each range segment independently and to override the global negative utility only inside this summary.
+- Post-fix comparison: `tmp/middles-range-option1-comparison.png` confirms the red/green range rules, amber summary value, centered thresholds, and balanced three-zone proportions. No actionable P0, P1, or P2 findings remain.
+- The implementation intentionally omits the source's decorative arrowheads and uses the existing Phosphor record icon for threshold markers, preserving the data meaning without adding custom CSS/SVG artwork. This is an acceptable in-product adaptation.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. The existing IconLabs type stack retains the source hierarchy with uppercase zone labels, tabular monetary values, compact ticks, and the largest emphasis on the middle profit.
+- Spacing and layout rhythm: passed. The 3:4:3 zone proportions, summary band, threshold alignment, centered result label, and contained surface match the source intent while fitting the existing detail column. The mobile range remains contained within its 665px client width.
+- Colors and visual tokens: passed. Neutral workspace/card surfaces are preserved; amber denotes break-even risk, red denotes outside losses, and green denotes the both-bets-win range. No purple section background or gradient was introduced.
+- Image quality and asset fidelity: passed. The visual target contains no raster illustration or product imagery. The range map is a data-native UI visualization, and threshold markers use the project's existing Phosphor icon set rather than custom SVG/CSS artwork.
+- Copy and content: passed. Below/above thresholds, winning legs, both-bets-win state, profit/loss amounts, middle width, probability, and final-total label match the source concept and selected opportunity data.
+
+## Interaction and automated verification
+
+- Track Pair toggled to Tracked and back; Copy Plan produced `Execution plan copied`.
+- Desktop and 760px responsive states were inspected in the in-app browser. At 760px, document width was 745px within the 760px viewport; the detail panel and range map had no horizontal overflow.
+- Browser developer logs: none.
+- Focused Middles regression suite: 21 passed. JavaScript syntax and `git diff --check`: passed; line-ending notices only.
+
+## Implementation checklist
+
+- Render dynamic outside, threshold, midpoint, and middle-window values from the selected opportunity.
+- Keep the range map accessible with a concise `role="img"` summary.
+- Preserve existing payout metrics, actions, and every neighboring Middles section.
+- Keep the change local until explicit deployment approval.
+
+## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Payout Curve — Design QA
+
+## Evidence and normalization
+
+- Source visual truth: `C:\Users\sport\.codex\generated_images\01a05861-fbe3-7f62-b930-fb58012212f2\exec-060958fc-a44c-4719-8004-916a8ed7bff9.png` at 1800 × 900 px.
+- Browser-rendered full view: `tmp/middles-payoff-option2-full.png` at a 1796 × 1186 CSS viewport, DPR 1.
+- Focused implementation: `tmp/middles-payoff-option2-section.png` at 1020 × 423 px; measured section size was 1019.05 × 422.28 CSS px.
+- Combined comparison: `tmp/middles-payoff-option2-comparison.png` at 2052 × 540 px. Both halves were normalized to 1020 × 510 px; the source was resized proportionally and the denser in-product implementation was padded on the existing slate surface.
+- Mobile evidence: `tmp/middles-payoff-option2-mobile.png` at a 760 × 900 CSS viewport, DPR 1.
+- State: Seattle Mariners vs Boston Red Sox, Over 11.5 / Under 12.5, $1,000 total stake, 12 middle, −$73.82 outside result, +$852.40 middle result, and 5.08% market-implied middle probability.
+
+## Findings and comparison history
+
+- Initial focused comparison found no actionable P0, P1, or P2 mismatch. The implementation preserves the source's stepped payoff shape, equal red outside losses, elevated green middle plateau, threshold labels, zero-profit guide, three summary metrics, and outcome-region labels.
+- The implementation is intentionally denser than the isolated source mockup so it fits the existing Middles detail column without changing neighboring sections. This is an acceptable product-context adaptation rather than fidelity drift.
+- No visual fix loop was required after the comparison. No P3 follow-up remains.
+
+## Required fidelity surfaces
+
+- Fonts and typography: passed. The section inherits the existing IconLabs DM Sans stack and preserves the source hierarchy through uppercase axis labels, tabular currency values, compact threshold labels, and stronger middle-profit emphasis.
+- Spacing and layout rhythm: passed. The summary band, plot, axis, ticks, and outcome regions align to the existing detail-panel width. Desktop content has no clipping; the chart contracts cleanly at 760px without document overflow.
+- Colors and visual tokens: passed. The chart uses the existing neutral slate/navy surfaces, green profit token, red loss token, amber break-even treatment, muted blue-gray labels, and subtle dividers. No purple background was introduced.
+- Image quality and asset fidelity: passed. The source contains no raster illustration or non-standard icon asset. The payoff curve is a data-native interface visualization, remains sharp at every viewport, and does not substitute placeholder imagery.
+- Copy and content: passed. Middle window, worst case, market-implied probability, thresholds, both-bets-win state, profit/loss amounts, and final-total label match the selected design and live Middles data model.
+
+## Interaction and automated verification
+
+- Track Pair toggled to Tracked and back; Copy Plan produced the existing `Execution plan copied` confirmation.
+- Desktop and 760px responsive states were inspected in the in-app browser. At 760px, document scroll width equaled client width and the detail panel had no horizontal overflow.
+- Browser console errors: none.
+- Focused design-system test: 10 passed. JavaScript syntax and `git diff --check`: passed; line-ending notices only.
+
+## Implementation checklist
+
+- Render dynamic low, midpoint, high, and outside tick values from each selected middle.
+- Keep the chart accessible through a concise `role="img"` summary.
+- Preserve the existing payout summary metrics and neighboring detail sections.
+- Keep all work local until explicit deployment approval.
+
+final result: passed
+
 ---
 
 # Fantasy Optimizer Market-Quality and Execution — Design QA
@@ -1782,6 +1892,105 @@ final result: passed
 - Focused Low Hold and adjacent-tool regression: 124 passed; JavaScript syntax and `git diff --check` passed with line-ending notices only.
 
 ## Follow-up polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Sizing Control and Payout Type Scale — Design QA
+
+## September 4 follow-up
+
+- Source visual truth: `tmp/low-hold-stake-reference.png` for the sizing control, plus the prior selected payout implementation in `tmp/middles-final-markers-odds-full.png` and the user's explicit +2px typography / added point-buffer specification.
+- Rendered implementation: `tmp/middles-stake-font-final.png` at a 1864 x 1272 CSS viewport and DPR 1; mobile evidence: `tmp/middles-stake-font-mobile-payout.png` at 760 x 900 and DPR 1. All evidence was compared at native density without resampling.
+- Full-view evidence confirms the expanded 172px sizing control remains aligned with the search and four action controls, the payout section retains its hierarchy, and the two-column Available Odds region remains intact.
+- Focused sizing comparison: `tmp/middles-stake-control-comparison.png`. The Middles control matches Low Hold at 172 x 44px, 17px/19px grid rows, 3px 10px padding, 7px radius, border/background tokens, caret placement, and 17px amount type. The label differs only by the selected mode's intended copy (`Total Bet` versus `Baseline Amount`).
+- Focused payout comparison: `tmp/middles-payout-font-comparison.png`. Summary labels/values/meta are 12px/17px/12px; scenario headings and support copy are 13px/12px; boundary values are 14px; middle and endpoint values are 13px/12px. The boundary value-to-marker gap is 4px.
+- Fonts and typography: passed. DM Sans, data numerals, semantic weights, uppercase treatment, wrapping, and hierarchy remain faithful while applying the requested increases.
+- Spacing and layout rhythm: passed. Desktop document width is 1864px at an 1864px viewport; mobile document width is 745px at 760px. The 665px payout map fits its mobile detail viewport without internal overflow.
+- Colors and visual tokens: passed. Existing neutral IconLabs surfaces and positive/negative semantic colors are unchanged.
+- Image quality and asset fidelity: passed. Existing sportsbook logos and Phosphor icons remain source assets; no placeholder, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. The selector exposes `Total Bet` and `Baseline Amount`; Baseline Amount updates the input label and performs first-leg locked sizing rather than acting as decorative UI.
+- Primary interactions tested: switched Total Bet to Baseline Amount and back, verified the input accessibility label, verified recalculated stakes and total, selected a mobile opportunity, and confirmed 10 Demo opportunities remain visible. Browser developer logs are empty.
+- Comparison history: the first rendered pass produced a 0px boundary value-to-marker gap after the +2px type increase. Increasing the scale bottom margin from 9px to 13px produced the requested 4px buffer in the post-fix desktop and mobile captures.
+- Automated verification: 24 focused Middles tests passed; JavaScript and Python syntax passed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Low Hold Feed Controls and Matchup Identity — Design QA
+
+## September 4 follow-up
+
+- Source visual truth: `tmp/low-hold-feed-reference.png`, captured from the local Low Hold tool at a 1864 x 1272 CSS viewport and DPR 1.
+- Rendered implementation: `tmp/middles-low-hold-feed-match-final-verified.png`, captured from the local Middles tool at the same 1864 x 1272 CSS viewport and DPR 1. Mobile evidence is `tmp/middles-low-hold-feed-match-mobile-final.png` at 760 x 1100 and DPR 1. Source and implementation captures use native density without resampling.
+- State note: Low Hold had no live rows while the Middles QA fixture contained 10 clearly labeled Demo rows. The dynamic opportunity state intentionally differs; control geometry, KPI treatment, surfaces, and interaction states were compared at the same viewport and theme.
+- Full-view comparison evidence: `tmp/low-hold-vs-middles-controls-final-verified.png`. The right-side workspace width, three-column feed-control grid, 40px control height, 7px radii, panel borders, Books Compared KPI, and surrounding vertical rhythm match the Low Hold reference.
+- Focused comparison evidence: `tmp/low-hold-vs-middles-controls-focused-final-verified.png`. Required sportsbook, sport, and sort triggers share Low Hold's 1.3fr/.8fr/1fr tracks, left visual / label / right caret structure, 9px inline padding, 8px trigger gap, DM Sans 13px/600 type, and logo-aware menus. `Lowest break-even` intentionally truncates because its label is longer than Low Hold's `Lowest hold` within the same track.
+- Fonts and typography: passed. The shared page rule initially overrode the new triggers to 14px/400; the final specificity fix restores Low Hold's 13px/600 control type. Detail facts remain 12px/700, and the 130px Middle Window track keeps the label on one line without touching Worst Case.
+- Spacing and layout rhythm: passed. Desktop and 1280px tablet checks reported zero document overflow. At 760px the mandatory sportsbook spans the full 691px first row and sport/sort split into two 341.5px tracks, matching Low Hold's responsive structure.
+- Colors and visual tokens: passed. The selectors reuse the same neutral IconLabs surfaces, border tokens, purple focus/selected states, and muted icon/text hierarchy as Low Hold.
+- Image quality and asset fidelity: passed. Existing league assets render at 28 x 28 in all 10 queue rows; existing MLB team assets render in the selected matchup with their Low Hold circular frame treatment. No placeholder art, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. Scan Status is replaced by Books Compared, all user-facing bet-sizing uses Bet rather than Stake, and the full filter dialog retains Markets. The sportsbook brand named Stake remains unchanged in the venue catalog.
+- Primary interactions tested: opened the required-sportsbook menu, selected Fliff, verified the request recalculated 10 valid rows with Fliff required, reset to Any selected book, toggled MLB and All sports, switched Widest window and Lowest break-even, and verified Arrow-key menu support in code. Browser developer logs are empty.
+- Automated verification: 67 focused Middles and Low Hold tests passed; Middles JavaScript syntax and `git diff --check` passed (line-ending notices only).
+
+## Comparison history
+
+- First desktop pass: P2 — forcing Middle Window onto one line caused it to collide with Worst Case. Fix: widened the facts column to 370px and assigned a 120px minimum first track. Post-fix measurements show non-overlapping tracks at 781–911px, 923–1031px, and 1043–1151px.
+- First focused control pass: P2 — a legacy Middles rule moved the leading selector icons to the right, and a shared button rule changed trigger type to 14px/400. Fix: reset nested icon positioning and apply the Low Hold trigger/menu typography at page-level specificity. The final focused comparison shows the same left icons, right carets, and 13px/600 type as the source.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Matchup Type, Bet Deep Links, and Best-Price Odds — Design QA
+
+## September 4 deployment candidate
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-01 102703.png`, the user-provided expanded Middles reference, 1796 x 1186 pixels. Low Hold's current rendered component styles in `static/arbitrage.css` and `static/low-hold.css` supplied the exact 18px matchup and 29px deep-link button measurements.
+- Rendered implementation: `tmp/middles-best-price-bet-link-final.jpg`, captured from `http://127.0.0.1:5015/middles?qa=best-price-bet-link-final-1764` at the in-app browser's fixed 1920 x 1080 CSS viewport, DPR 1, producing a 1920 x 1080 image. No density resampling was used.
+- State: dark desktop Middles workspace with 10 labeled Demo opportunities, the first opportunity expanded, team logos visible, two actionable Bet links visible, and Available Odds populated on both sides. Dynamic teams, prices, and the surrounding sidebar differ from the earlier source capture; judgment is limited to the expanded-detail typography, action treatment, odds ordering, and unchanged IconLabs layout tokens.
+- Full-view comparison evidence: the source and implementation were opened together in one comparison input. The implementation preserves the source's compact master-detail proportions, section order, dark neutral surfaces, green action treatment, and readable matchup hierarchy while incorporating the already-approved Low Hold-aligned shell and payout graphic.
+- Focused comparison evidence: the expanded-detail header and Equalized Bets rows occupy the upper half of both native-resolution images and remain readable without a separate crop. Browser-computed evidence confirms the team-name spans now render at 18px (matching the heading), the `vs` label at 13px, and each Bet deep link at 14px in a 29px-high bordered control.
+- Fonts and typography: passed. The regression was a generic `.mid-detail-header span` rule forcing team-name spans to 10px. The final selector restores inherited 18px heading type and preserves the 13px secondary `vs` treatment. Feed matchup type remains the established 15px value.
+- Spacing and layout rhythm: passed. Restoring the heading type did not change header grid tracks or cause overflow; browser measurements report zero document and detail-panel horizontal overflow. The Bet control matches Low Hold's 54px minimum width, 29px height, 6px radius, and 4px icon gap.
+- Colors and visual tokens: passed. Bet links use the existing semantic green border/text and Low Hold's translucent green hover fill. Disabled links remain muted against the neutral panel.
+- Image quality and asset fidelity: passed. Existing MLB and sportsbook assets remain sharp and correctly contained; no placeholder art, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. `Best price first` replaces the contradictory drag instruction. Bet controls include selection-and-book accessible labels, and unavailable links expose `aria-disabled="true"`.
+- Behavior and accessibility: passed. Available Odds uses the same effective-decimal-odds comparator as Low Hold, keeps the selected book first only when prices tie, and removes drag ordering that could contradict best-price sorting. The tested Bet control is a real anchor with `target="_blank"`, `rel="noopener noreferrer"`, and an exact deep-link destination.
+- Primary interactions tested: selected-detail rendering, best-price order (`+305`, `+261`, `+225`, `+180`, `+170`), actionable Bet-link semantics, desktop overflow, and browser developer logs. Logs are empty.
+- Automated verification: Middles JavaScript syntax passed; 28 focused Middles tests and the full 1,155-test repository suite passed; `git diff --check` passed with line-ending notices only.
+
+## Comparison history
+
+- First implementation measurement: P1 — team-name spans rendered at 10px inside an 18px heading, making the matchup materially smaller than both the source and Low Hold. Fix: added header-scoped inheritance rules for the team wrapper and inner name spans. Post-fix evidence measures both names at 18px and the `vs` label at 13px.
+- First behavior measurement: P1 — the QA state rendered disabled Bet spans because its fixture did not provide selected-leg deep links, and Available Odds followed stored drag order. Fix: preserved production quote deep links in real anchors, added exact Low Hold hover/security behavior, supplied QA deep links, and replaced drag ordering with a deterministic best-price comparator. Post-fix evidence shows anchors with valid hrefs and descending effective prices.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
 
 - None.
 

@@ -18,7 +18,7 @@
 
     <div class="mid-toolbar il-finance-controls" aria-label="Middle controls">
       <label class="mid-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-search" type="search" placeholder="Search events, players, or books" autocomplete="off"><kbd>/</kbd></label>
-      <label class="mid-stake-control"><span>Total stake</span><span class="mid-money-input"><b>$</b><input id="mid-stake" type="text" value="1,000" inputmode="decimal" aria-label="Total stake amount"></span></label>
+      <div class="mid-stake-control"><span><select id="mid-stake-mode" aria-label="Bet sizing mode"><option value="total">Total Bet</option><option value="first-leg">Baseline Amount</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></span><span class="mid-money-input"><b>$</b><input id="mid-stake" type="text" value="1,000" inputmode="decimal" autocomplete="off" aria-label="Total Bet"></span></div>
       <button class="mid-icon-button" id="mid-scan-toggle" type="button" aria-label="Pause automatic refresh" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i></button>
       <button class="mid-icon-button mid-filter-button" id="mid-filter-open" type="button" aria-label="Open middle filters" aria-haspopup="dialog"><i class="ph ph-faders-horizontal" aria-hidden="true"></i><span id="mid-filter-count" hidden>0</span></button>
       <button class="mid-icon-button" id="mid-alerts" type="button" aria-label="Toggle opportunity alerts" aria-pressed="false"><i class="ph ph-bell" aria-hidden="true"></i></button>
@@ -30,21 +30,32 @@
     <article><span class="mid-kpi-icon"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i></span><div><span>Opportunities</span><strong id="mid-summary-count">—</strong><small>Qualified middle windows</small></div></article>
     <article><span class="mid-kpi-icon"><i class="ph ph-percent" aria-hidden="true"></i></span><div><span>Best cost</span><strong id="mid-summary-cost">—</strong><small>Lowest break-even price</small></div></article>
     <article><span class="mid-kpi-icon"><i class="ph ph-arrows-out-line-vertical" aria-hidden="true"></i></span><div><span>Widest window</span><strong id="mid-summary-width">—</strong><small>Largest executable gap</small></div></article>
-    <article class="mid-scan-status" role="status" aria-live="polite"><span class="mid-kpi-icon"><i class="ph ph-broadcast" aria-hidden="true"></i></span><div><span>Scan status</span><strong id="mid-summary-status">Loading</strong><small id="mid-summary-fresh">Waiting for board</small></div></article>
+    <article><span class="mid-kpi-icon"><i class="ph ph-buildings" aria-hidden="true"></i></span><div><span>Books compared</span><strong id="mid-summary-books">—</strong><small>Selected execution venues</small></div></article>
   </section>
 
   <div class="mid-workspace">
     <aside class="mid-detail" id="mid-detail" aria-label="Selected middle details">
-      <div class="mid-detail-empty"><span><i class="ph ph-cursor-click" aria-hidden="true"></i></span><h2>Execution plan</h2><p>Select an opportunity to see the exact stake on both sides, every payout scenario, and the best available prices.</p></div>
+      <div class="mid-detail-empty"><span><i class="ph ph-cursor-click" aria-hidden="true"></i></span><h2>Execution plan</h2><p>Select an opportunity to see the exact bet on both sides, every payout scenario, and the best available prices.</p></div>
     </aside>
 
     <section class="mid-feed-panel" aria-labelledby="mid-feed-title">
       <header class="mid-feed-heading">
         <div class="sr-only"><h2 id="mid-feed-title">Best opportunities</h2></div>
         <div class="mid-quick-filters" aria-label="Quick filters">
-          <label><span class="sr-only">Sport</span><select id="mid-sport"><option value="">All sports</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-          <label><span class="sr-only">Market</span><select id="mid-market"><option value="">All markets</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
-          <label><span class="sr-only">Sort</span><select id="mid-sort"><option value="cost-asc">Lowest break-even</option><option value="width-desc">Widest window</option><option value="profit-desc">Highest middle profit</option><option value="time-asc">Start time</option></select><i class="ph ph-caret-down" aria-hidden="true"></i></label>
+          <div class="mid-quick-select" data-mid-quick-select="required-book">
+            <button class="mid-quick-select-trigger" id="mid-required-book-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="mid-required-book-menu"><span class="mid-quick-select-value" id="mid-required-book-value"><i class="ph ph-buildings" aria-hidden="true"></i><span>Any selected book</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="mid-quick-select-menu" id="mid-required-book-menu" role="listbox" aria-label="Required sportsbook" hidden></div>
+          </div>
+          <div class="mid-quick-select" data-mid-quick-select="sport">
+            <select id="mid-sport" hidden aria-label="Sport"><option value="">All sports</option></select>
+            <button class="mid-quick-select-trigger" id="mid-sport-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="mid-sport-menu"><span class="mid-quick-select-value" id="mid-sport-value"><i class="ph ph-trophy" aria-hidden="true"></i><span>All sports</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="mid-quick-select-menu" id="mid-sport-menu" role="listbox" aria-label="Sport" hidden></div>
+          </div>
+          <div class="mid-quick-select" data-mid-quick-select="sort">
+            <select id="mid-sort" hidden aria-label="Sort opportunities"><option value="cost-asc">Lowest break-even</option><option value="width-desc">Widest window</option><option value="profit-desc">Highest middle profit</option><option value="time-asc">Starting soon</option></select>
+            <button class="mid-quick-select-trigger" id="mid-sort-trigger" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="mid-sort-menu"><span class="mid-quick-select-value" id="mid-sort-value"><i class="ph ph-sort-ascending" aria-hidden="true"></i><span>Lowest break-even</span></span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
+            <div class="mid-quick-select-menu" id="mid-sort-menu" role="listbox" aria-label="Sort opportunities" hidden></div>
+          </div>
         </div>
       </header>
       <div class="mid-feed-status" id="mid-feed-status" role="status" aria-live="polite"><i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating middle windows…</span></div>
@@ -96,8 +107,8 @@
       <header><h2 id="mid-learn-title">How IconLabs sizes a middle</h2><button class="mid-dialog-close" id="mid-learn-close" type="button" aria-label="Close explanation"><i class="ph ph-x" aria-hidden="true"></i></button></header>
       <div class="mid-learn-content">
         <article><i class="ph ph-number-circle-one" aria-hidden="true"></i><div><strong>Find a real gap</strong><p>For totals, a lower Over is paired with a higher Under. For spreads, opposing lines must overlap. The bets must describe the same event and market.</p></div></article>
-        <article><i class="ph ph-number-circle-two" aria-hidden="true"></i><div><strong>Equalize outside payouts</strong><p>Stake is split in inverse proportion to effective decimal odds, then rounded to cents. That maximizes the smaller payout when the result lands outside the middle.</p></div></article>
-        <article><i class="ph ph-number-circle-three" aria-hidden="true"></i><div><strong>Price the lottery ticket honestly</strong><p>Cost is the worst outside loss divided by total stake. Break-even is cost divided by the difference between middle profit and worst outside profit. No unverified hit probability is assumed.</p></div></article>
+        <article><i class="ph ph-number-circle-two" aria-hidden="true"></i><div><strong>Equalize outside payouts</strong><p>The bet is split in inverse proportion to effective decimal odds, then rounded to cents. That maximizes the smaller payout when the result lands outside the middle.</p></div></article>
+        <article><i class="ph ph-number-circle-three" aria-hidden="true"></i><div><strong>Price the lottery ticket honestly</strong><p>Cost is the worst outside loss divided by total bet. Break-even is cost divided by the difference between middle profit and worst outside profit. No unverified hit probability is assumed.</p></div></article>
         <div class="mid-formula"><span>Break-even middle probability</span><strong>outside risk ÷ (middle profit + outside risk)</strong></div>
         <p class="mid-risk-note"><i class="ph ph-warning" aria-hidden="true"></i>A non-negative modeled worst case is still not executable until both prices, capacities, accounts, and settlement rules are verified. Confirm both tickets before placing either leg.</p>
       </div>

@@ -280,13 +280,28 @@ def _pair_payload(
     *,
     family_quotes: list[dict],
     total_stake: float,
+    stake_mode: str,
     commission_bps: float,
     require_distinct_books: bool,
     now: datetime,
 ) -> dict | None:
     decimals = [first["effectiveDecimalOdds"], second["effectiveDecimalOdds"]]
+    normalized_stake_mode = "first-leg" if stake_mode == "first-leg" else "total"
     try:
-        stakes = equalized_stakes(total_stake, decimals)
+        if normalized_stake_mode == "first-leg":
+            locked_stake = round(float(total_stake), 2)
+            target_payout = locked_stake * decimals[0]
+            raw_second_cents = target_payout / decimals[1] * 100.0
+            second_cents = min(
+                {max(1, math.floor(raw_second_cents)), max(1, math.ceil(raw_second_cents))},
+                key=lambda cents: (
+                    abs((cents / 100.0) * decimals[1] - target_payout),
+                    cents,
+                ),
+            )
+            stakes = [locked_stake, second_cents / 100.0]
+        else:
+            stakes = equalized_stakes(total_stake, decimals)
     except ValueError:
         return None
 
@@ -380,6 +395,15 @@ def _pair_payload(
         "sportKey": str(event.get("sport_key") or ""),
         "league": str(event.get("sport_title") or event.get("sport_key") or ""),
         "eventTitle": title,
+        "awayTeam": " ".join(away.split()),
+        "homeTeam": " ".join(home.split()),
+        "participantLogos": (
+            event.get("participantLogos")
+            or event.get("participant_logos")
+            or event.get("teamLogos")
+            or event.get("team_logos")
+            or {}
+        ),
         "commenceTime": str(event.get("commence_time") or ""),
         "marketKey": market_key,
         "marketLabel": MARKET_LABELS.get(market_key, market_key.replace("_", " ").title()),
@@ -392,6 +416,10 @@ def _pair_payload(
         "window": window,
         "middleWidth": window["width"],
         "middleOutcomeCount": window["integerOutcomeCount"],
+        "stakeMode": normalized_stake_mode,
+        "stakeInputAmount": round(float(total_stake), 2),
+        "baselineLegIndex": 0 if normalized_stake_mode == "first-leg" else None,
+        "baselineStake": round(stakes[0], 2) if normalized_stake_mode == "first-leg" else None,
         "totalStake": actual_total,
         "worstCaseProfit": round(worst_profit, 2),
         "averageOutsideProfit": round(sum(outside_profits) / 2.0, 2),
@@ -432,12 +460,14 @@ def build_middles_board(
     selected_books: Iterable[str] = SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
     allowed_markets: Iterable[str] = (),
     total_stake: float = 1_000.0,
+    stake_mode: str = "total",
     min_middle_width: float = 0.5,
     max_cost_percent: float = 12.0,
     max_quote_age_seconds: int = 90,
     max_cross_leg_skew_seconds: int = 3,
     commission_bps: float = 0.0,
     require_distinct_books: bool = True,
+    required_book: str = "",
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked board of executable two-leg middle opportunities."""
@@ -452,6 +482,7 @@ def build_middles_board(
     requested_markets = {
         str(value).strip().lower() for value in allowed_markets if str(value).strip()
     }
+    required_book_key = str(required_book or "").strip().lower()
     rejected: Counter[str] = Counter()
     best_by_window: dict[tuple, dict] = {}
     event_count = 0
@@ -569,6 +600,11 @@ def build_middles_board(
                 if require_distinct_books and first["bookKey"] == second["bookKey"]:
                     rejected["same_book"] += 1
                     continue
+                if required_book_key and required_book_key not in {
+                    first["bookKey"], second["bookKey"]
+                }:
+                    rejected["required_book_missing"] += 1
+                    continue
                 quote_skew = abs(
                     float(first["quoteAgeSeconds"])
                     - float(second["quoteAgeSeconds"])
@@ -596,6 +632,7 @@ def build_middles_board(
                     second,
                     family_quotes=quotes,
                     total_stake=total_stake,
+                    stake_mode=stake_mode,
                     commission_bps=commission_bps,
                     require_distinct_books=require_distinct_books,
                     now=now,
@@ -666,6 +703,7 @@ def build_middles_board(
             "rejected": sum(rejected.values()),
             "rejectionReasons": dict(sorted(rejected.items())),
             "selectedBookCount": len(requested_books),
+            "requiredBook": required_book_key or None,
             "calculationVersion": MIDDLES_CALCULATION_VERSION,
         },
     }

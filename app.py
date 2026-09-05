@@ -4041,6 +4041,19 @@ def create_app(start_background: bool = True) -> Flask:
                 }
             ), 400
 
+        required_book = request.args.get("required_book", "").strip().lower()
+        if required_book and required_book not in raw_books:
+            return jsonify(
+                {
+                    "error": "REQUIRED_MIDDLE_BOOK_NOT_SELECTED",
+                    "message": (
+                        "The required sportsbook must also be selected in "
+                        "the Middles filters."
+                    ),
+                    "requiredBook": required_book,
+                }
+            ), 400
+
         supported_markets = (set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)) - {"h2h"}
         supported_markets.update(
             market for markets in PLAYER_PROP_MARKETS.values() for market in markets
@@ -4071,6 +4084,14 @@ def create_app(start_background: bool = True) -> Flask:
                 {"error": "NO_MIDDLE_MARKETS", "message": "Select at least one market."}
             ), 400
 
+        stake_mode = request.args.get("stake_mode", "total").strip().lower()
+        if stake_mode not in {"first-leg", "total"}:
+            return jsonify(
+                {
+                    "error": "INVALID_MIDDLE_STAKE_MODE",
+                    "message": "Choose Total Bet or Baseline Amount for middle sizing.",
+                }
+            ), 400
         total_stake = middle_number("stake", 1_000.0, 1.0, 10_000_000.0)
         min_width = middle_number("min_width", 0.5, 0.01, 1000.0)
         max_cost = middle_number("max_cost", 12.0, 0.0, 100.0)
@@ -4129,12 +4150,14 @@ def create_app(start_background: bool = True) -> Flask:
                 selected_books=raw_books,
                 allowed_markets=requested_markets,
                 total_stake=total_stake,
+                stake_mode=stake_mode,
                 min_middle_width=min_width,
                 max_cost_percent=max_cost,
                 max_quote_age_seconds=max_quote_age,
                 max_cross_leg_skew_seconds=max_quote_skew,
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
+                required_book=required_book,
             )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)

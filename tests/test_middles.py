@@ -59,6 +59,59 @@ def test_total_middle_equalizes_outside_risk_and_prices_break_even() -> None:
     assert row["window"]["label"] == "43–47"
     assert row["middleOutcomeCount"] == 5
     assert row["calculationVersion"] == MIDDLES_CALCULATION_VERSION
+    assert row["awayTeam"] == "Away"
+    assert row["homeTeam"] == "Home"
+
+
+def test_required_sportsbook_reprices_the_middle_with_that_book() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", 150, 42.5)]),
+        _book("fanduel", [_outcome("Under", 150, 47.5)]),
+        _book("betmgm", [_outcome("Over", -110, 42.5)]),
+    )
+
+    unrestricted = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel", "betmgm"),
+        allowed_markets=("alternate_totals",),
+        max_cost_percent=100,
+        now=NOW,
+    )["data"][0]
+    required = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel", "betmgm"),
+        required_book="betmgm",
+        allowed_markets=("alternate_totals",),
+        max_cost_percent=100,
+        now=NOW,
+    )["data"][0]
+
+    assert "betmgm" not in unrestricted["booksUsed"]
+    assert "betmgm" in required["booksUsed"]
+
+
+def test_baseline_middle_locks_the_first_leg_and_sizes_the_hedge() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", -110, 42.5)]),
+        _book("fanduel", [_outcome("Under", -110, 47.5)]),
+    )
+
+    row = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        total_stake=100,
+        stake_mode="first-leg",
+        now=NOW,
+    )["data"][0]
+
+    assert row["stakeMode"] == "first-leg"
+    assert row["stakeInputAmount"] == 100
+    assert row["baselineLegIndex"] == 0
+    assert row["baselineStake"] == 100
+    assert row["legs"][0]["stake"] == 100
+    assert row["legs"][1]["stake"] == pytest.approx(100, abs=0.01)
+    assert row["totalStake"] == pytest.approx(200, abs=0.01)
 
 
 def test_spread_middle_reports_the_exact_margin_window() -> None:
@@ -237,3 +290,19 @@ def test_middles_live_api_is_paused_before_provider_request(app_client) -> None:
     assert payload["paused"] is True
     assert payload["data"] == []
     assert payload["refreshSeconds"] == 0
+
+
+def test_middles_api_rejects_an_unknown_stake_mode(app_client) -> None:
+    response = app_client.get("/api/middles?stake_mode=unknown")
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "INVALID_MIDDLE_STAKE_MODE"
+
+
+def test_middles_api_rejects_required_book_outside_selected_books(app_client) -> None:
+    response = app_client.get(
+        "/api/middles?books=draftkings,fanduel&required_book=betmgm"
+    )
+
+    assert response.status_code == 400
+    assert response.get_json()["error"] == "REQUIRED_MIDDLE_BOOK_NOT_SELECTED"
