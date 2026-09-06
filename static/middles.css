@@ -1162,6 +1162,7 @@ body[data-page="middles"] [data-mid-quick-select="sport"] .mid-quick-select-menu
 .mid-plan-head,
 .mid-plan-leg { display: grid; grid-template-columns: minmax(140px, 1.35fr) minmax(110px, 1fr) 62px 108px 92px 54px; align-items: center; gap: 10px; }
 .mid-plan-head { padding: 0 10px 5px; color: var(--mid-muted); font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.mid-plan-head span:nth-child(3),
 .mid-plan-head span:nth-child(4),
 .mid-plan-head span:nth-child(5) { text-align: center; }
 .mid-plan-grid { display: flex; flex-direction: column; gap: 7px; }
@@ -1177,10 +1178,10 @@ body[data-page="middles"] [data-mid-quick-select="sport"] .mid-quick-select-menu
 .mid-plan-book strong { font-size: 14px; }
 .mid-plan-book small { display: block; margin-top: 2px; color: var(--mid-muted); font-size: 10px; }
 .mid-plan-odds,
-.mid-plan-payout { color: var(--mid-green); text-align: center; font-size: 14px; font-variant-numeric: tabular-nums; }
-.mid-plan-odds { font-size: 15px; }
+.mid-plan-payout { color: var(--mid-green); text-align: center; font-size: 15px; font-variant-numeric: tabular-nums; }
+.mid-plan-odds { font-size: 16px; }
 .mid-plan-stake { display: flex; align-items: center; justify-content: center; min-height: 34px; margin: 0; padding: 0 9px; border: 1px solid var(--mid-line); border-radius: 6px; background: rgba(0, 0, 0, .12); }
-.mid-plan-stake strong { color: var(--mid-text); font-size: 14px; }
+.mid-plan-stake strong { color: var(--mid-text); font-size: 15px; }
 .mid-book-link { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 54px; height: 29px; margin: 0; border: 1px solid rgba(80, 217, 119, .55); border-radius: 6px; color: var(--mid-green); font-size: 14px; font-weight: 800; text-decoration: none; }
 .mid-book-link:hover { border-color: rgba(80, 217, 119, .55); background: rgba(80, 217, 119, .08); color: var(--mid-green); }
 .mid-book-link.disabled { border-color: var(--mid-line); color: var(--mid-muted); pointer-events: none; }
@@ -1508,6 +1509,14 @@ body[data-page="middles"] .mid-summary .mid-scan-status {
   gap: 7px !important;
   padding: 7px 8px;
   background: var(--mid-bg);
+}
+
+.mid-available-odds .mid-quote-row.best {
+  position: relative;
+  z-index: 1;
+  border-radius: 5px;
+  background: rgba(80, 217, 119, .07);
+  box-shadow: inset 0 0 0 1px rgba(80, 217, 119, .78), 0 0 12px rgba(80, 217, 119, .32);
 }
 
 .mid-available-odds .mid-quote-row > b { font-size: 12px; }

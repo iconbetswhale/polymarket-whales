@@ -124,6 +124,12 @@ def test_payout_scenarios_render_an_accessible_range_map() -> None:
         "overflow-x: auto",
         ".mid-available-odds .mid-quote-groups",
         "grid-template-columns: repeat(2, minmax(0, 1fr))",
+        ".mid-available-odds .mid-quote-row.best",
+        "box-shadow: inset 0 0 0 1px rgba(80, 217, 119, .78), 0 0 12px rgba(80, 217, 119, .32)",
+        ".mid-plan-head span:nth-child(3)",
+        ".mid-plan-payout { color: var(--mid-green); text-align: center; font-size: 15px",
+        ".mid-plan-odds { font-size: 16px; }",
+        ".mid-plan-stake strong { color: var(--mid-text); font-size: 15px; }",
     ):
         assert required in CSS
 

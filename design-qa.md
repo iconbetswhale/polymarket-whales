@@ -68,6 +68,41 @@ The result preserves IconLabs typography, navy surfaces, purple selection, exist
 
 final result: passed
 
+---
+
+# Middles Selected-Odds Glow and Outcome-Value Alignment — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/arb-odds-glow-reference.jpg`, captured from the live Arbitrage Odds Comparison at a 1280 x 720 CSS viewport and DPR 1, producing a 1280 x 720 image. The explicit user sizing instructions and the pre-change Middles capture `tmp/mid-odds-before.jpg` supply the outcome-row typography target.
+- Rendered implementation: `tmp/mid-odds-glow-final.jpg` and `tmp/mid-outcome-type-final.jpg`, captured from `http://127.0.0.1:5015/middles?qa=odds-glow-type-final` at the same 1280 x 720 CSS viewport and DPR 1, each producing a 1280 x 720 image. No density resampling was used. Secondary compact evidence is `tmp/mid-outcome-compact-final.jpg`, captured at a 760 x 900 CSS viewport; the in-app content capture is 745 x 882 pixels after browser gutters.
+- State: dark desktop Middles workspace with 10 labeled Demo opportunities, the first opportunity expanded, both Equalized Bets rows visible, and selected prices visible in both Available Odds groups. The Arbitrage source contains different live teams and prices; comparison is limited to the selected-price highlight treatment requested by the user.
+- Full-view comparison evidence: the normalized Arbitrage reference and the final Middles Available Odds capture were opened together in one comparison input. Both use the same green 7% fill, 78% one-pixel inset outline, 32% twelve-pixel outer glow, 5px radius, relative positioning, and foreground stacking for selected prices.
+- Focused comparison evidence: the pre-change and final Middles outcome-row captures were opened together in one comparison input. Browser-computed measurements confirm the Odds header and value share the same 590px column center within one pixel, while Bet and Payout remain centered in their existing tracks. The final Odds, Bet, and Payout values render at 16px, 15px, and 15px respectively, exactly one pixel larger than their prior 15px, 14px, and 14px sizes.
+- Fonts and typography: passed. Existing DM Sans/data-font families, weights, line heights, and tabular numerals are preserved. Only the three requested value sizes changed, and the Odds header now uses the established centered header treatment.
+- Spacing and layout rhythm: passed. No grid tracks, row heights, gaps, padding, or section dimensions changed. Browser measurements report zero horizontal overflow in both the document and expanded detail at 1280px and 760px widths.
+- Colors and visual tokens: passed. The selected Middles quote copies Arbitrage's exact semantic green fill, inset outline, and glow values against the existing neutral background.
+- Image quality and asset fidelity: passed. Existing sportsbook and team assets remain unchanged and sharp; no placeholder, generated, custom SVG, emoji, gradient, or CSS-drawn image asset was introduced.
+- Copy and content: passed. No copy changed. Odds, Bet, and Payout labels retain their existing wording and hierarchy.
+- Behavior and accessibility: passed. Best-price selection semantics and sportsbook deep links are unchanged. The highlight remains on `.best` rows and does not add an interactive affordance or obscure focus states.
+- Primary interactions tested: loaded the first opportunity, scrolled the expanded detail to Available Odds, inspected both selected-price rows, opened the first opportunity in the 760px compact layout, and checked browser developer logs. Logs are empty.
+- Automated verification: 30 focused Middles tests passed; `git diff --check` passed with line-ending notices only.
+
+## Comparison history
+
+- Initial local capture: P2 — selected Available Odds rows had only the neutral page background, so the selected sportsbook price was difficult to distinguish. Fix: copied Arbitrage's complete `.best` glow treatment into the scoped Middles Available Odds selector. Post-fix computed styles and the combined visual comparison match the source exactly.
+- Initial outcome-row measurement: P2 — Odds used a centered value under a left-aligned label, and Odds/Bet/Payout rendered at 15px/14px/14px. Fix: centered the Odds header track and increased the three requested values by one pixel. Post-fix centers align within one pixel and the compact row remains overflow-free.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
 # Middles Available Odds and Payout Markers — Design QA
 
 ## September 4 follow-up
