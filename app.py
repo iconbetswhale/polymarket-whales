@@ -183,6 +183,79 @@ def _market_display_name(market_key: str) -> str:
     )
 
 
+def _middle_market_family(value: object) -> str:
+    """Collapse main and alternate lines into the market type a user is exposed to."""
+
+    normalized = re.sub(r"[^a-z0-9]+", "_", str(value or "").strip().lower()).strip("_")
+    aliases = {
+        "total": "totals",
+        "game_total": "totals",
+        "game_totals": "totals",
+        "alt_total": "totals",
+        "alt_totals": "totals",
+        "alternate_total": "totals",
+        "alternate_totals": "totals",
+        "spread": "spreads",
+        "game_spread": "spreads",
+        "game_spreads": "spreads",
+        "alt_spread": "spreads",
+        "alt_spreads": "spreads",
+        "alternate_spread": "spreads",
+        "alternate_spreads": "spreads",
+    }
+    return aliases.get(normalized, normalized)
+
+
+def _personal_fill_tracking_snapshot(fill: dict) -> dict:
+    snapshot = fill.get("sharp_snapshot")
+    if not snapshot:
+        snapshot = fill.get("sharp_snapshot_json")
+    if isinstance(snapshot, str):
+        try:
+            snapshot = json.loads(snapshot)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            snapshot = {}
+    return snapshot if isinstance(snapshot, dict) else {}
+
+
+def _has_duplicate_middle_game_market(
+    active_fills: list[dict],
+    *,
+    event_id: str,
+    market_family: str,
+    pair_id: str,
+    leg_index: int,
+) -> bool:
+    for fill in active_fills:
+        if str(fill.get("canonical_event_id") or "").strip().lower() != event_id.lower():
+            continue
+        snapshot = _personal_fill_tracking_snapshot(fill)
+        if str(snapshot.get("tracking_source") or "").strip().lower() != "middles":
+            continue
+        fill_family = _middle_market_family(
+            snapshot.get("middle_market_family")
+            or snapshot.get("market_key")
+            or fill.get("market_title")
+        )
+        if fill_family != market_family:
+            continue
+
+        fill_pair_id = str(
+            snapshot.get("middle_pair_id") or fill.get("canonical_market_id") or ""
+        ).strip()
+        try:
+            fill_leg_index = int(snapshot.get("middle_leg_index"))
+        except (TypeError, ValueError):
+            fill_leg_index = -1
+
+        # The second leg of the pair currently being saved is part of the same
+        # middle, not a second middle opportunity.
+        if leg_index == 1 and fill_pair_id == pair_id and fill_leg_index == 0:
+            continue
+        return True
+    return False
+
+
 def live_tool_filter_catalog_payload() -> dict:
     """Complete book, sport, and market catalog shared by every live tool."""
 
@@ -6044,15 +6117,22 @@ def create_app(start_background: bool = True) -> Flask:
         return jsonify({"data": public_fill, "source": "manual_entry"}), 201
 
     @app.post("/api/arbitrage/personal-bets")
+    @app.post("/api/middles/personal-bets")
     @app.post("/api/positive-ev/personal-bets")
     def api_positive_ev_personal_bet():
         payload = request.get_json(silent=True) or {}
         tracking_source = (
             "arbitrage"
             if request.path.startswith("/api/arbitrage/")
+            else "middles"
+            if request.path.startswith("/api/middles/")
             else "positive_ev"
         )
-        tracking_label = "Arbitrage" if tracking_source == "arbitrage" else "Positive EV"
+        tracking_label = {
+            "arbitrage": "Arbitrage",
+            "middles": "Middle",
+            "positive_ev": "Positive EV",
+        }[tracking_source]
         event_title = " ".join(str(payload.get("event_title") or "").split())
         market_title = " ".join(
             str(payload.get("market_title") or tracking_label).split()
@@ -6105,6 +6185,14 @@ def create_app(start_background: bool = True) -> Flask:
         outcome_id = outcome_id or (
             f"{tracking_source.replace('_', '-')}-outcome-{stable_hash(market_id, selection)[:24]}"
         )
+        middle_market_family = _middle_market_family(market_key)
+        middle_pair_id = str(payload.get("middle_pair_id") or market_id).strip()
+        try:
+            middle_leg_index = int(payload.get("middle_leg_index", 0))
+        except (TypeError, ValueError):
+            middle_leg_index = 0
+        if middle_leg_index not in {0, 1}:
+            middle_leg_index = 0
         trade = {
             "event_title": event_title,
             "market_title": market_title,
@@ -6127,6 +6215,26 @@ def create_app(start_background: bool = True) -> Flask:
         active_fills = tracker.database.get_personal_bet_fills(
             g.iconbets_user_id, active_only=True
         )
+        prevent_duplicate_middle_market = (
+            tracking_source == "middles"
+            and payload.get("prevent_duplicate_middle_market", True) is not False
+        )
+        if prevent_duplicate_middle_market and _has_duplicate_middle_game_market(
+            active_fills,
+            event_id=event_id,
+            market_family=middle_market_family,
+            pair_id=middle_pair_id,
+            leg_index=middle_leg_index,
+        ):
+            return jsonify(
+                {
+                    "error": (
+                        "You already tracked a middle for this game and market type. "
+                        "Turn off Prevent Duplicate Game Market Middles to track it anyway."
+                    ),
+                    "code": "DUPLICATE_MIDDLE_GAME_MARKET",
+                }
+            ), 409
         exposure = personal_exposure_for_trade(trade, active_fills)
         if exposure["hasOpposingPersonalPosition"] and not bool(
             payload.get("confirm_conflict")
@@ -6164,9 +6272,13 @@ def create_app(start_background: bool = True) -> Flask:
             "source_id": source_id or None,
             "sport_key": payload.get("sport_key"),
             "league": payload.get("league") or "Other",
+            "market_key": market_key,
             "entry_american_odds": american_odds,
             "sportsbook_logo": payload.get("sportsbook_logo") or "",
             "ev_percent": _safe_float(payload.get("ev_percent")),
+            "middle_market_family": middle_market_family if tracking_source == "middles" else None,
+            "middle_pair_id": middle_pair_id if tracking_source == "middles" else None,
+            "middle_leg_index": middle_leg_index if tracking_source == "middles" else None,
         }
         stored = tracker.database.insert_personal_bet_fill(
             g.iconbets_user_id, fill, status="scheduled"

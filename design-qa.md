@@ -2153,3 +2153,187 @@ final result: passed
 - Consider renaming Highest Middle Profit to Highest Middle Return % if normalized ranking is preferred across both bet-sizing modes.
 
 final result: passed
+
+---
+
+# Middles KPI Parity and Payout Scenario Semantics — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/01-arb-kpi-reference.png`, captured from the live local Arbitrage route at a 1280 x 720 CSS viewport, DPR 1, and 1280 x 720 pixels. Pre-change audit evidence is `tmp/02-middles-before.png` and `tmp/04-payout-summary-before.png` at the same viewport and density.
+- Rendered implementation: `tmp/05-middles-kpi-after.png`, `tmp/06-payout-positive-after.png`, `tmp/07-payout-positive-values-after.png`, and `tmp/08-payout-negative-after.png`, captured at a 1280 x 720 CSS viewport and 1280 x 720 pixels. The centered summary is `tmp/10-payout-summary-centered.png`; the final type-and-copy cleanup is `tmp/11-payout-odds-type-cleanup-final.png`, both captured at a 1864 x 1272 CSS viewport and 1864 x 1272 pixels. All captures use DPR 1; no density resampling was used.
+- State: dark desktop Middles workspace with ten Demo opportunities. The primary comparison uses the first opportunity, whose two outside profits are +$1.65 and +$1.66. The negative-state capture uses Atlanta Braves vs Philadelphia Phillies, whose outside profits are −$0.92 and −$0.90.
+- Full-view comparison evidence: the Arbitrage source and final Middles implementation were opened and then combined at equal scale in `tmp/09-kpi-side-by-side.png` (1280 x 270 pixels). The final strip matches Arbitrage's four equal columns, 83px rendered height, 11px/16px article padding, 11px icon gap, 30px icons, 12px uppercase labels, bold 22px values, 11px descriptions, borders, radii, and dark panel surface. Middles-specific metric names and values intentionally differ.
+- Focused region comparison evidence: `tmp/09-kpi-side-by-side.png` is a same-scale crop of the two KPI strips. Browser-computed evidence confirms exact icon dimensions, purple icon foreground/background/border colors, value weight 700, and article minimum sizing. `tmp/06-payout-positive-after.png` shows the two-item payout summary; `tmp/07-payout-positive-values-after.png` and `tmp/08-payout-negative-after.png` show the semantic profit/loss states over the same red risk-zone background.
+- Fonts and typography: passed. KPI labels and descriptions retain DM Sans at 12px/700 and 11px/400. KPI values match Arbitrage at 22px/700 with a 22px line height. The payout summary now uses 14px labels, 20px values, and 13px supporting text; graphic headings/supporting labels use 15px/14px. Available Odds uses 15px selection headers, 16px sportsbook names, and 15px odds.
+- Spacing and layout rhythm: passed. The KPI strip is no longer hidden at a 720px-tall desktop viewport, and its padding, gap, column dividers, radius, and minimum height match Arbitrage. Removing the duplicate Worst Case card leaves a balanced two-column payout summary that collapses to one column at the existing mobile breakpoint. The final follow-up centers each box's label, value, and supporting line on the same horizontal midpoint; browser measurements confirm all three text centers match their box center within 0.5px.
+- Colors and visual tokens: passed. KPI icons now use Arbitrage's `#aa76ff` foreground, 8% purple background, and 34% purple border. Positive outside labels and dollar values use semantic green while the risk-zone background stays `rgba(255, 82, 91, .09)`; negative outcomes keep the semantic red text and the same background.
+- Image quality and asset fidelity: passed. Existing Phosphor KPI icons, league/team marks, and sportsbook assets remain unchanged and sharp. No generated asset, placeholder, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. The payout summary now contains only title-cased `Middle Window` and `Market Implied Middle`; the internal “de-vigged line ladder” phrase, graphic `Final Total` footer, duplicate Worst Case box, and three bottom warning banners are removed. The graphic's accessible label still announces the below-window and above-window returns separately.
+- Behavior and accessibility: passed for the requested scope. Browser checks confirm both positive outside values independently turn green, both negative values remain red, every outside zone keeps the red risk background, and the detail panel has zero horizontal overflow after the type increase. Screenshot evidence cannot establish full keyboard or assistive-technology compliance; no interaction mechanics were changed by this pass.
+- Primary interactions and states tested: initial opportunity render, detail-panel scrolling, selection of a negative-outside-profit opportunity, positive/negative semantic color switching, two-column summary rendering, desktop KPI visibility, and browser developer logs. Logs are empty.
+- Automated verification: JavaScript syntax passed; 37 focused Middles tests passed after the final typography and copy cleanup; the previously completed full 1,171-test repository suite passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been committed, pushed, or deployed.
+
+## Comparison history
+
+- Initial KPI comparison, P1: at 1280 x 720 the Middles KPI strip was hidden while Arbitrage remained visible. When measured directly, Middles values rendered at weight 400 and the icon treatment inherited muted text styling and a neutral background. Fix: removed the height-only hiding rule and restored Arbitrage's exact icon and value styles. Post-fix evidence is `tmp/05-middles-kpi-after.png` and the paired crop in `tmp/09-kpi-side-by-side.png`.
+- Initial payout-summary audit, P2: Worst Case appeared in the selected-play header, the summary row, and the graphic, consuming one-third of the row without adding information. Fix: removed the middle duplicate and changed the summary to two equal columns. Post-fix evidence is `tmp/06-payout-positive-after.png`.
+- Initial positive-profit state, P1: positive outside outcomes such as +$1.65 were displayed in red because the entire outside zone inherited the loss color. Both zones also repeated the single worst-case value. Fix: render each side's actual outside profit, apply green only to positive text and labels, and leave the red risk background intact. Post-fix evidence is `tmp/07-payout-positive-values-after.png`; `tmp/08-payout-negative-after.png` verifies losses remain red.
+- Centering follow-up, P2: the two retained summary boxes were balanced in width but their labels, values, and supporting lines remained left-aligned. Fix: center the complete text stack within each box. Post-fix evidence is `tmp/10-payout-summary-centered.png`.
+- Typography and copy follow-up, P2: summary, graphic, and Available Odds text remained smaller than requested and exposed implementation language plus redundant warnings. Fix: applied the requested pixel increases, simplified the probability support copy, removed the graphic footer and warning banners, and preserved zero detail-panel overflow. Post-fix evidence is `tmp/11-payout-odds-type-cleanup-final.png`.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Two-Leg Tracking and Action Form Refinement — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-06 145446.png`, a 279 x 192-pixel focused crop showing the Recalculate Bet field's nested focus outline and input overflow.
+- Rendered implementation: `tmp/middles-recalculate-input-size-final.png`, `tmp/middles-track-total-final.png`, and `tmp/middles-bold-actions-final.png`, each captured at a 1280 x 720 CSS viewport, DPR 1, and 1280 x 720 pixels from `http://127.0.0.1:5015/middles`. No density resampling was used.
+- State: dark desktop Middles workspace with a Demo MLB total selected. The Recalculate comparison uses the first Bet field focused; the Track/Hide capture uses an edited $125 Total Bet; the main-workspace capture shows both requested action buttons.
+- Full-view comparison evidence: the source is intentionally a focused crop rather than a complete viewport, so composition judgments use the implementation's full dialog capture only. The surrounding dialog remains the already approved Arbitrage-aligned shell, spacing, hierarchy, and neutral background.
+- Focused comparison evidence: the source and final Recalculate screenshot were opened together in one comparison input. The source shows a second inner purple outline protruding beyond the 38px money wrapper; the final focused Bet field has one wrapper outline with the inner input fully contained. Browser measurements confirm a 112 x 38px wrapper, an 86.14 x 36px inner field contained from x=802.84 to x=888.98 within the wrapper's x=785.98 to x=897.98, and `outline: none` on the inner input.
+- Fonts and typography: passed. Track/Hide and Recalculate render at weight 800 in the expanded detail. Both dialog H2 labels use the requested title casing: `Track Or Hide This Middle` and `Recalculate Bet Sizes`.
+- Spacing and layout rhythm: passed. Odds inputs are exactly 88 x 38px, money wrappers remain 38px tall, inner money inputs have explicit 100% height with zero minimum-height leakage, and the new Track/Hide Total Bet control uses a contained 240px track without disturbing the leg grid.
+- Colors and visual tokens: passed. Focus remains the established purple border/glow on the wrapper, green remains reserved for dollar icons and positive payout values, and all surfaces keep the neutral IconLabs background tokens.
+- Image quality and asset fidelity: passed. Existing Prophet Exchange, Kalshi, team, league, and Phosphor icon assets remain unchanged and sharp; no placeholder, generated, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. The Track/Hide disclosure now states that Track adds both confirmed legs to Bet Tracker. Header capitalization and Total Bet copy match the user's wording.
+- Behavior and accessibility: passed. The Track/Hide Total Bet is a labeled number input that immediately recalculates both bets, payouts, total bet, worst case, and best case. Track and Track and Hide disable actions while saving and display any backend error in the dialog. Hide-only behavior remains local and reversible.
+- Primary interactions tested: changed Track/Hide Total Bet from $100 to $125 and observed the plan rebalance to $31.37 and $93.63; clicked Track and confirmed both Over 10.5 and Under 11.5 appeared as separate personal Bet Tracker rows; selected a second matchup, clicked Track and Hide, confirmed Hidden increased to 1, and confirmed both Over 9.5 and Under 10.5 appeared in Bet Tracker; opened Recalculate, focused its Bet input, and measured the corrected geometry. Browser developer logs are empty.
+- Automated verification: JavaScript syntax passed; 50 focused Middles, Arbitrage, API, and design-system tests passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been deployed.
+
+## Comparison history
+
+- Initial source, P1: the Recalculate money input received its own focus-visible outline inside the focused wrapper, creating a visibly oversized double box. Fix: constrained odds and money inputs to the 38px control geometry, explicitly removed the inner money-input outline, and kept focus styling on the wrapper. Post-fix evidence is `tmp/middles-recalculate-input-size-final.png` and the measured bounds above.
+- Initial behavior, P1: Track and Track and Hide only stored the plan in browser storage, so neither leg reached Bet Tracker. Fix: added the authenticated Middles personal-bet endpoint and reused the established Arbitrage two-leg save sequence. Post-fix evidence is the rendered personal Bet Tracker containing both sides for two separate test matchups.
+- Initial workflow, P2: Track/Hide had no editable total control and both dialog titles used sentence case. Fix: added the live-recalculating Total Bet field and title-cased every word in both H2 headings. Post-fix evidence is `tmp/middles-track-total-final.png`.
+- Initial typography, P2: the two main action buttons inherited a 700 weight. Fix: raised the detail action weight to 800. Post-fix evidence is `tmp/middles-bold-actions-final.png` and browser-computed weights of 800 for both buttons.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Fixed Filter Frame and Control Cleanup — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/13-low-hold-sportsbooks-reference.jpg`, captured from the local Low Hold Sportsbooks filter at a 1864 x 1272 CSS viewport, DPR 1, and 1864 x 1272 pixels; plus `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-06 165512.png`, a 394 x 107 focused crop of the reported money-field border issue.
+- Rendered implementation: `tmp/22-middles-sportsbooks-final.jpg`, `tmp/21-middles-money-focus-final.jpg`, `tmp/25-middles-markets-scroll-final.jpg`, and `tmp/26-middles-warnings-final.jpg`, each captured from `http://127.0.0.1:5015/middles?qa=filter-frame-final-c` at a 1864 x 1272 CSS viewport, DPR 1, and 1864 x 1272 pixels. No density resampling was used for source or implementation captures.
+- State: dark desktop filters with all 80 sportsbooks selected. Sportsbooks is at the top of its scroll region, Middle & Bet Size has the Total Bet field focused, Markets is scrolled to its final option, and Bet Warnings shows the remaining distinct-sportsbook guard.
+- Full-view comparison evidence: `tmp/23-lowhold-middles-filter-comparison.jpg` places equal 984 x 764 crops of the Low Hold source and Middles implementation together at the same scale. The dialog frame, 210px navigation rail, 760px height, 634px scrolling content pane, header/footer, panel padding, two-column book rows, 12px/650 sportsbook names, borders, radii, and selected states visibly match. Middles-specific copy and category names intentionally differ.
+- Focused region comparison evidence: `tmp/24-money-field-comparison.jpg` places the attached issue and corrected Middles control together. The source shows a detached outer purple ring around the inner input; the implementation keeps focus on one 38px wrapper with a 36px inner input, a 1px purple border plus inset focus treatment, and no input outline. Browser-computed evidence confirms `outline: none` and `border: 0` on the inner input.
+- Fonts and typography: passed. Sportsbook names exactly match Low Hold at 12px, weight 650, and 17.4px line height. The redundant visible amount label is removed while its accessible label remains available to assistive technology.
+- Spacing and layout rhythm: passed. Saved Filters, Sportsbooks, Middle & Bet Size, Markets, and Bet Warnings all retain a 760px dialog at y=256. Content now scrolls inside a stable 634px pane instead of expanding the form; header and footer stay fixed.
+- Colors and visual tokens: passed. The field uses the established purple focus token on the wrapper, green for the currency prefix, and the neutral IconLabs panel and border tokens. No new color system was introduced.
+- Image quality and asset fidelity: passed. Existing sportsbook logos and Phosphor icons remain contained and sharp. No generated, placeholder, custom SVG, emoji, gradient, or CSS-drawn asset was introduced.
+- Copy and content: passed. A one-point payout summary now reads `1 point`. Minimum Window, the visible amount label above the dollar field, Maximum Quote Age, and Exchange Commission are removed from the filter UI. The fixed default values remain in calculation state so API behavior is deterministic.
+- Behavior and accessibility: passed. Market scrolling reaches all 47 choices; the final `Player Triple Double` option is visible at scrollTop 966. The money input retains a dynamic accessible Total Bet/Baseline Amount label. Show Opportunities closes the dialog and reloads all ten QA rows without errors.
+- Primary interactions and states tested: all five filter tabs, Sportsbooks and Markets scrolling, focused money input, removed-control absence, Show Opportunities, singular payout copy, and browser developer logs. Logs are empty.
+- Automated verification: JavaScript syntax passed; 38 focused Middles tests passed; the full 1,173-test repository suite passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been committed, pushed, or deployed.
+
+## Comparison history
+
+- Initial frame, P1: Saved Filters rendered at 682px while Sportsbooks expanded its form to 2,116px inside a 760px-capped dialog, moving content rather than providing a stable pane. Fix: give the filter dialog a fixed 760px desktop height, constrain the form/body to that frame, and move overflow to the content pane. Post-fix evidence is `tmp/22-middles-sportsbooks-final.jpg`; browser measurements show every tab at 760px.
+- Initial Markets state, P1: the last market rendered near y=1,883 with no usable constrained scroll position. Fix: constrain `.mid-filter-panels`, enable vertical overscroll-contained scrolling, and reserve the scrollbar gutter. Post-fix evidence is `tmp/25-middles-markets-scroll-final.jpg`, with all 47 options reachable and the last option visible.
+- Initial money field, P2: a generic 44px input minimum height and focus outline leaked outside a 34px wrapper, producing the attached double border. Fix: enforce a 38px wrapper, contain the input at 36px, remove the inner outline, and raise focus specificity so the wrapper owns the purple state. Post-fix evidence is `tmp/21-middles-money-focus-final.jpg` and `tmp/24-money-field-comparison.jpg`.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Optional Bet Warnings — Design QA
+
+## September 6 local candidate
+
+- Rendered implementation: `tmp/28-bet-warnings-default-final.jpg`, `tmp/29-bet-warnings-selected-detail-final.jpg`, and `tmp/30-bet-warnings-reset-final.jpg`, captured from `http://127.0.0.1:5015/middles?qa=optional-bet-warnings-final` at the existing desktop viewport.
+- State: Bet Warnings contains the existing checked Require Distinct Sportsbooks guard plus three new optional controls. Line Movement Confirmation, Liquidity / Limit Warning, and Settlement Rule Mismatch Warning are all unselected by default.
+- Behavior and accessibility: enabling all three controls adds three clearly labeled warning cards below Available Odds. Line movement prompts a fresh price check; liquidity and settlement warnings use each play's execution-gate metadata and surface missing or conflicting verification. Reset Defaults unselects all three and removes the warning section.
+- Visual QA: the new controls reuse the established filter-row layout and the warning cards use the existing neutral surface, amber warning border, and IconLabs typography. The browser developer log is empty.
+- Automated verification: JavaScript syntax passed; 39 focused Middles tests passed; the full 1,174-test repository suite passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been committed, pushed, or deployed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Duplicate Game-Market Guard — Design QA
+
+## September 6 local candidate
+
+- Rendered implementation: `tmp/31-duplicate-market-guard-default-final.jpg` and `tmp/32-duplicate-market-blocked-final.jpg`, captured from `http://127.0.0.1:5015/middles?qa=duplicate-market-guard-final-b` at the existing desktop viewport.
+- State: Bet Warnings now includes Prevent Duplicate Game Market Middles. It is checked by default alongside Require Distinct Sportsbooks; the three advisory warning controls remain unselected by default.
+- Behavior: Track and Track and Hide allow the two legs of the first middle to reach Bet Tracker, then reject another middle for the same canonical game and market family. Game Totals and Alternate Totals share one family, as do Spreads and Alternate Spreads. Turning the guard off explicitly permits the duplicate.
+- Error handling: a blocked attempt stays in the Track/Hide dialog and displays `You already tracked a middle for this game and market type` with directions for disabling the guard. Hide remains available because it creates no new exposure.
+- Visual QA: the control reuses the established toggle row and remains inside the fixed 760px filter frame. The error uses the existing dialog alert treatment. Browser developer logs are empty.
+- Automated verification: JavaScript syntax passed; 40 focused Middles tests passed; the full 1,175-test repository suite passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been committed, pushed, or deployed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Warning Typography Follow-Up — Design QA
+
+## September 6 local candidate
+
+- Rendered implementation: `tmp/33-warning-typography-final.jpg`, captured from `http://127.0.0.1:5015/middles?qa=warning-type-final-b` at the existing desktop viewport.
+- Copy: all visible hyphens were removed from the warning titles and supporting text, including `Prevent Duplicate Game Market Middles`, `Line Movement Confirmation`, `top price liquidity`, and `Settlement Rule Mismatch Warning`; the blocking error uses the same wording.
+- Typography: warning titles increased from 12px to 14px and supporting text increased from 10px to 11px. Expanded-detail warning cards received the same +2px title and +1px supporting-text increase.
+- Layout: all five controls remain fully contained in the fixed filter frame with no clipping or footer movement. Browser developer logs are empty.
+- Automated verification: 40 focused Middles tests passed; the full 1,175-test repository suite passed; `git diff --check` passed with line-ending notices only.
+- Release boundary: this candidate remains local and has not been committed, pushed, or deployed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed

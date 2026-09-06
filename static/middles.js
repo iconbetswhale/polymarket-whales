@@ -27,6 +27,10 @@
     maxAge: 90,
     commission: 0,
     distinctBooks: true,
+    preventDuplicateGameMarket: true,
+    lineMovementWarning: false,
+    liquidityWarning: false,
+    settlementWarning: false,
     alerts: false,
     stake: 1000,
     stakeMode: "total",
@@ -52,11 +56,15 @@
     bookGroup: "all",
     selectedBooks: new Set(Array.isArray(saved.books) && saved.books.length ? saved.books : defaults.books),
     markets: Array.isArray(saved.markets) && saved.markets.length ? saved.markets : defaults.markets,
-    minWidth: numberBetween(saved.minWidth, 0.01, 1000, defaults.minWidth),
+    minWidth: defaults.minWidth,
     maxCost: numberBetween(saved.maxCost, 0, 100, defaults.maxCost),
-    maxAge: numberBetween(saved.maxAge, 15, 1800, defaults.maxAge),
-    commission: numberBetween(saved.commission, 0, 25, defaults.commission),
+    maxAge: defaults.maxAge,
+    commission: defaults.commission,
     distinctBooks: saved.distinctBooks === undefined ? defaults.distinctBooks : Boolean(saved.distinctBooks),
+    preventDuplicateGameMarket: saved.preventDuplicateGameMarket === undefined ? defaults.preventDuplicateGameMarket : Boolean(saved.preventDuplicateGameMarket),
+    lineMovementWarning: saved.lineMovementWarning === undefined ? defaults.lineMovementWarning : Boolean(saved.lineMovementWarning),
+    liquidityWarning: saved.liquidityWarning === undefined ? defaults.liquidityWarning : Boolean(saved.liquidityWarning),
+    settlementWarning: saved.settlementWarning === undefined ? defaults.settlementWarning : Boolean(saved.settlementWarning),
     alerts: Boolean(saved.alerts),
     stake: numberBetween(saved.stake, 1, 10_000_000, defaults.stake),
     stakeMode: ["total", "first-leg"].includes(saved.stakeMode) ? saved.stakeMode : defaults.stakeMode,
@@ -100,6 +108,7 @@
     filterDialog: document.getElementById("mid-filter-dialog"),
     trackDialog: document.getElementById("mid-track-dialog"),
     trackSummary: document.getElementById("mid-track-summary"),
+    trackTotal: document.getElementById("mid-track-total"),
     trackLegs: document.getElementById("mid-track-legs"),
     trackProof: document.getElementById("mid-track-proof"),
     trackError: document.getElementById("mid-track-error"),
@@ -176,6 +185,12 @@
 
   function percent(value, digits = 2) {
     return `${Number(value || 0).toFixed(digits)}%`;
+  }
+
+  function pointCount(value) {
+    const amount = Number(value || 0);
+    const label = amount.toLocaleString(undefined, { maximumFractionDigits: 2 });
+    return `${label} ${Math.abs(amount) === 1 ? "point" : "points"}`;
   }
 
   function stakeInputValue(value) {
@@ -290,7 +305,10 @@
     return {
       books: [...state.selectedBooks], markets: state.markets, minWidth: state.minWidth,
       maxCost: state.maxCost, maxAge: state.maxAge, commission: state.commission,
-      distinctBooks: state.distinctBooks, alerts: state.alerts, stake: state.stake,
+      distinctBooks: state.distinctBooks, preventDuplicateGameMarket: state.preventDuplicateGameMarket,
+      lineMovementWarning: state.lineMovementWarning,
+      liquidityWarning: state.liquidityWarning, settlementWarning: state.settlementWarning,
+      alerts: state.alerts, stake: state.stake,
       stakeMode: state.stakeMode, sort: state.sort, requiredBook: state.requiredBook,
     };
   }
@@ -476,6 +494,47 @@
     return `<div class="mid-quote-row${best ? " best" : ""}">${logoMarkup(quote)}<span><strong>${esc(quote.bookName)}</strong><small>${esc(age)}</small></span><b>${odds(quote.americanOdds)}</b>${quote.deepLink ? `<a href="${esc(quote.deepLink)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${esc(quote.bookName)}"><i class="ph ph-arrow-square-out" aria-hidden="true"></i></a>` : ""}</div>`;
   }
 
+  function executionWarningsMarkup(row) {
+    const activeWarnings = [];
+    const capacity = row.executionGates?.capacity || {};
+    const settlement = row.executionGates?.settlement || {};
+    if (state.lineMovementWarning) {
+      activeWarnings.push({
+        icon: "ph-trend-up",
+        title: "Line Movement Confirmation",
+        copy: "Recheck both displayed prices before placing either bet. The two lines can move independently.",
+      });
+    }
+    if (state.liquidityWarning && capacity.passed === false) {
+      activeWarnings.push({
+        icon: "ph-gauge",
+        title: "Liquidity / Limit Warning",
+        copy: "The planned bet exceeds the reported limit or top price liquidity on at least one leg.",
+      });
+    } else if (state.liquidityWarning && capacity.verified !== true) {
+      activeWarnings.push({
+        icon: "ph-gauge",
+        title: "Liquidity / Limit Warning",
+        copy: "A verified bet limit or top price liquidity is unavailable for at least one leg.",
+      });
+    }
+    if (state.settlementWarning && settlement.passed === false) {
+      activeWarnings.push({
+        icon: "ph-scales",
+        title: "Settlement Rule Mismatch Warning",
+        copy: "The two books report incompatible settlement rules for this market.",
+      });
+    } else if (state.settlementWarning && settlement.verified !== true) {
+      activeWarnings.push({
+        icon: "ph-scales",
+        title: "Settlement Rule Mismatch Warning",
+        copy: "A verified settlement rule identifier is unavailable for at least one leg. Confirm both books grade the market the same way.",
+      });
+    }
+    if (!activeWarnings.length) return "";
+    return `<section class="mid-detail-section mid-execution-warnings"><header><h3>Bet Warnings</h3><small>${activeWarnings.length} active</small></header><div>${activeWarnings.map((warning) => `<article><i class="ph ${warning.icon}" aria-hidden="true"></i><div><strong>${esc(warning.title)}</strong><p>${esc(warning.copy)}</p></div></article>`).join("")}</div></section>`;
+  }
+
   function curveTick(value, signed = false) {
     const rounded = Math.round(Number(value) * 100) / 100;
     const normalized = Object.is(rounded, -0) ? 0 : rounded;
@@ -500,22 +559,26 @@
     const signedTicks = row.window?.kind === "spread";
     const upperWinner = legs[0]?.selection ? `${legs[0].selection} wins` : "Upper result";
     const lowerWinner = legs[1]?.selection ? `${legs[1].selection} wins` : "Lower result";
-    const axisLabel = row.marketContext
-      ? `${row.marketContext} result`
-      : row.window?.kind === "spread" ? "Final margin" : "Final total";
     const profit = signedMoney(row.middleProfit);
-    const loss = signedMoney(worstOutside);
+    const lowerOutsideProfit = Number.isFinite(Number(legs[1]?.outsideProfit))
+      ? Number(legs[1].outsideProfit)
+      : worstOutside;
+    const upperOutsideProfit = Number.isFinite(Number(legs[0]?.outsideProfit))
+      ? Number(legs[0].outsideProfit)
+      : worstOutside;
+    const lowerOutsideLabel = signedMoney(lowerOutsideProfit);
+    const upperOutsideLabel = signedMoney(upperOutsideProfit);
     const middleWidth = Number(row.middleWidth || 0);
     const middleWidthLabel = `${middleWidth} ${middleWidth === 1 ? "pt" : "pts"} middle window`;
     const lowLabel = curveTick(safeLow, signedTicks);
     const highLabel = curveTick(safeHigh, signedTicks);
-    const accessibleSummary = `Both bets win for a net profit of ${profit} when the result lands between ${lowLabel} and ${highLabel}. Outside that middle window, the worst-case result is ${loss}.`;
+    const accessibleSummary = `Both bets win for a net profit of ${profit} when the result lands between ${lowLabel} and ${highLabel}. Below the window returns ${lowerOutsideLabel}; above the window returns ${upperOutsideLabel}.`;
     return `
       <div class="mid-range-map" role="img" aria-label="${esc(accessibleSummary)}">
         <div class="mid-range-labels" aria-hidden="true">
-          <div><strong>Below ${lowLabel}</strong><span>${esc(lowerWinner)}</span></div>
+          <div class="${lowerOutsideProfit >= 0 ? "positive-outside" : ""}"><strong>Below ${lowLabel}</strong><span>${esc(lowerWinner)}</span></div>
           <div class="positive"><strong>${lowLabel} to ${highLabel}</strong><span>Both bets win</span></div>
-          <div><strong>Above ${highLabel}</strong><span>${esc(upperWinner)}</span></div>
+          <div class="${upperOutsideProfit >= 0 ? "positive-outside" : ""}"><strong>Above ${highLabel}</strong><span>${esc(upperWinner)}</span></div>
         </div>
         <div class="mid-range-scale" aria-hidden="true">
           <span class="start">${curveTick(tickValues[0], signedTicks)}</span>
@@ -525,15 +588,14 @@
           <span class="end">${curveTick(tickValues[4], signedTicks)}</span>
         </div>
         <div class="mid-range-track" aria-hidden="true">
-          <div class="mid-range-zone mid-range-loss"><strong>${loss}</strong><span>${esc(lowerWinner)}</span></div>
+          <div class="mid-range-zone mid-range-loss${lowerOutsideProfit >= 0 ? " positive-outside" : ""}"><strong>${lowerOutsideLabel}</strong><span>${esc(lowerWinner)}</span></div>
           <div class="mid-range-zone mid-range-middle"><small>Both bets win</small><strong>${profit}</strong><span>${middleWidthLabel}</span></div>
-          <div class="mid-range-zone mid-range-loss"><strong>${loss}</strong><span>${esc(upperWinner)}</span></div>
+          <div class="mid-range-zone mid-range-loss${upperOutsideProfit >= 0 ? " positive-outside" : ""}"><strong>${upperOutsideLabel}</strong><span>${esc(upperWinner)}</span></div>
           <i class="ph ph-record mid-range-marker edge start" aria-hidden="true"></i>
           <i class="ph ph-record mid-range-marker low" aria-hidden="true"></i>
           <i class="ph ph-record mid-range-marker high" aria-hidden="true"></i>
           <i class="ph ph-record mid-range-marker edge end" aria-hidden="true"></i>
         </div>
-        <div class="mid-range-axis-label">${esc(axisLabel)}</div>
       </div>`;
   }
 
@@ -555,12 +617,12 @@
       const quotes = sortQuotesByBestPrice(group.quotes, group.bestBookKey);
       return `<section class="mid-quote-group"><header><span>${esc(group.selection)}</span><small>Best price first</small></header>${quotes.map((quote) => quoteRow(quote, group.bestBookKey)).join("")}</section>`;
     }).join("");
-    const warnings = (row.warnings || []).map((warning) => `<div class="mid-detail-warning"><i class="ph ph-warning" aria-hidden="true"></i><span>${esc(warning)}</span></div>`).join("");
     const worstOutside = Math.min(...legs.map((leg) => Number(leg.outsideProfit || 0)));
     const probabilitySummary = row.probabilityModel?.status === "AVAILABLE"
-      ? `<div><span>Market-implied middle</span><strong>${percent(row.estimatedMiddleProbability)}</strong><small>${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)} estimated EV · ${row.probabilityModel.method === "DEVIGGED_MARKET_LADDER_CDF" ? "de-vigged line ladder" : esc(row.probabilityModel.method || "model")}</small></div>`
-      : `<div><span>Middle probability</span><strong>Unavailable</strong><small>${esc(row.probabilityModel?.reason || "No paired line ladder")}</small></div>`;
+      ? `<div><span>Market Implied Middle</span><strong>${percent(row.estimatedMiddleProbability)}</strong><small>${Number(row.estimatedEvPercent) >= 0 ? "+" : ""}${percent(row.estimatedEvPercent)} estimated EV</small></div>`
+      : `<div><span>Middle Probability</span><strong>Unavailable</strong><small>${esc(row.probabilityModel?.reason || "No paired line ladder")}</small></div>`;
     const payoutRangeMarkup = payoutRangeMap(row, legs, worstOutside);
+    const executionWarnings = executionWarningsMarkup(row);
     elements.detail.innerHTML = `
       <header class="mid-detail-header">
         <div class="mid-detail-main"><div class="mid-detail-hero-top"><div class="mid-detail-return"><strong>${percent(row.breakEvenMiddleProbability)}</strong><span>break-even middle</span></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></div><h2 class="mid-detail-matchup">${detailMatchup(row)}</h2><p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p></div>
@@ -571,9 +633,10 @@
           <button class="mid-secondary-button" id="mid-recalculate" type="button"><i class="ph ph-calculator" aria-hidden="true"></i>Recalculate</button></div>
       </header>
       <section class="mid-detail-section mid-stake-plan-section"><header><h3>Equalized Bets</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span><span class="sr-only">Action</span></div><div class="mid-plan-grid">${legCards}</div></section>
-      <section class="mid-detail-section mid-payout-section"><header><h3>Payout Scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-range-layout"><div class="mid-detail-summary mid-range-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "negative"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div>${probabilitySummary}</div><div class="mid-range-scroll">${payoutRangeMarkup}</div></div></section>
+      <section class="mid-detail-section mid-payout-section"><header><h3>Payout Scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-range-layout"><div class="mid-detail-summary mid-range-summary"><div><span>Middle Window</span><strong>${esc(row.window?.label || "")}</strong><small>${pointCount(row.middleWidth)}</small></div>${probabilitySummary}</div><div class="mid-range-scroll">${payoutRangeMarkup}</div></div></section>
       <section class="mid-detail-section mid-available-odds"><header><h3>Available Odds</h3><small>${row.bookCount} books</small></header><div class="mid-quote-groups">${comparisons}</div></section>
-      ${warnings}`;
+      ${executionWarnings}
+      `;
     if (openOnMobile && window.matchMedia("(max-width: 1080px)").matches) {
       document.body.classList.add("mid-detail-open");
       elements.backdrop.hidden = false;
@@ -751,11 +814,12 @@
   function syncDialog() {
     elements.dialogStake.value = state.stake;
     syncStakeModeUI();
-    document.getElementById("mid-min-width").value = state.minWidth;
     document.getElementById("mid-max-cost").value = state.maxCost;
-    document.getElementById("mid-max-age").value = state.maxAge;
-    document.getElementById("mid-commission").value = state.commission;
     document.getElementById("mid-distinct-books").checked = state.distinctBooks;
+    document.getElementById("mid-duplicate-market-warning").checked = state.preventDuplicateGameMarket;
+    document.getElementById("mid-line-movement-warning").checked = state.lineMovementWarning;
+    document.getElementById("mid-liquidity-warning").checked = state.liquidityWarning;
+    document.getElementById("mid-settlement-warning").checked = state.settlementWarning;
     document.querySelectorAll("#mid-market-choices input").forEach((input) => { input.checked = state.markets.includes(input.value); });
     renderBookGrid(elements.bookSearch.value);
     renderSavedFilters();
@@ -765,9 +829,10 @@
     let count = 0;
     if (state.selectedBooks.size !== defaultBookKeys.length) count += 1;
     if (state.markets.length !== defaults.markets.length) count += 1;
-    if (state.minWidth !== defaults.minWidth) count += 1;
     if (state.maxCost !== defaults.maxCost) count += 1;
-    if (state.maxAge !== defaults.maxAge || state.commission !== defaults.commission || state.distinctBooks !== defaults.distinctBooks) count += 1;
+    if (state.distinctBooks !== defaults.distinctBooks) count += 1;
+    if (state.preventDuplicateGameMarket !== defaults.preventDuplicateGameMarket) count += 1;
+    if (state.lineMovementWarning || state.liquidityWarning || state.settlementWarning) count += 1;
     if (state.stake !== defaults.stake || state.stakeMode !== defaults.stakeMode) count += 1;
     const node = document.getElementById("mid-filter-count");
     node.textContent = String(count);
@@ -790,11 +855,12 @@
       notify("Required book reset to Any selected book because it is no longer selected.");
     }
     state.markets = markets;
-    state.minWidth = numberBetween(document.getElementById("mid-min-width").value, 0.01, 1000, defaults.minWidth);
     state.maxCost = numberBetween(document.getElementById("mid-max-cost").value, 0, 100, defaults.maxCost);
-    state.maxAge = numberBetween(document.getElementById("mid-max-age").value, 15, 1800, defaults.maxAge);
-    state.commission = numberBetween(document.getElementById("mid-commission").value, 0, 25, defaults.commission);
     state.distinctBooks = document.getElementById("mid-distinct-books").checked;
+    state.preventDuplicateGameMarket = document.getElementById("mid-duplicate-market-warning").checked;
+    state.lineMovementWarning = document.getElementById("mid-line-movement-warning").checked;
+    state.liquidityWarning = document.getElementById("mid-liquidity-warning").checked;
+    state.settlementWarning = document.getElementById("mid-settlement-warning").checked;
     saveSettings();
     updateFilterCount();
     return true;
@@ -808,6 +874,10 @@
     state.maxAge = defaults.maxAge;
     state.commission = defaults.commission;
     state.distinctBooks = defaults.distinctBooks;
+    state.preventDuplicateGameMarket = defaults.preventDuplicateGameMarket;
+    state.lineMovementWarning = defaults.lineMovementWarning;
+    state.liquidityWarning = defaults.liquidityWarning;
+    state.settlementWarning = defaults.settlementWarning;
     state.requiredBook = defaults.requiredBook;
     state.stake = defaults.stake;
     state.stakeMode = defaults.stakeMode;
@@ -885,13 +955,14 @@
     const anchorIndex = Math.min(Math.max(Number(row.baselineLegIndex ?? 0), 0), 1);
     state.trackerSession = {
       row,
-      mode: row.stakeMode === "first-leg" ? "locked" : "total",
+      mode: "total",
       total: Number(row.totalStake || state.stake),
       anchorIndex,
       anchorStake: Number(row.legs?.[anchorIndex]?.stake || row.baselineStake || 0),
       odds: (row.legs || []).map((leg) => Number(leg.americanOdds)),
     };
     elements.trackSummary.innerHTML = actionSummary(row, "2-leg middle");
+    elements.trackTotal.value = state.trackerSession.total.toFixed(2);
     elements.trackLegs.innerHTML = (row.legs || []).map((leg, index) => `<div class="mid-leg-editor-row">
       <div class="mid-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
       ${editorBook(leg)}
@@ -935,35 +1006,80 @@
     localStorage.setItem(hiddenKey, JSON.stringify([...state.hidden]));
   }
 
-  function applyTrackerAction(action) {
+  async function applyTrackerAction(action) {
     const session = state.trackerSession;
     const row = session?.row;
     if (!session || !row) return;
     const id = String(row.id);
     const shouldTrack = action === "track" || action === "track-hide";
     const shouldHide = action === "hide" || action === "track-hide";
-    if (shouldTrack) {
-      const plan = refreshTrackPlan();
-      if (!plan) {
-        elements.trackLegs.querySelector("[data-mid-track-odds]")?.focus();
-        return;
-      }
-      state.tracked.add(id);
-      state.trackedPlans[id] = {
-        odds: plan.prices,
-        stakes: plan.stakes,
-        payouts: plan.payouts,
-        totalStake: plan.totalStake,
-        worstCase: plan.worstCase,
-        bestCase: plan.bestCase,
-        trackedAt: new Date().toISOString(),
-      };
+    const plan = shouldTrack ? refreshTrackPlan() : null;
+    if (shouldTrack && !plan) {
+      elements.trackLegs.querySelector("[data-mid-track-odds]")?.focus();
+      return;
     }
-    if (shouldHide) state.hidden.add(id);
-    persistTrackerState();
-    closeTracker();
-    renderAll();
-    notify(action === "track" ? "Middle tracked with the confirmed odds" : action === "hide" ? "Middle moved to Hidden" : "Middle tracked and moved to Hidden");
+    const buttons = [...elements.trackDialog.querySelectorAll("[data-mid-track-action]")];
+    buttons.forEach((button) => { button.disabled = true; });
+    elements.trackError.textContent = "";
+    try {
+      if (shouldTrack) {
+        for (let index = 0; index < row.legs.length; index += 1) {
+          const leg = row.legs[index];
+          const response = await fetch("/api/middles/personal-bets", {
+            method: "POST",
+            headers: { "Accept": "application/json", "Content-Type": "application/json" },
+            body: JSON.stringify({
+              source_id: `${row.id}:${index}`,
+              event_title: row.eventTitle,
+              market_title: row.marketLabel,
+              selection: leg.selection,
+              event_start_time: row.commenceTime,
+              sport_key: row.sportKey,
+              league: row.league,
+              market_key: row.marketKey,
+              market_line: leg.point ?? null,
+              canonical_event_id: row.eventId,
+              canonical_market_id: row.id,
+              canonical_outcome_id: `${row.id}:outcome:${index}`,
+              american_odds: plan.prices[index],
+              stake: plan.stakes[index],
+              fees: 0,
+              sportsbook: leg.bookName,
+              sportsbook_logo: leg.logoUrl || "",
+              market_url: /^https:\/\//.test(String(leg.deepLink || "")) ? leg.deepLink : "",
+              ev_percent: Number(row.estimatedEvPercent || 0),
+              tags: ["Middle", "2-leg middle"],
+              prevent_duplicate_middle_market: state.preventDuplicateGameMarket,
+              middle_pair_id: row.id,
+              middle_leg_index: index,
+              confirm_duplicate: true,
+              confirm_conflict: true,
+            }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(payload.error || `Unable to track ${leg.selection}.`);
+        }
+        state.tracked.add(id);
+        state.trackedPlans[id] = {
+          odds: plan.prices,
+          stakes: plan.stakes,
+          payouts: plan.payouts,
+          totalStake: plan.totalStake,
+          worstCase: plan.worstCase,
+          bestCase: plan.bestCase,
+          trackedAt: new Date().toISOString(),
+        };
+      }
+      if (shouldHide) state.hidden.add(id);
+      persistTrackerState();
+      closeTracker();
+      renderAll();
+      notify(action === "track" ? "Both middle legs were added to Bet Tracker" : action === "hide" ? "Middle moved to Hidden" : "Both legs were tracked and the middle was hidden");
+    } catch (error) {
+      elements.trackError.textContent = error.message;
+    } finally {
+      buttons.forEach((button) => { button.disabled = false; });
+    }
   }
 
   function openRecalculateDialog(row) {
@@ -1074,11 +1190,15 @@
     if (!filter) return;
     state.selectedBooks = new Set((filter.books || []).filter((key) => eligibleBooks.some((book) => book.key === key)));
     state.markets = Array.isArray(filter.markets) && filter.markets.length ? filter.markets : [...defaults.markets];
-    state.minWidth = numberBetween(filter.minWidth, 0.01, 1000, defaults.minWidth);
+    state.minWidth = defaults.minWidth;
     state.maxCost = numberBetween(filter.maxCost, 0, 100, defaults.maxCost);
-    state.maxAge = numberBetween(filter.maxAge, 15, 1800, defaults.maxAge);
-    state.commission = numberBetween(filter.commission, 0, 25, defaults.commission);
+    state.maxAge = defaults.maxAge;
+    state.commission = defaults.commission;
     state.distinctBooks = filter.distinctBooks === undefined ? defaults.distinctBooks : Boolean(filter.distinctBooks);
+    state.preventDuplicateGameMarket = filter.preventDuplicateGameMarket === undefined ? defaults.preventDuplicateGameMarket : Boolean(filter.preventDuplicateGameMarket);
+    state.lineMovementWarning = filter.lineMovementWarning === undefined ? defaults.lineMovementWarning : Boolean(filter.lineMovementWarning);
+    state.liquidityWarning = filter.liquidityWarning === undefined ? defaults.liquidityWarning : Boolean(filter.liquidityWarning);
+    state.settlementWarning = filter.settlementWarning === undefined ? defaults.settlementWarning : Boolean(filter.settlementWarning);
     state.stake = numberBetween(filter.stake, 1, 10_000_000, defaults.stake);
     state.stakeMode = filter.stakeMode === "first-leg" ? "first-leg" : "total";
     state.sort = ["cost-asc", "width-desc", "profit-desc", "time-asc"].includes(filter.sort) ? filter.sort : defaults.sort;
@@ -1205,6 +1325,11 @@
     document.getElementById("mid-track-close").addEventListener("click", closeTracker);
     document.getElementById("mid-track-form").addEventListener("submit", (event) => event.preventDefault());
     elements.trackDialog.addEventListener("click", (event) => { if (event.target === elements.trackDialog) closeTracker(); });
+    elements.trackTotal.addEventListener("input", () => {
+      if (!state.trackerSession) return;
+      state.trackerSession.total = elements.trackTotal.value;
+      refreshTrackPlan();
+    });
     elements.trackLegs.addEventListener("input", (event) => {
       const input = event.target.closest("[data-mid-track-odds]");
       if (!input || !state.trackerSession) return;

@@ -28,9 +28,7 @@ def test_middles_exposes_the_complete_scan_plan_and_filter_workflow() -> None:
         'id="mid-required-book-trigger"',
         'id="mid-sport-trigger"',
         'id="mid-sort-trigger"',
-        'id="mid-min-width"',
         'id="mid-max-cost"',
-        'id="mid-commission"',
         'id="mid-distinct-books"',
         'id="mid-learn-dialog"',
         'id="mid-track-dialog"',
@@ -157,9 +155,13 @@ def test_middles_filter_dialog_matches_the_low_hold_workspace_pattern() -> None:
         assert required in TEMPLATE
     for required in (
         ".mid-filter-shell",
+        "height: min(760px, calc(100dvh - 32px))",
+        "height: 100%",
         "grid-template-columns: 210px minmax(0, 1fr)",
         ".mid-filter-nav",
         ".mid-filter-panels",
+        "overflow-y: auto",
+        "scrollbar-gutter: stable",
         ".mid-book-pills",
         ".mid-stake-mode-grid",
         ".mid-saved-list",
@@ -211,7 +213,58 @@ def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None
     assert "function toggleAlerts" in SCRIPT
     assert '"cost-asc", "width-desc", "profit-desc", "time-asc"' in SCRIPT
     assert 'window.matchMedia("(max-width: 1080px)")' in SCRIPT
-    assert "live-arbitrage-v6" in BASE
+    assert "live-arbitrage-v11" in BASE
+
+
+def test_optional_bet_warnings_are_off_by_default_and_render_when_selected() -> None:
+    assert (
+        'id="mid-duplicate-market-warning" type="checkbox" checked'
+        in TEMPLATE
+    )
+    assert "Prevent Duplicate Game Market Middles" in TEMPLATE
+    assert "Prevent Duplicate Game-Market Middles" not in TEMPLATE
+    assert ".mid-toggle-row strong { display: block; font-size: 14px; }" in CSS
+    assert ".mid-toggle-row small { display: block; margin-top: 3px; color: var(--mid-muted); font-size: 11px; }" in CSS
+    assert ".mid-execution-warnings article strong { color: var(--mid-text); font-size: 14px; }" in CSS
+    assert ".mid-execution-warnings article p { margin: 3px 0 0; color: var(--mid-muted); font-size: 12px; line-height: 1.45; }" in CSS
+    for warning_id in (
+        "mid-line-movement-warning",
+        "mid-liquidity-warning",
+        "mid-settlement-warning",
+    ):
+        assert f'id="{warning_id}" type="checkbox"' in TEMPLATE
+        assert f'id="{warning_id}" type="checkbox" checked' not in TEMPLATE
+
+    for required in (
+        "lineMovementWarning: false",
+        "liquidityWarning: false",
+        "settlementWarning: false",
+        "preventDuplicateGameMarket: true",
+        "prevent_duplicate_middle_market: state.preventDuplicateGameMarket",
+        "middle_pair_id: row.id",
+        "middle_leg_index: index",
+        "function executionWarningsMarkup(row)",
+        'class="mid-detail-section mid-execution-warnings"',
+        "Line Movement Confirmation",
+        "Liquidity / Limit Warning",
+        "Settlement Rule Mismatch Warning",
+        "capacity.verified !== true",
+        "settlement.verified !== true",
+        "${executionWarnings}",
+    ):
+        assert required in SCRIPT
+
+    for removed in (
+        "Game-Market",
+        "Line-Movement",
+        "Settlement-Rule",
+        "top-price",
+        "settlement-rule",
+    ):
+        assert removed not in TEMPLATE
+        assert removed not in SCRIPT
+
+    assert ".mid-execution-warnings article" in CSS
 
 
 def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract() -> None:
@@ -222,6 +275,7 @@ def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract
         'id="mid-hidden-count"',
         'id="mid-track-dialog"',
         'id="mid-track-summary"',
+        'id="mid-track-total"',
         'id="mid-track-legs"',
         'id="mid-track-proof"',
         'data-mid-track-action="track"',
@@ -235,6 +289,8 @@ def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract
         "Track</button>",
         "Hide</button>",
         "Track and Hide</button>",
+        "Track Or Hide This Middle",
+        "Recalculate Bet Sizes",
         "Keep total bet fixed</option>",
         "Lock one side</option>",
     ):
@@ -248,6 +304,7 @@ def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract
         "function calculateEditablePlan",
         "function refreshTrackPlan",
         "function applyTrackerAction",
+        'fetch("/api/middles/personal-bets"',
         "function openRecalculateDialog",
         "function refreshCalculatorPlan",
         "function resetCalculator",
@@ -268,6 +325,9 @@ def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract
         ".mid-recalculate-editor .mid-leg-editor-row",
         ".mid-leg-editor-row.is-locked",
         "justify-content: flex-end",
+        "font-weight: 800",
+        ".mid-action-dialog .mid-editor-money input:focus-visible",
+        ".mid-track-controls",
     ):
         assert required in CSS
 
@@ -282,6 +342,38 @@ def test_middles_kpis_actions_and_surfaces_use_the_requested_layout() -> None:
         'background: var(--mid-bg)',
     ):
         assert required in CSS
+
+
+def test_middles_kpi_strip_matches_arbitrage_typography_and_icon_treatment() -> None:
+    for required in (
+        'body[data-page="middles"] .mid-summary article > .mid-kpi-icon',
+        "width: 30px",
+        "height: 30px",
+        "border-color: rgba(141, 68, 246, .34)",
+        "background: rgba(141, 68, 246, .08)",
+        "color: #aa76ff",
+        "font-size: 14px",
+        'body[data-page="middles"] .mid-summary article strong',
+        "font-weight: 700",
+    ):
+        assert required in CSS
+    assert '@media (max-height: 800px) and (min-width: 1081px)' not in CSS
+
+
+def test_payout_range_uses_each_outside_profit_and_removes_duplicate_worst_case() -> None:
+    payout_section = next(
+        line for line in SCRIPT.splitlines()
+        if '<section class="mid-detail-section mid-payout-section">' in line
+    )
+    assert "<span>Worst case</span>" not in payout_section
+    assert "lowerOutsideProfit" in SCRIPT
+    assert "upperOutsideProfit" in SCRIPT
+    assert '" positive-outside"' in SCRIPT
+    assert ".mid-range-labels .positive-outside strong" in CSS
+    assert ".mid-range-loss.positive-outside strong" in CSS
+    assert ".mid-range-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }" in CSS
+    assert ".mid-range-summary > div" in CSS
+    assert "text-align: center" in CSS
 
 
 def test_middles_uses_low_hold_quick_selects_and_matchup_identity() -> None:
@@ -325,14 +417,59 @@ def test_middles_stake_control_and_payout_type_follow_the_requested_scale() -> N
         'grid-template-rows: 17px minmax(0, 1fr)',
         '.mid-stake-control > span:first-child select',
         'font: 700 17px/19px "DM Sans", sans-serif',
-        '.mid-range-summary span { font-size: 12px; }',
-        '.mid-range-summary strong { font-size: 17px; }',
-        '.mid-range-summary small { font-size: 12px; }',
+        '.mid-range-summary span { font-size: 14px; }',
+        '.mid-range-summary strong { font-size: 20px; }',
+        '.mid-range-summary small { font-size: 13px; }',
         'font-size: 13px',
         'margin: 0 1px 13px',
         '.mid-range-scale .low { left: 30%; color: var(--mid-text); font-size: 14px; }',
     ):
         assert required in CSS
+
+
+def test_payout_and_available_odds_copy_and_type_match_the_requested_cleanup() -> None:
+    for required in (
+        "<span>Middle Window</span>",
+        "<span>Market Implied Middle</span>",
+    ):
+        assert required in SCRIPT
+    for removed in (
+        "Market-implied middle",
+        "de-vigged line ladder",
+        "Final total",
+        "mid-range-axis-label",
+        "const warnings =",
+        "${warnings}",
+    ):
+        assert removed not in SCRIPT
+    for required in (
+        ".mid-range-labels strong {",
+        "font-size: 15px",
+        ".mid-range-labels span {",
+        "font-size: 14px",
+        ".mid-available-odds .mid-quote-group > header span { font-size: 15px; }",
+        ".mid-available-odds .mid-quote-row strong { font-size: 16px; }",
+        ".mid-available-odds .mid-quote-row > b { font-size: 15px; }",
+    ):
+        assert required in CSS
+
+
+def test_middles_filter_removes_redundant_thresholds_and_keeps_a_clean_bet_field() -> None:
+    for removed in (
+        "Minimum Window",
+        'id="mid-min-width"',
+        "Maximum Quote Age",
+        'id="mid-max-age"',
+        "Exchange Commission",
+        'id="mid-commission"',
+    ):
+        assert removed not in TEMPLATE
+    assert 'class="sr-only" id="mid-dialog-stake-label"' in TEMPLATE
+    assert ".mid-filter-dialog .mid-book-option > span:last-child" in CSS
+    assert "font-size: 12px" in CSS
+    assert '.mid-filter-dialog .mid-field-money input:focus-visible' in CSS
+    assert "function pointCount(value)" in SCRIPT
+    assert "<small>${pointCount(row.middleWidth)}</small>" in SCRIPT
 
 
 def test_sportsbook_logos_are_normalized_and_fail_safely() -> None:

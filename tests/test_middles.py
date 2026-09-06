@@ -360,3 +360,108 @@ def test_middles_api_rejects_required_book_outside_selected_books(app_client) ->
 
     assert response.status_code == 400
     assert response.get_json()["error"] == "REQUIRED_MIDDLE_BOOK_NOT_SELECTED"
+
+
+def test_middles_leg_can_be_saved_to_the_personal_bet_tracker(app_client) -> None:
+    app_client.set_cookie("iconbets_user", "middles-personal-user")
+    response = app_client.post(
+        "/api/middles/personal-bets",
+        json={
+            "source_id": "middle::strategy-1:0",
+            "event_title": "Seattle Mariners vs Boston Red Sox",
+            "market_title": "Alt Total",
+            "selection": "Over 8",
+            "event_start_time": "2026-09-08T23:10:00+00:00",
+            "sport_key": "baseball_mlb",
+            "league": "MLB",
+            "market_key": "alternate_totals",
+            "market_line": 8,
+            "canonical_event_id": "mlb-sea-bos-2026-09-08",
+            "canonical_market_id": "middle::strategy-1",
+            "canonical_outcome_id": "middle::strategy-1:outcome:0",
+            "american_odds": 115,
+            "stake": 250,
+            "fees": 0,
+            "sportsbook": "Bet365",
+            "sportsbook_logo": "/static/assets/sportsbooks/bet365.png",
+            "market_url": "https://www.bet365.com/",
+            "ev_percent": 4.2,
+            "tags": ["Middle", "2-leg middle"],
+            "confirm_conflict": True,
+            "confirm_duplicate": True,
+        },
+    )
+
+    assert response.status_code == 201
+    payload = response.get_json()
+    assert payload["source"] == "middles"
+    tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    assert tracker["pagination"]["total"] == 1
+    assert tracker["data"][0]["selection"] == "Over 8"
+    assert tracker["data"][0]["sportsbook"] == "Bet365"
+
+
+def test_middles_duplicate_game_market_guard_is_default_on_and_pair_aware(
+    app_client,
+) -> None:
+    app_client.set_cookie("iconbets_user", "middles-duplicate-market-user")
+
+    def leg_payload(
+        pair_id: str,
+        leg_index: int,
+        *,
+        market_key: str = "alternate_totals",
+        allow_duplicate_market: bool | None = None,
+    ) -> dict:
+        line = 8 + (leg_index * 0.5)
+        payload = {
+            "source_id": f"{pair_id}:{leg_index}",
+            "event_title": "Seattle Mariners vs Boston Red Sox",
+            "market_title": "Alt Total",
+            "selection": f"{'Over' if leg_index == 0 else 'Under'} {line:g}",
+            "event_start_time": "2026-09-08T23:10:00+00:00",
+            "sport_key": "baseball_mlb",
+            "league": "MLB",
+            "market_key": market_key,
+            "market_line": line,
+            "canonical_event_id": "mlb-sea-bos-2026-09-08",
+            "canonical_market_id": pair_id,
+            "canonical_outcome_id": f"{pair_id}:outcome:{leg_index}",
+            "middle_pair_id": pair_id,
+            "middle_leg_index": leg_index,
+            "american_odds": 115 if leg_index == 0 else -105,
+            "stake": 50,
+            "fees": 0,
+            "sportsbook": "Bet365" if leg_index == 0 else "FanDuel",
+            "tags": ["Middle", "2-leg middle"],
+            "confirm_conflict": True,
+            "confirm_duplicate": True,
+        }
+        if allow_duplicate_market is not None:
+            payload["prevent_duplicate_middle_market"] = not allow_duplicate_market
+        return payload
+
+    first_leg = app_client.post(
+        "/api/middles/personal-bets", json=leg_payload("middle::pair-1", 0)
+    )
+    second_leg = app_client.post(
+        "/api/middles/personal-bets", json=leg_payload("middle::pair-1", 1)
+    )
+    assert first_leg.status_code == 201
+    assert second_leg.status_code == 201
+
+    duplicate = app_client.post(
+        "/api/middles/personal-bets",
+        json=leg_payload("middle::pair-2", 0, market_key="totals"),
+    )
+    assert duplicate.status_code == 409
+    assert duplicate.get_json()["code"] == "DUPLICATE_MIDDLE_GAME_MARKET"
+
+    bypassed = app_client.post(
+        "/api/middles/personal-bets",
+        json=leg_payload("middle::pair-3", 0, allow_duplicate_market=True),
+    )
+    assert bypassed.status_code == 201
+
+    tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    assert tracker["pagination"]["total"] == 3

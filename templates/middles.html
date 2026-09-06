@@ -103,8 +103,7 @@
               <label><input type="radio" name="mid-dialog-stake-mode" value="total" checked><span><i class="ph ph-wallet" aria-hidden="true"></i><strong>Total Bet</strong><small>Divide one total across both sides</small></span></label>
             </div>
             <div class="mid-field-grid">
-              <label><span id="mid-dialog-stake-label">Total Bet</span><span class="mid-field-money"><b>$</b><input id="mid-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
-              <label>Minimum Window<span class="mid-field-suffix"><input id="mid-min-width" type="number" min="0.01" max="1000" step="0.5" value="0.5"><b>pts</b></span></label>
+              <label class="mid-stake-amount-field"><span class="sr-only" id="mid-dialog-stake-label">Total Bet</span><span class="mid-field-money"><b>$</b><input id="mid-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
               <label>Maximum Cost<span class="mid-field-suffix"><input id="mid-max-cost" type="number" min="0" max="100" step="0.25" value="12"><b>%</b></span></label>
             </div>
             <div class="mid-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-Return Sizing</strong><p>Baseline mode keeps the first bet fixed and calculates its hedge. Total Bet mode divides the full amount to balance both outside payouts.</p></div></div>
@@ -125,11 +124,11 @@
 
           <section class="mid-filter-panel" data-mid-filter-panel="warnings">
             <h3>Bet Warnings</h3><p>Warnings remain visible in the detail panel so execution risk is never hidden.</p>
-            <div class="mid-field-grid">
-              <label>Maximum Quote Age<span class="mid-field-suffix"><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
-              <label>Exchange Commission<span class="mid-field-suffix"><input id="mid-commission" type="number" min="0" max="25" step="0.25" value="0"><b>%</b></span></label>
-            </div>
             <label class="mid-toggle-row"><span><strong>Require Distinct Sportsbooks</strong><small>Prevents both sides from being assigned to the same book.</small></span><input id="mid-distinct-books" type="checkbox" checked></label>
+            <label class="mid-toggle-row"><span><strong>Prevent Duplicate Game Market Middles</strong><small>Blocks tracking another middle for the same game and market type.</small></span><input id="mid-duplicate-market-warning" type="checkbox" checked></label>
+            <label class="mid-toggle-row"><span><strong>Line Movement Confirmation</strong><small>Reminds you to recheck both prices before placing either bet.</small></span><input id="mid-line-movement-warning" type="checkbox"></label>
+            <label class="mid-toggle-row"><span><strong>Liquidity / Limit Warning</strong><small>Flags plays when a bet limit or top price liquidity is not verified.</small></span><input id="mid-liquidity-warning" type="checkbox"></label>
+            <label class="mid-toggle-row"><span><strong>Settlement Rule Mismatch Warning</strong><small>Flags missing or incompatible settlement rule identifiers.</small></span><input id="mid-settlement-warning" type="checkbox"></label>
             <div class="mid-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>A middle can still fail because of limits, voids, grading differences, or a price moving before both bets are placed.</p></div>
           </section>
         </div>
@@ -141,17 +140,20 @@
   <dialog class="mid-dialog mid-action-dialog" id="mid-track-dialog" aria-labelledby="mid-track-title">
     <form class="mid-action-shell" id="mid-track-form">
       <header>
-        <div><p class="mid-eyebrow">REVIEW LEGS</p><h2 id="mid-track-title">Track or hide this middle</h2></div>
+        <div><p class="mid-eyebrow">REVIEW LEGS</p><h2 id="mid-track-title">Track Or Hide This Middle</h2></div>
         <button class="mid-icon-button" id="mid-track-close" type="button" aria-label="Close track or hide dialog"><i class="ph ph-x" aria-hidden="true"></i></button>
       </header>
       <div class="mid-action-body">
         <div class="mid-action-summary" id="mid-track-summary"></div>
+        <div class="mid-calculator-controls mid-track-controls">
+          <label>Total Bet<span class="mid-editor-money"><b>$</b><input id="mid-track-total" type="number" min="1" step="0.01" inputmode="decimal" aria-label="Total Bet"></span></label>
+        </div>
         <div class="mid-leg-editor mid-track-editor">
           <div class="mid-leg-editor-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span></div>
           <div class="mid-leg-editor-list" id="mid-track-legs"></div>
         </div>
         <div class="mid-action-proof" id="mid-track-proof" aria-live="polite"></div>
-        <p class="mid-action-note">Double-check every price before tracking. Track saves the confirmed two-leg plan in this browser. Hide only removes this opportunity from the Live list; neither action places or cancels a wager.</p>
+        <p class="mid-action-note">Double-check every price and the total bet before tracking. Track adds both confirmed legs to Bet Tracker. Hide only removes this opportunity from the Live list; neither action places or cancels a wager.</p>
         <p class="mid-action-error" id="mid-track-error" role="alert" aria-live="polite"></p>
       </div>
       <footer class="mid-action-footer">
@@ -165,7 +167,7 @@
   <dialog class="mid-dialog mid-action-dialog mid-recalculate-dialog" id="mid-recalculate-dialog" aria-labelledby="mid-recalculate-title">
     <form class="mid-action-shell" id="mid-recalculate-form">
       <header>
-        <div><p class="mid-eyebrow">MIDDLE CALCULATOR</p><h2 id="mid-recalculate-title">Recalculate bet sizes</h2></div>
+        <div><p class="mid-eyebrow">MIDDLE CALCULATOR</p><h2 id="mid-recalculate-title">Recalculate Bet Sizes</h2></div>
         <button class="mid-icon-button" id="mid-recalculate-close" type="button" aria-label="Close bet calculator"><i class="ph ph-x" aria-hidden="true"></i></button>
       </header>
       <div class="mid-action-body">
