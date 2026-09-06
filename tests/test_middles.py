@@ -185,6 +185,41 @@ def test_non_overlapping_lines_are_not_false_middles() -> None:
     assert board["diagnostics"]["rejectionReasons"]["no_middle_pair"] == 1
 
 
+def test_push_win_total_pair_is_not_a_true_middle() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", -110, 8.0)]),
+        _book("fanduel", [_outcome("Under", -110, 8.5)]),
+    )
+
+    board = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        now=NOW,
+    )
+
+    assert board["data"] == []
+    assert board["diagnostics"]["rejectionReasons"]["no_true_middle_outcome"] == 1
+
+
+def test_half_point_total_pair_with_a_double_win_result_remains_a_middle() -> None:
+    event = _event(
+        _book("draftkings", [_outcome("Over", -110, 7.5)]),
+        _book("fanduel", [_outcome("Under", -110, 8.5)]),
+    )
+
+    board = build_middles_board(
+        [event],
+        selected_books=("draftkings", "fanduel"),
+        allowed_markets=("alternate_totals",),
+        now=NOW,
+    )
+
+    assert len(board["data"]) == 1
+    assert board["data"][0]["window"]["label"] == "8"
+    assert board["data"][0]["middleOutcomeCount"] == 1
+
+
 def test_maximum_cost_and_minimum_width_are_hard_filters() -> None:
     event = _event(
         _book("draftkings", [_outcome("Over", -110, 42.5)]),

@@ -32,7 +32,7 @@ from sports_game_odds import (
 )
 
 
-MIDDLES_CALCULATION_VERSION = "iconlabs-middles-v3-probability-execution-gates"
+MIDDLES_CALCULATION_VERSION = "iconlabs-middles-v4-true-middle-outcomes"
 MIN_AMERICAN_ODDS = -5_000
 MAX_AMERICAN_ODDS = 5_000
 SPREAD_MARKETS = {"spreads", "alternate_spreads"}
@@ -621,6 +621,9 @@ def build_middles_board(
                 window = _window_payload(
                     "total" if _is_total_market(market_key) else "spread", first, second
                 )
+                if window["integerOutcomeCount"] < 1:
+                    rejected["no_true_middle_outcome"] += 1
+                    continue
                 if window["width"] + 1e-9 < min_middle_width:
                     rejected["below_minimum_width"] += 1
                     continue

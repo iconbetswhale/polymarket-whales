@@ -97,7 +97,10 @@ result is used for every non-middle outcome. It is intentionally conservative.
 
 When a boundary is a whole number, the exact boundary can push one ticket while
 the other ticket wins. The scanner reports those returned-stake scenarios
-separately. Half-point boundaries cannot push under ordinary settlement rules.
+separately when the pair also contains at least one result where both tickets
+win. A pair whose gap contains only a push-win result, such as `Over 8` with
+`Under 8.5`, is excluded because it is not a true middle. Half-point boundaries
+cannot push under ordinary settlement rules.
 
 ## Ranking
 
