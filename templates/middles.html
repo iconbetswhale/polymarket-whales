@@ -7,9 +7,9 @@
       <p class="mid-eyebrow">MIDDLE WINDOWS</p>
       <div class="mid-title-row">
         <h1 class="il-page-title">Middles</h1>
-        <nav class="mid-mode-tabs" aria-label="Middle timing">
-          <button class="active" type="button" aria-pressed="true">Pre-Match <span id="mid-mode-count">0</span></button>
-          <button type="button" disabled title="Live middle scanning is not enabled">Live</button>
+        <nav class="mid-mode-tabs" aria-label="Opportunity state">
+          <button class="active" type="button" data-mid-view="live" aria-pressed="true">Live <span id="mid-live-count">0</span></button>
+          <button type="button" data-mid-view="hidden" aria-pressed="false">Hidden <span id="mid-hidden-count">0</span></button>
         </nav>
         <button class="mid-learn-button" id="mid-learn-open" type="button" title="How it works"><i class="ph ph-graduation-cap" aria-hidden="true"></i>How it works</button>
       </div>
@@ -67,38 +67,125 @@
   <button class="mid-mobile-close" id="mid-mobile-close" type="button" aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button>
   <div class="mid-mobile-backdrop" id="mid-mobile-backdrop" hidden></div>
 
-  <dialog class="mid-dialog" id="mid-filter-dialog" aria-labelledby="mid-filter-title">
-    <form class="mid-dialog-shell" id="mid-filter-form" method="dialog">
-      <header><h2 id="mid-filter-title">Middle scanner</h2><button class="mid-dialog-close" id="mid-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
-      <div class="mid-filter-layout">
-        <section class="mid-filter-section mid-filter-books">
-          <div class="mid-filter-section-title"><div><span>Sportsbooks</span><small id="mid-book-count">0 selected</small></div><div><button type="button" id="mid-books-all">Select all</button><button type="button" id="mid-books-default">Reset</button></div></div>
-          <p class="mid-filter-help">Every independently executable OddsEngine sportsbook and exchange is available. DFS pick'em books are excluded from middle legs.</p>
-          <label class="mid-book-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-book-search" type="search" placeholder="Find a sportsbook"></label>
-          <div class="mid-book-grid" id="mid-book-grid"></div>
-        </section>
-        <section class="mid-filter-section mid-filter-math">
-          <div class="mid-filter-section-title"><div><span>Math &amp; freshness</span><small>Transparent scanner rules</small></div></div>
-          <div class="mid-field-grid">
-            <label>Minimum window<span><input id="mid-min-width" type="number" min="0.01" max="1000" step="0.5" value="0.5"><b>pts</b></span></label>
-            <label>Maximum cost<span><input id="mid-max-cost" type="number" min="0" max="100" step="0.25" value="12"><b>%</b></span></label>
-            <label>Maximum quote age<span><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
-            <label>Exchange commission<span><input id="mid-commission" type="number" min="0" max="25" step="0.25" value="0"><b>%</b></span></label>
-          </div>
-          <fieldset class="mid-market-choices" id="mid-market-choices">
-            <legend>Markets</legend>
-            <label><input type="checkbox" value="spreads" checked><span>Game spreads</span></label>
-            <label><input type="checkbox" value="alternate_spreads" checked><span>Alternate spreads</span></label>
-            <label><input type="checkbox" value="totals" checked><span>Game totals</span></label>
-            <label><input type="checkbox" value="alternate_totals" checked><span>Alternate totals</span></label>
-            {% for market in middles_config.marketGroups.props %}
-            <label><input type="checkbox" value="{{ market.key }}"><span>{{ market.name }}</span></label>
-            {% endfor %}
-          </fieldset>
-          <label class="mid-switch"><input id="mid-distinct-books" type="checkbox"><span><b>Require different books</b><small>Useful when one book limits opposing alternate lines.</small></span></label>
-        </section>
+  <dialog class="mid-dialog mid-filter-dialog" id="mid-filter-dialog" aria-labelledby="mid-filter-title">
+    <form class="mid-filter-shell" id="mid-filter-form" method="dialog">
+      <header>
+        <h2 id="mid-filter-title">Middles Filters</h2>
+        <div class="mid-selection-summary"><strong id="mid-selected-summary">0 selected</strong><button id="mid-books-all-top" type="button">Select All</button><button id="mid-books-clear-top" type="button">Clear</button></div>
+        <button class="mid-dialog-close" id="mid-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
+      </header>
+      <div class="mid-filter-body">
+        <nav class="mid-filter-nav" aria-label="Filter categories">
+          <button class="active" type="button" data-mid-filter-tab="saved"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span>Saved Filters</span><b id="mid-saved-count">0</b></button>
+          <button type="button" data-mid-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="mid-book-filter-count">All</b></button>
+          <button type="button" data-mid-filter-tab="middle"><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><span>Middle &amp; Bet Size</span></button>
+          <button type="button" data-mid-filter-tab="markets"><i class="ph ph-chart-line" aria-hidden="true"></i><span>Markets</span></button>
+          <button type="button" data-mid-filter-tab="warnings"><i class="ph ph-warning" aria-hidden="true"></i><span>Bet Warnings</span></button>
+        </nav>
+
+        <div class="mid-filter-panels">
+          <section class="mid-filter-panel active" data-mid-filter-panel="saved">
+            <div class="mid-filter-panel-heading"><div><h3>Saved Filters</h3><p>Reuse the sportsbook, middle, market, and safety settings that matter to you.</p></div></div>
+            <div class="mid-saved-list" id="mid-saved-list"><div class="mid-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No Filters Saved Yet</strong><p>Configure this scan, then use Save Filter below.</p></div></div>
+          </section>
+
+          <section class="mid-filter-panel" data-mid-filter-panel="sportsbooks">
+            <div class="mid-filter-panel-heading"><div><h3>Sportsbooks</h3></div><div><button id="mid-books-all" type="button">Select All</button><button id="mid-books-clear" type="button">Clear</button></div></div>
+            <div class="mid-book-pills" role="group" aria-label="Sportsbook groups"><button class="active" type="button" data-mid-book-group="all">All Books</button><button type="button" data-mid-book-group="sportsbook">Sportsbooks</button><button type="button" data-mid-book-group="exchange">Exchanges</button><button type="button" data-mid-book-group="popular"><i class="ph ph-star"></i>Popular</button></div>
+            <label class="mid-dialog-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="mid-book-search" type="search" placeholder="Search sportsbooks and exchanges"></label>
+            <div class="mid-book-grid" id="mid-book-grid"></div>
+          </section>
+
+          <section class="mid-filter-panel" data-mid-filter-panel="middle">
+            <h3>Middle &amp; Bet Size</h3><p>Lock your intended first bet for the fastest hedge plan, or allocate one fixed total across both sides.</p>
+            <div class="mid-stake-mode-grid" role="radiogroup" aria-label="Bet sizing mode">
+              <label><input type="radio" name="mid-dialog-stake-mode" value="first-leg"><span><i class="ph ph-lock-key" aria-hidden="true"></i><strong>Lock Baseline</strong><small>Calculate the exact hedge</small></span></label>
+              <label><input type="radio" name="mid-dialog-stake-mode" value="total" checked><span><i class="ph ph-wallet" aria-hidden="true"></i><strong>Total Bet</strong><small>Divide one total across both sides</small></span></label>
+            </div>
+            <div class="mid-field-grid">
+              <label><span id="mid-dialog-stake-label">Total Bet</span><span class="mid-field-money"><b>$</b><input id="mid-dialog-stake" type="number" min="1" max="10000000" step="25" value="1000"></span></label>
+              <label>Minimum Window<span class="mid-field-suffix"><input id="mid-min-width" type="number" min="0.01" max="1000" step="0.5" value="0.5"><b>pts</b></span></label>
+              <label>Maximum Cost<span class="mid-field-suffix"><input id="mid-max-cost" type="number" min="0" max="100" step="0.25" value="12"><b>%</b></span></label>
+            </div>
+            <div class="mid-formula-card"><i class="ph ph-scales" aria-hidden="true"></i><div><strong>Equal-Return Sizing</strong><p>Baseline mode keeps the first bet fixed and calculates its hedge. Total Bet mode divides the full amount to balance both outside payouts.</p></div></div>
+          </section>
+
+          <section class="mid-filter-panel" data-mid-filter-panel="markets">
+            <h3>Markets</h3><p>Middles are built only from compatible opposing total, spread, and player-prop lines.</p>
+            <div class="mid-choice-grid" id="mid-market-choices">
+              <label><input type="checkbox" value="spreads" checked><span><i class="ph ph-arrows-left-right" aria-hidden="true"></i><strong>Game Spreads</strong></span></label>
+              <label><input type="checkbox" value="alternate_spreads" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alternate Spreads</strong></span></label>
+              <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Game Totals</strong></span></label>
+              <label><input type="checkbox" value="alternate_totals" checked><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alternate Totals</strong></span></label>
+              {% for market in middles_config.marketGroups.props %}
+              <label><input type="checkbox" value="{{ market.key }}"><span>{% if "baseball_mlb" in market.sports %}<i class="ph ph-baseball" aria-hidden="true"></i>{% elif "basketball_nba" in market.sports or "basketball_wnba" in market.sports %}<i class="ph ph-basketball" aria-hidden="true"></i>{% else %}<i class="ph ph-trophy" aria-hidden="true"></i>{% endif %}<strong>{{ market.name }}</strong></span></label>
+              {% endfor %}
+            </div>
+          </section>
+
+          <section class="mid-filter-panel" data-mid-filter-panel="warnings">
+            <h3>Bet Warnings</h3><p>Warnings remain visible in the detail panel so execution risk is never hidden.</p>
+            <div class="mid-field-grid">
+              <label>Maximum Quote Age<span class="mid-field-suffix"><input id="mid-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
+              <label>Exchange Commission<span class="mid-field-suffix"><input id="mid-commission" type="number" min="0" max="25" step="0.25" value="0"><b>%</b></span></label>
+            </div>
+            <label class="mid-toggle-row"><span><strong>Require Distinct Sportsbooks</strong><small>Prevents both sides from being assigned to the same book.</small></span><input id="mid-distinct-books" type="checkbox" checked></label>
+            <div class="mid-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>A middle can still fail because of limits, voids, grading differences, or a price moving before both bets are placed.</p></div>
+          </section>
+        </div>
       </div>
-      <footer><button class="mid-button ghost" id="mid-filter-reset" type="button">Reset filters</button><button class="mid-button primary" id="mid-filter-apply" type="button">Apply &amp; rescan</button></footer>
+      <footer><button class="mid-secondary-button" id="mid-save-filter" type="button"><i class="ph ph-bookmark-simple"></i>Save Filter</button><div><button class="mid-secondary-button" id="mid-filter-reset" type="button">Reset Defaults</button><button class="mid-primary-button" id="mid-filter-apply" type="button">Show Opportunities</button></div></footer>
+    </form>
+  </dialog>
+
+  <dialog class="mid-dialog mid-action-dialog" id="mid-track-dialog" aria-labelledby="mid-track-title">
+    <form class="mid-action-shell" id="mid-track-form">
+      <header>
+        <div><p class="mid-eyebrow">REVIEW LEGS</p><h2 id="mid-track-title">Track or hide this middle</h2></div>
+        <button class="mid-icon-button" id="mid-track-close" type="button" aria-label="Close track or hide dialog"><i class="ph ph-x" aria-hidden="true"></i></button>
+      </header>
+      <div class="mid-action-body">
+        <div class="mid-action-summary" id="mid-track-summary"></div>
+        <div class="mid-leg-editor mid-track-editor">
+          <div class="mid-leg-editor-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span></div>
+          <div class="mid-leg-editor-list" id="mid-track-legs"></div>
+        </div>
+        <div class="mid-action-proof" id="mid-track-proof" aria-live="polite"></div>
+        <p class="mid-action-note">Double-check every price before tracking. Track saves the confirmed two-leg plan in this browser. Hide only removes this opportunity from the Live list; neither action places or cancels a wager.</p>
+        <p class="mid-action-error" id="mid-track-error" role="alert" aria-live="polite"></p>
+      </div>
+      <footer class="mid-action-footer">
+        <button class="mid-secondary-button" type="button" data-mid-track-action="track"><i class="ph ph-crosshair" aria-hidden="true"></i>Track</button>
+        <button class="mid-secondary-button mid-hide-button" type="button" data-mid-track-action="hide"><i class="ph ph-eye-slash" aria-hidden="true"></i>Hide</button>
+        <button class="mid-primary-button" type="button" data-mid-track-action="track-hide"><i class="ph ph-check-circle" aria-hidden="true"></i>Track and Hide</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <dialog class="mid-dialog mid-action-dialog mid-recalculate-dialog" id="mid-recalculate-dialog" aria-labelledby="mid-recalculate-title">
+    <form class="mid-action-shell" id="mid-recalculate-form">
+      <header>
+        <div><p class="mid-eyebrow">MIDDLE CALCULATOR</p><h2 id="mid-recalculate-title">Recalculate bet sizes</h2></div>
+        <button class="mid-icon-button" id="mid-recalculate-close" type="button" aria-label="Close bet calculator"><i class="ph ph-x" aria-hidden="true"></i></button>
+      </header>
+      <div class="mid-action-body">
+        <div class="mid-action-summary" id="mid-recalculate-summary"></div>
+        <div class="mid-calculator-controls">
+          <label>Calculation mode<select id="mid-recalculate-mode"><option value="total">Keep total bet fixed</option><option value="locked">Lock one side</option></select></label>
+          <label>Total bet<span class="mid-editor-money"><b>$</b><input id="mid-recalculate-total" type="number" min="1" step="0.01" inputmode="decimal"></span></label>
+        </div>
+        <div class="mid-leg-editor mid-recalculate-editor">
+          <div class="mid-leg-editor-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span><span>Lock</span></div>
+          <div class="mid-leg-editor-list" id="mid-recalculate-legs"></div>
+        </div>
+        <div class="mid-action-proof" id="mid-recalculate-proof" aria-live="polite"></div>
+        <p class="mid-action-note">Edit either line, or lock one side and enter the amount you want to bet there. The calculator immediately equalizes the other leg. These working numbers do not replace the live feed.</p>
+        <p class="mid-action-error" id="mid-recalculate-error" role="alert" aria-live="polite"></p>
+      </div>
+      <footer class="mid-action-footer mid-calculator-footer">
+        <button class="mid-secondary-button" id="mid-recalculate-reset" type="button"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i>Reset</button>
+        <button class="mid-primary-button" id="mid-recalculate-done" type="button">Done</button>
+      </footer>
     </form>
   </dialog>
 

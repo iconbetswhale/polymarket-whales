@@ -33,6 +33,9 @@ def test_middles_exposes_the_complete_scan_plan_and_filter_workflow() -> None:
         'id="mid-commission"',
         'id="mid-distinct-books"',
         'id="mid-learn-dialog"',
+        'id="mid-track-dialog"',
+        'id="mid-track-legs"',
+        'id="mid-recalculate-dialog"',
     ):
         assert required in TEMPLATE
 
@@ -55,8 +58,9 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         "function renderDetail",
         "function togglePause",
         "function renderBookGrid",
-        "function copyPlan",
-        "function toggleTracked",
+        "function openTracker",
+        "function applyTrackerAction",
+        "function restoreSelected",
         "showModal()",
         'data-mid-id',
     ):
@@ -125,13 +129,51 @@ def test_payout_scenarios_render_an_accessible_range_map() -> None:
         ".mid-available-odds .mid-quote-groups",
         "grid-template-columns: repeat(2, minmax(0, 1fr))",
         ".mid-available-odds .mid-quote-row.best",
-        "box-shadow: inset 0 0 0 1px rgba(80, 217, 119, .78), 0 0 12px rgba(80, 217, 119, .32)",
+        "box-shadow: inset 0 0 0 1px var(--mid-purple), 0 0 12px rgba(141, 68, 246, .32)",
         ".mid-plan-head span:nth-child(3)",
         ".mid-plan-payout { color: var(--mid-green); text-align: center; font-size: 15px",
         ".mid-plan-odds { font-size: 16px; }",
         ".mid-plan-stake strong { color: var(--mid-text); font-size: 15px; }",
     ):
         assert required in CSS
+
+
+def test_middles_filter_dialog_matches_the_low_hold_workspace_pattern() -> None:
+    for required in (
+        'class="mid-dialog mid-filter-dialog"',
+        'class="mid-selection-summary"',
+        'data-mid-filter-tab="saved"',
+        'data-mid-filter-tab="sportsbooks"',
+        'data-mid-filter-tab="middle"',
+        'data-mid-filter-tab="markets"',
+        'data-mid-filter-tab="warnings"',
+        'data-mid-book-group="popular"',
+        'id="mid-save-filter"',
+        'id="mid-dialog-stake"',
+        'id="mid-books-clear-top"',
+        'Reset Defaults',
+        'Show Opportunities',
+    ):
+        assert required in TEMPLATE
+    for required in (
+        ".mid-filter-shell",
+        "grid-template-columns: 210px minmax(0, 1fr)",
+        ".mid-filter-nav",
+        ".mid-filter-panels",
+        ".mid-book-pills",
+        ".mid-stake-mode-grid",
+        ".mid-saved-list",
+    ):
+        assert required in CSS
+    for required in (
+        "function filteredBookCatalog",
+        "function renderSavedFilters",
+        "function saveFilter",
+        "function loadSaved",
+        "function deleteSaved",
+        "function openFilter",
+    ):
+        assert required in SCRIPT
 
 
 def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None:
@@ -170,6 +212,64 @@ def test_middles_matches_the_arbitrage_workspace_geometry_and_controls() -> None
     assert '"cost-asc", "width-desc", "profit-desc", "time-asc"' in SCRIPT
     assert 'window.matchMedia("(max-width: 1080px)")' in SCRIPT
     assert "live-arbitrage-v6" in BASE
+
+
+def test_middles_track_hide_workflow_and_feed_views_match_the_requested_contract() -> None:
+    for required in (
+        'data-mid-view="live"',
+        'data-mid-view="hidden"',
+        'id="mid-live-count"',
+        'id="mid-hidden-count"',
+        'id="mid-track-dialog"',
+        'id="mid-track-summary"',
+        'id="mid-track-legs"',
+        'id="mid-track-proof"',
+        'data-mid-track-action="track"',
+        'data-mid-track-action="hide"',
+        'data-mid-track-action="track-hide"',
+        'id="mid-recalculate-dialog"',
+        'id="mid-recalculate-mode"',
+        'id="mid-recalculate-total"',
+        'id="mid-recalculate-legs"',
+        'id="mid-recalculate-proof"',
+        "Track</button>",
+        "Hide</button>",
+        "Track and Hide</button>",
+        "Keep total bet fixed</option>",
+        "Lock one side</option>",
+    ):
+        assert required in TEMPLATE
+    assert "Pre-Match" not in TEMPLATE
+    for required in (
+        'const hiddenKey = "iconlabsHiddenMiddlesV1"',
+        'const trackedPlanKey = "iconlabsTrackedMiddlePlansV1"',
+        'view: "live"',
+        "function setView",
+        "function calculateEditablePlan",
+        "function refreshTrackPlan",
+        "function applyTrackerAction",
+        "function openRecalculateDialog",
+        "function refreshCalculatorPlan",
+        "function resetCalculator",
+        'state.hidden.add(id)',
+        'state.hidden.delete(String(state.selectedId))',
+        "Track/Hide</button>",
+        "Recalculate</button>",
+        "Restore</button>",
+    ):
+        assert required in SCRIPT
+    for required in (
+        ".mid-action-dialog",
+        "width: min(920px, calc(100vw - 32px))",
+        ".mid-action-summary",
+        ".mid-leg-editor-row",
+        ".mid-action-proof",
+        ".mid-action-footer",
+        ".mid-recalculate-editor .mid-leg-editor-row",
+        ".mid-leg-editor-row.is-locked",
+        "justify-content: flex-end",
+    ):
+        assert required in CSS
 
 
 def test_middles_kpis_actions_and_surfaces_use_the_requested_layout() -> None:

@@ -90,6 +90,25 @@ def test_required_sportsbook_reprices_the_middle_with_that_book() -> None:
     assert "betmgm" in required["booksUsed"]
 
 
+def test_middle_uses_the_best_executable_price_for_each_side() -> None:
+    event = _event(
+        _book("fliff", [_outcome("Over", 200, 8.5)]),
+        _book("prophetexchange", [_outcome("Over", 250, 8.5)]),
+        _book("kalshi", [_outcome("Under", -300, 9.5)]),
+    )
+
+    row = build_middles_board(
+        [event],
+        selected_books=("fliff", "prophetexchange", "kalshi"),
+        allowed_markets=("alternate_totals",),
+        max_cost_percent=100,
+        now=NOW,
+    )["data"][0]
+
+    assert row["booksUsed"] == ["prophetexchange", "kalshi"]
+    assert row["legs"][0]["americanOdds"] == 250
+
+
 def test_baseline_middle_locks_the_first_leg_and_sizes_the_hedge() -> None:
     event = _event(
         _book("draftkings", [_outcome("Over", -110, 42.5)]),

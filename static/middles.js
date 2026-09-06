@@ -4,6 +4,7 @@
 
   const configNode = document.getElementById("mid-config");
   const config = configNode ? JSON.parse(configNode.textContent || "{}") : {};
+  const popularBooks = new Set(["fanduel", "draftkings", "betmgm", "caesars", "fanatics", "bet365", "pinnacle", "novig", "hardrockbet", "betonline", "kalshi", "polymarket"]);
   const eligibleBooks = (config.books || []).filter((book) => book.type !== "dfs");
   const defaultBookKeys = eligibleBooks.filter((book) => book.defaultExecution !== false).map((book) => book.key);
   const configuredMiddleMarketKeys = Object.entries(config.marketGroups || {}).flatMap(([group, markets]) =>
@@ -12,7 +13,10 @@
       : (markets || [])
   ).map((market) => typeof market === "string" ? market : market?.key).filter(Boolean);
   const storageKey = "iconlabsMiddlesSettingsV3";
+  const savedKey = "iconlabsMiddlesSavedFiltersV1";
   const trackedKey = "iconlabsTrackedMiddlesV1";
+  const trackedPlanKey = "iconlabsTrackedMiddlePlansV1";
+  const hiddenKey = "iconlabsHiddenMiddlesV1";
   const defaults = {
     books: defaultBookKeys,
     markets: configuredMiddleMarketKeys.length
@@ -44,6 +48,8 @@
     sport: "",
     paused: false,
     loading: false,
+    view: "live",
+    bookGroup: "all",
     selectedBooks: new Set(Array.isArray(saved.books) && saved.books.length ? saved.books : defaults.books),
     markets: Array.isArray(saved.markets) && saved.markets.length ? saved.markets : defaults.markets,
     minWidth: numberBetween(saved.minWidth, 0.01, 1000, defaults.minWidth),
@@ -58,10 +64,17 @@
     requiredBook: initialRequiredBook,
     lastUpdated: null,
     tracked: new Set(),
+    trackedPlans: {},
+    hidden: new Set(),
+    trackerSession: null,
+    calculatorSession: null,
     refreshTimer: null,
     stakeTimer: null,
   };
-  try { state.tracked = new Set(JSON.parse(localStorage.getItem(trackedKey) || "[]")); } catch (_) { state.tracked = new Set(); }
+  try { state.tracked = new Set(JSON.parse(localStorage.getItem(trackedKey) || "[]").map(String)); } catch (_) { state.tracked = new Set(); }
+  try { state.trackedPlans = JSON.parse(localStorage.getItem(trackedPlanKey) || "{}"); } catch (_) { state.trackedPlans = {}; }
+  if (!state.trackedPlans || Array.isArray(state.trackedPlans) || typeof state.trackedPlans !== "object") state.trackedPlans = {};
+  try { state.hidden = new Set(JSON.parse(localStorage.getItem(hiddenKey) || "[]").map(String)); } catch (_) { state.hidden = new Set(); }
 
   const elements = {
     feed: document.getElementById("mid-feed"),
@@ -85,7 +98,23 @@
     requiredBookValue: document.getElementById("mid-required-book-value"),
     requiredBookMenu: document.getElementById("mid-required-book-menu"),
     filterDialog: document.getElementById("mid-filter-dialog"),
+    trackDialog: document.getElementById("mid-track-dialog"),
+    trackSummary: document.getElementById("mid-track-summary"),
+    trackLegs: document.getElementById("mid-track-legs"),
+    trackProof: document.getElementById("mid-track-proof"),
+    trackError: document.getElementById("mid-track-error"),
+    recalculateDialog: document.getElementById("mid-recalculate-dialog"),
+    recalculateSummary: document.getElementById("mid-recalculate-summary"),
+    recalculateMode: document.getElementById("mid-recalculate-mode"),
+    recalculateTotal: document.getElementById("mid-recalculate-total"),
+    recalculateLegs: document.getElementById("mid-recalculate-legs"),
+    recalculateProof: document.getElementById("mid-recalculate-proof"),
+    recalculateError: document.getElementById("mid-recalculate-error"),
     bookGrid: document.getElementById("mid-book-grid"),
+    bookSearch: document.getElementById("mid-book-search"),
+    dialogStake: document.getElementById("mid-dialog-stake"),
+    dialogStakeLabel: document.getElementById("mid-dialog-stake-label"),
+    savedList: document.getElementById("mid-saved-list"),
     resultCopy: document.getElementById("mid-result-copy"),
     backdrop: document.getElementById("mid-mobile-backdrop"),
     mobileClose: document.getElementById("mid-mobile-close"),
@@ -257,13 +286,24 @@
     window.setTimeout(() => toast.classList.remove("show"), 2600);
   }
 
-  function saveSettings() {
-    localStorage.setItem(storageKey, JSON.stringify({
+  function settingsPayload() {
+    return {
       books: [...state.selectedBooks], markets: state.markets, minWidth: state.minWidth,
       maxCost: state.maxCost, maxAge: state.maxAge, commission: state.commission,
       distinctBooks: state.distinctBooks, alerts: state.alerts, stake: state.stake,
       stakeMode: state.stakeMode, sort: state.sort, requiredBook: state.requiredBook,
-    }));
+    };
+  }
+
+  function saveSettings() {
+    localStorage.setItem(storageKey, JSON.stringify(settingsPayload()));
+  }
+
+  function savedFilters() {
+    try {
+      const rows = JSON.parse(localStorage.getItem(savedKey) || "[]");
+      return Array.isArray(rows) ? rows : [];
+    } catch (_) { return []; }
   }
 
   function logoMarkup(row) {
@@ -283,7 +323,10 @@
   }
 
   function visibleRows() {
-    const rows = state.rows.filter(rowMatches);
+    const rows = state.rows.filter((row) => {
+      const isHidden = state.hidden.has(String(row.id));
+      return (state.view === "hidden" ? isHidden : !isHidden) && rowMatches(row);
+    });
     if (state.sort === "width-desc") return rows.sort((left, right) => Number(right.middleWidth) - Number(left.middleWidth));
     if (state.sort === "profit-desc") return rows.sort((left, right) => Number(right.middleProfit) - Number(left.middleProfit));
     if (state.sort === "time-asc") return rows.sort((left, right) => new Date(left.commenceTime) - new Date(right.commenceTime));
@@ -306,26 +349,33 @@
 
   function renderFeed() {
     const sortLabels = { "cost-asc": "lowest break-even", "width-desc": "widest window", "profit-desc": "highest middle profit", "time-asc": "start time" };
-    if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} shown · ranked by ${sortLabels[state.sort] || sortLabels["cost-asc"]}`;
+    if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} ${state.view === "hidden" ? "hidden" : "shown"} · ranked by ${sortLabels[state.sort] || sortLabels["cost-asc"]}`;
     if (state.loading && !state.rows.length) {
       elements.feed.innerHTML = Array.from({ length: 5 }, () => '<div class="mid-skeleton"></div>').join("");
       return;
     }
     const rows = visibleRows();
     if (!rows.length) {
-      elements.feed.innerHTML = `<div class="mid-empty"><i class="ph ph-binoculars" aria-hidden="true"></i><strong>No middles match these filters</strong><span>Widen the cost or window settings, add books, or clear search.</span><button type="button" id="mid-empty-filters">Adjust filters</button></div>`;
-      document.getElementById("mid-empty-filters")?.addEventListener("click", () => elements.filterDialog.showModal());
+      if (state.view === "hidden") {
+        elements.feed.innerHTML = `<div class="mid-empty"><i class="ph ph-eye-slash" aria-hidden="true"></i><strong>No hidden middles</strong><span>Use Track/Hide on any live opportunity, then choose Hide or Track and Hide.</span><button type="button" id="mid-empty-live">View live middles</button></div>`;
+        document.getElementById("mid-empty-live")?.addEventListener("click", () => setView("live"));
+      } else {
+        elements.feed.innerHTML = `<div class="mid-empty"><i class="ph ph-binoculars" aria-hidden="true"></i><strong>No middles match these filters</strong><span>Widen the cost or window settings, add books, or clear search.</span><button type="button" id="mid-empty-filters">Adjust filters</button></div>`;
+        document.getElementById("mid-empty-filters")?.addEventListener("click", () => openFilter());
+      }
       return;
     }
     elements.feed.innerHTML = rows.map(opportunityCard).join("");
   }
 
   function updateSummary() {
-    const rows = state.rows;
+    const rows = state.rows.filter((row) => !state.hidden.has(String(row.id)));
+    const hiddenCount = state.rows.filter((row) => state.hidden.has(String(row.id))).length;
     const bestCost = rows.length ? Math.min(...rows.map((row) => Number(row.costPercent))) : null;
     const widest = rows.length ? Math.max(...rows.map((row) => Number(row.middleWidth))) : null;
     document.getElementById("mid-summary-count").textContent = String(rows.length);
-    document.getElementById("mid-mode-count").textContent = String(rows.length);
+    document.getElementById("mid-live-count").textContent = String(rows.length);
+    document.getElementById("mid-hidden-count").textContent = String(hiddenCount);
     document.getElementById("mid-summary-cost").textContent = bestCost == null ? "—" : percent(bestCost);
     document.getElementById("mid-summary-width").textContent = widest == null ? "—" : `${Number(widest.toFixed(2))} pts`;
     document.getElementById("mid-summary-books").textContent = String(state.selectedBooks.size);
@@ -489,7 +539,8 @@
 
   function renderDetail(row, openOnMobile = false) {
     if (!row) return;
-    const tracked = state.tracked.has(row.id);
+    const tracked = state.tracked.has(String(row.id));
+    const hidden = state.hidden.has(String(row.id));
     const legs = row.legs || [];
     const legCards = legs.map((leg) => `
       <article class="mid-plan-leg">
@@ -514,7 +565,10 @@
       <header class="mid-detail-header">
         <div class="mid-detail-main"><div class="mid-detail-hero-top"><div class="mid-detail-return"><strong>${percent(row.breakEvenMiddleProbability)}</strong><span>break-even middle</span></div><button type="button" data-mid-mobile-close aria-label="Close details"><i class="ph ph-x" aria-hidden="true"></i></button></div><h2 class="mid-detail-matchup">${detailMatchup(row)}</h2><p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p></div>
         <dl class="mid-detail-facts"><div><dt>Middle window</dt><dd>${esc(row.window?.label || `${row.middleWidth} pts`)}</dd></div><div><dt>Worst case</dt><dd class="${worstOutside >= 0 ? "positive" : "warning"}">${signedMoney(worstOutside)}</dd></div><div><dt>Best case</dt><dd class="positive">${signedMoney(row.middleProfit)}</dd></div></dl>
-        <div class="mid-detail-actions"><button class="mid-button primary" id="mid-track" type="button"><i class="ph ${tracked ? "ph-bookmark-simple-fill" : "ph-bookmark-simple"}" aria-hidden="true"></i>${tracked ? "Tracked" : "Track pair"}</button><button class="mid-button ghost" id="mid-copy-plan" type="button"><i class="ph ph-copy" aria-hidden="true"></i>Copy plan</button></div>
+        <div class="mid-detail-actions">${hidden
+          ? `<button class="mid-primary-button" id="mid-restore" type="button"><i class="ph ph-eye" aria-hidden="true"></i>Restore</button>`
+          : `<button class="mid-primary-button${tracked ? " tracked" : ""}" id="mid-track" type="button" aria-pressed="${tracked}"><i class="ph ph-eye-slash" aria-hidden="true"></i>Track/Hide</button>`}
+          <button class="mid-secondary-button" id="mid-recalculate" type="button"><i class="ph ph-calculator" aria-hidden="true"></i>Recalculate</button></div>
       </header>
       <section class="mid-detail-section mid-stake-plan-section"><header><h3>Equalized Bets</h3><strong>${money(row.totalStake)}</strong></header><div class="mid-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span><span class="sr-only">Action</span></div><div class="mid-plan-grid">${legCards}</div></section>
       <section class="mid-detail-section mid-payout-section"><header><h3>Payout Scenarios</h3><span class="mid-cost-badge ${row.guaranteedOutsideProfit ? "positive" : "warning"}">${percent(row.breakEvenMiddleProbability)} break-even</span></header><div class="mid-range-layout"><div class="mid-detail-summary mid-range-summary"><div><span>Middle window</span><strong>${esc(row.window?.label || "")}</strong><small>${row.middleWidth} pts</small></div><div><span>Worst case</span><strong class="${worstOutside >= 0 ? "positive" : "negative"}">${signedMoney(worstOutside)}</strong><small>${percent(row.costPercent)} cost</small></div>${probabilitySummary}</div><div class="mid-range-scroll">${payoutRangeMarkup}</div></div></section>
@@ -541,13 +595,31 @@
     renderDetail(row, openOnMobile);
   }
 
+  function renderDetailEmpty() {
+    const hidden = state.view === "hidden";
+    elements.detail.innerHTML = `<div class="mid-detail-empty"><span><i class="ph ${hidden ? "ph-eye-slash" : "ph-cursor-click"}" aria-hidden="true"></i></span><h2>${hidden ? "No hidden middle selected" : "Execution plan"}</h2><p>${hidden ? "Hidden opportunities stay here until you restore them to the Live tab." : "Select an opportunity to see the exact bet on both sides, every payout scenario, and the best available prices."}</p></div>`;
+  }
+
+  function setView(view) {
+    state.view = view === "hidden" ? "hidden" : "live";
+    document.querySelectorAll("[data-mid-view]").forEach((button) => {
+      const active = button.dataset.midView === state.view;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-pressed", String(active));
+    });
+    state.selectedId = visibleRows()[0]?.id || "";
+    closeMobileDetail();
+    renderAll();
+  }
+
   function renderAll() {
-    if (!state.selectedId || !state.rows.some((row) => row.id === state.selectedId)) state.selectedId = state.rows[0]?.id || "";
+    const visible = visibleRows();
+    if (!state.selectedId || !visible.some((row) => row.id === state.selectedId)) state.selectedId = visible[0]?.id || "";
     renderFeed();
     updateSummary();
     populateQuickFilters();
     const selected = state.rows.find((row) => row.id === state.selectedId);
-    if (selected) renderDetail(selected);
+    if (selected) renderDetail(selected); else renderDetailEmpty();
   }
 
   function endpoint() {
@@ -644,27 +716,49 @@
     notify(state.alerts ? "Middle opportunity alerts enabled" : "Middle opportunity alerts muted");
   }
 
-  function renderBookGrid(query = "") {
+  function filteredBookCatalog(query = "") {
     const needle = query.trim().toLowerCase();
-    const books = eligibleBooks.filter((book) => !needle || `${book.name} ${book.key}`.toLowerCase().includes(needle));
+    return eligibleBooks.filter((book) => {
+      if (state.bookGroup === "popular" && !popularBooks.has(book.key)) return false;
+      if (["sportsbook", "exchange"].includes(state.bookGroup) && book.type !== state.bookGroup) return false;
+      return !needle || `${book.name} ${book.key}`.toLowerCase().includes(needle);
+    });
+  }
+
+  function renderBookGrid(query = "") {
+    const books = filteredBookCatalog(query);
     elements.bookGrid.innerHTML = books.map((book) => `
-      <label class="mid-book-choice"><input type="checkbox" value="${esc(book.key)}" ${state.selectedBooks.has(book.key) ? "checked" : ""}><span>${logoMarkup(book)}<b>${esc(book.name)}</b><small>${book.type === "exchange" ? "Exchange" : "Sportsbook"}</small></span></label>`).join("");
+      <label class="mid-book-option"><input type="checkbox" value="${esc(book.key)}" ${state.selectedBooks.has(book.key) ? "checked" : ""}>${logoMarkup(book)}<span>${esc(book.name)}</span></label>`).join("");
     updateBookCount();
   }
 
   function updateBookCount() {
-    const count = elements.bookGrid.querySelectorAll("input:checked").length;
-    document.getElementById("mid-book-count").textContent = `${count} selected`;
+    const count = state.selectedBooks.size;
+    document.getElementById("mid-book-filter-count").textContent = `${count}/${eligibleBooks.length}`;
+    document.getElementById("mid-selected-summary").textContent = `${count}/${eligibleBooks.length} selected`;
+  }
+
+  function renderSavedFilters() {
+    const filters = savedFilters();
+    document.getElementById("mid-saved-count").textContent = String(filters.length);
+    if (!filters.length) {
+      elements.savedList.innerHTML = `<div class="mid-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No Filters Saved Yet</strong><p>Configure this scan, then use Save Filter below.</p></div>`;
+      return;
+    }
+    elements.savedList.innerHTML = filters.map((filter, index) => `<article class="mid-saved-filter"><i class="ph ph-bookmark-simple"></i><div><strong>${esc(filter.name)}</strong><small>${filter.stakeMode === "first-leg" ? "Baseline locked" : "Total bet"} · ${Number(filter.maxCost).toFixed(1)}% max · ${(filter.books || []).length} books</small></div><button type="button" data-mid-load-filter="${index}">Load</button><button type="button" data-mid-delete-filter="${index}" aria-label="Delete ${esc(filter.name)}"><i class="ph ph-trash"></i></button></article>`).join("");
   }
 
   function syncDialog() {
+    elements.dialogStake.value = state.stake;
+    syncStakeModeUI();
     document.getElementById("mid-min-width").value = state.minWidth;
     document.getElementById("mid-max-cost").value = state.maxCost;
     document.getElementById("mid-max-age").value = state.maxAge;
     document.getElementById("mid-commission").value = state.commission;
     document.getElementById("mid-distinct-books").checked = state.distinctBooks;
     document.querySelectorAll("#mid-market-choices input").forEach((input) => { input.checked = state.markets.includes(input.value); });
-    renderBookGrid();
+    renderBookGrid(elements.bookSearch.value);
+    renderSavedFilters();
   }
 
   function updateFilterCount() {
@@ -673,20 +767,24 @@
     if (state.markets.length !== defaults.markets.length) count += 1;
     if (state.minWidth !== defaults.minWidth) count += 1;
     if (state.maxCost !== defaults.maxCost) count += 1;
-    if (state.maxAge !== defaults.maxAge || state.commission !== defaults.commission || state.distinctBooks) count += 1;
+    if (state.maxAge !== defaults.maxAge || state.commission !== defaults.commission || state.distinctBooks !== defaults.distinctBooks) count += 1;
+    if (state.stake !== defaults.stake || state.stakeMode !== defaults.stakeMode) count += 1;
     const node = document.getElementById("mid-filter-count");
     node.textContent = String(count);
     node.hidden = count === 0;
   }
 
   function readDialog() {
-    const selected = [...elements.bookGrid.querySelectorAll("input:checked")].map((input) => input.value);
+    const selected = [...state.selectedBooks];
     const markets = [...document.querySelectorAll("#mid-market-choices input:checked")].map((input) => input.value);
     if (!selected.length || !markets.length) {
       notify(!selected.length ? "Select at least one sportsbook" : "Select at least one market", "error");
       return false;
     }
-    state.selectedBooks = new Set(selected);
+    state.stakeMode = document.querySelector('input[name="mid-dialog-stake-mode"]:checked')?.value === "first-leg" ? "first-leg" : "total";
+    state.stake = numberBetween(elements.dialogStake.value, 1, 10_000_000, defaults.stake);
+    elements.stake.value = stakeInputValue(state.stake);
+    syncStakeModeUI();
     if (state.requiredBook && !state.selectedBooks.has(state.requiredBook)) {
       state.requiredBook = "";
       notify("Required book reset to Any selected book because it is no longer selected.");
@@ -711,6 +809,10 @@
     state.commission = defaults.commission;
     state.distinctBooks = defaults.distinctBooks;
     state.requiredBook = defaults.requiredBook;
+    state.stake = defaults.stake;
+    state.stakeMode = defaults.stakeMode;
+    state.bookGroup = "all";
+    document.querySelectorAll("[data-mid-book-group]").forEach((button) => button.classList.toggle("active", button.dataset.midBookGroup === "all"));
     syncDialog();
   }
 
@@ -720,26 +822,227 @@
     loadBoard();
   }
 
-  function copyPlan() {
-    const row = state.rows.find((item) => item.id === state.selectedId);
-    if (!row) return;
-    const text = [
-      `IconLabs middle · ${row.eventTitle} · ${row.marketLabel}`,
-      ...row.legs.map((leg, index) => `Leg ${index + 1}: ${leg.selection} ${odds(leg.americanOdds)} at ${leg.bookName} — bet ${money(leg.stake)}`),
-      `Middle: ${row.window.label} · profit ${money(row.middleProfit)}`,
-      `Worst outside result: ${signedMoney(row.worstCaseProfit)} · break-even ${percent(row.breakEvenMiddleProbability)}`,
-    ].join("\n");
-    navigator.clipboard.writeText(text).then(() => notify("Execution plan copied")).catch(() => notify("Copy failed", "error"));
+  function roundCents(value) {
+    return Math.round(Number(value || 0) * 100) / 100;
   }
 
-  function toggleTracked() {
-    if (!state.selectedId) return;
-    if (state.tracked.has(state.selectedId)) state.tracked.delete(state.selectedId); else state.tracked.add(state.selectedId);
+  function validAmericanOdds(value) {
+    const amount = Number(value);
+    return Number.isFinite(amount) && amount !== 0 && Math.abs(amount) >= 100 && Math.abs(amount) <= 100000;
+  }
+
+  function calculateEditablePlan(session) {
+    const prices = session.odds.map(Number);
+    if (prices.length !== 2 || prices.some((price) => !validAmericanOdds(price))) {
+      return { error: "Enter valid American odds for both legs." };
+    }
+    const decimals = prices.map(decimalOdds);
+    let stakes = [];
+    if (session.mode === "locked") {
+      const anchorIndex = Math.min(Math.max(Number(session.anchorIndex || 0), 0), 1);
+      const anchorStake = Number(session.anchorStake);
+      if (!Number.isFinite(anchorStake) || anchorStake <= 0) return { error: "Enter a bet greater than zero for the locked side." };
+      const targetPayout = anchorStake * decimals[anchorIndex];
+      stakes = decimals.map((value, index) => index === anchorIndex ? roundCents(anchorStake) : roundCents(targetPayout / value));
+    } else {
+      const total = Number(session.total);
+      if (!Number.isFinite(total) || total <= 0) return { error: "Enter a total bet greater than zero." };
+      const weights = decimals.map((value) => 1 / value);
+      const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+      stakes = weights.map((value) => roundCents(total * value / weightTotal));
+      const correction = roundCents(total - stakes.reduce((sum, value) => sum + value, 0));
+      stakes[stakes.length - 1] = roundCents(stakes[stakes.length - 1] + correction);
+    }
+    const totalStake = roundCents(stakes.reduce((sum, value) => sum + value, 0));
+    const payouts = stakes.map((stake, index) => roundCents(stake * decimals[index]));
+    const outsideProfits = payouts.map((payout) => roundCents(payout - totalStake));
+    return {
+      prices,
+      decimals,
+      stakes,
+      payouts,
+      totalStake,
+      outsideProfits,
+      worstCase: Math.min(...outsideProfits),
+      bestCase: roundCents(payouts.reduce((sum, payout) => sum + payout, 0) - totalStake),
+    };
+  }
+
+  function actionSummary(row, kicker) {
+    return `<div><span>${esc(kicker)}</span><h3>${esc(row.eventTitle)}</h3><p>${esc(row.league)} · ${esc(row.marketLabel)} · ${esc(dateTime(row.commenceTime))}</p></div><strong>${percent(row.breakEvenMiddleProbability)}</strong>`;
+  }
+
+  function proofMarkup(plan, row) {
+    return `<div><span>Total bet</span><strong>${money(plan.totalStake)}</strong></div><div><span>Worst case</span><strong class="${plan.worstCase >= 0 ? "positive" : "warning"}">${signedMoney(plan.worstCase)}</strong></div><div><span>Best case</span><strong class="positive">${signedMoney(plan.bestCase)}</strong></div><div><span>Middle window</span><strong class="positive">${esc(row.window?.label || `${row.middleWidth} pts`)}</strong></div>`;
+  }
+
+  function editorBook(leg) {
+    return `<span class="mid-editor-book">${logoMarkup(leg)}<span><strong>${esc(leg.bookName)}</strong><small>${esc(leg.bookKey)}</small></span></span>`;
+  }
+
+  function openTracker(row) {
+    if (!row || !elements.trackDialog) return;
+    const anchorIndex = Math.min(Math.max(Number(row.baselineLegIndex ?? 0), 0), 1);
+    state.trackerSession = {
+      row,
+      mode: row.stakeMode === "first-leg" ? "locked" : "total",
+      total: Number(row.totalStake || state.stake),
+      anchorIndex,
+      anchorStake: Number(row.legs?.[anchorIndex]?.stake || row.baselineStake || 0),
+      odds: (row.legs || []).map((leg) => Number(leg.americanOdds)),
+    };
+    elements.trackSummary.innerHTML = actionSummary(row, "2-leg middle");
+    elements.trackLegs.innerHTML = (row.legs || []).map((leg, index) => `<div class="mid-leg-editor-row">
+      <div class="mid-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
+      ${editorBook(leg)}
+      <label class="mid-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-mid-track-odds="${index}"></label>
+      <strong class="mid-editor-value" data-mid-track-stake="${index}">${money(leg.stake)}</strong>
+      <strong class="mid-editor-value positive" data-mid-track-payout="${index}">${money(leg.outsidePayout)}</strong>
+    </div>`).join("");
+    elements.trackError.textContent = "";
+    refreshTrackPlan();
+    elements.trackDialog.showModal();
+  }
+
+  function refreshTrackPlan() {
+    const session = state.trackerSession;
+    if (!session) return null;
+    const plan = calculateEditablePlan(session);
+    session.plan = plan.error ? null : plan;
+    elements.trackError.textContent = plan.error || "";
+    if (plan.error) {
+      elements.trackProof.innerHTML = "";
+      return null;
+    }
+    plan.stakes.forEach((stake, index) => {
+      const stakeNode = elements.trackLegs.querySelector(`[data-mid-track-stake="${index}"]`);
+      const payoutNode = elements.trackLegs.querySelector(`[data-mid-track-payout="${index}"]`);
+      if (stakeNode) stakeNode.textContent = money(stake);
+      if (payoutNode) payoutNode.textContent = money(plan.payouts[index]);
+    });
+    elements.trackProof.innerHTML = proofMarkup(plan, session.row);
+    return plan;
+  }
+
+  function closeTracker() {
+    if (elements.trackDialog?.open) elements.trackDialog.close();
+    state.trackerSession = null;
+  }
+
+  function persistTrackerState() {
     localStorage.setItem(trackedKey, JSON.stringify([...state.tracked]));
-    const row = state.rows.find((item) => item.id === state.selectedId);
-    renderFeed();
-    renderDetail(row);
-    notify(state.tracked.has(state.selectedId) ? "Middle added to your watchlist" : "Middle removed from your watchlist");
+    localStorage.setItem(trackedPlanKey, JSON.stringify(state.trackedPlans));
+    localStorage.setItem(hiddenKey, JSON.stringify([...state.hidden]));
+  }
+
+  function applyTrackerAction(action) {
+    const session = state.trackerSession;
+    const row = session?.row;
+    if (!session || !row) return;
+    const id = String(row.id);
+    const shouldTrack = action === "track" || action === "track-hide";
+    const shouldHide = action === "hide" || action === "track-hide";
+    if (shouldTrack) {
+      const plan = refreshTrackPlan();
+      if (!plan) {
+        elements.trackLegs.querySelector("[data-mid-track-odds]")?.focus();
+        return;
+      }
+      state.tracked.add(id);
+      state.trackedPlans[id] = {
+        odds: plan.prices,
+        stakes: plan.stakes,
+        payouts: plan.payouts,
+        totalStake: plan.totalStake,
+        worstCase: plan.worstCase,
+        bestCase: plan.bestCase,
+        trackedAt: new Date().toISOString(),
+      };
+    }
+    if (shouldHide) state.hidden.add(id);
+    persistTrackerState();
+    closeTracker();
+    renderAll();
+    notify(action === "track" ? "Middle tracked with the confirmed odds" : action === "hide" ? "Middle moved to Hidden" : "Middle tracked and moved to Hidden");
+  }
+
+  function openRecalculateDialog(row) {
+    if (!row || !elements.recalculateDialog) return;
+    const anchorIndex = Math.min(Math.max(Number(row.baselineLegIndex ?? 0), 0), 1);
+    state.calculatorSession = {
+      row,
+      mode: row.stakeMode === "first-leg" ? "locked" : "total",
+      total: Number(row.totalStake || state.stake),
+      anchorIndex,
+      anchorStake: Number(row.legs?.[anchorIndex]?.stake || row.baselineStake || 0),
+      odds: (row.legs || []).map((leg) => Number(leg.americanOdds)),
+    };
+    elements.recalculateSummary.innerHTML = actionSummary(row, "Live middle workspace");
+    elements.recalculateLegs.innerHTML = (row.legs || []).map((leg, index) => `<div class="mid-leg-editor-row" data-mid-calculator-row="${index}">
+      <div class="mid-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
+      ${editorBook(leg)}
+      <label class="mid-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-mid-calculator-odds="${index}"></label>
+      <label class="mid-editor-money"><b>$</b><input type="number" min="0.01" step="0.01" inputmode="decimal" data-mid-calculator-stake="${index}" aria-label="Bet amount for ${esc(leg.selection)}"></label>
+      <strong class="mid-editor-value positive" data-mid-calculator-payout="${index}">${money(leg.outsidePayout)}</strong>
+      <label class="mid-editor-lock" title="Lock ${esc(leg.selection)} bet"><input type="radio" name="mid-calculator-lock" value="${index}" data-mid-calculator-lock="${index}"><i class="ph ph-lock-key" aria-hidden="true"></i><span class="sr-only">Lock ${esc(leg.selection)}</span></label>
+    </div>`).join("");
+    elements.recalculateMode.value = state.calculatorSession.mode;
+    elements.recalculateTotal.value = state.calculatorSession.total.toFixed(2);
+    elements.recalculateError.textContent = "";
+    refreshCalculatorPlan();
+    elements.recalculateDialog.showModal();
+  }
+
+  function refreshCalculatorPlan() {
+    const session = state.calculatorSession;
+    if (!session) return null;
+    const plan = calculateEditablePlan(session);
+    session.plan = plan.error ? null : plan;
+    elements.recalculateError.textContent = plan.error || "";
+    const lockedMode = session.mode === "locked";
+    elements.recalculateMode.value = session.mode;
+    elements.recalculateTotal.disabled = lockedMode;
+    if (plan.error) {
+      elements.recalculateProof.innerHTML = "";
+      return null;
+    }
+    if (lockedMode) elements.recalculateTotal.value = plan.totalStake.toFixed(2);
+    plan.stakes.forEach((stake, index) => {
+      const rowNode = elements.recalculateLegs.querySelector(`[data-mid-calculator-row="${index}"]`);
+      const input = rowNode?.querySelector(`[data-mid-calculator-stake="${index}"]`);
+      const payout = rowNode?.querySelector(`[data-mid-calculator-payout="${index}"]`);
+      const lock = rowNode?.querySelector(`[data-mid-calculator-lock="${index}"]`);
+      const isAnchor = lockedMode && index === session.anchorIndex;
+      rowNode?.classList.toggle("is-locked", isAnchor);
+      if (input) {
+        input.readOnly = !isAnchor;
+        if (document.activeElement !== input) input.value = stake.toFixed(2);
+      }
+      if (payout) payout.textContent = money(plan.payouts[index]);
+      if (lock) lock.checked = isAnchor;
+    });
+    elements.recalculateProof.innerHTML = proofMarkup(plan, session.row);
+    return plan;
+  }
+
+  function closeRecalculate() {
+    if (elements.recalculateDialog?.open) elements.recalculateDialog.close();
+    state.calculatorSession = null;
+  }
+
+  function resetCalculator() {
+    const row = state.calculatorSession?.row;
+    if (!row) return;
+    closeRecalculate();
+    openRecalculateDialog(row);
+  }
+
+  function restoreSelected() {
+    if (!state.selectedId) return;
+    state.hidden.delete(String(state.selectedId));
+    localStorage.setItem(hiddenKey, JSON.stringify([...state.hidden]));
+    renderAll();
+    notify("Middle restored to Live");
   }
 
   function commitStake({ normalize = false } = {}) {
@@ -754,13 +1057,61 @@
     loadBoard();
   }
 
+  function saveFilter() {
+    if (!readDialog()) return;
+    const filters = savedFilters();
+    const suggested = `Middles ${filters.length + 1}`;
+    const name = window.prompt("Name this filter", suggested)?.trim();
+    if (!name) return;
+    filters.push({ name: name.slice(0, 40), ...settingsPayload() });
+    localStorage.setItem(savedKey, JSON.stringify(filters.slice(-20)));
+    renderSavedFilters();
+    notify(`Saved ${name.slice(0, 40)}.`);
+  }
+
+  function loadSaved(index) {
+    const filter = savedFilters()[index];
+    if (!filter) return;
+    state.selectedBooks = new Set((filter.books || []).filter((key) => eligibleBooks.some((book) => book.key === key)));
+    state.markets = Array.isArray(filter.markets) && filter.markets.length ? filter.markets : [...defaults.markets];
+    state.minWidth = numberBetween(filter.minWidth, 0.01, 1000, defaults.minWidth);
+    state.maxCost = numberBetween(filter.maxCost, 0, 100, defaults.maxCost);
+    state.maxAge = numberBetween(filter.maxAge, 15, 1800, defaults.maxAge);
+    state.commission = numberBetween(filter.commission, 0, 25, defaults.commission);
+    state.distinctBooks = filter.distinctBooks === undefined ? defaults.distinctBooks : Boolean(filter.distinctBooks);
+    state.stake = numberBetween(filter.stake, 1, 10_000_000, defaults.stake);
+    state.stakeMode = filter.stakeMode === "first-leg" ? "first-leg" : "total";
+    state.sort = ["cost-asc", "width-desc", "profit-desc", "time-asc"].includes(filter.sort) ? filter.sort : defaults.sort;
+    state.requiredBook = typeof filter.requiredBook === "string" && state.selectedBooks.has(filter.requiredBook) ? filter.requiredBook : defaults.requiredBook;
+    syncDialog();
+    notify(`Loaded ${filter.name}.`);
+  }
+
+  function deleteSaved(index) {
+    const filters = savedFilters();
+    const removed = filters.splice(index, 1)[0];
+    localStorage.setItem(savedKey, JSON.stringify(filters));
+    renderSavedFilters();
+    if (removed) notify(`Deleted ${removed.name}.`);
+  }
+
+  function openFilter(tab = "sportsbooks") {
+    syncDialog();
+    document.querySelector(`[data-mid-filter-tab="${tab}"]`)?.click();
+    elements.filterDialog.showModal();
+  }
+
   function syncStakeModeUI() {
     const baselineMode = state.stakeMode === "first-leg";
     elements.stakeMode.value = state.stakeMode;
     elements.stake.setAttribute("aria-label", baselineMode ? "Baseline Amount" : "Total Bet");
+    if (elements.dialogStakeLabel) elements.dialogStakeLabel.textContent = baselineMode ? "Baseline Amount" : "Total Bet";
+    if (elements.dialogStake) elements.dialogStake.step = baselineMode ? "10" : "25";
+    document.querySelectorAll('input[name="mid-dialog-stake-mode"]').forEach((input) => { input.checked = input.value === state.stakeMode; });
   }
 
   function bind() {
+    document.querySelectorAll("[data-mid-view]").forEach((button) => button.addEventListener("click", () => setView(button.dataset.midView)));
     elements.search.addEventListener("input", () => { state.search = elements.search.value; renderFeed(); });
     elements.sport.addEventListener("change", () => { state.sport = elements.sport.value; renderFeed(); });
     elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; saveSettings(); renderFeed(); });
@@ -810,24 +1161,115 @@
       saveSettings();
       loadBoard();
     });
-    document.getElementById("mid-filter-open").addEventListener("click", () => { syncDialog(); elements.filterDialog.showModal(); });
+    document.querySelectorAll("[data-mid-filter-tab]").forEach((button) => button.addEventListener("click", () => {
+      document.querySelectorAll("[data-mid-filter-tab]").forEach((item) => item.classList.toggle("active", item === button));
+      document.querySelectorAll("[data-mid-filter-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.midFilterPanel === button.dataset.midFilterTab));
+    }));
+    document.querySelectorAll("[data-mid-book-group]").forEach((button) => button.addEventListener("click", () => {
+      state.bookGroup = button.dataset.midBookGroup;
+      document.querySelectorAll("[data-mid-book-group]").forEach((item) => item.classList.toggle("active", item === button));
+      renderBookGrid(elements.bookSearch.value);
+    }));
+    document.getElementById("mid-filter-open").addEventListener("click", () => openFilter());
     document.getElementById("mid-filter-close").addEventListener("click", () => elements.filterDialog.close());
     document.getElementById("mid-filter-reset").addEventListener("click", resetDialog);
     document.getElementById("mid-filter-form").addEventListener("submit", (event) => { event.preventDefault(); applyDialog(); });
     document.getElementById("mid-filter-apply").addEventListener("click", applyDialog);
-    document.getElementById("mid-book-search").addEventListener("input", (event) => renderBookGrid(event.target.value));
-    elements.bookGrid.addEventListener("change", updateBookCount);
-    document.getElementById("mid-books-all").addEventListener("click", () => { elements.bookGrid.querySelectorAll("input").forEach((input) => { input.checked = true; }); updateBookCount(); });
-    document.getElementById("mid-books-default").addEventListener("click", () => { elements.bookGrid.querySelectorAll("input").forEach((input) => { input.checked = defaultBookKeys.includes(input.value); }); updateBookCount(); });
+    document.getElementById("mid-save-filter").addEventListener("click", saveFilter);
+    document.querySelectorAll('input[name="mid-dialog-stake-mode"]').forEach((input) => input.addEventListener("change", () => {
+      elements.dialogStakeLabel.textContent = input.value === "first-leg" ? "Baseline Amount" : "Total Bet";
+      elements.dialogStake.step = input.value === "first-leg" ? "10" : "25";
+    }));
+    elements.bookSearch.addEventListener("input", () => renderBookGrid(elements.bookSearch.value));
+    elements.bookGrid.addEventListener("change", (event) => {
+      if (!event.target.matches('input[type="checkbox"]')) return;
+      if (event.target.checked) state.selectedBooks.add(event.target.value);
+      else state.selectedBooks.delete(event.target.value);
+      renderBookGrid(elements.bookSearch.value);
+    });
+    elements.savedList.addEventListener("click", (event) => {
+      const load = event.target.closest("[data-mid-load-filter]");
+      const remove = event.target.closest("[data-mid-delete-filter]");
+      if (load) loadSaved(Number(load.dataset.midLoadFilter));
+      if (remove) deleteSaved(Number(remove.dataset.midDeleteFilter));
+    });
+    function selectAllBooks() { filteredBookCatalog(elements.bookSearch.value).forEach((book) => state.selectedBooks.add(book.key)); renderBookGrid(elements.bookSearch.value); }
+    function clearBooks() { filteredBookCatalog(elements.bookSearch.value).forEach((book) => state.selectedBooks.delete(book.key)); renderBookGrid(elements.bookSearch.value); }
+    document.getElementById("mid-books-all").addEventListener("click", selectAllBooks);
+    document.getElementById("mid-books-all-top").addEventListener("click", () => { eligibleBooks.forEach((book) => state.selectedBooks.add(book.key)); renderBookGrid(elements.bookSearch.value); });
+    document.getElementById("mid-books-clear").addEventListener("click", clearBooks);
+    document.getElementById("mid-books-clear-top").addEventListener("click", () => { state.selectedBooks.clear(); renderBookGrid(elements.bookSearch.value); });
     const learnDialog = document.getElementById("mid-learn-dialog");
     document.getElementById("mid-learn-open").addEventListener("click", () => learnDialog.showModal());
     document.getElementById("mid-learn-close").addEventListener("click", () => learnDialog.close());
+    document.getElementById("mid-track-close").addEventListener("click", closeTracker);
+    document.getElementById("mid-track-form").addEventListener("submit", (event) => event.preventDefault());
+    elements.trackDialog.addEventListener("click", (event) => { if (event.target === elements.trackDialog) closeTracker(); });
+    elements.trackLegs.addEventListener("input", (event) => {
+      const input = event.target.closest("[data-mid-track-odds]");
+      if (!input || !state.trackerSession) return;
+      state.trackerSession.odds[Number(input.dataset.midTrackOdds)] = input.value;
+      refreshTrackPlan();
+    });
+    elements.trackDialog.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-mid-track-action]");
+      if (!button || !state.trackerSession) return;
+      applyTrackerAction(button.dataset.midTrackAction);
+    });
+    document.getElementById("mid-recalculate-close").addEventListener("click", closeRecalculate);
+    document.getElementById("mid-recalculate-form").addEventListener("submit", (event) => event.preventDefault());
+    document.getElementById("mid-recalculate-done").addEventListener("click", closeRecalculate);
+    document.getElementById("mid-recalculate-reset").addEventListener("click", resetCalculator);
+    elements.recalculateDialog.addEventListener("click", (event) => { if (event.target === elements.recalculateDialog) closeRecalculate(); });
+    elements.recalculateMode.addEventListener("change", () => {
+      const session = state.calculatorSession;
+      if (!session) return;
+      const currentPlan = session.plan;
+      session.mode = elements.recalculateMode.value === "locked" ? "locked" : "total";
+      if (session.mode === "locked") session.anchorStake = currentPlan?.stakes[session.anchorIndex] || session.anchorStake;
+      else session.total = currentPlan?.totalStake || session.total;
+      refreshCalculatorPlan();
+    });
+    elements.recalculateTotal.addEventListener("input", () => {
+      if (!state.calculatorSession || state.calculatorSession.mode !== "total") return;
+      state.calculatorSession.total = elements.recalculateTotal.value;
+      refreshCalculatorPlan();
+    });
+    elements.recalculateLegs.addEventListener("input", (event) => {
+      const session = state.calculatorSession;
+      if (!session) return;
+      const oddsInput = event.target.closest("[data-mid-calculator-odds]");
+      if (oddsInput) {
+        session.odds[Number(oddsInput.dataset.midCalculatorOdds)] = oddsInput.value;
+        refreshCalculatorPlan();
+        return;
+      }
+      const betInput = event.target.closest("[data-mid-calculator-stake]");
+      if (betInput && session.mode === "locked") {
+        const index = Number(betInput.dataset.midCalculatorStake);
+        if (index !== session.anchorIndex) return;
+        session.anchorStake = betInput.value;
+        refreshCalculatorPlan();
+      }
+    });
+    elements.recalculateLegs.addEventListener("change", (event) => {
+      const lock = event.target.closest("[data-mid-calculator-lock]");
+      const session = state.calculatorSession;
+      if (!lock || !session) return;
+      const index = Number(lock.dataset.midCalculatorLock);
+      session.mode = "locked";
+      session.anchorIndex = index;
+      session.anchorStake = session.plan?.stakes[index] || session.row.legs?.[index]?.stake || 0;
+      refreshCalculatorPlan();
+      elements.recalculateLegs.querySelector(`[data-mid-calculator-stake="${index}"]`)?.focus();
+    });
     elements.backdrop.addEventListener("click", closeMobileDetail);
     elements.mobileClose.addEventListener("click", closeMobileDetail);
     elements.detail.addEventListener("click", (event) => {
       if (event.target.closest("[data-mid-mobile-close]")) closeMobileDetail();
-      if (event.target.closest("#mid-copy-plan")) copyPlan();
-      if (event.target.closest("#mid-track")) toggleTracked();
+      if (event.target.closest("#mid-recalculate")) openRecalculateDialog(state.rows.find((item) => item.id === state.selectedId));
+      if (event.target.closest("#mid-track")) openTracker(state.rows.find((item) => item.id === state.selectedId));
+      if (event.target.closest("#mid-restore")) restoreSelected();
     });
     document.addEventListener("keydown", (event) => {
       const editable = event.target.matches("input, textarea, select") || event.target.isContentEditable;
@@ -840,7 +1282,7 @@
         const direction = ["j", "ArrowDown"].includes(event.key) ? 1 : -1;
         selectRow(rows[(current + direction + rows.length) % rows.length].id);
       }
-      if (event.key === "Escape") { closeQuickSelects(); closeMobileDetail(); }
+      if (event.key === "Escape") { closeQuickSelects(); closeMobileDetail(); closeTracker(); closeRecalculate(); }
     });
   }
 

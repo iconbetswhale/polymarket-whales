@@ -70,6 +70,89 @@ final result: passed
 
 ---
 
+# Middles Arbitrage Action Parity — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/arb-track-hide-button-reference.png`, `tmp/arb-track-hide-dialog-reference.png`, and `tmp/arb-recalculate-dialog-reference.png`, captured from the current local Arbitrage implementation at a 1280 x 720 CSS viewport and DPR 1. Each source image is 1280 x 720 pixels.
+- Rendered implementation: `tmp/middles-action-buttons-arb-copy.png`, `tmp/middles-track-hide-arb-copy.png`, and `tmp/middles-recalculate-arb-copy.png`, captured from `http://127.0.0.1:5015/middles?qa=arb-dialog-copy-final` at the same 1280 x 720 CSS viewport and DPR 1. Each implementation image is 1280 x 720 pixels; no normalization or resampling was needed.
+- State: the source and implementation show the same expanded opportunity state and open action dialogs over the dark workspace. Arbitrage-specific labels and calculations were adapted to Middles' two opposing lines; the shell, hierarchy, controls, proof cells, and action treatment are intentionally shared.
+- Full-view comparison: the source and implementation were reviewed side by side at native size. The 920px modal shell, backdrop, header, summary card, leg grid, proof row, note, footer, close control, border, radius, shadow, and surrounding dimming match the Arbitrage source.
+- Focused comparison: the main action controls use the same solid-purple primary Track/Hide button and neutral Recalculate button. The Track/Hide footer exposes Track, Hide, and Track and Hide; the Recalculate footer exposes Reset and Done.
+- Fonts and typography: passed. Dialog eyebrow, title, summary metadata, leg headers, inputs, proof values, explanatory note, and action labels reuse the exact Arbitrage type sizes, weights, line heights, and tabular numeral treatment.
+- Spacing and layout rhythm: passed. Header padding, 16px dialog gaps, summary insets, five-column leg tracks, proof-cell sizing, footer alignment, and control heights match the reference. Middles' main-page actions stack at this viewport because its detail header contains three fact columns; the button dimensions and visual treatment still match Arbitrage.
+- Colors and visual tokens: passed. Track/Hide uses the same deep purple fill and border as Arbitrage; Recalculate uses the same neutral surface. Dialog backgrounds remain the overall dark neutral rather than a purple panel, while green, amber, and red are reserved for outcome meaning.
+- Image quality and asset fidelity: passed. Existing sportsbook assets and Phosphor interface icons are retained with native aspect ratios. No placeholder image, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. Middles uses the requested Track/Hide and Recalculate labels. The disclosure accurately states that tracking stores the confirmed two-leg plan in this browser and does not place or cancel wagers; it does not imply Bet Tracker integration.
+- Behavior and accessibility: passed. Both dialogs close by Escape, backdrop, or close button; fields have leg-specific accessible labels; invalid American odds are rejected; calculations update from editable odds and bets; lock controls remain keyboard-operable.
+- Primary interactions tested: edited Track/Hide's first leg from +305 to +350 and observed the balanced plan and proof update; clicked Track and confirmed local tracked state; clicked Track and Hide and confirmed the opportunity moved to Hidden; restored it to Live; changed Recalculate total bet to $200; edited an odd to +400; switched to Lock one side; locked the Under leg; entered a $50 bet; observed total bet, worst case, best case, and middle-window proof update; used Reset and Done. The final browser developer log is empty.
+- Tracking boundary: Track and Track and Hide persist both-leg odds and bet values to Middles browser storage. They do not post either leg to the Bet Tracker. Track and Hide additionally adds the opportunity to the reversible Hidden set.
+- Automated verification: JavaScript syntax passed; 33 focused Middles tests passed; `git diff --check` passed with line-ending notices only.
+
+## Comparison history
+
+- Iteration 1, P1: the new detail action buttons were invisible because the legacy `.mid-detail-header button { display: none; }` selector overrode their component display. Fix: explicitly set `.mid-detail-actions button` to `inline-flex` and rerendered both controls.
+- Iteration 2, P2: Track/Hide appeared neutral instead of Arbitrage purple because the same header selector won the background cascade. Fix: added the scoped `.mid-detail-actions .mid-primary-button` purple fill/border rule. Post-fix evidence is `tmp/middles-action-buttons-arb-copy.png`.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
+# Middles Track / Hide Workflow — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/positive-ev-track-hide-reference.png`, captured from the existing +EV Personal Tracker dialog at a 1280 x 720 CSS viewport and DPR 1; image size is 1280 x 720 pixels.
+- Rendered implementation: `tmp/middles-track-hide-final.png`, captured from `http://127.0.0.1:5015/middles?qa=track-hide-final` at the same 1280 x 720 CSS viewport and DPR 1; image size is 1280 x 720 pixels. No density normalization or resampling was needed. Responsive evidence is `tmp/middles-track-hide-mobile.png` at 390 x 844 CSS pixels and DPR 1.
+- State: the +EV source and Middles implementation are both open confirmation dialogs over a blurred dark live-feed workspace. The Middles dialog intentionally expands the single-bet source into two editable legs and replaces sportsbook/tag/fee controls with middle-specific bet, payout, worst-case, and best-case calculations.
+- Full-view comparison evidence: both screenshots were opened together in one comparison input. Frame width, dark neutral elevation, close-button placement and purple focus ring, two-by-two summary, form hierarchy, note placement, and lower-right action group follow the same visual rhythm.
+- Focused region comparison evidence: no additional crop was needed because the 760px dialog and all editable odds, monetary values, labels, logos, and action buttons are clearly readable at original 1280 x 720 density. The mobile capture separately verifies the stacked leg and payout layout.
+- Fonts and typography: passed. DM Sans, compact uppercase metadata, 18px dialog title, tabular odds/currency, weight hierarchy, wrapping, and truncation match the established +EV treatment.
+- Spacing and layout rhythm: passed. The implementation retains the 760px source frame, 24px inset, 12px radius, two-column summary, compact control gaps, and right-aligned footer actions. The necessary two-leg grid remains balanced and stacks without horizontal overflow at 390px.
+- Colors and visual tokens: passed. The dialog uses the overall neutral Middles background, subtle slate borders, green positive payouts, amber validation/risk, and purple only for outlines/focus—not as a section background.
+- Image quality and asset fidelity: passed. Existing Prophet Exchange and Kalshi assets render sharply with their native aspect ratios, and all interface icons use the established Phosphor set. No placeholder imagery, inline SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. Track/Hide and Recalculate replace the old action labels; the dialog presents exactly Track, Hide, and Track and Hide. The note clearly states that odds edits recalculate the balanced plan without changing selected sportsbooks or placing a wager.
+- Behavior and accessibility: passed. Live and Hidden are keyboard-operable state buttons with counts; hidden opportunities are reversible through Restore. Both odds fields have selection-and-book-specific accessible labels. Invalid American odds produce an inline alert. Escape, backdrop, and close-button dismissal are supported.
+- Primary interactions tested: opened Track/Hide; changed the first leg from +305 to +400; observed bet sizing, worst case, and best case recalculate; hid the opportunity; verified Live changed from 10 to 9 and Hidden from 0 to 1; opened Hidden; restored the row; verified Live returned to 10 and Hidden to 0; opened Recalculate and confirmed the Middle & Bet Size panel. A fresh browser pass produced no console warnings or errors.
+- Book-selection integrity: `sortQuotesByBestPrice`, the backend middle optimizer, required-book parameter, and selected `booksUsed` rendering were not changed. The existing regression still confirms Prophet Exchange +305 plus Kalshi -280 is selected over the inferior Fliff price.
+- Automated verification: 33 focused Middles tests passed; JavaScript syntax passed.
+
+## Comparison history
+
+- Initial visual comparison: no actionable P0, P1, or P2 difference remained. The added two-leg structure is a required product adaptation, while the dialog frame, hierarchy, typography, neutral palette, controls, and action placement retain the +EV source pattern.
+- Functional refinement after interaction testing: reopening Track/Hide now always starts from the current live leg prices instead of a previously tracked edit. The confirmed edited plan is still retained in local tracking data, but stale edits cannot masquerade as current odds.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Open Questions
+
+- None.
+
+## Implementation Checklist
+
+- Preserve current optimizer-selected sportsbooks and Available Odds ordering.
+- Keep Live as the available pre-match feed and Hidden as the reversible hidden set.
+- Recalculate both leg bets and payout scenarios from edited American odds before any tracking action.
+- Keep the change local until explicit deployment approval.
+
+## Follow-up Polish
+
+- None.
+
+final result: passed
+
+---
+
 # Middles Selected-Odds Glow and Outcome-Value Alignment — Design QA
 
 ## September 6 local candidate
@@ -2028,5 +2111,45 @@ final result: passed
 ## Follow-up Polish
 
 - None.
+
+final result: passed
+
+---
+
+# Middles Low Hold Filter Parity, Purple Odds Selection, and Price Choice — Design QA
+
+## September 6 local candidate
+
+- Source visual truth: `tmp/low-hold-filter-reference.jpg`, captured from the local Low Hold filter at a 1280 x 720 CSS viewport and DPR 1. Mobile source evidence: `tmp/low-hold-filter-mobile-v2.jpg` at 390 x 844 and DPR 1.
+- Rendered implementation: `tmp/middles-filter-after.jpg`, captured from `http://127.0.0.1:5015/middles?qa=purple-filter-final` at the same 1280 x 720 viewport and DPR 1. Mobile implementation evidence: `tmp/middles-filter-mobile-final.jpg` at 390 x 844 and DPR 1. Pixel dimensions match their CSS viewports; no density resampling was used.
+- State: dark desktop and mobile filter dialogs, Sportsbooks selected, all 80 independently executable books selected, All Books active, and sportsbook rows visible. Dynamic title and Middles-specific category copy intentionally differ.
+- Full-view comparison evidence: the Low Hold source and Middles implementation were opened together in one comparison input at both desktop and mobile sizes. The dialog frame, 210px desktop category rail, header/footer structure, panel padding, category active state, group pills, search control, two-column desktop/one-column mobile book grids, borders, radii, and density match the reference.
+- Focused region comparison evidence: `tmp/middles-purple-odds-focused.jpg` confirms the selected Prophet Exchange and Kalshi prices use the requested purple outline/glow while the full Available Odds list remains best-price-first. The filter header and first ten book rows were large enough in the paired full-view inputs that no additional crop was needed.
+- Fonts and typography: passed. Both dialogs use DM Sans with matching 18px title, 16px panel heading, 13px category labels, 12px book labels, and the same muted/strong hierarchy.
+- Spacing and layout rhythm: passed. Desktop alignment matches the reference at the frame, rail, panel, pill, search, and row levels. The initial mobile pass exposed a crowded header; the final pass hides the selection summary at the same breakpoint as Low Hold and preserves the horizontal category rail.
+- Colors and visual tokens: passed. The filter uses the same neutral IconLabs backgrounds, border opacity, and purple selected states. Selected Available Odds now use a purple inset border and purple 12px glow rather than the previous green treatment.
+- Image quality and asset fidelity: passed. Existing sportsbook logos and Phosphor icons are used with contained scaling; no placeholder art, custom SVG, emoji, gradient, or CSS-drawn replacement was introduced.
+- Copy and content: passed. Section labels are capitalized and Middles-specific: Saved Filters, Sportsbooks, Middle & Bet Size, Markets, and Bet Warnings. The primary footer action reads Show Opportunities, matching Low Hold's interaction pattern.
+- Behavior and accessibility: passed. Category tabs, book group pills, search, selected counts, Select All/Clear, stake mode, saved filter load/delete plumbing, and the primary apply action are wired. Track Pair was verified to change to Tracked, persist the selected opportunity in browser local storage, and show a confirmation toast. Browser developer logs are empty.
+- Pricing evidence: the corrected QA fixture now supplies every displayed book to the optimizer before selection. The selected pair is Prophet Exchange +305 with Kalshi -280; the Available Odds display remains sorted +305, +261, +225, +180, +170. A backend regression test confirms the better executable Prophet Exchange price is selected over Fliff.
+- Automated verification: 32 focused Middles tests passed; JavaScript and Python syntax checks passed; `git diff --check` passed with line-ending notices only.
+
+## Comparison history
+
+- Initial desktop comparison: P1 — Middles used a two-column scanner form without Low Hold's category rail, saved filters, sportsbook groups, or matched footer actions. Fix: rebuilt the dialog around the Low Hold filter structure and wired every visible core interaction. Post-fix desktop evidence is `tmp/middles-filter-after.jpg`.
+- Initial mobile comparison: P2 — the selection summary remained visible and crowded the title/close-button header, while Low Hold hides it. Fix: hide `.mid-selection-summary` at 760px and below. Post-fix evidence is `tmp/middles-filter-mobile-final.jpg`.
+- Initial pricing state: P1 — the QA fixture injected Prophet Exchange into Available Odds after optimization, so a visibly better price could not be chosen. Fix: put every QA quote into the input event before `build_middles_board` runs. Post-fix evidence shows the optimizer selecting Prophet Exchange and Kalshi, backed by a focused regression test.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain.
+
+## Open Questions
+
+- The four sort choices are mathematically distinct. Highest Middle Profit is the least essential because its raw-dollar ranking can be affected by exposure in Baseline mode; this is a product choice rather than a fidelity defect.
+
+## Follow-up Polish
+
+- Consider renaming Highest Middle Profit to Highest Middle Return % if normalized ranking is preferred across both bet-sizing modes.
 
 final result: passed
