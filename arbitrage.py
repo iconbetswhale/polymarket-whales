@@ -26,7 +26,7 @@ from sports_game_odds import (
 )
 
 
-ARBITRAGE_CALCULATION_VERSION = "iconlabs-arbitrage-v2-execution-gates"
+ARBITRAGE_CALCULATION_VERSION = "iconlabs-arbitrage-v3-sizing-modes"
 MIN_AMERICAN_ODDS = -5_000
 MAX_AMERICAN_ODDS = 5_000
 
@@ -207,6 +207,44 @@ def _best_assignment(
     return best
 
 
+def _best_assignment_with_required_book(
+    quote_lists: list[list[dict]],
+    *,
+    require_distinct_books: bool,
+    required_book: str = "",
+) -> list[dict] | None:
+    """Return the strongest assignment that includes the requested sportsbook."""
+
+    if not required_book:
+        return _best_assignment(
+            quote_lists,
+            require_distinct_books=require_distinct_books,
+        )
+
+    best: tuple[tuple[float, float], list[dict]] | None = None
+    for group_index, quotes in enumerate(quote_lists):
+        for required_quote in quotes:
+            if required_quote.get("bookKey") != required_book:
+                continue
+            constrained_lists = [list(group) for group in quote_lists]
+            constrained_lists[group_index] = [required_quote]
+            assignment = _best_assignment(
+                constrained_lists,
+                require_distinct_books=require_distinct_books,
+            )
+            if assignment is None or not any(
+                quote.get("bookKey") == required_book for quote in assignment
+            ):
+                continue
+            score = (
+                sum(1.0 / float(quote["effectiveDecimalOdds"]) for quote in assignment),
+                max(float(quote.get("quoteAgeSeconds") or 0) for quote in assignment),
+            )
+            if best is None or score < best[0]:
+                best = (score, assignment)
+    return best[1] if best else None
+
+
 def equalized_stakes(total_stake: float, decimal_odds: list[float]) -> list[float]:
     """Allocate a fixed total stake to maximize the minimum rounded payout."""
 
@@ -230,6 +268,43 @@ def equalized_stakes(total_stake: float, decimal_odds: list[float]) -> list[floa
     return [value / 100.0 for value in cents]
 
 
+def locked_leg_stakes(
+    locked_stake: float,
+    decimal_odds: list[float],
+    locked_index: int,
+) -> tuple[list[float], int]:
+    """Lock one bet amount and round every hedge to the closest equal payout."""
+
+    if not decimal_odds or any(
+        not math.isfinite(value) or value <= 1.0 for value in decimal_odds
+    ):
+        raise ValueError("Decimal odds must be finite and greater than 1.0.")
+    if not math.isfinite(locked_stake) or locked_stake <= 0:
+        raise ValueError("The locked bet must be positive.")
+
+    index = min(max(int(locked_index), 0), len(decimal_odds) - 1)
+    stakes = [0.0] * len(decimal_odds)
+    stakes[index] = round(locked_stake, 2)
+    target_payout = stakes[index] * decimal_odds[index]
+    for outcome_index, decimal in enumerate(decimal_odds):
+        if outcome_index == index:
+            continue
+        raw_cents = target_payout / decimal * 100.0
+        candidates = {
+            max(1, math.floor(raw_cents)),
+            max(1, math.ceil(raw_cents)),
+        }
+        best_cents = min(
+            candidates,
+            key=lambda cents: (
+                abs((cents / 100.0) * decimal - target_payout),
+                cents,
+            ),
+        )
+        stakes[outcome_index] = best_cents / 100.0
+    return stakes, index
+
+
 def _book_logo(book_key: str, book: dict) -> str:
     return str(
         SPORTS_GAME_ODDS_LOGOS.get(book_key)
@@ -245,11 +320,14 @@ def build_arbitrage_board(
     selected_books: Iterable[str] = SPORTS_GAME_ODDS_DEFAULT_EXECUTION_BOOKS,
     allowed_markets: Iterable[str] = (),
     total_stake: float = 1_000.0,
+    stake_mode: str = "total",
+    locked_outcome_index: int = 0,
     min_profit_percent: float = 0.1,
     max_quote_age_seconds: int = 90,
     max_cross_leg_skew_seconds: int = 3,
     commission_bps: float = 0.0,
     require_distinct_books: bool = True,
+    required_book: str = "",
     now: datetime | None = None,
 ) -> dict:
     """Build a ranked, fee-aware board of complete arbitrage opportunities."""
@@ -264,6 +342,10 @@ def build_arbitrage_board(
     requested_markets = {
         str(value).strip().lower() for value in allowed_markets if str(value).strip()
     }
+    normalized_required_book = str(required_book or "").strip().lower()
+    if normalized_required_book not in requested_books:
+        normalized_required_book = ""
+    normalized_stake_mode = "first-leg" if stake_mode == "first-leg" else "total"
     rejected: Counter[str] = Counter()
     opportunities: list[dict] = []
     event_count = 0
@@ -393,8 +475,10 @@ def build_arbitrage_board(
 
             ordered_selections = sorted(signature, key=lambda value: tuple(str(part) for part in value))
             quote_lists = [quotes_by_selection.get(selection, []) for selection in ordered_selections]
-            assignment = _best_assignment(
-                quote_lists, require_distinct_books=require_distinct_books
+            assignment = _best_assignment_with_required_book(
+                quote_lists,
+                require_distinct_books=require_distinct_books,
+                required_book=normalized_required_book,
             )
             if assignment is None:
                 rejected["no_valid_book_assignment"] += 1
@@ -415,8 +499,16 @@ def build_arbitrage_board(
                 rejected["below_minimum_profit"] += 1
                 continue
 
+            locked_index = 0
             try:
-                stakes = equalized_stakes(total_stake, effective_decimals)
+                if normalized_stake_mode == "first-leg":
+                    stakes, locked_index = locked_leg_stakes(
+                        total_stake,
+                        effective_decimals,
+                        locked_outcome_index,
+                    )
+                else:
+                    stakes = equalized_stakes(total_stake, effective_decimals)
             except ValueError:
                 rejected["invalid_stake"] += 1
                 continue
@@ -496,6 +588,15 @@ def build_arbitrage_board(
                     "sportKey": str(event.get("sport_key") or ""),
                     "league": str(event.get("sport_title") or event.get("sport_key") or ""),
                     "eventTitle": title,
+                    "awayTeam": " ".join(away.split()),
+                    "homeTeam": " ".join(home.split()),
+                    "participantLogos": (
+                        event.get("participantLogos")
+                        or event.get("participant_logos")
+                        or event.get("teamLogos")
+                        or event.get("team_logos")
+                        or {}
+                    ),
                     "commenceTime": commence_time,
                     "marketKey": market_key,
                     "marketLabel": MARKET_LABELS.get(
@@ -514,6 +615,16 @@ def build_arbitrage_board(
                     "theoreticalProfitPercent": round(theoretical_profit_percent, 4),
                     "guaranteedProfit": round(guaranteed_profit, 2),
                     "totalStake": actual_total,
+                    "stakeMode": normalized_stake_mode,
+                    "stakeInputAmount": round(float(total_stake), 2),
+                    "lockedOutcomeIndex": (
+                        locked_index if normalized_stake_mode == "first-leg" else None
+                    ),
+                    "lockedStake": (
+                        round(stakes[locked_index], 2)
+                        if normalized_stake_mode == "first-leg"
+                        else None
+                    ),
                     "minPayout": round(min_payout, 2),
                     "commissionBps": float(commission_bps),
                     "requireDistinctBooks": bool(require_distinct_books),
@@ -545,6 +656,8 @@ def build_arbitrage_board(
             "rejected": sum(rejected.values()),
             "rejectionReasons": dict(sorted(rejected.items())),
             "selectedBookCount": len(requested_books),
+            "requiredBook": normalized_required_book,
+            "stakeMode": normalized_stake_mode,
             "calculationVersion": ARBITRAGE_CALCULATION_VERSION,
         },
     }

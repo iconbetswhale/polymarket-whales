@@ -11,6 +11,20 @@ from datetime import datetime, timedelta, timezone
 from sports_game_odds import SPORTS_GAME_ODDS_BOOKMAKERS, SPORTS_GAME_ODDS_LOGOS
 
 
+PREVIEW_SPORTSBOOK_URLS = {
+    "bet365": "https://www.bet365.com/",
+    "betmgm": "https://sports.betmgm.com/",
+    "betonline": "https://www.betonline.ag/",
+    "betrivers": "https://www.betrivers.com/",
+    "caesars": "https://sportsbook.caesars.com/",
+    "draftkings": "https://sportsbook.draftkings.com/",
+    "fanduel": "https://sportsbook.fanduel.com/",
+    "fanatics": "https://sportsbook.fanatics.com/",
+    "hardrockbet": "https://app.hardrock.bet/",
+    "novig": "https://novig.com/",
+}
+
+
 def _outcome(name: str, price: int, *, point=None, description: str = "") -> dict:
     return {
         "name": name,
@@ -26,17 +40,18 @@ def _book(
     *,
     updated_at: str,
 ) -> dict:
+    sportsbook_url = PREVIEW_SPORTSBOOK_URLS[key]
     return {
         "key": key,
         "title": SPORTS_GAME_ODDS_BOOKMAKERS.get(key, {}).get("name", key.title()),
         "logo": SPORTS_GAME_ODDS_LOGOS.get(key, ""),
-        "link": f"https://example.com/{key}",
+        "link": sportsbook_url,
         "last_update": updated_at,
         "markets": [
             {
                 "key": market_key,
                 "last_update": updated_at,
-                "link": f"https://example.com/{key}/{market_key}",
+                "link": sportsbook_url,
                 "outcomes": outcomes,
             }
             for market_key, outcomes in markets

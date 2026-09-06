@@ -3828,6 +3828,18 @@ def create_app(start_background: bool = True) -> Flask:
                 400,
             )
 
+        required_book = request.args.get("required_book", "").strip().lower()
+        if required_book and required_book not in raw_books:
+            return (
+                jsonify(
+                    {
+                        "error": "INVALID_ARBITRAGE_REQUIRED_BOOK",
+                        "message": "The required sportsbook must also be selected.",
+                    }
+                ),
+                400,
+            )
+
         supported_markets = set(MAIN_MARKETS) | set(ALTERNATE_MARKETS)
         supported_markets.update(
             market
@@ -3868,7 +3880,19 @@ def create_app(start_background: bool = True) -> Flask:
                 400,
             )
 
+        stake_mode = request.args.get("stake_mode", "total").strip().lower()
+        if stake_mode not in {"first-leg", "total"}:
+            return (
+                jsonify(
+                    {
+                        "error": "INVALID_ARBITRAGE_STAKE_MODE",
+                        "message": "Choose Total Bet or Baseline Amount for arbitrage sizing.",
+                    }
+                ),
+                400,
+            )
         total_stake = arb_number("stake", 1_000.0, 1.0, 10_000_000.0)
+        locked_outcome_index = int(arb_number("locked_leg", 0, 0, 12))
         min_profit = arb_number("min_profit", 0.1, 0.0, 50.0)
         max_quote_age = int(arb_number("max_quote_age", 90, 15, 1800))
         max_quote_skew = int(arb_number("max_quote_skew", 3, 0, 60))
@@ -3928,11 +3952,14 @@ def create_app(start_background: bool = True) -> Flask:
                 selected_books=raw_books,
                 allowed_markets=requested_markets,
                 total_stake=total_stake,
+                stake_mode=stake_mode,
+                locked_outcome_index=locked_outcome_index,
                 min_profit_percent=min_profit,
                 max_quote_age_seconds=max_quote_age,
                 max_cross_leg_skew_seconds=max_quote_skew,
                 commission_bps=commission_bps,
                 require_distinct_books=require_distinct_books,
+                required_book=required_book,
             )
         except requests.HTTPError as exc:
             status = getattr(exc.response, "status_code", 502)
@@ -6016,12 +6043,19 @@ def create_app(start_background: bool = True) -> Flask:
         public_fill = {key: value for key, value in stored.items() if key != "user_id"}
         return jsonify({"data": public_fill, "source": "manual_entry"}), 201
 
+    @app.post("/api/arbitrage/personal-bets")
     @app.post("/api/positive-ev/personal-bets")
     def api_positive_ev_personal_bet():
         payload = request.get_json(silent=True) or {}
+        tracking_source = (
+            "arbitrage"
+            if request.path.startswith("/api/arbitrage/")
+            else "positive_ev"
+        )
+        tracking_label = "Arbitrage" if tracking_source == "arbitrage" else "Positive EV"
         event_title = " ".join(str(payload.get("event_title") or "").split())
         market_title = " ".join(
-            str(payload.get("market_title") or "Positive EV").split()
+            str(payload.get("market_title") or tracking_label).split()
         )
         selection = " ".join(str(payload.get("selection") or "").split())
         if not event_title or not selection:
@@ -6058,7 +6092,7 @@ def create_app(start_background: bool = True) -> Flask:
         market_line = payload.get("market_line")
         source_id = str(payload.get("source_id") or "").strip()
         event_id = str(payload.get("canonical_event_id") or "").strip()
-        event_id = event_id or f"positive-ev-event-{stable_hash(event_title, event_start_time)[:24]}"
+        event_id = event_id or f"{tracking_source.replace('_', '-')}-event-{stable_hash(event_title, event_start_time)[:24]}"
         market_id = str(payload.get("canonical_market_id") or "").strip()
         outcome_id = str(payload.get("canonical_outcome_id") or "").strip()
         generated_identity = positive_ev_identity(
@@ -6069,7 +6103,7 @@ def create_app(start_background: bool = True) -> Flask:
         )
         market_id = market_id or generated_identity["canonical_market_id"]
         outcome_id = outcome_id or (
-            f"positive-ev-outcome-{stable_hash(market_id, selection)[:24]}"
+            f"{tracking_source.replace('_', '-')}-outcome-{stable_hash(market_id, selection)[:24]}"
         )
         trade = {
             "event_title": event_title,
@@ -6078,8 +6112,8 @@ def create_app(start_background: bool = True) -> Flask:
             "event_date_et": event_start_time,
             "market_line": market_line,
             "market_url": market_url or None,
-            "entry_source": "positive_ev",
-            "sharp_source_status": "positive_ev",
+            "entry_source": tracking_source,
+            "sharp_source_status": tracking_source,
             "validation_ids": {
                 "event_id": event_id,
                 "condition_id": market_id,
@@ -6088,7 +6122,7 @@ def create_app(start_background: bool = True) -> Flask:
         }
         identity = canonical_trade_identity(trade)
         if not has_complete_identity(identity):
-            return jsonify({"error": "Positive EV bet is missing a canonical identity."}), 409
+            return jsonify({"error": f"{tracking_label} bet is missing a canonical identity."}), 409
 
         active_fills = tracker.database.get_personal_bet_fills(
             g.iconbets_user_id, active_only=True
@@ -6126,7 +6160,7 @@ def create_app(start_background: bool = True) -> Flask:
         )
         fill["sharp_snapshot"] = {
             **(fill.get("sharp_snapshot") or {}),
-            "tracking_source": "positive_ev",
+            "tracking_source": tracking_source,
             "source_id": source_id or None,
             "sport_key": payload.get("sport_key"),
             "league": payload.get("league") or "Other",
@@ -6152,7 +6186,7 @@ def create_app(start_background: bool = True) -> Flask:
             {
                 "data": public_fill,
                 "hidden": hidden_record,
-                "source": "positive_ev",
+                "source": tracking_source,
                 "destinations": {
                     "betTracker": "/tracker?view=personal",
                     "labTracker": "/lab-tracker?scope=personal",
