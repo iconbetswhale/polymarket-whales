@@ -196,7 +196,11 @@ def test_play_card_selection_and_sport_treatments_are_explicit() -> None:
     assert ".arb-queue-date" in CSS
     assert "arb-queue-rank" in SCRIPT
     assert "function queueLeagueVisual" in SCRIPT
+    assert "leagueLogoAliases" in SCRIPT
+    assert "candidate.includes(key)" in SCRIPT
     assert "${queueLeagueVisual(row)}" in SCRIPT
+    assert "queueMatchup" not in SCRIPT
+    assert "arb-queue-team-logo" not in SCRIPT
     assert "function teamLogoUrl" in SCRIPT
     assert "function detailTeamLogo" in SCRIPT
     assert "function detailMatchup" in SCRIPT

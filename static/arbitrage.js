@@ -276,10 +276,17 @@
     premierleague: "/static/assets/leagues/epl.png",
     englishpremierleague: "/static/assets/leagues/epl.png",
   });
+  const leagueLogoAliases = Object.keys(leagueLogos).sort((left, right) => right.length - left.length);
 
   function leagueLogoUrl(sportKey, league) {
     const canonical = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-    return leagueLogos[canonical(league)] || leagueLogos[canonical(sportKey)] || "";
+    const candidates = [canonical(league), canonical(sportKey)].filter(Boolean);
+    for (const candidate of candidates) {
+      if (leagueLogos[candidate]) return leagueLogos[candidate];
+      const alias = leagueLogoAliases.find((key) => candidate.includes(key));
+      if (alias) return leagueLogos[alias];
+    }
+    return "";
   }
 
   function teamLogoUrl(row, team) {
@@ -307,7 +314,7 @@
   function queueLeagueVisual(row) {
     const logoUrl = leagueLogoUrl(row?.sportKey, row?.league);
     return logoUrl
-      ? `<img class="arb-queue-league-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true" loading="lazy">`
+      ? `<img class="arb-queue-league-logo" src="${esc(logoUrl)}" alt="" aria-hidden="true" loading="lazy" onerror="this.hidden=true">`
       : "";
   }
 
