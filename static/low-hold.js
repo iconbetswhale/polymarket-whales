@@ -1002,6 +1002,7 @@
   document.querySelectorAll("[data-lh-filter-tab]").forEach((button) => button.addEventListener("click", () => {
     document.querySelectorAll("[data-lh-filter-tab]").forEach((item) => item.classList.toggle("active", item === button));
     document.querySelectorAll("[data-lh-filter-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.lhFilterPanel === button.dataset.lhFilterTab));
+    document.querySelector(".lh-filter-dialog .arb-filter-panels")?.scrollTo({ top: 0 });
   }));
 
   document.querySelectorAll("[data-lh-book-group]").forEach((button) => button.addEventListener("click", () => {

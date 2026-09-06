@@ -382,6 +382,20 @@ body[data-page="low-hold"] .arb-detail-actions button {
 .lh-filter-dialog .arb-filter-shell > header { gap: 16px; }
 .lh-filter-dialog .arb-filter-shell > footer > div { display: flex; gap: 8px; }
 .lh-filter-dialog .arb-filter-nav button > span { font-size: 13px; }
+
+@media (min-width: 761px) {
+  .lh-filter-dialog {
+    height: min(760px, calc(100dvh - 32px));
+    max-height: min(760px, calc(100dvh - 32px));
+    overflow: hidden;
+  }
+
+  .lh-filter-dialog .arb-filter-shell {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
 .lh-filter-dialog .arb-book-option img {
   border: 0;
   border-radius: 0;

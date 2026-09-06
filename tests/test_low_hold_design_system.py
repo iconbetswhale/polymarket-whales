@@ -188,6 +188,14 @@ def test_low_hold_filter_titles_and_hold_panel_typography_are_consistent() -> No
     assert 'box-shadow: inset 0 0 0 1px #b889ff;' in CSS
 
 
+def test_low_hold_filter_dialog_keeps_one_stable_desktop_size() -> None:
+    assert "@media (min-width: 761px)" in CSS
+    assert "height: min(760px, calc(100dvh - 32px));" in CSS
+    assert ".lh-filter-dialog .arb-filter-shell {\n    height: 100%;\n    min-height: 0;" in CSS
+    assert "overflow: hidden;" in CSS
+    assert 'document.querySelector(".lh-filter-dialog .arb-filter-panels")?.scrollTo({ top: 0 });' in SCRIPT
+
+
 def test_low_hold_uses_bet_language_and_positive_hold_guardrails() -> None:
     assert '<span>Bet</span><span>Payout</span>' in SCRIPT
     assert '<span>Total bet</span>' in SCRIPT
