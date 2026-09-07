@@ -254,6 +254,17 @@ def test_live_hidden_views_and_three_action_confirmation_are_persistent() -> Non
     assert "hiddenRows.set(id, row)" in SCRIPT
     assert 'data-arb-restore' in SCRIPT
     assert "Opportunity restored to Live." in SCRIPT
+    assert 'id="arb-track-title">Track/Hide</h2>' in TEMPLATE
+    assert 'id="arb-recalculate-title">Recalculate</h2>' in TEMPLATE
+    assert 'id="arb-track-total"' in TEMPLATE
+    assert "trackTotal: document.getElementById" in SCRIPT
+    assert "state.trackSession.total = elements.trackTotal.value" in SCRIPT
+    assert ".arb-track-controls" in CSS
+    assert ".arb-editor-money input:focus-visible { outline: 0; }" in CSS
+    assert 'localStorage.setItem("iconbets-tracker-view", "personal")' in SCRIPT
+    assert 'localStorage.setItem("iconbets-tracker-section", "bets")' in SCRIPT
+    assert 'key?.includes(":tracker-personal:")' in SCRIPT
+    assert "prepareBetTrackerDestination();" in SCRIPT
 
 
 def test_recalculate_dialog_supports_total_and_locked_side_sizing() -> None:

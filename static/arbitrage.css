@@ -761,6 +761,7 @@ body[data-page="arbitrage"] .arb-quote-row strong { font-size: 13px; }
 .arb-editor-money { display: flex; align-items: center; padding: 0 8px; }
 .arb-editor-money b { color: var(--arb-green); font-size: 13px; }
 .arb-editor-money input { width: 100%; min-width: 0; border: 0; outline: 0; background: transparent; color: var(--arb-text); font-size: 14px; font-weight: 750; text-align: center; font-variant-numeric: tabular-nums; }
+.arb-editor-money input:focus-visible { outline: 0; }
 .arb-editor-money input[readonly] { color: var(--arb-secondary); cursor: default; }
 .arb-editor-value { color: var(--arb-text); font-size: 14px; text-align: center; font-variant-numeric: tabular-nums; }
 .arb-editor-value.positive { color: var(--arb-green); }
@@ -782,6 +783,7 @@ body[data-page="arbitrage"] .arb-quote-row strong { font-size: 13px; }
 .arb-action-footer .arb-hide-button { border-color: rgba(233, 184, 94, .38); color: var(--arb-yellow); }
 .arb-action-footer button:disabled { cursor: wait; opacity: .5; }
 .arb-calculator-controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 13px; }
+.arb-track-controls { grid-template-columns: minmax(220px, 320px); }
 .arb-calculator-controls > label { display: grid; gap: 6px; color: var(--arb-muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .arb-calculator-controls select { width: 100%; height: 38px; padding: 0 10px; border: 1px solid var(--arb-line-strong); border-radius: 7px; outline: 0; background: var(--arb-card); color: var(--arb-text); font-size: 13px; font-weight: 700; }
 .arb-calculator-controls .arb-editor-money { background: var(--arb-card); }

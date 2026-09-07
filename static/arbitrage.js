@@ -121,6 +121,7 @@
     hiddenCount: document.getElementById("arb-hidden-count"),
     trackDialog: document.getElementById("arb-track-dialog"),
     trackSummary: document.getElementById("arb-track-summary"),
+    trackTotal: document.getElementById("arb-track-total"),
     trackLegs: document.getElementById("arb-track-legs"),
     trackProof: document.getElementById("arb-track-proof"),
     trackError: document.getElementById("arb-track-error"),
@@ -367,6 +368,17 @@
 
   function persistTrackedState() {
     localStorage.setItem(trackedStorageKey, JSON.stringify([...trackedIds]));
+  }
+
+  function prepareBetTrackerDestination() {
+    try {
+      localStorage.setItem("iconbets-tracker-view", "personal");
+      localStorage.setItem("iconbets-tracker-section", "bets");
+      const cachedKeys = Array.from({ length: sessionStorage.length }, (_value, index) => sessionStorage.key(index));
+      cachedKeys.filter((key) => key?.includes(":tracker-personal:")).forEach((key) => sessionStorage.removeItem(key));
+    } catch (_error) {
+      // Tracking still succeeds when browser storage is unavailable.
+    }
   }
 
   function findRow(id) {
@@ -863,6 +875,7 @@
       <strong class="arb-editor-value" data-arb-track-stake="${index}">${money(leg.stake)}</strong>
       <strong class="arb-editor-value positive" data-arb-track-payout="${index}">${money(leg.payout)}</strong>
     </div>`).join("");
+    elements.trackTotal.value = state.trackSession.total.toFixed(2);
     elements.trackError.textContent = "";
     refreshTrackPlan();
     elements.trackDialog.showModal();
@@ -963,6 +976,7 @@
       }
       trackedIds.add(String(session.row.id));
       persistTrackedState();
+      prepareBetTrackerDestination();
       elements.trackDialog.close();
       if (hideAfter) hideOpportunity(session.row); else renderAll();
       notify(hideAfter ? "All legs tracked and the opportunity was hidden." : "All arbitrage legs were added to Bet Tracker.");
@@ -1124,8 +1138,14 @@
     document.getElementById("arb-track-form")?.addEventListener("submit", (event) => event.preventDefault());
     elements.trackDialog?.addEventListener("click", (event) => { if (event.target === elements.trackDialog) elements.trackDialog.close(); });
     elements.trackDialog?.addEventListener("input", (event) => {
+      if (!state.trackSession) return;
+      if (event.target === elements.trackTotal) {
+        state.trackSession.total = elements.trackTotal.value;
+        refreshTrackPlan();
+        return;
+      }
       const input = event.target.closest("[data-arb-track-odds]");
-      if (!input || !state.trackSession) return;
+      if (!input) return;
       state.trackSession.odds[Number(input.dataset.arbTrackOdds)] = input.value;
       refreshTrackPlan();
     });

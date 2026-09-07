@@ -376,3 +376,44 @@ def test_arbitrage_leg_can_be_saved_to_the_personal_tracker(app_client) -> None:
     assert tracker["pagination"]["total"] == 1
     assert tracker["data"][0]["selection"] == "Over 7.5"
     assert tracker["data"][0]["sportsbook"] == "Bet365"
+
+
+def test_complete_arbitrage_plan_is_saved_to_the_personal_bet_tracker(app_client) -> None:
+    app_client.set_cookie("iconbets_user", "arbitrage-plan-user")
+    legs = (
+        (0, "Over 7.5", "Bet365", 500),
+        (1, "Under 7.5", "BetOnline", 500),
+    )
+
+    for index, selection, sportsbook, stake in legs:
+        response = app_client.post(
+            "/api/arbitrage/personal-bets",
+            json={
+                "source_id": f"arb::strategy-plan:{index}",
+                "event_title": "New York Mets vs Philadelphia Phillies",
+                "market_title": "Game Total",
+                "selection": selection,
+                "event_start_time": "2026-09-08T23:10:00+00:00",
+                "sport_key": "baseball_mlb",
+                "league": "MLB",
+                "market_key": "totals",
+                "market_line": 7.5,
+                "canonical_event_id": "mlb-nym-phi-2026-09-08",
+                "canonical_market_id": "arb::strategy-plan",
+                "canonical_outcome_id": f"arb::strategy-plan:outcome:{index}",
+                "american_odds": 115,
+                "stake": stake,
+                "fees": 0,
+                "sportsbook": sportsbook,
+                "ev_percent": 7.5,
+                "tags": ["Arbitrage", "2-way arbitrage"],
+                "confirm_conflict": True,
+                "confirm_duplicate": True,
+            },
+        )
+        assert response.status_code == 201
+        assert response.get_json()["destinations"]["betTracker"] == "/tracker?view=personal"
+
+    tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    assert tracker["pagination"]["total"] == 2
+    assert {row["selection"] for row in tracker["data"]} == {"Over 7.5", "Under 7.5"}

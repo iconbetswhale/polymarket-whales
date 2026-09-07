@@ -144,11 +144,14 @@
 <dialog class="arb-dialog arb-action-dialog" id="arb-track-dialog" aria-labelledby="arb-track-title">
   <form class="arb-action-shell" id="arb-track-form">
     <header>
-      <div><p class="arb-eyebrow">REVIEW LEGS</p><h2 id="arb-track-title">Track or hide this arbitrage</h2></div>
+      <div><p class="arb-eyebrow">REVIEW LEGS</p><h2 id="arb-track-title">Track/Hide</h2></div>
       <button class="arb-icon-button" id="arb-track-close" type="button" aria-label="Close track or hide dialog"><i class="ph ph-x" aria-hidden="true"></i></button>
     </header>
     <div class="arb-action-body">
       <div class="arb-action-summary" id="arb-track-summary"></div>
+      <div class="arb-calculator-controls arb-track-controls">
+        <label>Total Bet<span class="arb-editor-money"><b>$</b><input id="arb-track-total" type="number" min="1" max="10000000" step="0.01" inputmode="decimal" aria-label="Track/Hide total bet"></span></label>
+      </div>
       <div class="arb-leg-editor arb-track-editor">
         <div class="arb-leg-editor-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Bet</span><span>Payout</span></div>
         <div class="arb-leg-editor-list" id="arb-track-legs"></div>
@@ -168,7 +171,7 @@
 <dialog class="arb-dialog arb-action-dialog arb-recalculate-dialog" id="arb-recalculate-dialog" aria-labelledby="arb-recalculate-title">
   <form class="arb-action-shell" id="arb-recalculate-form">
     <header>
-      <div><p class="arb-eyebrow">HEDGE CALCULATOR</p><h2 id="arb-recalculate-title">Recalculate bet sizes</h2></div>
+      <div><p class="arb-eyebrow">HEDGE CALCULATOR</p><h2 id="arb-recalculate-title">Recalculate</h2></div>
       <button class="arb-icon-button" id="arb-recalculate-close" type="button" aria-label="Close bet calculator"><i class="ph ph-x" aria-hidden="true"></i></button>
     </header>
     <div class="arb-action-body">
