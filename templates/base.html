@@ -54,12 +54,6 @@
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'futures', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
   <a class="skip-link" href="#main-content">Skip to content</a>
-  {% if page != 'arbitrage' %}
-  <div class="global-risk-banner" id="global-risk-banner" role="alert" hidden>
-    <i class="ph ph-warning-octagon" aria-hidden="true"></i>
-    <div><strong id="global-risk-title">Model tracking stopped</strong><span id="global-risk-detail"></span></div>
-  </div>
-  {% endif %}
   {% if page != 'home' %}
   <nav class="app-nav" id="app-navigation" aria-label="Primary navigation">
     <button class="desktop-nav-toggle" id="desktop-nav-toggle" type="button" aria-expanded="false" aria-controls="primary-links" aria-label="Expand navigation">

@@ -1579,9 +1579,6 @@ body:not([data-page="home"]) .segmented button.active {
   box-shadow: inset 0 -1px rgba(192,139,255,.2) !important;
 }
 
-/* Risk state remains intentionally impossible to miss. */
-body:not([data-page="home"]) .global-risk-banner { color: #fff; border-color: rgba(255,109,120,.38); background: linear-gradient(90deg, #521522, #29101e); }
-
 /* Responsive shell */
 @media (max-width: 1180px) {
   :root { --app-sidebar: 198px; }

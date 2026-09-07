@@ -7537,34 +7537,6 @@ function refreshCurrentPage() {
   if (page === "intelligence") loadIntelligence().catch(()=>{});
   if (page === "shadow-test") loadShadowTest();
   loadGlobalStatus();
-  loadGlobalRiskState();
-}
-
-async function loadGlobalRiskState() {
-  const banner = document.getElementById("global-risk-banner");
-  if (!banner) return;
-  try {
-    const payload = await fetchJson("/api/risk-state");
-    const data = payload.data || {};
-    const risk = data.risk_state || {};
-    const state = String(risk.state || "NORMAL").toUpperCase();
-    const stopped = state === "STRATEGY_STOP" || data.tracking_paused;
-    const reduced = ["DEFENSIVE", "REDUCED"].includes(state);
-    banner.hidden = !stopped && !reduced;
-    banner.classList.toggle("reduced", !stopped && reduced);
-    if (banner.hidden) return;
-    document.getElementById("global-risk-title").textContent = stopped
-      ? "MODEL TRACKING STOPPED"
-      : `MODEL RISK MODE: ${state}`;
-    const reasons = [
-      data.tracking_paused ? "Tracker is manually paused" : "",
-      risk.reason || risk.manual_reason || "",
-      data.last_successful_run ? `Last successful run ${formatDateTime(data.last_successful_run)}` : "",
-    ].filter(Boolean);
-    document.getElementById("global-risk-detail").textContent = reasons.join(" | ");
-  } catch {
-    banner.hidden = true;
-  }
 }
 
 function prewarmInstantPages() {
@@ -7610,7 +7582,6 @@ function initialize() {
   window.IconLabsLineShopOrder?.sync();
   const loadGlobalChrome = () => {
     loadGlobalStatus();
-    loadGlobalRiskState();
   };
   if (page === "trades" || page === "tracker") runWhenIdle(loadGlobalChrome);
   else loadGlobalChrome();

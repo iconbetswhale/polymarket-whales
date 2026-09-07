@@ -24,6 +24,11 @@ V2_PAGE_STYLES = (
 )
 
 
+def test_shared_tool_shell_does_not_render_the_clipped_global_risk_banner():
+    assert "global-risk-banner" not in BASE
+    assert "loadGlobalRiskState" not in APP_JS
+
+
 def test_shared_sidebar_styles_load_after_every_v2_page_stylesheet():
     sidebar = BASE.index("filename='sidebar-v2.css'")
 
