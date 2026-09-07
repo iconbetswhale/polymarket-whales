@@ -38,7 +38,7 @@
   {% if page == 'odds-screen' %}<link rel="stylesheet" href="{{ url_for('static', filename='odds-screen-v2.css', v=asset_version ~ '-scale-v2-hover-v2-caesars-icon-v2') }}">{% endif %}
   {% if page == 'futures' %}<link rel="stylesheet" href="{{ url_for('static', filename='futures.css', v=asset_version ~ '-odds-screen-alignment-v5') }}">{% endif %}
   {% if page == 'dfs' %}<link rel="stylesheet" href="{{ url_for('static', filename='dfs-v2.css', v=asset_version ~ '-quality-guardrails-v4-all-lines-order-cell-stack') }}">{% endif %}
-  {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='tracker-v2.css', v=asset_version ~ '-canonical-v2') }}">{% endif %}
+  {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='tracker-v2.css', v=asset_version ~ '-canonical-v4') }}">{% endif %}
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'shadow-test' %}<link rel="stylesheet" href="{{ url_for('static', filename='shadow-lab-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'live-positions' %}<link rel="stylesheet" href="{{ url_for('static', filename='live-positions-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
@@ -186,7 +186,7 @@
       </form>
     </div>
   </dialog>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v10-shared-line-order-prewarm') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v11-tracker-chart') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v7-price-edge-order') }}"></script>{% endif %}
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v13-shared-book-order') }}"></script>{% endif %}

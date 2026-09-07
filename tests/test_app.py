@@ -2321,6 +2321,56 @@ def test_tracker_shell_script_supports_query_memory_and_keyboard_navigation():
     assert 'trackerCache: { model: null, personal: null }' in script
 
 
+def test_model_tracker_graph_uses_complete_calendar_month_independent_of_table_range(
+    app_client,
+):
+    service = app_client.application.extensions["tracker_service"]
+    records = (
+        ("august", "2026-08-03T15:00:00+00:00", "won", "Won"),
+        ("september", "2026-09-02T15:00:00+00:00", "lost", "Lost"),
+    )
+    for key, timestamp, status, result in records:
+        dedupe = f"{key}-event::{key}-market::::{key}-outcome::v2"
+        assert service.database.insert_tracker_snapshot(
+            MODEL_TRACKER_USER_ID,
+            {
+                "snapshot_id": f"{key}-month-snapshot",
+                "dedupe_key": dedupe,
+                "recommendation_version": "v2",
+                "recommendation_timestamp": timestamp,
+                "event_title": f"{key.title()} month test",
+                "market_title": "Winner",
+                "recommended_side": "Home",
+                "effective_entry_price": 0.5,
+                "final_recommended_fraction": 0.01,
+                "original_displayed_amount": 100,
+                "original_recommended_units": 1,
+                "sharps_count": 1,
+            },
+        )
+        service.database.update_tracker_status(
+            MODEL_TRACKER_USER_ID, dedupe, status, result, timestamp
+        )
+
+    response = app_client.get(
+        "/api/model-tracker?tracker_range=custom"
+        "&tracker_start=2026-09-01&tracker_end=2026-09-30"
+        "&graph_range=month&graph_month=2026-08"
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["pagination"]["total"] == 1
+    assert payload["graph_period"]["month"] == "2026-08"
+    assert len(payload["graph"]) == 1
+    assert payload["graph"][0]["timestamp"].startswith("2026-08-03")
+    assert payload["period_summary"]["wins"] == 1
+    assert payload["period_summary"]["losses"] == 0
+    assert app_client.get(
+        "/api/model-tracker?graph_range=month&graph_month=August-2026"
+    ).status_code == 400
+
+
 def test_frontend_storage_failures_cannot_block_trade_startup():
     script = (Path(__file__).parents[1] / "static" / "app.js").read_text()
     server = (Path(__file__).parents[1] / "app.py").read_text()

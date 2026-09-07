@@ -552,7 +552,9 @@ def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
     }
 
 
-def _tracker_period_summary(rows: list[dict], cutoff: datetime) -> dict:
+def _tracker_period_summary(
+    rows: list[dict], cutoff: datetime, period_end: datetime | None = None
+) -> dict:
     period_rows = []
     for row in rows:
         occurred_at = _parse_datetime(
@@ -561,7 +563,11 @@ def _tracker_period_summary(rows: list[dict], cutoff: datetime) -> dict:
             or row.get("created_at")
             or (row.get("snapshot") or {}).get("event_start_time")
         )
-        if occurred_at is not None and occurred_at >= cutoff:
+        if (
+            occurred_at is not None
+            and occurred_at >= cutoff
+            and (period_end is None or occurred_at < period_end)
+        ):
             period_rows.append(row)
     wins = sum(1 for row in period_rows if str(row.get("result") or row.get("status") or "").lower() == "won")
     losses = sum(1 for row in period_rows if str(row.get("result") or row.get("status") or "").lower() == "lost")
@@ -580,6 +586,39 @@ def _tracker_period_summary(rows: list[dict], cutoff: datetime) -> dict:
         "pushes_voids": pushes,
         "settled_wagered": settled_wagered,
     }
+
+
+def _tracker_graph_window(
+    graph_range: str, graph_month: str
+) -> tuple[datetime, datetime | None, str | None]:
+    now = datetime.now(timezone.utc)
+    if graph_range == "month":
+        if graph_month:
+            try:
+                local_start = datetime.strptime(graph_month, "%Y-%m").replace(
+                    tzinfo=EASTERN
+                )
+            except ValueError as exc:
+                raise ValueError("graph_month must use YYYY-MM format.") from exc
+        else:
+            local_start = now.astimezone(EASTERN).replace(
+                day=1, hour=0, minute=0, second=0, microsecond=0
+            )
+        next_year = local_start.year + (1 if local_start.month == 12 else 0)
+        next_month = 1 if local_start.month == 12 else local_start.month + 1
+        local_end = local_start.replace(year=next_year, month=next_month)
+        return (
+            local_start.astimezone(timezone.utc),
+            local_end.astimezone(timezone.utc),
+            local_start.strftime("%Y-%m"),
+        )
+
+    cutoffs = {
+        "today": now - timedelta(days=1),
+        "week": now - timedelta(days=7),
+        "year": now - timedelta(days=366),
+    }
+    return cutoffs.get(graph_range, now - timedelta(days=31)), None, None
 
 
 def _selected_sportsbooks(value: object) -> set[str]:
@@ -6499,69 +6538,86 @@ def create_app(start_background: bool = True) -> Flask:
         )
         tag_filter = request.args.get("tag", "").strip().lower()
         sharp_filter = request.args.get("sharp", "").strip()
-        fills = [
-            fill for fill in all_fills
-            if _within_tracker_dates(fill.get("created_at"), tracker_start, tracker_end)
-        ]
-        if query:
-            fills = [
-                fill
-                for fill in fills
-                if query
-                in " ".join(
-                    [
-                        *(
-                            str(fill.get(field) or "").lower()
-                            for field in (
-                                "event_title",
-                                "market_title",
-                                "selection",
-                                "sportsbook",
-                            )
-                        ),
-                        *(tag.lower() for tag in personal_tags_from_fill(fill)),
-                        _sharp_search_blob(sharp_snapshot_from_fill(fill)),
-                    ]
-                )
-            ]
-        if status_filter:
-            fills = [
-                fill
-                for fill in fills
-                if str(fill.get("status") or "").lower() == status_filter
-            ]
-        if result_filter:
-            fills = [
-                fill
-                for fill in fills
-                if str(fill.get("result") or "").lower() == result_filter
-            ]
-        if sportsbook_filters:
-            fills = [
-                fill
-                for fill in fills
-                if normalize_sportsbook(fill.get("sportsbook")).casefold()
-                in sportsbook_filters
-            ]
-        if tag_filter:
-            fills = [
-                fill
-                for fill in fills
-                if tag_filter
-                in {tag.lower() for tag in personal_tags_from_fill(fill)}
-            ]
-        if sharp_filter:
-            fills = [
-                fill
-                for fill in fills
-                if _sharp_filter_matches(
-                    sharp_snapshot_from_fill(fill), sharp_filter
-                )
-            ]
+        def filtered_personal_fills(source: list[dict]) -> list[dict]:
+            filtered = list(source)
+            if query:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if query
+                    in " ".join(
+                        [
+                            *(
+                                str(fill.get(field) or "").lower()
+                                for field in (
+                                    "event_title",
+                                    "market_title",
+                                    "selection",
+                                    "sportsbook",
+                                )
+                            ),
+                            *(tag.lower() for tag in personal_tags_from_fill(fill)),
+                            _sharp_search_blob(sharp_snapshot_from_fill(fill)),
+                        ]
+                    )
+                ]
+            if status_filter:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if str(fill.get("status") or "").lower() == status_filter
+                ]
+            if result_filter:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if str(fill.get("result") or "").lower() == result_filter
+                ]
+            if sportsbook_filters:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if normalize_sportsbook(fill.get("sportsbook")).casefold()
+                    in sportsbook_filters
+                ]
+            if tag_filter:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if tag_filter
+                    in {tag.lower() for tag in personal_tags_from_fill(fill)}
+                ]
+            if sharp_filter:
+                filtered = [
+                    fill
+                    for fill in filtered
+                    if _sharp_filter_matches(
+                        sharp_snapshot_from_fill(fill), sharp_filter
+                    )
+                ]
+            return filtered
 
+        performance_fills = filtered_personal_fills(all_fills)
+        fills = filtered_personal_fills(
+            [
+                fill
+                for fill in all_fills
+                if _within_tracker_dates(
+                    fill.get("created_at"), tracker_start, tracker_end
+                )
+            ]
+        )
+
+        starting_bankroll = _safe_float(
+            current_settings["personal_tracker_bankroll"]
+        )
         replay = replay_personal_tracker(
             fills,
-            _safe_float(current_settings["personal_tracker_bankroll"]),
+            starting_bankroll,
+        )
+        performance_replay = replay_personal_tracker(
+            performance_fills,
+            starting_bankroll,
         )
         all_exits = tracker.database.get_personal_position_exits(g.iconbets_user_id)
         fill_keys = {
@@ -6619,6 +6675,57 @@ def create_app(start_background: bool = True) -> Flask:
                     for index, point in enumerate(realized_graph)
                 ),
             ]
+        performance_keys = {
+            (
+                str(fill.get("canonical_event_id") or "").lower(),
+                str(fill.get("canonical_market_id") or "").lower(),
+                str(fill.get("market_line") or "").lower(),
+                str(fill.get("canonical_outcome_id") or "").lower(),
+                normalize_sportsbook(fill.get("sportsbook")).lower(),
+            )
+            for fill in performance_fills
+        }
+        performance_exits = [
+            item
+            for item in all_exits
+            if (
+                str(item.get("canonical_event_id") or "").lower(),
+                str(item.get("canonical_market_id") or "").lower(),
+                str(item.get("market_line") or "").lower(),
+                str(item.get("canonical_outcome_id") or "").lower(),
+                normalize_sportsbook(item.get("sportsbook")).lower(),
+            )
+            in performance_keys
+        ]
+        if performance_exits:
+            performance_positions = aggregate_personal_positions(
+                performance_fills, performance_exits
+            )
+            performance_realized_graph = personal_realized_pnl_summary(
+                performance_positions, "all"
+            )["graph"]
+            performance_replay["graph"] = [
+                {
+                    "timestamp": None,
+                    "profit_loss": 0,
+                    "bankroll": starting_bankroll,
+                    "daily_profit": 0,
+                },
+                *(
+                    {
+                        "timestamp": point["timestamp"],
+                        "profit_loss": point["profitLoss"],
+                        "bankroll": starting_bankroll + point["profitLoss"],
+                        "daily_profit": point["profitLoss"]
+                        - (
+                            performance_realized_graph[index - 1]["profitLoss"]
+                            if index
+                            else 0
+                        ),
+                    }
+                    for index, point in enumerate(performance_realized_graph)
+                ),
+            ]
         rows = replay["rows"]
         rows = _attach_clv(
             rows,
@@ -6629,24 +6736,23 @@ def create_app(start_background: bool = True) -> Flask:
         clv_analytics = _clv_analytics(rows)
 
         graph_range = request.args.get("graph_range", "month")
-        now = datetime.now(timezone.utc)
-        cutoffs = {
-            "today": now - timedelta(days=1),
-            "week": now - timedelta(days=7),
-            "month": now - timedelta(days=31),
-            "year": now - timedelta(days=366),
-        }
-        cutoff = cutoffs.get(graph_range, cutoffs["month"])
-        period_summary = _tracker_period_summary(rows, cutoff)
+        try:
+            cutoff, period_end, graph_month = _tracker_graph_window(
+                graph_range, request.args.get("graph_month", "").strip()
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        period_summary = _tracker_period_summary(
+            performance_replay["rows"], cutoff, period_end
+        )
         graph = [
             point
-            for point in replay["graph"]
-            if point.get("timestamp") is None
-            or (
-                _parse_datetime(point.get("timestamp"))
-                or datetime.min.replace(tzinfo=timezone.utc)
+            for point in performance_replay["graph"]
+            if (
+                (point_at := _parse_datetime(point.get("timestamp"))) is not None
+                and point_at >= cutoff
+                and (period_end is None or point_at < period_end)
             )
-            >= cutoff
         ]
         page = max(request.args.get("page", 1, type=int) or 1, 1)
         per_page = min(max(request.args.get("per_page", 50, type=int) or 50, 1), 100)
@@ -6657,6 +6763,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "period_summary": period_summary,
                 "graph": graph,
+                "graph_period": {
+                    "start": cutoff.isoformat(),
+                    "end": period_end.isoformat() if period_end else None,
+                    "month": graph_month,
+                },
                 "clv": clv_analytics,
                 "clv_records": [
                     {
@@ -7125,9 +7236,10 @@ def create_app(start_background: bool = True) -> Flask:
             tracker_start, tracker_end, tracker_range = _tracker_date_bounds(request.args)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        tracker_records = tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID)
+        all_tracker_records = tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID)
+        performance_records = list(all_tracker_records)
         tracker_records = [
-            record for record in tracker_records
+            record for record in all_tracker_records
             if _within_tracker_dates(
                 (record.get("snapshot") or {}).get("recommendation_timestamp") or record.get("created_at"),
                 tracker_start,
@@ -7145,10 +7257,18 @@ def create_app(start_background: bool = True) -> Flask:
                 if _model_tracker_sportsbook(record).casefold()
                 in sportsbook_filters
             ]
+            performance_records = [
+                record
+                for record in performance_records
+                if _model_tracker_sportsbook(record).casefold()
+                in sportsbook_filters
+            ]
+        starting_bankroll = _safe_float(current_settings["tracker_bankroll"])
         replay = replay_tracker(
             tracker_records,
-            _safe_float(current_settings["tracker_bankroll"]),
+            starting_bankroll,
         )
+        performance_replay = replay_tracker(performance_records, starting_bankroll)
         rows = replay["rows"]
         for row in rows:
             row["sharp_snapshot"] = sharp_snapshot_from_model(row.get("snapshot") or {})
@@ -7243,24 +7363,23 @@ def create_app(start_background: bool = True) -> Flask:
         clv_analytics = _clv_analytics(rows)
 
         graph_range = request.args.get("graph_range", "month")
-        now = datetime.now(timezone.utc)
-        cutoffs = {
-            "today": now - timedelta(days=1),
-            "week": now - timedelta(days=7),
-            "month": now - timedelta(days=31),
-            "year": now - timedelta(days=366),
-        }
-        cutoff = cutoffs.get(graph_range, cutoffs["month"])
-        period_summary = _tracker_period_summary(rows, cutoff)
+        try:
+            cutoff, period_end, graph_month = _tracker_graph_window(
+                graph_range, request.args.get("graph_month", "").strip()
+            )
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+        period_summary = _tracker_period_summary(
+            performance_replay["rows"], cutoff, period_end
+        )
         graph = [
             point
-            for point in replay["graph"]
-            if point.get("timestamp") is None
-            or (
-                _parse_datetime(point.get("timestamp"))
-                or datetime.min.replace(tzinfo=timezone.utc)
+            for point in performance_replay["graph"]
+            if (
+                (point_at := _parse_datetime(point.get("timestamp"))) is not None
+                and point_at >= cutoff
+                and (period_end is None or point_at < period_end)
             )
-            >= cutoff
         ]
         page = max(request.args.get("page", 1, type=int) or 1, 1)
         per_page = min(max(request.args.get("per_page", 50, type=int) or 50, 1), 100)
@@ -7271,6 +7390,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "period_summary": period_summary,
                 "graph": graph,
+                "graph_period": {
+                    "start": cutoff.isoformat(),
+                    "end": period_end.isoformat() if period_end else None,
+                    "month": graph_month,
+                },
                 "clv": clv_analytics,
                 "clv_records": [
                     {

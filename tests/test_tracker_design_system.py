@@ -74,6 +74,20 @@ def test_tracker_v2_keeps_responsive_and_interactive_contracts() -> None:
     assert "renderTrackerPerformance" in SCRIPT
 
 
+def test_tracker_performance_chart_and_calendar_share_a_persistent_month() -> None:
+    assert "trackerPeriodAnchor: null" in SCRIPT
+    assert "params.graph_month" in SCRIPT
+    assert 'button.hidden = appState.graphRange !== "month"' in SCRIPT
+    assert 'canvas.addEventListener("pointermove"' in SCRIPT
+    assert 'canvas.addEventListener("keydown"' in SCRIPT
+    assert 'drawExtrema(highest, "High", true)' in SCRIPT
+    assert 'drawExtrema(lowest, "Low", false)' in SCRIPT
+    assert ".tracker-chart-tooltip" in CSS
+    assert '[data-performance-view="calendar"] .tracker-performance-frame' in CSS
+    assert "height: auto !important;" in CSS
+    assert "min-height: 0 !important;" in CSS
+
+
 def test_tracker_v2_uses_the_full_desktop_workspace() -> None:
     app_shell_rule = CSS[CSS.index('.app-shell {') : CSS.index('.app-shell {') + 180]
     fluid_workspace_rule = CSS[
@@ -96,4 +110,4 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v2" in BASE[canonical : canonical + 170]
+    assert "-canonical-v4" in BASE[canonical : canonical + 170]

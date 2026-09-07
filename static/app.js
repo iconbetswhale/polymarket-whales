@@ -268,7 +268,7 @@ const appState = {
   graphRange: "month",
   trackerVisualMode: safeStorage.getItem("iconbets-tracker-visual") === "calendar" ? "calendar" : "chart",
   trackerPerformancePayload: null,
-  trackerCalendarAnchor: null,
+  trackerPeriodAnchor: null,
   personalTradeId: null,
   personalSelectedTags: [],
   personalTrackerOptions: null,
@@ -4763,13 +4763,27 @@ function trackerPerformancePoints(graph = []) {
   }).filter((point) => Number.isFinite(point.bankroll));
 }
 
-function trackerPeriodLabel(points = []) {
+function trackerMonthAnchor(payload = {}, points = []) {
+  if (appState.trackerPeriodAnchor) return appState.trackerPeriodAnchor;
+  const payloadMonth = String(payload.graph_period?.month || "");
+  const match = /^(\d{4})-(\d{2})$/.exec(payloadMonth);
+  if (match) {
+    appState.trackerPeriodAnchor = new Date(Number(match[1]), Number(match[2]) - 1, 1);
+    return appState.trackerPeriodAnchor;
+  }
+  const dated = points.filter((point) => point.timestamp);
+  const latest = dated.length ? new Date(dated[dated.length - 1].timestamp) : new Date();
+  appState.trackerPeriodAnchor = new Date(latest.getFullYear(), latest.getMonth(), 1);
+  return appState.trackerPeriodAnchor;
+}
+
+function trackerPeriodLabel(points = [], payload = {}) {
   const dated = points.filter((point) => point.timestamp);
   const latest = dated.length ? new Date(dated[dated.length - 1].timestamp) : new Date();
   if (appState.graphRange === "today") return latest.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
   if (appState.graphRange === "week") return "Past 7 Days";
   if (appState.graphRange === "year") return latest.toLocaleDateString(undefined, { year: "numeric" });
-  return latest.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return trackerMonthAnchor(payload, points).toLocaleDateString(undefined, { month: "long", year: "numeric" });
 }
 
 function trackerPeriodProfit(points = [], fallback = 0) {
@@ -4781,35 +4795,128 @@ function trackerPeriodProfit(points = [], fallback = 0) {
 function drawTrackerProfitChart(points = [], startingBankroll = 0) {
   const container = document.getElementById("tracker-chart");
   if (!container) return;
-  const dated = points.filter((point) => point.timestamp);
+  const dated = points
+    .filter((point) => point.timestamp)
+    .sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
   if (!dated.length) {
     container.innerHTML = emptyState("No settled results yet", "Your verified profit line will appear after the first result settles.");
     return;
   }
+  const firstDailyProfit = Number(dated[0].dailyProfit) || 0;
+  const base = Number.isFinite(dated[0].bankroll - firstDailyProfit)
+    ? dated[0].bankroll - firstDailyProfit
+    : Number(startingBankroll) || dated[0].bankroll;
+  const firstDate = new Date(dated[0].timestamp);
+  const periodAnchor = appState.graphRange === "month"
+    ? (appState.trackerPeriodAnchor || new Date(firstDate.getFullYear(), firstDate.getMonth(), 1))
+    : firstDate;
+  const baselineDate = appState.graphRange === "month"
+    ? new Date(periodAnchor.getFullYear(), periodAnchor.getMonth(), 1)
+    : firstDate;
+  const series = [
+    { timestamp: baselineDate.toISOString(), bankroll: base, dailyProfit: 0, baseline: true },
+    ...dated,
+  ];
   const canvas = document.createElement("canvas");
   const ratio = Math.max(1, window.devicePixelRatio || 1);
   const rect = container.getBoundingClientRect();
-  canvas.width = Math.max(620, Math.round((rect.width || 760) * ratio));
-  canvas.height = Math.max(300, Math.round((rect.height || 380) * ratio));
+  canvas.width = Math.max(280, Math.round((rect.width || 760) * ratio));
+  canvas.height = Math.max(260, Math.round((rect.height || 360) * ratio));
   canvas.style.width = "100%";
   canvas.style.height = "100%";
-  container.replaceChildren(canvas);
+  canvas.tabIndex = 0;
+  canvas.setAttribute("role", "img");
+  canvas.setAttribute("aria-label", "Monthly cumulative profit chart. Hover the line or use the left and right arrow keys to inspect exact values.");
+  const crosshair = document.createElement("span");
+  crosshair.className = "tracker-chart-crosshair";
+  crosshair.hidden = true;
+  const marker = document.createElement("span");
+  marker.className = "tracker-chart-marker";
+  marker.hidden = true;
+  const tooltip = document.createElement("span");
+  tooltip.className = "tracker-chart-tooltip";
+  tooltip.hidden = true;
+  container.replaceChildren(canvas, crosshair, marker, tooltip);
   const ctx = canvas.getContext("2d");
   const width = canvas.width;
   const height = canvas.height;
-  const padX = 24 * ratio;
+  const padLeft = (width / ratio < 640 ? 58 : 72) * ratio;
+  const padRight = 34 * ratio;
   const padTop = 54 * ratio;
-  const padBottom = 48 * ratio;
-  const base = Number(startingBankroll) || dated[0].bankroll;
-  const values = dated.map((point) => point.bankroll - base);
+  const padBottom = 42 * ratio;
+  const values = series.map((point) => point.bankroll - base);
   let min = Math.min(0, ...values);
   let max = Math.max(0, ...values);
-  const spread = Math.max(max - min, Math.max(Math.abs(max), Math.abs(min)) * 0.18, 1);
-  min -= spread * 0.12;
-  max += spread * 0.12;
-  const x = (index) => padX + (index / Math.max(1, values.length - 1)) * (width - padX * 2);
+  const spread = Math.max(max - min, Math.max(Math.abs(max), Math.abs(min)) * 0.2, 1);
+  min -= spread * 0.16;
+  max += spread * 0.16;
+  const timestamps = series.map((point) => new Date(point.timestamp).getTime());
+  const domainStart = Math.min(...timestamps);
+  let domainEnd = Math.max(...timestamps);
+  if (appState.graphRange === "month") {
+    const nextMonth = new Date(periodAnchor.getFullYear(), periodAnchor.getMonth() + 1, 1);
+    const currentMonth = new Date();
+    const isCurrentMonth = periodAnchor.getFullYear() === currentMonth.getFullYear()
+      && periodAnchor.getMonth() === currentMonth.getMonth();
+    domainEnd = isCurrentMonth ? Math.max(domainEnd, currentMonth.getTime()) : nextMonth.getTime() - 1;
+  }
+  if (domainEnd <= domainStart) domainEnd = domainStart + 1;
+  const x = (timestamp) => padLeft + ((timestamp - domainStart) / (domainEnd - domainStart)) * (width - padLeft - padRight);
   const y = (value) => padTop + ((max - value) / (max - min)) * (height - padTop - padBottom);
-  const coords = values.map((value, index) => ({ x: x(index), y: y(value), value }));
+  const coords = values.map((value, index) => ({
+    x: x(timestamps[index]),
+    y: y(value),
+    value,
+    timestamp: timestamps[index],
+    point: series[index],
+  }));
+
+  ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+  ctx.textBaseline = "middle";
+  for (let index = 0; index < 4; index += 1) {
+    const progress = index / 3;
+    const lineY = padTop + progress * (height - padTop - padBottom);
+    const labelValue = max - progress * (max - min);
+    ctx.strokeStyle = "rgba(137, 145, 157, 0.12)";
+    ctx.lineWidth = ratio;
+    ctx.beginPath();
+    ctx.moveTo(padLeft, lineY);
+    ctx.lineTo(width - padRight, lineY);
+    ctx.stroke();
+    ctx.fillStyle = "#7f858e";
+    ctx.textAlign = "right";
+    ctx.fillText(formatCompactMoney(labelValue), padLeft - 10 * ratio, lineY);
+  }
+
+  if (min < 0 && max > 0) {
+    const zeroY = y(0);
+    ctx.save();
+    ctx.setLineDash([4 * ratio, 5 * ratio]);
+    ctx.strokeStyle = "rgba(215, 220, 226, 0.24)";
+    ctx.beginPath();
+    ctx.moveTo(padLeft, zeroY);
+    ctx.lineTo(width - padRight, zeroY);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  const fill = ctx.createLinearGradient(0, padTop, 0, height - padBottom);
+  fill.addColorStop(0, "rgba(0, 229, 101, 0.18)");
+  fill.addColorStop(1, "rgba(0, 229, 101, 0)");
+  ctx.beginPath();
+  ctx.moveTo(coords[0].x, height - padBottom);
+  coords.forEach((point, index) => {
+    if (!index) ctx.lineTo(point.x, point.y);
+    else {
+      const previous = coords[index - 1];
+      const midpoint = (previous.x + point.x) / 2;
+      ctx.bezierCurveTo(midpoint, previous.y, midpoint, point.y, point.x, point.y);
+    }
+  });
+  ctx.lineTo(coords[coords.length - 1].x, height - padBottom);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
 
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -4823,42 +4930,114 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
     }
   });
   ctx.strokeStyle = "#00e565";
-  ctx.lineWidth = 4 * ratio;
-  ctx.shadowColor = "rgba(0, 229, 101, 0.18)";
-  ctx.shadowBlur = 8 * ratio;
+  ctx.lineWidth = 3 * ratio;
+  ctx.shadowColor = "rgba(0, 229, 101, 0.28)";
+  ctx.shadowBlur = 10 * ratio;
   ctx.stroke();
   ctx.shadowBlur = 0;
 
   const highest = coords.reduce((best, point) => point.value > best.value ? point : best, coords[0]);
   const lowest = coords.reduce((best, point) => point.value < best.value ? point : best, coords[0]);
-  ctx.fillStyle = "#8f9199";
-  ctx.font = `${18 * ratio}px Inter, system-ui, sans-serif`;
-  ctx.textBaseline = "middle";
-  const highLabel = signedMoney(highest.value);
-  const lowLabel = signedMoney(lowest.value);
-  ctx.textAlign = highest.x > width * 0.72 ? "right" : highest.x < width * 0.28 ? "left" : "center";
-  ctx.fillText(highLabel, Math.min(width - padX, Math.max(padX, highest.x)), Math.max(24 * ratio, highest.y - 28 * ratio));
-  if (Math.abs(lowest.value - highest.value) > 0.005) {
-    ctx.textAlign = lowest.x > width * 0.62 ? "right" : "left";
-    ctx.fillText(lowLabel, Math.min(width - padX, Math.max(padX, lowest.x)), Math.min(height - 18 * ratio, lowest.y + 30 * ratio));
+  const drawExtrema = (point, label, above) => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 4 * ratio, 0, Math.PI * 2);
+    ctx.fillStyle = "#101318";
+    ctx.fill();
+    ctx.lineWidth = 2 * ratio;
+    ctx.strokeStyle = "#00e565";
+    ctx.stroke();
+    ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+    const text = `${label}  ${signedMoney(point.value)}`;
+    const boxWidth = ctx.measureText(text).width + 18 * ratio;
+    const boxHeight = 27 * ratio;
+    const boxX = Math.max(padLeft, Math.min(width - padRight - boxWidth, point.x - boxWidth / 2));
+    let boxY = above ? point.y - boxHeight - 13 * ratio : point.y + 13 * ratio;
+    boxY = Math.max(8 * ratio, Math.min(height - padBottom - boxHeight - 4 * ratio, boxY));
+    ctx.fillStyle = "rgba(20, 25, 31, 0.96)";
+    ctx.strokeStyle = "rgba(121, 132, 145, 0.42)";
+    ctx.lineWidth = ratio;
+    ctx.beginPath();
+    ctx.roundRect(boxX, boxY, boxWidth, boxHeight, 7 * ratio);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#e8ebee";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, boxX + boxWidth / 2, boxY + boxHeight / 2);
+  };
+  if (Math.abs(highest.value - lowest.value) < 0.005) {
+    drawExtrema(highest, "High / Low", true);
+  } else {
+    drawExtrema(highest, "High", true);
+    drawExtrema(lowest, "Low", false);
   }
 
-  // Plot every point, but label only a readable cadence along the x-axis.
-  const maxLabels = width / ratio < 700 ? 4 : 6;
-  const labelStep = Math.max(1, Math.ceil((dated.length - 1) / Math.max(1, maxLabels - 1)));
-  const labelIndexes = [];
-  for (let index = 0; index < dated.length; index += labelStep) labelIndexes.push(index);
-  if (labelIndexes[labelIndexes.length - 1] !== dated.length - 1) labelIndexes.push(dated.length - 1);
+  const xLabelCount = width / ratio < 640 ? 4 : 6;
   ctx.fillStyle = "#858991";
   ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
-  labelIndexes.forEach((index, labelIndex) => {
-    const date = new Date(dated[index].timestamp);
+  Array.from({ length: xLabelCount }, (_, index) => index).forEach((index) => {
+    const progress = index / Math.max(1, xLabelCount - 1);
+    const timestamp = domainStart + progress * (domainEnd - domainStart);
+    const date = new Date(timestamp);
     const label = appState.graphRange === "today"
       ? date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
       : date.toLocaleDateString(undefined, appState.graphRange === "year" ? { month: "short" } : { month: "short", day: "numeric" });
-    ctx.textAlign = labelIndex === 0 ? "left" : labelIndex === labelIndexes.length - 1 ? "right" : "center";
-    ctx.fillText(label, x(index), height - 8 * ratio);
+    const labelX = padLeft + progress * (width - padLeft - padRight);
+    ctx.textAlign = index === 0 ? "left" : index === xLabelCount - 1 ? "right" : "center";
+    ctx.fillText(label, labelX, height - 8 * ratio);
+  });
+
+  let activePointIndex = coords.length - 1;
+  const hidePoint = () => {
+    crosshair.hidden = true;
+    marker.hidden = true;
+    tooltip.hidden = true;
+  };
+  const showPoint = (index) => {
+    activePointIndex = Math.max(0, Math.min(coords.length - 1, index));
+    const point = coords[activePointIndex];
+    const date = new Date(point.timestamp);
+    const value = signedMoney(point.value);
+    const dateLabel = date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    const title = document.createElement("strong");
+    title.textContent = value;
+    const detail = document.createElement("span");
+    detail.textContent = point.point.baseline ? `${dateLabel} · Month open` : dateLabel;
+    tooltip.replaceChildren(title, detail);
+    crosshair.hidden = false;
+    marker.hidden = false;
+    tooltip.hidden = false;
+    const cssX = point.x / ratio;
+    const cssY = point.y / ratio;
+    crosshair.style.left = `${cssX}px`;
+    crosshair.style.top = `${padTop / ratio}px`;
+    crosshair.style.height = `${(height - padTop - padBottom) / ratio}px`;
+    marker.style.left = `${cssX}px`;
+    marker.style.top = `${cssY}px`;
+    const maxLeft = Math.max(8, container.clientWidth - tooltip.offsetWidth - 8);
+    tooltip.style.left = `${Math.min(maxLeft, Math.max(8, cssX - tooltip.offsetWidth / 2))}px`;
+    const above = cssY - tooltip.offsetHeight - 14;
+    tooltip.style.top = `${above > 6 ? above : cssY + 14}px`;
+    canvas.setAttribute("aria-label", `Cumulative profit ${value} on ${dateLabel}. Use the left and right arrow keys to inspect points.`);
+  };
+  canvas.addEventListener("pointermove", (event) => {
+    const bounds = canvas.getBoundingClientRect();
+    const pointerX = (event.clientX - bounds.left) * ratio;
+    const nearest = coords.reduce((bestIndex, point, index) => (
+      Math.abs(point.x - pointerX) < Math.abs(coords[bestIndex].x - pointerX) ? index : bestIndex
+    ), 0);
+    showPoint(nearest);
+  });
+  canvas.addEventListener("pointerleave", () => {
+    if (document.activeElement !== canvas) hidePoint();
+  });
+  canvas.addEventListener("focus", () => showPoint(activePointIndex));
+  canvas.addEventListener("blur", hidePoint);
+  canvas.addEventListener("keydown", (event) => {
+    if (!["ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    showPoint(activePointIndex + (event.key === "ArrowRight" ? 1 : -1));
   });
 }
 
@@ -4866,10 +5045,7 @@ function renderTrackerCalendar(points = []) {
   const container = document.getElementById("tracker-calendar");
   if (!container) return;
   const dated = points.filter((point) => point.timestamp);
-  if (!appState.trackerCalendarAnchor) {
-    appState.trackerCalendarAnchor = dated.length ? new Date(dated[dated.length - 1].timestamp) : new Date();
-  }
-  const anchor = appState.trackerCalendarAnchor;
+  const anchor = appState.trackerPeriodAnchor || trackerMonthAnchor({}, points);
   const year = anchor.getFullYear();
   const month = anchor.getMonth();
   const daily = new Map();
@@ -4904,12 +5080,21 @@ function renderTrackerPerformance(payload = {}) {
   const periodSummary = payload.period_summary || {};
   const points = trackerPerformancePoints(payload.graph || []);
   const mode = appState.trackerVisualMode;
+  if (appState.graphRange === "month") trackerMonthAnchor(payload, points);
   const panel = document.querySelector(".tracker-bankroll-panel");
   const chart = document.getElementById("tracker-chart");
   const calendar = document.getElementById("tracker-calendar");
   if (!panel || !chart || !calendar) return;
   panel.dataset.performanceView = mode;
-  document.querySelectorAll(".tracker-period-step").forEach((button) => { button.hidden = mode !== "calendar"; });
+  document.querySelectorAll(".tracker-period-step").forEach((button) => {
+    button.hidden = appState.graphRange !== "month";
+  });
+  const nextButton = document.getElementById("tracker-period-next");
+  if (nextButton && appState.trackerPeriodAnchor) {
+    const now = new Date();
+    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    nextButton.disabled = appState.trackerPeriodAnchor >= currentMonth;
+  }
   chart.hidden = mode !== "chart";
   calendar.hidden = mode !== "calendar";
   document.querySelectorAll("[data-tracker-visual]").forEach((button) => {
@@ -4918,9 +5103,7 @@ function renderTrackerPerformance(payload = {}) {
     button.setAttribute("aria-selected", String(active));
   });
   const periodProfit = trackerPeriodProfit(points, periodSummary.realized_profit_loss);
-  const periodLabel = mode === "calendar" && appState.trackerCalendarAnchor
-    ? appState.trackerCalendarAnchor.toLocaleDateString(undefined, { month: "long", year: "numeric" })
-    : trackerPeriodLabel(points);
+  const periodLabel = trackerPeriodLabel(points, payload);
   document.getElementById("tracker-chart-title").textContent = periodLabel;
   const periodProfitNode = document.getElementById("tracker-period-profit");
   periodProfitNode.textContent = signedMoney(periodProfit);
@@ -5468,6 +5651,11 @@ function trackerRequestParams(view) {
     tracker_end: document.getElementById("tracker-custom-end").value,
   };
   const selectedBooks = appState.trackerSelectedBooks[view] || [];
+  if (appState.graphRange === "month" && appState.trackerPeriodAnchor) {
+    const year = appState.trackerPeriodAnchor.getFullYear();
+    const month = String(appState.trackerPeriodAnchor.getMonth() + 1).padStart(2, "0");
+    params.graph_month = `${year}-${month}`;
+  }
   if (selectedBooks.length) params.sportsbook = selectedBooks.join(",");
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
   if (view === "personal") {
@@ -5951,26 +6139,26 @@ function bindTracker() {
   document.querySelectorAll("[data-tracker-visual]").forEach((button) => button.addEventListener("click", () => {
     appState.trackerVisualMode = button.dataset.trackerVisual === "calendar" ? "calendar" : "chart";
     safeStorage.setItem("iconbets-tracker-visual", appState.trackerVisualMode);
-    if (appState.trackerVisualMode === "calendar") {
-      const points = trackerPerformancePoints(appState.trackerPerformancePayload?.graph || []);
-      const dated = points.filter((point) => point.timestamp);
-      appState.trackerCalendarAnchor = dated.length ? new Date(dated[dated.length - 1].timestamp) : new Date();
-    }
     renderTrackerPerformance(appState.trackerPerformancePayload || {});
   }));
   document.getElementById("tracker-period-previous")?.addEventListener("click", () => {
-    const anchor = appState.trackerCalendarAnchor || new Date();
-    appState.trackerCalendarAnchor = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
-    renderTrackerPerformance(appState.trackerPerformancePayload || {});
+    const anchor = appState.trackerPeriodAnchor || new Date();
+    appState.trackerPeriodAnchor = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
+    loadTrackerView();
   });
   document.getElementById("tracker-period-next")?.addEventListener("click", () => {
-    const anchor = appState.trackerCalendarAnchor || new Date();
+    const anchor = appState.trackerPeriodAnchor || new Date();
     const next = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
     const now = new Date();
     if (next > new Date(now.getFullYear(), now.getMonth(), 1)) return;
-    appState.trackerCalendarAnchor = next;
-    renderTrackerPerformance(appState.trackerPerformancePayload || {});
+    appState.trackerPeriodAnchor = next;
+    loadTrackerView();
   });
+  window.addEventListener("resize", debounce(() => {
+    if (appState.trackerVisualMode === "chart" && appState.trackerPerformancePayload) {
+      renderTrackerPerformance(appState.trackerPerformancePayload);
+    }
+  }, 120), { passive: true });
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
     button.addEventListener("click", () => selectTrackerView(button.dataset.trackerView));
     button.addEventListener("keydown", (event) => {
