@@ -16,6 +16,13 @@ from arbitrage_preview import temporary_arbitrage_events
 NOW = datetime(2026, 8, 26, 12, 0, tzinfo=timezone.utc)
 
 
+def test_arbitrage_page_omits_the_global_model_risk_banner(app_client) -> None:
+    response = app_client.get("/arbitrage")
+
+    assert response.status_code == 200
+    assert b'id="global-risk-banner"' not in response.data
+
+
 def _outcome(name: str, price: int, *, point=None, description: str = "") -> dict:
     return {
         "name": name,
