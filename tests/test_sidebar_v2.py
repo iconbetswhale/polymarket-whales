@@ -71,14 +71,26 @@ def test_flat_sidebar_uses_reference_phosphor_icon_mapping():
 
 def test_sidebar_groups_and_icons_match_the_product_navigation_contract():
     core = BASE.index(">Core</span>")
-    fantasy_optimizer = BASE.index(">Fantasy Optimizer</span>")
     prediction_traders = BASE.index(">Prediction Traders</span>")
+    sharp_money = BASE.index(">Sharp Money</span>")
+    positive_ev = BASE.index(">Positive EV</span>")
+    sportsbook_screen = BASE.index(">Sportsbook Screen</span>")
+    fantasy_optimizer = BASE.index(">Fantasy Optimizer</span>")
+    arbitrage = BASE.index(">Arbitrage</span>")
+    middles = BASE.index(">Middles</span>")
+    low_hold = BASE.index(">Low Hold</span>")
+    futures = BASE.index(">Futures Odds</span>")
     labs = BASE.index(">Labs</span>")
-    portfolio = BASE.index(">Portfolio</span>")
     bet_tracker = BASE.index(">Bet Tracker</span>")
     lab_tracker = BASE.index(">LabTracker</span>")
+    shadow_lab = BASE.index(">Shadow Lab</span>")
+    live_positions = BASE.index(">Live Positions</span>")
+    calculators = BASE.index(">Calculators</span>")
+    portfolio = BASE.index(">Portfolio</span>")
 
-    assert core < fantasy_optimizer < prediction_traders < labs < bet_tracker < lab_tracker < portfolio
+    assert core < prediction_traders < sharp_money < positive_ev < sportsbook_screen
+    assert sportsbook_screen < fantasy_optimizer < arbitrage < middles < low_hold < futures < labs
+    assert labs < bet_tracker < lab_tracker < shadow_lab < live_positions < calculators < portfolio
     assert 'class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money' in BASE
     assert 'class="ph ph-trend-up"></i><span data-short="+EV">Positive EV' in BASE
     assert 'class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen' in BASE

@@ -35,9 +35,10 @@ def test_calculators_are_a_canonical_v2_page_in_the_shared_shell() -> None:
     assert "calculators.js" in BASE
     assert "'calculators'" in BASE
     calculators_link = BASE.index("url_for('calculators_page')")
-    fantasy_link = BASE.index("url_for('dfs_page'")
     labs_label = BASE.index(">Labs</span>")
-    assert fantasy_link < calculators_link < labs_label
+    live_positions_link = BASE.index("url_for('live_positions_page')")
+    portfolio_label = BASE.index(">Portfolio</span>")
+    assert labs_label < live_positions_link < calculators_link < portfolio_label
 
 
 def test_all_fifteen_calculator_tabs_are_present() -> None:

@@ -74,21 +74,21 @@
     </a>
     <div class="nav-links" id="primary-links">
       <span class="nav-section-label" aria-hidden="true">Core</span>
-      <a href="{{ url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
       <a href="{{ url_for('trades_page') }}" {% if page == 'trades' %}aria-current="page"{% endif %}><i class="ph ph-target"></i><span data-short="Traders">Prediction Traders</span></a>
       <a href="{{ url_for('sharp_money_page') }}" {% if page == 'sharp-money' %}aria-current="page"{% endif %}><i class="ph ph-coins" aria-hidden="true"></i><span data-short="Sharp">Sharp Money</span></a>
       <a href="{{ url_for('positive_ev_page') }}" {% if page == 'positive-ev' %}aria-current="page"{% endif %}><i class="ph ph-trend-up"></i><span data-short="+EV">Positive EV</span></a>
+      <a href="{{ url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
+      <a href="{{ url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span data-short="DFS">Fantasy Optimizer</span></a>
       <a href="{{ url_for('arbitrage_page') }}" {% if page == 'arbitrage' %}aria-current="page"{% endif %}><i class="ph ph-intersect-three" aria-hidden="true"></i><span data-short="Arb">Arbitrage</span></a>
       <a href="{{ url_for('middles_page') }}" {% if page == 'middles' %}aria-current="page"{% endif %}><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><span data-short="Middle">Middles</span></a>
       <a href="{{ url_for('low_hold_page') }}" {% if page == 'low-hold' %}aria-current="page"{% endif %}><i class="ph ph-percent" aria-hidden="true"></i><span data-short="Low Hold">Low Hold</span></a>
-      <a href="{{ url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span data-short="Screen">Sportsbook Screen</span></a>
       <a href="{{ url_for('futures_page') }}" {% if page == 'futures' %}aria-current="page"{% endif %}><i class="ph ph-trophy" aria-hidden="true"></i><span data-short="Futures">Futures Odds</span></a>
-      <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span data-short="Calcs">Calculators</span></a>
       <span class="nav-section-label" aria-hidden="true">Labs</span>
       <a href="{{ url_for('tracker_page') }}" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
       <a href="{{ url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="LabTracker">LabTracker</span></a>
       <a href="{{ url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash"></i><span data-short="Lab">Shadow Lab</span></a>
       <a class="nav-live-link" href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span data-short="Live">Live Positions</span></a>
+      <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span data-short="Calcs">Calculators</span></a>
       <span class="nav-section-label" aria-hidden="true">Portfolio</span>
       <a href="{{ url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span data-short="Wallets">Sharp Wallets</span></a>
       <a href="{{ url_for('position_history_page') }}" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise"></i><span data-short="History">Bet History</span></a>
@@ -123,16 +123,16 @@
     <div class="mobile-more-scroll">
       <nav class="mobile-more-links" aria-label="More IconLabs tools">
         <span class="mobile-more-group">Core</span>
+        <a href="{{ url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span>Sportsbook Screen</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('dfs_page') }}" {% if page == 'dfs' %}aria-current="page"{% endif %}><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span>Fantasy Optimizer</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('middles_page') }}" {% if page == 'middles' %}aria-current="page"{% endif %}><i class="ph ph-arrows-in-line-horizontal" aria-hidden="true"></i><span>Middles</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('low_hold_page') }}" {% if page == 'low-hold' %}aria-current="page"{% endif %}><i class="ph ph-percent" aria-hidden="true"></i><span>Low Hold</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
-        <a href="{{ url_for('odds_screen_page') }}" {% if page == 'odds-screen' %}aria-current="page"{% endif %}><i class="ph ph-layout" aria-hidden="true"></i><span>Sportsbook Screen</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('futures_page') }}" {% if page == 'futures' %}aria-current="page"{% endif %}><i class="ph ph-trophy" aria-hidden="true"></i><span>Futures Odds</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
-        <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span>Calculators</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <span class="mobile-more-group">Labs</span>
         <a href="{{ url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask" aria-hidden="true"></i><span>LabTracker</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Shadow Lab</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span>Live Positions</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
+        <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span>Calculators</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <span class="mobile-more-group">Portfolio</span>
         <a href="{{ url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet" aria-hidden="true"></i><span>Sharp Wallets</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('position_history_page') }}" {% if page == 'position-history' %}aria-current="page"{% endif %}><i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i><span>Bet History</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
