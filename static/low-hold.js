@@ -45,6 +45,7 @@
     rows: [],
     diagnostics: {},
     loading: false,
+    hasCompletedScan: false,
     error: "",
     degraded: false,
     paused: false,
@@ -74,6 +75,8 @@
   };
 
   const elements = {
+    workspace: document.querySelector(".arb-workspace"),
+    valueLabEmpty: document.querySelector("[data-value-lab-empty]"),
     feed: document.getElementById("lh-feed"),
     detail: document.getElementById("lh-detail"),
     detailPlaceholder: document.getElementById("lh-detail-placeholder"),
@@ -468,12 +471,29 @@
   }
 
   function renderFeed() {
+    const showValueLab = state.view === "live"
+      && state.hasCompletedScan
+      && !state.loading
+      && !state.error
+      && state.liveActive
+      && !state.paused
+      && state.rows.length === 0;
+    elements.workspace?.classList.toggle("value-lab-empty-active", showValueLab);
+    if (elements.valueLabEmpty) elements.valueLabEmpty.hidden = !showValueLab;
+    if (showValueLab) {
+      elements.resultCopy.textContent = "Live scan active · waiting for a qualified play";
+      return;
+    }
     if (state.view === "live" && state.loading) {
       elements.feed.innerHTML = `<div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Pairing opposing prices</strong><p>Calculating hold, balancing bets, and checking attainable middle outcomes.</p></div>`;
       return;
     }
     if (state.view === "live" && state.error) {
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><strong>Low Hold scan unavailable</strong><p>${esc(state.error)}</p><button class="arb-secondary-button" type="button" data-lh-retry>Try again</button></div>`;
+      return;
+    }
+    if (state.view === "live" && state.paused) {
+      elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-pause-circle" aria-hidden="true"></i><strong>Low Hold scanner is paused</strong><p>Press play in the toolbar when you’re ready to resume the live scan.</p><button class="arb-primary-button" type="button" data-lh-start><i class="ph ph-play"></i>Resume scanner</button></div>`;
       return;
     }
     if (state.view === "live" && !state.liveActive) {
@@ -735,6 +755,7 @@
         state.rows = lowHoldRows(cached.data);
         reconcileHiddenOpportunities(state.rows);
         state.diagnostics = cached.diagnostics || {};
+        state.hasCompletedScan = true;
         renderAll();
       }
     }
@@ -748,6 +769,7 @@
       if (!response.ok) throw new Error(payload.message || payload.error || "Unable to scan Low Hold markets.");
       writePagePayloadCache(cacheKey, payload);
       state.rows = lowHoldRows(payload.data);
+      state.hasCompletedScan = true;
       reconcileHiddenOpportunities(state.rows);
       state.diagnostics = payload.diagnostics || {};
       state.paused = Boolean(payload.paused);
@@ -787,6 +809,7 @@
     elements.pause.innerHTML = `<i class="ph ${state.paused ? "ph-play" : "ph-pause"}" aria-hidden="true"></i>`;
     window.clearTimeout(state.timer);
     if (!state.paused) loadBoard({ quiet: true });
+    else renderAll();
     notify(state.paused ? "Automatic Low Hold refresh paused." : "Automatic Low Hold refresh resumed.");
   }
 

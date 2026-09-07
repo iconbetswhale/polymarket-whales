@@ -52,6 +52,8 @@
     sport: "",
     paused: false,
     loading: false,
+    hasCompletedScan: false,
+    error: "",
     view: "live",
     bookGroup: "all",
     selectedBooks: new Set(Array.isArray(saved.books) && saved.books.length ? saved.books : defaults.books),
@@ -85,6 +87,8 @@
   try { state.hidden = new Set(JSON.parse(localStorage.getItem(hiddenKey) || "[]").map(String)); } catch (_) { state.hidden = new Set(); }
 
   const elements = {
+    workspace: document.querySelector(".mid-workspace"),
+    valueLabEmpty: document.querySelector("[data-value-lab-empty]"),
     feed: document.getElementById("mid-feed"),
     detail: document.getElementById("mid-detail"),
     status: document.getElementById("mid-feed-status"),
@@ -368,8 +372,24 @@
   function renderFeed() {
     const sortLabels = { "cost-asc": "lowest break-even", "width-desc": "widest window", "profit-desc": "highest middle profit", "time-asc": "start time" };
     if (elements.resultCopy) elements.resultCopy.textContent = `${visibleRows().length} ${state.view === "hidden" ? "hidden" : "shown"} · ranked by ${sortLabels[state.sort] || sortLabels["cost-asc"]}`;
+    const showValueLab = state.view === "live"
+      && state.hasCompletedScan
+      && !state.loading
+      && !state.error
+      && !state.paused
+      && state.rows.length === 0;
+    elements.workspace?.classList.toggle("value-lab-empty-active", showValueLab);
+    if (elements.valueLabEmpty) elements.valueLabEmpty.hidden = !showValueLab;
+    if (showValueLab) {
+      if (elements.resultCopy) elements.resultCopy.textContent = "Live scan active · waiting for a qualified play";
+      return;
+    }
     if (state.loading && !state.rows.length) {
       elements.feed.innerHTML = Array.from({ length: 5 }, () => '<div class="mid-skeleton"></div>').join("");
+      return;
+    }
+    if (state.paused && state.view === "live") {
+      elements.feed.innerHTML = `<div class="mid-empty"><i class="ph ph-pause-circle" aria-hidden="true"></i><strong>Middle scanner is paused</strong><span>Press play in the toolbar when you’re ready to resume the live scan.</span></div>`;
       return;
     }
     const rows = visibleRows();
@@ -709,11 +729,13 @@
       const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
       if (cached) {
         state.rows = Array.isArray(cached.data) ? cached.data : [];
+        state.hasCompletedScan = true;
         state.lastUpdated = new Date();
         renderAll();
       }
     }
     state.loading = true;
+    state.error = "";
     elements.status.className = "mid-feed-status loading";
     elements.status.innerHTML = '<i class="ph ph-spinner-gap" aria-hidden="true"></i><span>Calculating executable middle windows…</span>';
     if (!quiet && !state.rows.length) renderFeed();
@@ -724,6 +746,7 @@
       if (!response.ok) throw new Error(payload.message || payload.error || "Middle scan failed");
       writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
+      state.hasCompletedScan = true;
       state.lastUpdated = new Date(payload.lastVerifiedAt || payload.generatedAt || Date.now());
       if (state.alerts && state.rows.length) notify(`${state.rows.length} middle opportunit${state.rows.length === 1 ? "y" : "ies"} found.`);
       const paused = Boolean(payload.paused);
@@ -737,6 +760,7 @@
       renderAll();
       scheduleRefresh(Number(payload.refreshSeconds || 0));
     } catch (error) {
+      state.error = error.message || "Unable to load middles";
       elements.status.className = "mid-feed-status error";
       elements.status.innerHTML = `<i class="ph ph-warning-circle" aria-hidden="true"></i><span>${esc(error.message || "Unable to load middles")}</span>`;
       notify(error.message || "Unable to load middles", "error");
@@ -769,6 +793,7 @@
       elements.status.className = "mid-feed-status paused";
       elements.status.innerHTML = '<i class="ph ph-pause-circle" aria-hidden="true"></i><span>Scanner paused</span>';
       updateSummary();
+      renderFeed();
     } else loadBoard();
   }
 

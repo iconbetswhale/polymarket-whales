@@ -60,6 +60,7 @@
     degraded: false,
     selectedId: null,
     loading: false,
+    hasCompletedScan: false,
     paused: false,
     liveActive: true,
     alerts: false,
@@ -84,6 +85,8 @@
   };
 
   const elements = {
+    workspace: document.querySelector(".arb-workspace"),
+    valueLabEmpty: document.querySelector("[data-value-lab-empty]"),
     feed: document.getElementById("arb-feed"),
     detail: document.getElementById("arb-detail"),
     detailPlaceholder: document.getElementById("arb-detail-placeholder"),
@@ -434,12 +437,29 @@
   }
 
   function renderFeed() {
+    const showValueLab = state.view === "live"
+      && state.hasCompletedScan
+      && !state.loading
+      && !state.error
+      && state.liveActive
+      && !state.paused
+      && state.rows.length === 0;
+    elements.workspace?.classList.toggle("value-lab-empty-active", showValueLab);
+    if (elements.valueLabEmpty) elements.valueLabEmpty.hidden = !showValueLab;
+    if (showValueLab) {
+      elements.resultCopy.textContent = "Live scan active · waiting for a qualified play";
+      return;
+    }
     if (state.loading) {
       elements.feed.innerHTML = `<div class="arb-state arb-loading" role="status"><span class="arb-spinner" aria-hidden="true"></span><strong>Scanning complete markets</strong><p>Comparing selected sportsbooks and equalizing the after-fee payout.</p></div>`;
       return;
     }
     if (state.error) {
       elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-warning-circle" aria-hidden="true"></i><strong>Arbitrage scan unavailable</strong><p>${esc(state.error)}</p><button class="arb-secondary-button" type="button" data-arb-retry>Try again</button></div>`;
+      return;
+    }
+    if (state.paused) {
+      elements.feed.innerHTML = `<div class="arb-state"><i class="ph ph-pause-circle" aria-hidden="true"></i><strong>Arbitrage scanner is paused</strong><p>Press play in the toolbar when you’re ready to resume the live scan.</p><button class="arb-primary-button" type="button" data-arb-start><i class="ph ph-play"></i>Resume scanner</button></div>`;
       return;
     }
     if (!state.liveActive) {
@@ -705,6 +725,7 @@
       if (cached) {
         state.rows = Array.isArray(cached.data) ? cached.data : [];
         state.diagnostics = cached.diagnostics || {};
+        state.hasCompletedScan = true;
         renderAll();
       }
     }
@@ -718,6 +739,7 @@
       if (!response.ok) throw new Error(payload.message || payload.error || "Unable to scan arbitrage markets.");
       writePagePayloadCache(cacheKey, payload);
       state.rows = Array.isArray(payload.data) ? payload.data : [];
+      state.hasCompletedScan = true;
       state.rows.forEach((row) => {
         if (hiddenIds.has(String(row.id))) hiddenRows.set(String(row.id), row);
       });
@@ -760,6 +782,7 @@
     elements.pause.innerHTML = `<i class="ph ${state.paused ? "ph-play" : "ph-pause"}" aria-hidden="true"></i>`;
     window.clearTimeout(state.timer);
     if (!state.paused) loadBoard({ quiet: true });
+    else renderAll();
     notify(state.paused ? "Automatic arbitrage refresh paused." : "Automatic arbitrage refresh resumed.");
   }
 
