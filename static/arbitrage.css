@@ -659,10 +659,11 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-comparison-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
 .arb-comparison-group { min-width: 0; overflow: hidden; border: 1px solid var(--arb-line); border-radius: 7px; background: var(--arb-card); }
 .arb-comparison-group h4 { margin: 0; padding: 8px 9px 5px; color: var(--arb-text); font-size: 16px; }
-.arb-quote-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) 28px 40px 64px 64px; gap: 4px; padding: 4px 6px; border-bottom: 1px solid rgba(71, 85, 105, .4); color: var(--arb-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.arb-quote-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) 36px 48px 68px 64px; gap: 5px; padding: 4px 6px; border-bottom: 1px solid rgba(71, 85, 105, .4); color: var(--arb-muted); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .arb-quote-head span:first-child { grid-column: 1 / 3; }
 .arb-quote-head span:not(:first-child) { text-align: right; }
-.arb-quote-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 28px 40px 64px 64px; align-items: center; gap: 4px; min-height: 29px; padding: 3px 6px; border-bottom: 1px solid rgba(71, 85, 105, .28); }
+.arb-quote-head span:nth-child(4) { text-align: center; }
+.arb-quote-row { display: grid; grid-template-columns: 20px minmax(0, 1fr) 36px 48px 68px 64px; align-items: center; gap: 5px; min-height: 29px; padding: 3px 6px; border-bottom: 1px solid rgba(71, 85, 105, .28); }
 .arb-quote-row:last-child { border-bottom: 0; }
 .arb-quote-row.best { position: relative; z-index: 1; border-radius: 5px; background: rgba(141, 68, 246, .07); box-shadow: inset 0 0 0 1px var(--arb-purple), 0 0 12px rgba(141, 68, 246, .38); }
 .arb-quote-row img { width: 20px; height: 20px; border: 0; border-radius: 5px; object-fit: contain; background: transparent; box-shadow: none; }
@@ -670,6 +671,7 @@ body[data-page="arbitrage"] .arb-kpi-strip {
 .arb-quote-row small { color: var(--arb-muted); font-size: 10px; text-align: right; }
 .arb-quote-row b { color: var(--arb-text); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
 .arb-quote-row strong { color: var(--arb-secondary); font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; }
+.arb-quote-row strong:first-of-type { text-align: center; }
 body[data-page="arbitrage"] .arb-quote-row span { font-size: 16px; }
 body[data-page="arbitrage"] .arb-quote-row b { font-size: 15px; }
 body[data-page="arbitrage"] .arb-quote-row strong { font-size: 13px; }
@@ -886,7 +888,54 @@ body[data-page="arbitrage"] .arb-quote-row strong { font-size: 13px; }
 .arb-radio-list strong { display: block; font-size: 10px; }
 .arb-radio-list small { display: block; margin-top: 3px; color: var(--arb-muted); font-size: 8px; }
 
+body[data-page="arbitrage"] .arb-filter-nav button > span { font-size: 13px; }
+body[data-page="arbitrage"] .arb-filter-panels { overflow-y: auto; scrollbar-gutter: stable; }
+body[data-page="arbitrage"] .arb-filter-dialog .arb-book-option img { border: 0; border-radius: 0; background: transparent; box-shadow: none; object-fit: contain; }
+body[data-page="arbitrage"] .arb-filter-dialog .arb-book-option > span:last-child { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="sportsbooks"] h3,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="saved"] h3,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="markets"] h3,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="warnings"] h3,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] h3 { font-size: 16px; }
+body[data-page="arbitrage"] .arb-filter-dialog #arb-market-choices label > span { grid-template-rows: 1fr; align-items: center; min-height: 48px; }
+body[data-page="arbitrage"] .arb-filter-dialog #arb-market-choices i { grid-row: 1; }
+body[data-page="arbitrage"] .arb-filter-dialog #arb-market-choices strong { font-size: 13px; }
+
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="warnings"] > p,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] > p { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-toggle-row strong { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-toggle-row small { font-size: 10px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-warning-note p { font-size: 11px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-stake-mode-grid strong { font-size: 14px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-stake-mode-grid small { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-grid > label { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-money,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-suffix { box-sizing: border-box; width: 100%; min-width: 0; overflow: hidden; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-money input,
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-suffix input { flex: 1 1 auto; width: auto; min-width: 0; max-width: 100%; font-size: 14px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-field-suffix b { flex: 0 0 auto; font-size: 11px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-formula-card strong { font-size: 12px; }
+body[data-page="arbitrage"] .arb-filter-dialog [data-arb-filter-panel="profit"] .arb-formula-card p { font-size: 11px; }
+
+.arb-saved-list { display: flex; flex-direction: column; gap: 8px; margin-top: 13px; }
+.arb-saved-empty { display: flex; min-height: 220px; padding: 28px; flex-direction: column; align-items: center; justify-content: center; border: 1px dashed var(--arb-line); border-radius: 8px; color: var(--arb-muted); text-align: center; }
+.arb-saved-empty i { color: #a879fb; font-size: 24px; }
+.arb-saved-empty strong { margin-top: 9px; color: var(--arb-secondary); font-size: 13px; }
+.arb-saved-empty p { margin: 5px 0 0; font-size: 11px; }
+.arb-saved-filter { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto auto; align-items: center; gap: 9px; padding: 10px; border: 1px solid var(--arb-line); border-radius: 8px; background: var(--arb-card); }
+.arb-saved-filter > i { color: #aa78ff; font-size: 19px; text-align: center; }
+.arb-saved-filter div { min-width: 0; }
+.arb-saved-filter strong { display: block; color: var(--arb-text); font-size: 12px; }
+.arb-saved-filter small { display: block; margin-top: 3px; overflow: hidden; color: var(--arb-muted); font-size: 10px; white-space: nowrap; text-overflow: ellipsis; }
+.arb-saved-filter button { min-height: 30px; padding: 0 9px; border: 1px solid var(--arb-line); border-radius: 6px; background: var(--arb-panel); color: var(--arb-secondary); font-size: 10px; font-weight: 700; }
+
 .arb-filter-shell > footer { display: flex; justify-content: space-between; gap: 10px; padding: 12px 16px; border-top: 1px solid var(--arb-line); }
+body[data-page="arbitrage"] .arb-filter-shell > footer > div { display: flex; gap: 8px; }
+
+@media (min-width: 761px) {
+  body[data-page="arbitrage"] .arb-filter-dialog { height: min(760px, calc(100dvh - 32px)); max-height: min(760px, calc(100dvh - 32px)); overflow: hidden; }
+  body[data-page="arbitrage"] .arb-filter-dialog .arb-filter-shell { height: 100%; min-height: 0; }
+}
 
 .arb-learn-dialog { width: min(720px, calc(100vw - 32px)); }
 .arb-learn-dialog article { padding-bottom: 16px; }

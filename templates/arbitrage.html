@@ -77,19 +77,23 @@
 <dialog class="arb-dialog arb-filter-dialog" id="arb-filter-dialog" aria-labelledby="arb-filter-title">
   <form method="dialog" class="arb-filter-shell">
     <header>
-      <div><p class="arb-eyebrow">CUSTOMIZE</p><h2 id="arb-filter-title">Arbitrage filters</h2></div>
+      <div><p class="arb-eyebrow">CUSTOMIZE</p><h2 id="arb-filter-title">Arbitrage Filters</h2></div>
       <button class="arb-icon-button" id="arb-filter-close" value="cancel" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button>
     </header>
     <div class="arb-filter-body">
       <nav class="arb-filter-nav" aria-label="Filter categories">
-        <button class="active" type="button" data-arb-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="arb-book-filter-count">All</b></button>
+        <button class="active" type="button" data-arb-filter-tab="saved"><i class="ph ph-bookmark-simple" aria-hidden="true"></i><span>Saved Filters</span><b id="arb-saved-count">0</b></button>
+        <button type="button" data-arb-filter-tab="sportsbooks"><i class="ph ph-buildings" aria-hidden="true"></i><span>Sportsbooks</span><b id="arb-book-filter-count">All</b></button>
         <button type="button" data-arb-filter-tab="profit"><i class="ph ph-percent" aria-hidden="true"></i><span>Profit &amp; Bet Size</span></button>
         <button type="button" data-arb-filter-tab="markets"><i class="ph ph-chart-line" aria-hidden="true"></i><span>Markets</span></button>
-        <button type="button" data-arb-filter-tab="execution"><i class="ph ph-shield-check" aria-hidden="true"></i><span>Execution safety</span></button>
-        <button type="button" data-arb-filter-tab="sorting"><i class="ph ph-sort-ascending" aria-hidden="true"></i><span>Sorting</span></button>
+        <button type="button" data-arb-filter-tab="warnings"><i class="ph ph-warning" aria-hidden="true"></i><span>Bet Warnings</span></button>
       </nav>
       <div class="arb-filter-panels">
-        <section class="arb-filter-panel active" data-arb-filter-panel="sportsbooks">
+        <section class="arb-filter-panel active" data-arb-filter-panel="saved">
+          <div class="arb-filter-panel-heading"><div><h3>Saved Filters</h3><p>Reuse the sportsbook, profit, market, and warning settings that matter to you.</p></div></div>
+          <div class="arb-saved-list" id="arb-saved-list"><div class="arb-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No Filters Saved Yet</strong><p>Configure this scan, then use Save Filter below.</p></div></div>
+        </section>
+        <section class="arb-filter-panel" data-arb-filter-panel="sportsbooks">
           <div class="arb-filter-panel-heading"><div><h3>Sportsbooks</h3><p>Every independently executable OddsEngine sportsbook and exchange is available. DFS pick'em books remain excluded from arbitrage legs.</p></div><div><button id="arb-books-all" type="button">Select all</button><button id="arb-books-clear" type="button">Clear</button></div></div>
           <label class="arb-dialog-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="arb-book-search" type="search" placeholder="Search sportsbooks and exchanges"></label>
           <div class="arb-book-grid" id="arb-book-grid"></div>
@@ -109,36 +113,24 @@
         <section class="arb-filter-panel" data-arb-filter-panel="markets">
           <h3>Markets</h3><p>Choose the market shapes included in the live request.</p>
           <div class="arb-choice-grid" id="arb-market-choices">
-            <label><input type="checkbox" value="h2h" checked><span><i class="ph ph-trophy" aria-hidden="true"></i><strong>Moneyline</strong><small>Two- and three-way</small></span></label>
-            <label><input type="checkbox" value="spreads" checked><span><i class="ph ph-arrows-left-right" aria-hidden="true"></i><strong>Spreads</strong><small>Exact same line</small></span></label>
-            <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Totals</strong><small>Exact same total</small></span></label>
-            <label><input type="checkbox" value="alternate_spreads"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt spreads</strong><small>Alternate lines</small></span></label>
-            <label><input type="checkbox" value="alternate_totals"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt totals</strong><small>Alternate lines</small></span></label>
+            <label><input type="checkbox" value="h2h" checked><span><i class="ph ph-trophy" aria-hidden="true"></i><strong>Moneyline</strong></span></label>
+            <label><input type="checkbox" value="spreads" checked><span><i class="ph ph-arrows-left-right" aria-hidden="true"></i><strong>Spreads</strong></span></label>
+            <label><input type="checkbox" value="totals" checked><span><i class="ph ph-plus-minus" aria-hidden="true"></i><strong>Totals</strong></span></label>
+            <label><input type="checkbox" value="alternate_spreads"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt Spreads</strong></span></label>
+            <label><input type="checkbox" value="alternate_totals"><span><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><strong>Alt Totals</strong></span></label>
             {% for market in arbitrage_config.marketGroups.props %}
-            <label><input type="checkbox" value="{{ market.key }}"><span><i class="ph ph-user-focus" aria-hidden="true"></i><strong>{{ market.name }}</strong><small>{{ market.sports|map('replace', '_', ' ')|join(', ')|title }}</small></span></label>
+            <label><input type="checkbox" value="{{ market.key }}"><span>{% if "baseball_mlb" in market.sports %}<i class="ph ph-baseball" aria-hidden="true"></i>{% elif "basketball_nba" in market.sports or "basketball_wnba" in market.sports %}<i class="ph ph-basketball" aria-hidden="true"></i>{% else %}<i class="ph ph-trophy" aria-hidden="true"></i>{% endif %}<strong>{{ market.name }}</strong></span></label>
             {% endfor %}
           </div>
         </section>
-        <section class="arb-filter-panel" data-arb-filter-panel="execution">
-          <h3>Execution safety</h3><p>Conservative settings reduce false positives from fees, stale prices, and same-book constraints.</p>
-          <div class="arb-field-grid">
-            <label>Max quote age<span class="arb-field-suffix"><input id="arb-max-age" type="number" min="15" max="1800" step="15" value="90"><b>sec</b></span></label>
-            <label>Exchange fee buffer<span class="arb-field-suffix"><input id="arb-commission" type="number" min="0" max="2500" step="10" value="0"><b>bps</b></span></label>
-          </div>
-          <label class="arb-toggle-row"><span><strong>Require a different book for every leg</strong><small>Useful when a sportsbook will not accept opposing bets in the same market.</small></span><input id="arb-distinct-books" type="checkbox"></label>
+        <section class="arb-filter-panel" data-arb-filter-panel="warnings">
+          <h3>Bet Warnings</h3><p>Warnings remain visible in the detail panel so execution risk is never hidden.</p>
+          <label class="arb-toggle-row"><span><strong>Require a Different Sportsbook for Every Leg</strong><small>Useful when a sportsbook will not accept opposing bets in the same market.</small></span><input id="arb-distinct-books" type="checkbox"></label>
           <div class="arb-warning-note"><i class="ph ph-warning" aria-hidden="true"></i><p>A mathematical arbitrage is executable only when every price, stake capacity, account, and settlement rule is verified before the line moves.</p></div>
-        </section>
-        <section class="arb-filter-panel" data-arb-filter-panel="sorting">
-          <h3>Sorting</h3><p>Choose the first opportunities shown in the feed.</p>
-          <div class="arb-radio-list">
-            <label><input type="radio" name="arb-dialog-sort" value="profit-desc" checked><span><strong>Highest modeled return</strong><small>Best percentage first</small></span></label>
-            <label><input type="radio" name="arb-dialog-sort" value="profit-amount-desc"><span><strong>Highest modeled profit</strong><small>Best dollar profit first</small></span></label>
-            <label><input type="radio" name="arb-dialog-sort" value="time-asc"><span><strong>Starting soon</strong><small>Earliest events first</small></span></label>
-          </div>
         </section>
       </div>
     </div>
-    <footer><button class="arb-secondary-button" id="arb-reset" type="button">Reset defaults</button><button class="arb-primary-button" id="arb-apply" value="cancel" type="button">Show opportunities</button></footer>
+    <footer><button class="arb-secondary-button" id="arb-save-filter" type="button"><i class="ph ph-bookmark-simple"></i>Save Filter</button><div><button class="arb-secondary-button" id="arb-reset" type="button">Reset Defaults</button><button class="arb-primary-button" id="arb-apply" value="cancel" type="button">Show Opportunities</button></div></footer>
   </form>
 </dialog>
 

@@ -12,6 +12,7 @@
     .map((market) => typeof market === "string" ? market : market?.key)
     .filter(Boolean);
   const storageKey = "iconlabsArbitrageSettingsV3";
+  const savedFilterStorageKey = "iconlabsArbitrageSavedFiltersV1";
   const hiddenStorageKey = "iconlabs-arbitrage-hidden-opportunities";
   const hiddenRowsStorageKey = "iconlabs-arbitrage-hidden-snapshots";
   const trackedStorageKey = "iconlabs-arbitrage-tracked-opportunities";
@@ -71,8 +72,8 @@
     stakeMode: ["first-leg", "total"].includes(stored.stakeMode) ? stored.stakeMode : defaults.stakeMode,
     lockedLegIndex: numberBetween(stored.lockedLegIndex, 0, 12, defaults.lockedLegIndex),
     minProfit: numberBetween(stored.minProfit, 0, 50, defaults.minProfit),
-    maxAge: numberBetween(stored.maxAge, 15, 1800, defaults.maxAge),
-    commissionBps: numberBetween(stored.commissionBps, 0, 2500, defaults.commissionBps),
+    maxAge: defaults.maxAge,
+    commissionBps: defaults.commissionBps,
     distinctBooks: stored.distinctBooks === undefined ? defaults.distinctBooks : Boolean(stored.distinctBooks),
     selectedBooks: new Set(initialBookKeys),
     selectedMarkets: new Set(Array.isArray(stored.markets) && stored.markets.length ? stored.markets : defaults.markets),
@@ -114,9 +115,8 @@
     filterCount: document.getElementById("arb-filter-count"),
     bookGrid: document.getElementById("arb-book-grid"),
     bookSearch: document.getElementById("arb-book-search"),
+    savedList: document.getElementById("arb-saved-list"),
     minProfit: document.getElementById("arb-min-profit"),
-    maxAge: document.getElementById("arb-max-age"),
-    commission: document.getElementById("arb-commission"),
     distinct: document.getElementById("arb-distinct-books"),
     resultCopy: document.getElementById("arb-result-copy"),
     mobileScrim: document.getElementById("arb-mobile-scrim"),
@@ -345,21 +345,29 @@
     window.setTimeout(() => { toast.className = "toast"; }, 2600);
   }
 
-  function saveSettings() {
-    const payload = {
+  function settingsPayload() {
+    return {
       stake: state.stake,
       stakeMode: state.stakeMode,
       lockedLegIndex: state.lockedLegIndex,
       minProfit: state.minProfit,
-      maxAge: state.maxAge,
-      commissionBps: state.commissionBps,
       distinctBooks: state.distinctBooks,
       books: [...state.selectedBooks],
       markets: [...state.selectedMarkets],
       sort: state.sort,
       requiredBook: state.requiredBook,
     };
-    localStorage.setItem(storageKey, JSON.stringify(payload));
+  }
+
+  function saveSettings() {
+    localStorage.setItem(storageKey, JSON.stringify(settingsPayload()));
+  }
+
+  function savedFilters() {
+    try {
+      const filters = JSON.parse(localStorage.getItem(savedFilterStorageKey) || "[]");
+      return Array.isArray(filters) ? filters : [];
+    } catch (_error) { return []; }
   }
 
   function persistHiddenState() {
@@ -626,8 +634,7 @@
     }
     const executable = row.executionStatus === "EXECUTABLE";
     const hidden = hiddenIds.has(String(row.id));
-    const previewOnly = String(row.eventId || "").startsWith("preview-");
-    const betActionLabel = executable || previewOnly ? "BET" : "CHECK";
+    const betActionLabel = "BET";
     const lockedIndex = Math.min(Math.max(Number(row.lockedOutcomeIndex ?? state.lockedLegIndex), 0), Math.max(0, row.outcomes.length - 1));
     const plan = (row.outcomes || []).map((leg, index) => `
       <article class="arb-plan-leg">
@@ -658,7 +665,6 @@
         <dl class="arb-detail-facts"><div><dt>Market</dt><dd>${esc(row.marketLabel)}</dd></div><div><dt>Start time</dt><dd>${esc(dateTime(row.commenceTime))}</dd></div></dl>
         <div class="arb-detail-actions">${hidden ? `<button class="arb-primary-button" type="button" data-arb-restore><i class="ph ph-eye"></i>Restore</button>` : `<button class="arb-primary-button" type="button" data-arb-track-hide><i class="ph ph-eye-slash"></i>Track/Hide</button>`}<button class="arb-secondary-button" type="button" data-arb-recalculate><i class="ph ph-calculator"></i>Recalculate</button></div>
       </header>
-      ${executable ? "" : `<div class="arb-detail-warning"><i class="ph ph-shield-warning"></i><span>This is a mathematical arbitrage match, not an executable claim. Verify every price, accepted stake, limit, settlement rule, and account-eligibility gate before placing either leg.</span></div>`}
       <section class="arb-detail-section arb-stake-plan-section"><header><h3>${executable ? "Stake Plan" : "Verification Plan"}</h3><span>${row.outcomeCount} outcomes · ${row.bookCount} books</span></header><div class="arb-plan-head"><span>Outcome</span><span>Book</span><span>Odds</span><span>Stake</span><span>Payout</span><span class="sr-only">Action</span></div><div class="arb-plan-list">${plan}</div></section>
       <section class="arb-detail-section arb-guaranteed-section"><header><h3>${executable ? "Guaranteed Outcome" : "Mathematical Payout"}</h3><span>${executable ? "after fee buffer &amp; cent rounding" : "only if every listed leg is accepted"}</span></header><div class="arb-guaranteed-layout"><div class="arb-profit-proof"><div><span>Total staked</span><strong>${money(row.totalStake)}</strong></div><div><span>Minimum payout</span><strong>${money(row.minPayout)}</strong></div><div><span>${executable ? "Locked profit" : "Modeled profit"}</span><strong class="positive">+${money(row.guaranteedProfit)}</strong></div></div><div class="arb-payout-list">${payouts}</div></div></section>
       <section class="arb-detail-section arb-odds-section"><header><h3>Odds Comparison</h3><span>best price first</span></header><div class="arb-comparison-grid">${comparisons}</div></section>
@@ -793,6 +799,16 @@
     document.getElementById("arb-book-filter-count").textContent = `${state.selectedBooks.size}/${eligibleBooks.length}`;
   }
 
+  function renderSavedFilters() {
+    const filters = savedFilters();
+    document.getElementById("arb-saved-count").textContent = String(filters.length);
+    if (!filters.length) {
+      elements.savedList.innerHTML = `<div class="arb-saved-empty"><i class="ph ph-bookmark-simple"></i><strong>No Filters Saved Yet</strong><p>Configure this scan, then use Save Filter below.</p></div>`;
+      return;
+    }
+    elements.savedList.innerHTML = filters.map((filter, index) => `<article class="arb-saved-filter"><i class="ph ph-bookmark-simple"></i><div><strong>${esc(filter.name)}</strong><small>${filter.stakeMode === "first-leg" ? "Baseline amount" : "Total bet"} · ${Number(filter.minProfit ?? defaults.minProfit).toFixed(1)}% min · ${(filter.books || []).length} books</small></div><button type="button" data-arb-load-filter="${index}">Load</button><button type="button" data-arb-delete-filter="${index}" aria-label="Delete ${esc(filter.name)}"><i class="ph ph-trash"></i></button></article>`).join("");
+  }
+
   function syncStakeModeUI() {
     const baselineMode = state.stakeMode === "first-leg";
     elements.stakeMode.value = state.stakeMode;
@@ -809,21 +825,17 @@
     elements.dialogStake.value = String(state.stake);
     syncStakeModeUI();
     elements.minProfit.value = String(state.minProfit);
-    elements.maxAge.value = String(state.maxAge);
-    elements.commission.value = String(state.commissionBps);
     elements.distinct.checked = state.distinctBooks;
     document.querySelectorAll("#arb-market-choices input").forEach((input) => { input.checked = state.selectedMarkets.has(input.value); });
-    document.querySelectorAll('input[name="arb-dialog-sort"]').forEach((input) => { input.checked = input.value === state.sort; });
     renderBookGrid();
+    renderSavedFilters();
   }
 
   function updateFilterCount() {
     let count = 0;
     if (state.selectedBooks.size !== eligibleBooks.length) count += 1;
     if (state.minProfit !== defaults.minProfit) count += 1;
-    if (state.maxAge !== defaults.maxAge) count += 1;
-    if (state.commissionBps !== defaults.commissionBps) count += 1;
-    if (state.distinctBooks) count += 1;
+    if (state.distinctBooks !== defaults.distinctBooks) count += 1;
     if (state.stakeMode !== defaults.stakeMode || state.lockedLegIndex !== defaults.lockedLegIndex) count += 1;
     if ([...state.selectedMarkets].sort().join() !== [...defaults.markets].sort().join()) count += 1;
     elements.filterCount.hidden = count === 0;
@@ -842,10 +854,7 @@
     if (state.stakeMode === "total") state.lockedLegIndex = 0;
     state.stake = numberBetween(elements.dialogStake.value, 1, 10_000_000, state.stake);
     state.minProfit = numberBetween(elements.minProfit.value, 0, 50, state.minProfit);
-    state.maxAge = numberBetween(elements.maxAge.value, 15, 1800, state.maxAge);
-    state.commissionBps = numberBetween(elements.commission.value, 0, 2500, state.commissionBps);
     state.distinctBooks = elements.distinct.checked;
-    state.sort = document.querySelector('input[name="arb-dialog-sort"]:checked')?.value || state.sort;
     elements.stake.value = stakeInputValue(state.stake);
     elements.sort.value = state.sort;
     syncStakeModeUI();
@@ -867,6 +876,47 @@
     state.selectedMarkets = new Set(defaults.markets);
     state.sort = defaults.sort;
     syncDialog();
+    notify("Arbitrage filters reset.");
+  }
+
+  function saveFilter() {
+    if (!readDialog()) return;
+    const filters = savedFilters();
+    const suggested = `Arbitrage ${filters.length + 1}`;
+    const name = window.prompt("Name this filter", suggested)?.trim();
+    if (!name) return;
+    filters.push({ name: name.slice(0, 40), ...settingsPayload() });
+    localStorage.setItem(savedFilterStorageKey, JSON.stringify(filters.slice(-20)));
+    renderSavedFilters();
+    notify(`Saved ${name.slice(0, 40)}.`);
+  }
+
+  function loadSavedFilter(index) {
+    const filter = savedFilters()[index];
+    if (!filter) return;
+    state.stake = numberBetween(filter.stake, 1, 10_000_000, defaults.stake);
+    state.stakeMode = ["first-leg", "total"].includes(filter.stakeMode) ? filter.stakeMode : defaults.stakeMode;
+    state.lockedLegIndex = numberBetween(filter.lockedLegIndex, 0, 12, defaults.lockedLegIndex);
+    state.minProfit = numberBetween(filter.minProfit, 0, 50, defaults.minProfit);
+    state.maxAge = defaults.maxAge;
+    state.commissionBps = defaults.commissionBps;
+    state.distinctBooks = filter.distinctBooks === undefined ? defaults.distinctBooks : Boolean(filter.distinctBooks);
+    const books = (filter.books || []).filter((key) => eligibleBooks.some((book) => book.key === key));
+    const markets = (filter.markets || []).filter((key) => configuredMarketKeys.includes(key));
+    state.selectedBooks = new Set(books.length ? books : defaults.books);
+    state.selectedMarkets = new Set(markets.length ? markets : defaults.markets);
+    state.sort = ["profit-desc", "profit-amount-desc", "time-asc"].includes(filter.sort) ? filter.sort : defaults.sort;
+    state.requiredBook = typeof filter.requiredBook === "string" && state.selectedBooks.has(filter.requiredBook) ? filter.requiredBook : defaults.requiredBook;
+    syncDialog();
+    notify(`Loaded ${filter.name}.`);
+  }
+
+  function deleteSavedFilter(index) {
+    const filters = savedFilters();
+    const removed = filters.splice(index, 1)[0];
+    localStorage.setItem(savedFilterStorageKey, JSON.stringify(filters));
+    renderSavedFilters();
+    if (removed) notify(`Deleted ${removed.name}.`);
   }
 
   function actionSummary(row, kicker) {
@@ -1242,6 +1292,7 @@
       if (state.liveActive) loadBoard(); else renderAll();
     });
     document.getElementById("arb-reset").addEventListener("click", resetDialog);
+    document.getElementById("arb-save-filter").addEventListener("click", saveFilter);
     document.getElementById("arb-books-all").addEventListener("click", () => { state.selectedBooks = new Set(eligibleBooks.map((book) => book.key)); renderBookGrid(elements.bookSearch.value); });
     document.getElementById("arb-books-clear").addEventListener("click", () => { state.selectedBooks.clear(); renderBookGrid(elements.bookSearch.value); });
     elements.bookSearch.addEventListener("input", () => renderBookGrid(elements.bookSearch.value));
@@ -1250,6 +1301,12 @@
       if (event.target.checked) state.selectedBooks.add(event.target.value); else state.selectedBooks.delete(event.target.value);
       if (state.requiredBook && !state.selectedBooks.has(state.requiredBook)) state.requiredBook = "";
       document.getElementById("arb-book-filter-count").textContent = `${state.selectedBooks.size}/${eligibleBooks.length}`;
+    });
+    elements.savedList.addEventListener("click", (event) => {
+      const load = event.target.closest("[data-arb-load-filter]");
+      const remove = event.target.closest("[data-arb-delete-filter]");
+      if (load) loadSavedFilter(Number(load.dataset.arbLoadFilter));
+      if (remove) deleteSavedFilter(Number(remove.dataset.arbDeleteFilter));
     });
     document.querySelectorAll('input[name="arb-stake-mode"]').forEach((input) => input.addEventListener("change", () => {
       const baselineMode = input.value === "first-leg";
@@ -1268,6 +1325,7 @@
     document.querySelectorAll("[data-arb-filter-tab]").forEach((button) => button.addEventListener("click", () => {
       document.querySelectorAll("[data-arb-filter-tab]").forEach((item) => item.classList.toggle("active", item === button));
       document.querySelectorAll("[data-arb-filter-panel]").forEach((panel) => panel.classList.toggle("active", panel.dataset.arbFilterPanel === button.dataset.arbFilterTab));
+      document.querySelector(".arb-filter-dialog .arb-filter-panels")?.scrollTo({ top: 0 });
     }));
 
     const learn = document.getElementById("arb-learn-dialog");

@@ -26,8 +26,9 @@ def test_arbitrage_page_exposes_the_complete_master_detail_workflow() -> None:
         'id="arb-feed"',
         'id="arb-detail"',
         'id="arb-book-grid"',
+        'id="arb-saved-list"',
+        'id="arb-save-filter"',
         'id="arb-min-profit"',
-        'id="arb-commission"',
         'id="arb-distinct-books"',
         'id="arb-learn-dialog"',
         'id="arb-track-dialog"',
@@ -130,7 +131,7 @@ def test_requested_arbitrage_typography_and_alignment_are_explicit() -> None:
         ".arb-bet-link { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 54px; height: 29px; border: 1px solid rgba(80, 217, 119, .55); border-radius: 6px; color: var(--arb-green); font-size: 14px",
         ".arb-payout-row span { overflow: hidden; color: var(--arb-secondary); font-size: 12px",
         ".arb-payout-row b { color: var(--arb-green); font-size: 13px",
-        ".arb-quote-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) 28px 40px 64px 64px; gap: 4px; padding: 4px 6px; border-bottom: 1px solid rgba(71, 85, 105, .4); color: var(--arb-muted); font-size: 11px",
+        ".arb-quote-head { display: grid; grid-template-columns: 20px minmax(0, 1fr) 36px 48px 68px 64px; gap: 5px; padding: 4px 6px; border-bottom: 1px solid rgba(71, 85, 105, .4); color: var(--arb-muted); font-size: 11px",
         ".arb-quote-row small { color: var(--arb-muted); font-size: 10px",
         'body[data-page="arbitrage"] .arb-quote-row b { font-size: 15px; }',
         'body[data-page="arbitrage"] .arb-quote-row strong { font-size: 13px; }',
@@ -152,6 +153,8 @@ def test_selection_rows_and_best_price_emphasis_match_the_reference() -> None:
     assert ".arb-quote-row.best { position: relative; z-index: 1; border-radius: 5px" in CSS
     assert "background: rgba(141, 68, 246, .07)" in CSS
     assert "box-shadow: inset 0 0 0 1px var(--arb-purple), 0 0 12px rgba(141, 68, 246, .38)" in CSS
+    assert ".arb-quote-head span:nth-child(4) { text-align: center; }" in CSS
+    assert ".arb-quote-row strong:first-of-type { text-align: center; }" in CSS
     assert ".arb-quote-row strong:last-child { color: var(--arb-green); }" in CSS
     assert ".arb-profit-proof strong" in CSS and "font-size: 16px" in CSS
 
@@ -187,6 +190,44 @@ def test_quick_filters_match_the_low_hold_control_pattern() -> None:
     assert 'params.set("required_book", state.requiredBook)' in SCRIPT
     assert ".arb-quick-select-trigger" in CSS
     assert ".arb-quick-select-menu" in CSS
+
+
+def test_arbitrage_filter_dialog_matches_the_low_hold_workspace_pattern() -> None:
+    for title in ("Arbitrage Filters", "Saved Filters", "Profit &amp; Bet Size", "Bet Warnings"):
+        assert title in TEMPLATE
+    for removed in ("Arbitrage filters", "Execution safety", ">Sorting</span>", "Max quote age", "Exchange fee buffer"):
+        assert removed not in TEMPLATE
+    for required in (
+        'data-arb-filter-tab="saved"',
+        'data-arb-filter-panel="saved"',
+        'id="arb-saved-count"',
+        'id="arb-save-filter"',
+        "function renderSavedFilters",
+        "function saveFilter",
+        "function loadSavedFilter",
+        "function deleteSavedFilter",
+        "iconlabsArbitrageSavedFiltersV1",
+    ):
+        assert required in TEMPLATE or required in SCRIPT
+    market_markup = TEMPLATE.split('id="arb-market-choices"', 1)[1].split("</div>", 1)[0]
+    assert "<small>" not in market_markup
+    assert "ph ph-baseball" in market_markup
+    assert "ph ph-basketball" in market_markup
+    for required in (
+        '.arb-filter-nav button > span { font-size: 13px; }',
+        '.arb-filter-dialog .arb-book-option > span:last-child { font-size: 12px; }',
+        '.arb-filter-dialog #arb-market-choices strong { font-size: 13px; }',
+        '.arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-toggle-row strong { font-size: 12px; }',
+        '.arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-toggle-row small { font-size: 10px; }',
+        '.arb-filter-dialog [data-arb-filter-panel="warnings"] .arb-warning-note p { font-size: 11px; }',
+        '.arb-filter-dialog [data-arb-filter-panel="profit"] .arb-stake-mode-grid strong { font-size: 14px; }',
+        '.arb-filter-dialog [data-arb-filter-panel="profit"] .arb-stake-mode-grid small { font-size: 12px; }',
+        'height: min(760px, calc(100dvh - 32px));',
+        'scrollbar-gutter: stable;',
+    ):
+        assert required in CSS
+    assert '.arb-filter-dialog .arb-book-option img { border: 0; border-radius: 0; background: transparent; box-shadow: none; object-fit: contain; }' in CSS
+    assert 'document.querySelector(".arb-filter-dialog .arb-filter-panels")?.scrollTo({ top: 0 });' in SCRIPT
 
 
 def test_play_card_selection_and_sport_treatments_are_explicit() -> None:
@@ -232,13 +273,12 @@ def test_primary_interactions_and_visible_states_are_implemented() -> None:
         "showModal()",
     ):
         assert required in SCRIPT
-    assert 'String(row.eventId || "").startsWith("preview-")' in SCRIPT
-    assert 'const betActionLabel = executable || previewOnly ? "BET" : "CHECK"' in SCRIPT
+    assert 'const betActionLabel = "BET"' in SCRIPT
     assert "${betActionLabel}" in SCRIPT
     assert '<i class="ph ph-eye-slash"></i>Track/Hide' in SCRIPT
     assert 'fetch("/api/arbitrage/personal-bets"' in SCRIPT
     assert 'executable ? "Stake Plan" : "Verification Plan"' in SCRIPT
-    assert "not an executable claim" in SCRIPT
+    assert "not an executable claim" not in SCRIPT
 
 
 def test_live_hidden_views_and_three_action_confirmation_are_persistent() -> None:
