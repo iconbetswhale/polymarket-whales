@@ -74,9 +74,26 @@ def test_tracker_v2_keeps_responsive_and_interactive_contracts() -> None:
     assert "renderTrackerPerformance" in SCRIPT
 
 
+def test_tracker_v2_uses_the_full_desktop_workspace() -> None:
+    app_shell_rule = CSS[CSS.index('.app-shell {') : CSS.index('.app-shell {') + 180]
+    fluid_workspace_rule = CSS[
+        CSS.index('/* Keep the desktop tracker workspace fluid.') :
+        CSS.index('/* Keep the desktop tracker workspace fluid.') + 620
+    ]
+
+    assert "padding-top: 0 !important;" in app_shell_rule
+    assert ".tracker-page-header" in fluid_workspace_rule
+    assert ".tracker-dashboard-grid" in fluid_workspace_rule
+    assert ".tracker-bets-view" in fluid_workspace_rule
+    assert ".tracker-toolbar" in fluid_workspace_rule
+    assert ".table-panel" in fluid_workspace_rule
+    assert "width: 100%;" in fluid_workspace_rule
+    assert "max-width: none;" in fluid_workspace_rule
+
+
 def test_tracker_assets_load_after_the_v2_foundation() -> None:
     foundation = BASE.index("filename='design-system.css'")
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v1" in BASE[canonical : canonical + 170]
+    assert "-canonical-v2" in BASE[canonical : canonical + 170]
