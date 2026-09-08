@@ -55,6 +55,7 @@
           <strong id="tracker-period-profit">$0.00</strong>
         </div>
         <div class="tracker-performance-controls">
+          <button class="tracker-share-trigger" id="tracker-share-open" type="button" aria-haspopup="dialog" aria-controls="tracker-share-dialog"><i class="ph ph-share-network" aria-hidden="true"></i><span>Share</span></button>
           <div class="tracker-visual-toggle" role="tablist" aria-label="Performance visualization">
             <button class="active" type="button" role="tab" data-tracker-visual="chart" aria-selected="true"><i class="ph ph-chart-line-up" aria-hidden="true"></i><span>Chart</span></button>
             <button type="button" role="tab" data-tracker-visual="calendar" aria-selected="false"><i class="ph ph-calendar-dots" aria-hidden="true"></i><span>Calendar</span></button>
@@ -116,7 +117,10 @@
     <section class="tracker-clv-card" id="tracker-clv-card" aria-labelledby="tracker-clv-card-title">
       <div class="tracker-clv-card-heading">
         <div><i class="ph-fill ph-seal-check" aria-hidden="true"></i><h2 id="tracker-clv-card-title">Closing Line Value</h2></div>
-        <button class="tracker-clv-help" type="button" aria-label="About closing line value" title="CLV compares your entry with a verified pre-game close."><i class="ph ph-question" aria-hidden="true"></i></button>
+        <div class="tracker-clv-help-wrap">
+          <button class="tracker-clv-help" type="button" aria-label="About closing line value" aria-describedby="tracker-clv-help-tooltip"><i class="ph ph-question" aria-hidden="true"></i></button>
+          <div class="tracker-clv-help-tooltip" id="tracker-clv-help-tooltip" role="tooltip"><strong>How CLV Works</strong><span>Closing Line Value compares your entry price with the verified price just before the event starts. Positive CLV means you beat the market. Only bets with a captured closing price are included.</span></div>
+        </div>
       </div>
       <button class="tracker-clv-card-body" id="tracker-clv-open" type="button" aria-label="View closing line value details">
         <span><strong id="tracker-clv-card-ev">—</strong><small>Expected Value</small></span>
@@ -171,6 +175,27 @@
   <div class="pagination" id="tracker-pagination"></div>
 </section>
 </section>
+
+<dialog class="tracker-share-dialog" id="tracker-share-dialog" aria-labelledby="tracker-share-title">
+  <div class="tracker-share-shell">
+    <header class="tracker-share-header">
+      <div><p class="eyebrow">Share Your Results</p><h2 id="tracker-share-title">Monthly Recap</h2></div>
+      <button class="tracker-share-close" id="tracker-share-close" type="button" aria-label="Close share menu"><i class="ph ph-x" aria-hidden="true"></i></button>
+    </header>
+    <div class="tracker-share-layout">
+      <div class="tracker-share-preview" id="tracker-share-preview" aria-busy="false">
+        <canvas id="tracker-share-canvas" width="1080" height="1350" role="img" aria-label="Preview of the monthly Bet Tracker share image"></canvas>
+      </div>
+      <aside class="tracker-share-actions" aria-label="Share image actions">
+        <div><strong>Ready to Share</strong><p>Your selected month, performance stats, and chart are formatted into a 4:5 image.</p></div>
+        <button id="tracker-share-download" type="button"><i class="ph ph-download-simple" aria-hidden="true"></i><span><strong>Save Image</strong><small>Download a high-resolution PNG</small></span></button>
+        <button id="tracker-share-copy-link" type="button"><i class="ph ph-link" aria-hidden="true"></i><span><strong>Copy Image Link</strong><small>Copy a self-contained PNG link</small></span></button>
+        <button class="primary" id="tracker-share-social" type="button"><i class="ph ph-share-fat" aria-hidden="true"></i><span><strong>Share to Social</strong><small>Open your device share menu</small></span></button>
+      </aside>
+    </div>
+  </div>
+  <img id="tracker-share-logo" src="{{ url_for('static', filename='assets/iconlabs-mark-transparent-v3.png', v=asset_version) }}" alt="" hidden>
+</dialog>
 
 <dialog class="tracker-clv-dialog" id="tracker-clv-dialog" aria-labelledby="tracker-clv-dialog-title">
   <div class="tracker-clv-dialog-shell">

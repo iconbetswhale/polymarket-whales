@@ -4777,6 +4777,42 @@ function trackerMonthAnchor(payload = {}, points = []) {
   return appState.trackerPeriodAnchor;
 }
 
+function trackerMonthKey(anchor) {
+  const year = anchor.getFullYear();
+  const month = String(anchor.getMonth() + 1).padStart(2, "0");
+  return `${year}-${month}`;
+}
+
+function trackerLocalMonthPayload(payload = {}, anchor = new Date()) {
+  if (!Array.isArray(payload.graph_history)) return null;
+  const monthKey = trackerMonthKey(anchor);
+  const graph = payload.graph_history.filter((point) => {
+    if (!point.timestamp) return false;
+    const date = new Date(point.timestamp);
+    return date.getFullYear() === anchor.getFullYear()
+      && date.getMonth() === anchor.getMonth();
+  });
+  const emptySummary = {
+    realized_profit_loss: 0,
+    roi: 0,
+    wins: 0,
+    losses: 0,
+    pushes_voids: 0,
+    settled_wagered: 0,
+  };
+  const monthClv = payload.clv_month_summaries?.[monthKey];
+  return {
+    ...payload,
+    graph,
+    period_summary: payload.graph_month_summaries?.[monthKey] || emptySummary,
+    graph_period: { month: monthKey },
+    clv: monthClv ? {
+      ...(payload.clv || {}),
+      periods: { ...(payload.clv?.periods || {}), month: monthClv },
+    } : payload.clv,
+  };
+}
+
 function trackerPeriodLabel(points = [], payload = {}) {
   const dated = points.filter((point) => point.timestamp);
   const latest = dated.length ? new Date(dated[dated.length - 1].timestamp) : new Date();
@@ -4871,7 +4907,7 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
     point: series[index],
   }));
 
-  ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+  ctx.font = `${14 * ratio}px Inter, system-ui, sans-serif`;
   ctx.textBaseline = "middle";
   for (let index = 0; index < 4; index += 1) {
     const progress = index / 3;
@@ -4901,8 +4937,8 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
   }
 
   const fill = ctx.createLinearGradient(0, padTop, 0, height - padBottom);
-  fill.addColorStop(0, "rgba(0, 229, 101, 0.18)");
-  fill.addColorStop(1, "rgba(0, 229, 101, 0)");
+  fill.addColorStop(0, "rgba(141, 68, 246, 0.24)");
+  fill.addColorStop(1, "rgba(141, 68, 246, 0)");
   ctx.beginPath();
   ctx.moveTo(coords[0].x, height - padBottom);
   coords.forEach((point, index) => {
@@ -4929,9 +4965,9 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
       ctx.bezierCurveTo(midpoint, previous.y, midpoint, point.y, point.x, point.y);
     }
   });
-  ctx.strokeStyle = "#00e565";
+  ctx.strokeStyle = "#9e5cff";
   ctx.lineWidth = 3 * ratio;
-  ctx.shadowColor = "rgba(0, 229, 101, 0.28)";
+  ctx.shadowColor = "rgba(141, 68, 246, 0.32)";
   ctx.shadowBlur = 10 * ratio;
   ctx.stroke();
   ctx.shadowBlur = 0;
@@ -4944,9 +4980,9 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
     ctx.fillStyle = "#101318";
     ctx.fill();
     ctx.lineWidth = 2 * ratio;
-    ctx.strokeStyle = "#00e565";
+    ctx.strokeStyle = "#9e5cff";
     ctx.stroke();
-    ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+    ctx.font = `${12 * ratio}px Inter, system-ui, sans-serif`;
     const text = `${label}  ${signedMoney(point.value)}`;
     const boxWidth = ctx.measureText(text).width + 18 * ratio;
     const boxHeight = 27 * ratio;
@@ -4974,7 +5010,7 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
 
   const xLabelCount = width / ratio < 640 ? 4 : 6;
   ctx.fillStyle = "#858991";
-  ctx.font = `${11 * ratio}px Inter, system-ui, sans-serif`;
+  ctx.font = `${14 * ratio}px Inter, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
   Array.from({ length: xLabelCount }, (_, index) => index).forEach((index) => {
     const progress = index / Math.max(1, xLabelCount - 1);
@@ -5041,6 +5077,341 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
   });
 }
 
+function trackerShareSnapshot() {
+  const source = appState.trackerPerformancePayload || {};
+  const sourcePoints = trackerPerformancePoints(source.graph || []);
+  const anchor = appState.trackerPeriodAnchor || trackerMonthAnchor(source, sourcePoints);
+  const payload = appState.graphRange === "month"
+    ? (trackerLocalMonthPayload(source, anchor) || source)
+    : source;
+  const points = trackerPerformancePoints(payload.graph || [])
+    .filter((point) => point.timestamp)
+    .sort((left, right) => new Date(left.timestamp) - new Date(right.timestamp));
+  const periodSummary = payload.period_summary || {};
+  const clvPeriod = payload.clv?.periods?.month || {};
+  const clv = number(clvPeriod.stake_weighted_clv_pct);
+  const profit = trackerPeriodProfit(points, periodSummary.realized_profit_loss);
+  const roi = Number(periodSummary.roi) || 0;
+  return {
+    anchor,
+    points,
+    profit,
+    profitText: signedMoney(profit),
+    roi,
+    roiText: `${roi > 0 ? "+" : ""}${(roi * 100).toFixed(1)}%`,
+    record: `${periodSummary.wins || 0}-${periodSummary.losses || 0}-${periodSummary.pushes_voids || 0}`,
+    clv,
+    clvText: clv === null ? "—" : formatClvPercent(clv),
+    clvBets: Number(clvPeriod.bets_measured) || 0,
+    updated: new Date().toLocaleString(undefined, {
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }),
+    startingBankroll: Number(payload.summary?.starting_bankroll) || 0,
+  };
+}
+
+function trackerShareFilename(snapshot) {
+  return `iconlabs-bet-tracker-${snapshot.anchor.getFullYear()}-${String(snapshot.anchor.getMonth() + 1).padStart(2, "0")}.png`;
+}
+
+function drawTrackerShareMetric(ctx, { label, value, x, tone = "#f5f7fb", align = "left" }) {
+  ctx.textAlign = align;
+  ctx.fillStyle = "#8f9bb0";
+  ctx.font = "600 27px Inter, system-ui, sans-serif";
+  ctx.fillText(label, x, 350);
+  ctx.fillStyle = tone;
+  ctx.font = "700 43px Inter, system-ui, sans-serif";
+  ctx.fillText(value, x, 407);
+}
+
+function drawTrackerShareChart(ctx, snapshot) {
+  const chart = { x: 72, y: 495, width: 936, height: 598 };
+  ctx.fillStyle = "#0a0f18";
+  ctx.strokeStyle = "#273149";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.roundRect(chart.x, chart.y, chart.width, chart.height, 24);
+  ctx.fill();
+  ctx.stroke();
+
+  const dated = snapshot.points;
+  if (!dated.length) {
+    ctx.textAlign = "center";
+    ctx.fillStyle = "#8f9bb0";
+    ctx.font = "600 28px Inter, system-ui, sans-serif";
+    ctx.fillText("No settled results for this month", chart.x + chart.width / 2, chart.y + chart.height / 2);
+    return;
+  }
+
+  const firstProfit = Number(dated[0].dailyProfit) || 0;
+  const base = Number.isFinite(Number(dated[0].bankroll) - firstProfit)
+    ? Number(dated[0].bankroll) - firstProfit
+    : snapshot.startingBankroll;
+  const series = [
+    { timestamp: new Date(snapshot.anchor.getFullYear(), snapshot.anchor.getMonth(), 1).toISOString(), bankroll: base },
+    ...dated,
+  ];
+  const values = series.map((point) => Number(point.bankroll) - base);
+  let min = Math.min(0, ...values);
+  let max = Math.max(0, ...values);
+  const spread = Math.max(max - min, Math.max(Math.abs(max), Math.abs(min)) * .2, 1);
+  min -= spread * .16;
+  max += spread * .16;
+  const timestamps = series.map((point) => new Date(point.timestamp).getTime());
+  const start = Math.min(...timestamps);
+  const end = Math.max(start + 1, ...timestamps);
+  const plot = { left: chart.x + 38, right: chart.x + chart.width - 38, top: chart.y + 72, bottom: chart.y + chart.height - 74 };
+  const x = (timestamp) => plot.left + ((timestamp - start) / (end - start)) * (plot.right - plot.left);
+  const y = (value) => plot.top + ((max - value) / (max - min)) * (plot.bottom - plot.top);
+  const coords = values.map((value, index) => ({ x: x(timestamps[index]), y: y(value), value }));
+
+  ctx.lineWidth = 1;
+  for (let index = 0; index < 4; index += 1) {
+    const gridY = plot.top + (index / 3) * (plot.bottom - plot.top);
+    ctx.strokeStyle = "rgba(124, 139, 164, .14)";
+    ctx.beginPath();
+    ctx.moveTo(plot.left, gridY);
+    ctx.lineTo(plot.right, gridY);
+    ctx.stroke();
+  }
+
+  const fill = ctx.createLinearGradient(0, plot.top, 0, plot.bottom);
+  fill.addColorStop(0, "rgba(158, 92, 255, .32)");
+  fill.addColorStop(1, "rgba(158, 92, 255, 0)");
+  ctx.beginPath();
+  ctx.moveTo(coords[0].x, plot.bottom);
+  coords.forEach((point, index) => {
+    if (!index) ctx.lineTo(point.x, point.y);
+    else {
+      const previous = coords[index - 1];
+      const midpoint = (previous.x + point.x) / 2;
+      ctx.bezierCurveTo(midpoint, previous.y, midpoint, point.y, point.x, point.y);
+    }
+  });
+  ctx.lineTo(coords[coords.length - 1].x, plot.bottom);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+
+  ctx.beginPath();
+  coords.forEach((point, index) => {
+    if (!index) ctx.moveTo(point.x, point.y);
+    else {
+      const previous = coords[index - 1];
+      const midpoint = (previous.x + point.x) / 2;
+      ctx.bezierCurveTo(midpoint, previous.y, midpoint, point.y, point.x, point.y);
+    }
+  });
+  ctx.strokeStyle = "#a969ff";
+  ctx.lineWidth = 7;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.shadowColor = "rgba(158, 92, 255, .38)";
+  ctx.shadowBlur = 18;
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  const highest = coords.reduce((best, point) => point.value > best.value ? point : best, coords[0]);
+  const lowest = coords.reduce((best, point) => point.value < best.value ? point : best, coords[0]);
+  const drawExtrema = (point, label, above) => {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 8, 0, Math.PI * 2);
+    ctx.fillStyle = "#0a0f18";
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = "#a969ff";
+    ctx.stroke();
+
+    ctx.font = "650 23px Inter, system-ui, sans-serif";
+    const text = `${label}  ${signedMoney(point.value)}`;
+    const labelWidth = ctx.measureText(text).width + 28;
+    const labelHeight = 46;
+    const labelX = Math.max(chart.x + 16, Math.min(chart.x + chart.width - labelWidth - 16, point.x - labelWidth / 2));
+    const preferredY = above ? point.y - labelHeight - 18 : point.y + 18;
+    const labelY = Math.max(chart.y + 14, Math.min(chart.y + chart.height - labelHeight - 14, preferredY));
+    ctx.fillStyle = "rgba(18, 24, 35, .97)";
+    ctx.strokeStyle = "rgba(169, 105, 255, .62)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(labelX, labelY, labelWidth, labelHeight, 12);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#eef1f7";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, labelX + labelWidth / 2, labelY + labelHeight / 2);
+    ctx.textBaseline = "alphabetic";
+  };
+  if (Math.abs(highest.value - lowest.value) < .005) {
+    drawExtrema(highest, "High / Low", true);
+  } else {
+    drawExtrema(highest, "High", true);
+    drawExtrema(lowest, "Low", false);
+  }
+}
+
+async function renderTrackerShareCard() {
+  const canvas = document.getElementById("tracker-share-canvas");
+  const preview = document.getElementById("tracker-share-preview");
+  if (!canvas || !preview) return null;
+  preview.setAttribute("aria-busy", "true");
+  const snapshot = trackerShareSnapshot();
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#121827";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#161f34";
+  ctx.beginPath();
+  ctx.roundRect(52, 52, 976, 170, 28);
+  ctx.fill();
+  ctx.fillStyle = "#8d44f6";
+  ctx.fillRect(52, 52, 12, 170);
+
+  const logo = document.getElementById("tracker-share-logo");
+  try {
+    if (logo && !logo.complete) await logo.decode();
+    if (logo?.naturalWidth) ctx.drawImage(logo, 88, 91, 72, 72);
+  } catch (_error) {}
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f8f9fc";
+  ctx.font = "700 39px Inter, system-ui, sans-serif";
+  ctx.fillText("IconLabs", 181, 126);
+  ctx.fillStyle = "#aab5ca";
+  ctx.font = "650 23px Inter, system-ui, sans-serif";
+  ctx.fillText("BET TRACKER", 181, 163);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#a969ff";
+  ctx.font = "650 26px Inter, system-ui, sans-serif";
+  ctx.fillText("BANKROLL REPLAY", 988, 135);
+
+  ctx.fillStyle = "#0c111b";
+  ctx.beginPath();
+  ctx.roundRect(52, 190, 976, 1108, 34);
+  ctx.fill();
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f7f8fb";
+  ctx.font = "750 58px Inter, system-ui, sans-serif";
+  ctx.fillText(snapshot.anchor.toLocaleDateString(undefined, { month: "long" }).toUpperCase(), 88, 294);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#9ba6ba";
+  ctx.font = "650 38px Inter, system-ui, sans-serif";
+  ctx.fillText(String(snapshot.anchor.getFullYear()), 992, 294);
+
+  drawTrackerShareMetric(ctx, { label: "Profit", value: snapshot.profitText, x: 88, tone: snapshot.profit >= 0 ? "#13e875" : "#ff5862" });
+  drawTrackerShareMetric(ctx, { label: "ROI", value: snapshot.roiText, x: 540, align: "center", tone: snapshot.roi >= 0 ? "#13e875" : "#ff5862" });
+  drawTrackerShareMetric(ctx, { label: "Record", value: snapshot.record, x: 992, align: "right" });
+  ctx.textAlign = "right";
+  ctx.fillStyle = snapshot.clv > 0 ? "#13e875" : snapshot.clv < 0 ? "#ff5862" : "#9ba6ba";
+  ctx.font = "650 24px Inter, system-ui, sans-serif";
+  ctx.fillText(`CLV ${snapshot.clvText} · ${snapshot.clvBets} BETS`, 992, 462);
+
+  drawTrackerShareChart(ctx, snapshot);
+
+  ctx.strokeStyle = "#232d41";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(88, 1144);
+  ctx.lineTo(992, 1144);
+  ctx.stroke();
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#8f9bb0";
+  ctx.font = "550 23px Inter, system-ui, sans-serif";
+  ctx.fillText(`Updated: ${snapshot.updated}`, 88, 1210);
+  ctx.textAlign = "right";
+  ctx.fillStyle = "#b77aff";
+  ctx.font = "700 25px Inter, system-ui, sans-serif";
+  ctx.fillText("VERIFIED", 992, 1210);
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#657086";
+  ctx.font = "550 20px Inter, system-ui, sans-serif";
+  ctx.fillText("Track the process. Share the proof.", 540, 1260);
+  canvas.setAttribute("aria-label", `${snapshot.anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" })} Bet Tracker recap. Profit ${snapshot.profitText}, ROI ${snapshot.roiText}, record ${snapshot.record}.`);
+  preview.setAttribute("aria-busy", "false");
+  return { canvas, snapshot };
+}
+
+function trackerShareBlob(canvas) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("Unable to create the share image.")), "image/png");
+  });
+}
+
+async function openTrackerShareDialog() {
+  const dialog = document.getElementById("tracker-share-dialog");
+  if (!dialog) return;
+  if (!dialog.open) dialog.showModal();
+  try {
+    await renderTrackerShareCard();
+    document.getElementById("tracker-share-close")?.focus();
+  } catch (_error) {
+    showToast("The share image could not be generated.", "error");
+  }
+}
+
+function closeTrackerShareDialog() {
+  const dialog = document.getElementById("tracker-share-dialog");
+  if (dialog?.open) dialog.close();
+  document.getElementById("tracker-share-open")?.focus();
+}
+
+async function downloadTrackerShareImage() {
+  try {
+    const rendered = await renderTrackerShareCard();
+    if (!rendered) return;
+    const blob = await trackerShareBlob(rendered.canvas);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = trackerShareFilename(rendered.snapshot);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast("Share image saved", "success");
+  } catch (_error) {
+    showToast("The share image could not be saved.", "error");
+  }
+}
+
+async function copyTrackerShareLink() {
+  try {
+    const rendered = await renderTrackerShareCard();
+    if (!rendered) return;
+    await navigator.clipboard.writeText(rendered.canvas.toDataURL("image/png"));
+    showToast("Image link copied", "success");
+  } catch (_error) {
+    showToast("The image link could not be copied.", "error");
+  }
+}
+
+async function shareTrackerToSocial() {
+  try {
+    const rendered = await renderTrackerShareCard();
+    if (!rendered) return;
+    const blob = await trackerShareBlob(rendered.canvas);
+    const file = new File([blob], trackerShareFilename(rendered.snapshot), { type: "image/png" });
+    const shareData = {
+      title: `${rendered.snapshot.anchor.toLocaleDateString(undefined, { month: "long", year: "numeric" })} Bet Tracker recap`,
+      text: `Profit ${rendered.snapshot.profitText} · ROI ${rendered.snapshot.roiText} · Record ${rendered.snapshot.record}`,
+      files: [file],
+    };
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+      await downloadTrackerShareImage();
+      showToast("Image saved — upload it to your social app.", "info");
+      return;
+    }
+    await navigator.share(shareData);
+  } catch (error) {
+    if (error?.name !== "AbortError") showToast("The share menu could not be opened.", "error");
+  }
+}
+
 function renderTrackerCalendar(points = []) {
   const container = document.getElementById("tracker-calendar");
   if (!container) return;
@@ -5105,6 +5476,7 @@ function renderTrackerPerformance(payload = {}) {
   const periodProfit = trackerPeriodProfit(points, periodSummary.realized_profit_loss);
   const periodLabel = trackerPeriodLabel(points, payload);
   document.getElementById("tracker-chart-title").textContent = periodLabel;
+  document.getElementById("tracker-share-open")?.setAttribute("aria-label", `Share ${periodLabel} tracker recap`);
   const periodProfitNode = document.getElementById("tracker-period-profit");
   periodProfitNode.textContent = signedMoney(periodProfit);
   periodProfitNode.className = pnlTone(periodProfit);
@@ -5124,6 +5496,23 @@ function renderTrackerPerformance(payload = {}) {
   document.getElementById("tracker-performance-updated").textContent = `Updated: ${new Date().toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
   if (mode === "calendar") renderTrackerCalendar(points);
   else drawTrackerProfitChart(points, summary.starting_bankroll);
+}
+
+function shiftTrackerPerformanceMonth(offset) {
+  const anchor = appState.trackerPeriodAnchor || new Date();
+  const next = new Date(anchor.getFullYear(), anchor.getMonth() + offset, 1);
+  const now = new Date();
+  if (next > new Date(now.getFullYear(), now.getMonth(), 1)) return;
+  appState.trackerPeriodAnchor = next;
+  const localPayload = trackerLocalMonthPayload(
+    appState.trackerPerformancePayload || {},
+    next,
+  );
+  if (localPayload) {
+    renderTrackerPerformance(localPayload);
+    return;
+  }
+  loadTrackerView();
 }
 
 function renderClvAnalytics(payload = {}) {
@@ -5652,9 +6041,7 @@ function trackerRequestParams(view) {
   };
   const selectedBooks = appState.trackerSelectedBooks[view] || [];
   if (appState.graphRange === "month" && appState.trackerPeriodAnchor) {
-    const year = appState.trackerPeriodAnchor.getFullYear();
-    const month = String(appState.trackerPeriodAnchor.getMonth() + 1).padStart(2, "0");
-    params.graph_month = `${year}-${month}`;
+    params.graph_month = trackerMonthKey(appState.trackerPeriodAnchor);
   }
   if (selectedBooks.length) params.sportsbook = selectedBooks.join(",");
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
@@ -6034,6 +6421,15 @@ function bindTracker() {
   const clvDialog = document.getElementById("tracker-clv-dialog");
   const clvPreferences = document.getElementById("tracker-clv-preferences-dialog");
   const clvBooks = document.getElementById("tracker-clv-books-dialog");
+  const shareDialog = document.getElementById("tracker-share-dialog");
+  document.getElementById("tracker-share-open")?.addEventListener("click", openTrackerShareDialog);
+  document.getElementById("tracker-share-close")?.addEventListener("click", closeTrackerShareDialog);
+  document.getElementById("tracker-share-download")?.addEventListener("click", downloadTrackerShareImage);
+  document.getElementById("tracker-share-copy-link")?.addEventListener("click", copyTrackerShareLink);
+  document.getElementById("tracker-share-social")?.addEventListener("click", shareTrackerToSocial);
+  shareDialog?.addEventListener("click", (event) => {
+    if (event.target === shareDialog) closeTrackerShareDialog();
+  });
   const openClvDialog = () => { if (!clvDialog?.open) clvDialog?.showModal(); };
   ["tracker-clv-open", "tracker-clv-view-more"].forEach((id) => document.getElementById(id)?.addEventListener("click", openClvDialog));
   document.getElementById("tracker-clv-close")?.addEventListener("click", () => clvDialog?.close());
@@ -6142,17 +6538,10 @@ function bindTracker() {
     renderTrackerPerformance(appState.trackerPerformancePayload || {});
   }));
   document.getElementById("tracker-period-previous")?.addEventListener("click", () => {
-    const anchor = appState.trackerPeriodAnchor || new Date();
-    appState.trackerPeriodAnchor = new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1);
-    loadTrackerView();
+    shiftTrackerPerformanceMonth(-1);
   });
   document.getElementById("tracker-period-next")?.addEventListener("click", () => {
-    const anchor = appState.trackerPeriodAnchor || new Date();
-    const next = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 1);
-    const now = new Date();
-    if (next > new Date(now.getFullYear(), now.getMonth(), 1)) return;
-    appState.trackerPeriodAnchor = next;
-    loadTrackerView();
+    shiftTrackerPerformanceMonth(1);
   });
   window.addEventListener("resize", debounce(() => {
     if (appState.trackerVisualMode === "chart" && appState.trackerPerformancePayload) {

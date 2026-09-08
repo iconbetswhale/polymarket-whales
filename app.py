@@ -24,6 +24,7 @@ from flask import Flask, g, jsonify, make_response, redirect, render_template, r
 from bet_tracker import replay_tracker
 from clv import (
     calculate_clv_preferences,
+    clv_aggregate,
     clv_period_analytics,
     clv_trend,
     safe_float as clv_float,
@@ -619,6 +620,48 @@ def _tracker_graph_window(
         "year": now - timedelta(days=366),
     }
     return cutoffs.get(graph_range, now - timedelta(days=31)), None, None
+
+
+def _tracker_month_summaries(rows: list[dict]) -> dict[str, dict]:
+    month_keys = {
+        occurred_at.astimezone(EASTERN).strftime("%Y-%m")
+        for row in rows
+        if (
+            occurred_at := _parse_datetime(
+                row.get("settled_at")
+                or row.get("tracked_at")
+                or row.get("created_at")
+                or (row.get("snapshot") or {}).get("event_start_time")
+            )
+        )
+        is not None
+    }
+    summaries = {}
+    for month_key in sorted(month_keys):
+        period_start, period_end, _ = _tracker_graph_window("month", month_key)
+        summaries[month_key] = _tracker_period_summary(
+            rows, period_start, period_end
+        )
+    return summaries
+
+
+def _tracker_clv_month_summaries(rows: list[dict]) -> dict[str, dict]:
+    groups: dict[str, list[dict]] = {}
+    for row in rows:
+        occurred_at = _parse_datetime(
+            row.get("settled_at")
+            or row.get("tracked_at")
+            or row.get("created_at")
+            or (row.get("snapshot") or {}).get("event_start_time")
+        )
+        if occurred_at is None:
+            continue
+        month_key = occurred_at.astimezone(EASTERN).strftime("%Y-%m")
+        groups.setdefault(month_key, []).append(row.get("clv") or {})
+    return {
+        month_key: clv_aggregate(values)
+        for month_key, values in sorted(groups.items())
+    }
 
 
 def _selected_sportsbooks(value: object) -> set[str]:
@@ -6727,13 +6770,20 @@ def create_app(start_background: bool = True) -> Flask:
                 ),
             ]
         rows = replay["rows"]
+        closing_lines = tracker.database.get_closing_lines(
+            "personal", g.iconbets_user_id
+        )
         rows = _attach_clv(
             rows,
-            tracker.database.get_closing_lines("personal", g.iconbets_user_id),
+            closing_lines,
             "fill_id",
+        )
+        performance_clv_rows = _attach_clv(
+            performance_replay["rows"], closing_lines, "fill_id"
         )
         rows = _filter_sort_clv_rows(rows)
         clv_analytics = _clv_analytics(rows)
+        clv_month_summaries = _tracker_clv_month_summaries(performance_clv_rows)
 
         graph_range = request.args.get("graph_range", "month")
         try:
@@ -6742,12 +6792,19 @@ def create_app(start_background: bool = True) -> Flask:
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        if graph_range == "month" and graph_month in clv_month_summaries:
+            clv_analytics["periods"]["month"] = clv_month_summaries[graph_month]
         period_summary = _tracker_period_summary(
             performance_replay["rows"], cutoff, period_end
         )
-        graph = [
+        graph_history = [
             point
             for point in performance_replay["graph"]
+            if _parse_datetime(point.get("timestamp")) is not None
+        ]
+        graph = [
+            point
+            for point in graph_history
             if (
                 (point_at := _parse_datetime(point.get("timestamp"))) is not None
                 and point_at >= cutoff
@@ -6763,6 +6820,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "period_summary": period_summary,
                 "graph": graph,
+                "graph_history": graph_history,
+                "graph_month_summaries": _tracker_month_summaries(
+                    performance_replay["rows"]
+                ),
+                "clv_month_summaries": clv_month_summaries,
                 "graph_period": {
                     "start": cutoff.isoformat(),
                     "end": period_end.isoformat() if period_end else None,
@@ -7345,10 +7407,16 @@ def create_app(start_background: bool = True) -> Flask:
             rows = [row for row in rows if str((row.get("snapshot") or {}).get("liquidity_grade") or "UNAVAILABLE").upper() == liquidity_filter]
         if execution_filter:
             rows = [row for row in rows if str((row.get("snapshot") or {}).get("execution_method") or "UNAVAILABLE").upper() == execution_filter]
+        closing_lines = tracker.database.get_closing_lines(
+            "model", MODEL_TRACKER_USER_ID
+        )
         rows = _attach_clv(
             rows,
-            tracker.database.get_closing_lines("model", MODEL_TRACKER_USER_ID),
+            closing_lines,
             "dedupe_key",
+        )
+        performance_clv_rows = _attach_clv(
+            performance_replay["rows"], closing_lines, "dedupe_key"
         )
         rows = _attach_dual_clv(
             rows,
@@ -7361,6 +7429,7 @@ def create_app(start_background: bool = True) -> Flask:
             row.pop("thirty_minute_checkpoint", None)
             row.pop("thirty_minute_checked_at", None)
         clv_analytics = _clv_analytics(rows)
+        clv_month_summaries = _tracker_clv_month_summaries(performance_clv_rows)
 
         graph_range = request.args.get("graph_range", "month")
         try:
@@ -7369,12 +7438,19 @@ def create_app(start_background: bool = True) -> Flask:
             )
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
+        if graph_range == "month" and graph_month in clv_month_summaries:
+            clv_analytics["periods"]["month"] = clv_month_summaries[graph_month]
         period_summary = _tracker_period_summary(
             performance_replay["rows"], cutoff, period_end
         )
-        graph = [
+        graph_history = [
             point
             for point in performance_replay["graph"]
+            if _parse_datetime(point.get("timestamp")) is not None
+        ]
+        graph = [
+            point
+            for point in graph_history
             if (
                 (point_at := _parse_datetime(point.get("timestamp"))) is not None
                 and point_at >= cutoff
@@ -7390,6 +7466,11 @@ def create_app(start_background: bool = True) -> Flask:
                 "summary": replay["summary"],
                 "period_summary": period_summary,
                 "graph": graph,
+                "graph_history": graph_history,
+                "graph_month_summaries": _tracker_month_summaries(
+                    performance_replay["rows"]
+                ),
+                "clv_month_summaries": clv_month_summaries,
                 "graph_period": {
                     "start": cutoff.isoformat(),
                     "end": period_end.isoformat() if period_end else None,

@@ -2351,6 +2351,30 @@ def test_model_tracker_graph_uses_complete_calendar_month_independent_of_table_r
         service.database.update_tracker_status(
             MODEL_TRACKER_USER_ID, dedupe, status, result, timestamp
         )
+        assert service.database.insert_closing_line(
+            {
+                "tracker_type": "model",
+                "tracker_record_id": dedupe,
+                "user_id": MODEL_TRACKER_USER_ID,
+                "provider": "test",
+                "provider_event_id": f"{key}-event",
+                "provider_market_id": f"{key}-market",
+                "provider_selection_id": f"{key}-outcome",
+                "entry_price": 0.5,
+                "entry_implied_probability": 0.5,
+                "entry_stake": 100,
+                "closing_snapshot_timestamp": timestamp,
+                "official_event_start_timestamp": timestamp,
+                "closing_effective_price": 0.55,
+                "closing_midpoint": 0.55,
+                "clv_cents": 5,
+                "clv_probability_points": 5,
+                "clv_pct": 10,
+                "midpoint_clv_pct": 10,
+                "clv_status": "captured",
+                "calculation_version": "test",
+            }
+        )
 
     response = app_client.get(
         "/api/model-tracker?tracker_range=custom"
@@ -2364,6 +2388,12 @@ def test_model_tracker_graph_uses_complete_calendar_month_independent_of_table_r
     assert payload["graph_period"]["month"] == "2026-08"
     assert len(payload["graph"]) == 1
     assert payload["graph"][0]["timestamp"].startswith("2026-08-03")
+    assert len(payload["graph_history"]) == 2
+    assert payload["graph_month_summaries"]["2026-08"]["wins"] == 1
+    assert payload["graph_month_summaries"]["2026-09"]["losses"] == 1
+    assert payload["clv_month_summaries"]["2026-08"]["bets_measured"] == 1
+    assert payload["clv_month_summaries"]["2026-09"]["bets_measured"] == 1
+    assert payload["clv"]["periods"]["month"]["bets_measured"] == 1
     assert payload["period_summary"]["wins"] == 1
     assert payload["period_summary"]["losses"] == 0
     assert app_client.get(
