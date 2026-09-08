@@ -246,6 +246,20 @@ def test_monthly_clv_is_calculated_directly_from_all_bets() -> None:
     assert result["stake_weighted_clv_pct"] == pytest.approx(-2.5)
 
 
+def test_clv_period_analytics_includes_three_and_six_month_windows() -> None:
+    now = datetime(2026, 7, 15, tzinfo=timezone.utc)
+    rows = [
+        {"clv_status": CAPTURED, "clv_pct": 9, "clv_cents": 4, "entry_stake": 10, "closing_snapshot_timestamp": "2026-06-15T12:00:00+00:00"},
+        {"clv_status": CAPTURED, "clv_pct": 6, "clv_cents": 3, "entry_stake": 10, "closing_snapshot_timestamp": "2026-03-01T12:00:00+00:00"},
+        {"clv_status": CAPTURED, "clv_pct": 2, "clv_cents": 1, "entry_stake": 10, "closing_snapshot_timestamp": "2025-12-01T12:00:00+00:00"},
+    ]
+
+    result = clv_period_analytics(rows, now)
+
+    assert result["3m"]["bets_measured"] == 1
+    assert result["6m"]["bets_measured"] == 2
+
+
 def test_closing_snapshot_is_immutable_and_provider_scoped(tmp_path) -> None:
     database = TrackerDatabase(tmp_path / "clv.db")
     base = {

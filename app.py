@@ -687,6 +687,19 @@ def _model_tracker_sportsbook(record: dict) -> str:
         return raw_name[:64]
 
 
+def _model_tracker_tags(record: dict) -> list[str]:
+    snapshot = record.get("snapshot") or {}
+    raw_tags = record.get("tags")
+    if raw_tags in (None, ""):
+        raw_tags = snapshot.get("tags") or snapshot.get("tag") or []
+    if isinstance(raw_tags, str):
+        raw_tags = [raw_tags]
+    try:
+        return normalize_personal_tags(raw_tags)
+    except ValueError:
+        return []
+
+
 def _tracker_book_summaries(
     records: list[dict], starting_bankroll: float
 ) -> list[dict]:
@@ -2355,10 +2368,12 @@ def create_app(start_background: bool = True) -> Flask:
 
     @app.route("/tracker")
     def tracker_page():
+        tracker_catalog = live_tool_filter_catalog_payload()
         return render_template(
             "tracker.html",
             title="IconBets Tracker",
             page="tracker",
+            tracker_book_catalog=tracker_catalog["books"],
         )
 
     @app.route("/lab-tracker")
@@ -6640,16 +6655,15 @@ def create_app(start_background: bool = True) -> Flask:
                 ]
             return filtered
 
-        performance_fills = filtered_personal_fills(all_fills)
-        fills = filtered_personal_fills(
-            [
-                fill
-                for fill in all_fills
-                if _within_tracker_dates(
-                    fill.get("created_at"), tracker_start, tracker_end
-                )
-            ]
-        )
+        date_filtered_fills = [
+            fill
+            for fill in all_fills
+            if _within_tracker_dates(
+                fill.get("created_at"), tracker_start, tracker_end
+            )
+        ]
+        performance_fills = filtered_personal_fills(date_filtered_fills)
+        fills = list(performance_fills)
 
         starting_bankroll = _safe_float(
             current_settings["personal_tracker_bankroll"]
@@ -7299,7 +7313,6 @@ def create_app(start_background: bool = True) -> Flask:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         all_tracker_records = tracker.database.get_tracker_records(MODEL_TRACKER_USER_ID)
-        performance_records = list(all_tracker_records)
         tracker_records = [
             record for record in all_tracker_records
             if _within_tracker_dates(
@@ -7309,6 +7322,7 @@ def create_app(start_background: bool = True) -> Flask:
             )
         ]
         all_date_records = list(tracker_records)
+        performance_records = list(tracker_records)
         sportsbook_filters = _selected_sportsbooks(
             request.args.get("sportsbook", "")
         )
@@ -7324,6 +7338,20 @@ def create_app(start_background: bool = True) -> Flask:
                 for record in performance_records
                 if _model_tracker_sportsbook(record).casefold()
                 in sportsbook_filters
+            ]
+        tag_filter = request.args.get("tag", "").strip().casefold()
+        if tag_filter:
+            tracker_records = [
+                record
+                for record in tracker_records
+                if tag_filter
+                in {tag.casefold() for tag in _model_tracker_tags(record)}
+            ]
+            performance_records = [
+                record
+                for record in performance_records
+                if tag_filter
+                in {tag.casefold() for tag in _model_tracker_tags(record)}
             ]
         starting_bankroll = _safe_float(current_settings["tracker_bankroll"])
         replay = replay_tracker(
@@ -7506,9 +7534,17 @@ def create_app(start_background: bool = True) -> Flask:
                         },
                         key=str.casefold,
                     ),
+                    "tags": sorted(
+                        {
+                            tag
+                            for record in all_tracker_records
+                            for tag in _model_tracker_tags(record)
+                        },
+                        key=str.casefold,
+                    ),
                 },
                 "sportsbook_summaries": _tracker_book_summaries(
-                    all_date_records,
+                    tracker_records,
                     _safe_float(current_settings["tracker_bankroll"]),
                 ),
                 "selected_sportsbooks": sorted(sportsbook_filters),

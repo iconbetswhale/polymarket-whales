@@ -163,6 +163,128 @@ def test_tracker_clv_card_uses_requested_type_scale_and_contextual_help() -> Non
     assert "button:not(.active):hover" in CSS
 
 
+def test_tracker_clv_supports_three_and_six_month_ranges_and_majority_tones() -> None:
+    for value, card_label, dialog_label in (
+        ("3m", "3M", "3 Months"),
+        ("6m", "6M", "6 Months"),
+    ):
+        assert f'data-clv-range="{value}">{card_label}</button>' in TEMPLATE
+        assert f'data-clv-range="{value}">{dialog_label}</button>' in TEMPLATE
+    assert 'range === "3m"' in SCRIPT
+    assert 'range === "6m"' in SCRIPT
+    assert "function setClvMajorityTone(node, summary)" in SCRIPT
+    assert 'node.classList.toggle("positive", tone === "positive")' in SCRIPT
+    assert 'node.classList.toggle("negative", tone === "negative")' in SCRIPT
+    assert "repeat(8, minmax(0, 1fr))" in CSS
+    assert "repeat(4, minmax(0, 1fr))" in CSS
+    assert "white-space: nowrap;" in CSS
+    assert "border-color: rgba(158, 92, 255, .46);" in CSS
+    assert "overflow: visible;" in CSS
+
+
+def test_dashboard_uses_global_tags_and_searchable_multibook_filters(app_client) -> None:
+    assert 'id="tracker-book-catalog" type="application/json"' in TEMPLATE
+    assert 'id="tracker-dashboard-tag-filter"' in TEMPLATE
+    assert "Live bets" not in TEMPLATE
+    assert "Wins</option>" not in TEMPLATE
+    assert "Losses</option>" not in TEMPLATE
+    assert 'id="tracker-book-filter-search" type="search"' in TEMPLATE
+    assert 'id="tracker-book-filter-count"' in TEMPLATE
+    assert "Select All" in TEMPLATE
+    assert "Apply Books" in TEMPLATE
+
+    assert "const TRACKER_BOOK_CATALOG" in SCRIPT
+    assert 'return Array.isArray(catalog) ? catalog : [];' in SCRIPT
+    assert 'book?.type !== "dfs"' not in SCRIPT
+    rendered = app_client.get("/tracker").data
+    for dfs_book in (b"PrizePicks", b"Underdog", b"DraftKings Pick6", b"Betr Picks", b"Dabble"):
+        assert dfs_book in rendered
+    assert "function renderTrackerDashboardTagFilter" in SCRIPT
+    assert "function trackerBookChoices" in SCRIPT
+    assert "function trackerBookOptionLogo" in SCRIPT
+    assert 'windcreekbetfredpa: "windcreek"' in SCRIPT
+    assert 'params.tag = selectedTag' in SCRIPT
+    assert 'tracker-book-filter-options input:checked' in SCRIPT
+    assert 'tracker-book-filter-search' in SCRIPT
+
+    for declaration in (
+        "font: 700 22px/1.2 var(--il-font-ui);",
+        "font: 600 14px/1 var(--il-font-ui);",
+        "font: 650 14px/1 var(--il-font-ui);",
+        "font: 650 14px/1.2 var(--il-font-ui);",
+        "font: 700 22px/1.15 var(--il-font-data);",
+        "font: 700 12px/1.2 var(--il-font-ui);",
+        "font: 600 12px/1.2 var(--il-font-ui);",
+    ):
+        assert declaration in CSS
+    assert ".tracker-book-filter-options label:has(input:checked)" in CSS
+    assert ".tracker-book-filter-logo img" in CSS
+    assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in CSS
+    assert "border-color: var(--il-border-subtle) !important;" in CSS
+    assert "background: var(--il-surface-2) !important;" in CSS
+
+
+def test_tracker_global_toolbar_orders_bankroll_filters_and_range() -> None:
+    toolbar = TEMPLATE.split('<section class="tracker-primary-toolbar"', 1)[1].split(
+        '<section class="tracker-switcher-shell"', 1
+    )[0]
+    assert toolbar.index('id="tracker-section-tabs"') < toolbar.index(
+        'id="model-bankroll-control"'
+    )
+    assert toolbar.index('id="model-bankroll-control"') < toolbar.index(
+        'id="tracker-dashboard-tag-filter"'
+    )
+    assert toolbar.index('id="tracker-dashboard-tag-filter"') < toolbar.index(
+        'id="tracker-book-filter"'
+    )
+    assert toolbar.index('id="tracker-book-filter"') < toolbar.index(
+        'id="tracker-date-range"'
+    )
+    assert toolbar.index('id="tracker-date-range"') < toolbar.index(
+        'id="graph-range"'
+    )
+    assert 'id="tracker-share-open"' not in toolbar
+    assert 'Search Sportsbooks, Exchanges, And DFS' in toolbar
+    assert 'class="segmented tracker-graph-range"' in toolbar
+    performance_controls = TEMPLATE.split(
+        '<div class="tracker-performance-controls">', 1
+    )[1].split('</div>', 2)[0]
+    assert performance_controls.index('id="tracker-share-open"') < performance_controls.index(
+        'class="tracker-visual-toggle"'
+    )
+    assert ".tracker-primary-toolbar" in CSS
+    assert ".tracker-global-controls" in CSS
+    assert ".tracker-global-bankroll" in CSS
+    assert ".tracker-toolbar-custom-dates" in CSS
+    assert "border: 1px solid var(--il-border-standard) !important;" in CSS
+    assert "padding: 3px;" in CSS
+    assert "gap: 3px;" in CSS
+    assert "border: 1px solid var(--il-border-subtle) !important;" in CSS
+    assert "color: var(--il-text-secondary) !important;" in CSS
+
+
+def test_profit_metric_cards_match_clv_surface_language() -> None:
+    profit_grid_rule = CSS[
+        CSS.index('.tracker-profit-grid {') : CSS.index('.tracker-profit-grid {') + 760
+    ]
+    assert "gap: 10px;" in profit_grid_rule
+    assert "border: 1px solid var(--il-border-subtle);" in profit_grid_rule
+    assert "border-radius: var(--il-radius-control);" in profit_grid_rule
+    assert "background: var(--il-bg-workspace);" in profit_grid_rule
+    assert "overflow: visible;" in profit_grid_rule
+
+
+def test_tracker_book_picker_is_compact_and_opens_below_the_global_toolbar() -> None:
+    popover_rule = CSS[
+        CSS.index('.tracker-book-filter-popover {') :
+        CSS.index('.tracker-book-filter-popover {') + 620
+    ]
+    assert "top: calc(100% + 8px);" in popover_rule
+    assert "bottom: auto;" in popover_rule
+    assert "width: min(440px, calc(100vw - 36px));" in popover_rule
+    assert "max-height: min(460px, calc(100vh - 150px));" in popover_rule
+
+
 def test_tracker_v2_uses_the_full_desktop_workspace() -> None:
     app_shell_rule = CSS[CSS.index('.app-shell {') : CSS.index('.app-shell {') + 180]
     fluid_workspace_rule = CSS[
@@ -185,6 +307,6 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v15" in BASE[canonical : canonical + 180]
+    assert "-canonical-v20d-share-period-buttons" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v16-tracker-share-card" in BASE[script : script + 190]
+    assert "-live-feeds-v21-global-toolbar" in BASE[script : script + 220]

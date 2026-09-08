@@ -1977,6 +1977,7 @@ def test_model_tracker_filters_multiple_books_and_recalculates_combined_pnl(app_
                 "market_title": "Winner",
                 "recommended_side": "Home",
                 "sportsbook": book,
+                "tags": ["Baseball", "Priority"] if book != "Polymarket" else ["Tennis"],
                 "effective_entry_price": 0.5,
                 "final_recommended_fraction": 0.01,
                 "original_displayed_amount": 100,
@@ -2007,9 +2008,19 @@ def test_model_tracker_filters_multiple_books_and_recalculates_combined_pnl(app_
     by_book = {
         item["sportsbook"]: item for item in combined["sportsbook_summaries"]
     }
+    assert set(by_book) == {"DraftKings", "FanDuel"}
     assert by_book["FanDuel"]["wins"] == 1
     assert by_book["DraftKings"]["losses"] == 1
     assert combined["selected_sportsbooks"] == ["draftkings", "fanduel"]
+
+    tagged = app_client.get("/api/model-tracker?tag=baseball").get_json()
+    assert tagged["pagination"]["total"] == 2
+    assert tagged["summary"]["wins"] == 1
+    assert tagged["summary"]["losses"] == 1
+    assert {
+        item["sportsbook"] for item in tagged["sportsbook_summaries"]
+    } == {"DraftKings", "FanDuel"}
+    assert tagged["filter_options"]["tags"] == ["Baseball", "Priority", "Tennis"]
 
 
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
@@ -2321,7 +2332,7 @@ def test_tracker_shell_script_supports_query_memory_and_keyboard_navigation():
     assert 'trackerCache: { model: null, personal: null }' in script
 
 
-def test_model_tracker_graph_uses_complete_calendar_month_independent_of_table_range(
+def test_model_tracker_global_date_filter_constrains_graph_and_clv_metrics(
     app_client,
 ):
     service = app_client.application.extensions["tracker_service"]
@@ -2379,23 +2390,23 @@ def test_model_tracker_graph_uses_complete_calendar_month_independent_of_table_r
     response = app_client.get(
         "/api/model-tracker?tracker_range=custom"
         "&tracker_start=2026-09-01&tracker_end=2026-09-30"
-        "&graph_range=month&graph_month=2026-08"
+        "&graph_range=month&graph_month=2026-09"
     )
     payload = response.get_json()
 
     assert response.status_code == 200
     assert payload["pagination"]["total"] == 1
-    assert payload["graph_period"]["month"] == "2026-08"
+    assert payload["graph_period"]["month"] == "2026-09"
     assert len(payload["graph"]) == 1
-    assert payload["graph"][0]["timestamp"].startswith("2026-08-03")
-    assert len(payload["graph_history"]) == 2
-    assert payload["graph_month_summaries"]["2026-08"]["wins"] == 1
+    assert payload["graph"][0]["timestamp"].startswith("2026-09-02")
+    assert len(payload["graph_history"]) == 1
+    assert "2026-08" not in payload["graph_month_summaries"]
     assert payload["graph_month_summaries"]["2026-09"]["losses"] == 1
-    assert payload["clv_month_summaries"]["2026-08"]["bets_measured"] == 1
+    assert "2026-08" not in payload["clv_month_summaries"]
     assert payload["clv_month_summaries"]["2026-09"]["bets_measured"] == 1
     assert payload["clv"]["periods"]["month"]["bets_measured"] == 1
-    assert payload["period_summary"]["wins"] == 1
-    assert payload["period_summary"]["losses"] == 0
+    assert payload["period_summary"]["wins"] == 0
+    assert payload["period_summary"]["losses"] == 1
     assert app_client.get(
         "/api/model-tracker?graph_range=month&graph_month=August-2026"
     ).status_code == 400

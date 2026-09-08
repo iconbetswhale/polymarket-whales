@@ -365,6 +365,10 @@ def period_start(period: str, now: datetime | None = None) -> datetime | None:
         return current - timedelta(days=7)
     if period == "month":
         return current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    if period == "3m":
+        return current - timedelta(days=90)
+    if period == "6m":
+        return current - timedelta(days=180)
     if period == "year":
         return current.replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
     return None
@@ -372,7 +376,7 @@ def period_start(period: str, now: datetime | None = None) -> datetime | None:
 
 def clv_period_analytics(rows: list[dict[str, Any]], now: datetime | None = None) -> dict[str, dict[str, Any]]:
     result: dict[str, dict[str, Any]] = {}
-    for period in ("today", "7d", "week", "month", "year", "all"):
+    for period in ("today", "7d", "week", "month", "3m", "6m", "year", "all"):
         cutoff = period_start(period, now)
         selected = [
             row

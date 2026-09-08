@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
+<script id="tracker-book-catalog" type="application/json">{{ tracker_book_catalog|tojson }}</script>
 <section class="tracker-page il-data-grid-page">
 <header class="page-header tracker-page-header il-page-header">
   <div>
@@ -8,24 +9,53 @@
     <p class="tracker-subtitle" id="tracker-subtitle"></p>
   </div>
   <div class="tracker-header-actions">
-    <div id="model-bankroll-control">
-      <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll">
-        <span>Bankroll</span><strong id="tracker-starting-bankroll">Loading</strong>
-      </button>
-    </div>
-    <button class="tracker-bankroll-control" id="personal-bankroll-control" type="button" hidden aria-label="Edit personal tracker bankroll">
-      <span>Bankroll</span><strong id="personal-starting-bankroll">Loading</strong>
-    </button>
     <button id="tracker-admin-open" type="button" hidden aria-hidden="true" tabindex="-1">Admin diagnostics</button>
     <button class="button primary compact" id="personal-manual-action" type="button" hidden><i class="ph ph-pencil-simple-line" aria-hidden="true"></i>Add manual bet</button>
     <a class="button primary compact" id="personal-track-action" href="/trades" hidden><i class="ph ph-plus" aria-hidden="true"></i>Track a trade</a>
   </div>
 </header>
 
-<nav class="tracker-section-tabs il-view-tabs" id="tracker-section-tabs" role="tablist" aria-label="Tracker pages">
-  <button class="active" type="button" role="tab" data-tracker-section="dashboard" aria-selected="true">Dashboard</button>
-  <button type="button" role="tab" data-tracker-section="bets" aria-selected="false">Bet Tracker</button>
-</nav>
+<section class="tracker-primary-toolbar" aria-label="Tracker dashboard controls">
+  <nav class="tracker-section-tabs il-view-tabs" id="tracker-section-tabs" role="tablist" aria-label="Tracker pages">
+    <button class="active" type="button" role="tab" data-tracker-section="dashboard" aria-selected="true">Dashboard</button>
+    <button type="button" role="tab" data-tracker-section="bets" aria-selected="false">Bet Tracker</button>
+  </nav>
+  <div class="tracker-global-controls">
+    <div class="tracker-global-bankroll">
+      <div id="model-bankroll-control">
+        <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll">
+          <span>Bankroll</span><strong id="tracker-starting-bankroll">Loading</strong>
+        </button>
+      </div>
+      <button class="tracker-bankroll-control" id="personal-bankroll-control" type="button" hidden aria-label="Edit personal tracker bankroll">
+        <span>Bankroll</span><strong id="personal-starting-bankroll">Loading</strong>
+      </button>
+    </div>
+    <div class="tracker-profit-controls">
+      <select id="tracker-dashboard-tag-filter" aria-label="Filter tracker activity by tag">
+        <option value="">Tags</option>
+      </select>
+      <details class="tracker-book-filter" id="tracker-book-filter">
+        <summary><i class="ph ph-buildings" aria-hidden="true"></i><span id="tracker-book-filter-label">All Books</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+        <div class="tracker-book-filter-popover">
+          <div class="tracker-book-filter-heading">
+            <div><strong>All Books</strong><span id="tracker-book-filter-count">0 Selected</span></div>
+            <div class="tracker-book-filter-actions"><button type="button" data-tracker-books="all">Select All</button><button type="button" data-tracker-books="none">Clear</button></div>
+          </div>
+          <label class="tracker-book-filter-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="tracker-book-filter-search" type="search" placeholder="Search Sportsbooks, Exchanges, And DFS" autocomplete="off" aria-label="Search Sportsbooks, Exchanges, And DFS"></label>
+          <div class="tracker-book-filter-options" id="tracker-book-filter-options"></div>
+          <button class="button primary compact" id="tracker-book-filter-apply" type="button">Apply Books</button>
+        </div>
+      </details>
+      <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 Days</option><option value="28" selected>Last 28 Days</option><option value="90">Last 90 Days</option><option value="custom">Custom Dates</option><option value="all">All Time</option></select>
+      <div class="segmented tracker-graph-range" id="graph-range" role="group" aria-label="Graph aggregation"><button data-range="today" type="button">Daily</button><button data-range="week" type="button">Weekly</button><button class="active" data-range="month" type="button">Monthly</button><button data-range="year" type="button">Yearly</button></div>
+    </div>
+  </div>
+  <div class="tracker-custom-dates tracker-toolbar-custom-dates">
+    <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
+    <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
+  </div>
+</section>
 
 <section class="tracker-switcher-shell" aria-label="Select tracker view" hidden>
   <div class="tracker-view-toggle" id="tracker-view-toggle" role="tablist" aria-label="Tracker data source">
@@ -79,28 +109,6 @@
     <section class="tracker-profit-panel" aria-labelledby="tracker-profit-title">
       <div class="tracker-profit-header">
         <h2 id="tracker-profit-title">Profit Over Time</h2>
-        <div class="tracker-profit-controls">
-          <select id="tracker-dashboard-tag-filter" aria-label="Filter tracker activity">
-            <option value="">Tags</option>
-            <option value="live">Live bets</option>
-            <option value="won">Wins</option>
-            <option value="lost">Losses</option>
-          </select>
-          <details class="tracker-book-filter" id="tracker-book-filter">
-            <summary><i class="ph ph-buildings" aria-hidden="true"></i><span id="tracker-book-filter-label">All sportsbooks</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
-            <div class="tracker-book-filter-popover">
-              <div class="tracker-book-filter-actions"><button type="button" data-tracker-books="all">Select all</button><button type="button" data-tracker-books="none">Deselect all</button></div>
-              <div class="tracker-book-filter-options" id="tracker-book-filter-options"></div>
-              <button class="button primary compact" id="tracker-book-filter-apply" type="button">Apply books</button>
-            </div>
-          </details>
-          <select id="tracker-date-range" aria-label="Tracked bet date range"><option value="7">Last 7 days</option><option value="28" selected>Last 28 days</option><option value="90">Last 90 days</option><option value="custom">Custom dates</option><option value="all">All time</option></select>
-          <div class="segmented" id="graph-range"><button data-range="today" type="button">Daily</button><button data-range="week" type="button">Weekly</button><button class="active" data-range="month" type="button">Monthly</button><button data-range="year" type="button">Yearly</button></div>
-        </div>
-      </div>
-      <div class="tracker-custom-dates">
-        <label class="tracker-custom-date" id="tracker-custom-start-wrap" hidden>From<input id="tracker-custom-start" type="date" aria-label="Tracker start date"></label>
-        <label class="tracker-custom-date" id="tracker-custom-end-wrap" hidden>To<input id="tracker-custom-end" type="date" aria-label="Tracker end date"></label>
       </div>
       <div class="tracker-profit-grid" id="tracker-profit-grid" aria-live="polite">
         <div><span>Total Profit</span><strong id="tracker-profit-total">$0.00</strong></div>
@@ -128,7 +136,7 @@
         <span class="tracker-clv-glow" aria-hidden="true"></span>
       </button>
       <div class="tracker-clv-range" id="tracker-clv-card-range" role="tablist" aria-label="Closing line value period">
-        <button type="button" data-clv-range="today">TDAY</button><button type="button" data-clv-range="yesterday">YDAY</button><button class="active" type="button" data-clv-range="7d">1W</button><button type="button" data-clv-range="month">1M</button><button type="button" data-clv-range="year">1Y</button><button type="button" data-clv-range="all">ALL</button>
+        <button type="button" data-clv-range="today">TDAY</button><button type="button" data-clv-range="yesterday">YDAY</button><button class="active" type="button" data-clv-range="7d">1W</button><button type="button" data-clv-range="month">1M</button><button type="button" data-clv-range="3m">3M</button><button type="button" data-clv-range="6m">6M</button><button type="button" data-clv-range="year">1Y</button><button type="button" data-clv-range="all">ALL</button>
       </div>
       <button class="tracker-clv-view-more" id="tracker-clv-view-more" type="button">View more CLV <i class="ph ph-arrow-right" aria-hidden="true"></i></button>
     </section>
@@ -205,7 +213,7 @@
       <button class="tracker-clv-link" id="tracker-clv-view-bets" type="button">View all bets</button>
     </header>
     <div class="tracker-clv-dialog-ranges" id="tracker-clv-dialog-range" role="tablist" aria-label="CLV date range">
-      <button type="button" data-clv-range="today">Day</button><button type="button" data-clv-range="yesterday">Yesterday</button><button class="active" type="button" data-clv-range="7d">Week</button><button type="button" data-clv-range="month">Month</button><button type="button" data-clv-range="year">Year</button><button type="button" data-clv-range="all">All</button>
+      <button type="button" data-clv-range="today">Day</button><button type="button" data-clv-range="yesterday">Yesterday</button><button class="active" type="button" data-clv-range="7d">Week</button><button type="button" data-clv-range="month">Month</button><button type="button" data-clv-range="3m">3 Months</button><button type="button" data-clv-range="6m">6 Months</button><button type="button" data-clv-range="year">Year</button><button type="button" data-clv-range="all">All</button>
     </div>
     <p class="tracker-clv-coverage" id="tracker-clv-coverage">Loading verified CLV data…</p>
     <section class="tracker-clv-detail-card">

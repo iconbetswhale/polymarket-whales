@@ -279,9 +279,11 @@ const appState = {
   trackerSection: safeStorage.getItem("iconbets-tracker-section") === "bets" ? "bets" : "dashboard",
   trackerCache: { model: null, personal: null },
   trackerPage: { model: 1, personal: 1 },
+  trackerSelectedTag: { model: "", personal: "" },
   trackerSelectedBooks: { model: [], personal: [] },
+  trackerBookDraft: null,
   trackerBookOptions: { model: [], personal: [] },
-  clvRange: ["today", "yesterday", "7d", "month", "year", "all"].includes(safeStorage.getItem("iconbets-clv-range")) ? safeStorage.getItem("iconbets-clv-range") : "7d",
+  clvRange: ["today", "yesterday", "7d", "month", "3m", "6m", "year", "all"].includes(safeStorage.getItem("iconbets-clv-range")) ? safeStorage.getItem("iconbets-clv-range") : "7d",
   clvMethod: ["best", "novig", "custom", "respective"].includes(safeStorage.getItem("iconbets-clv-method")) ? safeStorage.getItem("iconbets-clv-method") : "respective",
   clvSelectedBooks: storedStringArray("iconbets-clv-books"),
   clvPendingBooks: [],
@@ -315,6 +317,15 @@ const appState = {
 };
 const TRACKER_PREVIEW = page === "tracker"
   && document.querySelector(".tracker-page")?.dataset.trackerPreview === "true";
+const TRACKER_BOOK_CATALOG = (() => {
+  if (page !== "tracker") return [];
+  try {
+    const catalog = JSON.parse(document.getElementById("tracker-book-catalog")?.textContent || "[]");
+    return Array.isArray(catalog) ? catalog : [];
+  } catch (_error) {
+    return [];
+  }
+})();
 const TRADES_PREVIEW_DATA = page === "trades"
   ? window.ICONLABS_TRADES_PREVIEW_DATA || null
   : null;
@@ -5541,6 +5552,8 @@ function clvRangeBounds(range, now = new Date()) {
   if (range === "yesterday") return [new Date(startOfToday.getTime() - 86400000), startOfToday];
   if (range === "7d") return [new Date(now.getTime() - (7 * 86400000)), null];
   if (range === "month") return [new Date(now.getFullYear(), now.getMonth(), 1), null];
+  if (range === "3m") return [new Date(now.getTime() - (90 * 86400000)), null];
+  if (range === "6m") return [new Date(now.getTime() - (180 * 86400000)), null];
   if (range === "year") return [new Date(now.getFullYear(), 0, 1), null];
   return [null, null];
 }
@@ -5624,6 +5637,23 @@ function setClvTone(node, value) {
   node.classList.toggle("negative", value !== null && value < -0.005);
 }
 
+function setClvMajorityTone(node, summary) {
+  if (!node) return;
+  const counts = {
+    positive: Number(summary.positive) || 0,
+    negative: Number(summary.negative) || 0,
+    even: Number(summary.even) || 0,
+  };
+  const highest = Math.max(counts.positive, counts.negative, counts.even);
+  const leaders = Object.entries(counts)
+    .filter(([, count]) => count === highest && highest > 0)
+    .map(([tone]) => tone);
+  const tone = leaders.length === 1 ? leaders[0] : "even";
+  node.classList.toggle("positive", tone === "positive");
+  node.classList.toggle("negative", tone === "negative");
+  node.classList.toggle("even", tone === "even");
+}
+
 function renderClvDonut(summary) {
   const node = document.getElementById("tracker-clv-donut");
   if (!node) return;
@@ -5646,7 +5676,9 @@ function renderTrackerClv(payload = {}) {
   });
   ["tracker-clv-card-beat", "tracker-clv-detail-beat"].forEach((id) => {
     const node = document.getElementById(id);
-    if (node) node.textContent = beatText;
+    if (!node) return;
+    node.textContent = beatText;
+    setClvMajorityTone(node, summary);
   });
   document.querySelectorAll("[data-clv-range]").forEach((button) => {
     const active = button.dataset.clvRange === appState.clvRange;
@@ -5898,10 +5930,82 @@ function personalTrackerRow(row) {
 
 function renderPersonalTrackerFilters(options = {}) {
   const tag = document.getElementById("tracker-tag");
-  const selectedTag = tag.value;
+  const selectedTag = appState.trackerSelectedTag.personal || tag.value;
   renderTrackerBookFilter(options.sportsbooks || []);
   setSelectOptions(tag, options.tags || [], selectedTag, "All tags");
+  appState.trackerSelectedTag.personal = tag.value;
+  renderTrackerDashboardTagFilter(options.tags || []);
   renderSharpTrackerFilter(options);
+}
+
+function renderTrackerDashboardTagFilter(tags = []) {
+  const select = document.getElementById("tracker-dashboard-tag-filter");
+  if (!select) return;
+  const view = appState.trackerView || "model";
+  const selected = appState.trackerSelectedTag[view] || "";
+  const normalized = [...new Set((tags || []).map((tag) => String(tag).trim()).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+  setSelectOptions(select, normalized, selected, "Tags");
+  appState.trackerSelectedTag[view] = select.value;
+}
+
+function trackerBookMatchKey(value) {
+  const compact = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^(oddsapi__|oddsengine__)/, "")
+    .replace(/[^a-z0-9]/g, "")
+    .replace(/sportsbook$/, "");
+  return ({
+    caesarssports: "caesars",
+    draftkingssportsbook: "draftkings",
+    fanduelsportsbook: "fanduel",
+    fanaticssportsbook: "fanatics",
+    hardrockbet: "hardrock",
+    betonlineag: "betonline",
+    prophetexchange: "prophetx",
+    windcreekbetfredpa: "windcreek",
+    fourcx: "4cx",
+  })[compact] || compact;
+}
+
+function trackerBookChoices(observedBooks = []) {
+  const observedByKey = new Map();
+  (observedBooks || []).filter(Boolean).forEach((book) => {
+    observedByKey.set(trackerBookMatchKey(book), String(book));
+  });
+  const catalogKeys = new Set();
+  const choices = TRACKER_BOOK_CATALOG.map((book) => {
+    const key = trackerBookMatchKey(book.name || book.key);
+    catalogKeys.add(key);
+    return {
+      key,
+      name: String(book.name || book.key || "Sportsbook"),
+      value: observedByKey.get(key) || String(book.name || book.key || "Sportsbook"),
+      logoUrl: String(book.logoUrl || ""),
+    };
+  });
+  observedByKey.forEach((name, key) => {
+    if (catalogKeys.has(key)) return;
+    const meta = trackerProviderMeta(name);
+    choices.push({ key, name: meta.name, value: name, logoUrl: meta.logoUrl || "" });
+  });
+  return choices;
+}
+
+function trackerBookOptionLogo(book) {
+  if (book.logoUrl) {
+    return `<span class="tracker-book-filter-logo"><img src="${escapeHtml(book.logoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="ph ph-buildings" hidden aria-hidden="true"></i></span>`;
+  }
+  return '<span class="tracker-book-filter-logo"><i class="ph ph-buildings" aria-hidden="true"></i></span>';
+}
+
+function updateTrackerBookDraftFromInputs() {
+  appState.trackerBookDraft = [...document.querySelectorAll("#tracker-book-filter-options input:checked")]
+    .map((input) => input.value);
+  const count = document.getElementById("tracker-book-filter-count");
+  const total = document.querySelectorAll("#tracker-book-filter-options input").length;
+  if (count) count.textContent = `${appState.trackerBookDraft.length}/${total} Selected`;
 }
 
 function renderTrackerBookFilter(books = []) {
@@ -5909,15 +6013,23 @@ function renderTrackerBookFilter(books = []) {
   const normalized = [...new Set((books || []).filter(Boolean))].sort((a, b) => a.localeCompare(b));
   appState.trackerBookOptions[view] = normalized;
   const selected = appState.trackerSelectedBooks[view] || [];
-  document.getElementById("tracker-book-filter-options").innerHTML = normalized.length
-    ? normalized.map((book) => `<label><input type="checkbox" value="${escapeHtml(book)}" ${selected.includes(book) ? "checked" : ""}><span>${escapeHtml(book)}</span></label>`).join("")
-    : '<span class="muted">No tracked books yet</span>';
+  const filter = document.getElementById("tracker-book-filter");
+  const active = filter?.open && Array.isArray(appState.trackerBookDraft)
+    ? appState.trackerBookDraft
+    : selected;
+  const activeKeys = new Set(active.map(trackerBookMatchKey));
+  const choices = trackerBookChoices(normalized);
+  document.getElementById("tracker-book-filter-options").innerHTML = choices.length
+    ? choices.map((book) => `<label data-book-search="${escapeHtml(`${book.name} ${book.key}`.toLowerCase())}"><input type="checkbox" value="${escapeHtml(book.value)}" ${activeKeys.has(book.key) ? "checked" : ""}>${trackerBookOptionLogo(book)}<span>${escapeHtml(book.name)}</span></label>`).join("")
+    : '<span class="muted">No Sportsbooks Available</span>';
   const label = document.getElementById("tracker-book-filter-label");
   label.textContent = selected.length === 0
-    ? "All books"
+    ? "All Books"
     : selected.length === 1
-      ? selected[0]
-      : `${selected.length} books`;
+      ? (choices.find((book) => activeKeys.has(book.key))?.name || selected[0])
+      : `${selected.length} Books`;
+  const count = document.getElementById("tracker-book-filter-count");
+  if (count) count.textContent = `${activeKeys.size}/${choices.length} Selected`;
 }
 
 function renderTrackerBookSummaries(summaries = []) {
@@ -5967,6 +6079,7 @@ function renderModelTracker(payload) {
   appState.sharpSources = {};
   appState.sharpSourceSequence = 0;
   renderSharpTrackerFilter(payload.filter_options || {});
+  renderTrackerDashboardTagFilter(payload.filter_options?.tags || []);
   renderTrackerBookFilter(payload.filter_options?.sportsbooks || []);
   renderTrackerBookSummaries(payload.sportsbook_summaries || []);
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
@@ -6044,16 +6157,16 @@ function trackerRequestParams(view) {
     params.graph_month = trackerMonthKey(appState.trackerPeriodAnchor);
   }
   if (selectedBooks.length) params.sportsbook = selectedBooks.join(",");
+  const selectedTag = appState.trackerSelectedTag[view] || "";
+  if (selectedTag) params.tag = selectedTag;
   if (view === "model") params.min_sharps = document.getElementById("tracker-sharps").value;
-  if (view === "personal") {
-    params.tag = document.getElementById("tracker-tag").value;
-  }
   return new URLSearchParams(params);
 }
 
 const TRACKER_PREVIEW_ROWS = [
   {
     status: "won", result: "won", profit_loss: 99.12, recommended_amount: 84,
+    tags: ["Baseball", "Line Shopping"],
     tracked_at: "2026-08-16T23:43:00Z", settled_at: "2026-08-17T03:12:00Z",
     snapshot: { sportsbook: "NoVIG", event_title: "New York Mets vs Philadelphia Phillies", market_title: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "Bagwell306", wallet_address: "0xbagwell306", average_entry: 0.446, amount: 420 } },
@@ -6061,6 +6174,7 @@ const TRACKER_PREVIEW_ROWS = [
   },
   {
     status: "lost", result: "lost", profit_loss: -72, recommended_amount: 72,
+    tags: ["WNBA", "Live"],
     tracked_at: "2026-08-17T00:43:00Z", settled_at: "2026-08-17T04:05:00Z",
     snapshot: { sportsbook: "ProphetX", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "CourtsideCap", wallet_address: "0xcourtsidecap", average_entry: 0.468, amount: 365 } },
@@ -6068,6 +6182,7 @@ const TRACKER_PREVIEW_ROWS = [
   },
   {
     status: "won", result: "won", profit_loss: 60.9, recommended_amount: 58,
+    tags: ["Baseball", "Totals"],
     tracked_at: "2026-08-17T01:43:00Z", settled_at: "2026-08-17T05:18:00Z",
     snapshot: { sportsbook: "4CX", event_title: "Chicago Cubs vs Milwaukee Brewers", market_title: "Game Total", recommended_side: "Under 8.5 Runs", provider_entry_price: 0.4878, provider_display_odds: "+105", effective_entry_price: 0.4878, sharp_average_entry_price: 0.474, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "NorthSideEdge", wallet_address: "0xnorthsideedge", average_entry: 0.474, amount: 288 } },
@@ -6075,6 +6190,7 @@ const TRACKER_PREVIEW_ROWS = [
   },
   {
     status: "live", result: null, profit_loss: null, recommended_amount: 46,
+    tags: ["Tennis", "Live"],
     tracked_at: "2026-08-17T02:43:00Z", settled_at: null,
     snapshot: { sportsbook: "NoVIG", event_title: "Taylor Fritz vs Ben Shelton", market_title: "Moneyline", recommended_side: "Taylor Fritz", provider_entry_price: 0.6124, provider_display_odds: "-158", effective_entry_price: 0.6124, sharp_average_entry_price: 0.598, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "BaselineAlpha", wallet_address: "0xbaselinealpha", average_entry: 0.598, amount: 204 } },
@@ -6082,6 +6198,7 @@ const TRACKER_PREVIEW_ROWS = [
   },
   {
     status: "won", result: "won", profit_loss: 34.68, recommended_amount: 34,
+    tags: ["WNBA", "Totals"],
     tracked_at: "2026-08-17T03:43:00Z", settled_at: "2026-08-17T06:48:00Z",
     snapshot: { sportsbook: "ProphetX", event_title: "Seattle Storm vs Phoenix Mercury", market_title: "Game Total", recommended_side: "Over 162.5 Points", provider_entry_price: 0.495, provider_display_odds: "+102", effective_entry_price: 0.495, sharp_average_entry_price: 0.486, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "DesertTotals", wallet_address: "0xdeserttotals", average_entry: 0.486, amount: 178 } },
@@ -6094,6 +6211,7 @@ function trackerPreviewPayload(params) {
   const status = String(params.get("status") || "").toLowerCase();
   const result = String(params.get("result") || "").toLowerCase();
   const sharp = String(params.get("sharp") || "").toLowerCase();
+  const tag = String(params.get("tag") || "").toLowerCase();
   const selectedBooks = new Set(String(params.get("sportsbook") || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
   const rows = TRACKER_PREVIEW_ROWS.filter((row) => {
     const snapshot = row.snapshot || {};
@@ -6103,6 +6221,7 @@ function trackerPreviewPayload(params) {
     if (status && String(row.status || "").toLowerCase() !== status) return false;
     if (result && String(row.result || row.status || "").toLowerCase() !== result) return false;
     if (sharp && sharpName.toLowerCase() !== sharp) return false;
+    if (tag && !(row.tags || []).some((item) => String(item).toLowerCase() === tag)) return false;
     if (selectedBooks.size && !selectedBooks.has(String(snapshot.sportsbook || "").toLowerCase())) return false;
     return true;
   });
@@ -6131,13 +6250,17 @@ function trackerPreviewPayload(params) {
       { timestamp: "2026-08-16T12:00:00Z", bankroll: 10038, daily_profit: -36 },
       { timestamp: "2026-08-17T12:00:00Z", bankroll: 10122.7, daily_profit: 84.7 },
     ],
-    filter_options: { sportsbooks: ["4CX", "NoVIG", "ProphetX"], sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"] },
+    filter_options: {
+      sportsbooks: ["4CX", "NoVIG", "ProphetX"],
+      sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"],
+      tags: [...new Set(TRACKER_PREVIEW_ROWS.flatMap((row) => row.tags || []))].sort((left, right) => left.localeCompare(right)),
+    },
     sportsbook_summaries: [
       { sportsbook: "NoVIG", realized_profit_loss: 99.12, wins: 1, losses: 0, total_tracked_bets: 2 },
       { sportsbook: "ProphetX", realized_profit_loss: -37.32, wins: 1, losses: 1, total_tracked_bets: 2 },
       { sportsbook: "4CX", realized_profit_loss: 60.9, wins: 1, losses: 0, total_tracked_bets: 1 },
     ],
-    clv: { periods: { all: clvPeriod, today: clvPeriod, "7d": clvPeriod, month: clvPeriod, year: clvPeriod } },
+    clv: { periods: { all: clvPeriod, today: clvPeriod, "7d": clvPeriod, month: clvPeriod, "3m": clvPeriod, "6m": clvPeriod, year: clvPeriod } },
     clv_records: clvRecords,
   };
 }
@@ -6492,22 +6615,54 @@ function bindTracker() {
     if (event.target === dialog) dialog.close();
   }));
   document.getElementById("tracker-dashboard-tag-filter")?.addEventListener("change", (event) => {
-    const value = event.target.value;
-    document.getElementById("tracker-status").value = value === "live" ? "live" : "";
-    document.getElementById("tracker-result").value = ["won", "lost"].includes(value) ? value : "";
+    const view = appState.trackerView || "model";
+    appState.trackerSelectedTag[view] = event.target.value;
+    if (view === "personal") document.getElementById("tracker-tag").value = event.target.value;
     appState.trackerPage[appState.trackerView] = 1;
     loadTrackerView();
   });
   document.getElementById("tracker-analytics-dimension")?.addEventListener("change", loadTrackerAdvancedAnalytics);
   document.getElementById("tracker-search").addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  document.getElementById("tracker-tag")?.addEventListener("change", (event) => {
+    appState.trackerSelectedTag.personal = event.target.value;
+    if (appState.trackerView === "personal") document.getElementById("tracker-dashboard-tag-filter").value = event.target.value;
+  });
   ["tracker-status", "tracker-sharps", "tracker-sharp-wallet", "tracker-grade", "tracker-liquidity-grade", "tracker-execution-method", "tracker-result", "tracker-tag", "tracker-clv-status", "tracker-clv-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); }));
+  document.getElementById("tracker-book-filter")?.addEventListener("toggle", (event) => {
+    if (!event.target.open) {
+      appState.trackerBookDraft = null;
+      return;
+    }
+    const applied = appState.trackerSelectedBooks[appState.trackerView] || [];
+    appState.trackerBookDraft = applied.length
+      ? [...applied]
+      : trackerBookChoices(appState.trackerBookOptions[appState.trackerView]).map((book) => book.value);
+    const search = document.getElementById("tracker-book-filter-search");
+    if (search) search.value = "";
+    renderTrackerBookFilter(appState.trackerBookOptions[appState.trackerView]);
+  });
+  document.getElementById("tracker-book-filter-search")?.addEventListener("input", (event) => {
+    const query = event.target.value.trim().toLowerCase();
+    document.querySelectorAll("#tracker-book-filter-options label").forEach((label) => {
+      label.hidden = Boolean(query && !String(label.dataset.bookSearch || "").includes(query));
+    });
+  });
+  document.getElementById("tracker-book-filter-options")?.addEventListener("change", updateTrackerBookDraftFromInputs);
   document.querySelectorAll("[data-tracker-books]").forEach((button) => button.addEventListener("click", () => {
     const checked = button.dataset.trackerBooks === "all";
     document.querySelectorAll("#tracker-book-filter-options input").forEach((input) => { input.checked = checked; });
+    updateTrackerBookDraftFromInputs();
   }));
   document.getElementById("tracker-book-filter-apply").addEventListener("click", () => {
-    appState.trackerSelectedBooks[appState.trackerView] = [...document.querySelectorAll("#tracker-book-filter-options input:checked")].map((input) => input.value);
+    const inputs = [...document.querySelectorAll("#tracker-book-filter-options input")];
+    const checked = inputs.filter((input) => input.checked).map((input) => input.value);
+    if (!checked.length) {
+      showToast("Select at least one sportsbook", "error");
+      return;
+    }
+    appState.trackerSelectedBooks[appState.trackerView] = checked.length === inputs.length ? [] : checked;
     document.getElementById("tracker-book-filter").removeAttribute("open");
+    appState.trackerBookDraft = null;
     renderTrackerBookFilter(appState.trackerBookOptions[appState.trackerView]);
     appState.trackerPage[appState.trackerView] = 1;
     loadTrackerView();
