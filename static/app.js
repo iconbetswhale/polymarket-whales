@@ -5665,7 +5665,7 @@ function drawTrackerSharePulse(ctx, snapshot) {
   const stats = [
     ["Best Day", best ? signedMoney(best[1]) : "—", best ? `Day ${best[0]}` : "No settled days", "#39ef82"],
     ["Worst Day", worst ? signedMoney(worst[1]) : "—", worst ? `Day ${worst[0]}` : "No settled days", "#ff5263"],
-    ["Active Days", String(active.length), "Settled Days", "#f5f7fb"],
+    ["Active Days", String(active.length), "", "#f5f7fb"],
   ];
   stats.forEach(([label, value, detail, tone], index) => {
     const x = 88 + index * 305;
@@ -6220,7 +6220,7 @@ function trackerCalendarPulseMarkup(daily = new Map(), anchor = new Date()) {
     <div class="tracker-calendar-pulse-stats">
       <span><small>Best Day</small><strong class="positive">${best ? escapeHtml(signedMoney(best[1])) : "—"}</strong><b>${escapeHtml(dateLabel(best))}</b></span>
       <span><small>Worst Day</small><strong class="negative">${worst ? escapeHtml(signedMoney(worst[1])) : "—"}</strong><b>${escapeHtml(dateLabel(worst))}</b></span>
-      <span><small>Active Days</small><strong>${active.length}</strong><b>Settled Days</b></span>
+      <span><small>Active Days</small><strong>${active.length}</strong></span>
     </div>
     <div class="tracker-calendar-weekday-pulse">
       <span>Day of Week Performance</span>

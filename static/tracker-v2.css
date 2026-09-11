@@ -322,7 +322,7 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result 
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy strong {
-  font: 700 16px/1.1 var(--il-font-data);
+  font: 700 18px/1.1 var(--il-font-data);
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds strong,
@@ -348,14 +348,22 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy sm
   align-items: center;
   gap: 5px;
   color: var(--il-text-secondary);
+  font-size: 14px;
+  line-height: 1;
   letter-spacing: 0;
   text-transform: none;
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy small i {
   flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: #8091ad;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy small span {

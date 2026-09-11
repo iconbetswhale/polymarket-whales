@@ -314,6 +314,10 @@ def test_dashboard_uses_global_tags_and_searchable_multibook_filters(app_client)
     assert 'sports_market_type: "Moneyline"' in SCRIPT
     assert 'sports_market_type: "Spread"' in SCRIPT
     assert ".tracker-calendar-detail-meta" in CSS
+    assert "font: 700 18px/1.1 var(--il-font-data);" in CSS
+    assert "font-size: 14px;\n  line-height: 1;" in CSS
+    assert '["Active Days", String(active.length), "", "#f5f7fb"]' in SCRIPT
+    assert "<b>Settled Days</b>" not in SCRIPT
     assert "function trackerPreviewFilteredGraph" in SCRIPT
     assert "const filtersActive = Boolean(search || status || result || sharp || tag || selectedBooks.size);" in SCRIPT
     assert "function trackerBookChoices" in SCRIPT
@@ -426,6 +430,6 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v33-inline-tags-sport-icons" in BASE[canonical : canonical + 220]
+    assert "-canonical-v34-bet-label-type" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v44-production-market-labels" in BASE[script : script + 220]
+    assert "-live-feeds-v45-calendar-label-polish" in BASE[script : script + 220]
