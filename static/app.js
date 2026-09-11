@@ -4820,7 +4820,7 @@ function trackerMobileModelBet(row) {
   const entry = actual ?? intended ?? number(snapshot.provider_entry_price);
   const displayEntry = snapshot.provider_display_odds || (entry === null ? "—" : formatCents(entry));
   const selection = snapshot.recommended_side || "Selection";
-  const market = snapshot.market_type || snapshot.market_kind || snapshot.market_title || snapshot.canonical_market_slug || "";
+  const market = snapshot.sports_market_type || snapshot.market_type || snapshot.market_kind || snapshot.market_title || snapshot.canonical_market_slug || "";
   const sharpEntry = number(primary.average_entry ?? snapshot.sharp_average_entry_price);
   const sharpStake = number(primary.amount);
   const pnl = number(row.profit_loss);
@@ -4855,7 +4855,7 @@ function trackerMobilePersonalBet(row) {
     ? `<a class="tracker-mobile-provider" href="${escapeHtml(row.market_url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(provider.name)} market">${providerLogoMarkup(provider, provider.name)}</a>`
     : `<span class="tracker-mobile-provider" title="${escapeHtml(provider.name)}">${providerLogoMarkup(provider, provider.name)}</span>`;
   return `<details class="tracker-mobile-bet">
-    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(row.selection || "Selection", row.market_title || row.market_type || "", row.market_line ?? row.line, row.event_title, row.player_name || row.participant_name, trackerSportDescriptor({}, row)))}</strong><b>${escapeHtml(formatCents(row.entry_price))}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(row.selection || "Selection", row.sports_market_type || row.market_title || row.market_type || "", row.market_line ?? row.line, row.event_title, row.player_name || row.participant_name, trackerSportDescriptor({}, row)))}</strong><b>${escapeHtml(formatCents(row.entry_price))}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
     <div class="tracker-mobile-details">
       ${trackerMobileDetail("Event", `<strong>${escapeHtml(trackerShortMatchup(row.event_title || "Market"))}</strong>`, "wide")}
       ${trackerMobileDetail("Sharp", trackerSharpCompact(sharpSnapshot))}
@@ -6109,7 +6109,7 @@ function trackerCalendarBetMarkup(row = {}) {
   const sportsbook = trackerSportsbookName({ sportsbook: snapshot.sportsbook || row.sportsbook || row.provider || "Sportsbook" });
   const provider = trackerProviderMeta(sportsbook);
   const marketTitle = snapshot.market_title || row.market_title || snapshot.market_type || row.market_type || "Tracked Bet";
-  const market = [snapshot.market_type, snapshot.market_kind, marketTitle, row.market_type]
+  const market = [snapshot.sports_market_type, snapshot.market_type, snapshot.market_kind, marketTitle, row.sports_market_type, row.market_type]
     .filter(Boolean)
     .filter((value, index, values) => values.findIndex((candidate) => String(candidate).toLowerCase() === String(value).toLowerCase()) === index)
     .join(" ");
@@ -7080,7 +7080,7 @@ const TRACKER_PREVIEW_ROWS = [
     status: "won", result: "won", profit_loss: 99.12, recommended_amount: 84,
     tags: ["Prediction Traders", "Baseball", "Line Shopping"],
     tracked_at: "2026-08-16T23:43:00Z", settled_at: "2026-08-17T03:12:00Z",
-    snapshot: { sportsbook: "NoVIG", category: "MLB", event_title: "New York Mets vs Philadelphia Phillies", market_title: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
+    snapshot: { sportsbook: "NoVIG", category: "MLB", event_title: "New York Mets vs Philadelphia Phillies", market_title: "New York Mets vs Philadelphia Phillies", sports_market_type: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "Bagwell306", wallet_address: "0xbagwell306", average_entry: 0.446, amount: 420 } },
     clv: { clv_status: "captured", clv_pct: 5.62, clv_cents: 2.6, provider: "NoVIG", entry_native_odds: 118, entry_price: 0.4587, closing_effective_price: 0.4845, closing_midpoint: 0.482, midpoint_clv_pct: 5.08, comparison_stake: 84, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T00:40:00Z", official_event_start_timestamp: "2026-08-17T01:10:00Z", quote_age_ms: 28000 },
   },
@@ -7088,7 +7088,7 @@ const TRACKER_PREVIEW_ROWS = [
     status: "lost", result: "lost", profit_loss: -72, recommended_amount: 72,
     tags: ["Sharp Money", "WNBA", "Live"],
     tracked_at: "2026-08-17T00:43:00Z", settled_at: "2026-08-17T04:05:00Z",
-    snapshot: { sportsbook: "ProphetX", category: "WNBA", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
+    snapshot: { sportsbook: "ProphetX", category: "WNBA", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Las Vegas Aces vs New York Liberty", sports_market_type: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "CourtsideCap", wallet_address: "0xcourtsidecap", average_entry: 0.468, amount: 365 } },
     clv: { clv_status: "captured", clv_pct: 4.18, clv_cents: 2.0, provider: "ProphetX", entry_native_odds: 108, entry_price: 0.4808, closing_effective_price: 0.5009, closing_midpoint: 0.499, midpoint_clv_pct: 3.79, comparison_stake: 72, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T01:55:00Z", official_event_start_timestamp: "2026-08-17T02:15:00Z", quote_age_ms: 21000 },
   },
