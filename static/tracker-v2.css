@@ -18,6 +18,548 @@ body[data-design-system="v2"][data-page="tracker"] .app-shell {
   background: var(--il-bg-app);
 }
 
+/* Calendar replay workspace: selected-day review plus monthly context. */
+body[data-design-system="v2"][data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-performance-frame {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background: var(--il-surface-1) !important;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-calendar {
+  padding: 0 !important;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-layout {
+  min-height: 520px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.72fr) minmax(340px, .92fr);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-main {
+  min-width: 0;
+  padding: 22px 20px 20px;
+  display: flex;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-grid {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  flex: 1 1 auto;
+  gap: 8px 6px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-grid[data-calendar-weeks="5"] {
+  grid-template-rows: auto repeat(5, minmax(76px, 1fr));
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-grid[data-calendar-weeks="6"] {
+  grid-template-rows: auto repeat(6, minmax(66px, 1fr));
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday {
+  padding-bottom: 8px;
+  color: var(--il-text-muted);
+  font: 650 13px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-blank {
+  min-height: 76px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] button.tracker-calendar-day {
+  position: relative;
+  width: 100%;
+  padding: 7px 5px;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: 10px;
+  outline: 0;
+  background: #141c27;
+  color: var(--il-text-primary);
+  cursor: pointer;
+  transition: border-color 140ms ease, background-color 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+body[data-design-system="v2"][data-page="tracker"] button.tracker-calendar-day:hover:not(:disabled) {
+  border-color: var(--il-border-strong);
+  transform: translateY(-1px);
+}
+
+body[data-design-system="v2"][data-page="tracker"] button.tracker-calendar-day:disabled {
+  cursor: default;
+}
+
+body[data-design-system="v2"][data-page="tracker"] button.tracker-calendar-day:focus-visible,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.selected {
+  border-color: var(--il-brand-hover);
+  box-shadow: inset 0 0 0 1px var(--il-brand-hover), 0 0 0 2px var(--il-brand-outline);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day small {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: var(--il-text-secondary);
+  font: 600 16px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day strong {
+  position: absolute;
+  top: 24px;
+  right: 0;
+  bottom: 1px;
+  left: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: none;
+  color: var(--il-text-muted);
+  font: 700 26px/1 var(--il-font-data);
+  letter-spacing: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.positive {
+  border-color: rgba(57, 239, 130, .12);
+  background: rgba(21, 92, 61, .46);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.positive:hover {
+  border-color: rgba(57, 239, 130, .38);
+  background: rgba(24, 108, 70, .54);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.positive strong {
+  color: var(--il-positive);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.negative {
+  border-color: rgba(255, 82, 99, .12);
+  background: rgba(92, 36, 48, .58);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.negative:hover {
+  border-color: rgba(255, 82, 99, .38);
+  background: rgba(111, 39, 52, .62);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.negative strong {
+  color: var(--il-negative);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.neutral {
+  border-color: rgba(125, 137, 158, .1);
+  background: #141c27;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.future {
+  opacity: .42;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.outside-month {
+  min-height: 76px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 14px;
+  border: 1px solid rgba(125, 137, 158, .06);
+  border-radius: 10px;
+  background: rgba(15, 21, 31, .58);
+  opacity: .42;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-insights {
+  min-width: 0;
+  padding: 18px 18px 16px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--il-border-subtle);
+  background: rgba(9, 15, 25, .42);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail {
+  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading > span {
+  margin: 0;
+  color: #9eacc3;
+  font: 700 13px/1.2 var(--il-font-ui);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse h3 {
+  margin: 0;
+  color: #9eacc3;
+  font: 700 16px/1.2 var(--il-font-ui);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading > strong {
+  color: var(--il-text-primary);
+  font: 700 38px/1 var(--il-font-data);
+  letter-spacing: -.035em;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading > strong.positive,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats strong.positive {
+  color: var(--il-positive);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading > strong.negative,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats strong.negative {
+  color: var(--il-negative);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-heading > small {
+  color: var(--il-text-secondary);
+  font: 650 16px/1.2 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-tags {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-tags span {
+  padding: 6px 11px;
+  border: 1px solid rgba(158, 92, 255, .18);
+  border-radius: 7px;
+  background: rgba(141, 68, 246, .12);
+  color: #c9c2dd;
+  font: 650 11px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-list.scrollable {
+  max-height: 131px;
+  padding-right: 5px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: var(--il-border-strong) transparent;
+  scrollbar-width: thin;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-row {
+  min-width: 0;
+  min-height: 62px;
+  padding: 9px 10px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) minmax(52px, auto) minmax(64px, auto);
+  align-items: center;
+  column-gap: 13px;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: 8px;
+  background: var(--il-surface-2);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-row .provider-logo-mark {
+  width: 26px;
+  height: 26px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy {
+  align-items: flex-start;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result {
+  align-items: center;
+  justify-self: stretch;
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy strong,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds strong,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result strong {
+  color: var(--il-text-primary);
+  font: 700 16px/1.1 var(--il-font-data);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy small,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds small,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result small {
+  overflow: hidden;
+  color: var(--il-text-muted);
+  font: 600 12px/1.1 var(--il-font-ui);
+  letter-spacing: .05em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-copy small {
+  max-width: 100%;
+  color: var(--il-text-secondary);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result strong.positive {
+  color: var(--il-positive);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-result strong.negative {
+  color: var(--il-negative);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-detail-empty {
+  min-height: 72px;
+  margin: 12px 0 0;
+  display: grid;
+  place-items: center;
+  border-top: 1px solid var(--il-border-subtle);
+  color: var(--il-text-muted);
+  font: 600 14px/1.45 var(--il-font-ui);
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-view-bets {
+  min-height: 30px;
+  margin: 9px 0 0 auto;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  color: var(--il-brand-hover);
+  font: 700 14px/1 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-view-bets:hover:not(:disabled),
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-view-bets:focus-visible {
+  color: #bd8bff;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-view-bets:disabled {
+  opacity: .36;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--il-border-subtle);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1.05fr) minmax(0, .9fr);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats > span {
+  min-width: 0;
+  padding: 0 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-left: 1px solid var(--il-border-subtle);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats > span:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats > span:last-child {
+  padding-right: 0;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats small,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats b {
+  overflow: hidden;
+  color: var(--il-text-muted);
+  font: 600 14px/1.15 var(--il-font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse-stats strong {
+  overflow: hidden;
+  color: var(--il-text-primary);
+  font: 700 24px/1 var(--il-font-data);
+  letter-spacing: -.05em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-pulse {
+  margin-top: 15px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-pulse > span {
+  display: block;
+  color: var(--il-text-secondary);
+  font: 650 14px/1.2 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-chart-shell {
+  position: relative;
+  width: 100%;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-pulse canvas {
+  width: 100%;
+  height: 112px;
+  display: block;
+  cursor: crosshair;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-pulse > small {
+  overflow: hidden;
+  color: var(--il-text-muted);
+  font: 600 12px/1.15 var(--il-font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 104px;
+  padding: 7px 9px;
+  border: 1px solid var(--il-border-standard);
+  border-radius: 7px;
+  background: rgba(15, 21, 31, .96);
+  box-shadow: var(--il-shadow-tooltip);
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  text-align: center;
+  white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-tooltip span {
+  display: block;
+  color: var(--il-text-muted);
+  font: 650 11px/1.15 var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-tooltip strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--il-text-primary);
+  font: 700 14px/1.15 var(--il-font-data);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-tooltip strong.positive {
+  color: var(--il-positive);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-weekday-tooltip strong.negative {
+  color: var(--il-negative);
+}
+
+@media (max-width: 1100px) {
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-insights {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 18px;
+    border-top: 1px solid var(--il-border-subtle);
+    border-left: 0;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse {
+    margin-top: 0;
+    padding: 0 0 0 18px;
+    border-top: 0;
+    border-left: 1px solid var(--il-border-subtle);
+  }
+}
+
+@media (max-width: 700px) {
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-layout {
+    min-height: 0;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-main {
+    padding: 13px 8px 14px;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-grid {
+    gap: 5px;
+    grid-template-rows: auto;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day,
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.outside-month {
+    min-height: 52px;
+    border-radius: 8px;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day {
+    gap: 4px;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day small {
+    font-size: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day strong {
+    top: 18px;
+    font-size: 10px;
+    letter-spacing: -.035em;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-insights {
+    padding: 16px 13px;
+    display: flex;
+    gap: 0;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-pulse {
+    margin-top: 16px;
+    padding: 16px 0 0;
+    border-top: 1px solid var(--il-border-subtle);
+    border-left: 0;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-row {
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-bet-odds {
+    display: none;
+  }
+}
+
 body[data-design-system="v2"][data-page="tracker"] .brand-icon {
   display: none;
 }
@@ -365,7 +907,7 @@ body[data-design-system="v2"][data-page="tracker"] #tracker-period-previous {
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-period-heading .eyebrow {
-  font: 700 11px/1.2 var(--il-font-ui);
+  font: 700 12px/1.2 var(--il-font-ui);
 }
 
 body[data-design-system="v2"][data-page="tracker"] .tracker-period-heading h2 {
@@ -412,7 +954,7 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-share-trigger {
   border-radius: var(--il-radius-control);
   background: var(--il-surface-2);
   color: var(--il-text-secondary);
-  font: 650 14px/1 var(--il-font-ui);
+  font: 700 14px/1 var(--il-font-ui);
   box-shadow: none;
 }
 
@@ -440,7 +982,7 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-profit-controls .seg
   border-radius: 5px;
   background: transparent;
   color: var(--il-text-muted);
-  font: 650 14px/1 var(--il-font-ui);
+  font: 700 14px/1 var(--il-font-ui);
   box-shadow: none;
 }
 
@@ -635,10 +1177,10 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-performance-summary 
   min-width: 0;
   min-height: 68px;
   padding: 8px 16px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  display: grid;
+  grid-template-rows: auto auto 13px;
+  align-content: center;
+  justify-items: center;
   gap: 2px;
   border-left: 0;
   border-right: 0;
@@ -1640,18 +2182,79 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-share-layout {
   align-items: start;
 }
 
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-browser {
+  min-width: 0;
+  display: grid;
+  gap: 10px;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-sections {
+  min-width: 0;
+  padding: 3px;
+  display: flex;
+  gap: 3px;
+  overflow-x: auto;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-2);
+  scrollbar-width: thin;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-sections button {
+  min-height: 32px;
+  padding: 0 11px;
+  flex: 0 0 auto;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--il-text-secondary);
+  font: 650 12px/1 var(--il-font-ui);
+  white-space: nowrap;
+  box-shadow: none;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-sections button:hover,
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-sections button:focus-visible {
+  border-color: var(--il-border-strong);
+  background: var(--il-surface-hover);
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-sections button.active {
+  border-color: var(--il-brand);
+  background: var(--il-surface-selected-badge);
+  color: var(--il-text-primary);
+}
+
 body[data-design-system="v2"][data-page="tracker"] .tracker-share-preview {
   min-width: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
   border: 1px solid var(--il-border-subtle);
   border-radius: 14px;
   background: var(--il-bg-workspace);
-  overflow: hidden;
+  scroll-behavior: smooth;
+  scroll-snap-type: x mandatory;
+  scrollbar-color: var(--il-border-strong) transparent;
+  scrollbar-width: thin;
 }
 
-body[data-design-system="v2"][data-page="tracker"] .tracker-share-preview canvas {
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-track {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-slide {
+  min-width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-share-slide canvas {
   display: block;
   width: auto;
   max-width: 100%;
@@ -1991,7 +2594,7 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-dialog-actions {
     gap: 14px;
   }
 
-  body[data-design-system="v2"][data-page="tracker"] .tracker-share-preview canvas {
+  body[data-design-system="v2"][data-page="tracker"] .tracker-share-slide canvas {
     width: 100%;
     height: auto;
     max-height: min(52vh, 520px);
@@ -2184,5 +2787,41 @@ body[data-design-system="v2"][data-page="tracker"] .tracker-dialog-actions {
   body[data-design-system="v2"][data-page="tracker"] .tracker-dialog-shell,
   body[data-design-system="v2"][data-page="tracker"] .tracker-clv-dialog-shell {
     padding: var(--il-space-4);
+  }
+}
+
+/* Keep the calendar workspace authoritative over the legacy calendar sizing above. */
+body[data-design-system="v2"][data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-performance-frame {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-calendar {
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-grid {
+  width: 100%;
+  max-width: none;
+}
+
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day,
+body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-blank {
+  min-height: 76px;
+}
+
+@media (max-width: 700px) {
+  body[data-design-system="v2"][data-page="tracker"] .tracker-bankroll-panel[data-performance-view="calendar"] .tracker-calendar {
+    padding: 0 !important;
+  }
+
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day,
+  body[data-design-system="v2"][data-page="tracker"] .tracker-calendar-day.outside-month {
+    min-height: 52px;
   }
 }

@@ -74,12 +74,22 @@ def test_tracker_v2_keeps_responsive_and_interactive_contracts() -> None:
     assert "renderTrackerPerformance" in SCRIPT
 
 
-def test_tracker_performance_chart_and_calendar_share_a_persistent_month() -> None:
+def test_tracker_performance_chart_and_calendar_share_one_timeframe_filter() -> None:
     assert "trackerPeriodAnchor: null" in SCRIPT
-    assert "params.graph_month" in SCRIPT
-    assert "trackerLocalMonthPayload" in SCRIPT
-    assert "shiftTrackerPerformanceMonth(-1)" in SCRIPT
-    assert 'button.hidden = appState.graphRange !== "month"' in SCRIPT
+    assert "trackerTimeframeDateBounds" in SCRIPT
+    assert "trackerIsoDate" in SCRIPT
+    assert "syncTrackerTimeframeControls" in SCRIPT
+    assert 'graph_range: "all"' in SCRIPT
+    assert 'tracker_range: "custom"' in SCRIPT
+    assert "trackerDefaultPeriodAnchor" in SCRIPT
+    assert "trackerWeekEnd" in SCRIPT
+    assert "trackerShiftedPeriodAnchor" in SCRIPT
+    assert "shiftTrackerPerformancePeriod(-1)" in SCRIPT
+    assert "button.hidden = !navigableRange" in SCRIPT
+    assert 'return `${startText}–${endText}, ${anchor.getFullYear()}`' in SCRIPT
+    assert 'data-range="custom"' in TEMPLATE
+    assert "Custom Dates" in TEMPLATE
+    assert 'id="tracker-date-range"' not in TEMPLATE
     assert 'canvas.addEventListener("pointermove"' in SCRIPT
     assert 'canvas.addEventListener("keydown"' in SCRIPT
     assert 'drawExtrema(highest, "High", true)' in SCRIPT
@@ -113,11 +123,71 @@ def test_tracker_performance_chart_and_calendar_share_a_persistent_month() -> No
     assert 'ctx.font = `${12 * ratio}px Inter, system-ui, sans-serif`' in SCRIPT
 
 
+def test_tracker_calendar_combines_day_details_with_monthly_pulse() -> None:
+    for contract in (
+        "trackerCalendarSelectedDay: null",
+        "trackerCalendarFitObserver: null",
+        "function trackerCalendarRowsByDay",
+        "function trackerCalendarDetailMarkup",
+        "function trackerCalendarPulseMarkup",
+        "function drawTrackerWeekdayPulse",
+        "function openTrackerCalendarDayBets",
+        "function fitTrackerCalendarDayValues",
+        "Day of Week Performance",
+        'class="tracker-calendar-weekday-tooltip"',
+        "canvas.onmousemove",
+        "bar.value !== 0",
+        "Math.min(42, Math.max(16, slot * 0.74))",
+        "rows.map(trackerCalendarBetMarkup)",
+        "rows.length > 2",
+        "absoluteAmount.toFixed(2)",
+        'class="tracker-calendar-layout"',
+        'class="tracker-calendar-insights"',
+        'data-tracker-calendar-day="${day}"',
+        'renderTrackerCalendar(points, payload)',
+    ):
+        assert contract in SCRIPT
+
+    for selector in (
+        ".tracker-calendar-layout",
+        ".tracker-calendar-insights",
+        ".tracker-calendar-detail",
+        ".tracker-calendar-bet-row",
+        ".tracker-calendar-pulse",
+        ".tracker-calendar-weekday-pulse canvas",
+        ".tracker-calendar-day.selected",
+    ):
+        assert selector in CSS
+
+    assert "background: rgba(21, 92, 61, .46);" in CSS
+    assert "background: rgba(92, 36, 48, .58);" in CSS
+    assert "background: #141c27;" in CSS
+    assert 'outside-month" aria-hidden="true"></span>' in SCRIPT
+    assert "font: 650 13px/1 var(--il-font-ui);" in CSS
+    assert "font: 600 16px/1 var(--il-font-ui);" in CSS
+    assert "font: 700 26px/1 var(--il-font-data);" in CSS
+    assert "letter-spacing: 0;" in CSS
+    assert "top: 24px;" in CSS
+    assert "align-items: center;" in CSS
+    assert "fitTrackerCalendarDayValues(container);" in SCRIPT
+    assert "const centeredContentWidth = (reportedWidth * 2) - availableWidth;" in SCRIPT
+    assert "font: 700 38px/1 var(--il-font-data);" in CSS
+    assert "font: 700 24px/1 var(--il-font-data);" in CSS
+    assert ".tracker-calendar-bet-list.scrollable" in CSS
+    assert "max-height: 131px;" in CSS
+    assert "grid-template-columns: 30px minmax(0, 1fr) minmax(52px, auto) minmax(64px, auto);" in CSS
+    assert "justify-self: stretch;" in CSS
+
+
 def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
     for element_id in (
         "tracker-share-open",
         "tracker-share-dialog",
         "tracker-share-canvas",
+        "tracker-share-calendar-canvas",
+        "tracker-share-pulse-canvas",
+        "tracker-share-clv-canvas",
+        "tracker-share-profit-canvas",
         "tracker-share-download",
         "tracker-share-copy-link",
         "tracker-share-social",
@@ -125,7 +195,8 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
         assert f'id="{element_id}"' in TEMPLATE
 
     assert 'id="tracker-share-copy-image"' not in TEMPLATE
-    assert "Monthly Recap" in TEMPLATE
+    assert "Share Dashboard" in TEMPLATE
+    assert "Monthly Pulse" in TEMPLATE
     assert "Ready to Share" in TEMPLATE
     assert "Save Image" in TEMPLATE
     assert "Copy Image Link" in TEMPLATE
@@ -133,12 +204,27 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
 
     assert "iconlabs-mark-transparent-v3.png" in TEMPLATE
     assert "function trackerShareSnapshot()" in SCRIPT
-    assert "async function renderTrackerShareCard()" in SCRIPT
+    assert "const TRACKER_SHARE_SECTIONS" in SCRIPT
+    assert "async function renderTrackerShareCard(section = appState.trackerShareSection)" in SCRIPT
+    assert "async function renderTrackerShareGallery()" in SCRIPT
+    assert "function syncTrackerShareSectionFromScroll()" in SCRIPT
+    assert SCRIPT.count("ctx.fillText(snapshot.profitText, 992, 285);") >= 2
+    assert "const TRACKER_SHARE_DESKTOP_PREVIEW_SCALE = 610 / 1350;" in SCRIPT
+    assert "const TRACKER_SHARE_MONTHLY_PROFIT_FONT_PX = Math.round(22 / TRACKER_SHARE_DESKTOP_PREVIEW_SCALE);" in SCRIPT
+    assert SCRIPT.count("ctx.font = `800 ${TRACKER_SHARE_MONTHLY_PROFIT_FONT_PX}px Inter, system-ui, sans-serif`;") >= 2
+    assert 'ctx.fillText("DAY OF WEEK PERFORMANCE", 88, weekdayHeadingY);' in SCRIPT
+    assert "const valueText = signedMoney(value);" in SCRIPT
+    assert "ctx.fillText(valueText, x + barWidth / 2, valueY);" in SCRIPT
+    assert "Math.max(weekdayHeadingY + 35, y - 13)" in SCRIPT
+    assert 'ctx.fillText("DAILY PROFIT / LOSS"' not in SCRIPT
+    assert "let periodSize = 27;" in SCRIPT
+    assert "ctx.font = \"600 21px Inter, system-ui, sans-serif\";" in SCRIPT
+    assert "appState.trackerShareScrollTimer = window.setTimeout" in SCRIPT
     assert "function drawTrackerShareChart(ctx, snapshot)" in SCRIPT
     assert 'const chart = { x: 72, y: 495, width: 936, height: 598 };' in SCRIPT
     assert 'drawExtrema(highest, "High", true);' in SCRIPT
     assert 'drawExtrema(lowest, "Low", false);' in SCRIPT
-    assert "clv_month_summaries" in SCRIPT
+    assert "payload.clv?.periods?.all" in SCRIPT
     assert 'canvas.toBlob(' in SCRIPT
     assert "copyTrackerShareImage" not in SCRIPT
     assert 'rendered.canvas.toDataURL("image/png")' in SCRIPT
@@ -146,6 +232,9 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
     assert ".tracker-share-trigger" in CSS
     assert ".tracker-share-dialog" in CSS
     assert ".tracker-share-actions" in CSS
+    assert ".tracker-share-sections" in CSS
+    assert ".tracker-share-slide" in CSS
+    assert "scroll-snap-type: x mandatory;" in CSS
 
 
 def test_tracker_clv_card_uses_requested_type_scale_and_contextual_help() -> None:
@@ -238,13 +327,15 @@ def test_tracker_global_toolbar_orders_bankroll_filters_and_range() -> None:
         'id="tracker-book-filter"'
     )
     assert toolbar.index('id="tracker-book-filter"') < toolbar.index(
-        'id="tracker-date-range"'
-    )
-    assert toolbar.index('id="tracker-date-range"') < toolbar.index(
         'id="graph-range"'
     )
     assert 'id="tracker-share-open"' not in toolbar
     assert 'Search Sportsbooks, Exchanges, And DFS' in toolbar
+    assert 'id="tracker-date-range"' not in toolbar
+    assert 'id="tracker-group-by-control"' not in toolbar
+    assert 'aria-label="Tracker timeframe"' in toolbar
+    assert 'data-range="custom"' in toolbar
+    assert 'Custom Dates' in toolbar
     assert 'class="segmented tracker-graph-range"' in toolbar
     performance_controls = TEMPLATE.split(
         '<div class="tracker-performance-controls">', 1
@@ -307,6 +398,6 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v20d-share-period-buttons" in BASE[canonical : canonical + 220]
+    assert "-canonical-v30-calendar-profit-26" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v21-global-toolbar" in BASE[script : script + 220]
+    assert "-live-feeds-v36-calendar-profit-26" in BASE[script : script + 220]

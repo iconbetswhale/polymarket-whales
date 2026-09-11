@@ -593,6 +593,8 @@ def _tracker_graph_window(
     graph_range: str, graph_month: str
 ) -> tuple[datetime, datetime | None, str | None]:
     now = datetime.now(timezone.utc)
+    if graph_range == "all":
+        return datetime(1970, 1, 1, tzinfo=timezone.utc), None, None
     if graph_range == "month":
         if graph_month:
             try:

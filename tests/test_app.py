@@ -2407,6 +2407,16 @@ def test_model_tracker_global_date_filter_constrains_graph_and_clv_metrics(
     assert payload["clv"]["periods"]["month"]["bets_measured"] == 1
     assert payload["period_summary"]["wins"] == 0
     assert payload["period_summary"]["losses"] == 1
+    unified_range = app_client.get(
+        "/api/model-tracker?tracker_range=custom"
+        "&tracker_start=2026-09-01&tracker_end=2026-09-30"
+        "&graph_range=all"
+    )
+    unified_payload = unified_range.get_json()
+    assert unified_range.status_code == 200
+    assert unified_payload["graph_period"]["month"] is None
+    assert len(unified_payload["graph"]) == 1
+    assert unified_payload["period_summary"]["losses"] == 1
     assert app_client.get(
         "/api/model-tracker?graph_range=month&graph_month=August-2026"
     ).status_code == 400
