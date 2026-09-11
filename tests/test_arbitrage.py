@@ -381,7 +381,11 @@ def test_arbitrage_leg_can_be_saved_to_the_personal_tracker(app_client) -> None:
     payload = response.get_json()
     assert payload["source"] == "arbitrage"
     tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    arb_tracker = app_client.get(
+        "/api/personal-tracker?tracker_range=all&tag=Arbitrage"
+    ).get_json()
     assert tracker["pagination"]["total"] == 1
+    assert arb_tracker["pagination"]["total"] == 1
     assert tracker["data"][0]["selection"] == "Over 7.5"
     assert tracker["data"][0]["sportsbook"] == "Bet365"
 

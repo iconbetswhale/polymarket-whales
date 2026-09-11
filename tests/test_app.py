@@ -2020,7 +2020,16 @@ def test_model_tracker_filters_multiple_books_and_recalculates_combined_pnl(app_
     assert {
         item["sportsbook"] for item in tagged["sportsbook_summaries"]
     } == {"DraftKings", "FanDuel"}
-    assert tagged["filter_options"]["tags"] == ["Baseball", "Priority", "Tennis"]
+    assert tagged["filter_options"]["tags"] == [
+        "Arbitrage",
+        "Baseball",
+        "Middles",
+        "Positive EV",
+        "Prediction Traders",
+        "Priority",
+        "Sharp Money",
+        "Tennis",
+    ]
 
 
 def test_tracker_bankroll_api_is_independent_from_trade_bankroll(app_client):
@@ -3017,7 +3026,11 @@ def test_positive_ev_bet_is_shared_with_bet_tracker_and_lab_my_bets(app_client):
     assert payload["data"]["position_cost"] == pytest.approx(84)
 
     bet_tracker = app_client.get("/api/personal-tracker?tracker_range=all").get_json()
+    positive_ev_filter = app_client.get(
+        "/api/personal-tracker?tracker_range=all&tag=Positive%20EV"
+    ).get_json()
     assert bet_tracker["pagination"]["total"] == 1
+    assert positive_ev_filter["pagination"]["total"] == 1
     assert bet_tracker["data"][0]["selection"] == "Philadelphia Phillies"
     assert bet_tracker["data"][0]["sportsbook"] == "DraftKings"
 
@@ -3103,6 +3116,9 @@ def test_personal_tracker_filters_books_and_tags_with_separate_stats(
         "/api/personal-tracker?sportsbook=DraftKings"
     ).get_json()
     live_tag = app_client.get("/api/personal-tracker?tag=Live").get_json()
+    traders_tag = app_client.get(
+        "/api/personal-tracker?tag=Prediction%20Traders"
+    ).get_json()
     options = app_client.get("/api/personal-tracker/options").get_json()["data"]
 
     assert combined["summary"]["total_tracked_bets"] == 2
@@ -3115,8 +3131,18 @@ def test_personal_tracker_filters_books_and_tags_with_separate_stats(
     assert live_tag["pagination"]["total"] == 1
     assert live_tag["summary"]["losses"] == 1
     assert live_tag["data"][0]["tags"] == ["Tennis", "Live"]
+    assert traders_tag["pagination"]["total"] == 2
     assert options["sportsbooks"] == ["DraftKings", "FanDuel"]
-    assert options["tags"] == ["Live", "Tennis", "Value"]
+    assert options["tags"] == [
+        "Arbitrage",
+        "Live",
+        "Middles",
+        "Positive EV",
+        "Prediction Traders",
+        "Sharp Money",
+        "Tennis",
+        "Value",
+    ]
 
 
 def test_personal_tracker_rejects_invalid_tag_metadata(app_client, monkeypatch):

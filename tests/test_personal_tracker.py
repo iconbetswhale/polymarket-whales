@@ -4,14 +4,17 @@ import json
 
 from database import TrackerDatabase
 from personal_tracker import (
+    PERSONAL_TOOL_TAGS,
     canonical_trade_identity,
     identity_key,
     normalize_personal_tags,
     normalize_sportsbook,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    personal_filter_tags_from_fill,
     personal_tags_from_fill,
     replay_personal_tracker,
+    tool_tag_for_tracking_source,
 )
 
 
@@ -89,6 +92,31 @@ def test_personal_book_and_tags_are_normalized_without_losing_display_case():
         "Live",
         "Favorites",
     ]
+
+
+def test_tool_origin_tags_are_automatic_filters_not_personal_tag_slots():
+    assert PERSONAL_TOOL_TAGS == (
+        "Prediction Traders",
+        "Sharp Money",
+        "Positive EV",
+        "Arbitrage",
+        "Middles",
+    )
+    assert tool_tag_for_tracking_source("prediction_traders") == "Prediction Traders"
+    assert tool_tag_for_tracking_source("sharp-money") == "Sharp Money"
+    assert tool_tag_for_tracking_source("positive_ev") == "Positive EV"
+    assert tool_tag_for_tracking_source("arbitrage") == "Arbitrage"
+    assert tool_tag_for_tracking_source("middles") == "Middles"
+
+    fill = {
+        "tags": ["Baseball", "Value"],
+        "sharp_snapshot": {"tracking_source": "arbitrage"},
+    }
+    assert personal_tags_from_fill(fill) == ["Baseball", "Value"]
+    assert personal_filter_tags_from_fill(fill) == ["Baseball", "Value", "Arbitrage"]
+    assert personal_filter_tags_from_fill(
+        {"tags": ["Legacy"], "sharp_snapshot": {"primary_sharp": {"wallet_id": "sharp-1"}}}
+    ) == ["Legacy", "Prediction Traders"]
 
 
 def test_exposure_priority_is_opposing_then_exact_then_same_event():

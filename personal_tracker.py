@@ -27,6 +27,26 @@ PERSONAL_SPORTSBOOK_CHOICES = (
 )
 MAX_PERSONAL_TAGS = 8
 MAX_PERSONAL_TAG_LENGTH = 32
+PERSONAL_TOOL_TAGS = (
+    "Prediction Traders",
+    "Sharp Money",
+    "Positive EV",
+    "Arbitrage",
+    "Middles",
+)
+_TRACKING_SOURCE_TOOL_TAGS = {
+    "traders": "Prediction Traders",
+    "predictiontraders": "Prediction Traders",
+    "tradestoplay": "Prediction Traders",
+    "sharp": "Sharp Money",
+    "sharpmoney": "Sharp Money",
+    "positiveev": "Positive EV",
+    "ev": "Positive EV",
+    "arbitrage": "Arbitrage",
+    "arb": "Arbitrage",
+    "middles": "Middles",
+    "middle": "Middles",
+}
 
 
 def normalize_sportsbook(value: Any) -> str:
@@ -72,6 +92,41 @@ def personal_tags_from_fill(fill: dict[str, Any]) -> list[str]:
         return normalize_personal_tags(value)
     except ValueError:
         return []
+
+
+def tool_tag_for_tracking_source(value: Any) -> str | None:
+    source = "".join(
+        character
+        for character in str(value or "").casefold()
+        if character.isalnum()
+    )
+    return _TRACKING_SOURCE_TOOL_TAGS.get(source)
+
+
+def personal_origin_tag_from_fill(fill: dict[str, Any]) -> str | None:
+    sharp_snapshot = sharp_snapshot_from_fill(fill)
+    for source in (
+        fill.get("tracking_source"),
+        sharp_snapshot.get("tracking_source"),
+        fill.get("entry_source"),
+    ):
+        if tag := tool_tag_for_tracking_source(source):
+            return tag
+    if (
+        str(sharp_snapshot.get("sharp_source_status") or "").casefold()
+        in {"recommendation_snapshot", "legacy_immutable_model_snapshot"}
+        and str(fill.get("entry_source") or "").casefold() != "manual"
+    ):
+        return "Prediction Traders"
+    return None
+
+
+def personal_filter_tags_from_fill(fill: dict[str, Any]) -> list[str]:
+    tags = personal_tags_from_fill(fill)
+    origin_tag = personal_origin_tag_from_fill(fill)
+    if origin_tag and origin_tag.casefold() not in {tag.casefold() for tag in tags}:
+        tags.append(origin_tag)
+    return tags
 
 
 def normalize_market_line(value: Any) -> str:
@@ -143,9 +198,12 @@ def personal_fill_snapshot(
     fees: float,
     sportsbook: str = DEFAULT_PERSONAL_SPORTSBOOK,
     tags: list[str] | None = None,
+    tracking_source: str | None = None,
 ) -> dict[str, Any]:
     identity = canonical_trade_identity(trade)
     sharp_snapshot = sharp_snapshot_from_trade(trade)
+    if tracking_source:
+        sharp_snapshot["tracking_source"] = tracking_source
     position_cost = entry_price * shares
     validation = trade.get("validation_ids") or {}
     return {

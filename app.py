@@ -42,6 +42,7 @@ from novig_feed_worker import select_websocket_smoke_market, websocket_smoke_tes
 from novig_provider import NoVIGError
 from personal_tracker import (
     PERSONAL_SPORTSBOOK_CHOICES,
+    PERSONAL_TOOL_TAGS,
     canonical_trade_identity,
     has_complete_identity,
     hidden_trade_snapshot,
@@ -50,8 +51,10 @@ from personal_tracker import (
     normalize_sportsbook,
     personal_exposure_for_trade,
     personal_fill_snapshot,
+    personal_filter_tags_from_fill,
     personal_tags_from_fill,
     replay_personal_tracker,
+    tool_tag_for_tracking_source,
 )
 from personal_positions import (
     aggregate_personal_positions,
@@ -530,11 +533,12 @@ def _personal_tracker_filter_options(fills: list[dict]) -> dict[str, list[str]]:
     used_sportsbooks = {
         normalize_sportsbook(fill.get("sportsbook")) for fill in fills
     }
-    tags = {
+    tags = set(PERSONAL_TOOL_TAGS)
+    tags.update(
         tag
         for fill in fills
-        for tag in personal_tags_from_fill(fill)
-    }
+        for tag in personal_filter_tags_from_fill(fill)
+    )
     sportsbook_choices = list(PERSONAL_SPORTSBOOK_CHOICES)
     known_choices = {choice.casefold() for choice in sportsbook_choices}
     sportsbook_choices.extend(
@@ -697,9 +701,15 @@ def _model_tracker_tags(record: dict) -> list[str]:
     if isinstance(raw_tags, str):
         raw_tags = [raw_tags]
     try:
-        return normalize_personal_tags(raw_tags)
+        tags = normalize_personal_tags(raw_tags)
     except ValueError:
-        return []
+        tags = []
+    origin_tag = tool_tag_for_tracking_source(
+        snapshot.get("tracking_source") or snapshot.get("entry_source")
+    ) or "Prediction Traders"
+    if origin_tag.casefold() not in {tag.casefold() for tag in tags}:
+        tags.append(origin_tag)
+    return tags
 
 
 def _tracker_book_summaries(
@@ -6099,6 +6109,7 @@ def create_app(start_background: bool = True) -> Flask:
             fees=fees,
             sportsbook=sportsbook,
             tags=tags,
+            tracking_source="traders",
         )
         stored = tracker.database.insert_personal_bet_fill(
             g.iconbets_user_id, fill, status="scheduled"
@@ -6616,7 +6627,10 @@ def create_app(start_background: bool = True) -> Flask:
                                     "sportsbook",
                                 )
                             ),
-                            *(tag.lower() for tag in personal_tags_from_fill(fill)),
+                            *(
+                                tag.lower()
+                                for tag in personal_filter_tags_from_fill(fill)
+                            ),
                             _sharp_search_blob(sharp_snapshot_from_fill(fill)),
                         ]
                     )
@@ -6645,7 +6659,10 @@ def create_app(start_background: bool = True) -> Flask:
                     fill
                     for fill in filtered
                     if tag_filter
-                    in {tag.lower() for tag in personal_tags_from_fill(fill)}
+                    in {
+                        tag.lower()
+                        for tag in personal_filter_tags_from_fill(fill)
+                    }
                 ]
             if sharp_filter:
                 filtered = [
@@ -7537,7 +7554,8 @@ def create_app(start_background: bool = True) -> Flask:
                         key=str.casefold,
                     ),
                     "tags": sorted(
-                        {
+                        set(PERSONAL_TOOL_TAGS)
+                        | {
                             tag
                             for record in all_tracker_records
                             for tag in _model_tracker_tags(record)

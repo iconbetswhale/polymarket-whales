@@ -321,8 +321,12 @@ const appState = {
   sellPosition: null,
   intelligence: { candidates: [], proposals: [], violations: [], diagnostics: null },
 };
+const TRACKER_LOCAL_PREVIEW = page === "tracker"
+  && ["127.0.0.1", "localhost"].includes(window.location.hostname)
+  && new URLSearchParams(window.location.search).get("preview") === "1";
 const TRACKER_PREVIEW = page === "tracker"
-  && document.querySelector(".tracker-page")?.dataset.trackerPreview === "true";
+  && (document.querySelector(".tracker-page")?.dataset.trackerPreview === "true" || TRACKER_LOCAL_PREVIEW);
+const TRACKER_PRESET_TAGS = ["Prediction Traders", "Sharp Money", "Positive EV", "Arbitrage", "Middles"];
 const TRACKER_BOOK_CATALOG = (() => {
   if (page !== "tracker") return [];
   try {
@@ -4597,6 +4601,55 @@ function trackerTeamShort(value = "") {
   return tokens.length > 1 ? tokens[tokens.length - 1] : team;
 }
 
+const TRACKER_LOCATION_ABBREVIATIONS = {
+  "new york": "NY", "los angeles": "LA", "las vegas": "LV", "san francisco": "SF",
+  "kansas city": "KC", "new england": "NE", "new orleans": "NO", "oklahoma city": "OKC",
+  "salt lake city": "SLC", "tampa bay": "TB", "green bay": "GB", "golden state": "GS",
+  "washington": "WSH", "philadelphia": "PHI", "pittsburgh": "PIT", "baltimore": "BAL",
+  "buffalo": "BUF", "boston": "BOS", "brooklyn": "BKN", "chicago": "CHI",
+  "cleveland": "CLE", "cincinnati": "CIN", "dallas": "DAL", "denver": "DEN",
+  "detroit": "DET", "houston": "HOU", "indianapolis": "IND", "jacksonville": "JAX",
+  "memphis": "MEM", "miami": "MIA", "milwaukee": "MIL", "minnesota": "MIN",
+  "nashville": "NSH", "orlando": "ORL", "phoenix": "PHX", "portland": "POR",
+  "sacramento": "SAC", "seattle": "SEA", "charlotte": "CHA", "atlanta": "ATL",
+  "arizona": "ARI", "carolina": "CAR", "colorado": "COL", "florida": "FLA",
+  "texas": "TEX", "utah": "UTA", "toronto": "TOR", "montreal": "MTL",
+  "vancouver": "VAN", "ottawa": "OTT", "calgary": "CGY", "edmonton": "EDM",
+  "winnipeg": "WPG", "san diego": "SD", "st louis": "STL",
+};
+
+function trackerTeamWithLocation(value = "") {
+  const team = String(value || "").trim();
+  const lower = team.toLowerCase();
+  const knownLocation = Object.keys(TRACKER_LOCATION_ABBREVIATIONS)
+    .sort((left, right) => right.length - left.length)
+    .find((location) => lower.startsWith(`${location} `));
+  if (knownLocation) {
+    return `${TRACKER_LOCATION_ABBREVIATIONS[knownLocation]} ${team.slice(knownLocation.length + 1)}`;
+  }
+  const nickname = trackerTeamShort(team);
+  const location = team.slice(0, Math.max(0, team.length - nickname.length)).trim();
+  if (!location) return nickname;
+  const locationTokens = location.split(/\s+/).filter(Boolean);
+  const abbreviation = locationTokens.length > 1
+    ? locationTokens.map((token) => token[0]).join("").slice(0, 3).toUpperCase()
+    : location.slice(0, 3).toUpperCase();
+  return `${abbreviation} ${nickname}`;
+}
+
+function trackerSportDescriptor(snapshot = {}, row = {}) {
+  return [
+    snapshot.sport_key,
+    snapshot.category,
+    snapshot.sport,
+    snapshot.league,
+    row.sport_key,
+    row.category,
+    row.sport,
+    row.league,
+  ].filter(Boolean).join(" ");
+}
+
 function trackerSharpCompact(snapshot = {}) {
   const primary = snapshot.primary_sharp || null;
   if (!primary) return '<span class="sharp-unavailable">—</span>';
@@ -4615,17 +4668,140 @@ function trackerResultBadge(status = "unresolved") {
   return `<span class="tracker-result-pill ${escapeHtml(normalized)}">${label}</span>`;
 }
 
-function trackerCompactBetLabel(selection = "Selection", market = "", line = null) {
+const TRACKER_COMPACT_PROP_STATS = [
+  [/points\s*(?:\+|and)\s*rebounds\s*(?:\+|and)\s*assists|points rebounds assists|\bpra\b/i, "PRA"],
+  [/hits\s*(?:\+|and)\s*runs\s*(?:\+|and)\s*rbis|hits runs rbis/i, "Hits + Runs + RBIs"],
+  [/points\s*(?:\+|and)\s*rebounds|points rebounds/i, "Points + Rebounds"],
+  [/points\s*(?:\+|and)\s*assists|points assists/i, "Points + Assists"],
+  [/rebounds\s*(?:\+|and)\s*assists|rebounds assists/i, "Rebounds + Assists"],
+  [/runs\s*(?:\+|and)\s*rbis|runs rbis/i, "Runs + RBIs"],
+  [/total bases/i, "Total Bases"],
+  [/shots on goal/i, "Shots on Goal"],
+  [/field goals attempted/i, "Field Goals Attempted"],
+  [/field goals(?: made)?/i, "Field Goals Made"],
+  [/free throws attempted/i, "Free Throws Attempted"],
+  [/free throws(?: made)?/i, "Free Throws Made"],
+  [/passing touchdowns/i, "Passing TDs"],
+  [/passing yards/i, "Passing Yards"],
+  [/rushing yards/i, "Rushing Yards"],
+  [/receiving yards/i, "Receiving Yards"],
+  [/pitching outs|pitcher outs/i, "Pitching Outs"],
+  [/pitches thrown/i, "Pitches Thrown"],
+  [/hits allowed/i, "Hits Allowed"],
+  [/walks allowed|pitcher walks/i, "Walks Allowed"],
+  [/earned runs/i, "Earned Runs"],
+  [/home runs/i, "Home Runs"],
+  [/stolen bases/i, "Stolen Bases"],
+  [/strikeouts/i, "Strikeouts"],
+  [/receptions/i, "Receptions"],
+  [/touchdowns/i, "TDs"],
+  [/three pointers(?: made)?|made threes|\bthrees\b/i, "3-Pointers"],
+  [/rebounds/i, "Rebounds"],
+  [/assists/i, "Assists"],
+  [/turnovers/i, "Turnovers"],
+  [/blocks/i, "Blocks"],
+  [/steals/i, "Steals"],
+  [/saves/i, "Saves"],
+  [/tackles/i, "Tackles"],
+  [/aces/i, "Aces"],
+  [/walks/i, "Walks"],
+  [/rbis/i, "RBIs"],
+  [/singles/i, "Singles"],
+  [/doubles/i, "Doubles"],
+  [/triples/i, "Triples"],
+  [/hits/i, "Hits"],
+  [/runs/i, "Runs"],
+  [/points/i, "Points"],
+  [/goals/i, "Goals"],
+];
+
+function trackerMarketPeriodLabel(market = "") {
+  const value = String(market || "").replaceAll("_", " ").toLowerCase();
+  if (/first five|1st five|\bf5\b/.test(value)) return "F5";
+  if (/first half|1st half|\b1h\b/.test(value)) return "1H";
+  if (/second half|2nd half|\b2h\b/.test(value)) return "2H";
+  if (/first quarter|1st quarter|\b1q\b/.test(value)) return "1Q";
+  if (/second quarter|2nd quarter|\b2q\b/.test(value)) return "2Q";
+  if (/first period|1st period|\b1p\b/.test(value)) return "1P";
+  if (/first set|1st set|\b1s\b/.test(value)) return "1S";
+  return "";
+}
+
+function trackerDirectionAndLine(selection = "", market = "", line = null) {
+  const combined = `${selection} ${String(market || "").replaceAll("_", " ")}`;
+  const valueMatch = combined.match(/(?:^|\s)(over|under|o|u)\s*([+-]?\d+(?:\.\d+)?)/i);
+  const directionMatch = valueMatch || combined.match(/(?:^|\s)(over|under|o|u)(?=\s|[+-]?\d|$)/i);
+  const direction = directionMatch ? (directionMatch[1].toLowerCase().startsWith("o") ? "O" : "U") : "";
+  const numericLine = valueMatch ? number(valueMatch[2]) : number(line);
+  return {
+    direction,
+    numericLine,
+    label: direction && numericLine !== null ? `${direction}${Math.abs(numericLine)}` : "",
+  };
+}
+
+function trackerSelectionSubject(selection = "", statPattern = null) {
+  let subject = String(selection || "")
+    .replace(/(?:^|\s)(?:over|under)(?:\s*[+-]?\d+(?:\.\d+)?)?/i, " ")
+    .replace(/(?:^|\s)[ou]\s*[+-]?\d+(?:\.\d+)?/i, " ")
+    .replace(/\s+[+-]\d+(?:\.\d+)?(?:\s|$)/, " ")
+    .trim();
+  if (statPattern) subject = subject.replace(statPattern, " ").trim();
+  return subject.replace(/\b(?:player|pitcher|batter|prop)\b/gi, " ").replace(/\s+/g, " ").trim();
+}
+
+function trackerCompactMatchup(value = "") {
+  return trackerShortMatchup(value).replace(/\s+vs\s+/i, "/");
+}
+
+function trackerCompactBetLabel(selection = "Selection", market = "", line = null, eventTitle = "", participant = "", sport = "") {
   const side = String(selection || "Selection").trim();
-  const normalizedMarket = String(market || "").toLowerCase();
-  const compactSide = trackerTeamShort(side);
-  if (/money\s*line|moneyline|h2h|(^|\s)ml($|\s)/.test(normalizedMarket)) return `${compactSide} ML`;
-  if (/run\s*line|spread|handicap/.test(normalizedMarket)) {
-    const numericLine = number(line);
-    return numericLine === null ? compactSide : `${compactSide} ${numericLine > 0 ? "+" : ""}${numericLine}`;
+  const readableMarket = String(market || "").replaceAll("_", " ").replace(/\s+/g, " ").trim();
+  const normalizedMarket = readableMarket.toLowerCase();
+  const individualSport = /tennis|golf|boxing|mma|ufc/.test(String(sport || "").toLowerCase());
+  const singleSideLabel = (value) => individualSport ? String(value || "").trim() : trackerTeamWithLocation(value);
+  const period = trackerMarketPeriodLabel(readableMarket);
+  const { direction, numericLine, label: totalLabel } = trackerDirectionAndLine(side, readableMarket, line);
+  const propStat = TRACKER_COMPACT_PROP_STATS.find(([pattern]) => pattern.test(readableMarket));
+  const propSignal = /\b(?:player|pitcher|batter)\b/.test(normalizedMarket)
+    || /total bases|strikeouts|shots on goal|passing yards|rushing yards|receiving yards|receptions|pitching outs|pitches thrown|hits allowed|walks allowed|earned runs/.test(normalizedMarket)
+    || String(participant || "").trim();
+
+  if (/team total/.test(normalizedMarket)) {
+    const marketTeam = readableMarket.split(/team total/i)[0].trim();
+    const subject = trackerSelectionSubject(side) || marketTeam;
+    return [singleSideLabel(subject), totalLabel, period].filter(Boolean).join(" ");
   }
-  if (/total|over|under/.test(normalizedMarket)) return side;
-  return `${trackerTeamShort(side)} ML`;
+
+  if (propSignal && propStat) {
+    const [statPattern, statLabel] = propStat;
+    const marketStatIndex = readableMarket.search(statPattern);
+    const marketSubject = marketStatIndex > 0
+      ? readableMarket.slice(0, marketStatIndex).replace(/\b(?:player|pitcher|batter|prop)\b/gi, " ").replace(/\s+/g, " ").trim()
+      : "";
+    const subject = String(participant || "").trim() || trackerSelectionSubject(side, statPattern) || marketSubject;
+    return [subject, totalLabel, statLabel, period].filter(Boolean).join(" ");
+  }
+
+  if (/money\s*line|moneyline|h2h|\bml\b|\bwinner\b/.test(normalizedMarket)) {
+    const subject = side.replace(/\b(?:moneyline|money line|ml)\b/gi, " ").replace(/\s+/g, " ").trim();
+    return [singleSideLabel(subject), "ML", period].filter(Boolean).join(" ");
+  }
+
+  if (/run\s*line|spread|handicap/.test(normalizedMarket)) {
+    const inlineLine = side.match(/(?:^|\s)([+-]\d+(?:\.\d+)?)(?:\s|$)/);
+    const spreadLine = inlineLine ? number(inlineLine[1]) : numericLine;
+    const subject = side.replace(/(?:^|\s)[+-]\d+(?:\.\d+)?(?:\s|$)/, " ").replace(/\s+/g, " ").trim();
+    const spreadLabel = spreadLine === null ? "" : `${spreadLine > 0 ? "+" : ""}${spreadLine}`;
+    return [singleSideLabel(subject), spreadLabel, period].filter(Boolean).join(" ");
+  }
+
+  if (/\btotal(?:s)?\b|over\s*\/\s*under/.test(normalizedMarket) && direction) {
+    const matchup = trackerCompactMatchup(eventTitle);
+    return [matchup || trackerSelectionSubject(side), totalLabel, period].filter(Boolean).join(" ");
+  }
+
+  return side;
 }
 
 function trackerMobileDetail(label, value, className = "") {
@@ -4653,7 +4829,7 @@ function trackerMobileModelBet(row) {
     ? `<a class="tracker-mobile-provider" href="${escapeHtml(marketUrl)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(provider.name)} market">${providerLogoMarkup(provider, provider.name)}</a>`
     : `<span class="tracker-mobile-provider" title="${escapeHtml(provider.name)}">${providerLogoMarkup(provider, provider.name)}</span>`;
   return `<details class="tracker-mobile-bet">
-    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(selection, market, snapshot.market_line))}</strong><b>${escapeHtml(displayEntry)}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(selection, market, snapshot.market_line, snapshot.event_title, snapshot.player_name || snapshot.participant_name, trackerSportDescriptor(snapshot, row)))}</strong><b>${escapeHtml(displayEntry)}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
     <div class="tracker-mobile-details">
       ${trackerMobileDetail("Event", `<strong>${escapeHtml(trackerShortMatchup(snapshot.event_title || snapshot.market_title || "Market"))}</strong>`, "wide")}
       ${trackerMobileDetail("Sharp", trackerSharpCompact(sharpSnapshot))}
@@ -4679,7 +4855,7 @@ function trackerMobilePersonalBet(row) {
     ? `<a class="tracker-mobile-provider" href="${escapeHtml(row.market_url)}" target="_blank" rel="noopener noreferrer" aria-label="Open ${escapeHtml(provider.name)} market">${providerLogoMarkup(provider, provider.name)}</a>`
     : `<span class="tracker-mobile-provider" title="${escapeHtml(provider.name)}">${providerLogoMarkup(provider, provider.name)}</span>`;
   return `<details class="tracker-mobile-bet">
-    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(row.selection || "Selection", row.market_title || row.market_type || "", row.market_line ?? row.line))}</strong><b>${escapeHtml(formatCents(row.entry_price))}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+    <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(row.selection || "Selection", row.market_title || row.market_type || "", row.market_line ?? row.line, row.event_title, row.player_name || row.participant_name, trackerSportDescriptor({}, row)))}</strong><b>${escapeHtml(formatCents(row.entry_price))}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
     <div class="tracker-mobile-details">
       ${trackerMobileDetail("Event", `<strong>${escapeHtml(trackerShortMatchup(row.event_title || "Market"))}</strong>`, "wide")}
       ${trackerMobileDetail("Sharp", trackerSharpCompact(sharpSnapshot))}
@@ -5915,17 +6091,42 @@ function trackerCalendarResultRecord(rows = []) {
   }, { wins: 0, losses: 0, pushes: 0 });
 }
 
+function trackerCalendarSportIcon(row = {}) {
+  const snapshot = row.snapshot || {};
+  const sport = trackerSportDescriptor(snapshot, row).toLowerCase();
+  if (/baseball|\bmlb\b|\bncaa baseball\b/.test(sport)) return "ph-baseball";
+  if (/basketball|\bnba\b|\bwnba\b|\bncaab\b/.test(sport)) return "ph-basketball";
+  if (/\bnfl\b|\bncaaf\b|american football/.test(sport)) return "ph-football";
+  if (/hockey|\bnhl\b/.test(sport)) return "ph-hockey";
+  if (/tennis|\batp\b|\bwta\b/.test(sport)) return "ph-tennis-ball";
+  if (/soccer|\bepl\b|\bmls\b|uefa|fifa|premier league/.test(sport)) return "ph-soccer-ball";
+  if (/golf|\bpga\b/.test(sport)) return "ph-golf";
+  return "ph-trophy";
+}
+
 function trackerCalendarBetMarkup(row = {}) {
   const snapshot = row.snapshot || {};
   const sportsbook = trackerSportsbookName({ sportsbook: snapshot.sportsbook || row.sportsbook || row.provider || "Sportsbook" });
   const provider = trackerProviderMeta(sportsbook);
-  const market = snapshot.market_title || snapshot.market_type || row.market_title || row.market_type || "Tracked Bet";
+  const marketTitle = snapshot.market_title || row.market_title || snapshot.market_type || row.market_type || "Tracked Bet";
+  const market = [snapshot.market_type, snapshot.market_kind, marketTitle, row.market_type]
+    .filter(Boolean)
+    .filter((value, index, values) => values.findIndex((candidate) => String(candidate).toLowerCase() === String(value).toLowerCase()) === index)
+    .join(" ");
   const selection = snapshot.recommended_side || row.selection || "Selection";
+  const recapLabel = trackerCompactBetLabel(
+    selection,
+    market,
+    snapshot.market_line ?? row.market_line ?? row.line,
+    snapshot.event_title || row.event_title,
+    snapshot.player_name || snapshot.participant_name || row.player_name || row.participant_name,
+    trackerSportDescriptor(snapshot, row),
+  );
   const odds = snapshot.provider_display_odds || row.display_odds || (number(row.entry_price) === null ? "—" : formatCents(row.entry_price));
   const pnl = number(row.profit_loss) || 0;
   return `<article class="tracker-calendar-bet-row">
     ${providerLogoMarkup(provider, provider.name)}
-    <span class="tracker-calendar-bet-copy"><strong>${escapeHtml(provider.name)}</strong><small>${escapeHtml(`${selection} · ${market}`)}</small></span>
+    <span class="tracker-calendar-bet-copy"><strong>${escapeHtml(provider.name)}</strong><small title="${escapeHtml(`${selection} · ${marketTitle}`)}"><i class="ph ${trackerCalendarSportIcon(row)}" aria-hidden="true"></i><span>${escapeHtml(recapLabel)}</span></small></span>
     <span class="tracker-calendar-bet-odds"><small>Odds</small><strong>${escapeHtml(odds)}</strong></span>
     <span class="tracker-calendar-bet-result"><small>Result</small><strong class="${pnlTone(pnl)}">${escapeHtml(signedMoney(pnl))}</strong></span>
   </article>`;
@@ -6043,13 +6244,15 @@ function trackerCalendarDetailMarkup(selectedDay, amount, rows = [], anchor = ne
   const rowsMarkup = rows.length
     ? rows.map(trackerCalendarBetMarkup).join("")
     : `<p class="tracker-calendar-detail-empty">${hasAmount ? "Bet-level details are unavailable for this period." : "Choose a settled day to review its bets."}</p>`;
+  const tagsMarkup = tags.length
+    ? `<div class="tracker-calendar-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>`
+    : "";
   return `<section class="tracker-calendar-detail" aria-labelledby="tracker-calendar-detail-title">
     <div class="tracker-calendar-detail-heading">
       <span id="tracker-calendar-detail-title">${escapeHtml(date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" }))}</span>
       <strong class="${hasAmount ? pnlTone(amount) : ""}">${hasAmount ? escapeHtml(signedMoney(amount)) : "—"}</strong>
-      <small>${escapeHtml(detailSummary)}</small>
+      <div class="tracker-calendar-detail-meta"><small>${escapeHtml(detailSummary)}</small>${tagsMarkup}</div>
     </div>
-    ${tags.length ? `<div class="tracker-calendar-tags">${tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("")}</div>` : ""}
     <div class="tracker-calendar-bet-list${rows.length > 2 ? " scrollable" : ""}">${rowsMarkup}</div>
     <button class="tracker-calendar-view-bets" type="button" data-tracker-calendar-view-bets="${trackerCalendarDayKey(anchor.getFullYear(), anchor.getMonth(), selectedDay)}" ${hasAmount ? "" : "disabled"}>View Day's Bets <i class="ph ph-arrow-right" aria-hidden="true"></i></button>
   </section>`;
@@ -6639,7 +6842,20 @@ function renderTrackerDashboardTagFilter(tags = []) {
   const selected = appState.trackerSelectedTag[view] || "";
   const normalized = [...new Set((tags || []).map((tag) => String(tag).trim()).filter(Boolean))]
     .sort((left, right) => left.localeCompare(right));
-  setSelectOptions(select, normalized, selected, "Tags");
+  const presetKeys = new Set([
+    ...TRACKER_PRESET_TAGS.map((tag) => tag.toLowerCase()),
+    "traders", "sharp", "+ev", "arb", "middle",
+  ]);
+  const customTags = normalized.filter((tag) => !presetKeys.has(tag.toLowerCase()));
+  select.innerHTML = [
+    '<option value="">Tags</option>',
+    `<optgroup label="Tool Filters">${TRACKER_PRESET_TAGS.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}</optgroup>`,
+    customTags.length
+      ? `<optgroup label="Custom Tags">${customTags.map((tag) => `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`).join("")}</optgroup>`
+      : "",
+  ].join("");
+  const available = new Set(["", ...TRACKER_PRESET_TAGS, ...customTags]);
+  select.value = available.has(selected) ? selected : "";
   appState.trackerSelectedTag[view] = select.value;
 }
 
@@ -6862,45 +7078,81 @@ function trackerRequestParams(view) {
 const TRACKER_PREVIEW_ROWS = [
   {
     status: "won", result: "won", profit_loss: 99.12, recommended_amount: 84,
-    tags: ["Baseball", "Line Shopping"],
+    tags: ["Prediction Traders", "Baseball", "Line Shopping"],
     tracked_at: "2026-08-16T23:43:00Z", settled_at: "2026-08-17T03:12:00Z",
-    snapshot: { sportsbook: "NoVIG", event_title: "New York Mets vs Philadelphia Phillies", market_title: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
+    snapshot: { sportsbook: "NoVIG", category: "MLB", event_title: "New York Mets vs Philadelphia Phillies", market_title: "Moneyline", recommended_side: "Philadelphia Phillies", provider_entry_price: 0.4587, provider_display_odds: "+118", effective_entry_price: 0.4587, sharp_average_entry_price: 0.446, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "Bagwell306", wallet_address: "0xbagwell306", average_entry: 0.446, amount: 420 } },
     clv: { clv_status: "captured", clv_pct: 5.62, clv_cents: 2.6, provider: "NoVIG", entry_native_odds: 118, entry_price: 0.4587, closing_effective_price: 0.4845, closing_midpoint: 0.482, midpoint_clv_pct: 5.08, comparison_stake: 84, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T00:40:00Z", official_event_start_timestamp: "2026-08-17T01:10:00Z", quote_age_ms: 28000 },
   },
   {
     status: "lost", result: "lost", profit_loss: -72, recommended_amount: 72,
-    tags: ["WNBA", "Live"],
+    tags: ["Sharp Money", "WNBA", "Live"],
     tracked_at: "2026-08-17T00:43:00Z", settled_at: "2026-08-17T04:05:00Z",
-    snapshot: { sportsbook: "ProphetX", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
+    snapshot: { sportsbook: "ProphetX", category: "WNBA", event_title: "Las Vegas Aces vs New York Liberty", market_title: "Spread", recommended_side: "New York Liberty -3.5", provider_entry_price: 0.4808, provider_display_odds: "+108", effective_entry_price: 0.4808, sharp_average_entry_price: 0.468, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "CourtsideCap", wallet_address: "0xcourtsidecap", average_entry: 0.468, amount: 365 } },
     clv: { clv_status: "captured", clv_pct: 4.18, clv_cents: 2.0, provider: "ProphetX", entry_native_odds: 108, entry_price: 0.4808, closing_effective_price: 0.5009, closing_midpoint: 0.499, midpoint_clv_pct: 3.79, comparison_stake: 72, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T01:55:00Z", official_event_start_timestamp: "2026-08-17T02:15:00Z", quote_age_ms: 21000 },
   },
   {
     status: "won", result: "won", profit_loss: 60.9, recommended_amount: 58,
-    tags: ["Baseball", "Totals"],
+    tags: ["Positive EV", "Baseball", "Totals"],
     tracked_at: "2026-08-17T01:43:00Z", settled_at: "2026-08-17T05:18:00Z",
-    snapshot: { sportsbook: "4CX", event_title: "Chicago Cubs vs Milwaukee Brewers", market_title: "Game Total", recommended_side: "Under 8.5 Runs", provider_entry_price: 0.4878, provider_display_odds: "+105", effective_entry_price: 0.4878, sharp_average_entry_price: 0.474, market_url: "" },
+    snapshot: { sportsbook: "4CX", category: "MLB", event_title: "Chicago Cubs vs Milwaukee Brewers", market_title: "Game Total", recommended_side: "Under 8.5 Runs", provider_entry_price: 0.4878, provider_display_odds: "+105", effective_entry_price: 0.4878, sharp_average_entry_price: 0.474, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "NorthSideEdge", wallet_address: "0xnorthsideedge", average_entry: 0.474, amount: 288 } },
     clv: { clv_status: "captured", clv_pct: 3.41, clv_cents: 1.7, provider: "4CX", entry_native_odds: 105, entry_price: 0.4878, closing_effective_price: 0.5044, closing_midpoint: 0.502, midpoint_clv_pct: 2.91, comparison_stake: 58, liquidity_quality: "Excellent", closing_snapshot_timestamp: "2026-08-17T02:50:00Z", official_event_start_timestamp: "2026-08-17T03:05:00Z", quote_age_ms: 17000 },
   },
   {
     status: "live", result: null, profit_loss: null, recommended_amount: 46,
-    tags: ["Tennis", "Live"],
+    tags: ["Arbitrage", "Tennis", "Live"],
     tracked_at: "2026-08-17T02:43:00Z", settled_at: null,
-    snapshot: { sportsbook: "NoVIG", event_title: "Taylor Fritz vs Ben Shelton", market_title: "Moneyline", recommended_side: "Taylor Fritz", provider_entry_price: 0.6124, provider_display_odds: "-158", effective_entry_price: 0.6124, sharp_average_entry_price: 0.598, market_url: "" },
+    snapshot: { sportsbook: "NoVIG", category: "Tennis", event_title: "Taylor Fritz vs Ben Shelton", market_title: "Moneyline", recommended_side: "Taylor Fritz", provider_entry_price: 0.6124, provider_display_odds: "-158", effective_entry_price: 0.6124, sharp_average_entry_price: 0.598, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "BaselineAlpha", wallet_address: "0xbaselinealpha", average_entry: 0.598, amount: 204 } },
     clv: { clv_status: "pending", clv_unavailable_reason: "Event has not reached the verified closing window" },
   },
   {
     status: "won", result: "won", profit_loss: 34.68, recommended_amount: 34,
-    tags: ["WNBA", "Totals"],
+    tags: ["Middles", "WNBA", "Totals"],
     tracked_at: "2026-08-17T03:43:00Z", settled_at: "2026-08-17T06:48:00Z",
-    snapshot: { sportsbook: "ProphetX", event_title: "Seattle Storm vs Phoenix Mercury", market_title: "Game Total", recommended_side: "Over 162.5 Points", provider_entry_price: 0.495, provider_display_odds: "+102", effective_entry_price: 0.495, sharp_average_entry_price: 0.486, market_url: "" },
+    snapshot: { sportsbook: "ProphetX", category: "WNBA", event_title: "Seattle Storm vs Phoenix Mercury", market_title: "Game Total", recommended_side: "Over 162.5 Points", provider_entry_price: 0.495, provider_display_odds: "+102", effective_entry_price: 0.495, sharp_average_entry_price: 0.486, market_url: "" },
     sharp_snapshot: { primary_sharp: { display_name: "DesertTotals", wallet_address: "0xdeserttotals", average_entry: 0.486, amount: 178 } },
     clv: { clv_status: "captured", clv_pct: 1.93, clv_cents: 1.0, provider: "ProphetX", entry_native_odds: 102, entry_price: 0.495, closing_effective_price: 0.5046, closing_midpoint: 0.503, midpoint_clv_pct: 1.62, comparison_stake: 34, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T04:50:00Z", official_event_start_timestamp: "2026-08-17T05:10:00Z", quote_age_ms: 19000 },
   },
 ];
+
+function trackerPreviewAnchor() {
+  const latest = TRACKER_PREVIEW_ROWS
+    .map((row) => trackerCalendarRowDate(row))
+    .filter(Boolean)
+    .sort((left, right) => right.getTime() - left.getTime())[0];
+  return trackerDefaultPeriodAnchor(appState.graphRange, latest || new Date());
+}
+
+function trackerPreviewFilteredGraph(rows) {
+  const dailyProfit = new Map();
+  rows.forEach((row) => {
+    const pnl = number(row.profit_loss);
+    const date = trackerCalendarRowDate(row);
+    if (pnl === null || !date) return;
+    const key = trackerCalendarDayKey(date.getFullYear(), date.getMonth(), date.getDate());
+    dailyProfit.set(key, (dailyProfit.get(key) || 0) + pnl);
+  });
+  const days = [...dailyProfit.keys()].sort();
+  if (!days.length) return [];
+  const firstDay = new Date(`${days[0]}T12:00:00`);
+  firstDay.setHours(0, 0, 0, 0);
+  let bankroll = 10000;
+  return [
+    { timestamp: firstDay.toISOString(), bankroll, daily_profit: 0 },
+    ...days.map((day) => {
+      const profit = dailyProfit.get(day) || 0;
+      bankroll += profit;
+      return {
+        timestamp: new Date(`${day}T12:00:00`).toISOString(),
+        bankroll,
+        daily_profit: profit,
+      };
+    }),
+  ];
+}
 
 function trackerPreviewPayload(params) {
   const search = String(params.get("q") || "").trim().toLowerCase();
@@ -6921,31 +7173,60 @@ function trackerPreviewPayload(params) {
     if (selectedBooks.size && !selectedBooks.has(String(snapshot.sportsbook || "").toLowerCase())) return false;
     return true;
   });
+  const settledRows = rows.filter((row) => number(row.profit_loss) !== null);
+  const clvRows = rows.filter((row) => row.clv?.clv_status === "captured");
+  const realizedProfit = settledRows.reduce((sum, row) => sum + Number(row.profit_loss || 0), 0);
+  const settledWagered = settledRows.reduce((sum, row) => sum + Number(row.recommended_amount || 0), 0);
+  const totalWagered = rows.reduce((sum, row) => sum + Number(row.recommended_amount || 0), 0);
+  const openRows = rows.filter((row) => number(row.profit_loss) === null);
+  const wins = settledRows.filter((row) => row.result === "won").length;
+  const losses = settledRows.filter((row) => row.result === "lost").length;
+  const pushes = settledRows.filter((row) => ["push", "void", "canceled"].includes(row.result)).length;
   const baseSummary = {
-    starting_bankroll: 10000, current_bankroll: 10122.7, realized_profit_loss: 122.7,
-    open_exposure: 46, potential_payout: 75.11, total_wagered: 294, settled_wagered: 248,
-    wins: 3, losses: 1, pushes_voids: 0, total_tracked_bets: 5, roi: 0.01227,
-    win_rate: 0.75, maximum_drawdown: 0.0072,
+    starting_bankroll: 10000,
+    current_bankroll: 10000 + realizedProfit,
+    realized_profit_loss: realizedProfit,
+    open_exposure: openRows.reduce((sum, row) => sum + Number(row.recommended_amount || 0), 0),
+    potential_payout: openRows.reduce((sum, row) => sum + (Number(row.recommended_amount || 0) / Number(row.snapshot?.provider_entry_price || 1)), 0),
+    total_wagered: totalWagered,
+    settled_wagered: settledWagered,
+    wins,
+    losses,
+    pushes_voids: pushes,
+    total_tracked_bets: rows.length,
+    roi: realizedProfit / 10000,
+    win_rate: wins + losses ? wins / (wins + losses) : 0,
+    maximum_drawdown: 0.0072,
   };
-  const clvPeriod = { stake_weighted_clv_pct: 4.02, average_clv_pct: 3.79, median_clv_pct: 3.8, positive_clv_rate: 1, bets_measured: 4 };
-  const clvRecords = TRACKER_PREVIEW_ROWS.filter((row) => row.clv?.clv_status === "captured").map((row) => ({
+  const clvValues = clvRows.map((row) => Number(row.clv.clv_pct || 0));
+  const averageClv = clvValues.length ? clvValues.reduce((sum, value) => sum + value, 0) / clvValues.length : null;
+  const clvPeriod = {
+    stake_weighted_clv_pct: averageClv,
+    average_clv_pct: averageClv,
+    median_clv_pct: averageClv,
+    positive_clv_rate: clvValues.length ? clvValues.filter((value) => value > 0).length / clvValues.length : null,
+    bets_measured: clvRows.length,
+  };
+  const clvRecords = clvRows.map((row) => ({
     record_timestamp: row.settled_at,
     sportsbook: row.snapshot.sportsbook,
     clv: { ...row.clv, entry_stake: row.recommended_amount, provider_closes: [{ provider_name: row.snapshot.sportsbook, closing_probability: row.clv.closing_effective_price, mapping_confidence: "EXACT" }] },
   }));
+  const filtersActive = Boolean(search || status || result || sharp || tag || selectedBooks.size);
+  const graph = filtersActive ? trackerPreviewFilteredGraph(rows) : [
+    { timestamp: "2026-08-12T12:00:00Z", bankroll: 10000, daily_profit: 0 },
+    { timestamp: "2026-08-13T12:00:00Z", bankroll: 10048, daily_profit: 48 },
+    { timestamp: "2026-08-14T12:00:00Z", bankroll: 10021, daily_profit: -27 },
+    { timestamp: "2026-08-15T12:00:00Z", bankroll: 10074, daily_profit: 53 },
+    { timestamp: "2026-08-16T12:00:00Z", bankroll: 10038, daily_profit: -36 },
+    { timestamp: "2026-08-17T12:00:00Z", bankroll: 10122.7, daily_profit: 84.7 },
+  ];
   return {
     data: rows,
     pagination: { page: 1, per_page: 50, total: rows.length, has_prev: false, has_next: false },
     bankroll: { tracker_bankroll: 10000 }, summary: baseSummary, period_summary: baseSummary,
     tracking: { status: "running" },
-    graph: [
-      { timestamp: "2026-08-12T12:00:00Z", bankroll: 10000, daily_profit: 0 },
-      { timestamp: "2026-08-13T12:00:00Z", bankroll: 10048, daily_profit: 48 },
-      { timestamp: "2026-08-14T12:00:00Z", bankroll: 10021, daily_profit: -27 },
-      { timestamp: "2026-08-15T12:00:00Z", bankroll: 10074, daily_profit: 53 },
-      { timestamp: "2026-08-16T12:00:00Z", bankroll: 10038, daily_profit: -36 },
-      { timestamp: "2026-08-17T12:00:00Z", bankroll: 10122.7, daily_profit: 84.7 },
-    ],
+    graph,
     filter_options: {
       sportsbooks: ["4CX", "NoVIG", "ProphetX"],
       sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"],
@@ -6962,6 +7243,9 @@ function trackerPreviewPayload(params) {
 }
 
 async function loadTracker({ initial = false } = {}) {
+  if (TRACKER_PREVIEW && !appState.trackerPeriodAnchor) {
+    appState.trackerPeriodAnchor = trackerPreviewAnchor();
+  }
   const params = trackerRequestParams("model");
   if (TRACKER_PREVIEW) {
     const payload = trackerPreviewPayload(params);

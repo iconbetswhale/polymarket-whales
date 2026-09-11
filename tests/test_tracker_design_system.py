@@ -124,11 +124,16 @@ def test_tracker_performance_chart_and_calendar_share_one_timeframe_filter() -> 
 
 
 def test_tracker_calendar_combines_day_details_with_monthly_pulse() -> None:
+    assert 'new URLSearchParams(window.location.search).get("preview") === "1"' in SCRIPT
+    assert '["127.0.0.1", "localhost"].includes(window.location.hostname)' in SCRIPT
     for contract in (
         "trackerCalendarSelectedDay: null",
         "trackerCalendarFitObserver: null",
         "function trackerCalendarRowsByDay",
         "function trackerCalendarDetailMarkup",
+        "function trackerCompactBetLabel",
+        "function trackerCompactMatchup",
+        "function trackerDirectionAndLine",
         "function trackerCalendarPulseMarkup",
         "function drawTrackerWeekdayPulse",
         "function openTrackerCalendarDayBets",
@@ -145,6 +150,7 @@ def test_tracker_calendar_combines_day_details_with_monthly_pulse() -> None:
         'class="tracker-calendar-insights"',
         'data-tracker-calendar-day="${day}"',
         'renderTrackerCalendar(points, payload)',
+        'title="${escapeHtml(`${selection} · ${marketTitle}`)}"',
     ):
         assert contract in SCRIPT
 
@@ -175,8 +181,19 @@ def test_tracker_calendar_combines_day_details_with_monthly_pulse() -> None:
     assert "font: 700 24px/1 var(--il-font-data);" in CSS
     assert ".tracker-calendar-bet-list.scrollable" in CSS
     assert "max-height: 131px;" in CSS
-    assert "grid-template-columns: 30px minmax(0, 1fr) minmax(52px, auto) minmax(64px, auto);" in CSS
+    assert "height: 586px;" in CSS
+    assert "min-height: 586px;" in CSS
+    assert "font: 700 19px/1.1 var(--il-font-data);" in CSS
+    assert "grid-template-columns: 34px minmax(0, 1fr) minmax(52px, auto) minmax(64px, auto);" in CSS
+    assert "width: 30px;" in CSS
     assert "justify-self: stretch;" in CSS
+    assert '"PRA"' in SCRIPT
+    assert '"Total Bases"' in SCRIPT
+    assert '"Strikeouts"' in SCRIPT
+    assert '[singleSideLabel(subject), "ML", period]' in SCRIPT
+    assert "function trackerTeamWithLocation" in SCRIPT
+    assert '"buffalo": "BUF"' in SCRIPT
+    assert '[matchup || trackerSelectionSubject(side), totalLabel, period]' in SCRIPT
 
 
 def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
@@ -289,6 +306,13 @@ def test_dashboard_uses_global_tags_and_searchable_multibook_filters(app_client)
     for dfs_book in (b"PrizePicks", b"Underdog", b"DraftKings Pick6", b"Betr Picks", b"Dabble"):
         assert dfs_book in rendered
     assert "function renderTrackerDashboardTagFilter" in SCRIPT
+    assert 'const TRACKER_PRESET_TAGS = ["Prediction Traders", "Sharp Money", "Positive EV", "Arbitrage", "Middles"]' in SCRIPT
+    assert 'optgroup label="Tool Filters"' in SCRIPT
+    assert 'class="tracker-tag-filter"' in TEMPLATE
+    assert "function trackerCalendarSportIcon" in SCRIPT
+    assert ".tracker-calendar-detail-meta" in CSS
+    assert "function trackerPreviewFilteredGraph" in SCRIPT
+    assert "const filtersActive = Boolean(search || status || result || sharp || tag || selectedBooks.size);" in SCRIPT
     assert "function trackerBookChoices" in SCRIPT
     assert "function trackerBookOptionLogo" in SCRIPT
     assert 'windcreekbetfredpa: "windcreek"' in SCRIPT
@@ -308,6 +332,7 @@ def test_dashboard_uses_global_tags_and_searchable_multibook_filters(app_client)
         assert declaration in CSS
     assert ".tracker-book-filter-options label:has(input:checked)" in CSS
     assert ".tracker-book-filter-logo img" in CSS
+    assert ".tracker-tag-filter:focus-within" in CSS
     assert "grid-template-columns: repeat(2, minmax(0, 1fr));" in CSS
     assert "border-color: var(--il-border-subtle) !important;" in CSS
     assert "background: var(--il-surface-2) !important;" in CSS
@@ -398,6 +423,6 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v30-calendar-profit-26" in BASE[canonical : canonical + 220]
+    assert "-canonical-v33-inline-tags-sport-icons" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v36-calendar-profit-26" in BASE[script : script + 220]
+    assert "-live-feeds-v43-inline-tags-sport-icons" in BASE[script : script + 220]
