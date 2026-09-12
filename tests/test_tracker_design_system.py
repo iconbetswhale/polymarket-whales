@@ -430,6 +430,72 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v34-bet-label-type" in BASE[canonical : canonical + 220]
+    assert "-canonical-v49-section-tabs-14-override" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v45-calendar-label-polish" in BASE[script : script + 220]
+    assert "-live-feeds-v52-performance-gradients" in BASE[script : script + 220]
+
+
+def test_tracked_bets_uses_readable_ledger_and_compact_clv_popover() -> None:
+    assert '>Overview</button>' in TEMPLATE
+    assert '>Tracked Bets</button>' in TEMPLATE
+    assert '.tracker-section-tabs button {' in CSS
+    assert 'font-size: 14px !important;' in CSS
+    assert 'title.textContent = "Bet Tracker";' in SCRIPT
+    assert '"<th>Bet</th><th>Source</th><th>Wager</th><th>Result</th><th>P&amp;L</th><th>CLV</th><th>Tracked</th>"' in SCRIPT
+    assert 'class="tracker-bet-cell"' in SCRIPT
+    assert 'class="tracker-wager-cell"' in SCRIPT
+    assert 'class="clv-popover"' in SCRIPT
+    assert 'View Full Calculation' in SCRIPT
+    assert 'data-clv-close' in SCRIPT
+    assert '.tracker-table tr.clv-row-open td' in CSS
+    assert '.clv-details.open-up > .clv-popover' in CSS
+    assert 'position: fixed;' in CSS
+    assert 'top: var(--clv-popover-top, 18px);' in CSS
+    assert 'overflow: visible;' in CSS
+    assert 'positionClvPopover' in SCRIPT
+    assert 'window.innerHeight - popoverRect.height - margin' in SCRIPT
+    assert '<small>${escapeHtml(formatAmericanOdds(closingOdds))}</small>' in SCRIPT
+    assert 'Search Bets, Teams, Markets, or Sportsbooks' in SCRIPT
+    assert 'function trackerSourceCompact(snapshot = {})' in SCRIPT
+    assert 'positiveev: { label: "Positive EV", icon: "ph-trend-up" }' in SCRIPT
+    assert '<td data-label="Source">${trackerSourceCompact(sharpSnapshot)}</td>' in SCRIPT
+    assert 'trackerMobileDetail("Source", trackerSourceCompact(sharpSnapshot))' in SCRIPT
+    assert 'font-size: 18px;' in CSS
+    assert 'font-size: 14px;' in CSS
+    assert '.tracker-model-bets td[data-label="Source"] .tracker-sharp-compact > strong {' in CSS
+    assert 'font-size: 14px !important;' in CSS
+    assert 'font: 700 20px/1.2 var(--il-font-data);' in CSS
+    assert 'font: 700 14px/1 var(--il-font-ui);' in CSS
+    assert 'font-size: 15px;' in CSS
+    assert 'font-size: 16px;' in CSS
+
+
+def test_sportsbook_summaries_use_compact_logo_cards_and_preview_ten_books() -> None:
+    assert 'class="tracker-book-summary-name"' in SCRIPT
+    assert 'providerLogoMarkup(meta, sportsbook)' in SCRIPT
+    assert 'grid-template-columns: repeat(5, minmax(0, 1fr));' in CSS
+    assert 'padding: var(--il-space-4);' in CSS
+    assert 'border: 1px solid var(--il-border-standard) !important;' in CSS
+    assert 'border-radius: var(--il-radius-control) !important;' in CSS
+    assert 'const performanceClass = pnl > 0 ? "is-positive" : pnl < 0 ? "is-negative" : "is-neutral";' in SCRIPT
+    assert '.tracker-book-summary article.is-positive {' in CSS
+    assert '.tracker-book-summary article.is-negative {' in CSS
+    assert 'rgba(255, 77, 101, .3)' in CSS
+    assert 'background: var(--il-bg-workspace) !important;' in CSS
+    assert 'inset -56px 0 64px -60px rgba(80, 217, 119, .34)' in CSS
+    assert 'background: var(--il-surface-1) !important;' in CSS
+    assert 'grid-template-columns: minmax(0, 1fr) auto;' in CSS
+    assert 'grid-row: 1 / span 2;' in CSS
+    assert 'flex-basis: 32px;' in CSS
+    assert 'font-size: 20px;' in CSS
+    assert 'const TRACKER_PREVIEW_BOOK_SUMMARIES = [' in SCRIPT
+    assert 'function trackerPreviewBookSummaries()' in SCRIPT
+    assert 'get("preview_books")' in SCRIPT
+    preview_summaries = SCRIPT[
+        SCRIPT.index('const TRACKER_PREVIEW_BOOK_SUMMARIES = [') :
+        SCRIPT.index('function trackerPreviewAnchor()')
+    ]
+    assert preview_summaries.count('sportsbook:') == 10
+    assert 'sportsbook_summaries: sportsbookSummaries' in SCRIPT
+    assert 'sportsbooks: previewBookSummaries.map' in SCRIPT
+    assert '!selectedBooks.size || selectedBooks.has' in SCRIPT

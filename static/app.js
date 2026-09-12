@@ -4471,27 +4471,50 @@ function clvCell(row) {
     ?? row.snapshot?.provider_display_odds
     ?? probabilityToAmerican(clv.entry_price);
   const closingOdds = probabilityToAmerican(clv.closing_effective_price);
-  const entryMarker = Math.max(1, Math.min(99, (number(clv.entry_price) || 0) * 100));
-  const closeMarker = Math.max(1, Math.min(99, (number(clv.closing_effective_price) || 0) * 100));
+  const snapshot = row.snapshot || {};
+  const selection = snapshot.recommended_side || "Selection";
+  const market = snapshot.sports_market_type || snapshot.market_type || snapshot.market_kind || snapshot.market_title || "";
+  const betLabel = trackerCompactBetLabel(
+    selection,
+    market,
+    snapshot.market_line,
+    snapshot.event_title,
+    snapshot.player_name || snapshot.participant_name,
+    trackerSportDescriptor(snapshot, row),
+  );
+  const provider = trackerProviderMeta(trackerSportsbookName(snapshot));
+  const stake = number(row.recommended_amount);
+  const closePrice = number(clv.closing_effective_price);
   return `<details class="clv-details ${tone}">
-    <summary><strong>${escapeHtml(formatClvPercent(pct))} CLV</strong><small>${escapeHtml(formatClvCents(clv.clv_cents))}</small></summary>
-    <span><b>Provider</b>${escapeHtml(clv.provider || "Polymarket")}</span>
-    <span><b>Entry odds</b>${escapeHtml(formatAmericanOdds(entryOdds))}</span>
-    <span><b>Closing odds</b>${escapeHtml(formatAmericanOdds(closingOdds))}</span>
-    <span><b>Odds improvement</b>${escapeHtml(oddsDifference(entryOdds, closingOdds))}</span>
-    <span><b>Entry</b>${escapeHtml(formatCents(clv.entry_price))}</span>
-    <span><b>Executable close</b>${escapeHtml(formatCents(clv.closing_effective_price))}</span>
-    <span><b>Probability CLV</b>${escapeHtml(formatClvCents(clv.clv_probability_points ?? clv.clv_cents))}</span>
-    <span><b>Price value CLV</b>${escapeHtml(formatClvPercent(pct))}</span>
-    <span><b>Closing midpoint</b>${escapeHtml(formatCents(clv.closing_midpoint))}</span>
-    <span><b>Midpoint CLV</b>${escapeHtml(formatClvPercent(clv.midpoint_clv_pct))}</span>
-    <span><b>Closing snapshot</b>${escapeHtml(formatDateTime(clv.closing_snapshot_timestamp))}</span>
-    <span><b>Event start</b>${escapeHtml(formatDateTime(clv.official_event_start_timestamp))}</span>
-    <span><b>Settlement</b>${escapeHtml(formatDateTime(row.settled_at, "Pending"))}</span>
-    <span><b>Quote freshness</b>${escapeHtml(clv.quote_age_ms === null || clv.quote_age_ms === undefined ? "Unavailable" : `${(Number(clv.quote_age_ms) / 1000).toFixed(0)}s`)}</span>
-    <span><b>Comparison stake</b>${escapeHtml(formatMoney(clv.comparison_stake || clv.entry_stake))}</span>
-    <span><b>Liquidity</b>${escapeHtml(clv.liquidity_quality || "Unavailable")}</span>
-    <span class="clv-marker-chart"><b>Price markers</b><i class="entry" style="left:${entryMarker}%">Entry</i><i class="close" style="left:${closeMarker}%">Close</i></span>
+    <summary aria-label="Open CLV breakdown for ${escapeHtml(betLabel)}"><strong>${escapeHtml(formatClvPercent(pct))} CLV</strong><small>${escapeHtml(formatAmericanOdds(closingOdds))}</small></summary>
+    <div class="clv-popover" role="group" aria-label="CLV breakdown for ${escapeHtml(betLabel)}">
+      <header class="clv-popover-header"><div><span class="clv-popover-title">CLV Breakdown</span><span class="clv-popover-bet">${providerLogoMarkup(provider, provider.name)}<strong>${escapeHtml(betLabel)}</strong></span></div><button class="clv-popover-close" type="button" data-clv-close aria-label="Close CLV breakdown"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <div class="clv-popover-hero"><strong>${escapeHtml(formatClvPercent(pct))}</strong><span>${escapeHtml(formatClvCents(clv.clv_cents))} <small>vs close</small></span></div>
+      <dl class="clv-popover-grid">
+        <div><dt>Entry</dt><dd>${escapeHtml(formatCents(clv.entry_price))}</dd></div>
+        <div><dt>Closing Odds</dt><dd>${escapeHtml(formatAmericanOdds(closingOdds))}</dd></div>
+        <div><dt>Close</dt><dd>${escapeHtml(formatCents(clv.closing_effective_price))}</dd></div>
+        <div><dt>Close Time</dt><dd>${escapeHtml(formatDateTime(clv.closing_snapshot_timestamp))}</dd></div>
+      </dl>
+      <div class="clv-popover-movement" aria-label="Entry ${escapeHtml(formatCents(clv.entry_price))}, close ${escapeHtml(formatCents(clv.closing_effective_price))}">
+        <div><span>Entry</span><span>Close</span></div>
+        <progress max="1" value="${closePrice === null ? 0 : closePrice}">${escapeHtml(formatCents(clv.closing_effective_price))}</progress>
+        <div><strong>${escapeHtml(formatCents(clv.entry_price))}</strong><strong>${escapeHtml(formatCents(clv.closing_effective_price))}</strong></div>
+      </div>
+      <details class="clv-popover-advanced">
+        <summary>View Full Calculation<i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+        <dl>
+          <div><dt>Provider</dt><dd>${escapeHtml(clv.provider || provider.name)}</dd></div>
+          <div><dt>Entry Odds</dt><dd>${escapeHtml(formatAmericanOdds(entryOdds))}</dd></div>
+          <div><dt>Odds Improvement</dt><dd>${escapeHtml(oddsDifference(entryOdds, closingOdds))}</dd></div>
+          <div><dt>Probability CLV</dt><dd>${escapeHtml(formatClvCents(clv.clv_probability_points ?? clv.clv_cents))}</dd></div>
+          <div><dt>Price Value CLV</dt><dd>${escapeHtml(formatClvPercent(pct))}</dd></div>
+          <div><dt>Midpoint CLV</dt><dd>${escapeHtml(formatClvPercent(clv.midpoint_clv_pct))}</dd></div>
+          <div><dt>Stake</dt><dd>${stake === null ? "—" : escapeHtml(formatMoney(stake))}</dd></div>
+          <div><dt>Quote Freshness</dt><dd>${escapeHtml(clv.quote_age_ms === null || clv.quote_age_ms === undefined ? "Unavailable" : `${(Number(clv.quote_age_ms) / 1000).toFixed(0)}s`)}</dd></div>
+        </dl>
+      </details>
+    </div>
   </details>`;
 }
 
@@ -4660,6 +4683,24 @@ function trackerSharpCompact(snapshot = {}) {
   return href
     ? `<a class="tracker-sharp-compact" href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" title="Open ${escapeHtml(label)} on Polymarket">${content}</a>`
     : `<span class="tracker-sharp-compact">${content}</span>`;
+}
+
+const TRACKER_ORIGIN_SOURCE_META = {
+  predictiontraders: { label: "Prediction Traders", icon: "ph-target" },
+  sharpmoney: { label: "Sharp Money", icon: "ph-coins" },
+  positiveev: { label: "Positive EV", icon: "ph-trend-up" },
+  arbitrage: { label: "Arbitrage", icon: "ph-intersect-three" },
+  middles: { label: "Middles", icon: "ph-arrows-in-line-horizontal" },
+};
+
+function trackerSourceCompact(snapshot = {}) {
+  if (snapshot.primary_sharp) return trackerSharpCompact(snapshot);
+  const sourceKey = String(snapshot.tracking_source || snapshot.source || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "");
+  const source = TRACKER_ORIGIN_SOURCE_META[sourceKey];
+  if (!source) return '<span class="sharp-unavailable">—</span>';
+  return `<span class="tracker-sharp-compact tracker-origin-source"><span class="provider-logo-mark tracker-source-icon" aria-hidden="true"><i class="ph ${escapeHtml(source.icon)}"></i></span><strong>${escapeHtml(source.label)}</strong></span>`;
 }
 
 function trackerResultBadge(status = "unresolved") {
@@ -4832,7 +4873,7 @@ function trackerMobileModelBet(row) {
     <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(selection, market, snapshot.market_line, snapshot.event_title, snapshot.player_name || snapshot.participant_name, trackerSportDescriptor(snapshot, row)))}</strong><b>${escapeHtml(displayEntry)}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
     <div class="tracker-mobile-details">
       ${trackerMobileDetail("Event", `<strong>${escapeHtml(trackerShortMatchup(snapshot.event_title || snapshot.market_title || "Market"))}</strong>`, "wide")}
-      ${trackerMobileDetail("Sharp", trackerSharpCompact(sharpSnapshot))}
+      ${trackerMobileDetail("Source", trackerSourceCompact(sharpSnapshot))}
       ${trackerMobileDetail("Sharp entry", `<strong>${sharpEntry === null ? "—" : escapeHtml(formatCents(sharpEntry))}</strong>`)}
       ${trackerMobileDetail("Sharp stake", `<strong>${sharpStake === null ? "—" : escapeHtml(formatMoney(sharpStake))}</strong>`)}
       ${trackerMobileDetail("Bet", `<strong>${escapeHtml(formatMoney(row.recommended_amount))}</strong>`)}
@@ -4858,7 +4899,7 @@ function trackerMobilePersonalBet(row) {
     <summary>${providerIcon}<strong>${escapeHtml(trackerCompactBetLabel(row.selection || "Selection", row.sports_market_type || row.market_title || row.market_type || "", row.market_line ?? row.line, row.event_title, row.player_name || row.participant_name, trackerSportDescriptor({}, row)))}</strong><b>${escapeHtml(formatCents(row.entry_price))}</b><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
     <div class="tracker-mobile-details">
       ${trackerMobileDetail("Event", `<strong>${escapeHtml(trackerShortMatchup(row.event_title || "Market"))}</strong>`, "wide")}
-      ${trackerMobileDetail("Sharp", trackerSharpCompact(sharpSnapshot))}
+      ${trackerMobileDetail("Source", trackerSourceCompact(sharpSnapshot))}
       ${trackerMobileDetail("Sharp entry", `<strong>${number(primary.average_entry) === null ? "—" : escapeHtml(formatCents(primary.average_entry))}</strong>`)}
       ${trackerMobileDetail("Sharp stake", `<strong>${number(primary.amount) === null ? "—" : escapeHtml(formatMoney(primary.amount))}</strong>`)}
       ${trackerMobileDetail("Bet", `<strong>${escapeHtml(formatMoney(row.position_cost))}</strong>`)}
@@ -4894,21 +4935,42 @@ function compositeClvCell(row) {
   const entryOdds = row.snapshot?.provider_display_odds ?? probabilityToAmerican(entryProbability);
   const closeOdds = probabilityToAmerican(closeProbability);
   const tone = probabilityPoints > 0 ? "positive" : probabilityPoints < 0 ? "negative" : "neutral";
-  const venueRows = closes.map((close) => `<span>
-    <b>${escapeHtml(close.provider_name || close.provider || "Exchange")}</b>
-    ${escapeHtml(close.display_odds || formatAmericanOdds(close.american_odds ?? probabilityToAmerican(close.closing_probability)))}
-  </span>`).join("");
+  const label = trackerCompactBetLabel(
+    row.selection || "Selection",
+    row.sports_market_type || row.market_title || row.market_type || "",
+    row.market_line ?? row.line,
+    row.event_title,
+    row.player_name || row.participant_name,
+    trackerSportDescriptor({}, row),
+  );
+  const pct = priceValue === null ? null : priceValue * 100;
   return `<details class="clv-details ${tone}">
-    <summary><strong>${escapeHtml(formatClvPercent(priceValue === null ? null : priceValue * 100))} CLV</strong><small>${escapeHtml(formatClvCents(probabilityPoints))}</small></summary>
-    <span><b>Entry odds</b>${escapeHtml(formatAmericanOdds(entryOdds))}</span>
-    <span><b>Composite close</b>${escapeHtml(formatAmericanOdds(closeOdds))}</span>
-    <span><b>Odds improvement</b>${escapeHtml(oddsDifference(entryOdds, closeOdds))}</span>
-    <span><b>Entry probability</b>${entryProbability === null ? "Unavailable" : escapeHtml(formatPercent(entryProbability))}</span>
-    <span><b>Composite probability</b>${closeProbability === null ? "Unavailable" : escapeHtml(formatPercent(closeProbability))}</span>
-    <span><b>Probability CLV</b>${escapeHtml(formatClvCents(probabilityPoints))}</span>
-    <span><b>Price value CLV</b>${escapeHtml(formatClvPercent(priceValue === null ? null : priceValue * 100))}</span>
-    <span><b>Closing venues</b>${closes.length}</span>
-    ${venueRows}
+    <summary aria-label="Open CLV breakdown for ${escapeHtml(label)}"><strong>${escapeHtml(formatClvPercent(pct))} CLV</strong><small>${escapeHtml(formatAmericanOdds(closeOdds))}</small></summary>
+    <div class="clv-popover" role="group" aria-label="CLV breakdown for ${escapeHtml(label)}">
+      <header class="clv-popover-header"><div><span class="clv-popover-title">CLV Breakdown</span><span class="clv-popover-bet"><i class="ph ${trackerCalendarSportIcon(row)}" aria-hidden="true"></i><strong>${escapeHtml(label)}</strong></span></div><button class="clv-popover-close" type="button" data-clv-close aria-label="Close CLV breakdown"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+      <div class="clv-popover-hero"><strong>${escapeHtml(formatClvPercent(pct))}</strong><span>${escapeHtml(formatClvCents(probabilityPoints))} <small>vs close</small></span></div>
+      <dl class="clv-popover-grid">
+        <div><dt>Entry</dt><dd>${entryProbability === null ? "Unavailable" : escapeHtml(formatCents(entryProbability))}</dd></div>
+        <div><dt>Closing Odds</dt><dd>${escapeHtml(formatAmericanOdds(closeOdds))}</dd></div>
+        <div><dt>Close</dt><dd>${closeProbability === null ? "Unavailable" : escapeHtml(formatCents(closeProbability))}</dd></div>
+        <div><dt>Closing Venues</dt><dd>${closes.length}</dd></div>
+      </dl>
+      <div class="clv-popover-movement" aria-label="Entry and composite close comparison">
+        <div><span>Entry</span><span>Close</span></div>
+        <progress max="1" value="${closeProbability === null ? 0 : closeProbability}">${closeProbability === null ? "Unavailable" : escapeHtml(formatCents(closeProbability))}</progress>
+        <div><strong>${entryProbability === null ? "—" : escapeHtml(formatCents(entryProbability))}</strong><strong>${closeProbability === null ? "—" : escapeHtml(formatCents(closeProbability))}</strong></div>
+      </div>
+      <details class="clv-popover-advanced">
+        <summary>View Full Calculation<i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+        <dl>
+          <div><dt>Entry Odds</dt><dd>${escapeHtml(formatAmericanOdds(entryOdds))}</dd></div>
+          <div><dt>Odds Improvement</dt><dd>${escapeHtml(oddsDifference(entryOdds, closeOdds))}</dd></div>
+          <div><dt>Probability CLV</dt><dd>${escapeHtml(formatClvCents(probabilityPoints))}</dd></div>
+          <div><dt>Price Value CLV</dt><dd>${escapeHtml(formatClvPercent(pct))}</dd></div>
+          <div><dt>Closing Venues</dt><dd>${closes.length}</dd></div>
+        </dl>
+      </details>
+    </div>
   </details>`;
 }
 
@@ -4925,16 +4987,27 @@ function trackerRow(row) {
   const sharpEntry = number(primary.average_entry ?? snapshot.sharp_average_entry_price);
   const sharpStake = number(primary.amount);
   const trackedAt = row.settled_at || row.tracked_at || row.created_at;
+  const selection = snapshot.recommended_side || "Selection";
+  const market = snapshot.sports_market_type || snapshot.market_type || snapshot.market_kind || snapshot.market_title || "";
+  const betLabel = trackerCompactBetLabel(
+    selection,
+    market,
+    snapshot.market_line,
+    snapshot.event_title,
+    snapshot.player_name || snapshot.participant_name,
+    trackerSportDescriptor(snapshot, row),
+  );
+  const matchup = trackerShortMatchup(snapshot.event_title || snapshot.market_title || "Market");
+  const wager = number(row.recommended_amount);
+  const displayEntry = entry === null ? "—" : (snapshot.provider_display_odds || formatCents(entry));
   return `
     <tr>
-      <td data-label="Market"><div class="tracker-market-cell">${trackerProviderBadge(provider, marketUrl)}<strong>${escapeHtml(trackerShortMatchup(snapshot.event_title || snapshot.market_title))}</strong></div></td>
-      <td data-label="Selection"><strong>${escapeHtml(snapshot.recommended_side || "Selection")}</strong></td>
-      <td data-label="Sharp">${trackerSharpCompact(sharpSnapshot)}</td>
-      <td data-label="Entry"><strong>${entry === null ? "—" : escapeHtml(snapshot.provider_display_odds || formatCents(entry))}</strong><small>Sharp ${sharpEntry === null ? "—" : formatCents(sharpEntry)}</small></td>
-      <td data-label="Stake"><strong>${sharpStake === null ? "—" : formatMoney(sharpStake)}</strong><small>Bet ${formatMoney(row.recommended_amount)}</small></td>
+      <td data-label="Bet"><div class="tracker-bet-cell">${trackerProviderBadge(provider, marketUrl)}<span><strong>${escapeHtml(betLabel)}</strong><small>${escapeHtml(matchup)}</small></span></div></td>
+      <td data-label="Source">${trackerSourceCompact(sharpSnapshot)}</td>
+      <td data-label="Wager"><div class="tracker-wager-cell"><strong>${wager === null ? "—" : escapeHtml(formatMoney(wager))} <span>@</span> ${escapeHtml(displayEntry)}</strong><small>Sharp ${sharpEntry === null ? "—" : escapeHtml(formatCents(sharpEntry))}${sharpStake === null ? "" : ` · ${escapeHtml(formatMoney(sharpStake))}`}</small></div></td>
       <td data-label="Result">${trackerResultBadge(row.result || row.status)}</td>
       <td data-label="P&amp;L" class="mono ${pnl === null ? "" : pnl >= 0 ? "positive" : "negative"}">${pnl === null ? "Open" : formatMoney(pnl)}</td>
-      <td data-label="Entry CLV">${clvCell(row)}</td>
+      <td data-label="CLV">${clvCell(row)}</td>
       <td data-label="Tracked"><span class="tracker-timestamp">${escapeHtml(formatDateTime(trackedAt))}</span></td>
     </tr>
   `;
@@ -6952,7 +7025,21 @@ function renderTrackerBookSummaries(summaries = []) {
   container.hidden = false;
   container.innerHTML = summaries.map((summary) => {
     const pnl = number(summary.realized_profit_loss) || 0;
-    return `<article><span>${escapeHtml(summary.sportsbook)}</span><strong class="${pnlTone(pnl)}">${escapeHtml(signedMoney(pnl))}</strong><small>${summary.wins || 0}-${summary.losses || 0} · ${summary.total_tracked_bets || 0} bets</small></article>`;
+    const sportsbook = String(summary.sportsbook || "Sportsbook");
+    const key = trackerBookMatchKey(sportsbook);
+    const catalogBook = TRACKER_BOOK_CATALOG.find((book) => trackerBookMatchKey(book.name || book.key) === key);
+    const fallback = trackerProviderMeta(sportsbook);
+    const meta = {
+      key,
+      name: sportsbook,
+      logoUrl: String(catalogBook?.logoUrl || fallback.logoUrl || ""),
+    };
+    const performanceClass = pnl > 0 ? "is-positive" : pnl < 0 ? "is-negative" : "is-neutral";
+    return `<article class="${performanceClass}">
+      <header class="tracker-book-summary-name">${providerLogoMarkup(meta, sportsbook)}<span>${escapeHtml(sportsbook)}</span></header>
+      <strong class="${pnlTone(pnl)}">${escapeHtml(signedMoney(pnl))}</strong>
+      <small>${summary.wins || 0}-${summary.losses || 0} · ${summary.total_tracked_bets || 0} Bets</small>
+    </article>`;
   }).join("");
 }
 
@@ -7097,7 +7184,7 @@ const TRACKER_PREVIEW_ROWS = [
     tags: ["Positive EV", "Baseball", "Totals"],
     tracked_at: "2026-08-17T01:43:00Z", settled_at: "2026-08-17T05:18:00Z",
     snapshot: { sportsbook: "4CX", category: "MLB", event_title: "Chicago Cubs vs Milwaukee Brewers", market_title: "Game Total", recommended_side: "Under 8.5 Runs", provider_entry_price: 0.4878, provider_display_odds: "+105", effective_entry_price: 0.4878, sharp_average_entry_price: 0.474, market_url: "" },
-    sharp_snapshot: { primary_sharp: { display_name: "NorthSideEdge", wallet_address: "0xnorthsideedge", average_entry: 0.474, amount: 288 } },
+    sharp_snapshot: { tracking_source: "positive_ev", sharp_source_status: "positive_ev" },
     clv: { clv_status: "captured", clv_pct: 3.41, clv_cents: 1.7, provider: "4CX", entry_native_odds: 105, entry_price: 0.4878, closing_effective_price: 0.5044, closing_midpoint: 0.502, midpoint_clv_pct: 2.91, comparison_stake: 58, liquidity_quality: "Excellent", closing_snapshot_timestamp: "2026-08-17T02:50:00Z", official_event_start_timestamp: "2026-08-17T03:05:00Z", quote_age_ms: 17000 },
   },
   {
@@ -7117,6 +7204,27 @@ const TRACKER_PREVIEW_ROWS = [
     clv: { clv_status: "captured", clv_pct: 1.93, clv_cents: 1.0, provider: "ProphetX", entry_native_odds: 102, entry_price: 0.495, closing_effective_price: 0.5046, closing_midpoint: 0.503, midpoint_clv_pct: 1.62, comparison_stake: 34, liquidity_quality: "Good", closing_snapshot_timestamp: "2026-08-17T04:50:00Z", official_event_start_timestamp: "2026-08-17T05:10:00Z", quote_age_ms: 19000 },
   },
 ];
+
+const TRACKER_PREVIEW_BOOK_SUMMARIES = [
+  { sportsbook: "NoVIG", realized_profit_loss: 57.12, wins: 1, losses: 1, total_tracked_bets: 2 },
+  { sportsbook: "ProphetX", realized_profit_loss: -37.32, wins: 1, losses: 1, total_tracked_bets: 2 },
+  { sportsbook: "4CX", realized_profit_loss: 112.40, wins: 2, losses: 1, total_tracked_bets: 3 },
+  { sportsbook: "FanDuel", realized_profit_loss: 186.25, wins: 3, losses: 1, total_tracked_bets: 4 },
+  { sportsbook: "DraftKings", realized_profit_loss: -64.00, wins: 1, losses: 2, total_tracked_bets: 3 },
+  { sportsbook: "BetMGM", realized_profit_loss: 48.75, wins: 2, losses: 0, total_tracked_bets: 2 },
+  { sportsbook: "Caesars", realized_profit_loss: -29.50, wins: 1, losses: 1, total_tracked_bets: 2 },
+  { sportsbook: "Bet365", realized_profit_loss: 73.18, wins: 2, losses: 1, total_tracked_bets: 3 },
+  { sportsbook: "Fanatics", realized_profit_loss: 121.60, wins: 3, losses: 1, total_tracked_bets: 4 },
+  { sportsbook: "Hard Rock Bet", realized_profit_loss: -18.20, wins: 1, losses: 1, total_tracked_bets: 2 },
+];
+
+function trackerPreviewBookSummaries() {
+  const requested = Number.parseInt(new URLSearchParams(window.location.search).get("preview_books") || "", 10);
+  const count = Number.isInteger(requested)
+    ? Math.min(TRACKER_PREVIEW_BOOK_SUMMARIES.length, Math.max(1, requested))
+    : TRACKER_PREVIEW_BOOK_SUMMARIES.length;
+  return TRACKER_PREVIEW_BOOK_SUMMARIES.slice(0, count);
+}
 
 function trackerPreviewAnchor() {
   const latest = TRACKER_PREVIEW_ROWS
@@ -7213,6 +7321,10 @@ function trackerPreviewPayload(params) {
     clv: { ...row.clv, entry_stake: row.recommended_amount, provider_closes: [{ provider_name: row.snapshot.sportsbook, closing_probability: row.clv.closing_effective_price, mapping_confidence: "EXACT" }] },
   }));
   const filtersActive = Boolean(search || status || result || sharp || tag || selectedBooks.size);
+  const previewBookSummaries = trackerPreviewBookSummaries();
+  const sportsbookSummaries = previewBookSummaries.filter((summary) => (
+    !selectedBooks.size || selectedBooks.has(String(summary.sportsbook || "").toLowerCase())
+  ));
   const graph = filtersActive ? trackerPreviewFilteredGraph(rows) : [
     { timestamp: "2026-08-12T12:00:00Z", bankroll: 10000, daily_profit: 0 },
     { timestamp: "2026-08-13T12:00:00Z", bankroll: 10048, daily_profit: 48 },
@@ -7228,15 +7340,11 @@ function trackerPreviewPayload(params) {
     tracking: { status: "running" },
     graph,
     filter_options: {
-      sportsbooks: ["4CX", "NoVIG", "ProphetX"],
+      sportsbooks: previewBookSummaries.map((summary) => summary.sportsbook),
       sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"],
       tags: [...new Set(TRACKER_PREVIEW_ROWS.flatMap((row) => row.tags || []))].sort((left, right) => left.localeCompare(right)),
     },
-    sportsbook_summaries: [
-      { sportsbook: "NoVIG", realized_profit_loss: 99.12, wins: 1, losses: 0, total_tracked_bets: 2 },
-      { sportsbook: "ProphetX", realized_profit_loss: -37.32, wins: 1, losses: 1, total_tracked_bets: 2 },
-      { sportsbook: "4CX", realized_profit_loss: 60.9, wins: 1, losses: 0, total_tracked_bets: 1 },
-    ],
+    sportsbook_summaries: sportsbookSummaries,
     clv: { periods: { all: clvPeriod, today: clvPeriod, "7d": clvPeriod, month: clvPeriod, "3m": clvPeriod, "6m": clvPeriod, year: clvPeriod } },
     clv_records: clvRecords,
   };
@@ -7313,7 +7421,7 @@ function selectTrackerSection(section, { updateUrl = true } = {}) {
     button.setAttribute("aria-selected", String(active));
   });
   const title = document.getElementById("tracker-page-title");
-  if (title) title.textContent = normalized === "dashboard" ? "Dashboard" : "Bet Tracker";
+  if (title) title.textContent = "Bet Tracker";
   if (updateUrl) {
     const url = new URL(window.location.href);
     url.searchParams.set("section", normalized);
@@ -7363,9 +7471,10 @@ function configureTrackerShell(view) {
   document.querySelector('#tracker-result option[value="canceled"]').hidden = model;
   if (model && document.getElementById("tracker-status").value === "canceled") document.getElementById("tracker-status").value = "";
   if (model && document.getElementById("tracker-result").value === "canceled") document.getElementById("tracker-result").value = "";
-  document.getElementById("tracker-search").placeholder = model ? "Search event, market, Sharp" : "Search event, selection, Sharp";
+  document.getElementById("tracker-bets-view")?.classList.toggle("tracker-model-bets", model);
+  document.getElementById("tracker-search").placeholder = "Search Bets, Teams, Markets, or Sportsbooks";
   document.getElementById("tracker-table-head").innerHTML = model
-    ? "<th>Market</th><th>Selection</th><th>Sharp</th><th>Entry</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th>"
+    ? "<th>Bet</th><th>Source</th><th>Wager</th><th>Result</th><th>P&amp;L</th><th>CLV</th><th>Tracked</th>"
     : "<th>Market</th><th>Selection</th><th>Sharp</th><th>Entry</th><th>Stake</th><th>Result</th><th>P&amp;L</th><th>Entry CLV</th><th>Tracked</th><th>Action</th>";
   document.getElementById("tracker-diagnostics").hidden = !model || !appState.trackerDiagnostics;
   document.querySelectorAll("[data-tracker-view]").forEach((button) => {
@@ -7514,6 +7623,78 @@ function initializeTrackerView() {
 }
 
 function bindTracker() {
+  const positionClvPopover = (details) => {
+    const popover = details.querySelector(":scope > .clv-popover");
+    const summary = details.querySelector(":scope > summary");
+    if (!popover || !summary) return;
+    const margin = 18;
+    const gap = 10;
+    details.classList.remove("open-up");
+    details.style.removeProperty("--clv-popover-top");
+    details.style.removeProperty("--clv-popover-left");
+    const popoverRect = popover.getBoundingClientRect();
+    const summaryRect = summary.getBoundingClientRect();
+    const maximumLeft = Math.max(margin, window.innerWidth - popoverRect.width - margin);
+    const left = Math.min(maximumLeft, Math.max(margin, summaryRect.right - popoverRect.width + 18));
+    const belowTop = summaryRect.bottom + gap;
+    const aboveTop = summaryRect.top - popoverRect.height - gap;
+    let top = belowTop;
+    let opensUp = false;
+    if (belowTop + popoverRect.height > window.innerHeight - margin && aboveTop >= margin) {
+      top = aboveTop;
+      opensUp = true;
+    } else if (belowTop + popoverRect.height > window.innerHeight - margin) {
+      top = Math.max(margin, window.innerHeight - popoverRect.height - margin);
+      opensUp = top + popoverRect.height <= summaryRect.top;
+    }
+    details.classList.toggle("open-up", opensUp);
+    details.style.setProperty("--clv-popover-top", `${Math.round(top)}px`);
+    details.style.setProperty("--clv-popover-left", `${Math.round(left)}px`);
+  };
+  document.addEventListener("toggle", (event) => {
+    const details = event.target.closest?.(".clv-details");
+    if (!details || !document.getElementById("tracker-bets-view")?.contains(details)) return;
+    const row = details.closest("tr");
+    row?.classList.toggle("clv-row-open", details.open);
+    if (!details.open) {
+      details.classList.remove("open-up");
+      details.style.removeProperty("--clv-popover-top");
+      details.style.removeProperty("--clv-popover-left");
+      return;
+    }
+    document.querySelectorAll("#tracker-bets-view .clv-details[open]").forEach((other) => {
+      if (other !== details) other.removeAttribute("open");
+    });
+    window.requestAnimationFrame(() => {
+      positionClvPopover(details);
+    });
+  }, true);
+  window.addEventListener("resize", () => {
+    const openDetails = document.querySelector("#tracker-bets-view .clv-details[open]");
+    if (openDetails) positionClvPopover(openDetails);
+  }, { passive: true });
+  document.getElementById("tracker-bets-view")?.addEventListener("scroll", () => {
+    const openDetails = document.querySelector("#tracker-bets-view .clv-details[open]");
+    if (openDetails) positionClvPopover(openDetails);
+  }, { passive: true, capture: true });
+  document.getElementById("tracker-bets-view")?.addEventListener("click", (event) => {
+    const close = event.target.closest("[data-clv-close]");
+    if (!close) return;
+    event.preventDefault();
+    event.stopPropagation();
+    close.closest(".clv-details")?.removeAttribute("open");
+  });
+  document.addEventListener("click", (event) => {
+    if (event.target.closest?.(".clv-details")) return;
+    document.querySelectorAll("#tracker-bets-view .clv-details[open]").forEach((details) => details.removeAttribute("open"));
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    const details = document.querySelector("#tracker-bets-view .clv-details[open]");
+    if (!details) return;
+    details.removeAttribute("open");
+    details.querySelector(":scope > summary")?.focus();
+  });
   document.querySelectorAll("[data-tracker-section]").forEach((button) => {
     button.addEventListener("click", () => selectTrackerSection(button.dataset.trackerSection));
   });
