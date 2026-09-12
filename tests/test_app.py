@@ -1647,9 +1647,9 @@ def test_tracker_page_contains_real_job_status_and_admin_controls(app_client):
     assert "Personal Tracker" in html
     assert 'id="tracker-view-toggle"' in html
     assert 'id="tracker-job-state"' in html
-    assert 'id="tracker-bankroll-edit"' in html
-    assert 'id="tracker-bankroll-dialog"' in html
-    assert 'id="tracker-bankroll-form"' in html
+    assert 'id="tracker-bankroll-edit"' not in html
+    assert 'id="tracker-bankroll-dialog"' not in html
+    assert 'id="tracker-bankroll-form"' not in html
     assert "Tracker profile" not in html
     assert 'id="tracker-reconcile"' in html
     assert 'id="tracker-pause-job"' in html
@@ -1679,8 +1679,8 @@ def test_tracker_page_uses_one_shared_shell_for_both_trackers(app_client):
     assert 'id="tracker-clv-books-dialog"' in html
     assert "Best verified closing price captured for each bet" in html
     assert 'id="tracker-body"' in html
-    assert 'id="personal-bankroll-control"' in html
-    assert 'id="model-bankroll-control"' in html
+    assert 'id="personal-bankroll-control"' not in html
+    assert 'id="model-bankroll-control"' not in html
     assert 'href="/model-tracker"' not in html
     assert 'href="/personal-tracking"' not in html
 

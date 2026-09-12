@@ -21,16 +21,6 @@
     <button type="button" role="tab" data-tracker-section="bets" aria-selected="false">Tracked Bets</button>
   </nav>
   <div class="tracker-global-controls">
-    <div class="tracker-global-bankroll">
-      <div id="model-bankroll-control">
-        <button class="tracker-bankroll-control" id="tracker-bankroll-edit" type="button" aria-label="Edit model tracker bankroll">
-          <span>Bankroll</span><strong id="tracker-starting-bankroll">Loading</strong>
-        </button>
-      </div>
-      <button class="tracker-bankroll-control" id="personal-bankroll-control" type="button" hidden aria-label="Edit personal tracker bankroll">
-        <span>Bankroll</span><strong id="personal-starting-bankroll">Loading</strong>
-      </button>
-    </div>
     <div class="tracker-profit-controls">
       <label class="tracker-tag-filter">
         <i class="ph ph-tag" aria-hidden="true"></i>
@@ -100,13 +90,34 @@
         <div class="tracker-chart" id="tracker-chart" role="img" aria-label="Tracker cumulative profit over time"><div class="tracker-loading-state"><span></span><span></span><span></span></div></div>
         <div class="tracker-calendar" id="tracker-calendar" role="grid" aria-label="Daily tracker profit and loss" hidden></div>
       </div>
-      <div class="tracker-performance-summary" id="tracker-performance-summary" aria-live="polite">
-        <div><span>Profit</span><strong id="tracker-summary-profit">$0.00</strong></div>
-        <div><span>CLV</span><strong id="tracker-summary-clv">—</strong><small id="tracker-summary-clv-bets">0 bets</small></div>
-        <div><span>ROI</span><strong id="tracker-summary-roi">0.00%</strong></div>
-        <div><span>Record</span><strong id="tracker-summary-record">0-0-0</strong></div>
-      </div>
-      <div class="tracker-performance-meta"><span id="tracker-performance-updated">Updated: just now</span><span><i class="ph-fill ph-seal-check" aria-hidden="true"></i> Verified</span></div>
+      <section class="tracker-period-recap" id="tracker-performance-summary" aria-labelledby="tracker-recap-title">
+        <header class="tracker-recap-header">
+          <h3 id="tracker-recap-title">Period Recap</h3>
+          <div class="tracker-recap-navigation" aria-label="Quick daily recap">
+            <button class="tracker-recap-step" type="button" data-tracker-recap-step="-1" aria-label="Previous recap period"><i class="ph ph-caret-left" aria-hidden="true"></i></button>
+            <div class="tracker-recap-days" aria-label="Choose a day">
+              <button type="button" data-tracker-recap-day="-1" aria-pressed="false">Yesterday</button>
+              <button type="button" data-tracker-recap-day="0" aria-pressed="false">Today</button>
+              <button type="button" data-tracker-recap-day="1" aria-pressed="false">Tomorrow</button>
+            </div>
+            <button class="tracker-recap-step" type="button" data-tracker-recap-step="1" aria-label="Next recap period"><i class="ph ph-caret-right" aria-hidden="true"></i></button>
+          </div>
+        </header>
+        <div class="tracker-recap-content" aria-live="polite">
+          <div class="tracker-recap-hero">
+            <p id="tracker-recap-headline">No Bets Settled In This Period.</p>
+            <span id="tracker-recap-profit-label">You Finished</span>
+            <strong id="tracker-summary-profit">$0.00</strong>
+          </div>
+          <dl class="tracker-recap-metrics">
+            <div><dt>Total Wagered</dt><dd id="tracker-recap-stake">$0.00</dd></div>
+            <div><dt>ROI</dt><dd id="tracker-summary-roi">0.00%</dd></div>
+            <div><dt>Record</dt><dd id="tracker-summary-record">0–0–0</dd></div>
+            <div id="tracker-recap-clv-card"><dt>CLV</dt><dd id="tracker-summary-clv">—</dd><small id="tracker-summary-clv-bets">0 Of 0 Bets Priced</small></div>
+          </dl>
+        </div>
+        <div class="tracker-performance-meta"><span id="tracker-performance-updated">Updated: just now</span><span><i class="ph-fill ph-seal-check" aria-hidden="true"></i> Verified</span></div>
+      </section>
     </section>
 
     <section class="tracker-profit-panel" aria-labelledby="tracker-profit-title">
@@ -196,24 +207,26 @@
     <div class="tracker-share-layout">
       <div class="tracker-share-browser">
         <div class="tracker-share-sections" id="tracker-share-sections" role="tablist" aria-label="Choose dashboard section to share">
-          <button class="active" type="button" role="tab" data-tracker-share-section="chart" aria-selected="true">Chart</button>
-          <button type="button" role="tab" data-tracker-share-section="calendar" aria-selected="false">Calendar</button>
-          <button type="button" role="tab" data-tracker-share-section="pulse" aria-selected="false">Monthly Pulse</button>
-          <button type="button" role="tab" data-tracker-share-section="clv" aria-selected="false">CLV Details</button>
-          <button type="button" role="tab" data-tracker-share-section="profit" aria-selected="false">Profit Over Time</button>
+          <button class="active" type="button" role="tab" data-tracker-share-section="chart" aria-selected="true" aria-label="Chart"><span class="tracker-share-tab-label">Chart</span><span class="tracker-share-tab-compact" aria-hidden="true">Chart</span></button>
+          <button type="button" role="tab" data-tracker-share-section="calendar" aria-selected="false" aria-label="Calendar"><span class="tracker-share-tab-label">Calendar</span><span class="tracker-share-tab-compact" aria-hidden="true">Cal</span></button>
+          <button type="button" role="tab" data-tracker-share-section="recap" aria-selected="false" aria-label="Period Recap"><span class="tracker-share-tab-label">Period Recap</span><span class="tracker-share-tab-compact" aria-hidden="true">Recap</span></button>
+          <button type="button" role="tab" data-tracker-share-section="pulse" aria-selected="false" aria-label="Monthly Pulse"><span class="tracker-share-tab-label">Monthly Pulse</span><span class="tracker-share-tab-compact" aria-hidden="true">Pulse</span></button>
+          <button type="button" role="tab" data-tracker-share-section="clv" aria-selected="false" aria-label="CLV Details"><span class="tracker-share-tab-label">CLV Details</span><span class="tracker-share-tab-compact" aria-hidden="true">CLV</span></button>
+          <button type="button" role="tab" data-tracker-share-section="profit" aria-selected="false" aria-label="Profit Over Time"><span class="tracker-share-tab-label">Profit Over Time</span><span class="tracker-share-tab-compact" aria-hidden="true">Profit</span></button>
         </div>
-        <div class="tracker-share-preview" id="tracker-share-preview" aria-busy="false" aria-label="Scrollable share previews">
+        <div class="tracker-share-preview" id="tracker-share-preview" aria-busy="false" aria-label="Selected share preview">
           <div class="tracker-share-track" id="tracker-share-track">
             <section class="tracker-share-slide" data-tracker-share-slide="chart"><canvas id="tracker-share-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Bet Tracker chart share image"></canvas></section>
-            <section class="tracker-share-slide" data-tracker-share-slide="calendar"><canvas id="tracker-share-calendar-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Bet Tracker calendar share image"></canvas></section>
-            <section class="tracker-share-slide" data-tracker-share-slide="pulse"><canvas id="tracker-share-pulse-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Monthly Pulse share image"></canvas></section>
-            <section class="tracker-share-slide" data-tracker-share-slide="clv"><canvas id="tracker-share-clv-canvas" width="1080" height="1350" role="img" aria-label="Preview of the CLV details share image"></canvas></section>
-            <section class="tracker-share-slide" data-tracker-share-slide="profit"><canvas id="tracker-share-profit-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Profit Over Time share image"></canvas></section>
+            <section class="tracker-share-slide" data-tracker-share-slide="calendar" hidden><canvas id="tracker-share-calendar-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Bet Tracker calendar share image"></canvas></section>
+            <section class="tracker-share-slide" data-tracker-share-slide="recap" hidden><canvas id="tracker-share-recap-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Period Recap share image"></canvas></section>
+            <section class="tracker-share-slide" data-tracker-share-slide="pulse" hidden><canvas id="tracker-share-pulse-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Monthly Pulse share image"></canvas></section>
+            <section class="tracker-share-slide" data-tracker-share-slide="clv" hidden><canvas id="tracker-share-clv-canvas" width="1080" height="1350" role="img" aria-label="Preview of the CLV details share image"></canvas></section>
+            <section class="tracker-share-slide" data-tracker-share-slide="profit" hidden><canvas id="tracker-share-profit-canvas" width="1080" height="1350" role="img" aria-label="Preview of the Profit Over Time share image"></canvas></section>
           </div>
         </div>
       </div>
       <aside class="tracker-share-actions" aria-label="Share image actions">
-        <div><strong id="tracker-share-selection-title">Chart Ready to Share</strong><p id="tracker-share-selection-copy">Scroll or choose a section. Your selected view is formatted into a 4:5 image.</p></div>
+        <div><strong id="tracker-share-selection-title">Chart Ready to Share</strong><p id="tracker-share-selection-copy">Choose a section. Your selected view is formatted into a 4:5 image.</p></div>
         <button id="tracker-share-download" type="button"><i class="ph ph-download-simple" aria-hidden="true"></i><span><strong>Save Image</strong><small>Download a high-resolution PNG</small></span></button>
         <button id="tracker-share-copy-link" type="button"><i class="ph ph-link" aria-hidden="true"></i><span><strong>Copy Image Link</strong><small>Copy a self-contained PNG link</small></span></button>
         <button class="primary" id="tracker-share-social" type="button"><i class="ph ph-share-fat" aria-hidden="true"></i><span><strong>Share to Social</strong><small>Open your device share menu</small></span></button>
@@ -284,34 +297,6 @@
     <p class="eyebrow">IMMUTABLE RECOMMENDATION EVIDENCE</p>
     <h2 id="sharp-source-title">Sharp Source</h2>
     <div id="sharp-source-content"></div>
-  </div>
-</dialog>
-
-<dialog class="tracker-dialog" id="tracker-bankroll-dialog" aria-labelledby="tracker-bankroll-title">
-  <div class="tracker-dialog-shell">
-    <button class="icon-button tracker-dialog-close" id="tracker-bankroll-close" type="button" aria-label="Close Model Tracker bankroll settings"><i class="ph ph-x" aria-hidden="true"></i></button>
-    <p class="eyebrow">BANKROLL REPLAY</p>
-    <h2 id="tracker-bankroll-title">Set Model Replay Bankroll</h2>
-    <p class="tracker-dialog-note">This rescales simulated Model stakes and performance only. It does not change Trades to Play sizing or Personal Tracker purchases.</p>
-    <form id="tracker-bankroll-form">
-      <label class="tracker-dialog-field">Model Replay Bankroll<input id="tracker-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
-      <p class="tracker-admin-error" id="tracker-bankroll-error" role="alert" aria-live="polite"></p>
-      <div class="tracker-dialog-actions"><button class="button ghost" id="tracker-bankroll-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Update replay</button></div>
-    </form>
-  </div>
-</dialog>
-
-<dialog class="tracker-dialog" id="personal-bankroll-dialog" aria-labelledby="personal-bankroll-title">
-  <div class="tracker-dialog-shell">
-    <button class="icon-button tracker-dialog-close" id="personal-bankroll-close" type="button" aria-label="Close Personal Tracker bankroll settings"><i class="ph ph-x" aria-hidden="true"></i></button>
-    <p class="eyebrow">PERSONAL PERFORMANCE</p>
-    <h2 id="personal-bankroll-title">Set Personal Tracker Starting Bankroll</h2>
-    <p class="tracker-dialog-note">This changes ROI and running-bankroll context only. It never changes saved entries, shares, costs, fees, Total Paid, or realized dollar P&amp;L.</p>
-    <form id="personal-bankroll-form">
-      <label class="tracker-dialog-field">Personal Tracker Starting Bankroll<input id="personal-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" required></label>
-      <p class="tracker-admin-error" id="personal-bankroll-error" role="alert" aria-live="polite"></p>
-      <div class="tracker-dialog-actions"><button class="button ghost" id="personal-bankroll-dismiss" type="button">Cancel</button><button class="button primary" type="submit"><i class="ph ph-check" aria-hidden="true"></i>Save starting bankroll</button></div>
-    </form>
   </div>
 </dialog>
 

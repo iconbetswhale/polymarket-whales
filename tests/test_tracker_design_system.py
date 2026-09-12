@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -60,7 +61,10 @@ def test_tracker_v2_uses_shared_tokens_without_visual_shortcuts() -> None:
         "--il-radius-panel",
     ):
         assert f"var({token})" in CSS
-    assert "gradient(" not in CSS
+    # The requested recap border sheen is the only intentional gradient exception.
+    for selector, declarations in re.findall(r"([^{}]+)\{([^{}]*)\}", CSS):
+        if "gradient(" in declarations:
+            assert any(hook in selector for hook in (".tracker-period-recap", ".tracker-recap-hero", ".tracker-recap-metrics > div"))
 
 
 def test_tracker_v2_keeps_responsive_and_interactive_contracts() -> None:
@@ -224,7 +228,7 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
     assert "const TRACKER_SHARE_SECTIONS" in SCRIPT
     assert "async function renderTrackerShareCard(section = appState.trackerShareSection)" in SCRIPT
     assert "async function renderTrackerShareGallery()" in SCRIPT
-    assert "function syncTrackerShareSectionFromScroll()" in SCRIPT
+    assert "function setTrackerShareSection(section)" in SCRIPT
     assert SCRIPT.count("ctx.fillText(snapshot.profitText, 992, 285);") >= 2
     assert "const TRACKER_SHARE_DESKTOP_PREVIEW_SCALE = 610 / 1350;" in SCRIPT
     assert "const TRACKER_SHARE_MONTHLY_PROFIT_FONT_PX = Math.round(22 / TRACKER_SHARE_DESKTOP_PREVIEW_SCALE);" in SCRIPT
@@ -236,7 +240,7 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
     assert 'ctx.fillText("DAILY PROFIT / LOSS"' not in SCRIPT
     assert "let periodSize = 27;" in SCRIPT
     assert "ctx.font = \"600 21px Inter, system-ui, sans-serif\";" in SCRIPT
-    assert "appState.trackerShareScrollTimer = window.setTimeout" in SCRIPT
+    assert "slide.hidden = slide.dataset.trackerShareSlide !== section;" in SCRIPT
     assert "function drawTrackerShareChart(ctx, snapshot)" in SCRIPT
     assert 'const chart = { x: 72, y: 495, width: 936, height: 598 };' in SCRIPT
     assert 'drawExtrema(highest, "High", true);' in SCRIPT
@@ -251,7 +255,7 @@ def test_tracker_monthly_recap_can_be_exported_and_shared() -> None:
     assert ".tracker-share-actions" in CSS
     assert ".tracker-share-sections" in CSS
     assert ".tracker-share-slide" in CSS
-    assert "scroll-snap-type: x mandatory;" in CSS
+    assert "scroll-snap-type: x mandatory;" not in CSS
 
 
 def test_tracker_clv_card_uses_requested_type_scale_and_contextual_help() -> None:
@@ -345,14 +349,11 @@ def test_dashboard_uses_global_tags_and_searchable_multibook_filters(app_client)
     assert "background: var(--il-surface-2) !important;" in CSS
 
 
-def test_tracker_global_toolbar_orders_bankroll_filters_and_range() -> None:
+def test_tracker_global_toolbar_orders_filters_and_range_without_bankroll() -> None:
     toolbar = TEMPLATE.split('<section class="tracker-primary-toolbar"', 1)[1].split(
         '<section class="tracker-switcher-shell"', 1
     )[0]
     assert toolbar.index('id="tracker-section-tabs"') < toolbar.index(
-        'id="model-bankroll-control"'
-    )
-    assert toolbar.index('id="model-bankroll-control"') < toolbar.index(
         'id="tracker-dashboard-tag-filter"'
     )
     assert toolbar.index('id="tracker-dashboard-tag-filter"') < toolbar.index(
@@ -377,7 +378,7 @@ def test_tracker_global_toolbar_orders_bankroll_filters_and_range() -> None:
     )
     assert ".tracker-primary-toolbar" in CSS
     assert ".tracker-global-controls" in CSS
-    assert ".tracker-global-bankroll" in CSS
+    assert ".tracker-global-bankroll" not in CSS
     assert ".tracker-toolbar-custom-dates" in CSS
     assert "border: 1px solid var(--il-border-standard) !important;" in CSS
     assert "padding: 3px;" in CSS
@@ -430,9 +431,116 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     canonical = BASE.index("filename='tracker-v2.css'", foundation)
 
     assert canonical > foundation
-    assert "-canonical-v49-section-tabs-14-override" in BASE[canonical : canonical + 220]
+    assert "-canonical-v57-no-bankroll-control" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v54-tracker-timeframe-cache" in BASE[script : script + 220]
+    assert "-live-feeds-v73-text-position-sort-no-bankroll" in BASE[script : script + 220]
+
+
+def test_tracker_period_recap_replaces_the_summary_strip_and_shares_the_date_filter() -> None:
+    assert 'class="tracker-period-recap" id="tracker-performance-summary"' in TEMPLATE
+    assert 'class="tracker-performance-summary"' not in TEMPLATE
+    assert 'id="tracker-recap-stake"' in TEMPLATE
+    for offset in (-1, 0, 1):
+        assert f'data-tracker-recap-day="{offset}"' in TEMPLATE
+    assert "function trackerRecapSnapshot(" in SCRIPT
+    assert "Number(summary.settled_wagered)" in SCRIPT
+    assert 'appState.graphRange = "today";' in SCRIPT
+    assert "function selectTrackerRecapDay(offset)" in SCRIPT
+    assert "renderTrackerPeriodRecap(payload, points)" in SCRIPT
+    assert "coverageText: `${measured} Of ${total} Bets Priced`" in SCRIPT
+    assert ".tracker-recap-metrics" in CSS
+    assert 'button[aria-pressed="true"]' in CSS
+
+
+def test_tracker_recap_is_a_share_gallery_and_export_option() -> None:
+    assert 'data-tracker-share-section="recap"' in TEMPLATE
+    assert 'data-tracker-share-slide="recap"' in TEMPLATE
+    assert 'id="tracker-share-recap-canvas" width="1080" height="1350"' in TEMPLATE
+    assert 'recap: { label: "Period Recap", canvasId: "tracker-share-recap-canvas" }' in SCRIPT
+    assert "recap: trackerRecapSnapshot(payload, points)" in SCRIPT
+    assert 'if (section === "recap") drawTrackerShareRecap(ctx, snapshot)' in SCRIPT
+    assert "ctx.fillText(recap.coverageText" in SCRIPT
+
+
+def test_tracker_bet_rows_match_the_positions_alternating_surfaces() -> None:
+    for parity, token in (("odd", "--il-surface-1"), ("even", "--il-bg-workspace")):
+        selector = f".tracker-table tbody tr:nth-child({parity}) td"
+        rule = CSS[CSS.index(selector):].split("}", 1)[0]
+        assert f"background: var({token});" in rule
+    stripe_start = CSS.index("/* Match the Positions ledger")
+    hover_rule = CSS[stripe_start:][CSS[stripe_start:].index(".tracker-table tbody tr:hover td"):].split("}", 1)[0]
+    assert "background: var(--il-surface-hover);" in hover_rule
+
+
+def test_tracker_share_tabs_and_previews_do_not_need_horizontal_scrolling() -> None:
+    for selector in (".tracker-share-sections {", ".tracker-share-preview {", ".tracker-share-track {"):
+        rule = CSS[CSS.index(selector):].split("}", 1)[0]
+        assert "overflow-x: auto" not in rule
+        assert "min-width: 100%" not in rule
+    tabs_rule = CSS[CSS.index(".tracker-share-sections {"):].split("}", 1)[0]
+    assert "grid-template-columns: repeat(6, minmax(0, 1fr));" in tabs_rule
+    assert "grid-column: 1 / -1;" in tabs_rule
+    assert ".tracker-share-tab-compact" in CSS
+    assert 'aria-label="Period Recap"' in TEMPLATE
+    assert ".tracker-share-slide[hidden]" in CSS
+    assert 'data-tracker-share-slide="recap" hidden' in TEMPLATE
+    assert "slide.hidden = slide.dataset.trackerShareSlide !== section;" in SCRIPT
+    assert "syncTrackerShareSectionFromScroll" not in SCRIPT
+    assert "Scroll or choose a section" not in TEMPLATE
+
+
+def test_tracker_recap_has_padded_rounded_metric_cards() -> None:
+    for selector in (".tracker-recap-hero {", ".tracker-recap-metrics > div {"):
+        rule = CSS[CSS.index(selector):].split("}", 1)[0]
+        assert "border: 2px solid transparent;" in rule
+        assert "border-radius: var(--il-radius-control);" in rule
+        assert "linear-gradient(var(--il-bg-workspace), var(--il-bg-workspace)) padding-box" in rule
+        assert "var(--tracker-recap-gloss) border-box;" in rule
+        assert "padding:" in rule
+    hero_rule = CSS[CSS.index(".tracker-recap-hero {"):].split("}", 1)[0]
+    assert "padding: 20px;" in hero_rule
+    assert "inset 60px -18px 80px -76px" not in CSS
+    assert "ctx.roundRect(88, 378, 904, 316, 24);" in SCRIPT
+    assert "ctx.roundRect(cardX, cardY, 444, 178, 20);" in SCRIPT
+
+
+def test_dashboard_recap_uses_share_border_palettes_without_changing_title_layout() -> None:
+    for palette in (
+        "#8e95a3 0%, #596170 35%, #232a35 100%",
+        "#79d995 0%, #348450 35%, #163a28 100%",
+        "#ef8894 0%, #9f4858 35%, #401e28 100%",
+    ):
+        assert f"linear-gradient(180deg, {palette})" in CSS
+    for state in ("positive", "negative"):
+        selector = f".tracker-period-recap.is-{state} .tracker-recap-hero {{"
+        rule = CSS[CSS.index(selector):].split("}", 1)[0]
+        assert "--tracker-recap-gloss:" in rule
+        assert "border-color:" not in rule
+    assert '<div class="title-line"><h1 id="tracker-page-title">' in TEMPLATE
+
+
+def test_dashboard_clv_border_adapts_and_sections_keep_silver_gloss() -> None:
+    assert 'id="tracker-recap-clv-card"' in TEMPLATE
+    assert 'clvCard.classList.toggle("is-positive", recap.clv !== null && recap.clv > 0);' in SCRIPT
+    assert 'clvCard.classList.toggle("is-negative", recap.clv !== null && recap.clv < 0);' in SCRIPT
+    for state in ("positive", "negative"):
+        selector = f".tracker-recap-metrics > div.is-{state} {{"
+        assert "--tracker-recap-gloss:" in CSS[CSS.index(selector):].split("}", 1)[0]
+    shared = CSS[CSS.index("/* The recap replaces"):].split("}", 1)[0]
+    for selector in (".tracker-profit-panel,", ".tracker-clv-card,", ".tracker-period-recap {"):
+        assert selector in shared
+    assert "#8e95a3 0%, #596170 35%, #232a35 100%" in shared
+    assert "border: 2px solid transparent;" in shared
+    assert "linear-gradient(var(--il-surface-1), var(--il-surface-1)) padding-box" in shared
+
+
+def test_tracker_bankroll_controls_and_dead_handlers_are_removed() -> None:
+    for hook in ("model-bankroll-control", "personal-bankroll-control", "tracker-bankroll-edit", "tracker-starting-bankroll", "personal-starting-bankroll", "tracker-bankroll-dialog", "personal-bankroll-dialog"):
+        assert hook not in TEMPLATE
+        assert hook not in SCRIPT
+    assert ".tracker-bankroll-control" not in CSS
+    for handler in ("openTrackerBankrollDialog", "closeTrackerBankrollDialog", "saveTrackerBankroll", "openPersonalBankrollDialog", "closePersonalBankrollDialog", "savePersonalTrackerBankroll"):
+        assert handler not in SCRIPT
 
 
 def test_tracker_timeframe_switches_use_cached_and_prewarmed_payloads() -> None:

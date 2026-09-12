@@ -274,13 +274,10 @@ const appState = {
   trackerCalendarSelectedDay: null,
   trackerCalendarFitObserver: null,
   trackerShareSection: "chart",
-  trackerShareScrollTimer: null,
   personalTradeId: null,
   personalSelectedTags: [],
   personalTrackerOptions: null,
   trackerDiagnostics: null,
-  trackerBankroll: null,
-  personalTrackerBankroll: null,
   trackerView: null,
   trackerSection: safeStorage.getItem("iconbets-tracker-section") === "bets" ? "bets" : "dashboard",
   trackerCache: { model: null, personal: null },
@@ -5154,6 +5151,92 @@ function trackerPeriodProfit(points = [], fallback = 0) {
   return dated.reduce((total, point) => total + (Number(point.dailyProfit) || 0), 0);
 }
 
+function trackerRecapSnapshot(payload = {}, points = trackerPerformancePoints(payload.graph || []), {
+  range = appState.graphRange,
+  anchor = appState.trackerPeriodAnchor || trackerDefaultPeriodAnchor(range),
+  now = new Date(),
+} = {}) {
+  const summary = payload.period_summary || {};
+  const clvPeriod = payload.clv?.periods?.all || {};
+  const wins = Number(summary.wins) || 0;
+  const losses = Number(summary.losses) || 0;
+  const pushes = Number(summary.pushes_voids) || 0;
+  const settled = wins + losses + pushes;
+  const profit = number(summary.realized_profit_loss) ?? trackerPeriodProfit(points);
+  const wagered = Number(summary.settled_wagered) || 0;
+  const roi = number(summary.roi) ?? (wagered ? profit / wagered : 0);
+  const measured = Number(clvPeriod.bets_measured) || 0;
+  const total = Math.max(settled, measured, Number(payload.summary?.total_tracked_bets) || 0);
+  const clv = number(clvPeriod.stake_weighted_clv_pct);
+  const dayOffset = range === "today"
+    ? [-1, 0, 1].find((offset) => trackerIsoDate(anchor) === trackerIsoDate(trackerShiftedPeriodAnchor("today", now, offset)))
+    : undefined;
+  const future = range === "today" && trackerIsoDate(anchor) > trackerIsoDate(now);
+  const dayLabel = dayOffset === -1 ? "Yesterday" : dayOffset === 0 ? "Today" : dayOffset === 1 ? "Tomorrow"
+    : anchor.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  const countText = `${settled} ${settled === 1 ? "Bet" : "Bets"} Settled`;
+  return {
+    settled, profit, wagered, roi, clv, measured, total, dayOffset, future,
+    headline: future ? `${dayLabel}’s Results Are Still Ahead.`
+      : range === "today" ? `${dayLabel}, ${countText}.` : `${countText} This Period.`,
+    profitLabel: future ? "No Settled Results Yet" : dayOffset === 0 ? "Your Net Result So Far" : "You Finished",
+    profitText: future ? "—" : signedMoney(profit),
+    wageredText: formatMoney(wagered),
+    roiText: settled ? formatPercent(roi) : "—",
+    recordText: future ? "—" : `${wins}–${losses}–${pushes}`,
+    clvText: clv === null ? "—" : formatClvPercent(clv),
+    coverageText: `${measured} Of ${total} Bets Priced`,
+  };
+}
+
+function trackerLatestPeriodAnchor(range = appState.graphRange) {
+  const today = trackerDefaultPeriodAnchor(range);
+  return range === "today" ? trackerShiftedPeriodAnchor("today", today, 1) : today;
+}
+
+function renderTrackerPeriodRecap(payload, points) {
+  const recap = trackerRecapSnapshot(payload, points);
+  const panel = document.getElementById("tracker-performance-summary");
+  panel.classList.toggle("is-positive", !recap.future && recap.profit > 0);
+  panel.classList.toggle("is-negative", !recap.future && recap.profit < 0);
+  const clvCard = document.getElementById("tracker-recap-clv-card");
+  clvCard.classList.toggle("is-positive", recap.clv !== null && recap.clv > 0);
+  clvCard.classList.toggle("is-negative", recap.clv !== null && recap.clv < 0);
+  for (const [id, value, tone] of [
+    ["tracker-recap-headline", recap.headline],
+    ["tracker-recap-profit-label", recap.profitLabel],
+    ["tracker-summary-profit", recap.profitText, recap.future ? null : recap.profit],
+    ["tracker-recap-stake", recap.wageredText],
+    ["tracker-summary-roi", recap.roiText],
+    ["tracker-summary-record", recap.recordText],
+    ["tracker-summary-clv", recap.clvText, recap.clv],
+    ["tracker-summary-clv-bets", recap.coverageText],
+  ]) {
+    const node = document.getElementById(id);
+    node.textContent = value;
+    node.className = tone === undefined || tone === null ? "" : pnlTone(tone);
+  }
+  document.querySelectorAll("[data-tracker-recap-day]").forEach((button) => {
+    button.setAttribute("aria-pressed", String(recap.dayOffset === Number(button.dataset.trackerRecapDay)));
+  });
+  const navigable = ["today", "week", "month"].includes(appState.graphRange);
+  document.querySelectorAll("[data-tracker-recap-step]").forEach((button) => {
+    button.hidden = !navigable;
+    button.disabled = Number(button.dataset.trackerRecapStep) > 0
+      && appState.trackerPeriodAnchor >= trackerLatestPeriodAnchor();
+  });
+}
+
+function selectTrackerRecapDay(offset) {
+  appState.graphRange = "today";
+  appState.trackerPeriodAnchor = trackerShiftedPeriodAnchor("today", trackerDefaultPeriodAnchor("today"), offset);
+  appState.trackerCalendarSelectedDay = null;
+  appState.trackerPage[appState.trackerView] = 1;
+  safeStorage.setItem("iconbets-tracker-timeframe", "today");
+  syncTrackerTimeframeControls();
+  loadTrackerView();
+}
+
 function drawTrackerProfitChart(points = [], startingBankroll = 0) {
   const container = document.getElementById("tracker-chart");
   if (!container) return;
@@ -5322,7 +5405,7 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
     drawExtrema(lowest, "Low", false);
   }
 
-  const xLabelCount = width / ratio < 640 ? 4 : 6;
+  const xLabelCount = width / ratio < 440 ? 3 : width / ratio < 640 ? 4 : 6;
   ctx.fillStyle = "#858991";
   ctx.font = `${14 * ratio}px Inter, system-ui, sans-serif`;
   ctx.textBaseline = "bottom";
@@ -5397,6 +5480,7 @@ function drawTrackerProfitChart(points = [], startingBankroll = 0) {
 const TRACKER_SHARE_SECTIONS = {
   chart: { label: "Chart", canvasId: "tracker-share-canvas" },
   calendar: { label: "Calendar", canvasId: "tracker-share-calendar-canvas" },
+  recap: { label: "Period Recap", canvasId: "tracker-share-recap-canvas" },
   pulse: { label: "Monthly Pulse", canvasId: "tracker-share-pulse-canvas" },
   clv: { label: "CLV Details", canvasId: "tracker-share-clv-canvas" },
   profit: { label: "Profit Over Time", canvasId: "tracker-share-profit-canvas" },
@@ -5421,6 +5505,7 @@ function trackerShareSnapshot() {
     anchor,
     points,
     periodLabel,
+    recap: trackerRecapSnapshot(payload, points),
     profit,
     profitText: signedMoney(profit),
     roi,
@@ -5612,6 +5697,34 @@ function trackerShareWeekdayTotals(snapshot) {
   return totals;
 }
 
+function trackerShareGlossBorder(ctx, y, height, tone = "neutral") {
+  const colors = tone === "positive" ? ["#79d995", "#348450", "#163a28"]
+    : tone === "negative" ? ["#ef8894", "#9f4858", "#401e28"]
+    : ["#8e95a3", "#596170", "#232a35"];
+  const border = ctx.createLinearGradient(0, y, 0, y + height);
+  border.addColorStop(0, colors[0]);
+  border.addColorStop(.35, colors[1]);
+  border.addColorStop(1, colors[2]);
+  return border;
+}
+
+function trackerShareFitText(ctx, text, width, size, weight = 700, minSize = 12) {
+  while (size > minSize) {
+    ctx.font = `${weight} ${size}px Inter, system-ui, sans-serif`;
+    if (ctx.measureText(String(text)).width <= width) return;
+    size -= 1;
+  }
+  ctx.font = `${weight} ${minSize}px Inter, system-ui, sans-serif`;
+}
+
+function trackerShareClvTone(summary) {
+  const positive = Number(summary.positive) || 0;
+  const negative = Number(summary.negative) || 0;
+  const even = Number(summary.even) || 0;
+  return positive > negative && positive > even ? "positive"
+    : negative > positive && negative > even ? "negative" : "neutral";
+}
+
 function drawTrackerShareBase(ctx, snapshot, sectionTitle) {
   ctx.clearRect(0, 0, 1080, 1350);
   ctx.fillStyle = "#121827";
@@ -5639,6 +5752,9 @@ function drawTrackerShareBase(ctx, snapshot, sectionTitle) {
   ctx.beginPath();
   ctx.roundRect(52, 190, 976, 1108, 34);
   ctx.fill();
+  ctx.strokeStyle = trackerShareGlossBorder(ctx, 190, 1108);
+  ctx.lineWidth = 4;
+  ctx.stroke();
   ctx.textAlign = "left";
   ctx.fillStyle = "#f7f8fb";
   let titleSize = 48;
@@ -5659,7 +5775,7 @@ function drawTrackerShareBase(ctx, snapshot, sectionTitle) {
   ctx.fillText(snapshot.periodLabel, 88, 329);
 }
 
-function drawTrackerShareFooter(ctx, snapshot) {
+function drawTrackerShareFooter(ctx, snapshot, fontOffset = 0) {
   ctx.strokeStyle = "#232d41";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -5668,15 +5784,15 @@ function drawTrackerShareFooter(ctx, snapshot) {
   ctx.stroke();
   ctx.textAlign = "left";
   ctx.fillStyle = "#8f9bb0";
-  ctx.font = "550 23px Inter, system-ui, sans-serif";
+  ctx.font = `550 ${23 + fontOffset}px Inter, system-ui, sans-serif`;
   ctx.fillText(`Updated: ${snapshot.updated}`, 88, 1210);
   ctx.textAlign = "right";
   ctx.fillStyle = "#b77aff";
-  ctx.font = "700 25px Inter, system-ui, sans-serif";
+  ctx.font = `700 ${25 + fontOffset}px Inter, system-ui, sans-serif`;
   ctx.fillText("VERIFIED", 992, 1210);
   ctx.textAlign = "center";
   ctx.fillStyle = "#657086";
-  ctx.font = "550 20px Inter, system-ui, sans-serif";
+  ctx.font = `550 ${20 + fontOffset}px Inter, system-ui, sans-serif`;
   ctx.fillText("Track the process. Share the proof.", 540, 1260);
 }
 
@@ -5747,21 +5863,21 @@ function drawTrackerSharePulse(ctx, snapshot) {
   stats.forEach(([label, value, detail, tone], index) => {
     const x = 88 + index * 305;
     ctx.fillStyle = "#141c27";
-    ctx.strokeStyle = "#273149";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = trackerShareGlossBorder(ctx, 380, 172, ["positive", "negative", "neutral"][index]);
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.roundRect(x, 380, 281, 172, 18);
     ctx.fill();
     ctx.stroke();
     ctx.textAlign = "left";
     ctx.fillStyle = "#8f9bb0";
-    ctx.font = "650 22px Inter, system-ui, sans-serif";
+    ctx.font = "650 24px Inter, system-ui, sans-serif";
     ctx.fillText(label, x + 22, 425);
     ctx.fillStyle = tone;
-    ctx.font = "750 39px Inter, system-ui, sans-serif";
+    trackerShareFitText(ctx, value, 237, 41, 750);
     ctx.fillText(value, x + 22, 482);
     ctx.fillStyle = "#7d899e";
-    ctx.font = "600 21px Inter, system-ui, sans-serif";
+    ctx.font = "600 23px Inter, system-ui, sans-serif";
     ctx.fillText(detail, x + 22, 521);
   });
 
@@ -5772,7 +5888,7 @@ function drawTrackerSharePulse(ctx, snapshot) {
   const baseline = Math.round(plot.top + ((plot.bottom - plot.top) * .5));
   ctx.textAlign = "left";
   ctx.fillStyle = "#aab5ca";
-  ctx.font = "700 22px Inter, system-ui, sans-serif";
+  ctx.font = "700 24px Inter, system-ui, sans-serif";
   ctx.fillText("DAY OF WEEK PERFORMANCE", 88, weekdayHeadingY);
   const slot = (plot.right - plot.left) / 7;
   const barWidth = Math.min(82, slot * .72);
@@ -5792,12 +5908,12 @@ function drawTrackerSharePulse(ctx, snapshot) {
     ctx.fill();
     if (value !== 0) {
       const valueText = signedMoney(value);
-      let valueSize = 21;
+      let valueSize = 23;
       do {
         ctx.font = `700 ${valueSize}px Inter, system-ui, sans-serif`;
         if (ctx.measureText(valueText).width <= slot - 8) break;
         valueSize -= 1;
-      } while (valueSize > 15);
+      } while (valueSize > 17);
       ctx.textAlign = "center";
       ctx.fillStyle = value >= 0 ? "#39ef82" : "#ff5263";
       const valueY = value >= 0
@@ -5807,23 +5923,25 @@ function drawTrackerSharePulse(ctx, snapshot) {
     }
     ctx.textAlign = "center";
     ctx.fillStyle = "#8f9bb0";
-    ctx.font = "650 20px Inter, system-ui, sans-serif";
+    ctx.font = "650 22px Inter, system-ui, sans-serif";
     ctx.fillText(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][index], x + barWidth / 2, 1090);
   });
 }
 
 function drawTrackerShareClv(ctx, snapshot) {
   const summary = snapshot.clvSummary || {};
+  const majorityTone = trackerShareClvTone(summary);
+  const majorityColor = majorityTone === "positive" ? "#39ef82" : majorityTone === "negative" ? "#ff5263" : "#9ba6ba";
   const expected = clvPercent(summary.expectedValue);
   const beating = summary.beating === null || summary.beating === undefined ? "—" : clvPercent(summary.beating * 100);
   const measured = Number(summary.measured) || 0;
   const values = [
     ["Expected Value", expected, summary.expectedValue === null || summary.expectedValue === undefined ? "#9ba6ba" : summary.expectedValue >= 0 ? "#39ef82" : "#ff5263"],
-    ["Bets Beating CLV", beating, summary.beating === null || summary.beating === undefined ? "#9ba6ba" : summary.beating >= .5 ? "#39ef82" : "#ff5263"],
+    ["Bets Beating CLV", beating, majorityColor],
   ];
   ctx.fillStyle = "#141c27";
-  ctx.strokeStyle = "#273149";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = trackerShareGlossBorder(ctx, 380, 245, majorityTone);
+  ctx.lineWidth = 4;
   ctx.beginPath();
   ctx.roundRect(88, 380, 904, 245, 22);
   ctx.fill();
@@ -5832,7 +5950,7 @@ function drawTrackerShareClv(ctx, snapshot) {
     const x = index ? 570 : 120;
     ctx.textAlign = "left";
     ctx.fillStyle = tone;
-    ctx.font = "750 62px Inter, system-ui, sans-serif";
+    trackerShareFitText(ctx, value, 390, 62, 750);
     ctx.fillText(value, x, 490);
     ctx.fillStyle = "#8f9bb0";
     ctx.font = "650 24px Inter, system-ui, sans-serif";
@@ -5861,16 +5979,19 @@ function drawTrackerShareClv(ctx, snapshot) {
   });
   ctx.textAlign = "center";
   ctx.fillStyle = "#f5f7fb";
-  ctx.font = "750 45px Inter, system-ui, sans-serif";
-  ctx.fillText(beating, centerX, centerY + 12);
+  // Leave at least 19px of horizontal breathing room inside the 198px hole.
+  trackerShareFitText(ctx, beating, 160, 45, 750, 22);
+  ctx.textBaseline = "middle";
+  ctx.fillText(beating, centerX, centerY);
+  ctx.textBaseline = "alphabetic";
   parts.forEach(([label, count, tone], index) => {
     const y = 738 + index * 112;
     const percent = measured ? (count / measured) * 100 : 0;
     ctx.fillStyle = "#202b3e";
     ctx.beginPath();
-    ctx.roundRect(545, y, 330, 20, 10);
+    ctx.roundRect(545, y, 270, 20, 10);
     ctx.fill();
-    const filledWidth = 330 * (percent / 100);
+    const filledWidth = 270 * (percent / 100);
     if (filledWidth > 0) {
       ctx.fillStyle = tone;
       ctx.beginPath();
@@ -5879,8 +6000,9 @@ function drawTrackerShareClv(ctx, snapshot) {
     }
     ctx.textAlign = "right";
     ctx.fillStyle = "#f5f7fb";
-    ctx.font = "700 24px Inter, system-ui, sans-serif";
-    ctx.fillText(`${percent.toFixed(1)}%`, 940, y + 19);
+    const percentText = `${percent.toFixed(1)}%`;
+    trackerShareFitText(ctx, percentText, 128, 24);
+    ctx.fillText(percentText, 968, y + 19);
     ctx.textAlign = "left";
     ctx.fillStyle = "#aab5ca";
     ctx.font = "650 22px Inter, system-ui, sans-serif";
@@ -5895,21 +6017,91 @@ function drawTrackerShareProfit(ctx, snapshot) {
     const row = Math.floor(index / 2);
     const x = 88 + column * 460;
     const y = 375 + row * 179;
+    const positiveMetric = ["Total Profit", "Profit Margin Per Wager", "Beat CLV", "Bets Won"].includes(label);
+    const negative = /^[−-]/.test(String(value).trim());
+    const tone = negative ? "negative" : positiveMetric && value !== "—" ? "positive" : "neutral";
     ctx.fillStyle = "#141c27";
-    ctx.strokeStyle = "#273149";
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = trackerShareGlossBorder(ctx, y, 155, tone);
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.roundRect(x, y, 436, 155, 18);
     ctx.fill();
     ctx.stroke();
     ctx.textAlign = "left";
     ctx.fillStyle = "#8f9bb0";
-    ctx.font = "650 21px Inter, system-ui, sans-serif";
+    trackerShareFitText(ctx, label, 388, 23, 650);
     ctx.fillText(label, x + 24, y + 45);
-    const positiveMetric = ["Total Profit", "Profit Margin Per Wager", "Beat CLV", "Bets Won"].includes(label);
-    ctx.fillStyle = String(value).trim().startsWith("-") ? "#ff5263" : positiveMetric && value !== "—" ? "#39ef82" : "#f5f7fb";
-    ctx.font = "750 38px Inter, system-ui, sans-serif";
+    ctx.fillStyle = tone === "negative" ? "#ff5263" : tone === "positive" ? "#39ef82" : "#f5f7fb";
+    trackerShareFitText(ctx, value, 388, 40, 750);
     ctx.fillText(value, x + 24, y + 106);
+  });
+}
+
+function drawTrackerShareRecap(ctx, snapshot) {
+  const recap = snapshot.recap;
+  const font = (weight, size) => `${weight} ${size}px Inter, system-ui, sans-serif`;
+  const resultColor = recap.future || recap.profit === 0 ? "#f7f8fb" : recap.profit > 0 ? "#50d977" : "#ff4d65";
+  ctx.fillStyle = recap.future || recap.profit === 0 ? "#131b29" : recap.profit > 0 ? "#11201e" : "#251923";
+  const resultTone = recap.future || recap.profit === 0 ? "neutral" : recap.profit > 0 ? "positive" : "negative";
+  ctx.strokeStyle = trackerShareGlossBorder(ctx, 378, 316, resultTone);
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.roundRect(88, 378, 904, 316, 24);
+  ctx.fill();
+  ctx.stroke();
+  ctx.textAlign = "left";
+  ctx.fillStyle = "#f7f8fb";
+  let headlineSize = 42;
+  do {
+    ctx.font = font(700, headlineSize);
+    if (ctx.measureText(recap.headline).width <= 844) break;
+    headlineSize -= 1;
+  } while (headlineSize > 24);
+  ctx.fillText(recap.headline, 118, 438);
+  ctx.fillStyle = "#aab5ca";
+  ctx.font = font(550, 30);
+  ctx.fillText(recap.profitLabel, 118, 500);
+  ctx.fillStyle = resultColor;
+  let profitSize = 112;
+  do {
+    ctx.font = font(750, profitSize);
+    if (ctx.measureText(recap.profitText).width <= 844) break;
+    profitSize -= 2;
+  } while (profitSize > 40);
+  ctx.fillText(recap.profitText, 118, 629);
+  const metrics = [
+    ["Total Wagered", recap.wageredText, "#f7f8fb"],
+    ["ROI", recap.roiText, "#f7f8fb"],
+    ["Record", recap.recordText, "#f7f8fb"],
+    ["CLV", recap.clvText, recap.clv > 0 ? "#50d977" : recap.clv < 0 ? "#ff4d65" : "#f7f8fb"],
+  ];
+  metrics.forEach(([label, value, color], index) => {
+    const cardX = index % 2 ? 548 : 88;
+    const cardY = index < 2 ? 724 : 922;
+    const x = cardX + 28;
+    const y = cardY + 43;
+    ctx.fillStyle = "#131b29";
+    ctx.strokeStyle = trackerShareGlossBorder(ctx, cardY, 178);
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, 444, 178, 20);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#aab5ca";
+    ctx.font = font(600, 29);
+    ctx.fillText(label, x, y);
+    ctx.fillStyle = color;
+    let valueSize = 50;
+    do {
+      ctx.font = font(700, valueSize);
+      if (ctx.measureText(value).width <= 388) break;
+      valueSize -= 2;
+    } while (valueSize > 24);
+    ctx.fillText(value, x, y + 62);
+    if (label === "CLV") {
+      ctx.fillStyle = "#9ba6ba";
+      ctx.font = font(550, 23);
+      ctx.fillText(recap.coverageText, x, y + 101);
+    }
   });
 }
 
@@ -5918,10 +6110,11 @@ function drawTrackerAlternateShareCard(canvas, snapshot, section) {
   const meta = TRACKER_SHARE_SECTIONS[section];
   drawTrackerShareBase(ctx, snapshot, meta.label);
   if (section === "calendar") drawTrackerShareCalendar(ctx, snapshot);
+  if (section === "recap") drawTrackerShareRecap(ctx, snapshot);
   if (section === "pulse") drawTrackerSharePulse(ctx, snapshot);
   if (section === "clv") drawTrackerShareClv(ctx, snapshot);
   if (section === "profit") drawTrackerShareProfit(ctx, snapshot);
-  drawTrackerShareFooter(ctx, snapshot);
+  drawTrackerShareFooter(ctx, snapshot, section === "pulse" || section === "profit" ? 2 : 0);
   canvas.setAttribute("aria-label", `${meta.label} share image for ${snapshot.periodLabel}.`);
 }
 
@@ -5970,6 +6163,9 @@ async function renderTrackerShareCard(section = appState.trackerShareSection) {
   ctx.beginPath();
   ctx.roundRect(52, 190, 976, 1108, 34);
   ctx.fill();
+  ctx.strokeStyle = trackerShareGlossBorder(ctx, 190, 1108);
+  ctx.lineWidth = 4;
+  ctx.stroke();
   ctx.textAlign = "left";
   ctx.fillStyle = "#f7f8fb";
   let headingSize = 54;
@@ -6020,7 +6216,7 @@ function trackerShareBlob(canvas) {
   });
 }
 
-function setTrackerShareSection(section, { scroll = true, behavior = "smooth" } = {}) {
+function setTrackerShareSection(section) {
   const meta = TRACKER_SHARE_SECTIONS[section];
   if (!meta) return;
   appState.trackerShareSection = section;
@@ -6028,26 +6224,14 @@ function setTrackerShareSection(section, { scroll = true, behavior = "smooth" } 
     const active = button.dataset.trackerShareSection === section;
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
-    if (active) button.scrollIntoView({ block: "nearest", inline: "nearest" });
+  });
+  document.querySelectorAll("[data-tracker-share-slide]").forEach((slide) => {
+    slide.hidden = slide.dataset.trackerShareSlide !== section;
   });
   const title = document.getElementById("tracker-share-selection-title");
   const copy = document.getElementById("tracker-share-selection-copy");
   if (title) title.textContent = `${meta.label} Ready to Share`;
   if (copy) copy.textContent = `Save, copy, or share the selected ${meta.label.toLowerCase()} image.`;
-  if (!scroll) return;
-  const preview = document.getElementById("tracker-share-preview");
-  const slide = document.querySelector(`[data-tracker-share-slide="${section}"]`);
-  if (preview && slide) preview.scrollTo({ left: slide.offsetLeft, behavior });
-}
-
-function syncTrackerShareSectionFromScroll() {
-  const preview = document.getElementById("tracker-share-preview");
-  if (!preview) return;
-  const slides = [...preview.querySelectorAll("[data-tracker-share-slide]")];
-  const nearest = slides.reduce((winner, slide) => (
-    Math.abs(slide.offsetLeft - preview.scrollLeft) < Math.abs(winner.offsetLeft - preview.scrollLeft) ? slide : winner
-  ), slides[0]);
-  if (nearest) setTrackerShareSection(nearest.dataset.trackerShareSlide, { scroll: false });
 }
 
 async function renderTrackerShareGallery() {
@@ -6064,10 +6248,11 @@ async function openTrackerShareDialog() {
   const dialog = document.getElementById("tracker-share-dialog");
   if (!dialog) return;
   appState.trackerShareSection = appState.trackerVisualMode === "calendar" ? "calendar" : "chart";
+  setTrackerShareSection(appState.trackerShareSection);
   if (!dialog.open) dialog.showModal();
   try {
     await renderTrackerShareGallery();
-    setTrackerShareSection(appState.trackerShareSection, { behavior: "auto" });
+    setTrackerShareSection(appState.trackerShareSection);
     document.getElementById("tracker-share-close")?.focus();
   } catch (_error) {
     showToast("The share image could not be generated.", "error");
@@ -6451,7 +6636,7 @@ function renderTrackerPerformance(payload = {}) {
   });
   const nextButton = document.getElementById("tracker-period-next");
   if (nextButton && appState.trackerPeriodAnchor) {
-    const currentAnchor = trackerDefaultPeriodAnchor(appState.graphRange);
+    const currentAnchor = trackerLatestPeriodAnchor(appState.graphRange);
     nextButton.disabled = !navigableRange || appState.trackerPeriodAnchor >= currentAnchor;
   }
   const unit = appState.graphRange === "today" ? "day" : appState.graphRange === "week" ? "week" : "month";
@@ -6471,19 +6656,7 @@ function renderTrackerPerformance(payload = {}) {
   const periodProfitNode = document.getElementById("tracker-period-profit");
   periodProfitNode.textContent = signedMoney(periodProfit);
   periodProfitNode.className = pnlTone(periodProfit);
-  document.getElementById("tracker-summary-profit").textContent = signedMoney(periodProfit);
-  document.getElementById("tracker-summary-profit").className = pnlTone(periodProfit);
-  const periodKey = "all";
-  const clvPeriod = payload.clv?.periods?.[periodKey] || {};
-  const clvValue = number(clvPeriod.stake_weighted_clv_pct);
-  const clvNode = document.getElementById("tracker-summary-clv");
-  clvNode.textContent = clvValue === null ? "—" : formatClvPercent(clvValue);
-  clvNode.className = clvValue > 0 ? "positive" : clvValue < 0 ? "negative" : "";
-  document.getElementById("tracker-summary-clv-bets").textContent = `${clvPeriod.bets_measured || 0} bets`;
-  const periodRoi = Number(periodSummary.roi) || 0;
-  document.getElementById("tracker-summary-roi").textContent = formatPercent(periodRoi);
-  document.getElementById("tracker-summary-roi").className = pnlTone(periodRoi);
-  document.getElementById("tracker-summary-record").textContent = `${periodSummary.wins || 0}-${periodSummary.losses || 0}-${periodSummary.pushes_voids || 0}`;
+  renderTrackerPeriodRecap(payload, points);
   document.getElementById("tracker-performance-updated").textContent = `Updated: ${new Date().toLocaleString(undefined, { month: "numeric", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", second: "2-digit" })}`;
   if (mode === "calendar") renderTrackerCalendar(points, payload);
   else drawTrackerProfitChart(points, summary.starting_bankroll);
@@ -6493,7 +6666,7 @@ function shiftTrackerPerformancePeriod(offset) {
   if (!["today", "week", "month"].includes(appState.graphRange)) return;
   const anchor = appState.trackerPeriodAnchor || trackerDefaultPeriodAnchor(appState.graphRange);
   const next = trackerShiftedPeriodAnchor(appState.graphRange, anchor, offset);
-  if (next > trackerDefaultPeriodAnchor(appState.graphRange)) return;
+  if (next > trackerLatestPeriodAnchor(appState.graphRange)) return;
   appState.trackerPeriodAnchor = next;
   appState.trackerCalendarSelectedDay = null;
   appState.trackerPage[appState.trackerView] = 1;
@@ -6818,53 +6991,6 @@ function closeTrackerAdminDialog() {
   else dialog.removeAttribute("open");
 }
 
-function openTrackerBankrollDialog() {
-  const dialog = document.getElementById("tracker-bankroll-dialog");
-  const input = document.getElementById("tracker-bankroll-input");
-  if (!dialog || !input) return;
-  document.getElementById("tracker-bankroll-error").textContent = "";
-  input.value = number(appState.trackerBankroll)?.toFixed(2) || "";
-  if (typeof dialog.showModal === "function") dialog.showModal();
-  else dialog.setAttribute("open", "");
-  input.focus();
-  input.select();
-}
-
-function closeTrackerBankrollDialog() {
-  const dialog = document.getElementById("tracker-bankroll-dialog");
-  if (!dialog) return;
-  document.getElementById("tracker-bankroll-form").reset();
-  if (typeof dialog.close === "function") dialog.close();
-  else dialog.removeAttribute("open");
-}
-
-async function saveTrackerBankroll(event) {
-  event.preventDefault();
-  const form = document.getElementById("tracker-bankroll-form");
-  const submit = form.querySelector('button[type="submit"]');
-  const error = document.getElementById("tracker-bankroll-error");
-  const trackerBankroll = number(document.getElementById("tracker-bankroll-input").value);
-  if (trackerBankroll === null || trackerBankroll <= 0) {
-    error.textContent = "Enter a bankroll greater than zero.";
-    return;
-  }
-  submit.disabled = true;
-  error.textContent = "";
-  try {
-    await fetchJson("/api/model-tracker/settings", {
-      method: "PUT",
-      body: JSON.stringify({ tracker_bankroll: trackerBankroll }),
-    });
-    closeTrackerBankrollDialog();
-    await loadTracker();
-    showToast("Model Tracker replay bankroll updated. Trades to Play is unchanged.", "success");
-  } catch (requestError) {
-    error.textContent = requestError.message;
-  } finally {
-    submit.disabled = false;
-  }
-}
-
 async function loadTrackerDiagnostics(showLogin = false) {
   const response = await fetch("/api/admin/model-tracker/diagnostics", { headers: { "Accept": "application/json" } });
   if (response.status === 403 && showLogin) {
@@ -7076,7 +7202,6 @@ function drawPersonalTrackerChart(graph, hasTrackedBets) {
 function renderModelTracker(payload) {
   if (appState.trackerView !== "model") return;
   const summary = payload.summary || {};
-  appState.trackerBankroll = payload.bankroll?.tracker_bankroll ?? summary.starting_bankroll;
   appState.sharpSources = {};
   appState.sharpSourceSequence = 0;
   renderSharpTrackerFilter(payload.filter_options || {});
@@ -7084,7 +7209,6 @@ function renderModelTracker(payload) {
   renderTrackerBookFilter(payload.filter_options?.sportsbooks || []);
   renderTrackerBookSummaries(payload.sportsbook_summaries || []);
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
-  document.getElementById("tracker-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   renderTrackerState(payload.tracking || {});
   document.getElementById("tracker-metrics").innerHTML = trackerMetrics(summary, payload.clv || {});
   renderClvAnalytics(payload);
@@ -7099,13 +7223,11 @@ function renderModelTracker(payload) {
 function renderPersonalTracker(payload) {
   if (appState.trackerView !== "personal") return;
   const summary = payload.summary || {};
-  appState.personalTrackerBankroll = payload.bankroll?.personal_tracker_bankroll ?? summary.starting_bankroll;
   appState.sharpSources = {};
   appState.sharpSourceSequence = 0;
   renderPersonalTrackerFilters(payload.filter_options || {});
   renderTrackerBookSummaries([]);
   document.getElementById("tracker-result-count").textContent = `${payload.pagination.total} tracked`;
-  document.getElementById("personal-starting-bankroll").textContent = formatMoney(summary.starting_bankroll);
   document.getElementById("tracker-metrics").innerHTML = trackerMetrics(summary, payload.clv || {});
   renderClvAnalytics(payload);
   const body = document.getElementById("tracker-body");
@@ -7559,8 +7681,6 @@ function configureTrackerShell(view) {
   document.getElementById("tracker-context-icon").className = `ph ${copy.icon}`;
   document.getElementById("tracker-chart-eyebrow").textContent = copy.chartEyebrow;
   document.getElementById("tracker-chart-title").textContent = copy.chartTitle;
-  document.getElementById("model-bankroll-control").hidden = !model;
-  document.getElementById("personal-bankroll-control").hidden = model;
   const trackerAdminOpen = document.getElementById("tracker-admin-open");
   if (trackerAdminOpen) trackerAdminOpen.hidden = true;
   document.getElementById("personal-manual-action").hidden = model;
@@ -7607,49 +7727,6 @@ async function selectTrackerView(view, { persist = true, initial = false } = {})
   loadTrackerView({ initial });
   if (persist) {
     fetchJson("/api/tracker-preference", { method: "PUT", body: JSON.stringify({ view: normalized }) }).catch(() => {});
-  }
-}
-
-function openPersonalBankrollDialog() {
-  const dialog = document.getElementById("personal-bankroll-dialog");
-  const input = document.getElementById("personal-bankroll-input");
-  document.getElementById("personal-bankroll-error").textContent = "";
-  input.value = number(appState.personalTrackerBankroll)?.toFixed(2) || "";
-  if (typeof dialog.showModal === "function") dialog.showModal();
-  else dialog.setAttribute("open", "");
-  input.focus();
-  input.select();
-}
-
-function closePersonalBankrollDialog() {
-  const dialog = document.getElementById("personal-bankroll-dialog");
-  document.getElementById("personal-bankroll-form")?.reset();
-  if (typeof dialog.close === "function") dialog.close();
-  else dialog.removeAttribute("open");
-}
-
-async function savePersonalTrackerBankroll(event) {
-  event.preventDefault();
-  const form = document.getElementById("personal-bankroll-form");
-  const submit = form.querySelector('button[type="submit"]');
-  const error = document.getElementById("personal-bankroll-error");
-  const bankroll = number(document.getElementById("personal-bankroll-input").value);
-  if (bankroll === null || bankroll <= 0) {
-    error.textContent = "Enter a bankroll greater than zero.";
-    return;
-  }
-  submit.disabled = true;
-  error.textContent = "";
-  try {
-    await fetchJson("/api/personal-tracker/settings", { method: "PUT", body: JSON.stringify({ personal_tracker_bankroll: bankroll }) });
-    closePersonalBankrollDialog();
-    appState.trackerCache.personal = null;
-    await loadPersonalTracker();
-    showToast("Personal starting bankroll updated. Purchases and Model results are unchanged.", "success");
-  } catch (requestError) {
-    error.textContent = requestError.message;
-  } finally {
-    submit.disabled = false;
   }
 }
 
@@ -7817,13 +7894,6 @@ function bindTracker() {
   document.querySelectorAll("[data-tracker-share-section]").forEach((button) => {
     button.addEventListener("click", () => setTrackerShareSection(button.dataset.trackerShareSection));
   });
-  document.getElementById("tracker-share-preview")?.addEventListener("scroll", () => {
-    if (appState.trackerShareScrollTimer) window.clearTimeout(appState.trackerShareScrollTimer);
-    appState.trackerShareScrollTimer = window.setTimeout(() => {
-      appState.trackerShareScrollTimer = null;
-      syncTrackerShareSectionFromScroll();
-    }, 140);
-  }, { passive: true });
   shareDialog?.addEventListener("click", (event) => {
     if (event.target === shareDialog) closeTrackerShareDialog();
   });
@@ -7997,6 +8067,12 @@ function bindTracker() {
   document.getElementById("tracker-period-next")?.addEventListener("click", () => {
     shiftTrackerPerformancePeriod(1);
   });
+  document.querySelectorAll("[data-tracker-recap-day]").forEach((button) => button.addEventListener("click", () => {
+    selectTrackerRecapDay(Number(button.dataset.trackerRecapDay));
+  }));
+  document.querySelectorAll("[data-tracker-recap-step]").forEach((button) => button.addEventListener("click", () => {
+    shiftTrackerPerformancePeriod(Number(button.dataset.trackerRecapStep));
+  }));
   window.addEventListener("resize", debounce(() => {
     if (appState.trackerPerformancePayload) renderTrackerPerformance(appState.trackerPerformancePayload);
   }, 120), { passive: true });
@@ -8020,21 +8096,6 @@ function bindTracker() {
     if (event.target === event.currentTarget) closeSharpSourceDialog();
   });
   document.getElementById("tracker-admin-open")?.addEventListener("click", () => loadTrackerDiagnostics(true));
-  document.getElementById("tracker-bankroll-edit")?.addEventListener("click", openTrackerBankrollDialog);
-  document.getElementById("personal-bankroll-control")?.addEventListener("click", openPersonalBankrollDialog);
-  document.getElementById("tracker-bankroll-form")?.addEventListener("submit", saveTrackerBankroll);
-  document.getElementById("tracker-bankroll-close")?.addEventListener("click", closeTrackerBankrollDialog);
-  document.getElementById("tracker-bankroll-dismiss")?.addEventListener("click", closeTrackerBankrollDialog);
-  document.getElementById("tracker-bankroll-dialog")?.addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) closeTrackerBankrollDialog();
-  });
-  document.getElementById("personal-bankroll-edit")?.addEventListener("click", openPersonalBankrollDialog);
-  document.getElementById("personal-bankroll-form")?.addEventListener("submit", savePersonalTrackerBankroll);
-  document.getElementById("personal-bankroll-close")?.addEventListener("click", closePersonalBankrollDialog);
-  document.getElementById("personal-bankroll-dismiss")?.addEventListener("click", closePersonalBankrollDialog);
-  document.getElementById("personal-bankroll-dialog")?.addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) closePersonalBankrollDialog();
-  });
   document.getElementById("personal-manual-action")?.addEventListener("click", openPersonalManualDialog);
   document.getElementById("personal-manual-form")?.addEventListener("submit", saveManualPersonalBet);
   document.getElementById("personal-manual-close")?.addEventListener("click", closePersonalManualDialog);
