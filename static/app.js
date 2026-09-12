@@ -284,6 +284,10 @@ const appState = {
   trackerView: null,
   trackerSection: safeStorage.getItem("iconbets-tracker-section") === "bets" ? "bets" : "dashboard",
   trackerCache: { model: null, personal: null },
+  trackerRequestSequence: { model: 0, personal: 0 },
+  trackerRequestPromises: new Map(),
+  trackerPayloadCache: new Map(),
+  trackerPrewarmKeys: new Set(),
   trackerPage: { model: 1, personal: 1 },
   trackerSelectedTag: { model: "", personal: "" },
   trackerSelectedBooks: { model: [], personal: [] },
@@ -5094,8 +5098,8 @@ function trackerShiftedPeriodAnchor(range, anchor, offset) {
   return new Date(anchor.getFullYear(), anchor.getMonth() + offset, 1);
 }
 
-function trackerTimeframeDateBounds(range = appState.graphRange) {
-  const anchor = appState.trackerPeriodAnchor || trackerDefaultPeriodAnchor(range);
+function trackerTimeframeDateBounds(range = appState.graphRange, anchorOverride = null) {
+  const anchor = anchorOverride || appState.trackerPeriodAnchor || trackerDefaultPeriodAnchor(range);
   if (range === "today") {
     const value = trackerIsoDate(anchor);
     return { start: value, end: value };
@@ -7162,6 +7166,101 @@ function trackerRequestParams(view) {
   return new URLSearchParams(params);
 }
 
+const TRACKER_PAYLOAD_CACHE_MAX_AGE_MS = 5 * 60 * 1000;
+const TRACKER_MEMORY_CACHE_LIMIT = 12;
+
+function readTrackerPayloadCache(key) {
+  const memoryEntry = appState.trackerPayloadCache.get(key);
+  if (memoryEntry && Date.now() - memoryEntry.savedAt <= TRACKER_PAYLOAD_CACHE_MAX_AGE_MS) {
+    return memoryEntry.payload;
+  }
+  if (memoryEntry) appState.trackerPayloadCache.delete(key);
+  const payload = readPagePayloadCache(key, TRACKER_PAYLOAD_CACHE_MAX_AGE_MS);
+  if (payload) appState.trackerPayloadCache.set(key, { savedAt: Date.now(), payload });
+  return payload;
+}
+
+function writeTrackerPayloadCache(key, payload) {
+  if (!appState.trackerPayloadCache.has(key) && appState.trackerPayloadCache.size >= TRACKER_MEMORY_CACHE_LIMIT) {
+    appState.trackerPayloadCache.delete(appState.trackerPayloadCache.keys().next().value);
+  }
+  appState.trackerPayloadCache.set(key, { savedAt: Date.now(), payload });
+  writePagePayloadCache(key, payload);
+}
+
+function trackerPayloadScope(view) {
+  return view === "personal" ? "tracker-personal" : "tracker-model";
+}
+
+function trackerPayloadEndpoint(view) {
+  return view === "personal" ? "/api/personal-tracker" : "/api/model-tracker";
+}
+
+function trackerPayloadRequest(view, params) {
+  const query = params.toString();
+  const requestKey = `${view}:${query}`;
+  if (appState.trackerRequestPromises.has(requestKey)) {
+    return appState.trackerRequestPromises.get(requestKey);
+  }
+  const cacheKey = pagePayloadCacheKey(trackerPayloadScope(view), query);
+  const request = fetchJson(`${trackerPayloadEndpoint(view)}?${query}`)
+    .then((payload) => {
+      writeTrackerPayloadCache(cacheKey, payload);
+      return payload;
+    })
+    .finally(() => appState.trackerRequestPromises.delete(requestKey));
+  appState.trackerRequestPromises.set(requestKey, request);
+  return request;
+}
+
+function trackerRequestParamsForRange(view, range, baseParams = null) {
+  const params = new URLSearchParams(baseParams || trackerRequestParams(view));
+  const bounds = trackerTimeframeDateBounds(range, trackerDefaultPeriodAnchor(range));
+  params.set("page", "1");
+  params.set("tracker_range", "custom");
+  params.set("tracker_start", bounds.start);
+  params.set("tracker_end", bounds.end);
+  return params;
+}
+
+function trackerHasActiveNonTimeFilters(params) {
+  const hasTextFilter = [
+    "q", "status", "result", "clv_status", "min_clv", "max_clv", "clv_sort",
+    "sharp", "grade", "liquidity_grade", "execution_method", "sportsbook", "tag",
+  ].some((key) => String(params.get(key) || "").trim());
+  return hasTextFilter || Number(params.get("min_sharps") || 0) > 0;
+}
+
+function prewarmTrackerTimeframes(view) {
+  if (TRACKER_PREVIEW || view !== "model") return;
+  const currentParams = trackerRequestParams(view);
+  if (trackerHasActiveNonTimeFilters(currentParams)) return;
+  const signatureParams = new URLSearchParams(currentParams);
+  ["tracker_start", "tracker_end", "tracker_range", "page"].forEach((key) => signatureParams.delete(key));
+  const signature = `${view}:${signatureParams.toString()}`;
+  if (appState.trackerPrewarmKeys.has(signature)) return;
+  appState.trackerPrewarmKeys.add(signature);
+  const currentRange = appState.graphRange;
+  const nearbyRanges = {
+    today: ["week", "month", "year"],
+    week: ["today", "month", "year"],
+    month: ["week", "today", "year"],
+    year: ["month", "week", "today"],
+  }[currentRange] || ["month", "week", "today", "year"];
+  runWhenIdle(async () => {
+    for (const range of [currentRange, ...nearbyRanges]) {
+      const params = trackerRequestParamsForRange(view, range, currentParams);
+      const cacheKey = pagePayloadCacheKey(trackerPayloadScope(view), params.toString());
+      if (readTrackerPayloadCache(cacheKey)) continue;
+      try {
+        await trackerPayloadRequest(view, params);
+      } catch (_error) {
+        // The active request still reports errors; background prewarming stays silent.
+      }
+    }
+  });
+}
+
 const TRACKER_PREVIEW_ROWS = [
   {
     status: "won", result: "won", profit_loss: 99.12, recommended_amount: 84,
@@ -7362,21 +7461,23 @@ async function loadTracker({ initial = false } = {}) {
     return;
   }
   const cacheKey = pagePayloadCacheKey("tracker-model", params.toString());
-  if (initial) {
-    const cachedPayload = readPagePayloadCache(cacheKey, 30 * 60 * 1000)
-      || readPagePayloadCache(latestPagePayloadCacheKey("tracker-model"), 30 * 60 * 1000);
-    if (cachedPayload) {
-      appState.trackerCache.model = cachedPayload;
-      renderModelTracker(cachedPayload);
-    }
+  const cachedPayload = readTrackerPayloadCache(cacheKey)
+    || (initial ? readPagePayloadCache(latestPagePayloadCacheKey("tracker-model"), TRACKER_PAYLOAD_CACHE_MAX_AGE_MS) : null);
+  if (cachedPayload) {
+    appState.trackerCache.model = cachedPayload;
+    renderModelTracker(cachedPayload);
   }
+  const requestSequence = ++appState.trackerRequestSequence.model;
   try {
-    const payload = await fetchJson(`/api/model-tracker?${params.toString()}`);
+    const payload = await trackerPayloadRequest("model", params);
+    if (requestSequence !== appState.trackerRequestSequence.model || appState.trackerView !== "model") return;
     appState.trackerCache.model = payload;
     cachePagePayload("tracker-model", cacheKey, payload);
     renderModelTracker(payload);
+    prewarmTrackerTimeframes("model");
     if (appState.trackerView === "model" && !document.getElementById("tracker-diagnostics")?.hidden) loadTrackerDiagnostics();
   } catch (error) {
+    if (requestSequence !== appState.trackerRequestSequence.model || cachedPayload) return;
     if (appState.trackerView === "model") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="12">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Model Tracker</button></td></tr>`;
   }
 }
@@ -7386,20 +7487,21 @@ async function loadPersonalTracker({ initial = false } = {}) {
     ...Object.fromEntries(trackerRequestParams("personal")),
   });
   const cacheKey = pagePayloadCacheKey("tracker-personal", params.toString());
-  if (initial) {
-    const cachedPayload = readPagePayloadCache(cacheKey, 30 * 60 * 1000)
-      || readPagePayloadCache(latestPagePayloadCacheKey("tracker-personal"), 30 * 60 * 1000);
-    if (cachedPayload) {
-      appState.trackerCache.personal = cachedPayload;
-      renderPersonalTracker(cachedPayload);
-    }
+  const cachedPayload = readTrackerPayloadCache(cacheKey)
+    || (initial ? readPagePayloadCache(latestPagePayloadCacheKey("tracker-personal"), TRACKER_PAYLOAD_CACHE_MAX_AGE_MS) : null);
+  if (cachedPayload) {
+    appState.trackerCache.personal = cachedPayload;
+    renderPersonalTracker(cachedPayload);
   }
+  const requestSequence = ++appState.trackerRequestSequence.personal;
   try {
-    const payload = await fetchJson(`/api/personal-tracker?${params.toString()}`);
+    const payload = await trackerPayloadRequest("personal", params);
+    if (requestSequence !== appState.trackerRequestSequence.personal || appState.trackerView !== "personal") return;
     appState.trackerCache.personal = payload;
     cachePagePayload("tracker-personal", cacheKey, payload);
     renderPersonalTracker(payload);
   } catch (error) {
+    if (requestSequence !== appState.trackerRequestSequence.personal || cachedPayload) return;
     if (appState.trackerView === "personal") document.getElementById("tracker-body").innerHTML = `<tr><td colspan="12">${errorState(error.message)}<button class="button compact tracker-retry" type="button">Retry Personal Tracker</button></td></tr>`;
   }
 }
@@ -7854,7 +7956,9 @@ function bindTracker() {
   ["tracker-clv-min", "tracker-clv-max"].forEach((id) => document.getElementById(id).addEventListener("input", debounce(() => { appState.trackerPage[appState.trackerView] = 1; loadTrackerView(); })));
   document.querySelectorAll("#graph-range button").forEach((button) => button.addEventListener("click", () => {
     const previousRange = appState.graphRange;
-    appState.graphRange = button.dataset.range;
+    const nextRange = button.dataset.range;
+    if (nextRange === previousRange && nextRange !== "custom") return;
+    appState.graphRange = nextRange;
     if (appState.graphRange === "custom") {
       syncTrackerTimeframeControls();
       const start = document.getElementById("tracker-custom-start");

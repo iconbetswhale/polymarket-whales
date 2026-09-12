@@ -432,7 +432,24 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     assert canonical > foundation
     assert "-canonical-v49-section-tabs-14-override" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v52-performance-gradients" in BASE[script : script + 220]
+    assert "-live-feeds-v54-tracker-timeframe-cache" in BASE[script : script + 220]
+
+
+def test_tracker_timeframe_switches_use_cached_and_prewarmed_payloads() -> None:
+    assert "TRACKER_PAYLOAD_CACHE_MAX_AGE_MS = 5 * 60 * 1000" in SCRIPT
+    assert "TRACKER_MEMORY_CACHE_LIMIT = 12" in SCRIPT
+    assert "function readTrackerPayloadCache(key)" in SCRIPT
+    assert "function writeTrackerPayloadCache(key, payload)" in SCRIPT
+    assert "trackerTimeframeDateBounds(range = appState.graphRange, anchorOverride = null)" in SCRIPT
+    assert "function trackerPayloadRequest(view, params)" in SCRIPT
+    assert "appState.trackerRequestPromises.has(requestKey)" in SCRIPT
+    assert "function prewarmTrackerTimeframes(view)" in SCRIPT
+    assert 'Number(params.get("min_sharps") || 0) > 0' in SCRIPT
+    assert 'month: ["week", "today", "year"]' in SCRIPT
+    assert "trackerRequestParamsForRange(view, range, currentParams)" in SCRIPT
+    assert "readTrackerPayloadCache(cacheKey)" in SCRIPT
+    assert 'requestSequence !== appState.trackerRequestSequence.model || appState.trackerView !== "model"' in SCRIPT
+    assert 'if (nextRange === previousRange && nextRange !== "custom") return;' in SCRIPT
 
 
 def test_tracked_bets_uses_readable_ledger_and_compact_clv_popover() -> None:
