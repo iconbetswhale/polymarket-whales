@@ -89,7 +89,7 @@ def test_sidebar_groups_and_icons_match_the_product_navigation_contract():
     bet_tracker = BASE.index(">Bet Tracker</span>")
     lab_tracker = BASE.index(">LabTracker</span>")
     shadow_lab = BASE.index(">Shadow Lab</span>")
-    live_positions = BASE.index(">Live Positions</span>")
+    live_positions = BASE.index(">Positions</span>")
     calculators = BASE.index(">Calculators</span>")
     portfolio = BASE.index(">Portfolio</span>")
 

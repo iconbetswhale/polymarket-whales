@@ -1,17 +1,64 @@
 {% extends "base.html" %}
 {% block content %}
-<section class="live-page il-data-grid-page" aria-labelledby="live-positions-title">
-<header class="page-header il-page-header live-page-header"><div class="il-page-title"><p class="eyebrow">IN-PROGRESS MARKETS</p><div class="title-line"><h1 id="live-positions-title">Live Positions</h1><span class="result-badge" id="position-result-count" aria-live="polite">0 positions</span></div></div></header>
-<section class="toolbar live-toolbar il-toolbar" aria-label="Live position filters">
-  <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="position-search" type="search" placeholder="Search wallet, event, market"></label>
-  <div class="live-filter-rail">
-    <select id="position-wallet" aria-label="Wallet"><option value="">All wallets</option></select>
-    <select id="position-sport" aria-label="Sport"><option value="">All sports</option></select>
-    <select id="position-league" aria-label="League"><option value="">All leagues</option></select>
-    <select id="position-market" aria-label="Market"><option value="">All markets</option></select>
-    <select id="position-sort" aria-label="Sort positions"><option value="value-desc">Highest value</option><option value="value-asc">Lowest value</option><option value="start-asc">Start time</option><option value="wallet-asc">Wallet</option></select>
-  </div>
-</section>
-<section class="panel table-panel live-table-panel il-panel"><div class="responsive-table"><table class="live-positions-table"><thead><tr><th>Wallet</th><th>Event / Market</th><th>Selection</th><th>Entry</th><th>Current</th><th>Position</th><th>Value</th><th>P&amp;L</th><th>Status</th></tr></thead><tbody id="positions-body"></tbody></table></div><div class="card-results" id="positions-cards" aria-live="polite"></div><div class="pagination" id="positions-pagination"></div></section>
+<section class="live-page il-data-grid-page" aria-labelledby="positions-title">
+  <header class="page-header il-page-header live-page-header">
+    <div class="il-page-title">
+      <p class="eyebrow">ACTIVE BETTING WORKSPACE</p>
+      <div class="title-line"><h1 id="positions-title">Positions</h1><span class="result-badge" id="position-result-count" aria-live="polite">0 bets</span></div>
+    </div>
+  </header>
+
+  <nav class="positions-view-tabs il-view-tabs" aria-label="Position views" role="tablist">
+    <button class="active" id="my-bets-tab" type="button" role="tab" data-position-view="my-bets" aria-controls="my-bets-panel" aria-selected="true"><i class="ph ph-ticket" aria-hidden="true"></i>My Bets</button>
+    <button id="sharp-positions-tab" type="button" role="tab" data-position-view="sharp-positions" aria-controls="sharp-positions-panel" aria-selected="false"><i class="ph ph-users-three" aria-hidden="true"></i>Sharp Positions</button>
+  </nav>
+
+  <section id="my-bets-panel" data-position-panel="my-bets" role="tabpanel" aria-labelledby="my-bets-tab">
+    <p class="personal-clv-preview-note" id="personal-clv-preview-note" hidden><i class="ph ph-eye" aria-hidden="true"></i>Five sample prematch bets · Includes three player props · Illustrative odds only · Not saved to your trackers</p>
+    <div class="personal-position-status-tabs" role="group" aria-label="My Bet status">
+      <button class="active" type="button" data-personal-position-status="upcoming" aria-pressed="true">Upcoming <span id="personal-upcoming-count">0</span></button>
+      <button type="button" data-personal-position-status="live" aria-pressed="false">Live <span id="personal-live-count">0</span></button>
+      <button type="button" data-personal-position-status="all" aria-pressed="false">All Active <span id="personal-all-count">0</span></button>
+    </div>
+    <section class="toolbar live-toolbar il-toolbar" aria-label="My Bet filters">
+      <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="personal-position-search" type="search" placeholder="Search event, selection, or sportsbook"></label>
+      <div class="live-filter-rail personal-filter-rail">
+        <details class="personal-rich-filter" id="personal-position-sportsbook" data-personal-filter-menu="sportsbook">
+          <summary aria-label="Filter by sportsbook"><span class="personal-filter-summary-icon" id="personal-position-sportsbook-icon" aria-hidden="true"><i class="ph ph-buildings"></i></span><span id="personal-position-sportsbook-label">All Sportsbooks</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+          <div class="personal-rich-filter-popover" id="personal-position-sportsbook-options" role="listbox" aria-label="Sportsbook options"></div>
+        </details>
+        <details class="personal-rich-filter" id="personal-position-source" data-personal-filter-menu="source">
+          <summary aria-label="Filter by tracked source"><span class="personal-filter-summary-icon" id="personal-position-source-icon" aria-hidden="true"><i class="ph ph-stack"></i></span><span id="personal-position-source-label">All Sources</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+          <div class="personal-rich-filter-popover" id="personal-position-source-options" role="listbox" aria-label="Tracked source options"></div>
+        </details>
+        <details class="personal-rich-filter" id="personal-position-sort" data-personal-filter-menu="sort">
+          <summary aria-label="Sort my bets"><span id="personal-position-sort-label">Start Time</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary>
+          <div class="personal-rich-filter-popover" id="personal-position-sort-options" role="listbox" aria-label="Sort options"></div>
+        </details>
+      </div>
+    </section>
+    <section class="panel table-panel live-table-panel il-panel">
+      <div class="responsive-table"><table class="live-positions-table personal-positions-table"><thead><tr><th>Status</th><th>Event / Market</th><th>Selection</th><th>Sportsbook</th><th>Tracked From</th><th>Entry</th><th>Stake</th><th>Payout</th><th>Current</th><th title="Closing line value. Before kickoff, values are provisional comparisons against current odds.">CLV</th></tr></thead><tbody id="personal-positions-body"></tbody></table></div>
+      <div class="card-results" id="personal-positions-cards" aria-live="polite"></div>
+    </section>
+  </section>
+  <dialog class="personal-clv-drawer" id="personal-clv-dialog" aria-labelledby="personal-clv-title">
+    <header class="personal-clv-header"><div id="personal-clv-provider"></div><div><p id="personal-clv-status">Prematch Bet</p><h2 id="personal-clv-title">Line Value</h2></div><button type="button" id="personal-clv-close" aria-label="Close line value details"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+    <div class="personal-clv-content" id="personal-clv-content"></div>
+  </dialog>
+
+  <section id="sharp-positions-panel" data-position-panel="sharp-positions" role="tabpanel" aria-labelledby="sharp-positions-tab" hidden>
+    <section class="toolbar live-toolbar il-toolbar" aria-label="Sharp position filters">
+      <label class="search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="position-search" type="search" placeholder="Search wallet, event, market"></label>
+      <div class="live-filter-rail">
+        <select id="position-wallet" aria-label="Wallet"><option value="">All wallets</option></select>
+        <select id="position-sport" aria-label="Sport"><option value="">All sports</option></select>
+        <select id="position-league" aria-label="League"><option value="">All leagues</option></select>
+        <select id="position-market" aria-label="Market"><option value="">All markets</option></select>
+        <select id="position-sort" aria-label="Sort positions"><option value="value-desc">Highest value</option><option value="value-asc">Lowest value</option><option value="start-asc">Start time</option><option value="wallet-asc">Wallet</option></select>
+      </div>
+    </section>
+    <section class="panel table-panel live-table-panel il-panel"><div class="responsive-table"><table class="live-positions-table"><thead><tr><th>Wallet</th><th>Event / Market</th><th>Selection</th><th>Entry</th><th>Current</th><th>Position</th><th>Value</th><th>P&amp;L</th><th>Status</th></tr></thead><tbody id="positions-body"></tbody></table></div><div class="card-results" id="positions-cards" aria-live="polite"></div><div class="pagination" id="positions-pagination"></div></section>
+  </section>
 </section>
 {% endblock %}

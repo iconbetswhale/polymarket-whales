@@ -1,16 +1,55 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from clv import calculate_clv, calculate_clv_preferences, normalized_provider, parse_timestamp, safe_float
 from personal_tracker import ACTIVE_PERSONAL_STATUSES, normalize_sportsbook
 
 
 EASTERN = ZoneInfo("America/New_York")
 RESOLVED_STATUSES = {"won", "lost", "push", "void", "canceled"}
+
+PERSONAL_POSITION_SOURCE_LABELS = {
+    "traders": "Prediction Traders",
+    "prediction_traders": "Prediction Traders",
+    "sharp_money": "Sharp Money",
+    "positive_ev": "Positive EV",
+    "arbitrage": "Arbitrage",
+    "middles": "Middles",
+    "low_hold": "Low Hold",
+    "futures": "Futures",
+    "manual": "Manual",
+    "manual_entry": "Manual",
+}
+
+
+def _json_mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return {}
+        return parsed if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _json_list(value: Any) -> list[Any]:
+    if isinstance(value, list):
+        return value
+    if isinstance(value, str) and value:
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError, json.JSONDecodeError):
+            return []
+        return parsed if isinstance(parsed, list) else []
+    return []
 
 
 def provider_position_key(record: dict[str, Any]) -> tuple[str, str, str, str, str]:
@@ -25,6 +64,82 @@ def provider_position_key(record: dict[str, Any]) -> tuple[str, str, str, str, s
 
 def position_id(key: tuple[str, ...]) -> str:
     return hashlib.sha256("\x1f".join(key).encode()).hexdigest()[:24]
+
+
+def attach_personal_position_clv(
+    positions: list[dict[str, Any]], closing_lines: list[dict[str, Any]], *, now: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Expose saved exact closes; never use in-game sell quotes as a pregame close.
+
+    A position can contain multiple fills. Only comparison sources verified for
+    every fill are included, with a share-weighted closing probability. This
+    keeps the return metric consistent with the position's weighted entry.
+    """
+    now = now or datetime.now(timezone.utc)
+    by_fill = {str(row.get("tracker_record_id")): row for row in closing_lines}
+    for position in positions:
+        start = parse_timestamp(position.get("eventStartTime"))
+        fills = position.get("fills") or []
+        value = {
+            "stage": "current" if start and start > now else "closing",
+            "status": "unavailable",
+            "entryPrice": position.get("averageBuyEntry"),
+            "comparisons": [],
+            "reason": "An official start time and tracked-at time are required for CLV.",
+        }
+        position["lineValue"] = value
+        if not start or not fills:
+            continue
+        tracked_times = [parse_timestamp(fill.get("created_at")) for fill in fills]
+        in_play = any(
+            _json_mapping(fill.get("sharp_snapshot") or fill.get("sharp_snapshot_json")).get("is_live") is True
+            or (tracked is not None and tracked >= start)
+            for fill, tracked in zip(fills, tracked_times)
+        )
+        if in_play:
+            value.update(status="not_applicable", reason="This position includes a bet tracked after kickoff. Pregame CLV does not apply.")
+            continue
+        if any(tracked is None for tracked in tracked_times):
+            continue
+        if start > now:
+            value.update(status="pending", reason="Final CLV is saved at kickoff. Current exact-market sportsbook odds are not connected for this bet yet.")
+            continue
+        per_fill = []
+        for fill in fills:
+            snapshot = by_fill.get(str(fill.get("fill_id"))) or {}
+            sources = {}
+            stamp = parse_timestamp(snapshot.get("closing_snapshot_timestamp"))
+            if stamp and stamp <= start:
+                provider = normalized_provider(position.get("provider"))
+                price = safe_float(snapshot.get("closing_effective_price"))
+                if snapshot.get("clv_status") == "captured" and price is not None and 0 < price < 1:
+                    sources[provider] = {"key": provider, "label": position.get("provider"), "price": price, "timestamp": stamp.isoformat(), "method": "sportsbook_price"}
+                for close in snapshot.get("provider_closes") or []:
+                    price = safe_float(close.get("closing_probability"))
+                    quoted_at = parse_timestamp(close.get("quote_timestamp"))
+                    if str(close.get("mapping_confidence") or "").upper() != "EXACT" or price is None or not 0 < price < 1 or not quoted_at or quoted_at > start:
+                        continue
+                    key = normalized_provider(close.get("provider"))
+                    sources[key] = {"key": key, "label": close.get("provider_name") or key, "price": price, "timestamp": quoted_at.isoformat(), "method": "sportsbook_price"}
+                fair = calculate_clv_preferences(snapshot).get("novig") or {}
+                if fair.get("status") == "captured":
+                    sources["sharp_fair"] = {"key": "sharp_fair", "label": "Sharp no-vig benchmark", "price": fair["closing_probability"], "timestamp": stamp.isoformat(), "method": "fair_probability"}
+            per_fill.append((safe_float(fill.get("shares")) or 0, sources))
+        common_sources = set(per_fill[0][1]).intersection(*(set(sources) for _, sources in per_fill[1:]))
+        total_shares = sum(shares for shares, _ in per_fill)
+        entry = safe_float(position.get("averageBuyEntry"))
+        if not common_sources or total_shares <= 0 or entry is None or not 0 < entry < 1:
+            value["reason"] = "No verified pregame close is available for every fill in this position."
+            continue
+        comparisons = []
+        for key in sorted(common_sources):
+            close = sum(shares * sources[key]["price"] for shares, sources in per_fill) / total_shares
+            meta = per_fill[0][1][key]
+            comparisons.append({**meta, "price": close, "timestamp": max(sources[key]["timestamp"] for _, sources in per_fill), "valuePct": calculate_clv(entry, close)["clv_pct"]})
+        default = normalized_provider(position.get("provider"))
+        comparisons.sort(key=lambda item: (item["key"] != default, item["label"]))
+        value.update(status="captured", comparisons=comparisons, reason=None)
+    return positions
 
 
 def executable_sell_quote(
@@ -189,6 +304,14 @@ def aggregate_personal_positions(
         )
 
         provider = normalize_sportsbook(first.get("sportsbook"))
+        tracking_snapshot = _json_mapping(
+            first.get("sharp_snapshot") or first.get("sharp_snapshot_json")
+        )
+        tracking_source = str(
+            tracking_snapshot.get("tracking_source")
+            or tracking_snapshot.get("entry_source")
+            or "manual"
+        ).strip().lower()
         positions.append(
             {
                 "positionId": position_id(key),
@@ -197,6 +320,16 @@ def aggregate_personal_positions(
                 "marketLine": key[2],
                 "canonicalOutcomeId": key[3],
                 "provider": provider,
+                "trackingSource": tracking_source,
+                "sourceLabel": PERSONAL_POSITION_SOURCE_LABELS.get(
+                    tracking_source,
+                    tracking_source.replace("_", " ").title() or "Manual",
+                ),
+                "sportKey": tracking_snapshot.get("sport_key"),
+                "league": tracking_snapshot.get("league"),
+                "entryAmericanOdds": tracking_snapshot.get("entry_american_odds"),
+                "evPercent": tracking_snapshot.get("ev_percent"),
+                "tags": _json_list(first.get("tags") or first.get("tags_json")),
                 "eventTitle": first.get("event_title"),
                 "marketTitle": first.get("market_title"),
                 "selection": first.get("selection"),

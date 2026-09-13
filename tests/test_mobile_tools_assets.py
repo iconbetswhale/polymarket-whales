@@ -67,7 +67,7 @@ def test_phone_navigation_replaces_the_side_drawer_with_primary_actions_and_more
     assert 'id="mobile-more-sheet"' in base
     for label in ("Money", "Traders", "Arbs", "+EV", "Track", "More"):
         assert f">{label}<" in base
-    for destination in ("Fantasy Optimizer", "Middles", "Low Hold", "Sportsbook Screen", "Calculators", "LabTracker", "Shadow Lab", "Live Positions", "Sharp Wallets", "Bet History", "Edge Map", "Intelligence"):
+    for destination in ("Fantasy Optimizer", "Middles", "Low Hold", "Sportsbook Screen", "Calculators", "LabTracker", "Shadow Lab", "Positions", "Sharp Wallets", "Bet History", "Edge Map", "Intelligence"):
         assert destination in base
 
     more_links = base.split('<nav class="mobile-more-links"', 1)[1].split("</nav>", 1)[0]
@@ -75,7 +75,7 @@ def test_phone_navigation_replaces_the_side_drawer_with_primary_actions_and_more
     labs_links = more_links.split(">Labs</span>", 1)[1].split(">Portfolio</span>", 1)[0]
     assert core_links.index("Sportsbook Screen") < core_links.index("Fantasy Optimizer")
     assert core_links.index("Fantasy Optimizer") < core_links.index("Middles") < core_links.index("Low Hold") < core_links.index("Futures Odds")
-    assert labs_links.index("LabTracker") < labs_links.index("Shadow Lab") < labs_links.index("Live Positions") < labs_links.index("Calculators")
+    assert labs_links.index("LabTracker") < labs_links.index("Shadow Lab") < labs_links.index("Positions") < labs_links.index("Calculators")
 
     assert "@media (max-width:760px)" in styles
     assert "grid-template-columns:repeat(6,minmax(0,1fr))" in styles

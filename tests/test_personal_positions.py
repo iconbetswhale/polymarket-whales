@@ -7,6 +7,7 @@ import pytest
 from database import TrackerDatabase
 from personal_positions import (
     aggregate_personal_positions,
+    attach_personal_position_clv,
     executable_sell_quote,
     personal_realized_pnl_summary,
 )
@@ -88,6 +89,94 @@ def test_multiple_buys_aggregate_with_weighted_average_and_provider_separation()
     assert poly["grossPurchaseCost"] == 70
     assert poly["buyFees"] == 3
     assert poly["averageBuyEntry"] == pytest.approx(70 / 150)
+
+
+def test_position_exposes_tracking_context_for_active_workspace():
+    fill = _fill(provider="DraftKings")
+    fill["sharp_snapshot_json"] = '{"tracking_source":"positive_ev","league":"MLB","entry_american_odds":115,"ev_percent":3.75}'
+    fill["tags_json"] = '["Positive EV", "Baseball"]'
+
+    position = aggregate_personal_positions([fill], [])[0]
+
+    assert position["sourceLabel"] == "Positive EV"
+    assert position["league"] == "MLB"
+    assert position["entryAmericanOdds"] == 115
+    assert position["evPercent"] == 3.75
+    assert position["tags"] == ["Positive EV", "Baseball"]
+
+
+def _clv_snapshot(fill_id="fill-1", price=0.5, **overrides):
+    return {
+        "tracker_record_id": fill_id,
+        "provider": "polymarket",
+        "closing_effective_price": price,
+        "clv_status": "captured",
+        "closing_snapshot_timestamp": "2026-07-16T19:59:00+00:00",
+        **overrides,
+    }
+
+
+def test_upcoming_clv_does_not_use_sell_quotes_or_premature_close():
+    position = aggregate_personal_positions([_fill()], [], {"token-a": {"effectiveSellPrice": 0.6}})[0]
+    attach_personal_position_clv([position], [_clv_snapshot()], now=datetime(2026, 7, 16, 12, tzinfo=timezone.utc))
+    assert position["lineValue"]["stage"] == "current"
+    assert position["lineValue"]["status"] == "pending"
+    assert position["lineValue"]["comparisons"] == []
+
+
+def test_prematch_bet_has_final_clv_during_game():
+    position = aggregate_personal_positions([_fill()], [])[0]
+    attach_personal_position_clv([position], [_clv_snapshot()], now=datetime(2026, 7, 16, 21, tzinfo=timezone.utc))
+    value = position["lineValue"]
+    assert value["stage"] == "closing"
+    assert value["status"] == "captured"
+    assert value["comparisons"][0]["valuePct"] == pytest.approx(25)
+
+
+def test_clv_rejects_in_play_fills_and_missing_tracking_times():
+    fill = _fill()
+    fill["created_at"] = "2026-07-16T20:00:00+00:00"
+    position = aggregate_personal_positions([fill], [])[0]
+    attach_personal_position_clv([position], [_clv_snapshot()])
+    assert position["lineValue"]["status"] == "not_applicable"
+    fill["created_at"] = "invalid"
+    position = aggregate_personal_positions([fill], [])[0]
+    attach_personal_position_clv([position], [_clv_snapshot()])
+    assert position["lineValue"]["status"] == "unavailable"
+
+
+def test_clv_requires_every_fill_and_uses_weighted_entry_and_close():
+    fills = [_fill(price=0.4, shares=100), _fill("fill-2", price=0.6, shares=50)]
+    position = aggregate_personal_positions(fills, [])[0]
+    attach_personal_position_clv([position], [_clv_snapshot()])
+    assert position["lineValue"]["status"] == "unavailable"
+    attach_personal_position_clv([position], [_clv_snapshot(), _clv_snapshot("fill-2", price=0.6)])
+    comparison = position["lineValue"]["comparisons"][0]
+    assert comparison["price"] == pytest.approx(80 / 150)
+    assert comparison["valuePct"] == pytest.approx((80 / 70 - 1) * 100)
+
+
+def test_clv_rejects_postkickoff_and_unverified_provider_quotes():
+    position = aggregate_personal_positions([_fill()], [])[0]
+    snapshot = _clv_snapshot(clv_status="unavailable", provider_closes=[
+        {"provider": "novig", "closing_probability": 0.6, "mapping_confidence": "FUZZY", "quote_timestamp": "2026-07-16T19:59:00+00:00"},
+        {"provider": "prophetx", "closing_probability": 0.5, "mapping_confidence": "EXACT", "quote_timestamp": "2026-07-16T20:01:00+00:00"},
+    ])
+    attach_personal_position_clv([position], [snapshot])
+    assert position["lineValue"]["comparisons"] == []
+    snapshot = _clv_snapshot(closing_snapshot_timestamp="2026-07-16T20:01:00+00:00")
+    attach_personal_position_clv([position], [snapshot])
+    assert position["lineValue"]["status"] == "unavailable"
+
+
+def test_clv_exposes_multiple_verified_sources_without_changing_saved_snapshot():
+    position = aggregate_personal_positions([_fill()], [])[0]
+    snapshot = _clv_snapshot(provider_closes=[
+        {"provider": "novig", "provider_name": "NoVIG", "closing_probability": 0.6, "mapping_confidence": "EXACT", "quote_timestamp": "2026-07-16T19:59:00+00:00"},
+    ])
+    attach_personal_position_clv([position], [snapshot])
+    assert [source["key"] for source in position["lineValue"]["comparisons"]] == ["polymarket", "novig"]
+    assert "lineValue" not in snapshot
 
 
 def test_partial_sale_allocates_weighted_cost_and_preserves_open_position():

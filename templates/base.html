@@ -41,7 +41,7 @@
   {% if page == 'tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='tracker-v2.css', v=asset_version ~ '-canonical-v57-no-bankroll-control') }}">{% endif %}
   {% if page == 'lab-tracker' %}<link rel="stylesheet" href="{{ url_for('static', filename='lab-tracker-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'shadow-test' %}<link rel="stylesheet" href="{{ url_for('static', filename='shadow-lab-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
-  {% if page == 'live-positions' %}<link rel="stylesheet" href="{{ url_for('static', filename='live-positions-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
+  {% if page == 'live-positions' %}<link rel="stylesheet" href="{{ url_for('static', filename='live-positions-v2.css', v=asset_version ~ '-positions-workspace-v23-text-sort-menu') }}">{% endif %}
   {% if page == 'wallets' %}<link rel="stylesheet" href="{{ url_for('static', filename='sharp-wallets-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'wallet-lock' %}<link rel="stylesheet" href="{{ url_for('static', filename='wallet-lock-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page == 'position-history' %}<link rel="stylesheet" href="{{ url_for('static', filename='bet-history-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
@@ -81,7 +81,7 @@
       <a href="{{ url_for('tracker_page') }}" {% if page == 'tracker' %}aria-current="page"{% endif %}><i class="ph ph-chart-bar"></i><span data-short="Tracker">Bet Tracker</span></a>
       <a href="{{ url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask"></i><span data-short="LabTracker">LabTracker</span></a>
       <a href="{{ url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash"></i><span data-short="Lab">Shadow Lab</span></a>
-      <a class="nav-live-link" href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span data-short="Live">Live Positions</span></a>
+      <a class="nav-live-link" href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span data-short="Positions">Positions</span></a>
       <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span data-short="Calcs">Calculators</span></a>
       <span class="nav-section-label" aria-hidden="true">Portfolio</span>
       <a href="{{ url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet"></i><span data-short="Wallets">Sharp Wallets</span></a>
@@ -125,7 +125,7 @@
         <span class="mobile-more-group">Labs</span>
         <a href="{{ url_for('lab_tracker_page') }}" {% if page == 'lab-tracker' %}aria-current="page"{% endif %}><i class="ph ph-flask" aria-hidden="true"></i><span>LabTracker</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('shadow_test_page') }}" {% if page == 'shadow-test' %}aria-current="page"{% endif %}><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Shadow Lab</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
-        <a href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span>Live Positions</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
+        <a href="{{ url_for('live_positions_page') }}" {% if page == 'live-positions' %}aria-current="page"{% endif %}><i class="ph ph-activity" aria-hidden="true"></i><span>Positions</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <a href="{{ url_for('calculators_page') }}" {% if page == 'calculators' %}aria-current="page"{% endif %}><i class="ph ph-calculator" aria-hidden="true"></i><span>Calculators</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>
         <span class="mobile-more-group">Portfolio</span>
         <a href="{{ url_for('wallets_page') }}" {% if page in ['wallets', 'wallet-lock'] %}aria-current="page"{% endif %}><i class="ph ph-wallet" aria-hidden="true"></i><span>Sharp Wallets</span><i class="ph ph-caret-right" aria-hidden="true"></i></a>

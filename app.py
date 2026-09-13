@@ -58,6 +58,7 @@ from personal_tracker import (
 )
 from personal_positions import (
     aggregate_personal_positions,
+    attach_personal_position_clv,
     executable_sell_quote,
     personal_realized_pnl_summary,
 )
@@ -2290,7 +2291,7 @@ def create_app(start_background: bool = True) -> Flask:
     def live_positions_page():
         return render_template(
             "live_positions.html",
-            title="IconBets Live Positions",
+            title="IconLabs Positions",
             page="live-positions",
         )
 
@@ -6461,7 +6462,10 @@ def create_app(start_background: bool = True) -> Flask:
         state = request.args.get("state", "open").lower()
         if state not in {"open", "closed", "all"}:
             state = "open"
-        positions = personal_position_snapshot(include_quotes=state != "closed")
+        positions = attach_personal_position_clv(
+            personal_position_snapshot(include_quotes=state != "closed"),
+            tracker.database.get_closing_lines("personal", g.iconbets_user_id),
+        )
         closure = request.args.get("closure", "all").lower()
         query = request.args.get("q", "").strip().lower()
         visible = positions

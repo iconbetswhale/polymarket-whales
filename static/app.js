@@ -315,6 +315,12 @@ const appState = {
   workspaceTab: "trades",
   personalPositions: [],
   personalClosed: [],
+  positionsView: "my-bets",
+  personalPositionStatus: "upcoming",
+  personalActivePositions: [],
+  personalPositionSportsbook: "",
+  personalPositionSource: "",
+  personalPositionSort: "start-asc",
   selectedPersonalPositionId: null,
   selectedClosedPositionId: null,
   closureFilter: "all",
@@ -323,6 +329,9 @@ const appState = {
   intelligence: { candidates: [], proposals: [], violations: [], diagnostics: null },
 };
 const TRACKER_LOCAL_PREVIEW = page === "tracker"
+  && ["127.0.0.1", "localhost"].includes(window.location.hostname)
+  && new URLSearchParams(window.location.search).get("preview") === "1";
+const PERSONAL_CLV_LOCAL_PREVIEW = page === "live-positions"
   && ["127.0.0.1", "localhost"].includes(window.location.hostname)
   && new URLSearchParams(window.location.search).get("preview") === "1";
 const TRACKER_PREVIEW = page === "tracker"
@@ -4111,6 +4120,403 @@ function positionCard(row) {
   return `<article class="mobile-result-card"><div><span class="status-label live">Live</span><small>${escapeHtml(row.wallet_label)}</small></div><h2>${escapeHtml(row.event_title || row.market_title)}</h2><strong>${escapeHtml(row.outcome)}</strong><dl><div><dt>Position</dt><dd>${formatMoney(row.position_size_usd)}</dd></div><div><dt>Current</dt><dd>${formatCents(row.current_price)}</dd></div><div><dt>P&amp;L</dt><dd class="${pnl >= 0 ? "positive" : "negative"}">${formatMoney(pnl)}</dd></div></dl></article>`;
 }
 
+function personalPositionPhase(position) {
+  const status = String(position.status || "").toLowerCase();
+  if (status === "live" || status === "partially_sold") return "live";
+  const startsAt = Date.parse(position.eventStartTime || "");
+  return Number.isFinite(startsAt) && startsAt <= Date.now() ? "live" : "upcoming";
+}
+
+function personalPositionTrackedAt(position) {
+  const stamps = (position.fills || [])
+    .map((fill) => Date.parse(fill.created_at || ""))
+    .filter(Number.isFinite);
+  return stamps.length ? Math.max(...stamps) : 0;
+}
+
+function personalPositionEntry(position) {
+  if ((position.fills || []).length > 1) {
+    const weightedEntry = number(position.averageBuyEntry);
+    if (weightedEntry !== null && weightedEntry > 0 && weightedEntry < 1) return formatAmericanOdds(probabilityToAmerican(weightedEntry));
+  }
+  const american = number(position.entryAmericanOdds);
+  return american === null ? formatCents(position.averageBuyEntry) : formatAmericanOdds(american);
+}
+
+function personalPositionSourceNote(position) {
+  const ev = number(position.evPercent);
+  if (ev !== null) return `${ev >= 0 ? "+" : ""}${ev.toFixed(2)}% EV`;
+  const tags = (position.tags || []).filter(Boolean);
+  return tags.slice(0, 2).join(" · ") || "Personal tracker";
+}
+
+function personalPositionCurrent(position, showSubtext = true) {
+  if (position.lineValue?.stage === "current") {
+    const source = personalPositionLineComparison(position);
+    return source
+      ? `<strong class="mono">${escapeHtml(formatAmericanOdds(probabilityToAmerican(source.price)))}</strong>${showSubtext ? "<small>Prematch odds</small>" : ""}`
+      : '<span class="position-data-unavailable">Awaiting odds</span>';
+  }
+  const current = number(position.quote?.effectiveSellPrice);
+  if (current === null) return '<span class="position-data-unavailable">No live feed</span>';
+  const freshness = String(position.quote?.quoteFreshness || "live").replaceAll("_", " ");
+  return `<strong class="mono">${formatCents(current)}</strong>${showSubtext ? `<small>${escapeHtml(freshness)}</small>` : ""}`;
+}
+
+function personalPositionLineComparison(position) {
+  const sources = position.lineValue?.comparisons || [];
+  const placedBook = personalPositionFilterKey(position.provider);
+  if (!placedBook) return null;
+  return sources.find((source) => personalPositionFilterKey(source.key) === placedBook
+    || personalPositionFilterKey(source.label) === placedBook) || null;
+}
+
+function personalPositionLinePercent(position, source) {
+  const entry = number(position.lineValue?.entryPrice);
+  const price = number(source?.price);
+  return entry !== null && entry > 0 && entry < 1 && price !== null && price > 0 && price < 1
+    ? ((price / entry) - 1) * 100 : null;
+}
+
+function personalPositionClv(position) {
+  const value = position.lineValue || {};
+  const pct = personalPositionLinePercent(position, personalPositionLineComparison(position));
+  const label = pct === null
+    ? value.status === "not_applicable" ? "N/A" : value.stage === "current" ? "Awaiting odds" : "Unavailable"
+    : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
+  const note = pct === null ? "View details" : value.stage === "current" ? "vs current" : "Final CLV";
+  const tone = pct === null ? "" : pct >= 0 ? "line-ahead" : "line-behind";
+  return `<button class="personal-position-clv ${tone}" type="button" data-personal-clv="${escapeHtml(position.positionId)}" aria-label="View line value for ${escapeHtml(position.eventTitle || position.selection || "tracked bet")}" aria-haspopup="dialog"><strong>${escapeHtml(label)}</strong><small>${note}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></small></button>`;
+}
+
+function personalClvPreviewPositions() {
+  if (!PERSONAL_CLV_LOCAL_PREVIEW) return [];
+  const example = (id, hours, event, selection, league, sport, provider, american, stake, sources, details = {}) => {
+    const entry = american > 0 ? 100 / (american + 100) : -american / (-american + 100);
+    return {
+      positionId: `clv-preview-${id}`, isPreview: true, status: "scheduled",
+      eventTitle: event, marketTitle: details.marketTitle || "Moneyline", selection, league, sportKey: sport, provider,
+      previewType: details.previewType || "straight",
+      eventStartTime: new Date(Date.now() + hours * 3600000).toISOString(),
+      trackingSource: "positive_ev", sourceLabel: "Positive EV", tags: details.previewType === "player_prop" ? ["Sample preview", "Player prop"] : ["Sample preview"],
+      entryAmericanOdds: american, averageBuyEntry: entry, grossPurchaseCost: stake,
+      remainingShares: stake / entry, fills: [], quote: {},
+      lineValue: {stage: "current", status: "preview", entryPrice: entry, comparisons: sources.map(([key, label, odds]) => ({key, label, price: odds > 0 ? 100 / (odds + 100) : -odds / (-odds + 100), timestamp: new Date().toISOString(), method: "sportsbook_price"}))},
+    };
+  };
+  return [
+    example("mets", 24, "New York Mets vs Philadelphia Phillies", "New York Mets", "MLB", "baseball_mlb", "NoVIG", 125, 100, [["novig", "NoVIG", 108]]),
+    example("liberty", 27, "New York Liberty vs Las Vegas Aces", "New York Liberty", "WNBA", "basketball_wnba", "FanDuel", -135, 75, [["fanduel", "FanDuel", -120]]),
+    example("judge-prop", 25, "New York Yankees vs Boston Red Sox", "Aaron Judge Over 1.5 Total Bases", "MLB", "baseball_mlb", "NoVIG", 115, 50, [["novig", "NoVIG", 100]], {marketTitle: "Player Total Bases", previewType: "player_prop"}),
+    example("wilson-prop", 28, "Las Vegas Aces vs New York Liberty", "A'ja Wilson Over 24.5 Points", "WNBA", "basketball_wnba", "FanDuel", -110, 40, [["fanduel", "FanDuel", -125]], {marketTitle: "Player Points", previewType: "player_prop"}),
+    example("skenes-prop", 30, "Pittsburgh Pirates vs Chicago Cubs", "Paul Skenes Over 6.5 Strikeouts", "MLB", "baseball_mlb", "DraftKings", -120, 35, [["draftkings", "DraftKings", -110]], {marketTitle: "Player Strikeouts", previewType: "player_prop"}),
+  ];
+}
+
+function renderPersonalClvDetails(position) {
+  const value = position.lineValue || {};
+  const source = personalPositionLineComparison(position);
+  const pct = personalPositionLinePercent(position, source);
+  const isCurrent = value.stage === "current";
+  const comparisonLabel = isCurrent ? "Current Odds" : "Closing Odds";
+  const metricLabel = isCurrent
+    ? source?.method === "fair_probability" ? "Estimated Edge Vs Current" : "Price Improvement Vs Current"
+    : "Closing Line Value";
+  const selectionLogo = oddsTeamLogoUrl(position.selection);
+  document.getElementById("personal-clv-provider").innerHTML = personalPositionFilterIcon("sportsbook", position.provider || "Sportsbook");
+  document.getElementById("personal-clv-status").textContent = `${position.provider || "Sportsbook"} · ${position.isPreview ? "Sample Prematch Bet" : value.status === "not_applicable" ? "Tracked In Play" : "Tracked Bet"}`;
+  document.getElementById("personal-clv-title").textContent = "Straight Bet";
+  document.getElementById("personal-clv-content").innerHTML = `
+    ${position.isPreview ? '<p class="personal-clv-sample-label"><i class="ph ph-eye" aria-hidden="true"></i>Sample Data · Not A Real Wager Or Live Quote</p>' : ""}
+    <section class="personal-clv-event"><h3>${personalPositionEventMarkup(position)}</h3><p>${personalPositionLeagueMarkup(position)}<span>${escapeHtml(formatDateTime(position.eventStartTime, "Start time unavailable"))}</span></p></section>
+    <section class="personal-clv-selection"><div><strong>${escapeHtml(position.selection || "Selection unavailable")}</strong><small>${escapeHtml(position.marketTitle || "Market")}${position.marketLine ? ` · ${escapeHtml(position.marketLine)}` : ""}</small></div>${selectionLogo ? `<img src="${escapeHtml(selectionLogo)}" alt="" onerror="this.hidden=true">` : ""}</section>
+    <section class="personal-clv-comparison"><h3><i class="ph ph-chart-line-up" aria-hidden="true"></i>${isCurrent ? "Current Line" : "Closing Line"}</h3>
+      <div class="personal-clv-comparison-card">
+        <div class="personal-clv-source" aria-label="Sportsbook Placed On"><span class="personal-clv-source-logo" aria-hidden="true">${personalPositionFilterIcon("sportsbook", position.provider || "Sportsbook")}</span><strong id="personal-clv-book">${escapeHtml(position.provider || "Sportsbook")}</strong></div>
+        <div class="personal-clv-value-grid"><div class="personal-clv-metric"><strong class="${pct === null ? "" : pct >= 0 ? "personal-clv-positive" : "personal-clv-negative"}">${pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`}</strong><span>${escapeHtml(metricLabel)}</span><small>${isCurrent ? "Provisional · Not Final CLV" : source && value.status === "captured" ? "Final · Pregame Close" : "No Verified Close"}</small></div>
+        <dl class="personal-clv-odds"><div><dt>Your Odds</dt><dd>${escapeHtml(personalPositionEntry(position))}</dd></div><div><dt>${comparisonLabel}</dt><dd class="${isCurrent ? "personal-clv-current-odds" : ""}">${source ? escapeHtml(formatAmericanOdds(probabilityToAmerican(source.price))) : "—"}</dd></div></dl></div>
+        <p class="personal-clv-timestamp">${source ? `${position.isPreview ? "Illustrative Snapshot" : "Snapshot"} · ${escapeHtml(formatDateTime(source.timestamp, "Timestamp unavailable"))}` : escapeHtml(value.reason || "A verified comparison is not available for the sportsbook this bet was placed on.")}</p>
+      </div>
+      <p class="personal-clv-explanation">${isCurrent ? "Compare the exact same selection and line before kickoff. This value can change until the closing odds are saved." : "CLV compares the odds you tracked with verified odds from before kickoff. In-game prices do not change the saved close."}${source?.method === "sportsbook_price" ? " This is a price comparison, not a no-vig estimate of expected profit." : ""}</p>
+    </section>
+    <dl class="personal-clv-bet-summary"><div><dt>Stake</dt><dd>${formatMoney(position.grossPurchaseCost)}</dd></div><div><dt>Potential Payout</dt><dd>${formatMoney(position.remainingShares)}</dd></div><div><dt>Tracked From</dt><dd class="personal-clv-tracked-source"><span aria-hidden="true">${personalPositionFilterIcon("source", position.trackingSource || position.sourceLabel || "manual")}</span>${escapeHtml(position.sourceLabel || "Manual")}</dd></div></dl>`;
+}
+
+function openPersonalClvDetails(positionId) {
+  const position = appState.personalActivePositions.find((item) => item.positionId === positionId);
+  const dialog = document.getElementById("personal-clv-dialog");
+  if (!position || !dialog) return;
+  renderPersonalClvDetails(position);
+  if (!dialog.open) dialog.showModal();
+}
+
+function personalPositionEventMarkup(position) {
+  const title = String(position.eventTitle || position.marketTitle || "Tracked bet");
+  const participants = title.split(/(\s+(?:vs\.?|versus|@)\s+)/i);
+  const teamLogo = (label) => {
+    const logoUrl = oddsTeamLogoUrl(label);
+    return logoUrl
+      ? `<img class="personal-position-team-logo" src="${escapeHtml(logoUrl)}" alt="" loading="lazy" onerror="this.hidden=true">`
+      : "";
+  };
+  const content = participants.length === 3
+    ? `<span class="personal-position-participant">${teamLogo(participants[0])}<span>${escapeHtml(participants[0])}</span></span><span class="personal-position-versus">${escapeHtml(participants[1].trim())}</span><span class="personal-position-participant"><span>${escapeHtml(participants[2])}</span>${teamLogo(participants[2])}</span>`
+    : escapeHtml(title);
+  return `<strong class="personal-position-event-title">${content}</strong>`;
+}
+
+function personalPositionSportsbookMarkup(position) {
+  const provider = position.provider || "Sportsbook";
+  return `<span class="personal-position-sportsbook"><span class="personal-position-sportsbook-logo">${personalPositionFilterIcon("sportsbook", provider)}</span><strong>${escapeHtml(provider)}</strong></span>`;
+}
+
+function personalPositionLeagueMarkup(position) {
+  const league = position.league || position.sportKey || "";
+  if (!league) return "";
+  const icon = trackerCalendarSportIcon({sport_key: position.sportKey, league: position.league});
+  return `<small class="personal-position-league"><i class="ph ${icon}" aria-hidden="true"></i><span>${escapeHtml(league)}</span></small>`;
+}
+
+function personalPositionStartTimeMarkup(value) {
+  const parsed = value ? new Date(value) : null;
+  if (!parsed || Number.isNaN(parsed.getTime())) return "<small>Start time unavailable</small>";
+  const date = new Intl.DateTimeFormat("en-US", {
+    month: "short", day: "numeric", year: "numeric", timeZone: "America/New_York",
+  }).format(parsed);
+  const time = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric", minute: "2-digit", timeZone: "America/New_York", timeZoneName: "short",
+  }).format(parsed);
+  return `<small class="personal-position-start-time"><time datetime="${parsed.toISOString()}"><span>${escapeHtml(date)}</span> <span>${escapeHtml(time)}</span></time></small>`;
+}
+
+function personalWorkspacePositionRow(position) {
+  const phase = personalPositionPhase(position);
+  const sourceNote = personalPositionSourceNote(position);
+  const event = personalPositionEventMarkup(position);
+  const eventMarkup = /^https:\/\//.test(String(position.marketUrl || ""))
+    ? `<a class="position-market-link" href="${escapeHtml(position.marketUrl)}" target="_blank" rel="noopener">${event}<i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>`
+    : event;
+  return `<tr>
+    <td><span class="status-label ${phase}">${phase}</span>${personalPositionStartTimeMarkup(position.eventStartTime)}</td>
+    <td>${eventMarkup}<small class="personal-position-market">${escapeHtml(position.marketTitle || position.league || "Market")}</small></td>
+    <td><strong>${escapeHtml(position.selection || "Selection unavailable")}</strong>${personalPositionLeagueMarkup(position)}</td>
+    <td>${personalPositionSportsbookMarkup(position)}<small>${(position.tags || []).slice(0, 2).map(escapeHtml).join(" · ")}</small></td>
+    <td data-label="Source">${trackerSourceCompact({tracking_source: position.trackingSource})}<small class="personal-position-source-note">${escapeHtml(sourceNote)}</small></td>
+    <td class="mono"><strong>${escapeHtml(personalPositionEntry(position))}</strong></td>
+    <td class="mono"><strong>${formatMoney(position.grossPurchaseCost)}</strong></td>
+    <td class="mono"><strong>${formatMoney(position.remainingShares)}</strong></td>
+    <td>${personalPositionCurrent(position, false)}</td>
+    <td>${personalPositionClv(position)}</td>
+  </tr>`;
+}
+
+function personalWorkspacePositionCard(position) {
+  const phase = personalPositionPhase(position);
+  return `<article class="mobile-result-card personal-position-card">
+    <div><span class="status-label ${phase}">${phase}</span><small>${escapeHtml(formatDateTime(position.eventStartTime, "Start time unavailable"))}</small></div>
+    <h2>${personalPositionEventMarkup(position)}</h2>
+    <strong>${escapeHtml(position.selection || "Selection unavailable")}</strong>
+    ${personalPositionLeagueMarkup(position)}
+    <p class="personal-position-card-source">${personalPositionSportsbookMarkup(position)}<span>· ${escapeHtml(position.sourceLabel || "Manual")}</span></p>
+    <dl><div><dt>Entry</dt><dd>${escapeHtml(personalPositionEntry(position))}</dd></div><div><dt>Stake</dt><dd>${formatMoney(position.grossPurchaseCost)}</dd></div><div><dt>Payout</dt><dd>${formatMoney(position.remainingShares)}</dd></div></dl>
+    <div class="personal-position-live-data"><span><small>Current</small>${personalPositionCurrent(position)}</span><span><small>CLV</small>${personalPositionClv(position)}</span></div>
+  </article>`;
+}
+
+const PERSONAL_POSITION_PROVIDER_LOGOS = {
+  "4cx": "/static/assets/providers/4cx.png",
+  bet365: "/static/assets/sportsbooks/bet365.png",
+  betmgm: "/static/assets/sportsbooks/betmgm.png",
+  betonline: "/static/assets/sportsbooks/betonline.png",
+  betrivers: "/static/assets/sportsbooks/betrivers.png",
+  bovada: "/static/assets/sportsbooks/bovada.png",
+  caesars: "/static/assets/sportsbooks/caesars.png",
+  draftkings: "/static/assets/sportsbooks/draftkings.png",
+  espnbet: "/static/assets/sportsbooks/espn-bet.png",
+  fanatics: "/static/assets/sportsbooks/fanatics.png",
+  fanduel: "/static/assets/sportsbooks/fanduel.png",
+  fliff: "/static/assets/sportsbooks/fliff.png",
+  hardrockbet: "/static/assets/sportsbooks/hard-rock-bet.png",
+  kalshi: "/static/assets/sportsbooks/kalshi.png",
+  novig: "/static/assets/sportsbooks/novig.png",
+  polymarket: "/static/assets/sportsbooks/polymarket.png",
+  prophetx: "/static/assets/sportsbooks/prophetx.png",
+};
+
+function personalPositionFilterKey(value = "") {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function personalPositionSourceMeta(value = "") {
+  const key = personalPositionFilterKey(value);
+  return TRACKER_ORIGIN_SOURCE_META[key] || { label: String(value || "Tracked Source"), icon: "ph-tag" };
+}
+
+function personalPositionSortOptions() {
+  return [
+    {value: "start-asc", label: "Start Time"},
+    {value: "stake-desc", label: "Highest Stake"},
+    {value: "recent-desc", label: "Recently Tracked"},
+  ];
+}
+
+function personalPositionFilterConfig(kind) {
+  if (kind === "sort") return {
+    stateKey: "personalPositionSort",
+    menuId: "personal-position-sort",
+    labelId: "personal-position-sort-label",
+    iconId: null,
+    optionsId: "personal-position-sort-options",
+    allLabel: "Start Time",
+  };
+  return kind === "sportsbook"
+    ? {
+        stateKey: "personalPositionSportsbook",
+        menuId: "personal-position-sportsbook",
+        labelId: "personal-position-sportsbook-label",
+        iconId: "personal-position-sportsbook-icon",
+        optionsId: "personal-position-sportsbook-options",
+        allLabel: "All Sportsbooks",
+        allIcon: "ph-buildings",
+      }
+    : {
+        stateKey: "personalPositionSource",
+        menuId: "personal-position-source",
+        labelId: "personal-position-source-label",
+        iconId: "personal-position-source-icon",
+        optionsId: "personal-position-source-options",
+        allLabel: "All Sources",
+        allIcon: "ph-stack",
+      };
+}
+
+function personalPositionFilterIcon(kind, value = "") {
+  const config = personalPositionFilterConfig(kind);
+  if (kind === "sort") return "";
+  if (!value) return `<i class="ph ${config.allIcon}" aria-hidden="true"></i>`;
+  if (kind === "source") {
+    const source = personalPositionSourceMeta(value);
+    return `<i class="ph ${escapeHtml(source.icon)}" aria-hidden="true"></i>`;
+  }
+  const logoUrl = PERSONAL_POSITION_PROVIDER_LOGOS[personalPositionFilterKey(value)] || "";
+  return logoUrl
+    ? `<img src="${escapeHtml(logoUrl)}" alt="" loading="lazy" onerror="this.hidden=true;this.nextElementSibling.hidden=false"><i class="ph ph-buildings" hidden aria-hidden="true"></i>`
+    : '<i class="ph ph-buildings" aria-hidden="true"></i>';
+}
+
+function personalPositionFilterLabel(kind, value = "") {
+  if (kind === "sort") return (personalPositionSortOptions().find((choice) => choice.value === value) || personalPositionSortOptions()[0]).label;
+  if (!value) return personalPositionFilterConfig(kind).allLabel;
+  return kind === "source" ? personalPositionSourceMeta(value).label : value;
+}
+
+function renderPersonalPositionFilter(kind, values = []) {
+  const config = personalPositionFilterConfig(kind);
+  const choices = kind === "sort" ? personalPositionSortOptions().map((option) => option.value) : [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))]
+    .sort((left, right) => left.localeCompare(right));
+  const defaultValue = kind === "sort" ? "start-asc" : "";
+  if (appState[config.stateKey] && !choices.includes(appState[config.stateKey])) appState[config.stateKey] = defaultValue;
+  const selected = appState[config.stateKey] || defaultValue;
+  const options = kind === "sort" ? choices : ["", ...choices];
+  document.getElementById(config.labelId).textContent = personalPositionFilterLabel(kind, selected);
+  if (config.iconId) document.getElementById(config.iconId).innerHTML = personalPositionFilterIcon(kind, selected);
+  document.getElementById(config.optionsId).innerHTML = options.map((value) => {
+    const active = value === selected;
+    return `<button type="button" role="option" data-personal-filter-value="${escapeHtml(value)}" aria-selected="${active}">
+      ${kind === "sort" ? "" : `<span class="personal-filter-option-icon ${kind === "source" ? "source-icon" : ""}" aria-hidden="true">${personalPositionFilterIcon(kind, value)}</span>`}
+      <span>${escapeHtml(personalPositionFilterLabel(kind, value))}</span>
+      ${kind === "sort" ? "" : `<i class="ph-fill ph-check-circle" ${active ? "" : "hidden"} aria-hidden="true"></i>`}
+    </button>`;
+  }).join("");
+}
+
+function selectPersonalPositionFilter(kind, value = "") {
+  const config = personalPositionFilterConfig(kind);
+  appState[config.stateKey] = value;
+  const values = appState.personalActivePositions.map((position) => kind === "sportsbook" ? position.provider : position.sourceLabel);
+  renderPersonalPositionFilter(kind, values);
+  document.getElementById(config.menuId).open = false;
+  if (kind === "sort") document.getElementById(config.menuId).querySelector("summary").focus();
+  renderPersonalWorkspacePositions();
+}
+
+function filteredPersonalWorkspacePositions() {
+  const query = String(document.getElementById("personal-position-search")?.value || "").trim().toLowerCase();
+  const sportsbook = appState.personalPositionSportsbook;
+  const source = appState.personalPositionSource;
+  const sort = appState.personalPositionSort || "start-asc";
+  let rows = appState.personalActivePositions.filter((position) => {
+    if (appState.personalPositionStatus !== "all" && personalPositionPhase(position) !== appState.personalPositionStatus) return false;
+    if (sportsbook && position.provider !== sportsbook) return false;
+    if (source && position.sourceLabel !== source) return false;
+    if (!query) return true;
+    return [position.eventTitle, position.marketTitle, position.selection, position.provider, position.sourceLabel, position.league, ...(position.tags || [])]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+  });
+  rows.sort((left, right) => {
+    if (sort === "stake-desc") return Number(right.grossPurchaseCost || 0) - Number(left.grossPurchaseCost || 0);
+    if (sort === "recent-desc") return personalPositionTrackedAt(right) - personalPositionTrackedAt(left);
+    const leftStart = Date.parse(left.eventStartTime || "") || Number.MAX_SAFE_INTEGER;
+    const rightStart = Date.parse(right.eventStartTime || "") || Number.MAX_SAFE_INTEGER;
+    return leftStart - rightStart;
+  });
+  return rows;
+}
+
+function renderPersonalWorkspacePositions() {
+  const all = appState.personalActivePositions;
+  const upcoming = all.filter((position) => personalPositionPhase(position) === "upcoming").length;
+  const live = all.length - upcoming;
+  document.getElementById("personal-upcoming-count").textContent = String(upcoming);
+  document.getElementById("personal-live-count").textContent = String(live);
+  document.getElementById("personal-all-count").textContent = String(all.length);
+  const rows = filteredPersonalWorkspacePositions();
+  document.getElementById("position-result-count").textContent = `${rows.length} bet${rows.length === 1 ? "" : "s"}`;
+  const statusLabel = appState.personalPositionStatus === "all" ? "active" : appState.personalPositionStatus;
+  const body = document.getElementById("personal-positions-body");
+  body.innerHTML = rows.length
+    ? rows.map(personalWorkspacePositionRow).join("")
+    : `<tr><td colspan="10">${emptyState(`No ${statusLabel} bets`, "Track a bet from an IconLabs tool and it will appear here automatically.")}</td></tr>`;
+  document.getElementById("personal-positions-cards").innerHTML = rows.length
+    ? rows.map(personalWorkspacePositionCard).join("")
+    : `<article class="live-empty-mobile">${emptyState(`No ${statusLabel} bets`, "Track a bet from an IconLabs tool and it will appear here automatically.")}</article>`;
+}
+
+async function loadPersonalWorkspacePositions() {
+  const body = document.getElementById("personal-positions-body");
+  try {
+    const payload = await fetchJson("/api/personal-positions?state=open");
+    appState.personalActivePositions = [...(payload.data || []), ...personalClvPreviewPositions()];
+    document.getElementById("personal-clv-preview-note").hidden = !PERSONAL_CLV_LOCAL_PREVIEW;
+    renderPersonalPositionFilter("sportsbook", appState.personalActivePositions.map((position) => position.provider));
+    renderPersonalPositionFilter("source", appState.personalActivePositions.map((position) => position.sourceLabel));
+    renderPersonalWorkspacePositions();
+  } catch (error) {
+    body.innerHTML = `<tr><td colspan="10">${errorState(error.message)}</td></tr>`;
+    document.getElementById("personal-positions-cards").innerHTML = `<article class="live-empty-mobile">${errorState(error.message)}</article>`;
+  }
+}
+
+function selectPositionsView(view, {syncUrl = true} = {}) {
+  appState.positionsView = view === "sharp-positions" ? "sharp-positions" : "my-bets";
+  document.querySelectorAll("[data-position-view]").forEach((button) => {
+    const selected = button.dataset.positionView === appState.positionsView;
+    button.classList.toggle("active", selected);
+    button.setAttribute("aria-selected", String(selected));
+  });
+  document.querySelectorAll("[data-position-panel]").forEach((panel) => {
+    panel.hidden = panel.dataset.positionPanel !== appState.positionsView;
+  });
+  if (syncUrl) {
+    const url = new URL(window.location.href);
+    if (appState.positionsView === "my-bets") url.searchParams.delete("view");
+    else url.searchParams.set("view", "sharp");
+    window.history.replaceState({}, "", url);
+  }
+  if (appState.positionsView === "sharp-positions") loadPositions();
+  else loadPersonalWorkspacePositions();
+}
+
 function paginationMarkup(pagination, action) {
   if (!pagination || pagination.total <= pagination.per_page) return "";
   return `<button class="button ghost compact" data-page="${pagination.page - 1}" ${pagination.has_prev ? "" : "disabled"}>Previous</button><span>Page ${pagination.page}</span><button class="button ghost compact" data-page="${pagination.page + 1}" ${pagination.has_next ? "" : "disabled"}>Next</button>`;
@@ -4161,7 +4567,67 @@ async function bindPositions() {
   } catch {}
   document.getElementById("position-search").addEventListener("input", debounce(() => { appState.pageNumber = 1; loadPositions(); }));
   ["position-wallet", "position-sport", "position-league", "position-market", "position-sort"].forEach((id) => document.getElementById(id).addEventListener("change", () => { appState.pageNumber = 1; loadPositions(); }));
-  loadPositions();
+  document.querySelectorAll("[data-position-view]").forEach((button) => button.addEventListener("click", () => selectPositionsView(button.dataset.positionView)));
+  document.querySelectorAll("[data-personal-position-status]").forEach((button) => button.addEventListener("click", () => {
+    appState.personalPositionStatus = button.dataset.personalPositionStatus;
+    document.querySelectorAll("[data-personal-position-status]").forEach((candidate) => {
+      const selected = candidate === button;
+      candidate.classList.toggle("active", selected);
+      candidate.setAttribute("aria-pressed", String(selected));
+    });
+    renderPersonalWorkspacePositions();
+  }));
+  document.getElementById("personal-position-search").addEventListener("input", debounce(renderPersonalWorkspacePositions));
+  renderPersonalPositionFilter("sort");
+  ["personal-positions-body", "personal-positions-cards"].forEach((id) => document.getElementById(id).addEventListener("click", (event) => {
+    const button = event.target.closest("[data-personal-clv]");
+    if (button) openPersonalClvDetails(button.dataset.personalClv);
+  }));
+  document.getElementById("personal-clv-close").addEventListener("click", () => document.getElementById("personal-clv-dialog").close());
+  document.getElementById("personal-clv-dialog").addEventListener("click", (event) => {
+    if (event.target === event.currentTarget) {
+      const bounds = event.currentTarget.getBoundingClientRect();
+      if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) event.currentTarget.close();
+    }
+  });
+  document.querySelectorAll("[data-personal-filter-menu]").forEach((menu) => {
+    menu.addEventListener("toggle", () => {
+      if (!menu.open) return;
+      document.querySelectorAll("[data-personal-filter-menu]").forEach((candidate) => {
+        if (candidate !== menu) candidate.open = false;
+      });
+    });
+    menu.addEventListener("click", (event) => {
+      const option = event.target.closest("[data-personal-filter-value]");
+      if (!option) return;
+      selectPersonalPositionFilter(menu.dataset.personalFilterMenu, option.dataset.personalFilterValue || "");
+    });
+    menu.addEventListener("keydown", (event) => {
+      if (menu.dataset.personalFilterMenu !== "sort") return;
+      if (event.key === "Escape" && menu.open) {
+        event.preventDefault();
+        menu.open = false;
+        menu.querySelector("summary").focus();
+      } else if (["ArrowDown", "ArrowUp"].includes(event.key)) {
+        event.preventDefault();
+        const options = Array.from(menu.querySelectorAll('[role="option"]'));
+        if (!options.length) return;
+        const opening = !menu.open;
+        menu.open = true;
+        const current = options.indexOf(document.activeElement);
+        const selected = options.findIndex((option) => option.getAttribute("aria-selected") === "true");
+        const next = opening || current < 0 ? Math.max(0, selected) : (current + (event.key === "ArrowDown" ? 1 : -1) + options.length) % options.length;
+        options[next].focus();
+      }
+    });
+  });
+  document.addEventListener("click", (event) => {
+    document.querySelectorAll("[data-personal-filter-menu][open]").forEach((menu) => {
+      if (!menu.contains(event.target)) menu.open = false;
+    });
+  });
+  const requestedView = new URLSearchParams(window.location.search).get("view") === "sharp" ? "sharp-positions" : "my-bets";
+  selectPositionsView(requestedView, {syncUrl: false});
 }
 
 function legacyWalletCard(wallet) {
@@ -4692,6 +5158,10 @@ const TRACKER_ORIGIN_SOURCE_META = {
   positiveev: { label: "Positive EV", icon: "ph-trend-up" },
   arbitrage: { label: "Arbitrage", icon: "ph-intersect-three" },
   middles: { label: "Middles", icon: "ph-arrows-in-line-horizontal" },
+  lowhold: { label: "Low Hold", icon: "ph-percent" },
+  futures: { label: "Futures", icon: "ph-trophy" },
+  manual: { label: "Manual", icon: "ph-pencil-simple-line" },
+  manualentry: { label: "Manual", icon: "ph-pencil-simple-line" },
 };
 
 function trackerSourceCompact(snapshot = {}) {
@@ -9619,7 +10089,10 @@ function refreshCurrentPage() {
     else loadTrades();
     loadPersonalPnl();
   }
-  if (page === "live-positions") loadPositions();
+  if (page === "live-positions") {
+    if (appState.positionsView === "sharp-positions") loadPositions();
+    else loadPersonalWorkspacePositions();
+  }
   if (page === "wallets") loadWallets();
   if (page === "position-history") loadHistory();
   if (page === "tracker") loadTrackerView();

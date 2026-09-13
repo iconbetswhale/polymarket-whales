@@ -89,7 +89,7 @@ body[data-design-system="v2"][data-page="live-positions"] .live-page-header {
 body[data-design-system="v2"][data-page="live-positions"] .live-page-header .eyebrow {
   margin: 0 0 var(--il-space-1);
   color: var(--il-brand-hover);
-  font: var(--il-type-table-header);
+  font: 650 12px/1.2 var(--il-font-ui);
   letter-spacing: .12em;
   text-transform: uppercase;
 }
@@ -103,7 +103,7 @@ body[data-design-system="v2"][data-page="live-positions"] .live-page-header .tit
 body[data-design-system="v2"][data-page="live-positions"] .live-page-header h1 {
   margin: 0;
   color: var(--il-text-primary);
-  font: var(--il-type-page-title);
+  font: 700 28px/1.12 var(--il-font-ui);
   letter-spacing: -.025em;
 }
 
@@ -116,9 +116,88 @@ body[data-design-system="v2"][data-page="live-positions"] .result-badge {
   border-radius: var(--il-radius-control);
   background: var(--il-surface-selected);
   color: var(--il-brand-hover);
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 700;
   white-space: nowrap;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: var(--il-space-1);
+  padding: 4px;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-1);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs button,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button {
+  min-height: var(--il-control-height);
+  padding: 0 var(--il-space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--il-space-2);
+  border: 1px solid transparent;
+  border-radius: var(--il-radius-control);
+  background: transparent;
+  color: var(--il-text-secondary);
+  font: var(--il-type-body);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs button:hover,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button:hover {
+  background: var(--il-surface-hover);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs button {
+  font-size: 15px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs button.active,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button.active {
+  border-color: var(--il-brand-outline-strong);
+  background: var(--il-surface-selected);
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] [data-position-panel] {
+  min-width: 0;
+  display: grid;
+  gap: var(--il-space-3);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] [data-position-panel][hidden] {
+  display: none;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--il-space-1);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button {
+  min-height: 34px;
+  padding: 0 var(--il-space-3);
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button span {
+  min-width: 20px;
+  min-height: 20px;
+  padding: 0 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--il-surface-2);
+  color: var(--il-text-muted);
+  font: 700 19px/1.2 var(--il-font-ui);
 }
 
 body[data-design-system="v2"][data-page="live-positions"] .live-toolbar {
@@ -158,6 +237,7 @@ body[data-design-system="v2"][data-page="live-positions"] .search-control input 
   background: transparent;
   color: var(--il-text-primary);
   font: var(--il-type-body);
+  font-size: 14px;
 }
 
 body[data-design-system="v2"][data-page="live-positions"] .search-control input::placeholder {
@@ -171,6 +251,10 @@ body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail {
   gap: var(--il-space-2);
 }
 
+body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail.personal-filter-rail {
+  grid-template-columns: repeat(3, minmax(150px, 1fr));
+}
+
 body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail select {
   width: 100%;
   min-width: 0;
@@ -182,10 +266,160 @@ body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail sele
   background-color: var(--il-surface-2);
   color: var(--il-text-secondary);
   font: var(--il-type-body);
+  font-size: 14px;
 }
 
 body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail select:focus {
   border-color: var(--il-brand-outline-strong);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter {
+  position: relative;
+  min-width: 0;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter > summary {
+  min-height: var(--il-control-height);
+  padding: 0 var(--il-space-3);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 14px;
+  align-items: center;
+  gap: var(--il-space-2);
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-2);
+  color: var(--il-text-secondary);
+  font: 600 14px/1 var(--il-font-ui);
+  list-style: none;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter > summary::-webkit-details-marker {
+  display: none;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter > summary:hover {
+  border-color: var(--il-border-strong);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter > summary:focus-visible {
+  outline: 2px solid var(--il-brand-hover);
+  outline-offset: 2px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter[open] {
+  z-index: var(--il-z-popover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter[open] > summary {
+  border-color: var(--il-brand-outline-strong);
+  box-shadow: inset 3px 0 0 var(--il-brand-hover), 0 0 0 1px var(--il-brand-outline-strong);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter > summary > .ph-caret-down {
+  color: var(--il-text-muted);
+  font-size: 13px;
+  transition: transform 160ms ease;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter[open] > summary > .ph-caret-down {
+  transform: rotate(180deg);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-filter-summary-icon,
+body[data-design-system="v2"][data-page="live-positions"] .personal-filter-option-icon {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: var(--il-radius-sm);
+  color: var(--il-text-muted);
+  font-size: 16px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-filter-summary-icon img,
+body[data-design-system="v2"][data-page="live-positions"] .personal-filter-option-icon img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-filter-option-icon.source-icon {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover {
+  position: absolute;
+  z-index: var(--il-z-popover);
+  top: calc(100% + var(--il-space-2));
+  left: 0;
+  width: max(100%, 250px);
+  max-height: 300px;
+  padding: var(--il-space-2);
+  display: grid;
+  gap: 6px;
+  overflow-y: auto;
+  border: 1px solid var(--il-brand-outline-strong);
+  border-radius: var(--il-radius-overlay);
+  background: var(--il-surface-elevated);
+  box-shadow: var(--il-shadow-popover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover button {
+  width: 100%;
+  min-height: 42px;
+  padding: 5px var(--il-space-2);
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: var(--il-space-2);
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-1);
+  color: var(--il-text-secondary);
+  font: 650 14px/1.2 var(--il-font-ui);
+  text-align: left;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover button:nth-child(even) {
+  background: var(--il-surface-2);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover button:hover {
+  border-color: var(--il-border-strong);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover button[aria-selected="true"] {
+  border-color: var(--il-brand-outline-strong);
+  background: var(--il-surface-selected-badge);
+  color: var(--il-text-primary);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover button > .ph-check-circle {
+  color: var(--il-brand-hover);
+  font-size: 17px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-position-sportsbook-options {
+  width: max(100%, 420px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-position-sort > summary {
+  grid-template-columns: minmax(0, 1fr) 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-position-sort-options {
+  left: auto;
+  right: 0;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-position-sort-options button {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 body[data-design-system="v2"][data-page="live-positions"] .live-table-panel {
@@ -210,6 +444,146 @@ body[data-design-system="v2"][data-page="live-positions"] .live-positions-table 
   min-width: 980px;
   border-collapse: collapse;
   color: var(--il-text-secondary);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table {
+  min-width: 0;
+  table-layout: auto;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table th {
+  height: 38px;
+  padding-inline: var(--il-space-1);
+  font: 650 13px/1.2 var(--il-font-ui);
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td {
+  min-height: 58px;
+  height: 60px;
+  padding: 9px var(--il-space-1);
+  font: 600 14px/1.3 var(--il-font-ui);
+  text-align: center;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td > strong,
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table .position-market-link strong {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td small {
+  margin-top: 3px;
+  margin-inline: auto;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td .personal-position-market {
+  font-size: 13px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-event-title,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-participant,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-sportsbook,
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-card-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td .personal-position-event-title {
+  display: inline-flex;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-team-logo {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  object-fit: contain;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-versus {
+  color: var(--il-text-muted);
+  font-weight: 500;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-sportsbook-logo {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: inline-grid;
+  place-items: center;
+  color: var(--il-text-muted);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-sportsbook-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--il-radius-sm);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table .personal-position-sportsbook strong {
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-league,
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td .personal-position-league {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-league i {
+  color: var(--il-brand-hover);
+  font-size: 15px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td .personal-position-league {
+  justify-content: center;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .tracker-sharp-compact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--il-text-secondary);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .tracker-sharp-compact > strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .provider-logo-mark {
+  width: 30px;
+  height: 30px;
+  flex: 0 0 30px;
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--il-border-subtle);
+  border-radius: var(--il-radius-sm);
+  background: var(--il-bg-workspace);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .tracker-source-icon {
+  color: var(--il-positive);
+  font-size: 18px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .personal-position-source-note {
+  padding-left: 0;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .personal-position-start-time span {
+  display: block;
+  white-space: nowrap;
 }
 
 body[data-design-system="v2"][data-page="live-positions"] .live-positions-table th {
@@ -242,6 +616,22 @@ body[data-design-system="v2"][data-page="live-positions"] .live-positions-table 
   background: var(--il-surface-hover);
 }
 
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table tbody tr:nth-child(odd) td {
+  background: var(--il-surface-1);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table tbody tr:nth-child(even) td {
+  background: var(--il-bg-workspace);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table tbody tr:hover td {
+  background: var(--il-surface-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td:nth-child(3) > strong {
+  color: var(--il-brand-hover);
+}
+
 body[data-design-system="v2"][data-page="live-positions"] .live-positions-table td strong {
   display: block;
   color: var(--il-text-primary);
@@ -259,6 +649,28 @@ body[data-design-system="v2"][data-page="live-positions"] .live-positions-table 
   text-overflow: ellipsis;
 }
 
+body[data-design-system="v2"][data-page="live-positions"] .position-market-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--il-space-1);
+  color: var(--il-text-primary);
+  text-decoration: none;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .position-market-link:hover {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-positions-table .position-market-link i {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .position-data-unavailable {
+  color: var(--il-text-muted);
+  font-size: 11px;
+  font-weight: 650;
+}
+
 body[data-design-system="v2"][data-page="live-positions"] .mono {
   font-family: var(--il-font-data);
   font-variant-numeric: tabular-nums;
@@ -274,6 +686,14 @@ body[data-design-system="v2"][data-page="live-positions"] .negative {
   font-weight: 700;
 }
 
+body[data-design-system="v2"][data-page="live-positions"] .status-label.live,
+body[data-design-system="v2"][data-page="live-positions"] .status-label.upcoming {
+  min-width: 64px;
+  justify-content: center;
+  line-height: 1;
+  text-align: center;
+}
+
 body[data-design-system="v2"][data-page="live-positions"] .status-label.live {
   min-height: 24px;
   padding: 0 8px;
@@ -283,7 +703,22 @@ body[data-design-system="v2"][data-page="live-positions"] .status-label.live {
   border-radius: 999px;
   background: var(--il-surface-positive-subtle);
   color: var(--il-positive);
-  font-size: 9px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .status-label.upcoming {
+  min-height: 24px;
+  padding: 0 8px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--il-brand-outline-strong);
+  border-radius: 999px;
+  background: var(--il-surface-selected);
+  color: var(--il-brand-hover);
+  font-size: 11px;
   font-weight: 700;
   letter-spacing: .04em;
   text-transform: uppercase;
@@ -347,6 +782,436 @@ body[data-design-system="v2"][data-page="live-positions"] .pagination button {
   color: var(--il-text-secondary);
 }
 
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-preview-note:not([hidden]) {
+  margin: 0;
+  padding: var(--il-space-3) var(--il-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--il-space-2);
+  border: 1px solid var(--il-brand-outline-strong);
+  border-radius: var(--il-radius-control);
+  background: var(--il-surface-selected);
+  color: var(--il-text-secondary);
+  font-size: 12px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv {
+  min-width: max-content;
+  padding: 5px 7px;
+  display: inline-grid;
+  gap: 2px;
+  border: 1px solid transparent;
+  border-radius: var(--il-radius-sm);
+  background: transparent;
+  color: var(--il-text-muted);
+  font-family: var(--il-font-ui);
+  text-align: center;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv:hover {
+  border-color: var(--il-brand-outline-strong);
+  background: var(--il-surface-selected);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv.line-ahead,
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-positive {
+  color: var(--il-positive);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv.line-behind,
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-negative {
+  color: var(--il-negative);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv:focus-visible,
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer button:focus-visible,
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer select:focus-visible {
+  outline: 2px solid var(--il-focus);
+  outline-offset: 2px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv strong,
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table .personal-position-clv strong {
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table td .personal-position-clv strong {
+  font-size: 16px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv small,
+body[data-design-system="v2"][data-page="live-positions"] .live-positions-table.personal-positions-table .personal-position-clv small {
+  margin: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 3px;
+  color: var(--il-text-muted);
+  font-size: 11px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-position-clv small i {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer {
+  position: fixed;
+  inset: 0;
+  width: min(540px, 100%);
+  max-width: 100%;
+  box-sizing: border-box;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0 0 0 auto;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid var(--il-brand-outline-strong);
+  background: var(--il-bg-pure-black);
+  color: var(--il-text-primary);
+  box-shadow: var(--il-shadow-drawer);
+  font: var(--il-type-body);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer[open] {
+  display: flex;
+  flex-direction: column;
+}
+
+body[data-design-system="v2"][data-page="live-positions"]:has(.personal-clv-drawer[open]) {
+  overflow: hidden;
+}
+
+html:has(body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer[open]) {
+  overflow: hidden;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-drawer::backdrop {
+  background: var(--il-backdrop-soft);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-header {
+  padding: var(--il-space-6);
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--il-space-3);
+  border-bottom: 1px solid var(--il-border-standard);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-clv-provider {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  color: var(--il-brand-hover);
+  font-size: 30px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] #personal-clv-provider img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--il-radius-control);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-header h2 {
+  margin: 3px 0 0;
+  font-size: 25px;
+  line-height: 1.2;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-header p {
+  margin: 0;
+  color: var(--il-text-muted);
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-header button {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--il-border-standard);
+  border-radius: 50%;
+  background: var(--il-surface-elevated);
+  color: var(--il-text-secondary);
+  font-size: 22px;
+  cursor: pointer;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-content {
+  min-height: 0;
+  padding: var(--il-space-6);
+  overflow-y: auto;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-sample-label {
+  margin: 0 0 var(--il-space-5);
+  color: var(--il-brand-hover);
+  font-size: 12px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-event h3 {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  text-transform: capitalize;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-event .personal-position-event-title {
+  flex-wrap: wrap;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-event p {
+  margin: var(--il-space-2) 0 0;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--il-space-2);
+  color: var(--il-text-muted);
+  font-size: 15px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-event .personal-position-league {
+  margin: 0;
+  font-size: 15px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-selection {
+  margin-top: var(--il-space-6);
+  padding: var(--il-space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--il-space-3);
+  border-radius: var(--il-radius-overlay);
+  border: 2px solid var(--il-brand-hover);
+  background: var(--il-surface-play-card-purple);
+  text-transform: capitalize;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-selection strong {
+  font-size: 24px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-selection small {
+  margin-top: var(--il-space-1);
+  display: block;
+  color: var(--il-text-secondary);
+  font-size: 16px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-selection img {
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-comparison {
+  margin-top: var(--il-space-10);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-comparison h3 {
+  margin: 0 0 var(--il-space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--il-space-2);
+  font-size: 22px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-comparison h3 i {
+  color: var(--il-brand-hover);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-comparison-card {
+  padding: var(--il-space-4);
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-overlay);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-source {
+  min-height: 48px;
+  padding: var(--il-space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--il-space-2);
+  border: 1px solid var(--il-border-standard);
+  border-radius: var(--il-radius-control);
+  background: var(--il-bg-pure-black);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-source-logo {
+  width: 40px;
+  height: 40px;
+  flex: 0 0 40px;
+  display: grid;
+  place-items: center;
+  color: var(--il-brand-hover);
+  font-size: 30px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-source-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--il-radius-sm);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-source > strong {
+  font: 600 18px var(--il-font-ui);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-value-grid {
+  margin-top: var(--il-space-6);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+  align-items: center;
+  gap: var(--il-space-5);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-metric strong {
+  display: block;
+  font: 700 42px/1.1 var(--il-font-data);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-metric span {
+  margin-top: var(--il-space-2);
+  display: block;
+  color: var(--il-text-secondary);
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-metric small {
+  margin-top: var(--il-space-1);
+  display: block;
+  color: var(--il-text-muted);
+  font-size: 12px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds {
+  margin: 0;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds div {
+  padding: var(--il-space-3) 0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--il-space-2);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds div + div {
+  border-top: 1px solid var(--il-border-standard);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dt {
+  color: var(--il-text-secondary);
+  font-size: 14px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dd {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dd.personal-clv-current-odds {
+  font-size: 20px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-timestamp {
+  margin: var(--il-space-5) 0 0;
+  color: var(--il-text-muted);
+  font-size: 12px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-explanation {
+  margin: var(--il-space-4) 0 0;
+  color: var(--il-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-bet-summary {
+  margin: var(--il-space-6) 0 0;
+  padding-top: var(--il-space-5);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--il-space-4);
+  border-top: 1px solid var(--il-border-standard);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-bet-summary > div {
+  min-width: 0;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-bet-summary dt {
+  color: var(--il-text-muted);
+  font-size: 16px;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-bet-summary dd {
+  margin: var(--il-space-1) 0 0;
+  font-size: 18px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-tracked-source {
+  display: flex;
+  align-items: center;
+  gap: var(--il-space-2);
+}
+
+body[data-design-system="v2"][data-page="live-positions"] .personal-clv-tracked-source i {
+  color: var(--il-brand-hover);
+}
+
+@media (max-width: 440px) {
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-bet-summary dt {
+    min-height: 2.9em;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-tracked-source {
+    align-items: flex-start;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-value-grid {
+    gap: var(--il-space-3);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-metric strong {
+    font-size: 32px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dt {
+    font-size: 12px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dd {
+    font-size: 16px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-odds dd.personal-clv-current-odds {
+    font-size: 18px;
+  }
+}
+
+@media (max-width: 380px) {
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-header,
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-content {
+    padding: var(--il-space-4);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-clv-value-grid {
+    grid-template-columns: 1fr;
+    gap: var(--il-space-3);
+  }
+}
+
 @media (max-width: 980px) {
   body[data-design-system="v2"][data-page="live-positions"] .app-shell {
     padding-top: 60px;
@@ -370,6 +1235,12 @@ body[data-design-system="v2"][data-page="live-positions"] .pagination button {
     width: auto;
     min-width: 142px;
     flex: 0 0 auto;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail.personal-filter-rail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(150px, 1fr));
+    overflow: visible;
   }
 }
 
@@ -424,6 +1295,24 @@ body[data-design-system="v2"][data-page="live-positions"] .pagination button {
     background: var(--il-surface-2);
   }
 
+  body[data-design-system="v2"][data-page="live-positions"] #personal-positions-cards .personal-position-card:nth-child(odd) {
+    background: var(--il-surface-1);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] #personal-positions-cards .personal-position-card:nth-child(even) {
+    background: var(--il-bg-workspace);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-event-title {
+    flex-wrap: wrap;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-league {
+    margin-top: var(--il-space-1);
+    color: var(--il-text-muted);
+    font-size: 11px;
+  }
+
   body[data-design-system="v2"][data-page="live-positions"] .mobile-result-card > div {
     display: flex;
     align-items: center;
@@ -448,6 +1337,37 @@ body[data-design-system="v2"][data-page="live-positions"] .pagination button {
   body[data-design-system="v2"][data-page="live-positions"] .mobile-result-card > strong {
     color: var(--il-brand-hover);
     font-size: 12px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-card p {
+    margin: var(--il-space-1) 0 0;
+    color: var(--il-text-muted);
+    font-size: 10px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-live-data {
+    margin-top: var(--il-space-2);
+    padding-top: var(--il-space-2);
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--il-space-2);
+    border-top: 1px solid var(--il-border-hairline);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-live-data span {
+    display: grid;
+    gap: 3px;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-live-data small {
+    color: var(--il-text-muted);
+    font: var(--il-type-table-header);
+    text-transform: uppercase;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-live-data strong {
+    color: var(--il-text-primary);
+    font: var(--il-type-numeric-data);
   }
 
   body[data-design-system="v2"][data-page="live-positions"] .mobile-result-card dl {
@@ -501,6 +1421,35 @@ body[data-design-system="v2"][data-page="live-positions"] .pagination button {
 }
 
 @media (max-width: 440px) {
+  body[data-design-system="v2"][data-page="live-positions"] .live-filter-rail.personal-filter-rail {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-rich-filter-popover {
+    width: 100%;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] #personal-position-sportsbook-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs {
+    width: 100%;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .positions-view-tabs button {
+    min-width: 0;
+    flex: 1 1 0;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs {
+    overflow-x: auto;
+  }
+
+  body[data-design-system="v2"][data-page="live-positions"] .personal-position-status-tabs button {
+    flex: 0 0 auto;
+  }
+
   body[data-design-system="v2"][data-page="live-positions"] .live-page-header .title-line {
     width: 100%;
     justify-content: space-between;
