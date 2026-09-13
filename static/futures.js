@@ -75,9 +75,7 @@
   }
 
   function oddsText(option) {
-    const american = asNumber(option?.americanOdds);
-    if (american !== null) return american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`;
-    return String(option?.displayOdds || "—");
+    return window.IconLabsOdds.quote(option || {});
   }
 
   function optionLimit(option) {
@@ -423,6 +421,7 @@
     document.addEventListener("keydown", event => { if (event.key === "Escape") closeBooks(); });
   }
 
+  window.addEventListener(window.IconLabsOdds.EVENT,renderBoard);
   bindControls();
   loadFutures();
 })();

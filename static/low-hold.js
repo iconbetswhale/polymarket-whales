@@ -140,8 +140,7 @@
   }
 
   function odds(value) {
-    const amount = Number(value || 0);
-    return amount > 0 ? `+${Math.round(amount)}` : `${Math.round(amount)}`;
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function decimalOdds(value) {
@@ -1163,5 +1162,6 @@
   elements.sort.value = state.sort;
   updateFilterBadge();
   syncDialog();
+  window.addEventListener(window.IconLabsOdds.EVENT,renderAll);
   loadBoard();
 })();

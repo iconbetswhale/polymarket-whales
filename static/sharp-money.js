@@ -67,9 +67,7 @@
   }
 
   function odds(value) {
-    const number = Number(value);
-    if (!Number.isFinite(number)) return "—";
-    return number > 0 ? `+${Math.round(number)}` : `${Math.round(number)}`;
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function timeLabel(value) {
@@ -913,6 +911,7 @@
       document.body.classList.remove("sharp-desktop-detail-open");
     });
     window.addEventListener("iconlabs:line-shop-order",render);
+    window.addEventListener(window.IconLabsOdds.EVENT,render);
   }
 
   if (document.body.dataset.page === "sharp-money") {

@@ -212,9 +212,12 @@ def test_compact_laptop_odds_columns_stack_price_metadata_without_collisions() -
     assert ".book-cell.model-excluded .dfs-book-cell-stack > strong" in CSS
 
 
-def test_cents_prices_include_american_odds_on_a_second_line() -> None:
+def test_exchange_prices_use_one_shared_odds_format_without_duplicate_american_line() -> None:
     assert "function centsAmericanLabel(display,americanOdds)" in SCRIPT
-    assert "isCentsPrice && Number.isFinite(american)" in SCRIPT
+    formatter = SCRIPT[SCRIPT.index("function centsAmericanLabel(") : SCRIPT.index("function sideSummary(")]
+    assert "return '';" in formatter
+    assert "display: window.IconLabsOdds.fromProbability(probability)" in SCRIPT
+    assert "return window.IconLabsOdds.fromAmerican(odds)" in SCRIPT
     assert "centsAmericanLabel(price,snapshot.american)" in SCRIPT
     assert "centsAmericanLabel(snapshot.display,snapshot.american)" in SCRIPT
     assert 'class="cents-american"' in SCRIPT

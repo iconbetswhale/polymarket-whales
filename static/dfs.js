@@ -241,9 +241,7 @@
   }
 
   function formatAmericanOdds(odds) {
-    const value = Number(odds);
-    if (!Number.isFinite(value)) return '—';
-    return value > 0 ? `+${Math.round(value)}` : String(Math.round(value));
+    return window.IconLabsOdds.fromAmerican(odds);
   }
 
   function parlayMaxPayout(profile) {
@@ -511,14 +509,16 @@
     const structured = market !== null && typeof market === 'object';
     const display = structured ? (market.odds ?? market.displayOdds ?? market.americanOdds ?? '—') : (market ?? '—');
     const rawAmerican = structured ? (market.americanOdds ?? market.american_odds ?? market.odds) : market;
-    const cents = String(display).trim().match(/^([0-9]+(?:\.[0-9]+)?)¢$/);
-    let american = Number(rawAmerican);
-    if (!Number.isFinite(american) && cents) {
-      const probability = Number(cents[1]) / 100;
-      american = Number(fairAmericanOdds(probability * 100));
-    }
+    const sourceFormat = structured ? market.oddsFormat ?? market.odds_format : undefined;
+    const explicitAmerican = structured && (market.americanOdds != null || market.american_odds != null);
+    const americanProbability = explicitAmerican || !sourceFormat || String(sourceFormat).toLowerCase() === 'american'
+      ? window.IconLabsOdds.americanToProbability(rawAmerican) : null;
+    const probability = americanProbability ?? window.IconLabsOdds.displayToProbability(display, sourceFormat);
+    // Keep the pre-existing numeric American model boundary; only display uses precise probability.
+    const american = americanProbability !== null ? Number(rawAmerican)
+      : probability === null ? null : Math.round(window.IconLabsOdds.probabilityToAmerican(probability));
     return {
-      display: display === null || display === undefined || display === '' ? '—' : String(display),
+      display: window.IconLabsOdds.fromProbability(probability),
       american: Number.isFinite(american) ? american : null,
       line: structured && Number.isFinite(Number(market.line)) ? Number(market.line) : null,
       liquidity: structured && Number.isFinite(Number(market.liquidity)) && Number(market.liquidity) >= 0 ? Number(market.liquidity) : null,
@@ -555,9 +555,8 @@
   }
 
   function centsAmericanLabel(display,americanOdds) {
-    const isCentsPrice = /^([0-9]+(?:\.[0-9]+)?)¢$/.test(String(display).trim());
-    const american = Number(americanOdds);
-    return isCentsPrice && Number.isFinite(american) ? `(${formatAmericanOdds(american)})` : '';
+    // One preferred format, never a second American value beside cents.
+    return '';
   }
 
   function sideSummary(row, orderedBooks = detailBookOrder(row)) {
@@ -574,7 +573,7 @@
     const average = probabilities.length
       ? fairAmericanOdds(probabilities.reduce((sum,value)=>sum+value,0) / probabilities.length * 100)
       : '—';
-    return {snapshots,best,bestDisplay:best===null?'—':`${best>0?'+':''}${Math.round(best)}`,average};
+    return {snapshots,best,bestDisplay:formatAmericanOdds(best),average:formatAmericanOdds(average)};
   }
 
   function mobileBookSnapshot(row,key,referenceLine) {
@@ -1087,7 +1086,7 @@
         : fairHitRate === null
           ? 'No fresh exact-line source consensus matches the current Devig allocation'
           : `${fairHitRate.toFixed(1)}% fair hit rate from ${exactSources} exact source${exactSources===1?'':'s'} · ${requiredPercent} required for ${activeBook} ${activeParlay?.label || ''} ${activeParlayOdds} · ${edgeLabel}`;
-      const fairOdds = fairHitRate === null ? '—' : fairAmericanOdds(fairHitRate);
+      const fairOdds = fairHitRate === null ? '—' : formatAmericanOdds(fairAmericanOdds(fairHitRate));
       const selectedAppOdds = activeParlayOdds;
       const selectedOddsTitle = parlayOddsTitle();
       const expanded = expandedRowId === String(r.id || '');
@@ -1604,6 +1603,7 @@
   },{capture:true,passive:true});
   document.querySelector('.dfs-table-shell').addEventListener('scroll', hideIconAlgoTooltip);
   window.addEventListener('iconlabs:line-shop-order',render);
+  window.addEventListener(window.IconLabsOdds.EVENT, () => { syncParlayPicker(); render(); });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) clearAutoRefresh();
     else if (liveRefreshEnabled) loadLiveRows();

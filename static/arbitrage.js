@@ -157,8 +157,7 @@
   }
 
   function odds(value) {
-    const amount = Number(value || 0);
-    return amount > 0 ? `+${Math.round(amount)}` : `${Math.round(amount)}`;
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function decimalOdds(value) {
@@ -944,7 +943,7 @@
     elements.trackLegs.innerHTML = row.outcomes.map((leg, index) => `<div class="arb-leg-editor-row">
       <div class="arb-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
       ${editorBook(leg)}
-      <label class="arb-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-arb-track-odds="${index}"></label>
+      <label class="arb-editor-odds"><span class="sr-only">American Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${window.IconLabsOdds.fromAmerican(leg.americanOdds, {format: "american"})}" data-arb-track-odds="${index}"></label>
       <strong class="arb-editor-value" data-arb-track-stake="${index}">${money(leg.stake)}</strong>
       <strong class="arb-editor-value positive" data-arb-track-payout="${index}">${money(leg.payout)}</strong>
     </div>`).join("");
@@ -1075,7 +1074,7 @@
     elements.recalculateLegs.innerHTML = row.outcomes.map((leg, index) => `<div class="arb-leg-editor-row" data-arb-calculator-row="${index}">
       <div class="arb-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
       ${editorBook(leg)}
-      <label class="arb-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-arb-calculator-odds="${index}"></label>
+      <label class="arb-editor-odds"><span class="sr-only">American Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${window.IconLabsOdds.fromAmerican(leg.americanOdds, {format: "american"})}" data-arb-calculator-odds="${index}"></label>
       <label class="arb-editor-money"><b>$</b><input type="number" min="0.01" step="0.01" inputmode="decimal" data-arb-calculator-stake="${index}" aria-label="Bet amount for ${esc(leg.selection)}"></label>
       <strong class="arb-editor-value positive" data-arb-calculator-payout="${index}">${money(leg.payout)}</strong>
       <label class="arb-editor-lock" title="Lock ${esc(leg.selection)} bet"><input type="radio" name="arb-calculator-lock" value="${index}" data-arb-calculator-lock="${index}"><i class="ph ph-lock-key" aria-hidden="true"></i><span class="sr-only">Lock ${esc(leg.selection)}</span></label>
@@ -1355,6 +1354,7 @@
     });
   }
 
+  window.addEventListener(window.IconLabsOdds.EVENT,renderAll);
   bind();
   loadBoard();
 })();

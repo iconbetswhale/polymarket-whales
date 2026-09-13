@@ -108,8 +108,7 @@
   }
 
   function odds(value) {
-    const number = Number(value || 0);
-    return number > 0 ? `+${number}` : String(number);
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function rowIcon(item, fallback, kind) {
@@ -298,6 +297,7 @@
   $$('[data-lab-display]').forEach((button) => button.classList.toggle("active", button.dataset.labDisplay === state.display));
   syncSourceTabs($('.lab-tabs button' + (initialPersonalScope ? '[data-lab-scope="personal"]' : '[data-lab-source="all"]')));
   window.addEventListener("resize", () => state.data && drawChart());
+  window.addEventListener(window.IconLabsOdds.EVENT, () => state.data && render());
   window.setInterval(() => {
     if (!document.hidden && state.scope === "signal" && state.source === "prediction_traders") load();
   }, 15000);

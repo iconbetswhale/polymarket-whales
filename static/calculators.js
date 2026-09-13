@@ -35,9 +35,7 @@
   }
 
   function american(value) {
-    const rounded = Math.round(Number(value));
-    if (!Number.isFinite(rounded)) return "—";
-    return rounded > 0 ? `+${rounded}` : String(rounded);
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function clone(value) {
@@ -319,7 +317,7 @@
           heading: "Converted odds",
           label: "Decimal odds",
           value: decimal(output.decimal),
-          detail: `${american(output.american)} American · ${output.fractional} fractional`,
+          detail: `${window.IconLabsOdds.fromAmerican(output.american, {format: "american"})} American · ${window.IconLabsOdds.fromAmerican(output.american, {format: "cents"})} cents · ${output.fractional} fractional`,
           icon: "ph-arrows-left-right",
           metrics: [metric("Implied probability", percent(output.probability)), metric("Fractional odds", output.fractional), metric("Profit", money(output.profit)), metric("Payout", money(output.payout))],
           verdict: { tone: "", icon: "ph-equals", title: "Equivalent price formats", copy: "Every displayed format represents the same break-even probability and potential return." },
@@ -667,5 +665,6 @@
     if (definitions[key]) selectCalculator(key, { updateHash: false });
   });
 
+  window.addEventListener(window.IconLabsOdds.EVENT,calculateActive);
   renderActive();
 })();

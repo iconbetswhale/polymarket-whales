@@ -161,7 +161,7 @@
             <label>Email<span class="profile-input-with-icon"><i class="ph ph-envelope-simple"></i><input id="profile-email" type="email" readonly></span></label>
             <label>Phone Number (Optional)<span class="profile-input-with-icon"><i class="ph ph-phone"></i><input id="profile-phone" type="tel" autocomplete="tel" placeholder="Phone Number (Optional)"></span></label>
             <label>State<select id="profile-state"><option>Florida</option><option>New York</option><option>New Jersey</option><option>Pennsylvania</option><option>California</option><option>Texas</option><option>Other</option></select></label>
-            <label>Odds Format<select id="profile-odds-format"><option>American</option><option>Decimal</option><option>Fractional</option></select></label>
+            <label>Odds Format<select id="profile-odds-format"><option>American</option><option>Cents</option><option>Decimal</option></select></label>
             <div class="profile-form-actions"><button class="button ghost" id="profile-cancel" type="button">Cancel</button><button class="button primary" type="submit">Save Changes</button></div>
           </form>
         </section>
@@ -186,7 +186,8 @@
       </form>
     </div>
   </dialog>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v73-text-position-sort-no-bankroll') }}"></script>
+  <script src="{{ url_for('static', filename='odds-format.js', v=asset_version ~ '-shared-odds-v1') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v74-shared-odds') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v7-price-edge-order') }}"></script>{% endif %}
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-reference-market-scanner-v13-shared-book-order') }}"></script>{% endif %}

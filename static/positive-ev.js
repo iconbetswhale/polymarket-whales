@@ -346,7 +346,7 @@
     }
   }
   const profitMoney = value => `$${Number(value || 0).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2})}`;
-  const odds = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0)}`;
+  const odds = value => window.IconLabsOdds.fromAmerican(value);
   const evPercent = value => `${Number(value) > 0 ? "+" : ""}${Number(value || 0).toFixed(2)}%`;
   const americanProfit = (stake, americanOdds) => {
     const amount = Math.max(0, Number(stake || 0));
@@ -644,7 +644,7 @@
     ? point.line
     : metric === "marketLimit"
       ? point.marketLimit
-      : point.americanOdds;
+      : window.IconLabsOdds.americanToProbability(point.americanOdds);
   const liveHistoryHasMovement = rawSeries => new Set(
     (rawSeries || []).flatMap(series => (series.points || []).map(point => point.timestamp))
   ).size > 1;
@@ -658,7 +658,7 @@
     ? lineValue(value)
     : metric === "marketLimit"
       ? compactDollars(value)
-      : odds(value);
+      : window.IconLabsOdds.fromProbability(value);
   const compactDollars = value => {
     const number = Number(value || 0);
     if (number >= 1000) return `$${(number / 1000).toFixed(number >= 10000 ? 0 : 1).replace(/\.0$/, "")}k`;
@@ -686,17 +686,18 @@
       ? Math.max(.5, (rawMax - rawMin) * .15)
       : metric === "marketLimit"
         ? Math.max(100, (rawMax - rawMin) * .12)
-        : Math.max(6, (rawMax - rawMin) * .12);
-    const minValue = rawMin - valuePadding;
-    const maxValue = rawMax + valuePadding;
+        : Math.max(.002, (rawMax - rawMin) * .12);
+    // Plot prices in probability space: American odds jump from -100 to +100.
+    const minValue = metric === "americanOdds" ? Math.max(1e-12, rawMin - valuePadding) : rawMin - valuePadding;
+    const maxValue = metric === "americanOdds" ? Math.min(1 - 1e-12, rawMax + valuePadding) : rawMax + valuePadding;
     const timeSpan = Math.max(1, maxTime - minTime);
-    const valueSpan = Math.max(.01, maxValue - minValue);
+    const valueSpan = Math.max(metric === "americanOdds" ? 1e-12 : .01, maxValue - minValue);
     const x = timestamp => left + ((timestamp - minTime) / timeSpan) * (width - left - right);
     const y = value => top + ((maxValue - value) / valueSpan) * (height - top - bottom);
     const grid = [0, .25, .5, .75, 1].map(ratio => {
       const gridY = top + ratio * (height - top - bottom);
       const value = maxValue - ratio * valueSpan;
-      const label = metric === "line" ? Math.round(value * 2) / 2 : Math.round(value);
+      const label = metric === "line" ? Math.round(value * 2) / 2 : metric === "americanOdds" ? value : Math.round(value);
       return `<line x1="${left}" y1="${gridY}" x2="${width-right}" y2="${gridY}" class="ev-trend-grid"></line><text x="4" y="${gridY+4}" class="ev-trend-axis">${historyValueLabel(label, metric)}</text>`;
     }).join("");
     const paths = series.map(item => {
@@ -1514,6 +1515,10 @@
     template.innerHTML=marketOddsVisual(selected).trim();
     section.replaceWith(template.content.firstElementChild);
     bindMarketOddsControls(expanded);
+  });
+  window.addEventListener(window.IconLabsOdds.EVENT, () => {
+    renderFeed();
+    if (selectedId) select(selectedId);
   });
   renderFilters();
   loadBankrollSettings().finally(()=>load(true));

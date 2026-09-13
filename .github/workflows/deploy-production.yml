@@ -37,6 +37,9 @@ jobs:
         with:
           node-version: "24"
 
+      - name: Verify frontend odds and trackers
+        run: node --test tests/test_odds_format.js tests/test_personal_position_clv.js tests/test_tracker_recap.js
+
       - name: Install Vercel CLI
         run: npm install --global vercel@55.0.0
 

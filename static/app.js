@@ -413,10 +413,8 @@ function formatPercent(value, digits = 1) {
 }
 
 function formatCents(value) {
-  const parsed = number(value);
-  if (parsed === null || parsed <= 0 || parsed >= 1) return "Unavailable";
-  const cents = parsed * 100;
-  return `${Number.isInteger(cents) ? cents.toFixed(0) : cents.toFixed(1)}¢`;
+  // Historical name: callers pass contract probabilities, not cents.
+  return window.IconLabsOdds.fromProbability(value, { unavailable: "Unavailable" });
 }
 
 function formatUnits(value) {
@@ -435,8 +433,9 @@ function formatOptionalCents(value) {
 function formatExitCents(value) {
   const parsed = number(value);
   if (parsed === null || parsed < 0 || parsed > 1) return "N/A";
-  const cents = parsed * 100;
-  return `${Number.isInteger(cents) ? cents.toFixed(0) : cents.toFixed(1)}¢`;
+  // Terminal settlement payouts are not finite betting odds.
+  if (parsed === 0 || parsed === 1) return `Settled ${formatMoney(parsed)}`;
+  return window.IconLabsOdds.fromProbability(parsed, { unavailable: "N/A" });
 }
 
 function formatRelativeSize(value) {
@@ -898,7 +897,7 @@ function loadProfilePreferences() {
     "profile-last-name": profile.lastName || "",
     "profile-phone": profile.phone || "",
     "profile-state": profile.state || "Florida",
-    "profile-odds-format": profile.oddsFormat || "American",
+    "profile-odds-format": window.IconLabsOdds.getFormat().replace(/^./, character => character.toUpperCase()),
   };
   Object.entries(fields).forEach(([id, value]) => {
     const input = document.getElementById(id);
@@ -1069,6 +1068,7 @@ function bindAccount() {
       oddsFormat: document.getElementById("profile-odds-format")?.value || "American",
     };
     safeStorage.setItem("iconlabs-profile-preferences", JSON.stringify(profile));
+    window.IconLabsOdds.setFormat(profile.oddsFormat);
     showToast("Profile preferences saved.", "success");
   });
   document.getElementById("profile-cancel")?.addEventListener("click", () => {
@@ -1616,25 +1616,7 @@ function executionVenueStack(trade, best) {
 }
 
 function executionOptionDisplayOdds(option = {}) {
-  const providerKey = canonicalExecutionProviderKey(option.providerKey);
-  const executablePrice = number(
-    option.bestExecutablePrice
-      ?? option.effectiveEntryPrice
-      ?? option.effectivePrice
-      ?? option.contractPrice,
-  );
-  const americanOdds = number(option.americanOdds);
-  if (["polymarket", "kalshi"].includes(providerKey)) {
-    return executablePrice === null
-      ? (option.displayOdds || "Odds unavailable")
-      : formatCents(executablePrice);
-  }
-  if (americanOdds !== null) {
-    return americanOdds > 0 ? `+${Math.round(americanOdds)}` : `${Math.round(americanOdds)}`;
-  }
-  return option.displayOdds || (
-    executablePrice === null ? "Odds unavailable" : formatCents(executablePrice)
-  );
+  return window.IconLabsOdds.quote(option, { unavailable: "Odds unavailable" });
 }
 
 function probabilityToAmerican(probability) {
@@ -1693,10 +1675,7 @@ function executionComparisonPrice(option) {
   if (["polymarket", "kalshi"].includes(key)) {
     return executable === null ? "—" : formatCents(executable);
   }
-  const originalAmerican = number(option.americanOdds);
-  const american = originalAmerican ?? probabilityToAmerican(executable);
-  if (american === null) return "—";
-  return american > 0 ? `+${american}` : `${american}`;
+  return window.IconLabsOdds.quote(option);
 }
 
 function executionComparisonDetail(option) {
@@ -2703,7 +2682,7 @@ function renderTradeDetail(trade) {
     ? "Change unavailable"
     : Math.abs(priceDelta) < 0.0001
       ? "No change vs trader"
-      : `${priceDelta < 0 ? "↓" : "↑"}${formatCents(Math.abs(priceDelta))} vs trader`;
+      : `${priceDelta < 0 ? "↓" : "↑"}${(Math.abs(priceDelta) * 100).toFixed(1)} pp vs trader`;
   const chartSummary = `Trader entry ${formatOptionalCents(traderPrice)}. Current executable ${formatOptionalCents(executablePrice)}. ${priceDeltaLabel}.`;
   const priceReferences = [
     { value: number(slippage?.whalePrice), tone: "trader", label: "Trader" },
@@ -4246,6 +4225,7 @@ function openPersonalClvDetails(positionId) {
   const position = appState.personalActivePositions.find((item) => item.positionId === positionId);
   const dialog = document.getElementById("personal-clv-dialog");
   if (!position || !dialog) return;
+  dialog.dataset.positionId = positionId;
   renderPersonalClvDetails(position);
   if (!dialog.open) dialog.showModal();
 }
@@ -4894,7 +4874,7 @@ function formatClvPercent(value) {
 function formatClvCents(value) {
   const parsed = number(value);
   if (parsed === null) return "Unavailable";
-  return `${parsed > 0 ? "+" : ""}${parsed.toFixed(1)}\u00a2`;
+  return `${parsed > 0 ? "+" : ""}${parsed.toFixed(1)} pp`;
 }
 
 function probabilityToAmerican(probability) {
@@ -4906,9 +4886,14 @@ function probabilityToAmerican(probability) {
 }
 
 function formatAmericanOdds(value) {
-  const parsed = number(value);
-  if (parsed === null) return "Unavailable";
-  return `${parsed > 0 ? "+" : ""}${Math.round(parsed)}`;
+  return window.IconLabsOdds.fromAmerican(value, { unavailable: "Unavailable" });
+}
+
+function trackerDisplayOdds(snapshot = {}, probability) {
+  return window.IconLabsOdds.fromProbability(
+    window.IconLabsOdds.displayToProbability(snapshot.provider_display_odds)
+      ?? number(probability),
+  );
 }
 
 function oddsDifference(entryOdds, closingOdds) {
@@ -4934,9 +4919,11 @@ function clvCell(row) {
   }
   const pct = number(clv.clv_pct);
   const tone = pct > 0 ? "positive" : pct < 0 ? "negative" : "neutral";
-  const entryOdds = clv.entry_native_odds
-    ?? row.snapshot?.provider_display_odds
-    ?? probabilityToAmerican(clv.entry_price);
+  const entryOdds = window.IconLabsOdds.probabilityToAmerican(
+    window.IconLabsOdds.americanToProbability(clv.entry_native_odds)
+      ?? window.IconLabsOdds.displayToProbability(row.snapshot?.provider_display_odds)
+      ?? number(clv.entry_price),
+  );
   const closingOdds = probabilityToAmerican(clv.closing_effective_price);
   const snapshot = row.snapshot || {};
   const selection = snapshot.recommended_side || "Selection";
@@ -5330,7 +5317,7 @@ function trackerMobileModelBet(row) {
   const intended = number(snapshot.intended_entry_price ?? snapshot.current_executable_entry_price);
   const actual = number(snapshot.actual_weighted_entry_price ?? snapshot.effective_entry_price);
   const entry = actual ?? intended ?? number(snapshot.provider_entry_price);
-  const displayEntry = snapshot.provider_display_odds || (entry === null ? "—" : formatCents(entry));
+  const displayEntry = trackerDisplayOdds(snapshot, entry);
   const selection = snapshot.recommended_side || "Selection";
   const market = snapshot.sports_market_type || snapshot.market_type || snapshot.market_kind || snapshot.market_title || snapshot.canonical_market_slug || "";
   const sharpEntry = number(primary.average_entry ?? snapshot.sharp_average_entry_price);
@@ -5403,7 +5390,7 @@ function compositeClvCell(row) {
   const priceValue = number(dual.composite_stake_return_clv);
   const entryProbability = number(dual.entry_price ?? row.snapshot?.provider_entry_price);
   const closeProbability = number(dual.composite_closing_probability);
-  const entryOdds = row.snapshot?.provider_display_odds ?? probabilityToAmerican(entryProbability);
+  const entryOdds = window.IconLabsOdds.probabilityToAmerican(window.IconLabsOdds.displayToProbability(row.snapshot?.provider_display_odds)) ?? probabilityToAmerican(entryProbability);
   const closeOdds = probabilityToAmerican(closeProbability);
   const tone = probabilityPoints > 0 ? "positive" : probabilityPoints < 0 ? "negative" : "neutral";
   const label = trackerCompactBetLabel(
@@ -5470,7 +5457,7 @@ function trackerRow(row) {
   );
   const matchup = trackerShortMatchup(snapshot.event_title || snapshot.market_title || "Market");
   const wager = number(row.recommended_amount);
-  const displayEntry = entry === null ? "—" : (snapshot.provider_display_odds || formatCents(entry));
+  const displayEntry = trackerDisplayOdds(snapshot, entry);
   return `
     <tr>
       <td data-label="Bet"><div class="tracker-bet-cell">${trackerProviderBadge(provider, marketUrl)}<span><strong>${escapeHtml(betLabel)}</strong><small>${escapeHtml(matchup)}</small></span></div></td>
@@ -6854,7 +6841,7 @@ function trackerCalendarBetMarkup(row = {}) {
     snapshot.player_name || snapshot.participant_name || row.player_name || row.participant_name,
     trackerSportDescriptor(snapshot, row),
   );
-  const odds = snapshot.provider_display_odds || row.display_odds || (number(row.entry_price) === null ? "—" : formatCents(row.entry_price));
+  const odds = trackerDisplayOdds({ ...snapshot, provider_display_odds: snapshot.provider_display_odds ?? row.display_odds }, row.entry_price);
   const pnl = number(row.profit_loss) || 0;
   return `<article class="tracker-calendar-bet-row">
     ${providerLogoMarkup(provider, provider.name)}
@@ -9142,14 +9129,11 @@ function oddsProviderSecondaryMeta(provider, option) {
 
 function oddsPriceCell(option, provider, bestProviderKey = "") {
   if (!option || option.matchingConfidence !== "Exact") return `<span class="odds-price empty" data-provider="${provider}" role="img" title="No exact market match" aria-label="No exact market match"><strong>—</strong></span>`;
-  const price = number(option.contractPrice);
-  const american = number(option.americanOdds);
   const marketStatus = String(option.marketStatus || "OPEN").toUpperCase();
   const suspended = marketStatus !== "OPEN" || !option.isAvailable;
   const stale = option.isStale === true || String(option.quoteFreshness || "").toLowerCase() === "stale";
   const isBest = String(provider).toLowerCase() === String(bestProviderKey || "").toLowerCase() && !stale && !suspended;
-  const contractAndAmerican = [price === null ? null : formatCents(price), american === null ? null : (american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`)].filter(Boolean).join(" / ");
-  const headline = option.displayOdds || contractAndAmerican || "—";
+  const headline = window.IconLabsOdds.quote(option);
   const stateClass = [isBest ? "best-price" : "", stale ? "stale" : "", suspended ? "suspended" : ""].filter(Boolean).join(" ");
   const age = number(option.quoteAgeSeconds);
   const title = suspended ? `Market ${marketStatus.toLowerCase()}` : stale ? `Stale quote${age === null ? "" : ` · ${Math.round(age)} seconds old`}` : `${option.providerName || provider} executable quote`;
@@ -9376,9 +9360,7 @@ function oddsMobileMainGroup(rows, kind) {
 }
 
 function oddsMobilePrice(option) {
-  const american = number(option?.americanOdds);
-  if (american !== null) return american > 0 ? `+${Math.round(american)}` : `${Math.round(american)}`;
-  return String(option?.displayOdds || "—");
+  return window.IconLabsOdds.quote(option || {});
 }
 
 function oddsMobileProviderLogo(option) {
@@ -10080,8 +10062,8 @@ async function loadShadowTest() {
   }
 }
 
-function refreshCurrentPage() {
-  if (appState.paused) return;
+function refreshCurrentPage(force = false) {
+  if (appState.paused && !force) return;
   if (page === "overview") loadOverview();
   if (page === "trades") {
     if (appState.workspaceTab === "positions") loadPersonalPositions("open");
@@ -10139,6 +10121,16 @@ function bindIntentPrewarm() {
 }
 
 function initialize() {
+  window.addEventListener(window.IconLabsOdds.EVENT, () => {
+    loadProfilePreferences();
+    refreshCurrentPage(true);
+    if (page === "live-positions") {
+      renderPersonalWorkspacePositions();
+      const dialog = document.getElementById("personal-clv-dialog");
+      if (dialog?.open) openPersonalClvDetails(dialog.dataset.positionId);
+    }
+    if (page === "odds-screen") renderOddsScreen();
+  });
   bindNavigation();
   bindAccount();
   bindIntentPrewarm();

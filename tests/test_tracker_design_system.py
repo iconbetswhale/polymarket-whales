@@ -433,7 +433,8 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     assert canonical > foundation
     assert "-canonical-v57-no-bankroll-control" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v73-text-position-sort-no-bankroll" in BASE[script : script + 220]
+    assert "-live-feeds-v74-shared-odds" in BASE[script : script + 220]
+    assert BASE.index("filename='odds-format.js'") < script
 
 
 def test_tracker_period_recap_replaces_the_summary_strip_and_shares_the_date_filter() -> None:

@@ -156,8 +156,7 @@
   }
 
   function odds(value) {
-    const amount = Number(value || 0);
-    return `${amount > 0 ? "+" : ""}${amount}`;
+    return window.IconLabsOdds.fromAmerican(value);
   }
 
   function decimalOdds(value) {
@@ -991,7 +990,7 @@
     elements.trackLegs.innerHTML = (row.legs || []).map((leg, index) => `<div class="mid-leg-editor-row">
       <div class="mid-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
       ${editorBook(leg)}
-      <label class="mid-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-mid-track-odds="${index}"></label>
+      <label class="mid-editor-odds"><span class="sr-only">American Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${window.IconLabsOdds.fromAmerican(leg.americanOdds, {format: "american"})}" data-mid-track-odds="${index}"></label>
       <strong class="mid-editor-value" data-mid-track-stake="${index}">${money(leg.stake)}</strong>
       <strong class="mid-editor-value positive" data-mid-track-payout="${index}">${money(leg.outsidePayout)}</strong>
     </div>`).join("");
@@ -1122,7 +1121,7 @@
     elements.recalculateLegs.innerHTML = (row.legs || []).map((leg, index) => `<div class="mid-leg-editor-row" data-mid-calculator-row="${index}">
       <div class="mid-editor-outcome"><strong>${esc(leg.selection)}</strong><small>${esc(row.marketLabel)}</small></div>
       ${editorBook(leg)}
-      <label class="mid-editor-odds"><span class="sr-only">Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${odds(leg.americanOdds)}" data-mid-calculator-odds="${index}"></label>
+      <label class="mid-editor-odds"><span class="sr-only">American Odds for ${esc(leg.selection)}</span><input type="text" inputmode="text" value="${window.IconLabsOdds.fromAmerican(leg.americanOdds, {format: "american"})}" data-mid-calculator-odds="${index}"></label>
       <label class="mid-editor-money"><b>$</b><input type="number" min="0.01" step="0.01" inputmode="decimal" data-mid-calculator-stake="${index}" aria-label="Bet amount for ${esc(leg.selection)}"></label>
       <strong class="mid-editor-value positive" data-mid-calculator-payout="${index}">${money(leg.outsidePayout)}</strong>
       <label class="mid-editor-lock" title="Lock ${esc(leg.selection)} bet"><input type="radio" name="mid-calculator-lock" value="${index}" data-mid-calculator-lock="${index}"><i class="ph ph-lock-key" aria-hidden="true"></i><span class="sr-only">Lock ${esc(leg.selection)}</span></label>
@@ -1442,6 +1441,7 @@
   elements.alerts.setAttribute("aria-pressed", String(state.alerts));
   syncDialog();
   updateFilterCount();
+  window.addEventListener(window.IconLabsOdds.EVENT,renderAll);
   bind();
   loadBoard();
 })();
