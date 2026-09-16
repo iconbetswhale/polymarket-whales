@@ -185,7 +185,7 @@ def test_mobile_dfs_starts_directly_below_the_brand_bar_and_recovers_failed_feed
     assert "readPersistentSnapshot()" in dfs_script
     assert "writePersistentSnapshot(payload)" in dfs_script
     assert "timedOut = true" in dfs_script
-    assert "},12000)" in dfs_script
+    assert "},25000)" in dfs_script
 
 
 def test_mobile_dvig_uses_compact_two_column_book_controls():
@@ -213,8 +213,13 @@ def test_prediction_traders_mobile_is_scan_first_with_labeled_samples():
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
 
     assert 'id="mobile-trade-samples"' in template
-    assert "Sample layout · not live recommendations" in template
-    assert "More plays are coming" in template
+    assert template.count('class="mobile-sample-trade"') == 3
+    assert "Fictional prices · not live recommendations" in template
+    assert "These three examples never enter the live model or betting actions." in template
     assert ".trades-command-bar" in styles
     assert ".trade-summary-strip" in styles
-    assert "mobileTradeSamples.hidden = appState.trades.length > 0" in script
+    assert '@media (min-width: 761px)' in styles
+    assert 'TRADES_SAMPLES_REQUESTED = page === "trades"' in script
+    assert 'document.body.classList.add("trade-samples-preview");' in script
+    assert "samples.parentElement.prepend(samples);" in script
+    assert "mobileTradeSamples.hidden = appState.trades.length > 0 && !TRADES_SAMPLES_REQUESTED" in script

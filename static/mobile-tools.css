@@ -17,6 +17,76 @@
   display: none !important;
 }
 
+@media (min-width: 761px) {
+  body[data-page="trades"].trade-samples-preview .trade-list-panel {
+    overflow-y: auto !important;
+  }
+  body[data-page="trades"].trade-samples-preview .trade-list {
+    height: auto !important;
+    max-height: 320px;
+  }
+  body[data-design-system="v2"][data-page="trades"] .mobile-trade-samples:not([hidden]) {
+    display: grid;
+    gap: 10px;
+    margin: 12px 0 20px;
+  }
+  body[data-page="trades"] .mobile-trade-samples > header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--il-text-primary);
+  }
+  body[data-page="trades"] .mobile-trade-samples > header span {
+    font-size: 14px;
+    font-weight: 750;
+  }
+  body[data-page="trades"] .mobile-trade-samples > header small,
+  body[data-page="trades"] .mobile-sample-copy > small,
+  body[data-page="trades"] .mobile-sample-score small,
+  body[data-page="trades"] .mobile-sample-detail > div > span {
+    color: var(--il-text-muted);
+  }
+  body[data-page="trades"] .mobile-sample-trade {
+    overflow: hidden;
+    border: 1px solid var(--il-border-subtle);
+    border-radius: var(--il-radius-panel);
+    background: var(--il-surface-play-card-purple);
+  }
+  body[data-page="trades"] .mobile-sample-trade > summary {
+    min-height: 82px;
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: 64px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 16px;
+    list-style: none;
+    cursor: pointer;
+  }
+  body[data-page="trades"] .mobile-sample-trade > summary::-webkit-details-marker { display: none; }
+  body[data-page="trades"] .mobile-sample-score,
+  body[data-page="trades"] .mobile-sample-copy { display: grid; gap: 4px; }
+  body[data-page="trades"] .mobile-sample-score { justify-items: center; }
+  body[data-page="trades"] .mobile-sample-score strong { color: var(--il-positive); font: 700 28px/1 var(--il-font-data); }
+  body[data-page="trades"] .mobile-sample-copy strong { color: var(--il-text-primary); font-size: 16px; }
+  body[data-page="trades"] .mobile-sample-copy span { color: var(--il-text-secondary); font-size: 13px; }
+  body[data-page="trades"] .mobile-sample-trade > summary > i { color: var(--il-text-muted); }
+  body[data-page="trades"] .mobile-sample-trade[open] > summary > i { transform: rotate(180deg); }
+  body[data-page="trades"] .mobile-sample-detail {
+    padding: 12px 16px;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    border-top: 1px solid var(--il-border-subtle);
+  }
+  body[data-page="trades"] .mobile-sample-detail > div { display: grid; gap: 5px; }
+  body[data-page="trades"] .mobile-sample-detail > div > strong { color: var(--il-text-primary); font-size: 14px; }
+  body[data-page="trades"] .mobile-sample-detail > div > strong.positive { color: var(--il-positive); }
+  body[data-page="trades"] .mobile-sample-detail > p { grid-column: 1 / -1; margin: 0; color: var(--il-text-muted); font-size: 12px; }
+  body[data-page="trades"] .mobile-trade-samples > footer { color: var(--il-text-muted); font-size: 12px; }
+  body[data-page="trades"] .mobile-trade-samples > footer span { display: flex; gap: 6px; }
+}
+
 @media (max-width: 760px) {
   :root {
     --il-mobile-gutter: 14px;

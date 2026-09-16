@@ -349,6 +349,9 @@ const TRACKER_BOOK_CATALOG = (() => {
 const TRADES_PREVIEW_DATA = page === "trades"
   ? window.ICONLABS_TRADES_PREVIEW_DATA || null
   : null;
+// These are read-only HTML examples, never members of the live trade feed.
+const TRADES_SAMPLES_REQUESTED = page === "trades"
+  && new URLSearchParams(window.location.search).get("samples") === "1";
 
 function tradesPreviewNotice(message = "Preview mode is read-only.") {
   showToast(message, "info");
@@ -1348,6 +1351,7 @@ function updateTradeUrl(filters) {
     }
   });
   if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
+  if (TRADES_SAMPLES_REQUESTED) params.set("samples", "1");
   if (appState.workspaceTab !== "trades") params.set("tab", appState.workspaceTab);
   const query = params.toString();
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
@@ -3220,7 +3224,7 @@ function renderTradesPayload(payload, filters, list) {
   const tradeWorkspace = document.querySelector(".trade-workspace");
   tradeWorkspace?.classList.toggle("empty-trades", appState.trades.length === 0);
   if (lowInventory) lowInventory.hidden = appState.trades.length > 5;
-  if (mobileTradeSamples) mobileTradeSamples.hidden = appState.trades.length > 0;
+  if (mobileTradeSamples) mobileTradeSamples.hidden = appState.trades.length > 0 && !TRADES_SAMPLES_REQUESTED;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
     list.replaceChildren();
@@ -3296,7 +3300,7 @@ async function loadTrades({ initial = false } = {}) {
     if (cachedPayload) return;
     updateTradeSummary({}, [], []);
     const mobileTradeSamples = document.getElementById("mobile-trade-samples");
-    if (mobileTradeSamples) mobileTradeSamples.hidden = true;
+    if (mobileTradeSamples) mobileTradeSamples.hidden = false;
     list.innerHTML = errorState(error.message);
     const tradeDetail = document.getElementById("trade-detail");
     if (tradeDetail) {
@@ -3767,6 +3771,12 @@ function bindIconLabsTooltipSystem() {
 
 function bindTrades() {
   bindIconLabsTooltipSystem();
+  if (TRADES_SAMPLES_REQUESTED) {
+    document.body.classList.add("trade-samples-preview");
+    const samples = document.getElementById("mobile-trade-samples");
+    samples.hidden = false;
+    samples.parentElement.prepend(samples);
+  }
   const initial = tradeFiltersFromUrl();
   applyTradeFiltersToControls(initial);
   const reload = debounce(() => {

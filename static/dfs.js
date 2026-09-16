@@ -1216,7 +1216,7 @@
     const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
-    },12000);
+    },25000);
     const promise = (async () => {
       try {
         const response = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});
@@ -1225,7 +1225,7 @@
         if (activeLoad?.controller !== controller) return;
         const payloadHasRows = Object.values(payload?.dataByBook || {}).some(bookRows => Array.isArray(bookRows) && bookRows.length)
           || (Array.isArray(payload?.data) && payload.data.length > 0);
-        if (payload.degraded && !payloadHasRows) {
+        if ((payload.degraded || payload.configured === false) && !payloadHasRows) {
           hasLoadedRows = true;
           loadFailed = rows.length === 0;
           feedDegraded = rows.length > 0;
@@ -1258,6 +1258,7 @@
         window.clearTimeout(timeoutId);
         if (activeLoad?.promise !== promise) return;
         activeLoad = null;
+        if (loadingBookKey === requestedBookKey) loadingBookKey = '';
         button?.classList.remove('spinning');
         if (button) button.disabled = false;
         render();
@@ -1393,12 +1394,7 @@
     render();
     if (changed) {
       const requestedBookKey = selectedBookKeys[activeBook];
-      if (Array.isArray(selectedRows)) loadLiveRows(requestedBookKey);
-      else if (allBoardsLoad) {
-        allBoardsLoad.promise.finally(() => {
-          if (!Array.isArray(rowsByBook[requestedBookKey])) loadLiveRows(requestedBookKey);
-        });
-      } else loadLiveRows(requestedBookKey);
+      loadLiveRows(requestedBookKey);
     }
   }
 

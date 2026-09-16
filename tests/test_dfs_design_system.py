@@ -124,6 +124,9 @@ def test_dfs_initial_request_uses_loading_state_and_sorts_displayed_hit_rate() -
     assert "const activeBookLoading = loadingBookKey === activeKey" in SCRIPT
     assert "loadingState.hidden = !activeBookLoading" in SCRIPT
     assert "emptyState.hidden = activeBookLoading || !hasLoadedRows || loadFailed || visible.length > 0;" in SCRIPT
+    assert "if (loadingBookKey === requestedBookKey) loadingBookKey = '';" in SCRIPT
+    assert "payload.configured === false" in SCRIPT
+    assert "loadLiveRows(requestedBookKey);" in SCRIPT
     assert ".sort(compareByHitRate)" in SCRIPT
     assert "if (aHit !== null && bHit !== null && bHit !== aHit) return bHit-aHit;" in SCRIPT
 
@@ -344,7 +347,6 @@ def test_selected_app_only_shows_its_real_available_props() -> None:
     assert "rowsByBook[selectedBookKeys[activeBook]]" in SCRIPT
     assert "...rowsByBook" in SCRIPT
     assert "payloadSelectedBook === requestedBookKey" in SCRIPT
-    assert "if (Array.isArray(selectedRows)) loadLiveRows(requestedBookKey);" in SCRIPT
     assert "loadLiveRows(requestedBookKey)" in SCRIPT
     assert "function parlayOddsTitle(book=activeBook)" in SCRIPT
     assert "PrizePicks 6 Pick Flex equivalent odds" in TEMPLATE
