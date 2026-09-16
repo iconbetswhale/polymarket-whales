@@ -1216,7 +1216,7 @@
     const timeoutId = window.setTimeout(() => {
       timedOut = true;
       controller.abort();
-    },25000);
+    },60000);
     const promise = (async () => {
       try {
         const response = await fetch(url, {headers:{Accept:'application/json'}, signal:controller.signal});

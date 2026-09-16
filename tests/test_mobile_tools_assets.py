@@ -185,7 +185,7 @@ def test_mobile_dfs_starts_directly_below_the_brand_bar_and_recovers_failed_feed
     assert "readPersistentSnapshot()" in dfs_script
     assert "writePersistentSnapshot(payload)" in dfs_script
     assert "timedOut = true" in dfs_script
-    assert "},25000)" in dfs_script
+    assert "},60000)" in dfs_script
 
 
 def test_mobile_dvig_uses_compact_two_column_book_controls():
