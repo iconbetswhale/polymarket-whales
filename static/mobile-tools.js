@@ -5,6 +5,8 @@
   const nextFrame = (callback) => window.requestAnimationFrame(() => window.requestAnimationFrame(callback));
 
   function setupInlineDisclosure(config) {
+    // The +EV design preview manages its own selected-card detail and mobile drawer.
+    if (config.name === "positive-ev" && document.body.classList.contains("ev-inline-layout")) return;
     const feed = document.querySelector(config.feed);
     const detail = document.querySelector(config.detail);
     if (!feed || !detail) return;

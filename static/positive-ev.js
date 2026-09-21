@@ -6,6 +6,8 @@
   const catalog = Array.isArray(serverConfig.books) ? serverConfig.books : [];
   const devigCatalog = Array.isArray(serverConfig.devigBooks) ? serverConfig.devigBooks : [];
   const catalogVersion = Number(serverConfig.catalogVersion || 1);
+  const designMock = Boolean(serverConfig.designMock);
+  const inlineLayout = Boolean(serverConfig.inlineLayout || designMock);
   const marketGroups = {
     main: ["h2h", "spreads", "totals"],
     props: [
@@ -148,15 +150,35 @@
     seattlestorm: {short:"Storm", logo:"/static/assets/teams/wnba/sea.png"},
     washingtonmystics: {short:"Mystics", logo:"/static/assets/teams/wnba/wsh.png"},
   });
+  const individualParticipantBranding = Object.freeze({
+    taylorfritz: {short:"Taylor Fritz", image:"/static/assets/players/tennis/taylor-fritz.jpg"},
+    benshelton: {short:"Ben Shelton", image:"/static/assets/players/tennis/ben-shelton.jpg"},
+  });
   const canonicalTeam = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-  const teamBrand = value => teamBranding[canonicalTeam(value)] || null;
+  const participantBrand = (row, value) => {
+    const key = canonicalTeam(value);
+    const suppliedImages = row?.participantImages || row?.participant_images || row?.playerImages || row?.player_images || {};
+    const suppliedImage = suppliedImages[value] || suppliedImages[key];
+    const individual = individualParticipantBranding[key];
+    if (suppliedImage || individual?.image) {
+      return {short: individual?.short || value, image: suppliedImage || individual.image, kind:"player"};
+    }
+    const team = teamBranding[key];
+    return team?.logo ? {short:team.short, image:team.logo, kind:"team"} : null;
+  };
+  const participantImage = participant => {
+    const imageAttributes = `src="${esc(participant.image)}" alt="" aria-hidden="true" decoding="async" loading="lazy" onerror="this.hidden=true"`;
+    return participant.kind === "player"
+      ? `<img class="ev-team-logo ev-player-headshot" ${imageAttributes}>`
+      : `<img class="ev-team-logo" ${imageAttributes}>`;
+  };
   const matchup = row => {
     const label = String(row?.eventTitle ?? "").trim();
     const sides = label.match(/^(.*?)\s+vs\.?\s+(.*)$/i);
     if (!sides) return esc(label);
-    const first = teamBrand(sides[1]), second = teamBrand(sides[2]);
-    if (first?.logo && second?.logo) {
-      return `<span class="ev-matchup-inline"><img class="ev-team-logo" src="${esc(first.logo)}" alt="" aria-hidden="true" decoding="async"><span class="ev-team-name">${esc(first.short)}</span><span class="ev-matchup-vs">vs</span><span class="ev-team-name">${esc(second.short)}</span><img class="ev-team-logo" src="${esc(second.logo)}" alt="" aria-hidden="true" decoding="async"></span>`;
+    const first = participantBrand(row, sides[1]), second = participantBrand(row, sides[2]);
+    if (first?.image && second?.image) {
+      return `<span class="ev-matchup-inline">${participantImage(first)}<span class="ev-team-name">${esc(first.short)}</span><span class="ev-matchup-vs">vs</span><span class="ev-team-name">${esc(second.short)}</span>${participantImage(second)}</span>`;
     }
     return `<span class="ev-matchup-line">${esc(`${sides[1]} vs`)}</span><span class="ev-matchup-line">${esc(sides[2])}</span>`;
   };
@@ -170,47 +192,6 @@
     if (/soccer|epl|mls/.test(sport)) return "ph-soccer-ball";
     if (/golf|pga/.test(sport)) return "ph-golf";
     return "ph-trophy";
-  };
-  const leagueLogos = Object.freeze({
-    nba: "/static/assets/leagues/nba.png",
-    nationalbasketballassociation: "/static/assets/leagues/nba.png",
-    mlb: "/static/assets/leagues/mlb.png",
-    majorleaguebaseball: "/static/assets/leagues/mlb.png",
-    mls: "/static/assets/leagues/mls.png",
-    majorleaguesoccer: "/static/assets/leagues/mls.png",
-    wnba: "/static/assets/leagues/wnba.png",
-    womensnationalbasketballassociation: "/static/assets/leagues/wnba.png",
-    wta: "/static/assets/leagues/wta.png",
-    wtatour: "/static/assets/leagues/wta.png",
-    nhl: "/static/assets/leagues/nhl.png",
-    nationalhockeyleague: "/static/assets/leagues/nhl.png",
-    atp: "/static/assets/leagues/atp.png",
-    atptour: "/static/assets/leagues/atp.png",
-    ncaa: "/static/assets/leagues/ncaa.png",
-    ncaab: "/static/assets/leagues/ncaa.png",
-    ncaamb: "/static/assets/leagues/ncaa.png",
-    ncaaf: "/static/assets/leagues/ncaa.png",
-    collegebasketball: "/static/assets/leagues/ncaa.png",
-    collegefootball: "/static/assets/leagues/ncaa.png",
-    nfl: "/static/assets/leagues/nfl.png",
-    nationalfootballleague: "/static/assets/leagues/nfl.png",
-    fifa: "/static/assets/leagues/fifa.png",
-    fifaworldcup: "/static/assets/leagues/fifa.png",
-    uefa: "/static/assets/leagues/uefa.png",
-    uefachampionsleague: "/static/assets/leagues/uefa.png",
-    epl: "/static/assets/leagues/epl.png",
-    premierleague: "/static/assets/leagues/epl.png",
-    englishpremierleague: "/static/assets/leagues/epl.png",
-  });
-  const leagueLogo = row => {
-    const canonical = value => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, "");
-    const league = canonical(row?.league);
-    const sport = canonical(row?.sportKey);
-    return leagueLogos[league] || leagueLogos[sport] || "";
-  };
-  const leagueWatermark = row => {
-    const source = leagueLogo(row);
-    return source ? `<img class="ev-league-watermark" src="${esc(source)}" alt="" aria-hidden="true">` : "";
   };
   const fullSelection = row => {
     const label = String(row?.line ?? row?.selection ?? "").trim();
@@ -558,7 +539,44 @@
     return [...new Set([row.bestQuote?.bookKey, ...sharpBooks].filter(Boolean))];
   }
 
+  function previewTrendVisual(row) {
+    const base = Number(row.bestQuote?.topPriceAmericanOdds ?? row.bestQuote?.americanOdds ?? row.fairAmerican ?? 118);
+    const width = 640, height = 258, left = 54, right = 22, top = 24, bottom = 39;
+    const rise = [0,0,1,1,2,2,3,3,4,5,5,6,6,7,8,8,9,10,10,11];
+    const series = [
+      {key:"draftkings", name:"DraftKings", color:"#5ce48b", start:base-4, scale:1, values:rise},
+      {key:"fanduel", name:"FanDuel", color:"#55aaff", start:base-9, scale:.82, values:rise},
+      {key:"betmgm", name:"BetMGM", color:"#ffc65b", start:base-11, scale:.8, values:rise},
+      {key:"caesars", name:"Caesars", color:"#a379ff", start:base-10, scale:.84, values:rise}
+    ];
+    const fairStart = base - 15;
+    const minOdds = base - 19, maxOdds = base + 12;
+    const x = index => left + index / (rise.length - 1) * (width - left - right);
+    const y = value => top + (maxOdds - value) / (maxOdds - minOdds) * (height - top - bottom);
+    const grid = [0,.25,.5,.75,1].map(ratio => {
+      const gy = top + ratio * (height - top - bottom);
+      return `<line x1="${left}" y1="${gy}" x2="${width-right}" y2="${gy}" class="ev-trend-grid"></line><text x="4" y="${gy+4}" class="ev-trend-axis">${odds(Math.round(maxOdds-ratio*(maxOdds-minOdds)))}</text>`;
+    }).join("");
+    const verticalGrid = [0,4,8,12,16].map(index => `<line x1="${x(index)}" y1="${top}" x2="${x(index)}" y2="${height-bottom}" class="ev-trend-grid ev-trend-grid-vertical"></line>`).join("");
+    const paths = series.map(item => {
+      const points = item.values.map((value, index) => [x(index), y(item.start + value * item.scale)]);
+      return `<g data-series="${item.key}"><path class="ev-trend-line" d="${chartStepPath(points)}" stroke="${item.color}"></path><circle cx="${points.at(-1)[0]}" cy="${points.at(-1)[1]}" r="3.5" fill="${item.color}"></circle></g>`;
+    }).join("");
+    const fairPoints = rise.map((_, index) => [x(index), y(fairStart + index * .72)]);
+    const fairLine = fairPoints.map((point, index) => `${index ? "L" : "M"}${point[0].toFixed(1)} ${point[1].toFixed(1)}`).join(" ");
+    const fairPath = `<g data-series="fair"><path class="ev-trend-limit" d="${fairLine}"></path><circle cx="${fairPoints.at(-1)[0]}" cy="${fairPoints.at(-1)[1]}" r="3.5" fill="#eef5ff"></circle></g>`;
+    const axis = [[0,"9:00 AM"],[4,"10:00 AM"],[8,"11:00 AM"],[12,"12:00 PM"],[16,"1:00 PM"]].map(([index,label]) => `<text x="${x(index)}" y="${height-10}" text-anchor="middle" class="ev-trend-axis">${label}</text>`).join("");
+    const legend = [...series,{key:"fair",name:"Fair Value",color:"#eef5ff"}].map(item => `<button type="button" class="ev-trend-legend-toggle" data-series-toggle="${item.key}" aria-pressed="true" style="--legend:${item.color}">${item.name}</button>`).join("");
+    const visual = `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Illustrative market odds trend with stepped sportsbook lines and dashed fair value">${grid}${verticalGrid}<line x1="${x(rise.length-1)}" y1="${top}" x2="${x(rise.length-1)}" y2="${height-bottom}" class="ev-trend-now"></line>${paths}${fairPath}${axis}</svg>`;
+    return `<div class="ev-trend-chart ev-preview-trend-chart il-chart-container" aria-label="Illustrative market trend preview">
+      <div class="ev-trend-chart-head"><div class="ev-chart-tabs" role="tablist" aria-label="Chart view"><button type="button" class="active" role="tab" aria-selected="true" data-chart-tab="trend">Market Trend</button><button type="button" role="tab" aria-selected="false" data-chart-tab="history">Line History</button></div></div>
+      <div class="ev-chart-view active" data-chart-view="trend"><div class="ev-trend-chart-title"><strong>${esc(row.selection)}</strong><span>${esc(row.eventTitle)}</span></div>${visual}<div class="ev-trend-legend">${legend}</div></div>
+      <div class="ev-chart-view" data-chart-view="history" hidden><div class="ev-history-heading"><strong>${esc(row.marketLabel)} Line History</strong><span>${esc(row.eventTitle)}</span></div>${visual}<div class="ev-trend-legend">${legend}</div></div>
+    </div>`;
+  }
+
   function marketTrendVisual(row) {
+    if (designMock) return previewTrendVisual(row);
     const identity = row.lineHistoryIdentity || {};
     if (!identity.eventId || !identity.marketId || !identity.selectionId) {
       return `<div class="ev-trend-chart il-chart-container"><div class="ev-chart-live-state il-state il-state-empty"><i class="ph ph-database"></i><strong>Line history is starting</strong><span>This play will chart after its first normalized bookmaker snapshot.</span></div></div>`;
@@ -788,6 +806,7 @@
   }
 
   async function loadLiveLineHistory(row, viewState = {}) {
+    if (designMock) return;
     if (!row.lineHistoryIdentity?.eventId || !row.lineHistoryIdentity?.marketId || !row.lineHistoryIdentity?.selectionId) return;
     const requestId = ++lineHistoryRequestId;
     const identity = row.lineHistoryIdentity;
@@ -874,7 +893,62 @@
     });
   }
 
+  function previewMarketOddsVisual(row) {
+    const suppliedSides = (row.marketSides || []).filter(side => side?.selection && side?.quotes?.length);
+    const sides = suppliedSides.length >= 2
+      ? suppliedSides.slice(0, 2)
+      : [{selection: row.selection, quotes: row.quotes || []}];
+    const sideMaps = sides.map(side => new Map(side.quotes.map(quote => [quote.bookKey, quote])));
+    const sideLabels = sides.map(side => marketSideSelection(row, side.selection));
+    const bookKeys = [...new Set(sides.flatMap(side => side.quotes.map(quote => quote.bookKey)))];
+    if (!bookKeys.length) return "";
+    const priceOf = quote => Number(quote?.topPriceAmericanOdds ?? quote?.americanOdds ?? -10000);
+    const takenSide = Math.max(0, sides.findIndex(side => String(side.selection).trim().toLowerCase() === String(row.selection).trim().toLowerCase()));
+    bookKeys.sort((left, right) =>
+      priceOf(sideMaps[takenSide].get(right)) - priceOf(sideMaps[takenSide].get(left)) ||
+      String(bookNames[left] || left).localeCompare(String(bookNames[right] || right))
+    );
+    const bestBySide = sideMaps.map(sideMap => Math.max(...[...sideMap.values()].map(priceOf)));
+    const priceCell = (quote, sideIndex) => {
+      if (!quote) return `<span class="ev-compare-price unavailable" aria-label="No price available">—</span>`;
+      const quoteOdds = priceOf(quote);
+      const best = quoteOdds === bestBySide[sideIndex];
+      const liquidity = Number(quote.marketLimit ?? quote.liquidity);
+      const liquidityLabel = Number.isFinite(liquidity) && liquidity > 0 ? `<small>Liq ${compactDollars(liquidity)}</small>` : "";
+      const content = `<strong>${odds(quoteOdds)}</strong><span class="ev-compare-meta"><i class="ph ph-arrow-up-right" aria-hidden="true"></i>${liquidityLabel}</span>`;
+      return quote.deepLink && quote.deepLink !== "#"
+        ? `<a class="ev-compare-price ${best ? "best" : ""}" href="${esc(quote.deepLink)}" target="_blank" rel="noopener" aria-label="Open ${esc(quote.bookName || bookNames[quote.bookKey] || quote.bookKey)} ${esc(sides[sideIndex].selection)} at ${odds(quoteOdds)}">${content}</a>`
+        : `<span class="ev-compare-price ${best ? "best" : ""}">${content}</span>`;
+    };
+    const rowsHtml = bookKeys.map(bookKey => {
+      const left = sideMaps[0].get(bookKey);
+      const right = sideMaps[1]?.get(bookKey);
+      const representative = left || right || {};
+      const label = representative.bookName || bookNames[bookKey] || bookKey;
+      return `<tr class="ev-market-compare-row" data-line-shop-book="${esc(bookKey)}">
+        <th scope="row"><span class="ev-market-book-name">${img(representative.logoUrl, bookKey)}<span>${esc(label)}</span></span></th>
+        <td>${priceCell(left, 0)}</td>
+        ${sides.length > 1 ? `<td>${priceCell(right, 1)}</td>` : ""}
+      </tr>`;
+    }).join("");
+    const averagePrice = sideIndex => {
+      const probabilities = [...sideMaps[sideIndex].values()].map(quote => {
+        const price = Number(quote.topPriceAmericanOdds ?? quote.americanOdds);
+        if (!Number.isFinite(price) || price === 0) return null;
+        return price > 0 ? 100 / (price + 100) : -price / (-price + 100);
+      }).filter(value => value != null);
+      if (!probabilities.length) return "—";
+      const probability = probabilities.reduce((sum, value) => sum + value, 0) / probabilities.length;
+      return odds(Math.round(probability < .5 ? 100 * (1 - probability) / probability : -100 * probability / (1 - probability)));
+    };
+    return `<section class="ev-market-odds ev-market-comparison il-detail-section" data-market-book-count="${bookKeys.length}">
+      <header><h3>Market Odds</h3></header>
+      <div class="ev-market-table-wrap"><table class="ev-market-table"><thead><tr><th scope="col">Sportsbook</th><th scope="col">${esc(sideLabels[0])}</th>${sides.length > 1 ? `<th scope="col">${esc(sideLabels[1])}</th>` : ""}</tr></thead><tbody id="ev-market-compare-rows">${rowsHtml}</tbody><tfoot><tr class="ev-market-average-row"><th scope="row">Average Market Odds</th><td>${averagePrice(0)}</td>${sides.length > 1 ? `<td>${averagePrice(1)}</td>` : ""}</tr></tfoot></table></div>
+    </section>`;
+  }
+
   function marketOddsVisual(row) {
+    if (inlineLayout) return previewMarketOddsVisual(row);
     const suppliedSides = (row.marketSides || []).filter(side => side?.selection && side?.quotes?.length);
     const sides = suppliedSides.length >= 2
       ? suppliedSides.slice(0, 2)
@@ -987,6 +1061,8 @@
       hiddenSeries: [...detail.querySelectorAll('[data-series-toggle][aria-pressed="false"]')].map(button => button.dataset.seriesToggle),
       marketOddsExpanded: detail.querySelector(".ev-market-comparison")?.classList.contains("is-expanded") || false,
       marketDepthExpanded: detail.querySelector(".ev-full-market-button")?.getAttribute("aria-expanded") === "true",
+      whyOpen: detail.querySelector(".ev-detail-accordion:not(.ev-sharp-prices)")?.open || false,
+      sharpOpen: detail.querySelector(".ev-detail-accordion.ev-sharp-prices")?.open || false,
     };
   }
 
@@ -1024,6 +1100,11 @@
         <div class="ev-value-formula"><span>EV</span><code>(${(fairProbability * 100).toFixed(2)}% × ${effectiveDecimal.toFixed(3)}) − 1</code><strong>${evPercent(row.evPercent)}</strong></div>
       </div>
     </details>`;
+  }
+
+  function inlineWarningsVisual(row) {
+    if (designMock || !(row.warnings || []).length) return "";
+    return `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>`;
   }
 
   function renderFilters() {
@@ -1094,7 +1175,7 @@
   }
   function query() {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
-    return `/api/positive-ev/live?${params}`;
+    return `${designMock ? "/api/positive-ev/design-preview" : "/api/positive-ev/live"}?${params}`;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
     const reasons = diagnostics.rejectionReasons || {};
@@ -1110,11 +1191,11 @@
     const url = query();
     const cacheKey = pagePayloadCacheKey("positive-ev", url.replace("/positive-ev/live", "/positive-ev"));
     let showedCached = false;
-    if (!rows.length) {
+    if (!designMock && !rows.length) {
       const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
       if (cached && !cached.paused) {
         rows = Array.isArray(cached.data) ? cached.data : [];
-        $("ev-count").textContent = rows.length;
+        $("ev-visible-count").textContent = rows.length;
         $("ev-updated").textContent = "Showing recent scan · updating live";
         renderDiagnostics(cached.diagnostics || {}, {});
         const cachedRows = visibleRows();
@@ -1138,7 +1219,7 @@
         timer = setTimeout(() => load(), Math.max(3000, Number(payload.refreshSeconds || 5) * 1000));
         return;
       }
-      writePagePayloadCache(cacheKey, payload);
+      if (!designMock) writePagePayloadCache(cacheKey, payload);
       retryCount = 0;
       if (payload.paused) {
         rows = [];
@@ -1146,7 +1227,7 @@
         dismissDetail();
         clearTimeout(timer);
         timer = null;
-        $("ev-count").textContent = "0";
+        $("ev-visible-count").textContent = "0";
         $("ev-updated").textContent = "Optimizer paused";
         $("ev-feed-label").textContent = "Credit-safe pause";
         $("ev-pause").setAttribute("aria-pressed", "true");
@@ -1159,14 +1240,18 @@
         return;
       }
       rows = payload.data || [];
-      $("ev-count").textContent = rows.length;
+      $("ev-visible-count").textContent = rows.length;
       $("ev-updated").textContent = payload.degraded
         ? "Recent verified odds · live feed reconnecting"
         : `Updated ${new Date().toLocaleTimeString([],{hour:"numeric",minute:"2-digit",second:"2-digit"})}`;
-      $("ev-feed-label").textContent = payload.degraded ? "Live feed reconnecting" : "Live market scan";
-      let history = {};
-      try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
-      renderDiagnostics(payload.diagnostics || {}, history);
+      $("ev-feed-label").textContent = designMock ? "Visual preview" : payload.degraded ? "Live feed reconnecting" : "Live market scan";
+      if (designMock) {
+        $("ev-credit-banner").innerHTML = `<i class="ph ph-eye" aria-hidden="true"></i><span><strong>${rows.length} temporary preview plays</strong> · Visual fixtures only · not live wagers or recommendations.</span>`;
+      } else {
+        let history = {};
+        try { history = (await (await fetch("/api/positive-ev/history?limit=100")).json()).summary || {}; } catch {}
+        renderDiagnostics(payload.diagnostics || {}, history);
+      }
       const currentViewRows = visibleRows();
       const nextSelectedId = currentViewRows.some(row=>row.id===selectedId) ? selectedId : currentViewRows[0]?.id;
       if (nextSelectedId && String(nextSelectedId) === String(selectedId) && detail.classList.contains("open")) {
@@ -1198,10 +1283,18 @@
   }
   function updateHiddenMenu() {
     const hiddenCount = rows.filter(row => hiddenIds.has(String(row.id))).length;
+    const visibleCount = Math.max(0, rows.length - hiddenCount);
     $("ev-hidden-count").textContent = hiddenCount;
-    $("ev-visible-count").textContent = Math.max(0, rows.length - hiddenCount);
-    document.querySelectorAll("[data-feed-view]").forEach(button => button.setAttribute("aria-current", String(button.dataset.feedView === feedView)));
-    $("ev-feed-label").textContent = feedView === "hidden" ? "Manually hidden bets" : paused ? "Refresh paused" : "Live market scan";
+    $("ev-visible-count").textContent = visibleCount;
+    $("ev-menu-hidden-count").textContent = hiddenCount;
+    $("ev-menu-visible-count").textContent = visibleCount;
+    document.querySelectorAll("[data-feed-view]").forEach(button => {
+      const selected = button.dataset.feedView === feedView;
+      button.setAttribute("aria-current", String(selected));
+      if (button.getAttribute("role") === "tab") button.setAttribute("aria-selected", String(selected));
+      button.classList.toggle("active", selected);
+    });
+    $("ev-feed-label").textContent = feedView === "hidden" ? "Manually hidden bets" : paused ? "Refresh paused" : designMock ? "Visual preview" : "Live market scan";
     updateMoreMenu();
   }
   function closeHiddenMenu(restoreFocus = false) {
@@ -1227,12 +1320,13 @@
   function renderFeed() {
     const shown = visibleRows();
     updateHiddenMenu();
-    $("ev-count").textContent = shown.length;
     $("ev-feed-footer").textContent = `Showing ${shown.length} of ${rows.length} markets`;
+    if (inlineLayout && detail.parentElement === feed) detail.remove();
     if (!shown.length) {
       const emptyIcon = feedView === "hidden" ? "ph-eye-slash" : "ph-shield-check";
       const emptyCopy = feedView === "hidden" ? "No hidden bets yet. Use Track and Hide on a bet to save it here." : "No opportunity passed every validation gate. That is safer than displaying a false edge.";
       feed.innerHTML = `<div class="ev-empty il-state il-state-empty"><i class="ph ${emptyIcon}" aria-hidden="true"></i><p>${emptyCopy}</p></div>`;
+      if (inlineLayout) detail.hidden = true;
       return;
     }
     feed.innerHTML = shown.map(row => {
@@ -1242,17 +1336,29 @@
       const scoreAction = feedView === "hidden"
         ? `<button class="ev-track-button button ghost compact" type="button" data-restore="${esc(row.id)}" aria-label="Restore ${esc(row.selection)} to visible bets"><i class="ph ph-eye" aria-hidden="true"></i>Restore</button>`
         : `<button class="ev-track-button button ghost compact ${tracked?"tracked":""}" type="button" data-track="${esc(row.id)}" aria-pressed="${tracked}" aria-label="${tracked?"Track another bet on":"Track"} ${esc(row.selection)}"><i class="ph ${tracked?"ph-check":"ph-crosshair"}" aria-hidden="true"></i>${tracked?"Tracked":"Track"}</button>`;
-      return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
+      if (!inlineLayout) return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
         <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
         <div class="ev-score il-confidence-display"><strong>${evPercent(row.evPercent)}</strong>${scoreAction}</div>
         <div class="ev-event"><span class="ev-event-meta"><time>${esc(time(row.commenceTime))}</time><span><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</span></span><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong><small>${esc(row.marketLabel)}</small></div>
-        <div class="ev-pick">${leagueWatermark(row)}<small>Best Bet</small><strong>${esc(detailSelection(row))}</strong></div>
+        <div class="ev-pick"><small>Best Bet</small><strong>${esc(detailSelection(row))}</strong></div>
         <div class="ev-execution"><div class="ev-selection">${esc(detailSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div>${executionAction(row, quote, state)}</div>
       </article>`;
+      return `<article class="ev-opportunity ${row.id===selectedId?"active":""} ${state}" data-id="${esc(row.id)}">
+        <button class="ev-card-open" type="button" data-open="${esc(row.id)}" aria-label="Open ${esc(row.selection)} at ${odds(quote.topPriceAmericanOdds??quote.americanOdds)}, ${evPercent(row.evPercent)} EV" aria-pressed="${row.id===selectedId}"></button>
+        <div class="ev-score il-confidence-display"><span class="ev-score-label">Expected Value</span><strong>${evPercent(row.evPercent)}</strong></div>
+        <div class="ev-event"><time>${esc(time(row.commenceTime))}</time><strong class="ev-matchup" aria-label="${esc(row.eventTitle)}">${matchup(row)}</strong></div>
+        <div class="ev-pick"><small><i class="ph ${sportIcon(row)}" aria-hidden="true"></i>${esc(row.league)}</small><strong>${esc(row.marketLabel)}</strong></div>
+        <div class="ev-execution"><div class="ev-selection">${esc(detailSelection(row))}</div><div class="ev-bet-metrics"><span class="ev-bet-metric"><small>Rec Bet</small><strong>${money(row.recommendedStake)}</strong></span><span class="ev-bet-metric ev-to-win"><small>Total payout</small><strong>${profitMoney(totalPayout)}</strong></span></div>${executionAction(row, quote, state)}${scoreAction}<i class="ph ph-caret-down ev-row-caret" aria-hidden="true"></i></div>
+      </article>`;
     }).join("");
+    if (inlineLayout && selectedId) {
+      const selectedCard = [...feed.querySelectorAll(".ev-opportunity")].find(card => card.dataset.id === String(selectedId));
+      if (selectedCard) feed.insertBefore(detail, selectedCard.nextSibling);
+    }
     feed.querySelectorAll("[data-open]").forEach(button => button.addEventListener("click", () => {
       lastDetailTrigger = button;
-      select(button.dataset.open);
+      if (inlineLayout && button.dataset.open === selectedId && !detail.hidden && detail.classList.contains("open")) closeDetail();
+      else select(button.dataset.open);
     }));
     feed.querySelectorAll("[data-track]").forEach(button => button.addEventListener("click", event => {
       event.stopPropagation();
@@ -1274,6 +1380,7 @@
       <p>${isHiddenView ? "Hidden bets will appear here after you use Track and Hide." : "Inspect the fair price, EV calculation, best execution, liquidity, and the full market."}</p>
     </div>`;
     dismissDetail();
+    if (inlineLayout) detail.hidden = true;
   }
 
   function setFullMarketDepthExpanded(expanded) {
@@ -1320,6 +1427,18 @@
       fullDepth.innerHTML = `${evExplanationVisual(row)}${sharpBooksVisual(row)}`;
       setFullMarketDepthExpanded(true);
     }
+    const inlineWarnings = detail.querySelector(".ev-inline-warnings");
+    if (inlineWarnings) {
+      inlineWarnings.innerHTML = inlineWarningsVisual(row);
+    }
+    const inlineAccordions = detail.querySelector(".ev-inline-accordions");
+    if (inlineAccordions) {
+      inlineAccordions.innerHTML = `${evExplanationVisual(row)}${sharpBooksVisual(row)}`;
+      const why = inlineAccordions.querySelector(".ev-detail-accordion:not(.ev-sharp-prices)");
+      const sharp = inlineAccordions.querySelector(".ev-detail-accordion.ev-sharp-prices");
+      if (why) why.open = viewState.whyOpen;
+      if (sharp) sharp.open = viewState.sharpOpen;
+    }
     loadLiveLineHistory(row, viewState);
   }
 
@@ -1327,7 +1446,19 @@
     selectedId=id; const row=rows.find(item=>item.id===id); if(!row)return;
     detail.classList.remove("market-depth-open");
     renderFeed(); const best=row.bestQuote||{};
-    detail.innerHTML = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong data-detail-ev>${evPercent(row.evPercent)}</strong><div><h2 data-detail-event>${esc(row.eventTitle)}</h2><time class="ev-detail-start" data-detail-start datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
+    if (inlineLayout) detail.hidden = false;
+    const previewDetailMarkup = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong data-detail-ev>${evPercent(row.evPercent)}</strong><div><h2 data-detail-event>${esc(row.eventTitle)}</h2><time class="ev-detail-start" data-detail-start datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
+      <div class="ev-detail-pick ev-trend-pick"><strong><span class="ev-detail-selection" data-detail-selection>${esc(detailSelection(row))}</span> <span class="ev-detail-odds" data-detail-odds>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake" data-detail-stake>${money(row.recommendedStake)}</div></div>
+      <div class="ev-inline-panels">${marketOddsVisual(row)}
+      <section class="ev-section ev-market-trend il-detail-section"><header><h3>Market Trend</h3></header><details class="ev-trend-stats"><summary aria-label="Show market trend metrics" title="Show market trend metrics"><i class="ph ph-info" aria-hidden="true"></i></summary><div class="ev-trend-metrics il-metric-group">
+        <span class="il-metric positive"><small>EV</small><b data-trend-metric="ev">${evPercent(row.evPercent)}</b></span>
+        <span class="il-metric"><small>FV</small><b data-trend-metric="fv">${odds(row.fairAmerican)}</b></span>
+        <span class="il-metric"><small>1H</small><b data-trend-metric="1h">--</b></span>
+        <span class="il-metric"><small>FIRST SEEN</small><b data-trend-metric="open">--</b></span>
+      </div></details>${marketTrendVisual(row)}</section></div>
+      <div class="ev-inline-bottom"><div class="ev-inline-warnings">${inlineWarningsVisual(row)}</div><div class="ev-inline-accordions">${evExplanationVisual(row)}${sharpBooksVisual(row)}</div></div>
+    </article>`;
+    const liveDetailMarkup = `<article class="ev-detail-card ev-trend-detail"><div class="ev-detail-head"><strong data-detail-ev>${evPercent(row.evPercent)}</strong><div><h2 data-detail-event>${esc(row.eventTitle)}</h2><time class="ev-detail-start" data-detail-start datetime="${esc(row.commenceTime)}">${esc(time(row.commenceTime))}</time></div><button class="ev-detail-close icon-button" type="button" aria-label="Close detail"><i class="ph ph-x" aria-hidden="true"></i></button></div>
       <div class="ev-detail-pick ev-trend-pick"><strong><span class="ev-detail-selection" data-detail-selection>${esc(detailSelection(row))}</span> <span class="ev-detail-odds" data-detail-odds>${odds(best.topPriceAmericanOdds??best.americanOdds)}</span></strong><div class="ev-detail-stake" data-detail-stake>${money(row.recommendedStake)}</div></div>
       ${row.warnings.length ? `<div class="ev-warning-list">${row.warnings.map(warning=>`<span><i class="ph ph-warning"></i>${esc(warning)}</span>`).join("")}</div>` : ""}
       ${marketOddsVisual(row)}
@@ -1340,6 +1471,7 @@
       <button class="ev-full-market-button" type="button" aria-expanded="false"><span>View full market depth</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>
       <div class="ev-full-market-depth" hidden>${evExplanationVisual(row)}${sharpBooksVisual(row)}</div>
     </article>`;
+    detail.innerHTML = inlineLayout ? previewDetailMarkup : liveDetailMarkup;
     bindTrendControls();
     bindMarketOddsControls();
     loadLiveLineHistory(row);
@@ -1380,7 +1512,12 @@
   }
   function closeDetail(){
     if (matchMedia("(min-width:981px)").matches && rows.length) {
-      if (!detail.classList.contains("open")) select(rows.some(row=>row.id===selectedId) ? selectedId : rows[0].id);
+      if (inlineLayout) {
+        dismissDetail(true);
+        detail.hidden = true;
+        selectedId = "";
+        renderFeed();
+      } else if (!detail.classList.contains("open")) select(rows.some(row=>row.id===selectedId) ? selectedId : rows[0].id);
       return;
     }
     dismissDetail(true);
@@ -1422,10 +1559,10 @@
     $("ev-more-menu-toggle").setAttribute("aria-expanded", String(!menu.hidden));
     if (!menu.hidden) requestAnimationFrame(() => menu.querySelector('[aria-current="true"]')?.focus());
   });
-  $("ev-more-menu").addEventListener("click", event => {
-    const option = event.target.closest("[data-feed-view]");
-    if (option) setFeedView(option.dataset.feedView);
-  });
+  document.querySelectorAll("[data-feed-view]").forEach(option => option.addEventListener("click", event => {
+    event.stopPropagation();
+    setFeedView(option.dataset.feedView);
+  }));
   $("ev-bankroll-popover-button").addEventListener("click", event => {
     event.stopPropagation();
     closeHiddenMenu();

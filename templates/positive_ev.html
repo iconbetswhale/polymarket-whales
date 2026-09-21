@@ -11,10 +11,11 @@
     <header class="ev-toolbar il-page-header">
       <div class="ev-heading il-page-title">
         <div class="ev-title-row">
-          <h1 id="ev-title">+EV</h1>
-          <div class="ev-mode-tabs workspace-tabs" role="tablist" aria-label="Feed state">
-            <button class="active" type="button" role="tab" aria-selected="true">Pre-Match <span class="ev-mode-count">(<b id="ev-count">0</b>)</span><i class="ph ph-caret-down" aria-hidden="true"></i></button>
-          </div>
+          <h1 id="ev-title">Positive EV</h1>
+          <nav class="ev-mode-tabs workspace-tabs" role="tablist" aria-label="Positive EV opportunities">
+            <button class="active" type="button" role="tab" data-feed-view="active" aria-selected="true" aria-current="true">Live <span id="ev-visible-count">0</span></button>
+            <button type="button" role="tab" data-feed-view="hidden" aria-selected="false" aria-current="false">Hidden <span id="ev-hidden-count">0</span></button>
+          </nav>
         </div>
       </div>
       <div class="ev-actions">
@@ -45,8 +46,8 @@
               <div class="ev-more-menu" id="ev-more-menu" role="menu" aria-label="More Positive EV actions" hidden>
                 <button class="ev-menu-action" id="ev-refresh" type="button" role="menuitem"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh opportunities</span><small>Now</small></button>
                 <button class="ev-menu-action" id="ev-pause" type="button" role="menuitem" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Automatic refresh</span><small>Active</small></button>
-                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-visible-count">0</small></button>
-                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-hidden-count">0</small></button>
+                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="active" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="ev-menu-visible-count">0</small></button>
+                <button class="ev-menu-action" type="button" role="menuitem" data-feed-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="ev-menu-hidden-count">0</small></button>
                 <small class="ev-menu-note">All event times shown in ET</small>
               </div>
             </div>

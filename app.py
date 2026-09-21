@@ -2242,12 +2242,37 @@ def create_app(start_background: bool = True) -> Flask:
     @app.route("/positive-ev")
     def positive_ev_page():
         positive_ev_config = live_tool_filter_catalog_payload()
+        positive_ev_config["inlineLayout"] = True
+        if os.getenv("ICONLABS_LOCAL_EV_PREVIEW") == "1" and request.args.get("preview", "").strip().lower() in {"1", "true", "yes", "on"}:
+            positive_ev_config["designMock"] = True
         return render_template(
             "positive_ev.html",
             title="IconBets Positive EV",
             page="positive-ev",
             positive_ev_config=positive_ev_config,
         )
+
+    if os.getenv("ICONLABS_LOCAL_EV_PREVIEW") == "1":
+        @app.route("/api/positive-ev/design-preview")
+        def api_positive_ev_design_preview():
+            from ev_preview import temporary_ev_preview_rows
+
+            method = request.args.get("devig_method", "power").strip().lower()
+            try:
+                bankroll = float(request.args.get("bankroll", "10000"))
+                preview_rows = temporary_ev_preview_rows(
+                    devig_method=method, bankroll=bankroll
+                )[:5]
+            except (TypeError, ValueError) as exc:
+                return jsonify({"error": "INVALID_PREVIEW", "message": str(exc)}), 400
+            response = jsonify({
+                "data": preview_rows,
+                "total": len(preview_rows),
+                "previewOnly": True,
+                "refreshSeconds": 0,
+            })
+            response.headers["Cache-Control"] = "private, no-store"
+            return response
 
     @app.route("/arbitrage")
     def arbitrage_page():

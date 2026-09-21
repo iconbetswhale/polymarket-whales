@@ -9,6 +9,7 @@ BASE = (ROOT / "templates" / "base.html").read_text(encoding="utf-8")
 TEMPLATE = (ROOT / "templates" / "positive_ev.html").read_text(encoding="utf-8")
 SCRIPT = (ROOT / "static" / "positive-ev.js").read_text(encoding="utf-8")
 CSS = (ROOT / "static" / "positive-ev.css").read_text(encoding="utf-8")
+PREVIEW_CSS = (ROOT / "static" / "positive-ev-inline-preview.css").read_text(encoding="utf-8")
 MOBILE_TOOLS = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
 DESIGN_SYSTEM = (ROOT / "static" / "design-system.css").read_text(encoding="utf-8")
 
@@ -179,9 +180,9 @@ def test_positive_ev_keeps_the_locked_page_and_row_order() -> None:
     assert 'class="ev-best-button' in SCRIPT
     assert '<div class="ev-selection">' in feed
     assert '<input class="ev-selection"' not in feed
-    assert "leagueWatermark(row)" in feed
+    assert "leagueWatermark(row)" not in feed
     assert "matchup(row)" in feed
-    assert 'class="ev-league-watermark"' in SCRIPT
+    assert 'class="ev-league-watermark"' not in SCRIPT
     assert 'alt="" aria-hidden="true"' in SCRIPT
 
     select = _function("select")
@@ -329,16 +330,10 @@ def test_positive_ev_restores_the_locked_desktop_type_scale() -> None:
     assert "box-shadow: 0 0 0 1px var(--il-border-interactive), var(--il-focus-shadow), 0 0 14px var(--il-brand-glow)" in CSS
 
 
-def test_positive_ev_uses_real_league_logo_watermarks() -> None:
-    for league in ("mlb", "wnba", "atp", "wta", "nba", "nfl", "nhl", "ncaa", "mls", "epl", "uefa", "fifa"):
-        assert f'/static/assets/leagues/{league}.png' in SCRIPT
-        assert (ROOT / "static" / "assets" / "leagues" / f"{league}.png").is_file()
-
-    assert 'const leagueLogo = row =>' in SCRIPT
-    assert 'return source ? `<img class="ev-league-watermark"' in SCRIPT
-    assert ".ev-pick { position: relative; isolation: isolate; overflow: hidden; }" in CSS
-    assert "opacity: .16" in CSS
-    assert "pointer-events: none" in CSS
+def test_positive_ev_market_type_omits_league_watermarks() -> None:
+    assert "leagueWatermark" not in SCRIPT
+    assert 'class="ev-league-watermark"' not in SCRIPT
+    assert '<div class="ev-pick"><small><i class="ph ${sportIcon(row)}"' in SCRIPT
 
 
 def test_positive_ev_matchups_use_high_resolution_team_assets() -> None:
@@ -350,7 +345,9 @@ def test_positive_ev_matchups_use_high_resolution_team_assets() -> None:
             assert f'/static/assets/teams/{league}/{asset.name}' in SCRIPT
 
     assert 'class="ev-matchup-inline"' in SCRIPT
-    assert SCRIPT.count('class="ev-team-logo"') == 2
+    assert 'class="ev-team-logo"' in SCRIPT
+    assert 'participantImage(first)' in SCRIPT
+    assert 'participantImage(second)' in SCRIPT
     assert 'alt="" aria-hidden="true"' in SCRIPT
     assert ".ev-team-logo { width: 38px; height: 38px" in CSS
     assert "grid-template-rows: auto minmax(0, 1fr)" in CSS
@@ -418,6 +415,24 @@ def test_expanded_ev_explanation_and_sharp_odds_use_readable_type() -> None:
     assert ".ev-sharp-odds { color: var(--il-text-primary); font: 700 16px/1 var(--il-font-data);" in CSS
     assert ".ev-value-explanation summary span," in CSS
     assert ".ev-sharp-prices summary span { font-size: 12px; }" in CSS
+
+
+def test_local_expanded_detail_uses_requested_typography_and_hides_preview_warning() -> None:
+    assert '.ev-market-odds > header h3,\nbody[data-design-system="v2"][data-page="positive-ev"] .ev-market-trend > header h3 {\n  font-size: 22px;' in PREVIEW_CSS
+    assert '.ev-market-table thead th {\n  height: 40px;\n  font-size: 14px;' in PREVIEW_CSS
+    assert '.ev-market-table .ev-market-book-name {\n  font-size: 16px;' in PREVIEW_CSS
+    assert '.ev-market-table .ev-compare-price strong {\n  font-size: 17px;' in PREVIEW_CSS
+    assert '.ev-market-table .ev-compare-meta small {\n  font-size: 12px;' in PREVIEW_CSS
+    assert '.ev-market-table tfoot td {\n  height: 50px;\n  font-size: 18px;' in PREVIEW_CSS
+    assert '.ev-chart-tabs button {\n  min-height: 34px;\n  font-size: 15px;' in PREVIEW_CSS
+    assert '.ev-trend-legend-toggle {\n  min-height: 32px;\n  font-size: 13px;' in PREVIEW_CSS
+    assert '.ev-detail-accordion summary h3 {\n  font-size: 16px;' in PREVIEW_CSS
+    assert '.ev-value-copy p {\n  font-size: 14px;' in PREVIEW_CSS
+    assert '.ev-value-formula strong {\n  font-size: 16px;' in PREVIEW_CSS
+    assert '.ev-sharp-book strong {\n  font-size: 16px;' in PREVIEW_CSS
+    assert '.ev-sharp-novig b {\n  font-size: 14px;' in PREVIEW_CSS
+    preview_detail = SCRIPT[SCRIPT.index('const previewDetailMarkup') : SCRIPT.index('const liveDetailMarkup')]
+    assert 'ev-warning-list' not in preview_detail
 
 
 def test_expanded_detail_uses_neon_flow_with_pure_black_content_boxes() -> None:
@@ -503,6 +518,46 @@ def test_toolbar_groups_hidden_bets_and_refresh_controls_in_more_menu() -> None:
     assert 'grid-template-columns: minmax(0, 1fr) repeat(2, var(--il-control-height))' in CSS
 
 
+def test_positive_ev_toolbar_uses_live_and_hidden_tabs_with_layered_popovers() -> None:
+    assert '<h1 id="ev-title">Positive EV</h1>' in TEMPLATE
+    assert 'role="tab" data-feed-view="active"' in TEMPLATE
+    assert 'role="tab" data-feed-view="hidden"' in TEMPLATE
+    assert 'id="ev-visible-count"' in TEMPLATE
+    assert 'id="ev-hidden-count"' in TEMPLATE
+    assert 'button.classList.toggle("active", selected)' in SCRIPT
+    assert 'button.setAttribute("aria-selected", String(selected))' in SCRIPT
+    assert '.ev-bankroll-popover,\nbody.ev-inline-layout[data-design-system="v2"][data-page="positive-ev"] .ev-more-menu { z-index: 80; }' in PREVIEW_CSS
+    assert '.ev-search.search-control:focus-within {\n  background: var(--il-surface-1);' in PREVIEW_CSS
+    assert 'linear-gradient(180deg, #535d6e 0%, #3a4353 45%, #202938 100%) border-box' in PREVIEW_CSS
+
+
+def test_positive_ev_toolbar_controls_share_size_gradient_and_larger_tabs() -> None:
+    assert '.ev-search.search-control:focus-within,\nbody.ev-inline-layout[data-design-system="v2"][data-page="positive-ev"] .ev-finance-actions {' in PREVIEW_CSS
+    assert 'height: 47px;\n  min-height: 47px;' in PREVIEW_CSS
+    assert 'width: 47px;\n  min-width: 47px;\n  height: 47px;' in PREVIEW_CSS
+    assert '.ev-mode-tabs button {\n  font-size: 14px;' in PREVIEW_CSS
+
+
+def test_positive_ev_individual_matchups_support_real_participant_images() -> None:
+    assert 'const individualParticipantBranding = Object.freeze({' in SCRIPT
+    assert 'row?.participantImages || row?.participant_images' in SCRIPT
+    assert 'class="ev-team-logo ev-player-headshot"' in SCRIPT
+    assert 'participantImage(first)' in SCRIPT and 'participantImage(second)' in SCRIPT
+    assert '.ev-player-headshot {' in PREVIEW_CSS
+    assert 'object-fit: cover;' in PREVIEW_CSS
+    assert (ROOT / 'static' / 'assets' / 'players' / 'tennis' / 'taylor-fritz.jpg').is_file()
+    assert (ROOT / 'static' / 'assets' / 'players' / 'tennis' / 'ben-shelton.jpg').is_file()
+
+
+def test_positive_ev_desktop_execution_actions_have_comfortable_spacing() -> None:
+    assert 'grid-template-columns: minmax(140px, 1fr) auto 120px 100px 22px;' in PREVIEW_CSS
+    assert 'column-gap: 16px;' in PREVIEW_CSS
+    assert 'padding-right: 18px;' in PREVIEW_CSS
+    assert 'padding-left: 18px;' in PREVIEW_CSS
+    assert '.ev-bet-metrics {\n    gap: 12px;' in PREVIEW_CSS
+    assert '.ev-row-caret {\n    width: 22px;' in PREVIEW_CSS
+
+
 def test_hidden_bets_view_reuses_manually_hidden_opportunities_and_supports_restore() -> None:
     assert 'feedView = "active"' in SCRIPT
     assert 'feedView === "hidden" ? isHidden : !isHidden' in SCRIPT
@@ -518,3 +573,42 @@ def test_live_feed_retries_transient_provider_failures() -> None:
     assert "retryCount += 1" in SCRIPT
     assert "setTimeout(() => load()" in SCRIPT
     assert "Math.min(30000, 3000 * (2 ** (retryCount - 1)))" in SCRIPT
+
+
+def test_positive_ev_preview_card_type_scale_and_action_order() -> None:
+    assert "${executionAction(row, quote, state)}${scoreAction}<i class=\"ph ph-caret-down ev-row-caret\"" in SCRIPT
+    for rule in (
+        ".ev-event time { font-size: 14px; }",
+        ".ev-team-name { font-size: 20px; }",
+        ".ev-matchup-vs { font-size: 14px; }",
+        ".ev-pick small { font-size: 14px; }",
+        ".ev-pick small i { font-size: 16px; }",
+        ".ev-pick strong { font-size: 18px; }",
+        ".ev-execution > .ev-selection { font-size: 18px; }",
+        ".ev-bet-metric small { font-size: 12px; }",
+        ".ev-bet-metric strong { font-size: 17px; }",
+        ".ev-best-button > span:last-child { font-size: 17px; }",
+        ".ev-best-button > span:last-child i { font-size: 14px; }",
+        ".ev-row-caret { font-size: 18px; }",
+    ):
+        assert rule in PREVIEW_CSS
+    assert "width: 100px; min-width: 100px; font-size: 15px;" in PREVIEW_CSS
+    assert "linear-gradient(180deg, #8e95a3 0%, #596170 35%, #232a35 100%) border-box" in PREVIEW_CSS
+    assert "linear-gradient(180deg, #535d6e 0%, #3a4353 45%, #202938 100%) border-box" in PREVIEW_CSS
+
+
+def test_positive_ev_preview_hero_number_treatment() -> None:
+    assert '<span class="ev-score-label">Expected Value</span><strong>${evPercent(row.evPercent)}</strong>' in SCRIPT
+    assert 'body.ev-inline-layout[data-design-system="v2"][data-page="positive-ev"] .ev-score-label' in PREVIEW_CSS
+    assert "font-size: 32px;" in PREVIEW_CSS
+    assert "text-shadow: 0 0 14px rgba(86, 224, 151, .22)" in PREVIEW_CSS
+
+
+def test_positive_ev_published_layout_is_independent_from_preview_data() -> None:
+    assert "const inlineLayout = Boolean(serverConfig.inlineLayout || designMock);" in SCRIPT
+    assert "if (inlineLayout) return previewMarketOddsVisual(row);" in SCRIPT
+    assert "if (!inlineLayout) return `<article" in SCRIPT
+    assert "detail.innerHTML = inlineLayout ? previewDetailMarkup : liveDetailMarkup;" in SCRIPT
+    assert 'designMock ? "/api/positive-ev/design-preview" : "/api/positive-ev/live"' in SCRIPT
+    assert "if (designMock) return previewTrendVisual(row);" in SCRIPT
+    assert "if (designMock) return;" in SCRIPT

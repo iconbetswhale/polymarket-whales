@@ -57,6 +57,11 @@ _MARKET_KEYS = {
     "Player Rebounds": "player_rebounds",
 }
 
+_PARTICIPANT_IMAGES = {
+    "Taylor Fritz": "/static/assets/players/tennis/taylor-fritz.jpg",
+    "Ben Shelton": "/static/assets/players/tennis/ben-shelton.jpg",
+}
+
 
 def _quote(book: str, odds: int, fair_probability: float, liquidity: float | None) -> dict:
     decimal = american_to_decimal(odds)
@@ -260,6 +265,11 @@ def temporary_ev_preview_rows(
                 "sportKey": sport,
                 "league": league,
                 "eventTitle": event,
+                "participantImages": {
+                    participant: _PARTICIPANT_IMAGES[participant]
+                    for participant in (part.strip() for part in event.split(" vs "))
+                    if participant in _PARTICIPANT_IMAGES
+                },
                 "commenceTime": (anchor + timedelta(hours=index + 1)).isoformat(),
                 "marketKey": _MARKET_KEYS[market],
                 "marketLabel": market,

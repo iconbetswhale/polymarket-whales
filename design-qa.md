@@ -2337,3 +2337,204 @@ final result: passed
 - None.
 
 final result: passed
+
+---
+
+# Positive EV Expanded-Detail Typography — Design QA (2026-09-21)
+
+## Source and implementation
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-21 105049.png` (716 × 572) for the surrounding card density, plus the user's explicit 21-value expanded-detail typography specification and instruction to remove the preview warning.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5110/positive-ev?preview=1`. Implementation screenshots were emitted from the Codex in-app browser at 1864 × 1272 and 1280 × 900 CSS pixels, device pixel ratio 1.
+- State: first synthetic play expanded. Market Odds and Market Trend were reviewed together; Why Is This +EV and Sharp Odds Used for Fair Value were reviewed both closed and open.
+
+## Full-view and focused comparison
+
+- Fonts and typography: rendered computed styles match the requested values: 22px section headings; 14px table headers; 16px sportsbook and sharp-book names; 17px market prices; 12px liquidity; 18px average row and graph title; 16px graph subtitle and dropdown headings; 12px axes; 15px tabs; 13px legend and sharp metadata; 14px explanation, formula label/equation, and no-vig percentage; 16px formula result and sharp odds. The preview warning is absent from the expanded detail.
+- Spacing and layout rhythm: supporting row heights were increased for the larger typography. At 1280px, the sportsbook column was widened to 38% and the 18px Average Market Odds label wraps to two clean lines. Browser geometry reports zero page, detail, or market-table horizontal overflow at both tested widths.
+- Colors and visual tokens: unchanged. Alternating market rows, selected price treatment, chart colors, accordion surfaces, and the purple expanded-card frame remain intact.
+- Image quality and assets: unchanged. Sportsbook marks, team logos, and individual-sport portraits retain their existing size, crop, and alignment.
+- Copy and content: unchanged except for the requested deletion of the amber preview-only warning inside the expanded detail. The global preview-data banner remains so synthetic data is still clearly identified.
+- Interaction and accessibility: both accordions open and expose their full content; chart tabs and legend controls retain their existing semantics. Browser warning/error logs were empty.
+
+## Comparison history
+
+- Initial P2 finding — the 18px Average Market Odds label collided with the first price at the 1280px desktop breakpoint because the old 32% sportsbook column was too narrow.
+- Fix — widened the first column to 38%, allowed the average label to wrap, and raised its row to 50px without changing the requested 18px size.
+- Post-fix evidence — the footer label reports equal client and scroll widths (161px), displays on two lines, and the table reports zero horizontal overflow.
+
+## Verification
+
+- No actionable P0, P1, or P2 differences remain for this typography pass.
+- Automated verification passed: 37 focused Positive EV design tests, all 1,259 repository tests, JavaScript syntax validation, and `git diff --check` (line-ending notices only).
+- This remains a local-only preview. No commit, push, or deployment was performed.
+
+final result: passed
+
+---
+
+# Positive EV Toolbar and Views — Design QA (2026-09-19)
+
+## Source and implementation
+
+- Source visual truth: `C:\Users\sport\OneDrive\Pictures\Screenshots\Screenshot 2026-09-19 134856.png` (623×351, device density not embedded), plus the existing local Arbitrage Live/Hidden control at `http://127.0.0.1:5110/arbitrage`. The screenshot documents the clipped popovers and prior toolbar surfaces; the written brief defines the intended corrected state.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5110/positive-ev?preview=1`, captured at a 1864×1272 CSS viewport with device pixel ratio 1. The browser tool exposed the rendered screenshots inline but did not provide a persistent filesystem path. Full-view and focused toolbar captures were inspected at native resolution.
+- State: five temporary preview plays, first play expanded, Live selected, bankroll popover open, more-actions menu open, Hidden empty state, and Live restored. No bet was tracked or hidden during QA.
+
+## Fidelity review
+
+- Fonts and typography: “Positive EV” uses the established IconLabs page-title face and weight. Live/Hidden reuse the Arbitrage segmented-control scale, weights, compact count pills, and selected-state hierarchy. Search and financial-control type remain unchanged and legible.
+- Spacing and layout rhythm: the title, segmented tabs, search, bankroll/unit control, and two icon buttons stay on one desktop toolbar row without overlap. Both popovers clear the toolbar and layer above the active card. The new icon boxes remain balanced with the 47px finance control.
+- Colors and visual tokens: the search and icon interiors compute to `rgb(9, 14, 26)`, exactly matching the play-card surface. Filter and more reuse the existing muted silver border gradient from the amount boxes; selected Live uses the existing purple selected token.
+- Image quality and assets: no images, team marks, league marks, sportsbook marks, or custom icons were added or replaced. Existing Phosphor interface icons remain sharp at native scale.
+- Copy and content: the page title is “Positive EV.” The old “Pre-Match” selector is replaced by “Live” and “Hidden,” with counts that update from the same persisted hidden-opportunity state. Live means visible pre-match plays; Hidden contains plays hidden through Track and Hide.
+- Interaction and accessibility: both tabs update `aria-selected`, `aria-current`, and active styling. Hidden renders its empty message; Live restores all five fake plays. The bankroll and more buttons maintain expanded state, Escape/click-away behavior remains wired, and browser console error/warning logs were empty.
+
+## Findings and comparison history
+
+- First post-build comparison found no actionable P0, P1, or P2 mismatch. The implementation intentionally uses slightly wider Live/Hidden buttons than the Arbitrage source so both labels and counts stay on one line in the Positive EV toolbar.
+- Automated verification passed: 33 focused Positive EV design tests, all 1,255 repository tests, JavaScript syntax validation, and `git diff --check` (line-ending warnings only).
+- This remains a local-only preview. No commit, push, or deployment was performed.
+
+final result: passed
+
+---
+
+# Positive EV Inline Preview Follow-Up — Design QA (2026-09-17)
+
+## Source and implementation
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-17 114838.png` (1601 × 1061), showing five synthetic plays and the first play's expanded detail.
+- Rendered implementation: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-7cc8-7132-9b9d-ffffc0547e8e/positive-ev-implementation-20260917-2.jpg` (1864 × 1272) from the local preview at the same first-play-expanded state. The comparison crops the implementation at x=263, y=171 to the source's 1601 × 1061 content area.
+- Combined source-and-implementation visual check: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-7cc8-7132-9b9d-ffffc0547e8e/positive-ev-comparison-20260917-2.jpg` (3202 × 1061). Focused card-controls comparison: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-7cc8-7132-9b9d-ffffc0547e8e/positive-ev-card-controls-focus-20260917.jpg` (1600 × 86).
+
+## Review and iterations
+
+- Expanded detail now sits immediately after the selected play, including after switching between cards. The shared mobile disclosure click handler was also returning it to the bottom of the stack; the design preview now uses only its own detail/drawer handler. At 1280px the card uses its two-row layout without horizontal overflow, and the mobile drawer remains usable.
+- Selection outlines use the Bet Tracker silver gradient. The executable highlighted odds retain their green background and border. The far-right Track button is filled purple, with a green tracked state. Sportsbook and exchange names increase from 12px to 13px. The league watermark is removed, while the smaller sport icon remains.
+- Market Odds rows sort by descending American-odds value on the selected side; books without a quote fall last. The first play shows +118, +114, +113, +112, +111, +110, +109, +108, +107. The average row stays at the bottom.
+- Opening and closing multiple play details, the Track modal without submission, and browser error/warning logs were checked. No bet was tracked and no remote state changed.
+- Verification: `node --check` passed for both edited JavaScript files, `git diff --check` passed (line-ending notices only), focused Positive EV design tests passed (30), and the full repository suite passed (1,252). This is a local-only preview; nothing was committed, pushed, or deployed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain for the requested preview changes.
+
+final result: passed
+
+---
+
+# Positive EV Inline Preview — Design QA (2026-09-17)
+
+## Source and implementation
+
+- Source: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-17 104115.png` (1495 × 1063). The three later user screenshots supplied the current graph, Market Odds, and compact play-card issues.
+- Implementation: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-7cc8-7132-9b9d-ffffc0547e8e/positive-ev-implementation-final-20260917.jpg` (1480 × 1052), rendered from the local preview URL at a 1495px desktop viewport.
+- Combined side-by-side evidence: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-7cc8-7132-9b9d-ffffc0547e8e/positive-ev-comparison-final-20260917.jpg` (2983 × 1063).
+
+## Review
+
+- Graph: stepped sportsbook series and dashed fair-value line fill a 581px-wide SVG inside the 609px Market Trend panel; title, subtitle, chart tabs, time labels, legend, and endpoint all remain visible.
+- Market Odds: alternating neutral-slate fills cover both sportsbook and price cells without a green cast or clipped left strip; prices are centered, optional liquidity follows the link arrow, and the average odds row spans the table.
+- Cards: 84px desktop rows provide more breathing room, with 10px-separated selection, bet metrics, odds, caret, and far-right Track controls. At 1280px the card switches to a 139px two-row layout with no horizontal overflow.
+- Color and copy: Search, Rec Bet, and Total Payout compute to the same `rgb(17, 24, 39)` background as the page. Synthetic plays are explicitly labeled "Visual preview" and "not live wagers or recommendations." The existing sidebar and current sportsbook order are retained rather than imitating the historical mock.
+- Interaction: chart tabs, legend toggles, and the existing Track modal were exercised without submitting a bet. Browser error/warning logs were empty.
+- Verification: `node --check static/positive-ev.js`, `git diff --check`, and the full repository suite (`1252 passed`). No commit, push, or deployment was made.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain for the requested desktop preview.
+
+final result: passed
+
+---
+
+# Positive EV Card Typography and Actions — Design QA (2026-09-17)
+
+## Local preview
+
+- Target: the user's explicit play-card typography sizes and the request to place Track before the expand chevron. The first preview play was inspected at 1280px and 1864px browser widths; the 768px drawer layout was also inspected.
+- All requested desktop values rendered as specified: EV 26px; time 14px; team names 20px; vs 14px; league/icon 14/16px; market 18px; selection 18px; bet labels 12px; bet amounts 17px; odds/arrow 17/14px; Track text/icon 15/16px; chevron 18px.
+- The DOM and visible order is odds, Track, chevron. The 1280px card uses two rows without horizontal overflow; the 1864px card remains a single 84px row with distinct spacing between selection, amounts, odds, Track, and chevron. At 768px, the existing detail drawer remains usable and the chevron stays hidden under the responsive layout.
+- Design decision: Rec Bet and Total Payout now have a 1px muted silver-gradient edge, while the selection retains the brighter 2px Bet Tracker silver gradient. The executable odds retain their green border and background. This preserves selection as the focal outline while giving the amounts a finished treatment.
+- Interactions: switching plays keeps detail directly below the selected card. Track opens its existing dialog and Cancel closes it without saving a bet. Browser error/warning logs were empty.
+- Verification: 31 focused Positive EV design tests and all 1,253 repository tests passed; JavaScript syntax and `git diff --check` passed. This remains a local-only preview with no commit, push, or deployment.
+
+## Findings
+
+- No actionable P0, P1, or P2 issues remain for the requested desktop card update.
+
+final result: passed
+
+---
+
+# Positive EV Hero Number — Design QA (2026-09-18)
+
+## Source and implementation
+
+- Source: the selected option 1 mock at `C:\Users\sport\.codex\generated_images\01a00b17-7cc8-7132-9b9d-ffffc0547e8e\exec-087645ca-c2d7-4cd9-9b19-6c4b6e2241e4.png` (2128×739). Its EV treatment is a large green number, small uppercase label, and soft green glow.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5110/positive-ev?preview=1` (1864×1272 screenshot and CSS viewport, device pixel ratio 1). The source and implementation screenshots were emitted together for visual comparison. The source shows an isolated roughly 150px-tall concept card; the implementation deliberately retains the existing 84px production-layout row.
+- The EV column now displays a 10px “Expected Value” label above a 32px centered green percentage with a restrained halo. All five fake plays display it without clipping or overlap. The existing matchup, market, selection, amounts, odds, Track, and expanded detail layouts remain intact. Existing logos and other image assets are unchanged.
+- The second play was opened and then the first restored; details followed the selected card. Browser error and warning logs were empty. No tracking or wager was submitted.
+- Verification: 32 focused Positive EV design tests and all 1,254 repository tests passed; JavaScript syntax and `git diff --check` passed. This is a local-only preview with no commit, push, or deployment.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain. The glow is intentionally subtler than the oversized concept mock so the compact list stays readable.
+
+final result: passed
+
+---
+
+# Positive EV Toolbar and Individual Matchups — Design QA (2026-09-19)
+
+## Source and implementation
+
+- Source truth: the user's current local Positive EV preview plus the explicit requirements for a unified toolbar control rail, larger Live/Hidden labels, and real athlete imagery for individual-sport matchups.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5110/positive-ev?preview=1`, reviewed at the user's normal desktop viewport with the first play expanded and the tennis play visible.
+
+## Review
+
+- Fonts and typography: Live and Hidden render at 14px, exactly 3px above the preceding 11px treatment. Count pills retain their compact hierarchy. Search, bankroll, unit-size, filter, and more typography remains legible and unchanged.
+- Spacing and layout rhythm: Search and bankroll measure 47px tall. Filter and more each measure 47×47px, share the same y=74px top alignment, center their 18px glyphs, and remain evenly spaced on the toolbar rail.
+- Colors and visual tokens: Search, bankroll, filter, and more all compute to the same `rgb(9, 14, 26)` card interior and identical silver border gradient (`#535d6e → #3a4353 → #202938`). Focus and hover states preserve the layered border treatment.
+- Image quality and assets: Taylor Fritz and Ben Shelton use 400px-wide Creative Commons source portraits with a 28px circular UI crop. Both align to the exact team-logo slot without stretching, clipping, or shifting the matchup baseline. The feed accepts participant-image data and retains a local fallback for these preview athletes. Attribution is stored beside the assets.
+- Copy and content: existing matchup names, time, market, selection, odds, and preview warnings are unchanged.
+- Interaction and accessibility: the bankroll and more menus open above the workspace at z-index 80 while the toolbar remains at 40 and the workspace at 1. Existing aria labels and hidden decorative-image behavior remain intact. Browser error and warning logs were empty.
+
+## Findings and verification
+
+- No actionable P0, P1, or P2 differences remain for the requested desktop changes.
+- Automated verification passed: 35 focused Positive EV design tests, all 1,257 repository tests, JavaScript syntax validation, and `git diff --check` (line-ending notices only).
+- This remains a local-only preview. No commit, push, or deployment was performed.
+
+final result: passed
+
+---
+
+# Positive EV Action Spacing — Design QA (2026-09-21)
+
+## Source and implementation
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-21 105049.png` (716 × 572), showing the cramped Rec Bet, Total Payout, odds, Track, and chevron rail.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5110/positive-ev?preview=1`; implementation screenshots were emitted from the Codex in-app browser at 1864 × 1272 and 1280 × 900 CSS pixels, both at device pixel ratio 1.
+- State: first synthetic play expanded, followed by the remaining four collapsed play cards. The focused comparison used the right-side execution rail visible in both source and implementation; a separate stored comparison image was unnecessary because the browser measurements make the spacing delta exact.
+
+## Review and comparison history
+
+- Initial P2 finding — spacing/layout rhythm: the source state measured only 7px between Rec Bet and Total Payout, and 10px between payout, odds, Track, and the chevron. This made the right side read as one dense block.
+- Fix: increased the amount-box gap to 12px, the major control gap to 16px, horizontal execution padding to 18px, and the chevron track to 22px. The selection keeps its flexible column and existing visual prominence.
+- Post-fix evidence: browser geometry reports the intended 12px and 16px gaps, 18px execution padding, no horizontal page overflow at 1864px, and no page or card overflow at the 1280px desktop breakpoint.
+- Fonts and typography: unchanged in the play cards; the spacing-only adjustment preserves the requested card type scale. Expanded-detail sizes were measured from rendered computed styles for the user's next typography pass.
+- Colors and visual tokens: unchanged. Selection, amount, odds, and Track border/background treatments remain intact.
+- Image quality and assets: unchanged; team crests and individual-sport portraits retain their existing sizing and crop.
+- Copy and content: unchanged.
+- Interaction and accessibility: the selected-card detail remains directly below its card, and there are no browser error or warning logs.
+
+## Verification
+
+- No actionable P0, P1, or P2 differences remain for the requested action-spacing update.
+- Automated verification passed: 36 focused Positive EV design tests, all 1,258 repository tests, JavaScript syntax validation, and `git diff --check` (line-ending notices only).
+- This remains a local-only preview. No commit, push, or deployment was performed.
+
+final result: passed

@@ -382,6 +382,8 @@ def test_positive_ev_page_uses_complete_oddsengine_book_catalog(app_client):
     assert response.status_code == 200
     body = response.get_data(as_text=True)
     assert 'id="ev-config"' in body
+    assert 'class="sidebar-expanded ev-inline-layout"' in body
+    assert '"inlineLayout": true' in body
     assert '"catalogVersion": 4' in body
     assert '"bookCount": 88' in body
     assert '"name": "Pinnacle"' in body
