@@ -19,7 +19,7 @@
         </div>
       </div>
       <div class="ev-actions">
-        <label class="ev-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="ev-search" type="search" placeholder="Search markets or teams..." aria-label="Search Positive EV opportunities"></label>
+        <label class="ev-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="ev-search" type="search" placeholder="Search" aria-label="Search Positive EV opportunities"></label>
         <details class="ev-mobile-info" id="ev-mobile-info" open>
           <summary aria-label="Show feed information and controls"><i class="ph ph-info" aria-hidden="true"></i><span>Info</span><i class="ph ph-caret-down ev-mobile-info-caret" aria-hidden="true"></i></summary>
           <div class="ev-mobile-info-panel">
@@ -51,12 +51,32 @@
                 <small class="ev-menu-note">All event times shown in ET</small>
               </div>
             </div>
+            <div class="ev-corner-account trades-corner-cluster" aria-label="Quick account controls">
+              <button class="corner-avatar" id="account-menu-toggle" type="button" aria-label="Open profile menu" aria-expanded="false">R</button>
+              <div class="corner-account-menu" id="corner-account-menu" hidden>
+                <button id="corner-profile-open" type="button"><i class="ph ph-user" aria-hidden="true"></i><span>Profile</span></button>
+                <button id="corner-account-logout" type="button"><i class="ph ph-sign-out" aria-hidden="true"></i><span>Sign Out</span></button>
+              </div>
+            </div>
           </div>
         </details>
       </div>
     </header>
 
     <div class="ev-workspace">
+      {% with
+        value_lab_aria_label='Positive EV scan status',
+        value_lab_art='assets/value-lab-empty-state-positive-ev.png',
+        value_lab_eyebrow='Positive EV live',
+        value_lab_heading='Value is still cooking',
+        value_lab_lede='We’re checking every price against your sharp-book blend and filters.',
+        value_lab_body='Nothing is +EV yet—but the scan never stops.',
+        value_lab_check_one='Odds synced',
+        value_lab_check_two='Markets de-vigged',
+        value_lab_check_three='Waiting for an edge'
+      %}
+        {% include '_value_lab_empty.html' %}
+      {% endwith %}
       <div class="ev-feed-column">
         <div class="ev-feed-status">
           <span><i class="ev-live-dot"></i><strong id="ev-feed-label">Live market scan</strong></span>

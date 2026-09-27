@@ -151,7 +151,13 @@
 .arb-workspace.value-lab-empty-active > .arb-detail,
 .arb-workspace.value-lab-empty-active > .arb-board,
 .mid-workspace.value-lab-empty-active > .mid-detail,
-.mid-workspace.value-lab-empty-active > .mid-feed-panel { display: none; }
+.mid-workspace.value-lab-empty-active > .mid-feed-panel,
+.ev-workspace.value-lab-empty-active > .ev-feed-column,
+.ev-workspace.value-lab-empty-active > .ev-detail { display: none !important; }
+
+body[data-page="positive-ev"] .ev-workspace.value-lab-empty-active .value-lab-empty {
+  min-height: clamp(480px, calc(100dvh - 250px), 680px);
+}
 
 @keyframes value-lab-pulse {
   0%, 100% { opacity: .55; transform: scale(.82); }

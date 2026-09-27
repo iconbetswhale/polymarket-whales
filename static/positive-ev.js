@@ -8,6 +8,7 @@
   const catalogVersion = Number(serverConfig.catalogVersion || 1);
   const designMock = Boolean(serverConfig.designMock);
   const inlineLayout = Boolean(serverConfig.inlineLayout || designMock);
+  const pageParams = new URLSearchParams(window.location.search);
   const marketGroups = {
     main: ["h2h", "spreads", "totals"],
     props: [
@@ -85,7 +86,7 @@
     const savedHiddenIds = JSON.parse(localStorage.getItem(hiddenStorageKey) || "[]");
     if (Array.isArray(savedHiddenIds)) hiddenIds = new Set(savedHiddenIds.map(String));
   } catch {}
-  let rows = [], selectedId = "", paused = false, timer = null, feedView = "active", retryCount = 0;
+  let rows = [], selectedId = "", paused = false, timer = null, feedView = "active", retryCount = 0, hasCompletedScan = false;
   let lineHistoryRequestId = 0;
   let lineHistoryMetricMode = "auto";
   let bankrollConfig = {amount:10000, unitPercentage:.01, settingsVersion:null, dirty:false, savePending:false};
@@ -94,6 +95,7 @@
   let lastDetailTrigger = null, lastFilterTrigger = null;
   const $ = id => document.getElementById(id);
   const feed = $("ev-feed"), detail = $("ev-detail"), dialog = $("ev-filter-dialog"), scrim = $("ev-mobile-scrim");
+  const workspace = document.querySelector(".ev-workspace"), valueLabEmpty = document.querySelector("[data-value-lab-empty]");
   const trackerDialog = $("ev-tracker-dialog");
   const mobileInfo = $("ev-mobile-info"), mobileInfoViewport = matchMedia("(max-width:760px)");
   const syncMobileInfo = () => {
@@ -1175,7 +1177,12 @@
   }
   function query() {
     const params = new URLSearchParams({group:"custom",markets:settings.markets.join(","),sports:settings.sports.join(","),books:settings.books.join(","),min_ev:settings.minEv,kelly:settings.kelly,min_sources:settings.minSources,required_books:settings.requiredBooks.join(","),devig_method:settings.devigMethod,weights:JSON.stringify(settings.weights),bankroll:bankrollConfig.amount});
+    if (designMock && pageParams.get("empty") === "1") params.set("empty", "1");
     return `${designMock ? "/api/positive-ev/design-preview" : "/api/positive-ev/live"}?${params}`;
+  }
+  function syncValueLabEmpty(showValueLab) {
+    workspace?.classList.toggle("value-lab-empty-active", showValueLab);
+    if (valueLabEmpty) valueLabEmpty.hidden = !showValueLab;
   }
   function renderDiagnostics(diagnostics = {}, history = {}) {
     const reasons = diagnostics.rejectionReasons || {};
@@ -1188,6 +1195,7 @@
   }
   async function load(force=false) {
     if (paused && !force) return;
+    syncValueLabEmpty(false);
     const url = query();
     const cacheKey = pagePayloadCacheKey("positive-ev", url.replace("/positive-ev/live", "/positive-ev"));
     let showedCached = false;
@@ -1195,6 +1203,7 @@
       const cached = readPagePayloadCache(cacheKey, 5 * 60 * 1000);
       if (cached && !cached.paused) {
         rows = Array.isArray(cached.data) ? cached.data : [];
+        hasCompletedScan = true;
         $("ev-visible-count").textContent = rows.length;
         $("ev-updated").textContent = "Showing recent scan · updating live";
         renderDiagnostics(cached.diagnostics || {}, {});
@@ -1222,6 +1231,8 @@
       if (!designMock) writePagePayloadCache(cacheKey, payload);
       retryCount = 0;
       if (payload.paused) {
+        hasCompletedScan = false;
+        syncValueLabEmpty(false);
         rows = [];
         selectedId = "";
         dismissDetail();
@@ -1240,6 +1251,7 @@
         return;
       }
       rows = payload.data || [];
+      hasCompletedScan = true;
       $("ev-visible-count").textContent = rows.length;
       $("ev-updated").textContent = payload.degraded
         ? "Recent verified odds · live feed reconnecting"
@@ -1262,6 +1274,7 @@
       clearTimeout(timer);
       if (Number(payload.refreshSeconds) > 0) timer = setTimeout(load, Number(payload.refreshSeconds) * 1000);
     } catch (error) {
+      syncValueLabEmpty(false);
       if (rows.length) {
         $("ev-updated").textContent = "Recent scan shown · live refresh delayed";
       } else {
@@ -1322,6 +1335,18 @@
     updateHiddenMenu();
     $("ev-feed-footer").textContent = `Showing ${shown.length} of ${rows.length} markets`;
     if (inlineLayout && detail.parentElement === feed) detail.remove();
+    const showValueLab = feedView === "active"
+      && hasCompletedScan
+      && !paused
+      && settings.markets.length > 0
+      && settings.sports.length > 0
+      && settings.books.length > 0
+      && rows.length === 0;
+    syncValueLabEmpty(showValueLab);
+    if (showValueLab) {
+      $("ev-feed-footer").textContent = "Live scan active · waiting for a qualifying +EV play";
+      return;
+    }
     if (!shown.length) {
       const emptyIcon = feedView === "hidden" ? "ph-eye-slash" : "ph-shield-check";
       const emptyCopy = feedView === "hidden" ? "No hidden bets yet. Use Track and Hide on a bet to save it here." : "No opportunity passed every validation gate. That is safer than displaying a false edge.";
@@ -1585,7 +1610,7 @@
     if (!$("ev-more-menu").hidden) { event.preventDefault(); closeHiddenMenu(true); }
     if (!$("ev-bankroll-popover").hidden) { event.preventDefault(); setToolbarPopover("ev-bankroll-popover-button", "ev-bankroll-popover", false); $("ev-bankroll-popover-button").focus(); }
   });
-  $("ev-pause").addEventListener("click",()=>{paused=!paused;closeHiddenMenu();updateHiddenMenu();if(!paused)load(true);});
+  $("ev-pause").addEventListener("click",()=>{paused=!paused;closeHiddenMenu();updateHiddenMenu();if(paused)renderFeed();else load(true);});
   dialog.querySelectorAll("[data-panel]").forEach(button=>button.addEventListener("click",()=>{dialog.querySelectorAll("[data-panel], [data-filter-panel]").forEach(item=>item.classList.remove("active"));button.classList.add("active");dialog.querySelector(`[data-filter-panel="${button.dataset.panel}"]`).classList.add("active");}));
   dialog.addEventListener("input",event=>{
     if(event.target.matches("[data-market-group-toggle]")){

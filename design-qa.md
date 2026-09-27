@@ -2340,6 +2340,32 @@ final result: passed
 
 ---
 
+# Positive EV Zero-Play State — Design QA (2026-09-21)
+
+## Source and implementation
+
+- Source truth: the existing Arbitrage zero-result state rendered from the shared `_value_lab_empty.html` component and `value-lab-empty.css` artwork/layout.
+- Implementation: browser-rendered local preview at `http://127.0.0.1:5111/positive-ev?preview=1&empty=1`, captured in the Codex in-app browser at the normal desktop viewport. A second capture exercised the `max-width: 760px` responsive treatment before the browser viewport was restored.
+- Comparison: Positive EV reuses the exact Arbitrage component, illustration, layout, spacing, border, and responsive rules. Only the scanner-specific text is supplied through template variables.
+
+## Review
+
+- Copy: `Positive EV live`; `Value is still cooking`; sharp-book blend and filter context; `Nothing is +EV yet`; `Markets de-vigged`; and the existing continuous-scan language accurately describe this tool.
+- State logic: the panel appears only in Live after a completed successful scan returns zero rows with active market, sport, and sportsbook selections. Loading, paused, error, Hidden, and non-empty results do not show it.
+- Layout and imagery: the full-width panel replaces both feed and detail regions without leaving the old empty card behind. The existing high-resolution Value Lab artwork stays sharp and unobstructed at desktop size; the mobile breakpoint stacks copy above the cropped artwork without horizontal overflow.
+- Accessibility: the status uses `aria-live="polite"`, a Positive EV-specific accessible label, hidden decorative artwork, a semantic progress list, and readable text at both checked viewports.
+- Local QA route: `empty=1` is accepted only by the environment-gated design-preview endpoint and is forwarded only in `designMock` mode, so it cannot alter production live-feed behavior.
+- Artwork copy: the Positive EV-specific illustration replaces the central monitor labels with `SHARP ODDS`, `FAIR VALUE`, and `POSITIVE EV`. The original shared Arbitrage/Middles/Low Hold image remains unchanged.
+- Verification: browser error/warning logs were empty; JavaScript syntax validation, `git diff --check`, and all 1,267 repository tests passed.
+
+## Findings
+
+- No actionable P0, P1, or P2 visual or functional differences remain from the selected Arbitrage treatment.
+
+final result: passed
+
+---
+
 # Positive EV Expanded-Detail Typography — Design QA (2026-09-21)
 
 ## Source and implementation

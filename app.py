@@ -2260,7 +2260,8 @@ def create_app(start_background: bool = True) -> Flask:
             method = request.args.get("devig_method", "power").strip().lower()
             try:
                 bankroll = float(request.args.get("bankroll", "10000"))
-                preview_rows = temporary_ev_preview_rows(
+                show_empty_state = request.args.get("empty", "").strip().lower() in {"1", "true", "yes", "on"}
+                preview_rows = [] if show_empty_state else temporary_ev_preview_rows(
                     devig_method=method, bankroll=bankroll
                 )[:5]
             except (TypeError, ValueError) as exc:
