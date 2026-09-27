@@ -234,6 +234,8 @@ def test_prediction_traders_uses_positive_ev_style_empty_state_without_fake_samp
     assert ".prediction-traders-lab-empty" in trade_styles
     assert "@media (min-width: 1800px)" in trade_styles
     assert ".prediction-traders-lab-empty .value-lab-empty__art" in trade_styles
+    assert "min-height: clamp(680px, 32vw, 760px)" in trade_styles
+    assert "width: 82%" in trade_styles
     assert "object-fit: cover" in trade_styles
     assert "border: 1px dashed var(--il-border-standard)" in trade_styles
     assert "min-height: 240px" in trade_styles

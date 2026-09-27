@@ -755,7 +755,12 @@ body[data-design-system="v2"][data-page="trades"] .prediction-traders-lab-empty 
 }
 
 @media (min-width: 1800px) {
+  body[data-design-system="v2"][data-page="trades"] .prediction-traders-lab-empty {
+    min-height: clamp(680px, 32vw, 760px);
+  }
+
   body[data-design-system="v2"][data-page="trades"] .prediction-traders-lab-empty .value-lab-empty__art {
+    width: 82%;
     object-fit: cover;
     object-position: center 50%;
   }
