@@ -26,7 +26,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='design-system.css', v=asset_version ~ '-foundation-v12-line-shop-order') }}">
   {% endif %}
   {% if page == 'trades' %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-canonical-v1') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='stage2-trades.css', v=asset_version ~ '-canonical-v2-execution-ticket') }}">
   {% endif %}
   {% if page == 'positive-ev' %}<link rel="stylesheet" href="{{ url_for('static', filename='positive-ev.css', v=asset_version ~ '-reference-market-scanner-v13-shared-book-order') }}"><link rel="stylesheet" href="{{ url_for('static', filename='positive-ev-inline-preview.css', v=asset_version ~ '-inline-mock-v19-detail-type') }}">{% endif %}
   {% if page == 'arbitrage' %}<link rel="stylesheet" href="{{ url_for('static', filename='arbitrage.css', v=asset_version ~ '-tracker-persistence-v14-filter-workspace') }}">{% endif %}
@@ -49,7 +49,7 @@
   {% if page == 'intelligence' %}<link rel="stylesheet" href="{{ url_for('static', filename='intelligence-v2.css', v=asset_version ~ '-canonical-v1') }}">{% endif %}
   {% if page != 'home' %}<link rel="stylesheet" href="{{ url_for('static', filename='sidebar-v2.css', v=asset_version ~ '-canonical-v21-flush-mobile-nav') }}">{% endif %}
   {% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'calculators'] %}
-  <link rel="stylesheet" href="{{ url_for('static', filename='mobile-tools.css', v=asset_version ~ '-mobile-workspace-v27-liquidity-readability') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='mobile-tools.css', v=asset_version ~ '-mobile-workspace-v28-confidence-card') }}">
   {% endif %}
 </head>
 <body class="{% if page != 'home' %}sidebar-expanded{% endif %}{% if page == 'positive-ev' and positive_ev_config is defined and positive_ev_config.inlineLayout %} ev-inline-layout{% endif %}" data-page="{{ page }}" data-design-system="{% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'futures', 'dfs', 'tracker', 'lab-tracker', 'shadow-test', 'live-positions', 'wallets', 'wallet-lock', 'position-history', 'edge-map', 'intelligence', 'calculators'] %}v2{% else %}legacy{% endif %}" data-line-shop-refresh-seconds="{{ line_shop_refresh_interval_seconds }}">
@@ -187,7 +187,7 @@
     </div>
   </dialog>
   <script src="{{ url_for('static', filename='odds-format.js', v=asset_version ~ '-shared-odds-v1') }}"></script>
-  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v74-shared-odds') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v=asset_version ~ '-live-feeds-v78-execution-ticket') }}"></script>
   {% if page == 'sharp-money' %}<script src="{{ url_for('static', filename='sharp-money.js', v=asset_version ~ '-reference-redesign-v7-price-edge-order') }}"></script>{% endif %}
   {% if page == 'futures' %}<script src="{{ url_for('static', filename='futures.js', v=asset_version ~ '-dynamic-inventory-v5') }}"></script>{% endif %}
   {% if page == 'positive-ev' %}<script src="{{ url_for('static', filename='positive-ev.js', v=asset_version ~ '-inline-mock-v19-detail-type') }}"></script>{% endif %}
@@ -198,7 +198,7 @@
   {% if page == 'dfs' %}<script src="{{ url_for('static', filename='dfs.js', v=asset_version ~ '-quality-guardrails-v6-instant-app-switch-cell-stack') }}"></script>{% endif %}
   {% if page == 'lab-tracker' %}<script src="{{ url_for('static', filename='lab-tracker.js', v=asset_version ~ '-live-only-v1') }}"></script>{% endif %}
   {% if page in ['trades', 'positive-ev', 'arbitrage', 'middles', 'low-hold', 'sharp-money', 'odds-screen', 'dfs', 'calculators'] %}
-  <script src="{{ url_for('static', filename='mobile-tools.js', v=asset_version ~ '-mobile-workspace-v13-ev-preview') }}"></script>
+  <script src="{{ url_for('static', filename='mobile-tools.js', v=asset_version ~ '-mobile-workspace-v14-ev-preview-no-trade-caret') }}"></script>
   {% endif %}
 </body>
 </html>

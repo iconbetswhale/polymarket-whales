@@ -4,7 +4,13 @@
   <header class="trades-command-bar il-page-header">
     <div class="trades-heading-row">
       <div class="trades-title-block il-page-title">
-        <h1>Prediction Traders</h1>
+        <div class="trades-title-row">
+          <h1>Prediction Traders</h1>
+          <nav class="trades-view-tabs" role="tablist" aria-label="Prediction trader opportunities">
+            <button class="active" type="button" role="tab" data-trade-visibility="live" aria-selected="true" aria-pressed="true">Live <span id="trade-live-count">0</span></button>
+            <button type="button" role="tab" data-trade-visibility="hidden" aria-selected="false" aria-pressed="false">Hidden <span id="trade-hidden-count">0</span></button>
+          </nav>
+        </div>
         <p>Verified sharp positions. Executable pricing.</p>
       </div>
       <div class="trades-live-state" aria-label="Current model state">
@@ -13,12 +19,7 @@
       </div>
     </div>
     <div class="trades-command-actions">
-      <div class="trades-view-tabs workspace-tabs" role="tablist" aria-label="Personal trading workspace">
-        <button class="active" type="button" role="tab" data-workspace-tab="trades" aria-selected="true">Trades <span id="trades-tab-count">0</span></button>
-        <button type="button" role="tab" data-workspace-tab="positions" aria-selected="false">Positions <span id="positions-tab-count">0</span></button>
-        <button type="button" role="tab" data-workspace-tab="closed" aria-selected="false">Closed <span id="closed-tab-count">0</span></button>
-      </div>
-      <label class="search-control compact-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search trades</span><input id="trade-search" type="search" placeholder="Search opportunities" autocomplete="off"></label>
+      <label class="search-control compact-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><span class="sr-only">Search plays</span><input id="trade-search" type="search" placeholder="Search" autocomplete="off"></label>
       <div class="trades-finance-actions il-finance-controls" aria-label="Trading settings">
         <div class="toolbar-popover-shell">
           <button class="toolbar-bankroll" id="bankroll-popover-button" type="button" aria-expanded="false" aria-controls="bankroll-popover"><small>Bankroll</small><span id="bankroll-toolbar-value">Loading</span></button>
@@ -102,7 +103,6 @@
           <div class="share-price-actions"><button class="button compact" id="apply-share-price" type="button">Apply price</button><button class="button ghost compact" id="clear-share-price" type="button">Clear</button></div>
         </div>
       </details>
-      <label class="show-hidden-control settings-toggle"><input id="show-hidden-trades" type="checkbox"><span><strong>Show hidden trades</strong><small>Include your hidden recommendations in this list</small></span></label>
     </div>
     <div class="settings-drawer-actions"><button class="button ghost" id="clear-trade-filters" type="button">Reset</button><button class="button primary" id="apply-trade-settings" type="button">Apply settings</button></div>
   </aside>
@@ -131,10 +131,10 @@
         <header class="opportunity-list-toolbar">
           <h2>Top Opportunities</h2>
           <div class="opportunity-filter-bar il-filter-bar" aria-label="Top opportunity filters">
-            <label><span class="sr-only">Sport</span><select id="trade-sport" aria-label="Filter by sport"><option value="">All Sports</option></select></label>
-            <label><span class="sr-only">Market</span><select id="trade-market" aria-label="Filter by market"><option value="">All Markets</option></select></label>
-            <label><span class="sr-only">Minimum confidence</span><select id="trade-confidence" aria-label="Minimum confidence"><option value="0">Minimum Confidence</option><option value="60">60+ Confidence</option><option value="70">70+ Confidence</option><option value="80">80+ Confidence</option><option value="90">90+ Confidence</option></select></label>
-            <label><span class="sr-only">Sort opportunities</span><select id="trade-sort" aria-label="Sort opportunities"><option value="confidence-desc">Sort: Confidence</option><option value="sharps-desc">Sort: Sharps</option><option value="consensus-desc">Sort: Consensus</option><option value="recommendation-desc">Sort: Stake</option><option value="trader-bet-desc">Sort: Sharp volume</option><option value="relative-desc">Sort: Relative size</option><option value="start-asc">Sort: Start time</option><option value="price-asc">Sort: Current price</option><option value="slippage-asc">Sort: Entry edge</option></select></label>
+            <div class="trade-rich-filter"><select id="trade-sport" aria-label="Filter by sport" tabindex="-1" aria-hidden="true"><option value="">All Sports</option></select><details data-trade-filter-menu="trade-sport"><summary aria-label="Filter by sport"><span>All Sports</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="trade-rich-filter-popover" role="listbox" aria-label="Sport options"></div></details></div>
+            <div class="trade-rich-filter"><select id="trade-market" aria-label="Filter by market" tabindex="-1" aria-hidden="true"><option value="">All Markets</option></select><details data-trade-filter-menu="trade-market"><summary aria-label="Filter by market"><span>All Markets</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="trade-rich-filter-popover" role="listbox" aria-label="Market options"></div></details></div>
+            <div class="trade-rich-filter"><select id="trade-confidence" aria-label="Minimum confidence" tabindex="-1" aria-hidden="true"><option value="0">Minimum Confidence</option><option value="60">60+ Confidence</option><option value="70">70+ Confidence</option><option value="80">80+ Confidence</option><option value="90">90+ Confidence</option></select><details data-trade-filter-menu="trade-confidence"><summary aria-label="Minimum confidence"><span>Minimum Confidence</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="trade-rich-filter-popover" role="listbox" aria-label="Confidence options"></div></details></div>
+            <div class="trade-rich-filter"><select id="trade-sort" aria-label="Sort opportunities" tabindex="-1" aria-hidden="true"><option value="confidence-desc">Sort: Confidence</option><option value="sharps-desc">Sort: Sharps</option><option value="consensus-desc">Sort: Consensus</option><option value="recommendation-desc">Sort: Stake</option><option value="trader-bet-desc">Sort: Sharp volume</option><option value="relative-desc">Sort: Relative size</option><option value="start-asc">Sort: Start time</option><option value="price-asc">Sort: Current price</option><option value="slippage-asc">Sort: Entry edge</option></select><details data-trade-filter-menu="trade-sort"><summary aria-label="Sort opportunities"><span>Sort: Confidence</span><i class="ph ph-caret-down" aria-hidden="true"></i></summary><div class="trade-rich-filter-popover" role="listbox" aria-label="Sort options"></div></details></div>
           </div>
         </header>
         <div class="trade-list" id="trade-list"><div class="skeleton-card"></div><div class="skeleton-card"></div></div>

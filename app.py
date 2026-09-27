@@ -5554,7 +5554,12 @@ def create_app(start_background: bool = True) -> Flask:
             minimum_cents, maximum_cents = _entry_price_filters(request.args)
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
-        show_hidden = request.args.get("show_hidden", "").strip().lower() in {
+        hidden_only = request.args.get("hidden_only", "").strip().lower() in {
+            "1",
+            "true",
+            "yes",
+        }
+        show_hidden = hidden_only or request.args.get("show_hidden", "").strip().lower() in {
             "1",
             "true",
             "yes",
@@ -5661,11 +5666,12 @@ def create_app(start_background: bool = True) -> Flask:
             for trade in actionable
             if _entry_price_matches(trade, minimum_cents, maximum_cents)
         ]
-        visible = (
-            price_matched
-            if show_hidden
-            else [trade for trade in price_matched if not trade["isHidden"]]
-        )
+        if hidden_only:
+            visible = [trade for trade in price_matched if trade["isHidden"]]
+        elif show_hidden:
+            visible = price_matched
+        else:
+            visible = [trade for trade in price_matched if not trade["isHidden"]]
         start = (page - 1) * per_page
         page_trades = visible[start : start + per_page]
         if not fast_mode:

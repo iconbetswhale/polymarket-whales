@@ -2472,7 +2472,7 @@
   }
 
   body[data-design-system="v2"][data-page="trades"] .trade-score-label {
-    display: none !important;
+    display: block !important;
   }
 
   body[data-design-system="v2"][data-page="trades"] .trade-score-cluster {

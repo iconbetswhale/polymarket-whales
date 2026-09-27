@@ -137,21 +137,22 @@ def test_canonical_pages_do_not_reload_legacy_override_layers():
     assert trades_css.count("!important") <= 3
 
 
-def test_prediction_feed_uses_separated_cards_and_a_five_track_scan_path():
+def test_prediction_feed_uses_separated_cards_and_a_two_row_scan_path():
     css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
     script = SCRIPT_PATH.read_text(encoding="utf-8")
     template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
 
     assert (
-        "--trade-row-grid: 76px minmax(270px, 1fr) minmax(150px, 190px) "
-        "132px 68px"
+        "--trade-row-grid: 70px minmax(220px, .95fr) minmax(210px, 1.05fr) "
+        "130px 68px"
     ) in css
     assert "grid-template-columns: var(--trade-row-grid)" in css
+    assert "grid-template-rows: auto auto" in css
 
     list_rules = "\n".join(_rule_bodies(css, ".trade-list"))
     card_rules = "\n".join(_rule_bodies(css, ".trade-card"))
     assert "gap: 8px" in list_rules
-    assert "min-height: 112px" in card_rules
+    assert "min-height: 138px" in card_rules
     assert "border: 1px solid var(--il-border-subtle)" in card_rules
     assert "border-radius: 9px" in card_rules
     assert "background: var(--il-surface-1)" in card_rules
@@ -172,7 +173,7 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
 
     assert "trade-confidence-indicator" not in card_function
     assert ".trade-confidence-indicator" not in css
-    assert "trade-signal-summary" in card_function
+    assert "trade-signal-chips" in card_function
     for phrase in ("sharp", "size", "hit"):
         assert phrase in card_function.lower()
     assert "metricIconMarkup" not in script
@@ -187,6 +188,8 @@ def test_prediction_cards_keep_signals_human_and_quotes_logo_first():
     assert "providerLogoMarkup" in quote_function
     assert "displayOdds" in quote_function
     assert "providerName" in quote_function
+    assert 'data-book-deeplink="true"' in quote_function
+    assert 'target="_blank"' in quote_function
     assert "aria-label" in quote_function
     assert "<small>" not in quote_function
 
@@ -257,7 +260,7 @@ def test_prediction_traders_responsive_rules_prevent_horizontal_overflow():
         assert f"@media (max-width: {breakpoint}px)" in css
     assert "overflow-x: hidden" in css
     assert re.search(r"overflow-x:\s*(?:auto|scroll)", css) is None
-    assert re.search(r"min-width:\s*[1-9][0-9]{3,}px", css) is None
+    assert re.search(r"(?<!\()min-width:\s*[1-9][0-9]{3,}px", css) is None
     assert "grid-template-columns: minmax(0, 1fr) clamp(450px, 24vw, 480px)" in css
     assert "grid-template-columns: minmax(0, 1fr) 420px" in css
     assert "grid-template-columns: minmax(0, 1fr);" in css
@@ -350,6 +353,145 @@ def test_prediction_controls_expose_selected_and_focus_states():
     assert "outline: 2px solid var(--il-focus)" in design_css
     assert 'role="group" aria-label="Price history range"' in script
     assert 'item.setAttribute("aria-pressed", String(active))' in script
+
+
+def test_prediction_detail_metric_sizing_wrapping_and_headings():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    for selector, size in (
+        (".exchange-comparison-card .section-label > span:first-child", "16.5px"),
+        (".why-bet-card .section-label > span:first-child", "16.5px"),
+        (".trader-stats-card .section-label > span:first-child", "16.5px"),
+        (".price-panel .section-label > span:first-child", "16.5px"),
+        (".advanced-details-panel > summary > span", "16.5px"),
+        (".why-bet-card .detail-strip-metric strong", "18px"),
+        (".why-bet-card .detail-strip-metric small", "13.5px"),
+    ):
+        assert any(f"font-size: {size}" in body for body in _rule_bodies(css, selector))
+
+    stats_grid = _rule_bodies(css, ".trader-stats-card .detail-strip")
+    assert any("1.55fr" in body and ".9fr" in body for body in stats_grid)
+    assert "overflow-wrap: anywhere" in css
+    assert "white-space: normal" in css
+
+    assert "font-size: 18.5px" in "\n".join(_rule_bodies(css, ".detail-title-copy h2"))
+    assert "font-size: 18.5px" in "\n".join(_rule_bodies(css, ".detail-title-copy .trade-matchup-team > span"))
+    advanced_content = "\n".join(_rule_bodies(css, ".advanced-details-content"))
+    assert "background: var(--il-surface-1)" in advanced_content
+    assert ".advanced-details-content .calculation-grid > div" in css
+    assert "background-image: none" in css
+
+    for heading in (
+        "Why This Bet?",
+        "Trader Stats",
+        "Price Movement",
+        "Advanced Details",
+        "Why This Score?",
+        "Why This Bet Size?",
+        "Trade Decision",
+        "Price Validation",
+        "Tracker Evidence",
+        "Personal Exposure",
+    ):
+        assert heading in script
+
+
+def test_prediction_cards_and_detail_share_confidence_treatment_and_execution_hierarchy():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    mobile_css = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    assert '<strong>${escapeHtml(trade.confidence_score)}</strong><small class="trade-score-label">Conf</small>' in script
+    assert '<span class="execution-summary-selection-label"><i class="ph ph-ticket" aria-hidden="true"></i>Recommended Play</span>' in script
+    assert '<strong class="execution-summary-action">' in script
+    assert '<div class="execution-summary-selection"><small>Selection</small>' not in script
+    assert "grid-template-columns: minmax(0, 1fr) auto auto" in css
+    assert ".execution-summary-quote { grid-column: 2; grid-row: 1;" in css
+    assert ".execution-summary-stake {" in css
+    assert ".detail-confidence {" in css
+    assert ".trade-score {" in css
+    assert "border: 1px solid var(--il-positive)" in css
+    assert "display: block" in "\n".join(_rule_bodies(css, ".trade-score-label"))
+    assert 'body[data-design-system="v2"][data-page="trades"] .trade-score-label {\n    display: block !important;' in mobile_css
+    assert "font-size: 21px" in "\n".join(_rule_bodies(css, ".execution-summary-action"))
+    assert "font-size: 19.5px" in "\n".join(_rule_bodies(css, ".trade-pick strong"))
+    assert "font-size: 14.75px" in "\n".join(_rule_bodies(css, ".trade-edge"))
+    assert "font-size: 12px" in "\n".join(_rule_bodies(css, ".execution-summary-stake small"))
+    assert "font-size: 18px" in "\n".join(_rule_bodies(css, ".execution-summary-stake strong"))
+    assert "justify-items: center" in "\n".join(_rule_bodies(css, ".execution-summary-stake"))
+
+
+def test_prediction_traders_live_hidden_tabs_and_detail_actions_match_requested_workspace():
+    template = TRADES_TEMPLATE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    detail_function = _function(script, "renderTradeDetail")
+
+    assert 'data-trade-visibility="live"' in template
+    assert 'data-trade-visibility="hidden"' in template
+    assert 'data-workspace-tab="trades"' not in template
+    assert 'id="show-hidden-trades"' not in template
+    assert '<div class="trades-title-row">' in template
+    assert template.index('class="trades-title-row"') < template.index('class="trades-command-actions"')
+    assert 'id="detail-pin-action"' not in detail_function
+    assert 'id="detail-hide-action"' in detail_function
+    assert "ph-eye-slash" in detail_function
+    assert 'id="detail-track-action"' in detail_function
+    assert "ph-plus-circle" in detail_function
+    assert 'font: 650 14px/1 var(--il-font-ui)' in TRADES_STYLE_PATH.read_text(encoding="utf-8")
+
+
+def test_prediction_detail_keeps_all_advanced_dropdowns_open_during_live_refresh():
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+    detail_function = _function(script, "renderTradeDetail")
+
+    assert 'panel.dataset.tradeId === String(trade.id)' in detail_function
+    assert 'panel.querySelector(".advanced-details-panel")?.open' in detail_function
+    assert '${keepAdvancedDetailsOpen ? "open" : ""}' in detail_function
+    assert 'panel.querySelectorAll(".advanced-details-content details[open]")' in detail_function
+    assert 'detail.querySelector(":scope > summary > span")?.textContent.trim()' in detail_function
+    assert 'detail.open = Boolean(title && openAdvancedDetailTitles.has(title))' in detail_function
+    assert 'panel.dataset.tradeId = String(trade.id)' in detail_function
+
+
+def test_prediction_advanced_dropdown_typography_borders_and_orderbook_are_readable():
+    css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+    script = SCRIPT_PATH.read_text(encoding="utf-8")
+
+    for selector in (
+        ".orderbook-panel > summary > span",
+        ".orderbook-panel > summary > small",
+        ".detail-accordion > summary > span",
+        ".detail-accordion > summary > small",
+        ".advanced-details-content .calculation-details > summary > span",
+        ".calculation-grid span",
+        ".calculation-grid strong",
+        ".calculation-note",
+        ".supporter-row strong",
+        ".supporter-row small",
+        ".orderbook-side-heading strong",
+        ".orderbook-side-heading span",
+    ):
+        assert "font-size: 14px" in "\n".join(_rule_bodies(css, selector))
+
+    assert "font-size: 12px" in "\n".join(_rule_bodies(css, ".orderbook-row > span:first-child"))
+    assert "font-size: 12px" in "\n".join(_rule_bodies(css, ".orderbook-row > strong"))
+    dropdown_cards = "\n".join(_rule_bodies(css, ".advanced-details-content > details"))
+    assert "border: 1px solid var(--il-border-standard)" in dropdown_cards
+    assert "border-radius: 8px" in dropdown_cards
+    assert "orderbook-column-head" in script
+    assert "Available depth" in script
+    assert "Seller offers" in script
+    assert "Buyer offers" in script
+
+
+def test_prediction_matchups_do_not_add_mobile_disclosure_arrows():
+    mobile_script = (ROOT / "static" / "mobile-tools.js").read_text(encoding="utf-8")
+    trades_css = TRADES_STYLE_PATH.read_text(encoding="utf-8")
+
+    assert 'trigger: ".trade-event-action", showCaret: false' in mobile_script
+    assert 'config.showCaret !== false' in mobile_script
+    assert '.trade-event-action .mobile-card-caret {\n  display: none;' in trades_css
 
 
 def test_existing_brand_fonts_and_new_mark_assets_remain_available():

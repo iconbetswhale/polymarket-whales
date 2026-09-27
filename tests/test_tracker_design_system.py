@@ -433,7 +433,7 @@ def test_tracker_assets_load_after_the_v2_foundation() -> None:
     assert canonical > foundation
     assert "-canonical-v57-no-bankroll-control" in BASE[canonical : canonical + 220]
     script = BASE.index("filename='app.js'")
-    assert "-live-feeds-v74-shared-odds" in BASE[script : script + 220]
+    assert "-live-feeds-v78-execution-ticket" in BASE[script : script + 220]
     assert BASE.index("filename='odds-format.js'") < script
 
 

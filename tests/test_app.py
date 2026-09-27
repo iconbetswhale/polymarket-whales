@@ -2898,6 +2898,9 @@ def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch)
     )
     visible = app_client.get("/api/trades-to-play?date_range=next7")
     shown = app_client.get("/api/trades-to-play?date_range=next7&show_hidden=true")
+    hidden_only = app_client.get(
+        "/api/trades-to-play?date_range=next7&hidden_only=true"
+    )
     other_user = app_client.application.test_client()
     other_user.set_cookie("iconbets_user", "user-2")
     other_visible = other_user.get("/api/trades-to-play?date_range=next7")
@@ -2905,6 +2908,8 @@ def test_hide_restore_and_show_hidden_are_user_specific(app_client, monkeypatch)
     assert hidden.status_code == 201
     assert visible.get_json()["pagination"]["total"] == 0
     assert shown.get_json()["data"][0]["isHidden"] is True
+    assert hidden_only.get_json()["pagination"]["total"] == 1
+    assert hidden_only.get_json()["data"][0]["isHidden"] is True
     assert other_visible.get_json()["pagination"]["total"] == 1
 
     hidden_id = hidden.get_json()["data"]["id"]

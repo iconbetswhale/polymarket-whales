@@ -88,7 +88,7 @@
         card.classList.add("mobile-expanded");
         card.setAttribute("aria-expanded", "true");
         const trigger = config.trigger ? card.querySelector(config.trigger) : null;
-        if (trigger && !trigger.querySelector(".mobile-card-caret")) {
+        if (trigger && config.showCaret !== false && !trigger.querySelector(".mobile-card-caret")) {
           const caret = document.createElement("i");
           caret.className = "ph ph-caret-down mobile-card-caret";
           caret.setAttribute("aria-hidden", "true");
@@ -506,7 +506,7 @@
     setupSampleTradeDisclosures();
 
     [
-      { name: "trades", feed: "#trade-list", detail: "#trade-detail", card: ".trade-card", selectedCard: ".trade-card.selected", idAttribute: "data-trade-id", trigger: ".trade-event-action", close: "[data-mobile-detail-close]", overlay: "#mobile-trade-detail-backdrop", bodyClasses: ["mobile-trade-detail-open"] },
+      { name: "trades", feed: "#trade-list", detail: "#trade-detail", card: ".trade-card", selectedCard: ".trade-card.selected", idAttribute: "data-trade-id", trigger: ".trade-event-action", showCaret: false, close: "[data-mobile-detail-close]", overlay: "#mobile-trade-detail-backdrop", bodyClasses: ["mobile-trade-detail-open"] },
       { name: "positive-ev", feed: "#ev-feed", detail: "#ev-detail", card: ".ev-opportunity", selectedCard: ".ev-opportunity.active", idAttribute: "data-id", trigger: "[data-open]", close: ".ev-detail-close", overlay: "#ev-mobile-scrim" },
       { name: "arbitrage", feed: "#arb-feed", detail: "#arb-detail", card: ".arb-opportunity", selectedCard: ".arb-opportunity.active", idAttribute: "data-arb-id", close: "[data-arb-close-detail]", overlay: "#arb-mobile-scrim" },
       { name: "middles", feed: "#mid-feed", detail: "#mid-detail", card: ".mid-opportunity-card", selectedCard: ".mid-opportunity-card.selected", idAttribute: "data-mid-id", close: "[data-mid-mobile-close]", overlay: "#mid-mobile-backdrop", bodyClasses: ["mid-detail-open"] },
