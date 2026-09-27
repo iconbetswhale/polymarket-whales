@@ -2564,3 +2564,35 @@ final result: passed
 - This remains a local-only preview. No commit, push, or deployment was performed.
 
 final result: passed
+# Positive EV Wide Empty-State Balance — Design QA (2026-09-27)
+
+## Evidence
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-27 192537.png` (2304 × 789 px, desktop, empty Live state, collapsed navigation).
+- Browser-rendered implementation: `http://127.0.0.1:5111/positive-ev?preview=1&empty=1`, Codex in-app Browser tab 2 (1280 × 720 CSS px at 1× density), checked with both expanded and collapsed navigation.
+- State: Positive EV Live tab with a completed zero-result scan; the empty-state artwork, copy, progress chips, toolbar, and account controls were visible.
+- Full-view comparison: the source showed the 3:2 artwork letterboxed against the right edge, leaving an oversized dead zone between the copy and illustration. The revised implementation uses the artwork as a full-panel cover image, increases the responsive panel height, and preserves the dark left-side copy field.
+- Focused-region comparison: the heading, explanatory copy, three progress chips, and continuous-scan label remain fully readable over the gradient. The illustration keeps the scientist, value terminal, and edge-detection display visible without colliding with the copy.
+- Browser console: no errors or warnings were reported after refresh.
+
+## Comparison history
+
+- P1, wide desktop composition: the illustration rendered too small and too far right, creating a visually disconnected two-column layout. Fixed by switching the Positive EV artwork from `contain` to responsive `cover`, centering its focal position, and allowing the panel to grow with the viewport.
+- P2, first revised desktop pass: the status-chip row clipped inside a 44% copy rail. Fixed by widening the Positive EV copy rail to 50% with a 620px cap and rechecking the expanded- and collapsed-navigation states.
+- Post-fix evidence: the collapsed-navigation capture fills the frame without the source screenshot's central void; all three chips are visible, and the artwork/copy transition reads as one composition.
+
+## Required fidelity surfaces
+
+- Fonts and typography: existing DM Sans hierarchy, weights, wrapping, and letter spacing are unchanged and remain readable.
+- Spacing and layout rhythm: copy padding, panel height, image scale, and copy-to-art balance now remain coherent across the checked desktop widths.
+- Colors and visual tokens: existing purple, green, dark-surface, border, and gradient tokens are unchanged.
+- Image quality and asset fidelity: the original 1536 × 1024 Positive EV artwork is reused at native quality with proportional cover cropping; no placeholder or code-drawn substitute was introduced.
+- Copy and content: all Positive EV-specific text remains unchanged and fully visible.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain in the checked desktop states.
+
+final result: passed
+
+---
