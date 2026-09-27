@@ -70,6 +70,77 @@ final result: passed
 
 ---
 
+# Sharp Money Circular Profile Avatar — Design QA (2026-09-27)
+
+## Source and implementation
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-27 180603.png` (717 × 77 pixels), showing the Prediction Traders toolbar with a circular purple `R` avatar.
+- Browser-rendered implementation: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-007e-7510-a891-b23326ff814a/sharp-money-local/sharp-profile-implementation-full.png` (1863 × 1272 pixels) from `http://127.0.0.1:8767/sharp-money` at an 1863 × 1272 CSS viewport and device pixel ratio 1.
+- Focused implementation evidence: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-007e-7510-a891-b23326ff814a/sharp-money-local/sharp-profile-implementation-focus.png` (667 × 77 pixels), cropped from the native implementation capture without resampling. Source and implementation are both 1× density.
+- State: dark desktop theme, Live selected, first sample play expanded, profile/account dialog closed for the visual comparison.
+
+## Review
+
+- Full-view comparison: the circular avatar remains aligned with the search, bankroll/unit, filter, and More controls at the far right of the Sharp Money header without changing the existing page layout.
+- Focused comparison: the source and implementation toolbar crops were opened together at native scale. Both use a 38 × 38px purple circle with a centered white `R`, no border, and the same compact spacing after the More button.
+- Fonts and typography: the avatar initial uses the existing IconLabs UI font at 13px and 750 weight, matching Prediction Traders' established component.
+- Spacing and layout rhythm: the avatar measures exactly 38 × 38px with a 50% radius and remains vertically centered inside the 47px control row.
+- Colors and visual tokens: the implementation reuses `--il-brand-strong` and `--il-text-on-brand`, the same tokens as Prediction Traders rather than introducing a new purple.
+- Image quality and asset fidelity: the reference avatar is a standard initial-based UI control, so no raster asset, placeholder, custom SVG, CSS illustration, or replacement icon was needed.
+- Copy and content: the visible initial is `R`; the existing accessible label remains “Open profile and subscription.”
+- Interaction and accessibility: clicking the circular avatar opens the existing account panel, and the close control restores the page. The final browser log contains no warnings or errors.
+
+## Comparison history
+
+- Initial P2: the first implementation inherited Sharp Money's notification-badge styles for every span inside an icon button, placing the `R` in a small gold badge outside the circle. Fix: explicitly reset the profile-initial positioning, dimensions, background, padding, radius, color, and font inheritance.
+- Post-fix evidence: the focused native-scale comparison shows the `R` centered inside the purple circle with no badge or residual user icon. No actionable P0, P1, or P2 differences remain.
+
+## Verification
+
+- The circular profile action was opened and closed successfully in the local browser.
+- Focused Sharp Money tests passed, and `git diff --check` reports only existing line-ending notices.
+- This remains a local-only preview; it has not been committed, pushed, or deployed.
+
+final result: passed
+
+---
+
+# Sharp Money Toolbar, More Menu, and Filter Parity — Design QA (2026-09-21)
+
+## Source and implementation
+
+- Source visual truth: `C:/Users/sport/OneDrive/Pictures/Screenshots/Screenshot 2026-09-21 115448.png` (84 × 57 pixels), the user's explicit right-to-left control order, and the existing Positive EV toolbar/menu/filter implementation in `templates/positive_ev.html` and `static/positive-ev.css`.
+- Browser-rendered implementation: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-007e-7510-a891-b23326ff814a/sharp-money-toolbar-final-20260921.png` (1864 × 1272 pixels) at an 1864 × 1272 CSS viewport and device pixel ratio 1.
+- Filter state: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-007e-7510-a891-b23326ff814a/sharp-money-filter-final-20260921.png` (1864 × 1272 pixels) at the same viewport and density.
+- Focused comparison evidence: `C:/Users/sport/.codex/visualizations/2026/08/16/01a00b17-007e-7510-a891-b23326ff814a/sharp-money-toolbar-comparison-20260921.png` (832 × 114 pixels). The attached old labeled Filter control is shown beside the final icon-only action rail; no density normalization was required beyond a 2× nearest-size presentation of the 84 × 57 source crop.
+- State: local sample-data preview, Live selected with four visible plays, no popovers open for the main capture, and the Sportsbooks category open for the filter capture.
+
+## Review
+
+- Fonts and typography: toolbar labels, 14px Live/Hidden controls, menu text, and dialog hierarchy reuse the established IconLabs and Positive EV type treatments. The visible Filter word from the attached old control is removed; the icon retains an accessible name and tooltip.
+- Spacing and layout rhythm: the desktop action rail reads left to right as search, bankroll/unit, filter, More, profile, producing the requested right-to-left order of profile, More, filter, bankroll/unit, search. Filter, More, and profile measure 47 × 47px; search and finance controls align on the same row. Browser geometry reports zero horizontal overflow.
+- Colors and visual tokens: search and action controls use the same dark card interior and muted silver-gradient border family as Positive EV. The filter dialog uses the same backdrop, 980px desktop frame, left category navigation, scrollable content panel, and footer action structure.
+- Image quality and assets: existing Phosphor icons and sportsbook assets are retained at native aspect ratio. No placeholder, generated, custom SVG, emoji, or CSS-drawn icon replacement was introduced.
+- Copy and content: More contains the same Positive EV actions—Refresh opportunities, Automatic refresh, Visible bets, Hidden bets—and the ET note. The duplicate sport-filter strip, attached secondary Filter option, and Highest Liquidity sort are absent.
+- Interaction and accessibility: profile opens the existing account panel. More opens and closes, Automatic refresh pauses/resumes, and Hidden bets switches to the one-play hidden view before Live restores the four-play feed. Filter opens as a modal dialog, category switching works, and all 88 provider checkboxes render. Browser warning/error logs are empty.
+
+## Comparison history and findings
+
+- Initial P2: the toolbar still exposed a labeled Filter control and separate sport/sort toolbar, so the action rail did not match Positive EV. Fix: consolidated the controls into the icon-only top-right rail and removed the redundant sport/sort row.
+- Initial P2: Sharp Money's More and filter surfaces did not match Positive EV structure or behavior. Fix: copied the established menu actions and dialog shell while keeping Sharp Money-specific market, sportsbook, and threshold settings.
+- Post-fix evidence: the final toolbar geometry, full filter capture, hidden-view transition, account panel, and browser logs show no actionable P0, P1, or P2 issue.
+
+## Verification
+
+- JavaScript syntax validation passed.
+- 13 focused Sharp Money tests passed.
+- `git diff --check` passed with line-ending notices only.
+- This remains a local-only preview; it has not been committed, pushed, or deployed.
+
+final result: passed
+
+---
+
 # Middles Arbitrage Action Parity — Design QA
 
 ## September 6 local candidate
@@ -2446,6 +2517,27 @@ final result: passed
 
 - No actionable P0, P1, or P2 differences remain for the requested preview changes.
 
+---
+
+# Sharp Money Stacked-Side Local Preview — Design QA
+
+## September 16 local candidate
+
+- Source design: `C:/Users/sport/.codex/generated_images/01a00b17-007e-7510-a891-b23326ff814a/exec-94d35226-4d85-4b51-b53c-240559ebeb4a.png` (selected stacked-side mock).
+- Rendered implementation: in-app browser capture of `http://127.0.0.1:8767/sharp-money` at 1488 × 1058; the browser capture was inspected directly and was not saved as a separate file.
+- Additional responsive captures: 980 × 900 and 390 × 844 in the same local browser.
+- Layout and copy: each play now places the recommended sportsbook side and price on the upper line and names the opposite exchange side, prices, and liquidity on the lower line. The expanded first row compares both sides without presenting exchange liquidity as the recommended bet.
+- Fidelity: the compact ledger, dark surfaces, purple recommended side, green liquidity, team/provider logos, toolbar, and inline two-column expansion match the approved direction. The existing IconLabs shell remains intact. “Preview only” intentionally replaces the mock's betting link because all plays are fictional.
+- Typography and spacing: headings and market labels remain distinct at desktop size; a first-row exchange label collision at 1488 pixels was fixed by shortening the label. No horizontal overflow at 1488, 980, or 390 pixels.
+- Interactions: sport tabs, liquidity sorting, search and empty state, filter drawer, expand/collapse, and two-sided odds swap were exercised in the browser. All sample links and feed controls remain inert/read-only.
+- Accessibility: the expand buttons have explicit labels, the sample status remains visible, keyboard expansion is supported, and focus styles remain present. Real team/provider image assets are used; no placeholder art was added.
+- Automated verification: JavaScript syntax, 28 focused Sharp Money tests, and `git diff --check` passed. Browser console had no warnings or errors.
+- Release boundary: local preview only; not committed, pushed, or deployed.
+
+## Findings
+
+- No actionable P0, P1, or P2 differences remain for this local concept.
+
 final result: passed
 
 ---
@@ -2562,6 +2654,26 @@ final result: passed
 - No actionable P0, P1, or P2 differences remain for the requested action-spacing update.
 - Automated verification passed: 36 focused Positive EV design tests, all 1,258 repository tests, JavaScript syntax validation, and `git diff --check` (line-ending notices only).
 - This remains a local-only preview. No commit, push, or deployment was performed.
+
+---
+
+# Sharp Money Matchup Stacking Follow-Up — Design QA
+
+## September 17 local candidate
+
+- Source visual truth: `C:/Users/sport/.codex/generated_images/01a00b17-007e-7510-a891-b23326ff814a/exec-94d35226-4d85-4b51-b53c-240559ebeb4a.png`, 1488 × 1058 pixels.
+- Implementation capture: in-app browser tab 3 at `http://127.0.0.1:8767/sharp-money`, captured as a 1488 × 1058 JPEG in the browser tool. The capture is not persisted as a local file. CSS viewport 1488 × 1058, device density 1:1.
+- State: dark theme, five simulated plays, first play expanded. The source and implementation captures were opened in one comparison view.
+- Full-view comparison: team logos and names now form two vertically stacked rows with a centered “vs”, matching the mock's matchup order. The ledger, top recommendation, lower opposite-side exchange liquidity, and expanded comparison retain their previous positions.
+- Focused matchup check: the first two team-name top positions are 39 pixels apart; both real team-logo assets load. At 390-pixel mobile width, both names remain vertically stacked with no horizontal overflow.
+- Typography: both team names are rendered at 12px; “vs” and the league/market line are 10px. No other card or expanded-detail font sizes changed. The reference uses a somewhat larger matchup treatment, but this follow-up intentionally changes stacking only.
+- Spacing, colors, assets, and copy: grid alignment, purple/green hierarchy, real team/provider logos, and fictional-data labeling remain unchanged and legible. No added illustration, synthetic logo, or placeholder asset.
+- Interaction and runtime: first play remains expanded and other cards remain selectable; browser console has no warnings or errors. JavaScript syntax, 28 focused tests, and `git diff --check` pass.
+- Release boundary: this remains an isolated local preview, not published.
+
+## Findings
+
+- No actionable P0, P1, or P2 issue remains within the requested matchup-stacking scope.
 
 final result: passed
 # Positive EV Wide Empty-State Balance — Design QA (2026-09-27)

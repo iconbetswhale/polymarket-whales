@@ -6262,6 +6262,7 @@ def create_app(start_background: bool = True) -> Flask:
     @app.post("/api/arbitrage/personal-bets")
     @app.post("/api/middles/personal-bets")
     @app.post("/api/positive-ev/personal-bets")
+    @app.post("/api/sharp-money/personal-bets")
     def api_positive_ev_personal_bet():
         payload = request.get_json(silent=True) or {}
         tracking_source = (
@@ -6269,11 +6270,14 @@ def create_app(start_background: bool = True) -> Flask:
             if request.path.startswith("/api/arbitrage/")
             else "middles"
             if request.path.startswith("/api/middles/")
+            else "sharp_money"
+            if request.path.startswith("/api/sharp-money/")
             else "positive_ev"
         )
         tracking_label = {
             "arbitrage": "Arbitrage",
             "middles": "Middle",
+            "sharp_money": "Sharp Money",
             "positive_ev": "Positive EV",
         }[tracking_source]
         event_title = " ".join(str(payload.get("event_title") or "").split())

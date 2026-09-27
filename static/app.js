@@ -920,7 +920,6 @@ function renderAccountState(account = {}) {
   const copy = document.getElementById("account-copy");
   const profileEmail = document.getElementById("profile-email");
   const subscriptionEmail = document.getElementById("profile-subscription-email");
-  const avatar = document.getElementById("account-menu-toggle");
   if (status) status.textContent = appState.account.authenticated ? (appState.account.username || "Synced") : "Account";
   if (form) form.hidden = appState.account.authenticated;
   if (authenticated) authenticated.hidden = !appState.account.authenticated;
@@ -945,8 +944,24 @@ function renderAccountState(account = {}) {
   if (copy) copy.hidden = appState.account.authenticated;
   if (profileEmail) profileEmail.value = appState.account.email || "";
   if (subscriptionEmail) subscriptionEmail.textContent = appState.account.email || "";
-  if (avatar) avatar.textContent = (appState.account.username || appState.account.email || "R").charAt(0).toUpperCase();
   loadProfilePreferences();
+}
+
+function accountProfileInitial(profile = {}) {
+  const fallbackIdentity = appState.account.username || appState.account.email || "R";
+  const identity = appState.account.authenticated
+    ? (profile.firstName || fallbackIdentity)
+    : "R";
+  return String(identity).trim().charAt(0).toUpperCase() || "R";
+}
+
+function syncAccountProfileInitials(profile = {}) {
+  const initial = accountProfileInitial(profile);
+  const cornerAvatar = document.getElementById("account-menu-toggle");
+  if (cornerAvatar) cornerAvatar.textContent = initial;
+  document.querySelectorAll(".sharp-profile-initial").forEach((avatar) => {
+    avatar.textContent = initial;
+  });
 }
 
 function loadProfilePreferences() {
@@ -963,6 +978,7 @@ function loadProfilePreferences() {
     const input = document.getElementById(id);
     if (input) input.value = value;
   });
+  syncAccountProfileInitials(profile);
 }
 
 function selectProfileTab(tab = "overview") {
@@ -1128,6 +1144,7 @@ function bindAccount() {
       oddsFormat: document.getElementById("profile-odds-format")?.value || "American",
     };
     safeStorage.setItem("iconlabs-profile-preferences", JSON.stringify(profile));
+    syncAccountProfileInitials(profile);
     window.IconLabsOdds.setFormat(profile.oddsFormat);
     showToast("Profile preferences saved.", "success");
   });
@@ -7995,6 +8012,50 @@ const TRACKER_PREVIEW_ROWS = [
   },
 ];
 
+// Fictional Sharp Money plays saved in this browser's isolated local preview.
+// Never include these in a live tracker response or send them to the backend.
+function localSharpMoneyPreviewRows() {
+  if (!TRACKER_LOCAL_PREVIEW) return [];
+  let bets;
+  try {
+    bets = JSON.parse(safeStorage.getItem("iconlabs-sharp-money-preview-tracked-v1") || "[]");
+  } catch (_) {
+    return [];
+  }
+  if (!Array.isArray(bets)) return [];
+  return bets.filter((bet) => bet && typeof bet.id === "string" && typeof bet.event === "string"
+    && typeof bet.selection === "string" && Number.isFinite(Number(bet.americanOdds))
+    && Number.isFinite(Number(bet.amount)))
+    .map((bet) => {
+      const price = Number(bet.americanOdds);
+      const probability = price > 0 ? 100 / (price + 100) : -price / (-price + 100);
+      return {
+        status: "scheduled", result: null, profit_loss: null,
+        recommended_amount: Number(bet.amount),
+        tags: [...new Set(["Sharp Money", "Local sample", ...(Array.isArray(bet.tags) ? bet.tags.filter(tag => typeof tag === "string") : [])])],
+        tracked_at: bet.trackedAt || new Date().toISOString(), settled_at: null,
+        snapshot: {
+          sportsbook: bet.sportsbook || "Sportsbook",
+          category: bet.league || "Sports",
+          event_title: bet.event,
+          market_title: bet.market || "Market",
+          sports_market_type: bet.market || bet.marketKind || "Market",
+          recommended_side: bet.selection,
+          provider_entry_price: probability,
+          provider_display_odds: `${price > 0 ? "+" : ""}${price}`,
+          effective_entry_price: probability,
+          market_url: "",
+        },
+        sharp_snapshot: { tracking_source: "sharp_money", sharp_source_status: "local_sample" },
+        clv: { clv_status: "pending", clv_unavailable_reason: "Fictional local preview play" },
+      };
+    });
+}
+
+function trackerPreviewRows() {
+  return [...localSharpMoneyPreviewRows(), ...TRACKER_PREVIEW_ROWS];
+}
+
 const TRACKER_PREVIEW_BOOK_SUMMARIES = [
   { sportsbook: "NoVIG", realized_profit_loss: 57.12, wins: 1, losses: 1, total_tracked_bets: 2 },
   { sportsbook: "ProphetX", realized_profit_loss: -37.32, wins: 1, losses: 1, total_tracked_bets: 2 },
@@ -8017,7 +8078,7 @@ function trackerPreviewBookSummaries() {
 }
 
 function trackerPreviewAnchor() {
-  const latest = TRACKER_PREVIEW_ROWS
+  const latest = trackerPreviewRows()
     .map((row) => trackerCalendarRowDate(row))
     .filter(Boolean)
     .sort((left, right) => right.getTime() - left.getTime())[0];
@@ -8053,13 +8114,14 @@ function trackerPreviewFilteredGraph(rows) {
 }
 
 function trackerPreviewPayload(params) {
+  const previewRows = trackerPreviewRows();
   const search = String(params.get("q") || "").trim().toLowerCase();
   const status = String(params.get("status") || "").toLowerCase();
   const result = String(params.get("result") || "").toLowerCase();
   const sharp = String(params.get("sharp") || "").toLowerCase();
   const tag = String(params.get("tag") || "").toLowerCase();
   const selectedBooks = new Set(String(params.get("sportsbook") || "").split(",").map((item) => item.trim().toLowerCase()).filter(Boolean));
-  const rows = TRACKER_PREVIEW_ROWS.filter((row) => {
+  const rows = previewRows.filter((row) => {
     const snapshot = row.snapshot || {};
     const sharpName = row.sharp_snapshot?.primary_sharp?.display_name || "";
     const haystack = [snapshot.event_title, snapshot.market_title, snapshot.recommended_side, snapshot.sportsbook, sharpName].join(" ").toLowerCase();
@@ -8132,7 +8194,7 @@ function trackerPreviewPayload(params) {
     filter_options: {
       sportsbooks: previewBookSummaries.map((summary) => summary.sportsbook),
       sharps: ["Bagwell306", "BaselineAlpha", "CourtsideCap", "DesertTotals", "NorthSideEdge"],
-      tags: [...new Set(TRACKER_PREVIEW_ROWS.flatMap((row) => row.tags || []))].sort((left, right) => left.localeCompare(right)),
+      tags: [...new Set(previewRows.flatMap((row) => row.tags || []))].sort((left, right) => left.localeCompare(right)),
     },
     sportsbook_summaries: sportsbookSummaries,
     clv: { periods: { all: clvPeriod, today: clvPeriod, "7d": clvPeriod, month: clvPeriod, "3m": clvPeriod, "6m": clvPeriod, year: clvPeriod } },

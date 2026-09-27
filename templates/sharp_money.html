@@ -12,22 +12,37 @@
       <div class="sharp-title-row">
         <h1>Sharp Money</h1>
         <button class="sharp-learn-button" type="button"><i class="ph ph-graduation-cap"></i> Learn</button>
+        <div class="sharp-ledger-view-tabs sharp-preview-view-tabs" id="sharp-preview-view-tabs" role="tablist" aria-label="Sharp Money play visibility" hidden></div>
         <span class="sandbox-badge sharp-mode-badge" id="sharp-mode-badge"><i class="ph ph-pause"></i> Paused</span>
       </div>
     </div>
     <div class="sharp-header-actions">
-      <label class="sharp-search search-control"><i class="ph ph-magnifying-glass"></i><input id="sharp-search" type="search" placeholder="Search markets"></label>
-      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-alerts" type="button" aria-label="Alerts"><i class="ph ph-bell"></i></button>
-      <button class="sharp-icon-button icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Open Sharp Money filters"><i class="ph ph-sliders-horizontal"></i><span class="sharp-alert-dot"></span><span class="sharp-filter-count" id="sharp-filter-count">0</span></button>
-      <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-refresh" type="button" aria-label="Refresh"><i class="ph ph-arrows-clockwise"></i></button>
+      <label class="sharp-search search-control"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="sharp-search" type="search" placeholder="Search markets or teams..." aria-label="Search Sharp Money opportunities"></label>
+      <div class="sharp-finance-actions" aria-label="Sharp Money bankroll settings">
+        <div class="sharp-bankroll-popover-shell">
+          <button class="sharp-bankroll-button" id="sharp-bankroll-popover-button" type="button" aria-expanded="false" aria-controls="sharp-bankroll-popover"><small>Bankroll</small><strong id="sharp-bankroll-toolbar-value">$10,000</strong></button>
+          <section class="sharp-bankroll-popover" id="sharp-bankroll-popover" aria-label="Sharp Money bankroll settings" hidden>
+            <div class="sharp-popover-heading"><span>Sharp Money Bankroll</span><small>Controls the displayed unit size</small></div>
+            <label class="sharp-money-input"><span>$</span><input id="sharp-bankroll-input" type="number" min="0.01" step="0.01" inputmode="decimal" aria-label="Sharp Money sizing bankroll" value="10000.00"></label>
+            <div class="sharp-unit-readout"><span>1 Unit</span><strong id="sharp-unit-value">$100</strong><small>1% of saved bankroll</small></div>
+            <span class="sharp-bankroll-save-state" id="sharp-bankroll-save-state" aria-live="polite">Saved in this browser</span>
+            <button class="button compact primary" id="sharp-save-bankroll" type="button">Save Bankroll</button>
+          </section>
+        </div>
+        <span class="sharp-toolbar-unit-size"><small>Unit size</small><strong id="sharp-unit-toolbar-value">$100</strong></span>
+      </div>
+      <button class="sharp-icon-button icon-button sharp-filter-button" id="sharp-filter-open" type="button" aria-label="Customize feed" aria-haspopup="dialog" aria-controls="sharp-filter-dialog" data-il-tooltip="Customize feed"><i class="ph ph-sliders-horizontal" aria-hidden="true"></i><span class="sharp-control-label">Filters</span><span class="sharp-filter-count" id="sharp-filter-count" aria-label="0 customized filter groups">0</span></button>
       <div class="sharp-more-shell">
-        <button class="sharp-icon-button icon-button sharp-reference-action" id="sharp-more" type="button" aria-label="More options" aria-expanded="false"><i class="ph ph-dots-three-vertical"></i></button>
-        <div class="sharp-more-menu" id="sharp-more-menu" hidden>
-          <button id="sharp-feed-toggle" type="button" aria-pressed="false"><i class="ph ph-play"></i><span>Play feed</span></button>
-          <button id="sharp-sort" type="button" aria-pressed="false"><i class="ph ph-sort-descending"></i><span>Sort liquidity</span></button>
-          <button id="sharp-detail-toggle" type="button" aria-pressed="true"><i class="ph ph-sidebar-simple"></i><span>Toggle details</span></button>
+        <button class="sharp-icon-button icon-button" id="sharp-more" type="button" aria-label="More Sharp Money actions" aria-expanded="false" aria-haspopup="menu" aria-controls="sharp-more-menu" data-il-tooltip="More actions"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i><span class="sharp-control-label">More</span></button>
+        <div class="sharp-more-menu" id="sharp-more-menu" role="menu" aria-label="More Sharp Money actions" hidden>
+          <button class="sharp-menu-action" id="sharp-menu-refresh" type="button" role="menuitem"><i class="ph ph-arrows-clockwise" aria-hidden="true"></i><span>Refresh opportunities</span><small>Now</small></button>
+          <button class="sharp-menu-action" id="sharp-menu-pause" type="button" role="menuitem" aria-pressed="false"><i class="ph ph-pause" aria-hidden="true"></i><span>Automatic refresh</span><small>Active</small></button>
+          <button class="sharp-menu-action" type="button" role="menuitem" data-preview-list-view="live" aria-current="true"><i class="ph ph-eye" aria-hidden="true"></i><span>Visible bets</span><small id="sharp-menu-visible-count">0</small></button>
+          <button class="sharp-menu-action" type="button" role="menuitem" data-preview-list-view="hidden" aria-current="false"><i class="ph ph-eye-slash" aria-hidden="true"></i><span>Hidden bets</span><small id="sharp-menu-hidden-count">0</small></button>
+          <small class="sharp-menu-note">All event times shown in ET</small>
         </div>
       </div>
+      <button class="sharp-icon-button icon-button sharp-profile-button" type="button" aria-label="Open profile and subscription" data-account-open data-il-tooltip="Profile"><span class="sharp-profile-initial" aria-hidden="true">R</span><span class="sharp-control-label">Profile</span></button>
     </div>
   </header>
 
@@ -51,22 +66,41 @@
   </section>
 </section>
 
-<div class="sharp-filter-backdrop" id="sharp-filter-backdrop" hidden></div>
-<aside class="sharp-filter-drawer" id="sharp-filter-drawer" aria-labelledby="sharp-filter-title" hidden>
-  <header><div><span>Customize</span><h2 id="sharp-filter-title">Sharp Money filters</h2></div><button id="sharp-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x"></i></button></header>
-  <div class="sharp-filter-body">
-    <section><label>Sport<select id="sharp-sport-filter"><option value="">All sports</option><option value="MLB">MLB</option><option value="WNBA">WNBA</option><option value="Tennis">Tennis</option></select></label></section>
-    <section><label>Minimum crossed price edge <span id="sharp-liquidity-value">0%</span><input id="sharp-liquidity-filter" type="range" min="0" max="3" step="0.5" value="0"></label></section>
-    <section><label>Flow state<select id="sharp-flow-filter"><option value="">All markets</option><option value="detected">Flow detected</option><option value="monitoring">Monitoring</option></select></label></section>
-    <section><label>Market type<select id="sharp-market-filter"><option value="">All markets</option><option value="moneyline">Moneyline</option><option value="spread">Spread</option><option value="game_total">Totals</option><option value="alternate">Alternate lines</option><option value="player_prop">Player props</option><option value="team_total">Team totals</option><option value="special">Specials</option></select></label></section>
-    <section class="sharp-sportsbook-filter">
-      <div class="sharp-sportsbook-filter-heading"><div><strong>Sportsbooks</strong><span id="sharp-sportsbook-count">88/88 selected</span></div><div><button id="sharp-sportsbooks-all" type="button">Select all</button><button id="sharp-sportsbooks-none" type="button">Clear</button></div></div>
-      <label class="sharp-sportsbook-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="sharp-sportsbook-search" type="search" placeholder="Search all OddsEngine books"></label>
-      <div class="sharp-sportsbook-list" id="sharp-sportsbook-list"></div>
-    </section>
-    <section class="sharp-filter-explainer"><i class="ph ph-info"></i><div><strong>Crossed-market price edge</strong><p>Choose the minimum percentage gap between the sportsbook bet and the equal-and-opposite NoVIG or ProphetX liquidity. The slider moves in 0.5% steps from 0% to 3%.</p></div></section>
-  </div>
-  <footer><button id="sharp-filter-reset" type="button">Reset</button><button id="sharp-filter-apply" type="button">Show results</button></footer>
-</aside>
+<dialog class="sharp-filter-dialog" id="sharp-filter-dialog" aria-labelledby="sharp-filter-title">
+  <form method="dialog" class="sharp-filter-shell">
+    <header><div><span>CUSTOMIZE</span><h2 id="sharp-filter-title">Sharp Money Filter</h2></div><button class="sharp-dialog-close" id="sharp-filter-close" type="button" aria-label="Close filters"><i class="ph ph-x" aria-hidden="true"></i></button></header>
+    <div class="sharp-filter-layout">
+      <nav class="sharp-filter-nav" aria-label="Filter categories">
+        <button class="active" type="button" data-sharp-filter-panel="markets"><i class="ph ph-list-checks" aria-hidden="true"></i><span>Market</span><small>Sport &amp; type</small></button>
+        <button type="button" data-sharp-filter-panel="sportsbooks"><i class="ph ph-storefront" aria-hidden="true"></i><span>Sportsbooks</span><small>Execution</small></button>
+        <button type="button" data-sharp-filter-panel="thresholds"><i class="ph ph-sliders" aria-hidden="true"></i><span>Thresholds</span><small>Edge &amp; flow</small></button>
+      </nav>
+      <div class="sharp-filter-panels">
+        <section class="sharp-filter-panel active" data-sharp-filter-content="markets">
+          <h3>Markets</h3><p>Choose the sports and market types shown in the Sharp Money feed.</p>
+          <div class="sharp-filter-fields">
+            <label>Sport<select id="sharp-sport-filter"><option value="">All sports</option><option value="MLB">MLB</option><option value="WNBA">WNBA</option><option value="Tennis">Tennis</option></select></label>
+            <label>Market type<select id="sharp-market-filter"><option value="">All markets</option><option value="moneyline">Moneyline</option><option value="spread">Spread</option><option value="game_total">Totals</option><option value="alternate">Alternate lines</option><option value="player_prop">Player props</option><option value="team_total">Team totals</option><option value="special">Specials</option></select></label>
+          </div>
+        </section>
+        <section class="sharp-filter-panel" data-sharp-filter-content="sportsbooks">
+          <div class="sharp-sportsbook-filter-heading"><div><h3>Execution sportsbooks</h3><span id="sharp-sportsbook-count">88/88 selected</span></div><div><button id="sharp-sportsbooks-all" type="button">Select all</button><button id="sharp-sportsbooks-none" type="button">Clear</button></div></div>
+          <p>Choose which softer sportsbooks may qualify as the recommended execution price.</p>
+          <label class="sharp-sportsbook-search"><i class="ph ph-magnifying-glass" aria-hidden="true"></i><input id="sharp-sportsbook-search" type="search" placeholder="Search all OddsEngine books"></label>
+          <div class="sharp-sportsbook-list" id="sharp-sportsbook-list"></div>
+        </section>
+        <section class="sharp-filter-panel" data-sharp-filter-content="thresholds">
+          <h3>Opportunity thresholds</h3><p>Control the minimum crossed-market edge and the flow state shown in the feed.</p>
+          <div class="sharp-filter-fields">
+            <label>Minimum crossed price edge <span id="sharp-liquidity-value">0%</span><input id="sharp-liquidity-filter" type="range" min="0" max="3" step="0.5" value="0"></label>
+            <label>Flow state<select id="sharp-flow-filter"><option value="">All markets</option><option value="detected">Flow detected</option><option value="monitoring">Monitoring</option></select></label>
+          </div>
+          <div class="sharp-filter-explainer"><i class="ph ph-info" aria-hidden="true"></i><div><strong>Crossed-market price edge</strong><p>Choose the minimum percentage gap between the sportsbook bet and the equal-and-opposite NoVIG or ProphetX liquidity. The slider moves in 0.5% steps from 0% to 3%.</p></div></div>
+        </section>
+      </div>
+    </div>
+    <footer><button class="sharp-secondary" id="sharp-filter-reset" type="button">Reset defaults</button><button class="sharp-primary" id="sharp-filter-apply" type="button">Show opportunities</button></footer>
+  </form>
+</dialog>
 <script id="sharp-book-catalog" type="application/json">{{ sharp_money_book_catalog | tojson }}</script>
 {% endblock %}

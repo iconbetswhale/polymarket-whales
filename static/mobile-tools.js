@@ -111,6 +111,7 @@
     }
 
     document.addEventListener("click", (event) => {
+      if (config.name === "sharp-money" && !mobileViewport.matches) return;
       const target = event.target;
       if (!(target instanceof Element) || detail.contains(target)) return;
       const card = target.closest(config.card);
