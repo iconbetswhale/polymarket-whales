@@ -207,19 +207,33 @@ def test_mobile_ev_market_prices_are_optically_centered():
     assert "text-align: center" in styles
 
 
-def test_prediction_traders_mobile_is_scan_first_with_labeled_samples():
+def test_prediction_traders_uses_positive_ev_style_empty_state_without_fake_samples():
     template = (ROOT / "templates" / "trades.html").read_text(encoding="utf-8")
+    empty_template = (ROOT / "templates" / "_prediction_traders_empty.html").read_text(encoding="utf-8")
     styles = (ROOT / "static" / "mobile-tools.css").read_text(encoding="utf-8")
     script = (ROOT / "static" / "app.js").read_text(encoding="utf-8")
+    trade_styles = (ROOT / "static" / "stage2-trades.css").read_text(encoding="utf-8")
+    empty_asset = ROOT / "static" / "assets" / "prediction-traders-empty-state-v3.png"
 
-    assert 'id="mobile-trade-samples"' in template
-    assert template.count('class="mobile-sample-trade"') == 3
-    assert "Fictional prices · not live recommendations" in template
-    assert "These three examples never enter the live model or betting actions." in template
+    assert 'id="mobile-trade-samples"' not in template
+    assert 'class="mobile-sample-trade"' not in template
+    assert "Three sample trades" not in template
+    assert "{% include '_prediction_traders_empty.html' %}" in template
+    assert "Sharp signals are still forming" in empty_template
+    assert "Wallets tracked" in empty_template
+    assert "Confidence tested" in empty_template
+    assert "Pricing validated" in empty_template
+    assert "prediction-traders-empty-state-v3.png" in empty_template
+    assert "Auto refresh on" not in empty_template
+    assert empty_asset.exists()
+    assert empty_asset.stat().st_size > 100_000
+    assert 'id="trade-result-count"' not in template
+    assert 'class="trades-live-state"' not in template
+    assert 'class="model-status-pill"' not in template
+    assert ".prediction-traders-empty" in trade_styles
+    assert ".prediction-traders-lab-empty" in trade_styles
+    assert "border: 1px dashed var(--il-border-standard)" in trade_styles
+    assert "min-height: 240px" in trade_styles
     assert ".trades-command-bar" in styles
     assert ".trade-summary-strip" in styles
-    assert '@media (min-width: 761px)' in styles
-    assert 'TRADES_SAMPLES_REQUESTED = page === "trades"' in script
-    assert 'document.body.classList.add("trade-samples-preview");' in script
-    assert "samples.parentElement.prepend(samples);" in script
-    assert "mobileTradeSamples.hidden = appState.trades.length > 0 && !TRADES_SAMPLES_REQUESTED" in script
+    assert 'TRADES_SAMPLES_REQUESTED = page === "trades"' not in script

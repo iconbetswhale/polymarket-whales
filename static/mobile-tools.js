@@ -477,18 +477,6 @@
     syncOptions();
   }
 
-  function setupSampleTradeDisclosures() {
-    const samples = document.getElementById("mobile-trade-samples");
-    if (!samples) return;
-    samples.addEventListener("toggle", (event) => {
-      const details = event.target;
-      if (!(details instanceof HTMLDetailsElement) || !details.open) return;
-      samples.querySelectorAll("details[open]").forEach((other) => {
-        if (other !== details) other.open = false;
-      });
-    }, true);
-  }
-
   function setupNavigationState() {
     const links = document.getElementById("primary-links");
     if (!links) return;
@@ -503,8 +491,6 @@
     setupDfsFilters();
     setupDfsCards();
     setupDfsAppPicker();
-    setupSampleTradeDisclosures();
-
     [
       { name: "trades", feed: "#trade-list", detail: "#trade-detail", card: ".trade-card", selectedCard: ".trade-card.selected", idAttribute: "data-trade-id", trigger: ".trade-event-action", showCaret: false, close: "[data-mobile-detail-close]", overlay: "#mobile-trade-detail-backdrop", bodyClasses: ["mobile-trade-detail-open"] },
       { name: "positive-ev", feed: "#ev-feed", detail: "#ev-detail", card: ".ev-opportunity", selectedCard: ".ev-opportunity.active", idAttribute: "data-id", trigger: "[data-open]", close: ".ev-detail-close", overlay: "#ev-mobile-scrim" },

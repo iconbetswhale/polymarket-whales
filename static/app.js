@@ -353,9 +353,6 @@ const TRACKER_BOOK_CATALOG = (() => {
 const TRADES_PREVIEW_DATA = page === "trades"
   ? window.ICONLABS_TRADES_PREVIEW_DATA || null
   : null;
-// These are read-only HTML examples, never members of the live trade feed.
-const TRADES_SAMPLES_REQUESTED = page === "trades"
-  && new URLSearchParams(window.location.search).get("samples") === "1";
 
 function tradesPreviewNotice(message = "Preview mode is read-only.") {
   showToast(message, "info");
@@ -1411,7 +1408,6 @@ function updateTradeUrl(filters) {
     }
   });
   if (appState.selectedTradeId) params.set("selected", appState.selectedTradeId);
-  if (TRADES_SAMPLES_REQUESTED) params.set("samples", "1");
   if (appState.tradeVisibility === "hidden") params.set("view", "hidden");
   const query = params.toString();
   window.history.replaceState({}, "", query ? `/trades?${query}` : "/trades");
@@ -3295,8 +3291,6 @@ function renderTradesPayload(payload, filters, list) {
   const hiddenCount = Number(payload.hiddenCount || filteredTrades.filter((trade) => trade.isHidden).length || 0);
   document.getElementById("trade-live-count").textContent = String(liveCount);
   document.getElementById("trade-hidden-count").textContent = String(hiddenCount);
-  const resultCount = document.getElementById("trade-result-count");
-  if (resultCount) resultCount.textContent = `${appState.trades.length} Pick${appState.trades.length === 1 ? "" : "s"}`;
   document.getElementById("trade-freshness").textContent = TRADES_PREVIEW_DATA
     ? "Visual preview · no live wagers"
     : payload.fastMode
@@ -3316,16 +3310,25 @@ function renderTradesPayload(payload, filters, list) {
   document.getElementById("trade-wallet").value = currentWallet;
   syncTradeRichFilters();
   const lowInventory = document.getElementById("low-inventory-state");
-  const mobileTradeSamples = document.getElementById("mobile-trade-samples");
+  const predictionLabEmpty = document.querySelector("[data-prediction-traders-empty]");
   const tradeWorkspace = document.querySelector(".trade-workspace");
   tradeWorkspace?.classList.toggle("empty-trades", appState.trades.length === 0);
-  if (lowInventory) lowInventory.hidden = appState.trades.length > 5;
-  if (mobileTradeSamples) mobileTradeSamples.hidden = appState.trades.length > 0 && !TRADES_SAMPLES_REQUESTED;
+  const filteredOut = sourceTrades.length > 0;
+  const showPredictionLab = appState.trades.length === 0
+    && appState.tradeVisibility === "live"
+    && !filteredOut;
+  list.hidden = showPredictionLab;
+  if (predictionLabEmpty) predictionLabEmpty.hidden = !showPredictionLab;
+  if (lowInventory) lowInventory.hidden = appState.trades.length === 0 || appState.trades.length > 5;
   if (!appState.trades.length) {
     appState.tradeRenderSignatures = {};
-    list.innerHTML = appState.tradeVisibility === "hidden"
-      ? emptyState("No hidden plays", "Plays you hide will stay here until you restore them.")
-      : emptyState("No available plays", "Live plays that match your filters will appear here.");
+    list.innerHTML = showPredictionLab
+      ? ""
+      : appState.tradeVisibility === "hidden"
+      ? `<div class="prediction-traders-empty il-state il-state-empty"><i class="ph ph-eye-slash" aria-hidden="true"></i><h2>No hidden plays</h2><p>Plays you hide will stay here until you restore them.</p></div>`
+      : filteredOut
+        ? `<div class="prediction-traders-empty il-state il-state-empty"><i class="ph ph-funnel" aria-hidden="true"></i><h2>No plays match these filters</h2><p>Adjust or clear the current filters to see other qualified sharp-trader opportunities.</p></div>`
+        : "";
     document.getElementById("trade-detail").replaceChildren();
     return;
   }
@@ -3398,8 +3401,9 @@ async function loadTrades({ initial = false } = {}) {
     if (requestSequence !== appState.tradeRequestSequence) return;
     if (cachedPayload) return;
     updateTradeSummary({}, [], []);
-    const mobileTradeSamples = document.getElementById("mobile-trade-samples");
-    if (mobileTradeSamples) mobileTradeSamples.hidden = false;
+    const predictionLabEmpty = document.querySelector("[data-prediction-traders-empty]");
+    if (predictionLabEmpty) predictionLabEmpty.hidden = true;
+    list.hidden = false;
     list.innerHTML = errorState(error.message);
     const tradeDetail = document.getElementById("trade-detail");
     if (tradeDetail) {
@@ -3636,9 +3640,6 @@ function selectWorkspaceTab(tab, { syncUrl = true } = {}) {
     button.classList.toggle("active", active);
     button.setAttribute("aria-selected", String(active));
   });
-  const resultCount = document.getElementById("trade-result-count");
-  if (resultCount) resultCount.hidden = appState.workspaceTab !== "trades";
-  document.querySelector(".model-status-pill").hidden = appState.workspaceTab !== "trades";
   document.getElementById("trade-search").placeholder = appState.workspaceTab === "trades" ? "Search" : "Search personal positions";
   if (appState.workspaceTab === "positions") loadPersonalPositions("open");
   if (appState.workspaceTab === "closed") loadPersonalPositions("closed");
@@ -3886,12 +3887,6 @@ function bindTrades() {
   bindIconLabsTooltipSystem();
   bindTradeRichFilters();
   setTradeVisibility(appState.tradeVisibility, { syncUrl: false, reload: false });
-  if (TRADES_SAMPLES_REQUESTED) {
-    document.body.classList.add("trade-samples-preview");
-    const samples = document.getElementById("mobile-trade-samples");
-    samples.hidden = false;
-    samples.parentElement.prepend(samples);
-  }
   const initial = tradeFiltersFromUrl();
   applyTradeFiltersToControls(initial);
   const reload = debounce(() => loadTrades(), 280);
