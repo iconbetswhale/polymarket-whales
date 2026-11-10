@@ -11,7 +11,10 @@ including posts authored by bots or webhooks. Other channel chatter is skipped.
 Preserves text, blank lines, normal emojis and up to four JPEG/PNG/WebP attachments.
 Removes HTTP/HTTPS URLs, bare domains, Discord mentions, Markdown emphasis and
 orphaned “tail here” instructions. Custom PrizePicks emojis become 🟣; Sleeper
-emojis become 🪩; unsupported custom emojis are removed. Adds `@OddsJam` once.
+emojis become 💤, Dabble uses 🟣, Underdog uses 🐶, and Chalkboard uses ⚪.
+Standard platform `FREE PLAY` headings always receive the chosen emoji on both
+sides, even without custom Discord emojis. Unsupported custom emojis are removed.
+Every nonempty text line is separated by exactly one blank line. Adds `@OddsJam` once.
 
 An independent final URL check rejects any URL left in the text. Posts over the
 conservative weighted 280-character limit, unsupported attachments, and images

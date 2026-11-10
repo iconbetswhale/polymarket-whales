@@ -22,6 +22,7 @@ GUILD_ID = "1255342800258596898"
 CHANNEL_ID = "1464472206334496829"
 EXPECTED_USER = "TheBakerr_"
 TAG = "@OddsJam"
+PLATFORM_EMOJI = {"prizepicks": "🟣", "sleeper": "💤", "dabble": "🟣", "underdog": "🐶", "chalkboard": "⚪"}
 # Catch bare domains too: leaving a bare domain can still create a paid URL post.
 URL = re.compile(r"https?://[^\s<>]+|www\.[^\s<>]+|(?<![\w@])(?:[a-z0-9-]+\.)+[a-z]{2,63}(?::\d+)?(?:/[^\s<>]*)?", re.I)
 CUSTOM_EMOJI = re.compile(r"<a?:([^:>]+):\d+>")
@@ -41,8 +42,9 @@ def format_text(content: str) -> str:
         name = match[1].lower()
         if "prize" in name or name in {"pp", "prizepicks"}:
             return "🟣"
-        if "sleeper" in name:
-            return "🪩"
+        for platform, symbol in PLATFORM_EMOJI.items():
+            if platform in name:
+                return symbol
         return ""  # Unknown Discord-only emojis have no portable representation.
 
     text = CUSTOM_EMOJI.sub(emoji, content)
@@ -54,6 +56,10 @@ def format_text(content: str) -> str:
     for raw in text.splitlines():
         line = raw.strip().strip("<>").strip()
         line = re.sub(r"^#{1,3}\s+|^>\s?", "", line)
+        header = re.fullmatch(r"[^A-Za-z0-9]*((prizepicks|sleeper|dabble|underdog|chalkboard)\s+free\s+play)[^A-Za-z0-9]*", line, re.I)
+        if header:
+            symbol = PLATFORM_EMOJI[header[2].lower()]
+            line = f"{symbol} {header[1]} {symbol}"
         # These were directions to the removed link, not part of the play itself.
         if re.fullmatch(r"(?:tail(?:\s+the\s+play)?(?:\s+(?:it|here|below))*(?:\s+here)?|(?:click|tap|link)\s+(?:here|below)|get\s+your\s+entry\s+in|lock\s+in\s+your\s+picks|link|go\s+get\s+it\s+for\s+free)\s*[👇⬇⏬️:! .]*", line, re.I):
             continue
@@ -65,8 +71,7 @@ def format_text(content: str) -> str:
     text = "\n".join(lines).strip()
     # Add the approved tag exactly once, at the end.
     text = re.sub(r"(?<!\w)@OddsJam\b", "", text, flags=re.I)
-    text = re.sub(r"\n[ \t]+", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    text = "\n\n".join(line.strip() for line in text.splitlines() if line.strip())
     if not text:
         return ""
     text += "\n\n" + TAG

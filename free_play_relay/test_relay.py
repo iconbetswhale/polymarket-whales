@@ -14,7 +14,7 @@ def play(message_id="10", **overrides):
 
 
 def test_approved_example():
-    assert format_text(play()["content"]) == "SLEEPER FREE PLAY\n\nJames Cook discount slip ⚡\n\n🚀 3.6X PAYOUT 💰\n\nLet’s bring it home 🔒💸\n\n@OddsJam"
+    assert format_text(play()["content"]) == "💤 SLEEPER FREE PLAY 💤\n\nJames Cook discount slip ⚡\n\n🚀 3.6X PAYOUT 💰\n\nLet’s bring it home 🔒💸\n\n@OddsJam"
 
 
 @pytest.mark.parametrize("link", ["https://e.slpr.link/123", "http://example.com", "www.example.com/test", "prizepicks.onelink.me/gCQS/shareEntry?a=b", "[Click](https://example.com)", "<https://example.com>"])
@@ -29,7 +29,14 @@ def test_no_links_survive(link):
 
 def test_custom_emojis_and_tail_line():
     assert format_text("<:prizepicks:123> **PRIZEPICKS FREE PLAY** <:prizepicks:123>\n\nTail it here👇\nhttps://example.com") == "🟣 PRIZEPICKS FREE PLAY 🟣\n\n@OddsJam"
-    assert format_text("<:sleeper:123> SLEEPER FREE PLAY <:sleeper:123>") == "🪩 SLEEPER FREE PLAY 🪩\n\n@OddsJam"
+    assert format_text("<:sleeper:123> SLEEPER FREE PLAY <:sleeper:123>") == "💤 SLEEPER FREE PLAY 💤\n\n@OddsJam"
+
+
+@pytest.mark.parametrize("platform,symbol", [("SLEEPER", "💤"), ("PRIZEPICKS", "🟣"), ("DABBLE", "🟣"), ("UNDERDOG", "🐶"), ("CHALKBOARD", "⚪")])
+@pytest.mark.parametrize("decoration", ["", "<:custom:123>", "🪩"])
+def test_platform_headers_and_blank_line_spacing(platform, symbol, decoration):
+    content = f"{decoration} **{platform} FREE PLAY**{decoration}\nFirst line\nSecond line\n\n\nThird line\n@OddsJam"
+    assert format_text(content) == f"{symbol} {platform} FREE PLAY {symbol}\n\nFirst line\n\nSecond line\n\nThird line\n\n@OddsJam"
 
 
 def test_links_only_are_not_posted():
