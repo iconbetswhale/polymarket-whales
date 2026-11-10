@@ -20,6 +20,8 @@ LOG = logging.getLogger("free_play_relay")
 ROOT = Path(__file__).resolve().parent.parent
 GUILD_ID = "1255342800258596898"
 CHANNEL_ID = "1464472206334496829"
+WINS_CHANNEL_ID = "1473901847009034383"
+WINS_AUTHOR_ID = "1288282611034226709"
 EXPECTED_USER = "TheBakerr_"
 TAG = "@OddsJam"
 PLATFORM_EMOJI = {"prizepicks": "🟣", "sleeper": "💤", "dabble": "🟣", "underdog": "🐶", "chalkboard": "⚪"}
@@ -88,6 +90,36 @@ def validate_text(text: str) -> None:
         raise RelayError("Post exceeds the conservative 280-character limit; review manually")
 
 
+def format_win(message: dict) -> str:
+    content = message.get("content", "")
+    first_line = content.splitlines()[0] if content else ""
+    names = [match[1].lower() for match in CUSTOM_EMOJI.finditer(first_line)]
+    platforms = [name for name in PLATFORM_EMOJI if any(name in custom for custom in names) or re.search(rf"\b{name}\b", first_line, re.I)]
+    if len(platforms) != 1:
+        raise RelayError("Win platform is ambiguous; review manually")
+    payouts = re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)\s*[xX]\s+PAYOUT\b", content, re.I)
+    if len(payouts) != 1:
+        raise RelayError("Win requires exactly one listed payout; review manually")
+    if not message.get("attachments"):
+        raise RelayError("Win requires a cashed-slip attachment")
+    platform = platforms[0]
+    lead = "CASH ANOTHER" if re.search(r"CASH\s+ANOTHER", first_line, re.I) else "CASH THE"
+    lines = format_text(content).splitlines()
+    lines[0] = f"{lead} {platform.upper()} PLAY POSTED IN VIP{PLATFORM_EMOJI[platform]}📈"
+    for index, line in enumerate(lines):
+        if "BAKER25" in line and "25%" in line:
+            lines[index] = line.replace("🔗", "").rstrip(" 👇") + "👇"
+    text = "\n\n".join(line.strip() for line in lines if line.strip())
+    if re.findall(r"(?<![\w.])(\d+(?:\.\d+)?)\s*[xX]\s+PAYOUT\b", text, re.I) != payouts:
+        raise RelayError("Listed payout changed during formatting")
+    validate_text(text)
+    return text
+
+
+def format_message(message: dict) -> str:
+    return format_win(message) if message.get("channel_id") == WINS_CHANNEL_ID else format_text(message.get("content", ""))
+
+
 def image_attachments(message: dict) -> list[dict]:
     images = []
     for item in message.get("attachments", []):
@@ -103,8 +135,18 @@ def image_attachments(message: dict) -> list[dict]:
     return images
 
 
-def candidate(message: dict) -> bool:
+def candidate(message: dict, channel_id: str | None = None) -> bool:
     # Skip system events and chatter, but allow plays from people, bots or webhooks.
+    channel_id = channel_id or message.get("channel_id", CHANNEL_ID)
+    if channel_id == WINS_CHANNEL_ID:
+        content = message.get("content", "")
+        first_line = content.splitlines()[0] if content else ""
+        return (message.get("type", 0) in (0, 19)
+                and message.get("author", {}).get("id") == WINS_AUTHOR_ID
+                and bool(re.search(r"\bCASH\b.*\bPLAY\s+POSTED\s+IN\s+VIP\b", first_line, re.I))
+                and f"<#{CHANNEL_ID}>" not in content)
+    if channel_id != CHANNEL_ID:
+        return False
     return message.get("type", 0) in (0, 19) and bool(re.search(r"free\s*play", message.get("content", ""), re.I))
 
 
@@ -121,22 +163,22 @@ class Discord:
             raise RelayError(f"Discord HTTP {response.status_code}")
         return response.json()
 
-    def validate_channel(self):
-        channel = self.get(f"/channels/{CHANNEL_ID}")
+    def validate_channel(self, channel_id=CHANNEL_ID):
+        channel = self.get(f"/channels/{channel_id}")
         if channel.get("guild_id") != GUILD_ID:
             raise RelayError("Discord channel belongs to an unexpected server")
 
-    def newest(self):
-        return self.get(f"/channels/{CHANNEL_ID}/messages", limit=1)
+    def newest(self, channel_id=CHANNEL_ID):
+        return self.get(f"/channels/{channel_id}/messages", limit=1)
 
-    def since(self, cursor: str) -> list[dict]:
+    def since(self, cursor: str, channel_id=CHANNEL_ID) -> list[dict]:
         # Walk backwards from newest. This also catches >100 messages after downtime.
         messages, before = [], None
         while True:
             params = {"limit": 100}
             if before:
                 params["before"] = before
-            page = self.get(f"/channels/{CHANNEL_ID}/messages", **params)
+            page = self.get(f"/channels/{channel_id}/messages", **params)
             if not page:
                 break
             messages.extend(m for m in page if int(m["id"]) > int(cursor))
@@ -214,23 +256,29 @@ class Store:
                 id TEXT PRIMARY KEY, payload TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'pending',
                 post_id TEXT, error TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
         """)
+        if "channel_id" not in {row[1] for row in self.db.execute("PRAGMA table_info(jobs)")}:
+            with self.db:
+                self.db.execute(f"ALTER TABLE jobs ADD COLUMN channel_id TEXT NOT NULL DEFAULT '{CHANNEL_ID}'")
 
-    def cursor(self):
-        row = self.db.execute("SELECT value FROM metadata WHERE key='cursor'").fetchone()
+    def cursor(self, channel_id=CHANNEL_ID):
+        key = "cursor" if channel_id == CHANNEL_ID else "cursor:" + channel_id
+        row = self.db.execute("SELECT value FROM metadata WHERE key=?", (key,)).fetchone()
         return row[0] if row else None
 
-    def ingest(self, messages: list[dict], cursor: str):
+    def ingest(self, messages: list[dict], cursor: str, channel_id=CHANNEL_ID):
+        key = "cursor" if channel_id == CHANNEL_ID else "cursor:" + channel_id
         with self.db:
             for message in messages:
-                if candidate(message):
-                    self.db.execute("INSERT OR IGNORE INTO jobs(id,payload) VALUES (?,?)", (message["id"], json.dumps(message)))
-            self.db.execute("INSERT INTO metadata(key,value) VALUES ('cursor',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (cursor,))
+                if candidate(message, channel_id):
+                    payload = {**message, "channel_id": channel_id}
+                    self.db.execute("INSERT OR IGNORE INTO jobs(id,payload,channel_id) VALUES (?,?,?)", (message["id"], json.dumps(payload), channel_id))
+            self.db.execute("INSERT INTO metadata(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key, cursor))
 
-    def claim(self):
+    def claim(self, channel_id=CHANNEL_ID):
         # Atomic claim prevents concurrent workers posting the same job.
         with self.db:
             self.db.execute("BEGIN IMMEDIATE")
-            row = self.db.execute("SELECT * FROM jobs WHERE status='pending' ORDER BY length(id),id LIMIT 1").fetchone()
+            row = self.db.execute("SELECT * FROM jobs WHERE status='pending' AND channel_id=? ORDER BY length(id),id LIMIT 1", (channel_id,)).fetchone()
             if row:
                 self.db.execute("UPDATE jobs SET status='sending' WHERE id=?", (row["id"],))
         return row
@@ -239,38 +287,39 @@ class Store:
         with self.db:
             self.db.execute("UPDATE jobs SET status=?,post_id=?,error=? WHERE id=?", (status, post_id, error, message_id))
 
-    def problems(self):
-        return self.db.execute("SELECT id,status,error FROM jobs WHERE status IN ('blocked','uncertain','sending')").fetchall()
+    def problems(self, channel_id=None):
+        sql = "SELECT id,status,error FROM jobs WHERE status IN ('blocked','uncertain','sending')"
+        return self.db.execute(sql + (" AND channel_id=?" if channel_id else ""), (channel_id,) if channel_id else ()).fetchall()
 
 
-def poll(discord: Discord, store: Store):
-    cursor = store.cursor()
+def poll(discord: Discord, store: Store, channel_id=CHANNEL_ID):
+    cursor = store.cursor(channel_id)
     if cursor is None:
-        page = discord.newest()
+        page = discord.newest(channel_id)
         # Snowflake based on current time also handles an empty channel safely.
         cursor = page[0]["id"] if page else str((int(time.time() * 1000) - 1420070400000) << 22)
-        store.ingest([], cursor)
-        LOG.info("Initialized at newest message; historical plays will not be posted")
+        store.ingest([], cursor, channel_id)
+        LOG.info("Initialized channel %s at newest message; historical plays will not be posted", channel_id)
         return
-    messages = discord.since(cursor)
+    messages = discord.since(cursor, channel_id)
     if messages:
-        store.ingest(messages, messages[-1]["id"])
+        store.ingest(messages, messages[-1]["id"], channel_id)
 
 
-def deliver(store: Store, x: X):
-    if store.problems():
+def deliver(store: Store, x: X, channel_id=CHANNEL_ID):
+    if store.problems(channel_id):
         raise RelayError("Delivery paused: a blocked/uncertain/in-flight job needs manual review")
-    while row := store.claim():
+    while row := store.claim(channel_id):
         try:
             message = json.loads(row["payload"])
-            text = format_text(message.get("content", ""))
+            text = format_message(message)
             if not text:
                 store.finish(row["id"], "skipped", error="No play text after cleaning")
                 continue
             attachments = image_attachments(message)
             # Refresh expiring attachment URLs without changing the captured play text.
             if attachments and hasattr(x, "discord"):
-                fresh = x.discord.get(f"/channels/{CHANNEL_ID}/messages/{row['id']}")
+                fresh = x.discord.get(f"/channels/{channel_id}/messages/{row['id']}")
                 by_id = {a["id"]: a for a in fresh.get("attachments", [])}
                 attachments = [by_id[a["id"]] for a in attachments]
                 image_attachments({"attachments": attachments})
@@ -292,6 +341,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=["preview", "check", "run", "status"])
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env.local")
+    parser.add_argument("--channel", choices=["free-plays", "icon-wins"], default="free-plays")
     args = parser.parse_args()
     load_dotenv(args.env_file)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", filename=os.getenv("RELAY_LOG_PATH") or None, encoding="utf-8")
@@ -304,14 +354,17 @@ def main():
     if not os.getenv("FREE_PLAY_DISCORD_BOT_TOKEN"):
         raise RelayError("Missing FREE_PLAY_DISCORD_BOT_TOKEN")
     discord = Discord(os.environ["FREE_PLAY_DISCORD_BOT_TOKEN"])
-    discord.validate_channel()
+    channel_id = WINS_CHANNEL_ID if args.channel == "icon-wins" else CHANNEL_ID
+    channels = [CHANNEL_ID] + ([WINS_CHANNEL_ID] if os.getenv("RELAY_ICON_WINS_ENABLED", "false").lower() == "true" else [])
+    for configured_channel in set(channels + [channel_id]):
+        discord.validate_channel(configured_channel)
     if args.command == "preview":
-        for message in discord.get(f"/channels/{CHANNEL_ID}/messages", limit=50):
-            if candidate(message):
-                print(format_text(message["content"]))
+        for message in discord.get(f"/channels/{channel_id}/messages", limit=50):
+            if candidate(message, channel_id):
+                print(format_message({**message, "channel_id": channel_id}))
                 print(f"\nImages: {len(image_attachments(message))}; no post sent")
                 return
-        raise RelayError("No free-play message found; check Message Content Intent")
+        raise RelayError("No qualifying message found; check channel, author and Message Content Intent")
     x = X()
     x.discord = discord
     x.verify_account()
@@ -323,11 +376,12 @@ def main():
     store = Store(state_path)
     interval = max(15, int(os.getenv("RELAY_POLL_SECONDS", "30")))
     while True:
-        try:
-            poll(discord, store)
-            deliver(store, x)
-        except (RelayError, requests.RequestException):
-            LOG.error("Relay check failed; run status and check credentials/credits. No automatic retry of failed posts.")
+        for configured_channel in channels:
+            try:
+                poll(discord, store, configured_channel)
+                deliver(store, x, configured_channel)
+            except (RelayError, requests.RequestException):
+                LOG.error("Channel %s check failed; run status and check credentials/credits. No automatic retry of failed posts.", configured_channel)
         time.sleep(interval)
 
 

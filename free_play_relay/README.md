@@ -4,6 +4,26 @@ Dedicated worker for IconBets channel `1464472206334496829` in server
 `1255342800258596898`, publishing to `@TheBakerr_` with `@OddsJam`.
 It does not change the IconLabs web app, deploy manifest, or existing bots.
 
+Optional Icon Wins support watches channel `1473901847009034383` in the same
+server. Enable it with `RELAY_ICON_WINS_ENABLED=true`. Only `_thebakerr`'s
+Discord author ID `1288282611034226709` and `CASH ... PLAY POSTED IN VIP`
+headings qualify. Other authors, chatter, and wins for the Free Plays channel
+are skipped. The owner will quote winning free-play tweets manually; no automatic
+quote-posting or replies are enabled.
+
+VIP win tweets use the platform name and approved emoji, 📈, the source's exact
+listed payout, the original promotional text/code, and the cashed-slip image.
+Markdown links become their label text, the orphaned 🔗 becomes 👇 on the BAKER25
+promotion, and `@OddsJam` appears once at the end. One blank line separates each
+text line. Missing/ambiguous payout amounts or missing cashed-slip attachments
+pause that channel for review. This preserves the message's listed payout; it
+does not perform OCR to compare the image against that text.
+
+Each channel has an independent cursor and queue. The original `cursor` key and
+legacy jobs remain assigned to Free Plays during the schema migration. First
+activation of Icon Wins starts at its newest message, leaving existing wins
+unpublished. A blocked win does not block Free Plays delivery.
+
 ## Output
 
 New ordinary/reply messages containing `free play` (case insensitive) qualify,
@@ -54,6 +74,7 @@ From the repository root:
 
 ```
 python -m free_play_relay.relay preview
+python -m free_play_relay.relay preview --channel icon-wins
 python -m free_play_relay.relay check
 python -m free_play_relay.relay status
 ```

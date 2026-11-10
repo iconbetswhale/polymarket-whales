@@ -5,8 +5,96 @@ import pytest
 
 from free_play_relay.relay import (
     AmbiguousPost, Discord, RelayError, Store, X, candidate, deliver,
+    CHANNEL_ID, WINS_CHANNEL_ID, WINS_AUTHOR_ID, format_message,
     format_text, image_attachments, poll, validate_text,
 )
+
+
+def win(message_id="20", platform="underdog", payout="3.5", **overrides):
+    return {"id": message_id, "channel_id": WINS_CHANNEL_ID, "type": 0,
+            "author": {"id": WINS_AUTHOR_ID},
+            "content": f'**CASH THE <@&1473834953996505189> <:{platform}:123> PLAY POSTED IN VIP**🐶\n\n✅ {payout}X PAYOUT💰\n\n[**GET 25% OFF VIP DFS/SPORTSBOOK/EXCHANGE PLAYS WITH CODE “BAKER25” **](https://example.com/join) 🔗\n\n@everyone',
+            "attachments": [{"id": "image1", "content_type": "image/png", "size": 100, "url": "https://cdn.discordapp.com/test.png"}], **overrides}
+
+
+@pytest.mark.parametrize("platform,symbol", [("sleeper", "💤"), ("prizepicks", "🟣"), ("dabble", "🟣"), ("underdog", "🐶"), ("chalkboard", "⚪")])
+@pytest.mark.parametrize("payout", ["3.5", "10", "3.25"])
+def test_vip_win_format_and_actual_payout(platform, symbol, payout):
+    text = format_message(win(platform=platform, payout=payout))
+    assert text == f'CASH THE {platform.upper()} PLAY POSTED IN VIP{symbol}📈\n\n✅ {payout}X PAYOUT💰\n\nGET 25% OFF VIP DFS/SPORTSBOOK/EXCHANGE PLAYS WITH CODE “BAKER25”👇\n\n@OddsJam'
+
+
+def test_vip_wins_only_from_baker_and_not_free_play_wins():
+    assert candidate(win())
+    assert not candidate(win(author={"id": "another-person"}))
+    assert not candidate(win(content=win()["content"].replace("IN VIP", f"IN <#{CHANNEL_ID}>")))
+    assert not candidate(win(content=win()["content"].replace("IN VIP", "IN FREE PLAYS")))
+    assert not candidate(win(content="Nice hit!"))
+    assert not candidate(win(type=6))
+
+
+def test_win_requires_unambiguous_payout_and_image():
+    with pytest.raises(RelayError):
+        format_message(win(content=win()["content"].replace("3.5X PAYOUT", "PAYOUT")))
+    with pytest.raises(RelayError):
+        format_message(win(content=win()["content"] + "\n10X PAYOUT"))
+    with pytest.raises(RelayError):
+        format_message(win(attachments=[]))
+
+
+def test_independent_channel_cursors_and_history_skip(tmp_path):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([], "10")
+    discord = Mock()
+    discord.newest.return_value = [win()]
+    poll(discord, store, WINS_CHANNEL_ID)
+    assert store.cursor() == "10"
+    assert store.cursor(WINS_CHANNEL_ID) == "20"
+    assert store.claim(WINS_CHANNEL_ID) is None
+    store.ingest([win("21")], "21", WINS_CHANNEL_ID)
+    assert store.claim() is None
+    assert store.claim(WINS_CHANNEL_ID)["id"] == "21"
+
+
+def test_wins_failure_does_not_block_free_play_delivery(tmp_path):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([win()], "20", WINS_CHANNEL_ID)
+    assert store.claim(WINS_CHANNEL_ID)
+    store.finish("20", "blocked", error="manual review")
+    store.ingest([play()], "10")
+    x = Mock(spec=["post", "upload"])
+    x.post.return_value = "1234"
+    deliver(store, x)
+    assert store.problems(WINS_CHANNEL_ID)
+    assert not store.problems(CHANNEL_ID)
+    x.post.assert_called_once()
+
+
+def test_win_delivery_refreshes_attachment_from_wins_channel(tmp_path):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([win()], "20", WINS_CHANNEL_ID)
+    x = Mock(spec=["post", "upload", "discord"])
+    x.discord.get.return_value = win()
+    x.upload.return_value = "image-id"
+    x.post.return_value = "tweet-id"
+    deliver(store, x, WINS_CHANNEL_ID)
+    x.discord.get.assert_called_once_with(f"/channels/{WINS_CHANNEL_ID}/messages/20")
+    x.post.assert_called_once_with(format_message(win()), ["image-id"])
+    assert store.db.execute("SELECT status,post_id FROM jobs WHERE id='20'").fetchone()[:] == ("sent", "tweet-id")
+
+
+def test_old_database_migration_retains_cursor_and_jobs(tmp_path):
+    import sqlite3
+    path = tmp_path / "state.sqlite3"
+    db = sqlite3.connect(path)
+    db.executescript("CREATE TABLE metadata(key TEXT PRIMARY KEY,value TEXT NOT NULL); INSERT INTO metadata VALUES('cursor','99'); CREATE TABLE jobs(id TEXT PRIMARY KEY,payload TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'pending',post_id TEXT,error TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP);")
+    db.execute("INSERT INTO jobs(id,payload) VALUES (?,?)", ("10", json.dumps(play())))
+    db.commit()
+    db.close()
+    store = Store(path)
+    assert store.cursor() == "99"
+    assert store.cursor(WINS_CHANNEL_ID) is None
+    assert store.claim()["channel_id"] == CHANNEL_ID
 
 
 def play(message_id="10", **overrides):
