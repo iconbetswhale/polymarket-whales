@@ -36,6 +36,11 @@ def test_links_only_are_not_posted():
     assert format_text("Tail the play here 👇\nhttps://example.com\n@everyone") == ""
 
 
+@pytest.mark.parametrize("instruction", ["Get your entry in 👇", "Lock in your picks👇", "[LINK](https://example.com)", "Go get it for FREE ⏬"])
+def test_platform_link_instructions_removed(instruction):
+    assert format_text("FREE PLAY\n\n" + instruction + "\nhttps://example.com\n\nLet’s get this money 💸🔒") == "FREE PLAY\n\nLet’s get this money 💸🔒\n\n@OddsJam"
+
+
 def test_length_and_url_guards():
     with pytest.raises(RelayError):
         validate_text("FREE PLAY https://example.com")

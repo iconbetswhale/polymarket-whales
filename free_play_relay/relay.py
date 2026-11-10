@@ -55,7 +55,7 @@ def format_text(content: str) -> str:
         line = raw.strip().strip("<>").strip()
         line = re.sub(r"^#{1,3}\s+|^>\s?", "", line)
         # These were directions to the removed link, not part of the play itself.
-        if re.fullmatch(r"(?:tail(?:\s+the\s+play)?(?:\s+(?:it|here|below))*(?:\s+here)?|(?:click|tap|link)\s+(?:here|below))\s*[👇⬇️:! .]*", line, re.I):
+        if re.fullmatch(r"(?:tail(?:\s+the\s+play)?(?:\s+(?:it|here|below))*(?:\s+here)?|(?:click|tap|link)\s+(?:here|below)|get\s+your\s+entry\s+in|lock\s+in\s+your\s+picks|link|go\s+get\s+it\s+for\s+free)\s*[👇⬇⏬️:! .]*", line, re.I):
             continue
         if not line or re.fullmatch(r"[👇⬇️<>\s]+", line):
             if lines and lines[-1] != "":
