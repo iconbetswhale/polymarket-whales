@@ -289,7 +289,7 @@ def main():
     parser.add_argument("--env-file", type=Path, default=ROOT / ".env.local")
     args = parser.parse_args()
     load_dotenv(args.env_file)
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s", filename=os.getenv("RELAY_LOG_PATH") or None, encoding="utf-8")
     state_path = Path(os.getenv("RELAY_STATE_PATH", str(ROOT / ".local-free-play-relay.sqlite3")))
     if args.command == "status":
         store = Store(state_path)

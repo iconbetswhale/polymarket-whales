@@ -32,6 +32,7 @@ X_ACCESS_TOKEN_SECRET=...
 RELAY_POSTING_ENABLED=false
 RELAY_POLL_SECONDS=30
 RELAY_STATE_PATH=/persistent/path/free-play-relay.sqlite3
+RELAY_LOG_PATH=/persistent/path/free-play-relay.log
 ```
 
 The dedicated Discord bot needs Message Content Intent enabled, and View Channel
@@ -68,7 +69,12 @@ Subsequent polls queue every new qualifying play, including across restarts.
 Polling is 30 seconds by default. Keep the worker running on an awake computer or
 an always-on worker host with a persistent state file. Local execution stops when
 the computer sleeps, signs out or shuts down. This repository does not provision
-hosting, change startup settings, or create a paid service automatically.
+hosting or create a paid service automatically. On Windows, a current-user Task
+Scheduler logon task can launch `pythonw.exe -m free_play_relay.relay run` with the
+repository root as its working directory. Set `RELAY_LOG_PATH` for a background
+worker; its output otherwise has no visible console. Configure the task to allow
+battery operation, have no execution time limit, and restart on failure. It runs
+only while that user is signed in; this is not cloud hosting.
 
 ## Delivery and recovery
 
