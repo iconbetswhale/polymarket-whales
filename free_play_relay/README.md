@@ -115,6 +115,13 @@ There is no automatic resend of a potentially accepted post. Exact-once delivery
 cannot be guaranteed across an external X request and a local database commit.
 
 Inspect status without opening secrets: `python -m free_play_relay.relay status`.
+Failures retain their processing stage (formatting, attachment refresh, image
+upload, or tweet publication) and X's HTTP error details. Diagnostic messages
+redact configured credentials and URLs; network exceptions retain only their
+exception type. An already blocked channel reports that saved reason rather
+than replacing it with a generic error. Never infer that publishing works solely
+from account verification or successful media upload; the first real post must
+also succeed.
 If a post already exists, record its X ID and mark the job `sent`. If a definitive
 failure occurred before posting, mark it `pending` only after resolving the cause.
 Do not blindly reset `sending` or `uncertain` jobs. Attachment URLs are refreshed

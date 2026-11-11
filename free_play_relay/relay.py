@@ -39,6 +39,34 @@ class AmbiguousPost(RelayError):
     """X might have accepted a post; never automatically retry it."""
 
 
+def safe_error(exc: Exception) -> str:
+    if isinstance(exc, requests.RequestException):
+        return f"Network failure ({type(exc).__name__})"
+    text = str(exc)
+    for key, value in os.environ.items():
+        if value and len(value) > 6 and any(word in key.upper() for word in ("SECRET", "TOKEN", "API_KEY")):
+            text = text.replace(value, "[redacted]")
+    text = re.sub(r"https?://\S+", "[URL]", text)
+    return " ".join(text.split())[:600]
+
+
+def api_failure(response, operation: str) -> RelayError:
+    details = []
+    try:
+        body = response.json()
+        if isinstance(body, dict):
+            for key in ("title", "detail"):
+                if isinstance(body.get(key), str):
+                    details.append(body[key])
+            for item in body.get("errors", []):
+                if isinstance(item, dict) and isinstance(item.get("message"), str):
+                    details.append(item["message"])
+    except (ValueError, TypeError):
+        pass
+    error = RelayError(f"{operation} HTTP {response.status_code}" + (": " + "; ".join(details) if details else ""))
+    return RelayError(safe_error(error))
+
+
 def format_text(content: str) -> str:
     def emoji(match):
         name = match[1].lower()
@@ -201,7 +229,7 @@ class X:
     def verify_account(self):
         response = self.session.get("https://api.x.com/2/users/me", timeout=30)
         if not response.ok:
-            raise RelayError(f"X account verification HTTP {response.status_code}")
+            raise api_failure(response, "X account verification")
         if response.json().get("data", {}).get("username", "").lower() != EXPECTED_USER.lower():
             raise RelayError("X credentials are for the wrong account")
 
@@ -220,7 +248,7 @@ class X:
                     raise RelayError("Downloaded image exceeds 5 MB")
         response = self.session.post("https://api.x.com/2/media/upload", json={"media": base64.b64encode(data).decode("ascii"), "media_category": "tweet_image", "media_type": attachment["content_type"]}, timeout=60)
         if not response.ok:
-            raise RelayError(f"X media upload HTTP {response.status_code}")
+            raise api_failure(response, "X media upload")
         media_id = response.json().get("data", {}).get("id")
         if not media_id:
             raise RelayError("X media upload returned no ID")
@@ -238,7 +266,7 @@ class X:
         if response.status_code >= 500:
             raise AmbiguousPost("X server error: inspect the timeline before any retry")
         if not response.ok:
-            raise RelayError(f"X create post HTTP {response.status_code}")
+            raise api_failure(response, "X create post")
         try:
             post_id = response.json()["data"]["id"]
         except (ValueError, KeyError, TypeError):
@@ -307,9 +335,12 @@ def poll(discord: Discord, store: Store, channel_id=CHANNEL_ID):
 
 
 def deliver(store: Store, x: X, channel_id=CHANNEL_ID):
-    if store.problems(channel_id):
-        raise RelayError("Delivery paused: a blocked/uncertain/in-flight job needs manual review")
+    problems = store.problems(channel_id)
+    if problems:
+        first = problems[0]
+        raise RelayError(f"Delivery paused at {first['id']} ({first['status']}): {first['error'] or 'outcome requires review'}")
     while row := store.claim(channel_id):
+        stage = "formatting"
         try:
             message = json.loads(row["payload"])
             text = format_message(message)
@@ -319,20 +350,25 @@ def deliver(store: Store, x: X, channel_id=CHANNEL_ID):
             attachments = image_attachments(message)
             # Refresh expiring attachment URLs without changing the captured play text.
             if attachments and hasattr(x, "discord"):
+                stage = "refreshing attachments"
                 fresh = x.discord.get(f"/channels/{channel_id}/messages/{row['id']}")
                 by_id = {a["id"]: a for a in fresh.get("attachments", [])}
                 attachments = [by_id[a["id"]] for a in attachments]
                 image_attachments({"attachments": attachments})
+            stage = "uploading images"
             media_ids = [x.upload(a) for a in attachments]
+            stage = "publishing tweet"
             post_id = x.post(text, media_ids)
             store.finish(row["id"], "sent", post_id=post_id)
             LOG.info("Posted Discord message %s as X post %s", row["id"], post_id)
         except AmbiguousPost as exc:
-            store.finish(row["id"], "uncertain", error=str(exc))
+            store.finish(row["id"], "uncertain", error=f"{stage}: {safe_error(exc)}")
             raise
-        except (RelayError, requests.RequestException, ValueError, KeyError):
-            store.finish(row["id"], "blocked", error="Delivery failed; check credentials, credits, attachments and text")
-            raise RelayError("Delivery paused; inspect status before retrying") from None
+        except (RelayError, requests.RequestException, ValueError, KeyError) as exc:
+            detail = f"{stage}: {safe_error(exc) if isinstance(exc, (RelayError, requests.RequestException)) else type(exc).__name__}"
+            store.finish(row["id"], "blocked", error=detail)
+            LOG.error("Discord message %s failed during %s", row["id"], detail)
+            raise RelayError(detail) from None
 
 
 def main():
@@ -380,8 +416,8 @@ def main():
             try:
                 poll(discord, store, configured_channel)
                 deliver(store, x, configured_channel)
-            except (RelayError, requests.RequestException):
-                LOG.error("Channel %s check failed; run status and check credentials/credits. No automatic retry of failed posts.", configured_channel)
+            except (RelayError, requests.RequestException) as exc:
+                LOG.error("Channel %s check failed: %s. No automatic retry of failed posts.", configured_channel, safe_error(exc))
         time.sleep(interval)
 
 

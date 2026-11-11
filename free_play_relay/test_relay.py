@@ -6,7 +6,7 @@ import pytest
 from free_play_relay.relay import (
     AmbiguousPost, Discord, RelayError, Store, X, candidate, deliver,
     CHANNEL_ID, WINS_CHANNEL_ID, WINS_AUTHOR_ID, format_message,
-    format_text, image_attachments, poll, validate_text,
+    api_failure, safe_error, format_text, image_attachments, poll, validate_text,
 )
 
 
@@ -208,6 +208,34 @@ def test_failed_upload_does_not_post_text_alone(tmp_path):
     with pytest.raises(RelayError):
         deliver(store, x)
     x.post.assert_not_called()
+    assert store.problems()[0]["error"] == "uploading images: upload failed"
+
+
+def test_publishing_failure_retains_api_diagnostic(tmp_path):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([play()], "10")
+    x = Mock(spec=["post", "upload"])
+    response = Mock(status_code=403)
+    response.json.return_value = {"title": "Forbidden", "detail": "Publishing access is restricted"}
+    x.post.side_effect = api_failure(response, "X create post")
+    with pytest.raises(RelayError, match="publishing tweet: X create post HTTP 403"):
+        deliver(store, x)
+    assert "Publishing access is restricted" in store.problems()[0]["error"]
+    with pytest.raises(RelayError, match="Publishing access is restricted"):
+        deliver(store, x)
+    x.post.assert_called_once()
+
+
+def test_api_diagnostics_redact_credentials_and_signed_urls(monkeypatch):
+    monkeypatch.setenv("X_ACCESS_TOKEN", "private-token-value")
+    response = Mock(status_code=401)
+    response.json.return_value = {"detail": "Denied private-token-value https://example.com/image?secret=value", "errors": [{"message": "Token rejected"}]}
+    error = str(api_failure(response, "X media upload"))
+    assert "Token rejected" in error
+    assert "private-token-value" not in error
+    assert "secret=value" not in error
+    import requests
+    assert safe_error(requests.Timeout("https://example.com/private-token-value")) == "Network failure (Timeout)"
 
 
 def test_pagination_catches_more_than_100(tmp_path):
