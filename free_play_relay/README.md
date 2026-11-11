@@ -111,6 +111,10 @@ success response leaves an `uncertain` job. A worker crash after claim leaves
 `sending`. These states pause further deliveries until someone checks the X
 timeline and updates that job deliberately. A definite delivery failure leaves
 `blocked`; fix credentials, credits, text, or media, then deliberately requeue.
+Temporary pre-publication network failures, image upload server errors, and
+explicit HTTP 429 rejections stay pending and retry on the next poll. They do
+not permanently block the channel. A publish-time timeout or X create-post
+server error remains uncertain and is never automatically retried.
 There is no automatic resend of a potentially accepted post. Exact-once delivery
 cannot be guaranteed across an external X request and a local database commit.
 

@@ -2,9 +2,10 @@ import json
 from unittest.mock import Mock
 
 import pytest
+import requests
 
 from free_play_relay.relay import (
-    AmbiguousPost, Discord, RelayError, Store, X, candidate, deliver,
+    AmbiguousPost, RetryableDelivery, Discord, RelayError, Store, X, candidate, deliver,
     CHANNEL_ID, WINS_CHANNEL_ID, WINS_AUTHOR_ID, format_message,
     api_failure, safe_error, format_text, image_attachments, poll, validate_text,
 )
@@ -236,6 +237,36 @@ def test_api_diagnostics_redact_credentials_and_signed_urls(monkeypatch):
     assert "secret=value" not in error
     import requests
     assert safe_error(requests.Timeout("https://example.com/private-token-value")) == "Network failure (Timeout)"
+
+
+@pytest.mark.parametrize("failure", [RetryableDelivery("X media upload HTTP 503"), requests.Timeout()])
+def test_temporary_upload_failure_retries_without_stalling_queue(tmp_path, failure):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([play(attachments=win()["attachments"])], "10")
+    x = Mock(spec=["post", "upload"])
+    x.upload.side_effect = [failure, "image-id"]
+    x.post.return_value = "tweet-id"
+    deliver(store, x)
+    assert store.db.execute("SELECT status FROM jobs").fetchone()[0] == "pending"
+    assert not store.problems()
+    x.post.assert_not_called()
+    deliver(store, x)
+    x.post.assert_called_once()
+
+
+def test_explicit_x_rate_limit_retries_on_next_poll(tmp_path):
+    store = Store(tmp_path / "state.sqlite3")
+    store.ingest([play()], "10")
+    x = Mock(spec=["post", "upload"])
+    response = Mock(status_code=429)
+    response.json.return_value = {"detail": "Rate limit exceeded"}
+    x.post.side_effect = [api_failure(response, "X create post"), "tweet-id"]
+    deliver(store, x)
+    assert not store.problems()
+    assert x.post.call_count == 1
+    deliver(store, x)
+    assert x.post.call_count == 2
+    assert store.db.execute("SELECT status FROM jobs").fetchone()[0] == "sent"
 
 
 def test_pagination_catches_more_than_100(tmp_path):

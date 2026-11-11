@@ -39,6 +39,10 @@ class AmbiguousPost(RelayError):
     """X might have accepted a post; never automatically retry it."""
 
 
+class RetryableDelivery(RelayError):
+    """A temporary failure that definitely did not publish a tweet."""
+
+
 def safe_error(exc: Exception) -> str:
     if isinstance(exc, requests.RequestException):
         return f"Network failure ({type(exc).__name__})"
@@ -64,7 +68,8 @@ def api_failure(response, operation: str) -> RelayError:
     except (ValueError, TypeError):
         pass
     error = RelayError(f"{operation} HTTP {response.status_code}" + (": " + "; ".join(details) if details else ""))
-    return RelayError(safe_error(error))
+    error_type = RetryableDelivery if response.status_code == 429 or (response.status_code >= 500 and operation != "X create post") else RelayError
+    return error_type(safe_error(error))
 
 
 def format_text(content: str) -> str:
@@ -186,7 +191,9 @@ class Discord:
     def get(self, path: str, **params):
         response = self.session.get("https://discord.com/api/v10" + path, params=params, timeout=30)
         if response.status_code == 429:
-            raise RelayError("Discord rate limited; will retry next poll")
+            raise RetryableDelivery("Discord rate limited; will retry next poll")
+        if response.status_code >= 500:
+            raise RetryableDelivery(f"Discord HTTP {response.status_code}; will retry next poll")
         if not response.ok:
             raise RelayError(f"Discord HTTP {response.status_code}")
         return response.json()
@@ -239,6 +246,8 @@ class X:
             raise RelayError("Untrusted image host")
         # Never send the Discord bot token or X credentials to an image URL.
         with requests.get(url, timeout=30, stream=True, allow_redirects=False) as response:
+            if response.status_code == 429 or response.status_code >= 500:
+                raise RetryableDelivery(f"Image download HTTP {response.status_code}")
             if not response.ok or response.is_redirect:
                 raise RelayError(f"Image download HTTP {response.status_code}")
             data = bytearray()
@@ -364,7 +373,22 @@ def deliver(store: Store, x: X, channel_id=CHANNEL_ID):
         except AmbiguousPost as exc:
             store.finish(row["id"], "uncertain", error=f"{stage}: {safe_error(exc)}")
             raise
-        except (RelayError, requests.RequestException, ValueError, KeyError) as exc:
+        except RetryableDelivery as exc:
+            detail = f"{stage}: {safe_error(exc)}"
+            store.finish(row["id"], "pending", error=detail)
+            LOG.warning("Discord message %s will retry next poll: %s", row["id"], detail)
+            return
+        except requests.RequestException as exc:
+            # Only failures before publication are safe to retry. X.post normally
+            # wraps publish-time network failures as AmbiguousPost above.
+            detail = f"{stage}: {safe_error(exc)}"
+            status = "uncertain" if stage == "publishing tweet" else "pending"
+            store.finish(row["id"], status, error=detail)
+            LOG.warning("Discord message %s %s: %s", row["id"], status, detail)
+            if status == "uncertain":
+                raise AmbiguousPost(detail) from None
+            return
+        except (RelayError, ValueError, KeyError) as exc:
             detail = f"{stage}: {safe_error(exc) if isinstance(exc, (RelayError, requests.RequestException)) else type(exc).__name__}"
             store.finish(row["id"], "blocked", error=detail)
             LOG.error("Discord message %s failed during %s", row["id"], detail)
